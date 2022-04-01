@@ -266,7 +266,6 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
   bool isVerboseLine = false;
   char *tbuf = ctx->tbuf;
   bool verbose = ctx->verbose;
-  int32_t filterLen = 0;
   SPhysiNode* pNode = pResNode->pNode;
   if (NULL == pNode) {
     qError("pyhsical node in explain res node is NULL");
@@ -276,7 +275,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
   switch (pNode->type) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
       STagScanPhysiNode *pTagScanNode = (STagScanPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_TAG_SCAN_FORMAT, pTagScanNode->tableName.tname, pTagScanNode->pScanCols->length);
+      EXPLAIN_ROW_NEW(level, EXPLAIN_TAG_SCAN_FORMAT, pTagScanNode->tableName.tname, pTagScanNode->pScanCols->length, pTagScanNode->node.pOutputDataBlockDesc->outputRowSize);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
       }
@@ -297,7 +296,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:{
       STableScanPhysiNode *pTblScanNode = (STableScanPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_TBL_SCAN_FORMAT, pTblScanNode->scan.tableName.tname, pTblScanNode->scan.pScanCols->length);
+      EXPLAIN_ROW_NEW(level, EXPLAIN_TBL_SCAN_FORMAT, pTblScanNode->scan.tableName.tname, pTblScanNode->scan.pScanCols->length, pTblScanNode->scan.node.pOutputDataBlockDesc->outputRowSize);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
       }
@@ -319,8 +318,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         if (pTblScanNode->scan.node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
-          QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->scan.node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -329,7 +327,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:{
       SSystemTableScanPhysiNode *pSTblScanNode = (SSystemTableScanPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_SYSTBL_SCAN_FORMAT, pSTblScanNode->scan.tableName.tname, pSTblScanNode->scan.pScanCols->length);
+      EXPLAIN_ROW_NEW(level, EXPLAIN_SYSTBL_SCAN_FORMAT, pSTblScanNode->scan.tableName.tname, pSTblScanNode->scan.pScanCols->length, pSTblScanNode->scan.node.pOutputDataBlockDesc->outputRowSize);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
       }
@@ -343,7 +341,15 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {            
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pSTblScanNode->scan.order));
         EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));      
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
+
+        if (pSTblScanNode->scan.node.pConditions) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pSTblScanNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+        
       }
       break;
     }
@@ -359,8 +365,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {
         if (pPrjNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pPrjNode->node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pPrjNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -379,15 +384,13 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {
         if (pJoinNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
         
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ON_CONDITIONS_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pOnConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-        tlen += filterLen;
+        QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pOnConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -410,8 +413,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {
         if (pAggNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pAggNode->node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pAggNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -436,8 +438,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {
         if (pExchNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pExchNode->node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pExchNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -458,8 +459,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {
         if (pSortNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pSortNode->node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pSortNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -488,8 +488,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         if (pIntNode->window.node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -508,8 +507,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (verbose) {
         if (pIntNode->window.node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-          QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, &filterLen)); 
-          tlen += filterLen;
+          QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen)); 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }

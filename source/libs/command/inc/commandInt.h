@@ -26,9 +26,9 @@ extern "C" {
 #define EXPLAIN_MAX_GROUP_NUM 100
 
 //newline area
-#define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s columns=%d"
-#define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s columns=%d"
-#define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s columns=%d"
+#define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s columns=%d width=%d"
+#define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s columns=%d width=%d"
+#define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s columns=%d width=%d"
 #define EXPLAIN_PROJECTION_FORMAT "Projection columns=%d width=%d"
 #define EXPLAIN_JOIN_FORMAT "%s between %d tables width=%d"
 #define EXPLAIN_AGG_FORMAT "Aggragate functions=%d"

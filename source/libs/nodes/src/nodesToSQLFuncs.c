@@ -30,18 +30,17 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
   switch (pNode->type) {
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
-      *len = 0;
       if (colNode->dbName[0]) {
-        *len += snprintf(buf, bufSize - *len, "`%s`.", colNode->dbName);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->dbName);
       }
       
       if (colNode->tableAlias[0]) {
-        *len += snprintf(buf, bufSize - *len, "`%s`.", colNode->tableAlias);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableAlias);
       } else if (colNode->tableName[0]) {
-        *len += snprintf(buf, bufSize - *len, "`%s`.", colNode->tableName);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
       }
 
-      *len += snprintf(buf, bufSize - *len, "`%s`", colNode->colName);
+      *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
       
       return TSDB_CODE_SUCCESS;
     }
@@ -53,14 +52,14 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       
-      *len += snprintf(buf, bufSize - *len, "%s", t);
+      *len += snprintf(buf + *len, bufSize - *len, "%s", t);
       taosMemoryFree(t);
       
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
-      *len += snprintf(buf, bufSize - *len, "(");
+      *len += snprintf(buf + *len, bufSize - *len, "(");
       if (pOpNode->pLeft) {
         NODES_ERR_RET(nodesNodeToSQL(pOpNode->pLeft, buf, bufSize, len));
       }
@@ -70,13 +69,13 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       
-      *len += snprintf(buf, bufSize - *len, " %s ", gOperatorStr[pOpNode->opType]);
+      *len += snprintf(buf + *len, bufSize - *len, " %s ", gOperatorStr[pOpNode->opType]);
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQL(pOpNode->pRight, buf, bufSize, len));
       }    
 
-      *len += snprintf(buf, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -85,17 +84,17 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       SNode* node = NULL;
       bool first = true;
       
-      *len += snprintf(buf, bufSize - *len, "(");
+      *len += snprintf(buf + *len, bufSize - *len, "(");
       
       FOREACH(node, pLogicNode->pParameterList) {
         if (!first) {
-          *len += snprintf(buf, bufSize - *len, " %s ", gLogicConditionStr[pLogicNode->condType]);
+          *len += snprintf(buf + *len, bufSize - *len, " %s ", gLogicConditionStr[pLogicNode->condType]);
         }
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;
       }
 
-      *len += snprintf(buf, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -104,17 +103,17 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       SNode* node = NULL;
       bool first = true;
       
-      *len += snprintf(buf, bufSize - *len, "%s(", pFuncNode->functionName);
+      *len += snprintf(buf + *len, bufSize - *len, "%s(", pFuncNode->functionName);
       
       FOREACH(node, pFuncNode->pParameterList) {
         if (!first) {
-          *len += snprintf(buf, bufSize - *len, ", ");
+          *len += snprintf(buf + *len, bufSize - *len, ", ");
         }
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;
       }
 
-      *len += snprintf(buf, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -123,17 +122,17 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       SNode* node = NULL;
       bool first = true;
       
-      *len += snprintf(buf, bufSize - *len, "(");
+      *len += snprintf(buf + *len, bufSize - *len, "(");
       
       FOREACH(node, pListNode->pNodeList) {
         if (!first) {
-          *len += snprintf(buf, bufSize - *len, ", ");
+          *len += snprintf(buf + *len, bufSize - *len, ", ");
         }
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;
       }
       
-      *len += snprintf(buf, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }

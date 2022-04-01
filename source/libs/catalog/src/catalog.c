@@ -2011,7 +2011,9 @@ void* ctgUpdateThreadFunc(void* param) {
   CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
   
   while (true) {
-    tsem_wait(&gCtgMgmt.queue.reqSem);
+    if (tsem_wait(&gCtgMgmt.queue.reqSem)) {
+      qError("ctg tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    }
     
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
       tsem_post(&gCtgMgmt.queue.rspSem);
@@ -2175,10 +2177,15 @@ int32_t catalogInit(SCatalogCfg *cfg) {
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  CTG_ERR_RET(ctgStartUpdateThread());
-
-  tsem_init(&gCtgMgmt.queue.reqSem, 0, 0);
-  tsem_init(&gCtgMgmt.queue.rspSem, 0, 0);
+  if (tsem_init(&gCtgMgmt.queue.reqSem, 0, 0)) {
+    qError("tsem_init failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
+  }
+  
+  if (tsem_init(&gCtgMgmt.queue.rspSem, 0, 0)) {
+    qError("tsem_init failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
+  }
 
   gCtgMgmt.queue.head = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == gCtgMgmt.queue.head) {
@@ -2186,6 +2193,8 @@ int32_t catalogInit(SCatalogCfg *cfg) {
     CTG_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
   gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
+
+  CTG_ERR_RET(ctgStartUpdateThread());
 
   qDebug("catalog initialized, maxDb:%u, maxTbl:%u, dbRentSec:%u, stbRentSec:%u", gCtgMgmt.cfg.maxDBCacheNum, gCtgMgmt.cfg.maxTblCacheNum, gCtgMgmt.cfg.dbRentSec, gCtgMgmt.cfg.stbRentSec);
 
@@ -2718,8 +2727,13 @@ void catalogDestroy(void) {
 
   atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
-  tsem_post(&gCtgMgmt.queue.reqSem);
-  tsem_post(&gCtgMgmt.queue.rspSem);
+  if (tsem_post(&gCtgMgmt.queue.reqSem)) {
+    qError("tsem_post failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+  }
+  
+  if (tsem_post(&gCtgMgmt.queue.rspSem)) {
+    qError("tsem_post failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+  }
 
   while (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
     taosUsleep(1);

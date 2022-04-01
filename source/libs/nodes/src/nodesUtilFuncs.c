@@ -839,12 +839,13 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
-      void *buf = taosMemoryMalloc(varDataLen(pNode->datum.p) + 1);
+      int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
+      void *buf = taosMemoryMalloc(bufSize);
       if (NULL == buf) {
         return NULL;
       }
       
-      strncpy(buf, varDataVal(pNode->datum.p), varDataLen(pNode->datum.p) + 1);
+      snprintf(buf, bufSize, "'%s'", varDataVal(pNode->datum.p));
       return buf;
     }
     default:
