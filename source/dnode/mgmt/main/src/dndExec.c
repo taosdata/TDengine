@@ -45,7 +45,7 @@ int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
 }
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
-  dDebug("node:%s, start to close", pWrapper->name);
+  dDebug("node:%s, mgmt start to close", pWrapper->name);
   pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
@@ -62,7 +62,7 @@ void dndCloseNode(SMgmtWrapper *pWrapper) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
-  dDebug("node:%s, has been closed", pWrapper->name);
+  dDebug("node:%s, mgmt has been closed", pWrapper->name);
 }
 
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
