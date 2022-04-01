@@ -9,7 +9,7 @@ Compared with OpenTSDB, TDengine has the following distinctive features.
 - Performance of data writing and querying far exceeds that of OpenTSDB.
 - Efficient compression mechanism for time-series data, which compresses less than 1/5 of the storage space on disk.
 - The installation and deployment is very simple, a single installation package to complete the installation and deployment, no other third-party software, the entire installation and deployment process in seconds;
-- The built-in functions cover all the query functions supported by OpenTSDB, and also support more time-series data query functions, scalar functions and aggregation functions, and support advanced query functions such as multiple time-window aggregation, join query, expression operation, multiple group aggregation, user-defined sorting, and user-defined functions. Adopting SQL-like syntax rules, it is easier to learn and basically has no learning cost.
+- The built-in functions cover all the query functions supported by OpenTSDB, and also support more time-series data query functions, scalar functions and aggregation functions, and support advanced query functions such as multiple time-window aggregation, join query, expression operation, multiple group aggregation, user-defined sorting, and user-defined functions. Adopting SQL-like syntax rules, it is easier to learn and basically has no learning cost. For OpenTSDB functions, please refer to Appendix 1 in this blog (scroll down to find it); for any other functions supported by TDengine, please refer to the SQL reference guide part in TDengine document on website.
 - Supports up to 128 tags with a total tag length of up to 16 KB.
 - In addition to HTTP, it also provides interfaces to Java, Python, C, Rust, Go, and other languages, and supports a variety of enterprise-class standard connector protocols such as JDBC.
 
@@ -207,7 +207,9 @@ Equivalent function: avg
 
 Example.
 
+```sql
 SELECT avg(val) FROM (SELECT first(val) FROM super_table WHERE ts >= startTime and ts <= endTime INTERVAL(20s) Fill(linear)) INTERVAL(20s)
+```
 
 Notes.
 
@@ -226,7 +228,9 @@ Equivalent function: count
 
 Example.
 
+```sql
 SELECT COUNT(*) FROM super_table_name;
+```
 
 **Dev**
 
@@ -234,7 +238,9 @@ Equivalent function: stddev
 
 Example.
 
+```sql
 SELECT STDDEV(val) FROM table_name
+```
 
 **Estimated percentiles**
 
@@ -242,7 +248,9 @@ Equivalent function: apercentile
 
 Example.
 
+```sql
 SELECT APERCENTILE(col1, 50, “t-digest”) FROM table_name
+```
 
 Remark.
 
@@ -254,7 +262,9 @@ Equivalent function: first
 
 Example.
 
+```sql
 SELECT FIRST(col1) FROM table_name
+```
 
 **Last**
 
@@ -262,7 +272,9 @@ Equivalent function: last
 
 Example.
 
+```sql
 SELECT LAST(col1) FROM table_name
+```
 
 **Max**
 
@@ -270,7 +282,9 @@ Equivalent function: max
 
 Example.
 
+```sql
 SELECT MAX(value) FROM (SELECT FIRST(val) value FROM table_name INTERVAL(10s) FILL(linear)) INTERVAL(10s)
+```
 
 Note: The Max function requires interpolation, for the reasons given above.
 
@@ -280,13 +294,17 @@ Equivalent function: min
 
 Example.
 
+```sql
 SELECT MIN(value) FROM (select first(val) value FROM table_name INTERVAL(10s) FILL(linear)) INTERVAL(10s);
+```
 
 **MinMax**
 
 Equivalent function: max
 
+```sql
 SELECT max(val) FROM table_name
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -294,7 +312,9 @@ Note: This function does not require interpolation, so it can be calculated dire
 
 Equivalent function: min
 
+```sql
 SELECT min(val) FROM table_name
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -308,7 +328,9 @@ Note:
 
 Equivalent function: sum
 
+```sql
 SELECT MAX(value) FROM (SELECT FIRST(val) value FROM table_name INTERVAL(10s) FILL(linear)) INTERVAL(10s)
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -316,7 +338,9 @@ Note: This function does not require interpolation, so it can be calculated dire
 
 Equivalent function: sum
 
+```sql
 SELECT SUM(val) FROM table_name
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -331,8 +355,10 @@ query = {
 "metric":"cpu.usage_user",
 }]
 }
+```
 
 // Equivalent SQL:
+```sql
 SELECT count(*)
 FROM `cpu.usage_user`
 WHERE ts>=1510560000 AND ts<=1515000009

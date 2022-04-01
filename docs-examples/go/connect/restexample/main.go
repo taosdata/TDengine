@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	var taosDSN = "root:taosdata@http(localhost:6041)/test"
+	var taosDSN = "root:taosdata@http(localhost:6041)/"
 	taos, err := sql.Open("taosRestful", taosDSN)
 	if err != nil {
 		fmt.Println("failed to connect TDengine, err:", err)
@@ -17,3 +17,7 @@ func main() {
 	fmt.Println("Connected")
 	defer taos.Close()
 }
+
+// use 
+// var taosDSN = "root:taosdata@http(localhost:6041)/dbName"
+// if you want to connect to a default database.

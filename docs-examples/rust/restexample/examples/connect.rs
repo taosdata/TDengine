@@ -2,18 +2,18 @@ use libtaos::*;
 
 fn taos_connect() -> Result<Taos, Error> {
     TaosCfgBuilder::default()
-        .ip("127.0.0.1")
+        .ip("localhost")
         .user("root")
         .pass("taosdata")
-        .db("log")
+        // .db("log") // remove comment if you want to connect to database log by default.
         .port(6030u16)
         .build()
-        .expect("ToasCfg builder error")
+        .expect("TaosCfg builder error")
         .connect()
 }
 
 fn main() {
     #[allow(unused_variables)]
-    let taos = taos_connect().unwrap();
+    let taos = taos_connect().expect("connect error");
     println!("Connected")
 }

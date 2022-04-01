@@ -4,9 +4,6 @@ sidebar_label: 连续查询
 
 # 连续查询（Continuous Query）
 
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-
 连续查询是 TDengine 定期自动执行的查询，采用滑动窗口的方式进行计算，是一种简化的时间驱动的流式计算。针对库中的表或超级表，TDengine 可提供定期自动执行的连续查询，用户可让 TDengine 推送查询的结果，也可以将结果再写回到 TDengine 中。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window, 参数 interval）大小和每次前向增量时间（forward sliding times, 参数 sliding）。
 
 TDengine 的连续查询采用时间驱动模式，可以直接使用 TAOS SQL 进行定义，不需要额外的操作。使用连续查询，可以方便快捷地按照时间窗口生成结果，从而对原始采集数据进行降采样（down sampling）。用户通过 TAOS SQL 定义连续查询以后，TDengine 自动在最后的一个完整的时间周期末端拉起查询，并将计算获得的结果推送给用户或者写回 TDengine。
@@ -48,7 +45,7 @@ create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s
 
 会自动创建一个名为 `avg_vol` 的新表，然后每隔 30 秒，TDengine 会增量执行 `as` 后面的 SQL 语句，并将查询结果写入这个表中，用户程序后续只要从 `avg_vol` 中查询数据即可。例如：
 
-```mysql
+```sql
 taos> select * from avg_vol;
             ts           |        avg_voltage_    |
 ===================================================
@@ -62,7 +59,7 @@ taos> select * from avg_vol;
 
 此外，TDengine 还支持用户指定连续查询的起止时间。如果不输入开始时间，连续查询将从第一条原始数据所在的时间窗口开始；如果没有输入结束时间，连续查询将永久运行；如果用户指定了结束时间，连续查询在系统时间达到指定的时间以后停止运行。比如使用下面的 SQL 创建的连续查询将运行一小时，之后会自动停止。
 
-```mysql
+```sql
 create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s);
 ```
 
@@ -71,16 +68,3 @@ create table avg_vol as select avg(voltage) from meters where ts > now and ts <=
 ## 管理连续查询
 
 用户可在控制台中通过 `show streams` 命令来查看系统中全部运行的连续查询，并可以通过 `kill stream` 命令杀掉对应的连续查询。后续版本会提供更细粒度和便捷的连续查询管理命令。
-
-## 示例代码
-
-
-<Tabs defaultValue="java">
-  <TabItem label="Java" value="java"></TabItem>
-  <TabItem label="Python" value="Python"></TabItem>
-  <TabItem label="Go" value="go"></TabItem>
-  <TabItem label="C" value="c"></TabItem>
-  <TabItem label="Rust" value="rust"></TabItem>
-  <TabItem label="Node.js" value="nodejs"></TabItem>
-  <TabItem label="C#" value="csharp"></TabItem>
-</Tabs>

@@ -86,7 +86,7 @@ CREATE DATABASE db_name PRECISION 'ns';
         
         4) 更多关于UPDATE参数的用法，请参考[FAQ](https://www.taosdata.com/cn/documentation/faq)。
 
-    3) 数据库名最大长度为33；
+    3) 数据库名最大长度为32；
 
     4) 一条SQL 语句的最大长度为65480个字符；
 
@@ -733,6 +733,8 @@ summary:
 
  >   TBNAME： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名<br>
     \_c0: 表示表（超级表）的第一列
+    \_qstart,\_qstop,\_qduration: 表示查询过滤窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
+    \_wstart,\_wstop,\_wduration: 窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
 
 #### 小技巧
 
@@ -805,7 +807,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **语法**
 
-   WHERE (tag|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+   WHERE (column|tag|tbname) **match/MATCH/nmatch/NMATCH** *regex*
 
    match/MATCH 匹配正则表达式
 
@@ -813,7 +815,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **正则表达式规范**
 
-   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见 [Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)，目前 TDengine 使用的是 glibc 里面的 regex 实现，使用正则表达式进行 match 时是区分大小写的
 
    **正则表达使用示例**
 
@@ -846,7 +848,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **使用限制**
 
-   只能针对表名（即 tbname 筛选）、binary/nchar类型标签值进行正则表达式过滤，不支持普通列的过滤。
+   只能针对表名 (tbname) 以及binary类型的普通列或标签进行正则表达式过滤。
 
    正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效。
 
@@ -1792,6 +1794,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
       该函数可以应用在普通表和超级表上。
 
+      版本2.6.0.x后支持
+
 - **ACOS**
     ```mysql
     SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1809,6 +1813,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
       只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
       该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
 
 - **ATAN**
     ```mysql
@@ -2144,7 +2150,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     说明：
     
       如果输入值为NULL，输出值为NULL。
-      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示从开始往后抽取子串。如果pos为负数，表示从结尾往前抽取字符串。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
       该函数可以应用在普通表和超级表上。
       该函数适用于内层查询和外层查询。
       版本2.6.0.x后支持
@@ -2276,7 +2282,318 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     2022-01-01 08:00:07.000000000 |                     9 |                        2 |
     Query OK, 6 row(s) in set (0.002613s)
      ```
+- **HISTOGRAM**
+    ```mysql
+    SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+    ```
+    功能说明：统计数据按照用户指定区间的分布。
 
+    返回结果数据类型：如归一化参数 normalized 设置为 1，返回结果为双精度浮点类型 DOUBLE，否则为长整形 INT64。
+
+    应用字段：数值型字段。
+
+    适用于：**表、（超级表）**。
+
+    说明：
+    1）从 2.6.0.0 版本开始支持此函数。
+    2）bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+    3）bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+       - "user_input": "[1, 3, 5, 7]" 
+       用户指定 bin 的具体数值。
+       
+       - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
+ 
+       - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
+    4）normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+
+    示例：
+    ```mysql
+     taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+     taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+     taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+    ```
+
+### 时间函数
+
+从 2.6.0.0 版本开始，TDengine查询引擎支持以下时间相关函数：
+
+- **NOW**
+    ```mysql
+    SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+    INSERT INTO tb_name VALUES (NOW(), ...);
+    ```
+    功能说明：返回客户端当前系统时间。
+
+    返回结果数据类型：TIMESTAMP 时间戳类型。
+
+    应用字段：在 WHERE 或 INSERT 语句中使用时只能作用于TIMESTAMP类型的字段。
+
+    适用于：**表、超级表**。
+
+    说明：
+      1）支持时间加减操作，如NOW() + 1s, 支持的时间单位如下：
+         b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+      2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT NOW() FROM meters;
+              now()          |
+    ==========================
+      2022-02-02 02:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT NOW() + 1h FROM meters;
+           now() + 1h         |
+    ==========================
+      2022-02-02 03:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+    
+- **TODAY**
+    ```mysql
+    SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+    INSERT INTO tb_name VALUES (TODAY(), ...);
+    ```
+    功能说明：返回客户端当日零时的系统时间。
+
+    返回结果数据类型：TIMESTAMP 时间戳类型。
+
+    应用字段：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
+
+    适用于：**表、超级表**。
+
+    说明：
+      1）支持时间加减操作，如TODAY() + 1s, 支持的时间单位如下：
+         b(纳秒)，u(微秒)，a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)。
+      2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TODAY() FROM meters;
+             today()          |
+    ==========================
+      2022-02-02 00:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT TODAY() + 1h FROM meters;
+          today() + 1h        |
+    ==========================
+      2022-02-02 01:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+    
+- **TIMEZONE**
+    ```mysql
+    SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：返回客户端当前时区信息。
+
+    返回结果数据类型：BINARY 类型。
+
+    应用字段：无
+
+    适用于：**表、超级表**。
+
+    示例：
+    ```mysql
+    taos> SELECT TIMEZONE() FROM meters;
+               timezone()           |
+    =================================
+     UTC (UTC, +0000)               |
+    Query OK, 1 row(s) in set (0.002093s)
+    ```
+    
+- **TO_ISO8601**
+    ```mysql
+    SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加客户端时区信息。
+
+    返回结果数据类型：BINARY 类型。
+
+    应用字段：UNIX 时间戳常量或是 TIMESTAMP 类型的列
+
+    适用于：**表、超级表**。
+    
+    说明：如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定，如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TO_ISO8601(1643738400) FROM meters;
+       to_iso8601(1643738400)    |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     
+    taos> SELECT TO_ISO8601(ts) FROM meters;
+           to_iso8601(ts)        |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+    ```
+      
+ - **TO_UNIXTIMESTAMP**
+    ```mysql
+    SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：将日期时间格式的字符串转换成为 UNIX 时间戳。
+
+    返回结果数据类型：长整型INT64。
+
+    应用字段：字符串常量或是 BINARY/NCHAR 类型的列。
+
+    适用于：**表、超级表**。
+    
+    说明：
+    1）输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
+    2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+    to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+    ==============================================
+                                   1643767200000 |
+
+     
+    taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+          to_unixtimestamp(col_binary)     |
+    ========================================
+                             1643767200000 |
+                             1643767200000 |
+                             1643767200000 |
+    ```
+    
+ - **TIMETRUNCATE**
+    ```mysql
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：将时间戳按照指定时间单位 time_unit 进行截断。
+
+    返回结果数据类型：TIMESTAMP 时间戳类型。
+
+    应用字段：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+    适用于：**表、超级表**。
+    
+    说明：
+    1）支持的时间单位 time_unit 如下：
+         1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+    2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+      timetruncate(1643738522000, 1h) |
+    ===================================
+          2022-02-02 02:00:00.000     |
+    Query OK, 1 row(s) in set (0.001499s)
+    
+    taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+      timetruncate("2022-02-02 02:02:02", 1h) |
+    ===========================================
+          2022-02-02 02:00:00.000             |
+    Query OK, 1 row(s) in set (0.003903s)
+    
+    taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+      timetruncate(ts, 1h)   |
+    ==========================
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+    Query OK, 3 row(s) in set (0.003903s)
+    ```
+    
+ - **TIMEDIFF**
+    ```mysql
+    SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
+
+    返回结果数据类型：长整型INT64。
+
+    应用字段：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+    适用于：**表、超级表**。
+    
+    说明：
+    1）支持的时间单位 time_unit 如下：
+         1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+    2）如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。  
+
+    示例：
+    ```mysql
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+     timediff(1643738400000, 1643742000000) |
+    =========================================
+                                    3600000 |
+    Query OK, 1 row(s) in set (0.002553s)
+
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+     timediff(1643738400000, 1643742000000, 1h) |
+    =============================================
+                                              1 |
+    Query OK, 1 row(s) in set (0.003726s)
+    
+    taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+     timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+    =============================================================
+                                                              1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    
+    taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+       timediff(ts_col1, ts_col2, 1h) |
+    ===================================
+                                    1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    ```
+    
 ## <a class="anchor" id="aggregation"></a>按窗口切分聚合
 
 TDengine 支持按时间段窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。

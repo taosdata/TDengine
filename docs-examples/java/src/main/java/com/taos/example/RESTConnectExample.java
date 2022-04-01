@@ -8,8 +8,6 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 public class RESTConnectExample {
-
-
     public static void main(String[] args) throws SQLException {
         String jdbcUrl = "jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata";
         Properties connProps = new Properties();
@@ -21,3 +19,7 @@ public class RESTConnectExample {
         conn.close();
     }
 }
+
+// use
+// String jdbcUrl = "jdbc:TAOS-RS://localhost:6041/dbName?user=root&password=taosdata";
+// if you want to connect to a default database.
