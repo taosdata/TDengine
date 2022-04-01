@@ -176,6 +176,7 @@ static SKeyword keywordTable[] = {
     {"USER",          TK_USER},
     {"USERS",         TK_USERS},
     {"USING",         TK_USING},
+    {"VALUE",         TK_VALUE},
     {"VALUES",        TK_VALUES},
     {"VARCHAR",       TK_VARCHAR},
     {"VARIABLES",     TK_VARIABLES},
