@@ -38,7 +38,9 @@ typedef struct SDatabaseOptions {
   int32_t fsyncPeriod;
   int32_t maxRowsPerBlock;
   int32_t minRowsPerBlock;
-  int32_t keep;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
   int32_t precision;
   int32_t quorum;
   int32_t replica;
@@ -76,7 +78,9 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType type;
-  int32_t keep;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
   int32_t ttl;
   char comments[TSDB_STB_COMMENT_LEN];
   SNodeList* pSma;
