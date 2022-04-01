@@ -193,7 +193,7 @@ static SDatabaseOptions* setDbTtl(SAstCreateContext* pCxt, SDatabaseOptions* pOp
 static SDatabaseOptions* setDbWal(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_WAL_LEVEL || val > TSDB_MAX_WAL_LEVEL) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option walLevel: %d, only 1-2 allowed", val);
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option walLevel: %"PRId64", only 1-2 allowed", val);
     pCxt->valid = false;
     return pOptions;
   }
@@ -216,7 +216,7 @@ static SDatabaseOptions* setDbVgroups(SAstCreateContext* pCxt, SDatabaseOptions*
 static SDatabaseOptions* setDbSingleStable(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_SINGLE_STABLE_OPTION || val > TSDB_MAX_DB_SINGLE_STABLE_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option singleStable: %d, only 0-1 allowed", val);
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option singleStable: %"PRId64", only 0-1 allowed", val);
     pCxt->valid = false;
     return pOptions;
   }
@@ -227,7 +227,7 @@ static SDatabaseOptions* setDbSingleStable(SAstCreateContext* pCxt, SDatabaseOpt
 static SDatabaseOptions* setDbStreamMode(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_STREAM_MODE_OPTION || val > TSDB_MAX_DB_STREAM_MODE_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option streamMode: %d, only 0-1 allowed", val);
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option streamMode: %"PRId64", only 0-1 allowed", val);
     pCxt->valid = false;
     return pOptions;
   }
