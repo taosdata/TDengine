@@ -31,8 +31,7 @@ WKC=`pwd`
 echo ${WKC}
 cd ${WKC}/src/connector/TypeScript-REST
 
-ls -al
-
+npm install
 npm run example 
 # npm run test 
 
