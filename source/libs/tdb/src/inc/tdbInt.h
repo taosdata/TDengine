@@ -16,8 +16,6 @@
 #ifndef _TD_TDB_INTERNAL_H_
 #define _TD_TDB_INTERNAL_H_
 
-#include "os.h"
-
 #include "tdb.h"
 
 #ifdef __cplusplus
@@ -90,23 +88,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 
 // dbname
 #define TDB_MAX_DBNAME_LEN 24
-
-// tdb_log
-#define tdbError(var)
-
-#define TERR_A(val, op, flag)  \
-  do {                         \
-    if (((val) = (op)) != 0) { \
-      goto flag;               \
-    }                          \
-  } while (0)
-
-#define TERR_B(val, op, flag)     \
-  do {                            \
-    if (((val) = (op)) == NULL) { \
-      goto flag;                  \
-    }                             \
-  } while (0)
 
 #define TDB_VARIANT_LEN ((int)-1)
 

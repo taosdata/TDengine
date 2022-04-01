@@ -28,10 +28,6 @@ struct STxn {
   void *xArg;
 };
 
-int tdbTxnBegin(TENV *pEnv);
-int tdbTxnCommit(TENV *pEnv);
-int tdbTxnRollback(TENV *pEnv);
-
 #ifdef __cplusplus
 }
 #endif
