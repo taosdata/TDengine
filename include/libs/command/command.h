@@ -15,5 +15,10 @@
 
 #include "cmdnodes.h"
 #include "tmsg.h"
+#include "plannodes.h"
 
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp);
+
+int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp);
+
+

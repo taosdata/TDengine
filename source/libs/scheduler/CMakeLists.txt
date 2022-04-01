@@ -9,7 +9,7 @@ target_include_directories(
 
 target_link_libraries(
         scheduler
-        PUBLIC os util nodes planner qcom common catalog transport
+        PUBLIC os util nodes planner qcom common catalog transport command
 )
 
 if(${BUILD_TEST})

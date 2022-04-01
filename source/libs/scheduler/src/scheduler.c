@@ -19,6 +19,7 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "command.h"
 
 SSchedulerMgmt schMgmt = {0};
 
@@ -2103,6 +2104,7 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  pJob->attr.explainMode = pDag->explainInfo.mode;
   pJob->attr.syncSchedule = syncSchedule;
   pJob->transport = transport;
   pJob->sql = sql;
@@ -2136,18 +2138,23 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
 
   tsem_init(&pJob->rspSem, 0, 0);
 
-  pJob->refId = taosAddRef(schMgmt.jobRef, pJob);
-  if (pJob->refId < 0) {
-    SCH_JOB_ELOG("taosHashPut job failed, error:%s", tstrerror(terrno));
+  int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
+  if (refId < 0) {
+    SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
     SCH_ERR_JRET(terrno);
   }
+
+  if (NULL == schAcquireJob(refId)) {
+    SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
+    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+
+  pJob->refId = refId;
 
   SCH_JOB_DLOG("job refId:%" PRIx64, pJob->refId);
 
   pJob->status = JOB_TASK_STATUS_NOT_START;
   SCH_ERR_JRET(schLaunchJob(pJob));
-
-  schAcquireJob(pJob->refId);
 
   *job = pJob->refId;
 
@@ -2156,6 +2163,54 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
     tsem_wait(&pJob->rspSem);
   }
 
+  SCH_JOB_DLOG("job exec done, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
+
+  schReleaseJob(pJob->refId);
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  schFreeJobImpl(pJob);
+  SCH_RET(code);
+}
+
+int32_t schExecStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
+                              bool syncSchedule) {
+  qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
+
+  int32_t  code = 0;
+  SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
+  if (NULL == pJob) {
+    qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  pJob->sql = sql;
+  pJob->attr.queryJob = true;
+  pJob->attr.explainMode = pDag->explainInfo.mode;
+  pJob->queryId = pDag->queryId;
+  pJob->subPlans = pDag->pSubplans;
+
+  SCH_ERR_JRET(qExecStaticExplain(pDag, (SRetrieveTableRsp **)&pJob->resData));
+
+  int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
+  if (refId < 0) {
+    SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
+    SCH_ERR_JRET(terrno);
+  }
+
+  if (NULL == schAcquireJob(refId)) {
+    SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
+    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+
+  pJob->refId = refId;
+
+  SCH_JOB_DLOG("job refId:%" PRIx64, pJob->refId);
+
+  pJob->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
+  *job = pJob->refId;
   SCH_JOB_DLOG("job exec done, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
 
   schReleaseJob(pJob->refId);
@@ -2216,7 +2271,11 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, true));
+  if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
+    SCH_ERR_RET(schExecStaticExplain(transport, nodeList, pDag, pJob, sql, true));
+  } else {
+    SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, true));
+  }
 
   SSchJob *job = schAcquireJob(*pJob);
 
@@ -2399,10 +2458,14 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
     SCH_JOB_DLOG("job already succeed, status:%s", jobTaskStatusStr(status));
     goto _return;
   } else if (status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-    SCH_ERR_JRET(schFetchFromRemote(pJob));
+    if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
+      SCH_ERR_JRET(schFetchFromRemote(pJob));
+      tsem_wait(&pJob->rspSem);
+    } 
+  } else {
+    SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
-
-  tsem_wait(&pJob->rspSem);
 
   status = SCH_GET_JOB_STATUS(pJob);
 
