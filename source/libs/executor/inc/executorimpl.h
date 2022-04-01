@@ -69,7 +69,7 @@ enum {
 
 typedef struct SResultRowCell {
   uint64_t    groupId;
-  SResultRow* pRow;
+  SResultRowPosition pos;
 } SResultRowCell;
 
 /**
@@ -277,8 +277,6 @@ typedef struct STaskRuntimeEnv {
   char*           keyBuf;               // window key buffer
   // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   char**          prevRow;
-  SResultRowPool* pool;
-
   SArray*         prevResult;  // intermediate result, SArray<SInterResult>
   STSBuf*         pTsBuf;      // timestamp filter list
   STSCursor       cur;
