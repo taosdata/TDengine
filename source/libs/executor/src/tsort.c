@@ -148,7 +148,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
   int32_t start = 0;
 
   if (pHandle->pBuf == NULL) {
-    int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
+    int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, "doAddToBuf", "/tmp");
     dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -212,7 +212,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   } else {
     // multi-pass internal merge sort is required
     if (pHandle->pBuf == NULL) {
-      code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
+      code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, "sortComparInit", "/tmp");
       dBufSetPrintInfo(pHandle->pBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -411,6 +411,7 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
         assert(0);
     }
   }
+  return 0;
 }
 
 static int32_t doInternalMergeSort(SSortHandle* pHandle) {

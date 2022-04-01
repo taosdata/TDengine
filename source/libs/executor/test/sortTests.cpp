@@ -152,23 +152,24 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 
 #if 1
 TEST(testCase, inMem_sort_Test) {
-  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
-  o.col.info.colId = 1;
-  o.col.info.type = TSDB_DATA_TYPE_INT;
-  taosArrayPush(pOrderVal, &o);
-
-  int32_t numOfRows = 1000;
   SBlockOrderInfo oi = {0};
   oi.order = TSDB_ORDER_ASC;
-  oi.colIndex = 0;
+  oi.slotId = 0;
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
   SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4, };
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 1024, 5, NULL, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
-  tsortAddSource(phandle, &numOfRows);
+
+  _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
+  pInfo->startVal = 0;
+  pInfo->pageRows = 100;
+  pInfo->count = 6;
+
+  SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
+  ps->param = pInfo;
+  tsortAddSource(phandle, ps);
 
   int32_t code = tsortOpen(phandle);
   int32_t row = 1;
@@ -180,7 +181,8 @@ TEST(testCase, inMem_sort_Test) {
     }
 
     void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row++, *(int32_t*) v);
+    printf("%d: %d\n", row, *(int32_t*) v);
+    ASSERT_EQ(row++, *(int32_t*) v);
 
   }
   tsortDestroySortHandle(phandle);
@@ -193,13 +195,13 @@ TEST(testCase, external_mem_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 1024, 5, &s, "test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 32, 6, NULL, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
   _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
-  pInfo->startVal = 100000;
-  pInfo->pageRows = 1000;
-  pInfo->count = 50;
+  pInfo->startVal = 0;
+  pInfo->pageRows = 100;
+  pInfo->count = 6;
 
   SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
   ps->param = pInfo;
@@ -216,28 +218,22 @@ TEST(testCase, external_mem_sort_Test) {
     }
 
     void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row++, *(int32_t*) v);
+    printf("%d: %d\n", row, *(int32_t*) v);
+    ASSERT_EQ(row++, *(int32_t*) v);
 
   }
   tsortDestroySortHandle(phandle);
 }
 
 TEST(testCase, ordered_merge_sort_Test) {
-  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
-  o.col.info.colId = 1;
-  o.col.info.type = TSDB_DATA_TYPE_INT;
-  taosArrayPush(pOrderVal, &o);
-
-  int32_t numOfRows = 1000;
   SBlockOrderInfo oi = {0};
   oi.order = TSDB_ORDER_ASC;
-  oi.colIndex = 0;
+  oi.slotId = 0;
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
   SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4};
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_MULTISOURCE_MERGE, 1024, 5, &s, 1,"test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_MULTISOURCE_MERGE, 1024, 5, NULL,"test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
   tsortSetComparFp(phandle, docomp);
 
@@ -246,7 +242,7 @@ TEST(testCase, ordered_merge_sort_Test) {
     _info* c = static_cast<_info*>(taosMemoryCalloc(1, sizeof(_info)));
     c->count    = 1;
     c->pageRows = 1000;
-    c->startVal = 0;
+    c->startVal = i*1000;
 
     p->param = c;
     tsortAddSource(phandle, p);
@@ -262,7 +258,8 @@ TEST(testCase, ordered_merge_sort_Test) {
     }
 
     void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row++, *(int32_t*) v);
+    printf("%d: %d\n", row, *(int32_t*) v);
+    ASSERT_EQ(row++, *(int32_t*) v);
 
   }
   tsortDestroySortHandle(phandle);

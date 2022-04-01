@@ -1201,6 +1201,9 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
 }
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
+  if(pDataBlock == NULL){
+    return NULL;
+  }
   int32_t numOfCols = pDataBlock->info.numOfCols;
 
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
