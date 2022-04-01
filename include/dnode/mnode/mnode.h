@@ -29,8 +29,7 @@ extern "C" {
 typedef struct SMnode SMnode;
 
 typedef struct {
-  int32_t  dnodeId;
-  int64_t  clusterId;
+  bool     deploy;
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];

@@ -17,7 +17,7 @@
 #include "mndCluster.h"
 #include "mndShow.h"
 
-#define TSDB_CLUSTER_VER_NUMBE 1
+#define TSDB_CLUSTER_VER_NUMBE    1
 #define TSDB_CLUSTER_RESERVE_SIZE 64
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
@@ -59,6 +59,23 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
   tstrncpy(clusterName, pCluster->name, len);
   sdbRelease(pSdb, pCluster);
   return 0;
+}
+
+int64_t mndGetClusterId(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int64_t clusterId = -1;
+
+  while (1) {
+    SClusterObj *pCluster = NULL;
+    pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pCluster);
+    if (pIter == NULL) break;
+
+    clusterId = pCluster->id;
+    sdbRelease(pSdb, pCluster);
+  }
+
+  return clusterId;
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
