@@ -893,6 +893,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
       该函数可以应用在普通表和超级表上。
 
+      版本2.6.0.x后支持
+
 - **ACOS**
     ```mysql
     SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -910,6 +912,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
       只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
       该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
 
 - **ATAN**
     ```mysql
@@ -1245,7 +1249,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
     说明：
     
       如果输入值为NULL，输出值为NULL。
-      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示从开始往后抽取子串。如果pos为负数，表示从结尾往前抽取字符串。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
       该函数可以应用在普通表和超级表上。
       该函数适用于内层查询和外层查询。
       版本2.6.0.x后支持
