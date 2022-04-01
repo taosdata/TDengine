@@ -24,7 +24,7 @@
 
 # ---- parser
 ./test.sh -f tsim/parser/groupby-basic.sim
-#./test.sh -f tsim/parser/fourArithmetic-basic.sim
+./test.sh -f tsim/parser/fourArithmetic-basic.sim
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim
