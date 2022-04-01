@@ -7905,35 +7905,6 @@ _error:
   return NULL;
 }
 
-SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo) {
-  SLimitOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SLimitOperatorInfo));
-  SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  if (pInfo == NULL || pOperator == NULL) {
-    goto _error;
-  }
-
-  pInfo->limit = *pLimit;
-  pInfo->currentOffset = pLimit->offset;
-
-  pOperator->name         = "LimitOperator";
-  //  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_LIMIT;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->_openFn      = operatorDummyOpenFn;
-  pOperator->getNextFn    = doLimit;
-  pOperator->info         = pInfo;
-  pOperator->pTaskInfo    = pTaskInfo;
-
-  int32_t code = appendDownstream(pOperator, &downstream, 1);
-  return pOperator;
-
-_error:
-  taosMemoryFreeClear(pInfo);
-  taosMemoryFreeClear(pOperator);
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-  return NULL;
-}
-
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval,
                                           const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo) {
