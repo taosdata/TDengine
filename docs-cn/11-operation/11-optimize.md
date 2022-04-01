@@ -41,27 +41,27 @@ COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会�
 
 一个数据库创建成功后，仅部分参数可以修改并实时生效，其余参数不能修改：
 
-| **参数名**  | **能否修改** | **范围**                                   | **修改语法示例**                       |
-| ----------- | ------------ | ------------------------------------------ | -------------------------------------- |
-| name        |              |                                            |                                        |
-| create time |              |                                            |                                        |
-| ntables     |              |                                            |                                        |
-| vgroups     |              |                                            |                                        |
-| replica     | **YES**      | 在线 dnode 数目为:<br>1：1-1；<br>2：1-2；<br>>=3：1-3                         | ALTER DATABASE <dbname> REPLICA *n*   |
-| quorum      | **YES**      | 1-2                                        | ALTER DATABASE <dbname\> QUORUM _n_    |
-| days        |              |                                            |                                        |
-| keep        | **YES**      | days-365000                                | ALTER DATABASE <dbname\> KEEP _n_      |
-| cache       |              |                                            |                                        |
-| blocks      | **YES**      | 3-1000                                     | ALTER DATABASE <dbname\> BLOCKS _n_    |
-| minrows     |              |                                            |                                        |
-| maxrows     |              |                                            |                                        |
-| wal         |              |                                            |                                        |
-| fsync       |              |                                            |                                        |
-| comp        | **YES**      | 0-2                                        | ALTER DATABASE <dbname\> COMP _n_      |
-| precision   |              |                                            |                                        |
-| status      |              |                                            |                                        |
-| update      |              |                                            |                                        |
-| cachelast   | **YES**      | 0 \| 1 \| 2 \| 3                           | ALTER DATABASE <dbname\> CACHELAST _n_ |
+| **参数名**  | **能否修改** | **范围**                                                   | **修改语法示例**                       |
+| ----------- | ------------ | ---------------------------------------------------------- | -------------------------------------- |
+| name        |              |                                                            |                                        |
+| create time |              |                                                            |                                        |
+| ntables     |              |                                                            |                                        |
+| vgroups     |              |                                                            |                                        |
+| replica     | **YES**      | 在线 dnode 数目为:<br/>1：1-1；<br/>2：1-2；<br/>\>=3：1-3 | ALTER DATABASE <dbname\> REPLICA _n_   |
+| quorum      | **YES**      | 1-2                                                        | ALTER DATABASE <dbname\> QUORUM _n_    |
+| days        |              |                                                            |                                        |
+| keep        | **YES**      | days-365000                                                | ALTER DATABASE <dbname\> KEEP _n_      |
+| cache       |              |                                                            |                                        |
+| blocks      | **YES**      | 3-1000                                                     | ALTER DATABASE <dbname\> BLOCKS _n_    |
+| minrows     |              |                                                            |                                        |
+| maxrows     |              |                                                            |                                        |
+| wal         |              |                                                            |                                        |
+| fsync       |              |                                                            |                                        |
+| comp        | **YES**      | 0-2                                                        | ALTER DATABASE <dbname\> COMP _n_      |
+| precision   |              |                                                            |                                        |
+| status      |              |                                                            |                                        |
+| update      |              |                                                            |                                        |
+| cachelast   | **YES**      | 0 \| 1 \| 2 \| 3                                           | ALTER DATABASE <dbname\> CACHELAST _n_ |
 
 **说明：**在 2.1.3.0 版本之前，通过 ALTER DATABASE 语句修改这些参数后，需要重启服务器才能生效。
 
