@@ -15,7 +15,7 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-MULTIPROCESS=1
+MULTIPROCESS=0
 while getopts "f:avum" arg
 do
   case $arg in
