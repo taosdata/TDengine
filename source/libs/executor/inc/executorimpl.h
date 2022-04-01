@@ -362,6 +362,7 @@ typedef struct SSourceDataInfo {
   int32_t               index;
   SRetrieveTableRsp    *pRsp;
   uint64_t              totalRows;
+  int32_t               code;
   EX_SOURCE_STATUS      status;
 } SSourceDataInfo;
 
