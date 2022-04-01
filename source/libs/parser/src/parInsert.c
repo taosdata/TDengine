@@ -52,8 +52,6 @@ typedef struct SInsertParseContext {
   SParseContext* pComCxt;       // input
   char          *pSql;          // input
   SMsgBuf        msg;           // input
-  char           dbFName[TSDB_DB_FNAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pTableMeta;       // each table
   SParsedDataColInfo tags;      // each table
   SKVRowBuilder tagsBuilder;    // each table
@@ -231,9 +229,6 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
-  pCxt->pTableMeta->vgId = vg.vgId; // todo remove
-  strcpy(pCxt->tableName, name.tname);
-  tNameGetFullDbName(&name, pCxt->dbFName);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -977,8 +972,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     STableDataBlocks *dataBuf = NULL;
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
         sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
-    strcpy(dataBuf->tableName, pCxt->tableName);
-    strcpy(dataBuf->dbFName, pCxt->dbFName);
     
     if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)

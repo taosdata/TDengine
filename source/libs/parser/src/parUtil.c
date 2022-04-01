@@ -61,6 +61,12 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "This statement is no longer supported";
     case TSDB_CODE_PAR_INTERVAL_VALUE_TOO_SMALL:
       return "This interval value is too small : %s";
+    case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
+      return "db not specified";
+    case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:
+      return "Invalid identifier name : %s";
+    case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
+      return "corresponding super table not in this db";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

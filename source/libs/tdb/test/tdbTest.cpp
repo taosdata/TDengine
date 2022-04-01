@@ -118,10 +118,10 @@ TEST(tdb_test, simple_test) {
   TENV          *pEnv;
   TDB           *pDb;
   FKeyComparator compFunc;
-  int            nData = 1000000;
+  int            nData = 50000000;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
+  ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -134,35 +134,22 @@ TEST(tdb_test, simple_test) {
     char val[64];
 
     {  // Insert some data
-      int       i = 1;
-      SPoolMem *pPool;
-      int       memPoolCapacity = 16 * 1024;
+      for (int i = 1; i <= nData;) {
+        tdbBegin(pEnv);
 
-      pPool = openPool();
-
-      tdbTxnBegin(pEnv);
-
-      for (;;) {
-        if (i > nData) break;
-
-        sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
-        ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
-        GTEST_ASSERT_EQ(ret, 0);
-
-        if (pPool->size >= memPoolCapacity) {
-          tdbTxnCommit(pEnv);
-
-          clearPool(pPool);
-
-          tdbTxnBegin(pEnv);
+        for (int k = 0; k < 2000; k++) {
+          sprintf(key, "key%d", i);
+          sprintf(val, "value%d", i);
+          ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
+          GTEST_ASSERT_EQ(ret, 0);
+          i++;
         }
 
-        i++;
+        tdbCommit(pEnv);
       }
-
-      closePool(pPool);
     }
+
+    tdbCommit(pEnv);
 
     {  // Query the data
       void *pVal = NULL;
@@ -173,6 +160,7 @@ TEST(tdb_test, simple_test) {
         sprintf(val, "value%d", i);
 
         ret = tdbDbGet(pDb, key, strlen(key), &pVal, &vLen);
+        ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, strlen(val));

@@ -38,7 +38,9 @@ typedef struct SDatabaseOptions {
   int32_t fsyncPeriod;
   int32_t maxRowsPerBlock;
   int32_t minRowsPerBlock;
-  int32_t keep;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
   int32_t precision;
   int32_t quorum;
   int32_t replica;
@@ -76,7 +78,9 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType type;
-  int32_t keep;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
   int32_t ttl;
   char comments[TSDB_STB_COMMENT_LEN];
   SNodeList* pSma;
@@ -192,6 +196,12 @@ typedef struct SShowStmt {
   SNode* pDbName;        // SValueNode
   SNode* pTbNamePattern; // SValueNode
 } SShowStmt;
+
+typedef struct SShowCreatStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+} SShowCreatStmt;
 
 typedef enum EIndexType {
   INDEX_TYPE_SMA = 1,

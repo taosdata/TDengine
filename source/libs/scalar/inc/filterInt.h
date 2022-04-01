@@ -36,8 +36,6 @@ extern "C" {
 
 #define FILTER_DUMMY_EMPTY_OPTR  127
 
-#define MAX_NUM_STR_SIZE 40
-
 #define FILTER_RM_UNIT_MIN_ROWS 100
 
 enum {

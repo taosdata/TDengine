@@ -20,13 +20,28 @@
 extern "C" {
 #endif
 
+struct SPager {
+  char    *dbFileName;
+  char    *jFileName;
+  int      pageSize;
+  uint8_t  fid[TDB_FILE_ID_LEN];
+  tdb_fd_t fd;
+  tdb_fd_t jfd;
+  SPCache *pCache;
+  SPgno    dbFileSize;
+  SPgno    dbOrigSize;
+  SPage   *pDirty;
+  u8       inTran;
+  SPager  *pNext;      // used by TENV
+  SPager  *pHashNext;  // used by TENV
+};
+
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
 int  tdbPagerClose(SPager *pPager);
 int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager);
 int  tdbPagerCommit(SPager *pPager);
-int  tdbPagerGetPageSize(SPager *pPager);
 int  tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
 int  tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage);

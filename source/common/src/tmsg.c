@@ -1629,6 +1629,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->quorum) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1650,6 +1651,7 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->quorum) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);

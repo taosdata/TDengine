@@ -324,10 +324,10 @@ TEST_F(MndTestUser, 03_Alter_User) {
     createReq.numOfVgroups = 2;
     createReq.cacheBlockSize = 16;
     createReq.totalBlocks = 10;
-    createReq.daysPerFile = 10;
-    createReq.daysToKeep0 = 3650;
-    createReq.daysToKeep1 = 3650;
-    createReq.daysToKeep2 = 3650;
+    createReq.daysPerFile = 10 * 1440;
+    createReq.daysToKeep0 = 3650 * 1440;
+    createReq.daysToKeep1 = 3650 * 1440;
+    createReq.daysToKeep2 = 3650 * 1440;
     createReq.minRows = 100;
     createReq.maxRows = 4096;
     createReq.commitTime = 3600;

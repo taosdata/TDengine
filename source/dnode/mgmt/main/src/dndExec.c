@@ -20,9 +20,9 @@ static bool dndRequireNode(SMgmtWrapper *pWrapper) {
   bool    required = false;
   int32_t code = (*pWrapper->fp.requiredFp)(pWrapper, &required);
   if (!required) {
-    dDebug("node:%s, no need to start", pWrapper->name);
+    dDebug("node:%s, does not require startup", pWrapper->name);
   } else {
-    dDebug("node:%s, need to start", pWrapper->name);
+    dDebug("node:%s, needs to be started", pWrapper->name);
   }
   return required;
 }
@@ -255,17 +255,39 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
       dInfo("dnode is about to stop");
+      for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+        SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+        if (!pWrapper->required) continue;
+        if (pDnode->ntype == NODE_MAX) continue;
+
+        if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
+          dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
+          taosKillProc(pWrapper->procId);
+        }
+      }
+
+      for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+        SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+        if (!pWrapper->required) continue;
+        if (pDnode->ntype == NODE_MAX) continue;
+
+        if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
+          dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pWrapper->procId);
+          taosWaitProc(pWrapper->procId);
+          dInfo("node:%s, child process:%d is stopped", pWrapper->name, pWrapper->procId);
+        }
+      }
       break;
-    }
+    } else {
+      for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+        SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+        if (!pWrapper->required) continue;
+        if (pDnode->ntype == NODE_MAX) continue;
 
-    for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
-      SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-      if (!pWrapper->required) continue;
-      if (pDnode->ntype == NODE_MAX) continue;
-
-      if (pWrapper->procId <= 0 || !taosProcExists(pWrapper->procId)) {
-        dInfo("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
-        dndNewProc(pWrapper, n);
+        if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
+          dInfo("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
+          dndNewProc(pWrapper, n);
+        }
       }
     }
 
@@ -278,6 +300,12 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
   dInfo("%s run in child process", pWrapper->name);
+
+  pWrapper->required = dndRequireNode(pWrapper);
+  if (!pWrapper->required) {
+    dError("%s does not require startup", pWrapper->name);
+    return -1;
+  }
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);
   tmsgSetDefaultMsgCb(&msgCb);
