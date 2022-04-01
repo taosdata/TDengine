@@ -53,6 +53,7 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
+
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
  * ASSERT(tableType == TSDB_CHILD_TABLE)
@@ -234,6 +235,11 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
       taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
     }                                                                    \
   } while (0)
+
+#define QRY_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define QRY_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define QRY_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
 
 #ifdef __cplusplus
 }

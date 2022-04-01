@@ -128,7 +128,7 @@ static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
   }
 
   pWrapper->procId = pid;
-  dInfo("node:%s, run in new process, pid:%d", pWrapper->name, pid);
+  dInfo("node:%s, continue running in new process:%d", pWrapper->name, pid);
   return 0;
 }
 
@@ -263,21 +263,21 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       if (!pWrapper->required) continue;
       if (pDnode->ntype == NODE_MAX) continue;
 
-      if (pWrapper->procId != 0 && !taosProcExists(pWrapper->procId)) {
-        dInfo("node:%s, process not exist, pid:%d", pWrapper->name, pWrapper->procId);
+      if (pWrapper->procId <= 0 || !taosProcExists(pWrapper->procId)) {
+        dInfo("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
         dndNewProc(pWrapper, n);
       }
-
-      taosMsleep(100);
     }
+
+    taosMsleep(100);
   }
 
   return 0;
 }
 
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
-  dInfo("dnode run in child process");
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
+  dInfo("%s run in child process", pWrapper->name);
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);
   tmsgSetDefaultMsgCb(&msgCb);

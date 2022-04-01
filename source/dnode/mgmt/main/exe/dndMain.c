@@ -37,13 +37,6 @@ static void dndStopDnode(int signum, void *info, void *ctx) {
   }
 }
 
-static void dndHandleChild(int signum, void *info, void *ctx) {
-  dInfo("sigchild received");
-  if (global.pDnode != NULL) {
-    dndHandleEvent(global.pDnode, DND_EVENT_CHILD);
-  }
-}
-
 static void dndSetSignalHandle() {
   taosSetSignal(SIGTERM, dndStopDnode);
   taosSetSignal(SIGHUP, dndStopDnode);
@@ -53,7 +46,7 @@ static void dndSetSignalHandle() {
 
   if (!tsMultiProcess) {
   } else if (global.ntype == DNODE || global.ntype == NODE_MAX) {
-    taosSetSignal(SIGCHLD, dndHandleChild);
+    taosIgnSignal(SIGCHLD);
   } else {
     taosKillChildOnParentStopped();
   }

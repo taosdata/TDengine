@@ -23,9 +23,9 @@ extern "C" {
 #endif
 
 typedef struct FstSparseSet {
-  SArray *dense;
-  SArray *sparse;
-  int32_t size;
+  uint32_t *dense;
+  uint32_t *sparse;
+  int32_t   size;
 } FstSparseSet;
 
 FstSparseSet *sparSetCreate(int32_t sz);

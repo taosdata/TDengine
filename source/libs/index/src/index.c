@@ -27,7 +27,7 @@
 #endif
 
 #define INDEX_NUM_OF_THREADS 4
-#define INDEX_QUEUE_SIZE 200
+#define INDEX_QUEUE_SIZE     200
 
 void* indexQhandle = NULL;
 

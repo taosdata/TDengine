@@ -89,7 +89,6 @@ static const SInfosTableSchema userStbsSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "columns", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "tags", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "tables", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "last_update", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "table_comment", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_INT},
 };
