@@ -216,6 +216,7 @@ int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int3
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len);
+char *nodesGetNameFromColumnNode(SNode *pNode);
 
 #ifdef __cplusplus
 }

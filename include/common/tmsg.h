@@ -916,6 +916,12 @@ typedef struct {
 } SRetrieveMetaTableRsp;
 
 typedef struct {
+  int32_t numOfItems;
+  char    data[];
+} SExplainRsp;
+
+
+typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
 } SCreateDnodeReq;
@@ -1052,6 +1058,7 @@ typedef struct SSubQueryMsg {
   uint64_t taskId;
   int64_t  refId;
   int8_t   taskType;
+  int8_t   explain;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
   char     msg[];

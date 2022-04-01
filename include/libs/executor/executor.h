@@ -174,6 +174,8 @@ void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
 
 void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t *resNum, SExplainExecInfo **pRes);
+
 #ifdef __cplusplus
 }
 #endif

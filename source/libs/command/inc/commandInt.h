@@ -50,8 +50,9 @@ extern "C" {
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;
+  SRWLatch  lock;
   SSubplan *plan;
-  void     *execInfo;  //TODO
+  SArray   *execInfo;
 } SExplainGroup;
 
 typedef struct SExplainResNode {
@@ -67,10 +68,18 @@ typedef struct SQueryExplainRowInfo {
 } SQueryExplainRowInfo;
 
 typedef struct SExplainCtx {
-  int32_t   totalSize;
+  double    ratio;
   bool      verbose;
+
+  int32_t   rootGroupId;
+  int32_t   dataSize;
+  bool      execDone;
+  int64_t   reqStartTs;
+  int64_t   jobStartTs;
+  int64_t   jobDoneTs;
   char     *tbuf;
   SArray   *rows;
+  int32_t   groupDoneNum;
   SHashObj *groupHash;
 } SExplainCtx;
 

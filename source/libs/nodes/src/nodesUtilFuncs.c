@@ -1023,3 +1023,33 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
   
   return TSDB_CODE_SUCCESS;
 }
+
+
+char *getFillModeString(EFillMode mode) {
+  switch (mode) {
+    case FILL_MODE_NONE:
+      return "none";
+    case FILL_MODE_VALUE:
+      return "value";
+    case FILL_MODE_PREV:
+      return "prev";
+    case FILL_MODE_NULL:
+      return "null";
+    case FILL_MODE_LINEAR:
+      return "linear";
+    case FILL_MODE_NEXT:
+      return "next";
+    default:
+      return "unknown";
+  }
+}
+
+char *nodesGetNameFromColumnNode(SNode *pNode) {
+  if (NULL == pNode || QUERY_NODE_COLUMN != pNode->type) {
+    return "NULL";
+  }
+  
+  return ((SColumnNode *)pNode)->colName;
+}
+
+

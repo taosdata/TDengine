@@ -241,7 +241,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
   SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
-  int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr, &res);
+  int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr, pRequest->metric.start, &res);
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);

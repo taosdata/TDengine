@@ -315,6 +315,7 @@ bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
 char* nodesGetStrValueFromNode(SValueNode *pNode);
+char *getFillModeString(EFillMode mode);
 
 #ifdef __cplusplus
 }

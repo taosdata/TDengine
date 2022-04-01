@@ -9516,3 +9516,18 @@ void releaseQueryBuf(size_t numOfTables) {
   // restore value is not enough buffer available
   atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
+
+int32_t getOperatorExplainExecInfo(SOperatorInfo *operator, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum) {
+  if (*resNum >= *capacity) {
+    *capacity += 10;
+    
+    *pRes = taosMemoryRealloc(*pRes, (*capacity) * sizeof(SExplainExecInfo));
+    if (NULL == *pRes) {
+      qError("malloc %d failed", capacity * sizeof(SExplainExecInfo));
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+  }
+
+}
+
+
