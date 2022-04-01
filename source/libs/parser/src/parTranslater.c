@@ -1164,7 +1164,7 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   columnNodeToField(pStmt->pOptions->pSma, &createReq.pSmas);
   createReq.numOfColumns = LIST_LENGTH(pStmt->pCols);
   createReq.numOfTags = LIST_LENGTH(pStmt->pTags);
-  createReq.numOfSmas = LIST_LENGTH(pStmt->pOptions->pSma);
+  createReq.numOfSmas = (NULL == pStmt->pOptions->pSma ? createReq.numOfColumns : LIST_LENGTH(pStmt->pOptions->pSma));
 
   SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
   strcpy(tableName.dbname, pStmt->dbName);
