@@ -1380,6 +1380,30 @@ static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     ASSERT(nCells > 0);
     ASSERT(pBtc->idx == -1);
 
+    // compare first cell
+    midx = lidx;
+    pCell = tdbPageGetCell(pPage, midx);
+    tdbBtreeDecodeCell(pPage, pCell, &cd);
+    c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
+    if (c <= 0) {
+      ridx = lidx - 1;
+    } else {
+      lidx = lidx + 1;
+    }
+
+    // compare last cell
+    if (lidx <= ridx) {
+      midx = ridx;
+      pCell = tdbPageGetCell(pPage, midx);
+      tdbBtreeDecodeCell(pPage, pCell, &cd);
+      c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
+      if (c >= 0) {
+        lidx = ridx + 1;
+      } else {
+        ridx = ridx - 1;
+      }
+    }
+
     // binary search
     for (;;) {
       if (lidx > ridx) break;
