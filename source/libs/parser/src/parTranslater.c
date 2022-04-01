@@ -2152,10 +2152,11 @@ typedef struct SVgroupTablesBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupTablesBatch;
 
-static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
+static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchemaEx* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = calcTypeBytes(pCol->dataType);
+  pSchema->sma = TSDB_BSMA_TYPE_LATEST;  // TODO: use default value currently, and use the real value later.
   strcpy(pSchema->name, pCol->colName);
 }
 
@@ -2177,7 +2178,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const char* pDbName, con
   req.dbFName = strdup(dbFName);
   req.name = strdup(pTableName);
   req.ntbCfg.nCols = LIST_LENGTH(pColumns);
-  req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchema));
+  req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchemaEx));
   if (NULL == req.name || NULL == req.ntbCfg.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2188,6 +2189,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const char* pDbName, con
     toSchema((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
     ++index;
   }
+  // TODO: use the real sma for normal table.
 
   pBatch->info = *pVgroupInfo;
   strcpy(pBatch->dbName, pDbName);
