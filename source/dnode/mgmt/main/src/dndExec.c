@@ -90,10 +90,10 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
                                   ProcFuncType ftype) {
   pMsg->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, handle:%p app:%p", pMsg, pMsg->handle, pMsg->ahandle);
+  dTrace("msg:%p, get from parent queue, ftype:%d handle:%p, app:%p", pMsg, ftype, pMsg->handle, pMsg->ahandle);
 
   switch (ftype) {
-    case PROC_REG:
+    case PROC_REGIST:
       rpcRegisterBrokenLinkArg(pMsg);
       break;
     case PROC_RELEASE:
@@ -101,10 +101,13 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t
       rpcFreeCont(pCont);
       break;
     case PROC_REQ:
-      // todo send to dnode
       dndSendReqToMnode(pWrapper, pMsg);
-    default:
+      // dndSendReq(pWrapper, (const SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
+      break;
+    case PROC_RSP:
       dndSendRpcRsp(pWrapper, pMsg);
+      break;
+    default:
       break;
   }
   taosMemoryFree(pMsg);
@@ -324,6 +327,8 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
       return -1;
     }
   }
+
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
 
   if (taosProcRun(pWrapper->pProc) != 0) {
     dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
