@@ -103,7 +103,6 @@ static void     *taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, const char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
-static void      taosDestroyLog();
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
@@ -127,7 +126,6 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
   if (taosOpenLogFile(fullName, tsNumOfLogLines, maxFiles) < 0) return -1;
-  // atexit(taosDestroyLog);
   if (taosStartLog() < 0) return -1;
   return 0;
 }
@@ -148,14 +146,6 @@ void taosCloseLog() {
   // we comment two lines below.
   // taosLogBuffDestroy(tsLogObj.logHandle);
   // taosCloseLog();
-}
-
-static void taosDestroyLog() {
-  if(tsLogObj.logHandle != NULL) {
-    taosCloseFile(&tsLogObj.logHandle->pFile);
-    taosMemoryFreeClear(LOG_BUF_BUFFER(tsLogObj.logHandle));
-    taosMemoryFreeClear(tsLogObj.logHandle);
-  }
 }
 
 static bool taosLockLogFile(TdFilePtr pFile) {
