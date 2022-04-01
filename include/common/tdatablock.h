@@ -179,11 +179,13 @@ size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
-int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
+int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*   blockDataDestroy(SSDataBlock* pBlock);
+
+int32_t blockDataTrimFirstNRows(SSDataBlock *pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 
