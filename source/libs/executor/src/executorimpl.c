@@ -1023,7 +1023,7 @@ static void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQuer
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  blockDataEnsureColumnCapacity(pColData, 5);
+  colInfoDataEnsureCapacity(pColData, 5);
   colDataAppendInt64(pColData, 0, &pQueryWindow->skey);
   colDataAppendInt64(pColData, 1, &pQueryWindow->ekey);
 
@@ -6802,7 +6802,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
 
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
-
+#if 0
   if (pProjectInfo->existDataBlock) {  // TODO refactor
     SSDataBlock* pBlock = pProjectInfo->existDataBlock;
     pProjectInfo->existDataBlock = NULL;
@@ -6824,6 +6824,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
       return pRes;
     }
   }
+#endif
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
@@ -6863,10 +6864,27 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
     projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfOutput);
+
+    if (pProjectInfo->curOffset < pInfo->pRes->info.rows && pProjectInfo->curOffset > 0) {
+      blockDataTrimFirstNRows(pInfo->pRes, pProjectInfo->curOffset);
+      pProjectInfo->curOffset = 0;
+      break;
+    } else if (pProjectInfo->curOffset >= pInfo->pRes->info.rows) {
+      pProjectInfo->curOffset -= pInfo->pRes->info.rows;
+      blockDataCleanup(pInfo->pRes);
+      continue;
+    }
+
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }
   }
+  
+  if (pProjectInfo->curOutput + pInfo->pRes->info.rows >= pProjectInfo->limit.limit) {
+    pInfo->pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+  }
+
+  pProjectInfo->curOutput += pInfo->pRes->info.rows;
 
   //  copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
   return (pInfo->pRes->info.rows > 0) ? pInfo->pRes : NULL;
@@ -7846,19 +7864,20 @@ _error:
 }
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num,
-                                         SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo) {
+                                         SSDataBlock* pResBlock, SLimit* pLimit, SExecTaskInfo* pTaskInfo) {
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
+  pInfo->limit      = *pLimit;
+  pInfo->curOffset  = pLimit->offset;
   pInfo->binfo.pRes = pResBlock;
   pInfo->binfo.pCtx = createSqlFunctionCtx_rv(pExprInfo, num, &pInfo->binfo.rowCellInfoOffset);
   if (pInfo->binfo.pCtx == NULL) {
     goto _error;
   }
-
   //  initResultRowInfo(&pBInfo->resultRowInfo, 8);
   //  setFunctionResultOutput(pBInfo, MAIN_SCAN);
 
@@ -8861,9 +8880,13 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SOperatorInfo* op = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
 
     int32_t      num = 0;
-    SExprInfo*   pExprInfo = createExprInfo(((SProjectPhysiNode*)pPhyNode)->pProjections, NULL, &num);
+    SProjectPhysiNode* pProjPhyNode = (SProjectPhysiNode*) pPhyNode;
+    SExprInfo*   pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &num);
+
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
-    return createProjectOperatorInfo(op, pExprInfo, num, pResBlock, pTaskInfo);
+    SLimit limit = {.limit = pProjPhyNode->limit, .offset = pProjPhyNode->offset};
+
+    return createProjectOperatorInfo(op, pExprInfo, num, pResBlock, &limit, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_AGG == nodeType(pPhyNode)) {
     size_t size = LIST_LENGTH(pPhyNode->pChildren);
     assert(size == 1);
