@@ -180,6 +180,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
       dInfo("dnode is about to stop");
+      dndSetStatus(pDnode, DND_STAT_STOPPED);
       break;
     }
     taosMsleep(100);
@@ -255,14 +256,16 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
       dInfo("dnode is about to stop");
+      dndSetStatus(pDnode, DND_STAT_STOPPED);
+
       for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
         if (pDnode->ntype == NODE_MAX) continue;
 
         if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
-          // dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
-          // taosKillProc(pWrapper->procId);
+          dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
+          taosKillProc(pWrapper->procId);
           dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pWrapper->procId);
           taosWaitProc(pWrapper->procId);
           dInfo("node:%s, child process:%d is stopped", pWrapper->name, pWrapper->procId);
@@ -332,10 +335,13 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
       dInfo("%s is about to stop", pWrapper->name);
+      dndSetStatus(pDnode, DND_STAT_STOPPED);
       break;
     }
     taosMsleep(100);
   }
+
+  return 0;
 }
 
 int32_t dndRun(SDnode *pDnode) {
