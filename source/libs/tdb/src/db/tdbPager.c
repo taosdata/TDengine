@@ -214,6 +214,7 @@ int tdbPagerCommit(SPager *pPager) {
   tdbOsClose(pPager->jfd);
   tdbOsRemove(pPager->jFileName);
   pPager->dbOrigSize = pPager->dbFileSize;
+  pPager->inTran = 0;
 
   return 0;
 }

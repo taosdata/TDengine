@@ -482,6 +482,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         ASSERT(0);
         return -1;
       }
+
+      ret = tdbPagerWrite(pBt->pPager, pOlds[i]);
+      if (ret < 0) {
+        // TODO
+        ASSERT(0);
+        return -1;
+      }
     }
     // copy the parent key out if child pages are not leaf page
     childNotLeaf = !TDB_BTREE_PAGE_IS_LEAF(pOlds[0]);
@@ -495,13 +502,6 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         }
 
         if (i < nOlds - 1) {
-          ret = tdbPagerWrite(pBt->pPager, pOlds[i]);
-          if (ret < 0) {
-            // TODO
-            ASSERT(0);
-            return -1;
-          }
-
           ((SPgno *)pDivCell[i])[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
           ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
           tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
