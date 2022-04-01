@@ -73,39 +73,45 @@ sql insert into ct4 values ( '2022-12-01 01:01:30.000', 8 )
 sql insert into ct4 values ( '2022-12-31 01:01:36.000', 9 )
 
 print ================ start query ======================
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
+sql select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(*) from ct1 interval(10s, 2s)
+print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(*) from ct1 interval(10s, 2s)
 print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
+print ===> rows0: $data00 $data01 $data02 $data05
+print ===> rows1: $data10 $data11 $data12 $data15
+print ===> rows2: $data20 $data21 $data22 $data25
+print ===> rows3: $data30 $data31 $data32 $data35
+print ===> rows4: $data40 $data41 $data42 $data45
 if $rows != 5 then
   return -1
 endi
-if $data00 != 1 then
+if $data00 != @22-01-01 01:00:52.000@ then
   return -1
 endi
-if $data40 != 1 then
+if $data02 != 10000 then
+  return -1
+endi
+if $data45 != 1 then
   return -1
 endi
 
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s) sliding(10s)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s) sliding(10s)
+sql select _wstartts, _wendts, _wduration, _qstartts, _qendts,  count(*) from ct1 interval(10s, 2s) sliding(10s)
+print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts,  count(*) from ct1 interval(10s, 2s) sliding(10s)
 print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
+print ===> rows0: $data00 $data01 $data02 $data05
+print ===> rows1: $data10 $data11 $data12 $data15
+print ===> rows2: $data20 $data21 $data22 $data25
+print ===> rows3: $data30 $data31 $data32 $data35
+print ===> rows4: $data40 $data41 $data42 $data45
 if $rows != 5 then
   return -1
 endi
-if $data00 != 1 then
+if $data00 != @22-01-01 01:00:52.000@ then
   return -1
 endi
-if $data40 != 1 then
+if $data02 != 10000 then
+  return -1
+endi
+if $data45 != 1 then
   return -1
 endi
 
@@ -176,107 +182,81 @@ if $data70 != 1 then
   return -1
 endi
 
-sql select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from ct2 interval(1d, 2h) sliding(12h)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h) sliding(12h)
-print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04 $data05
-print ===> rows1: $data10 $data11 $data12 $data13 $data14 $data15
-print ===> rows2: $data20 $data21 $data22 $data23 $data24 $data25
-print ===> rows3: $data30 $data31 $data32 $data33 $data34 $data35
-print ===> rows4: $data40 $data41 $data42 $data43 $data44 $data45
-print ===> rows5: $data50 $data51 $data52 $data53 $data54 $data55
-print ===> rows6: $data60 $data61 $data62 $data63 $data64 $data65
-print ===> rows7: $data70 $data71 $data72 $data73 $data74 $data75
-if $rows != 8 then
-  return -1
-endi
-if $data05 != 1 then
-  return -1
-endi
-if $data15 != 2 then
-  return -1
-endi
-if $data75 != 1 then
-  return -1
-endi
-if $data02 != 86400000 then
-  return -1
-endi
-
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
+sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
 print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
-# if $rows != 5 then
-#   return -1
-# endi
-# f $data00 != 1 then
-#   return -1
-# endi
-# if $data40 != 1 then
-#   return -1
-# endi
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-12-08 00:00:00.000@ then
+  return -1
+endi
+if $data31 != 1 then
+  return -1
+endi
+if $data34 != $data31 then
+  return -1
+endi
+if $data02 != 2678400000 then
+  return -1
+endi
 
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w) sliding(2w)
+sql select  _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(2w)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w) sliding(2w)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
 print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
-#if $rows != 5 then
-#  return -1
-#endi
-#if $data00 != 1 then
-#  return -1
-#endi
-#if $data40 != 1 then
-#  return -1
-#endi
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-11-30 08:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data31 != $data34 then
+  return -1
+endi
 
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w) sliding(4w)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w) sliding(4w)
+sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*)  from ct3 interval(1n, 1w) sliding(4w)
+print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(4w)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
 print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
-print ===> rows5: $data50 $data51 $data52 $data53 $data54
-print ===> rows6: $data60 $data61 $data62 $data63 $data64
-print ===> rows7: $data70 $data71 $data72 $data73 $data74
-#if $rows != 8 then
-#  return -1
-#endi
-#if $data00 != 2 then
-#  return -1
-#endi
-#if $data70 != 1 then
-#  return -1
-#endi
+if $rows != 4 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
 
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n)
+sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n)
+print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
-#if $rows != 5 then
-#  return -1
-#endi
-#if $data00 != 1 then
-#  return -1
-#endi
-#if $data40 != 1 then
-#  return -1
-#endi
+if $rows != 3 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data04 != 2 then
+  return -1
+endi
 
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(6n)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(6n)
@@ -284,38 +264,31 @@ print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
-#if $rows != 5 then
-#  return -1
-#endi
-#if $data00 != 1 then
-#  return -1
-#endi
-#if $data40 != 1 then
-#  return -1
-#endi
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data04 != 2 then
+  return -1
+endi
 
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(12n)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(12n)
+sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n) sliding(12n)
+print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n) sliding(12n)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-print ===> rows4: $data40 $data41 $data42 $data43 $data44
-print ===> rows5: $data50 $data51 $data52 $data53 $data54
-print ===> rows6: $data60 $data61 $data62 $data63 $data64
-print ===> rows7: $data70 $data71 $data72 $data73 $data74
-#if $rows != 8 then
-#  return -1
-#endi
-#if $data00 != 2 then
-#  return -1
-#endi
-#if $data70 != 1 then
-#  return -1
-#endi
+if $rows != 3 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data04 != 2 then
+  return -1
+endi
 
 #=================================================
 print =============== stop and restart taosd
