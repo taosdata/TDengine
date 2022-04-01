@@ -978,6 +978,26 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
       pColData->pData = pRes->urow[i];
     }
 
+    if (pColData->info.type == TSDB_DATA_TYPE_NCHAR) {
+      int32_t rows = pBlock->info.rows;
+      int32_t bytes = pColData->info.bytes;
+      char *dstData = malloc(bytes * rows);
+      char *srcData = pColData->pData;
+      for (int32_t j = 0; j < rows; ++j) {
+        char *srcRow = srcData + bytes * j;
+        char *dstRow = dstData + bytes * j;
+        if(isNull(srcRow, TSDB_DATA_TYPE_NCHAR)){
+          varDataCopy(dstRow, srcRow);
+          continue;
+        }
+        int32_t len = 0;
+        taosMbsToUcs4(varDataVal(srcRow), varDataLen(srcRow), varDataVal(dstRow),
+                      bytes-VARSTR_HEADER_SIZE, &len);
+        varDataSetLen(dstRow, len);
+      }
+      memcpy(srcData, dstData, bytes*rows);
+      free(dstData);
+    }
     offset += pColData->info.bytes;
   }
 
@@ -986,14 +1006,9 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
     SColumnDataParam param = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
     filterSetColFieldData(pFilterInfo, &param, getColumnDataFromId);
 
-    bool gotNchar = false;
-    filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
     //bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
     bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, 0);
-    if (gotNchar) {
-      filterFreeNcharColumns(pFilterInfo);
-    }
     if (!all) {
       if (p) {
         doCompactSDataBlock(pBlock, pBlock->info.rows, p);
@@ -1508,7 +1523,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
   uint64_t qId = pSql->self;
   qTableQuery(px->pQInfo, &qId);
-  convertQueryResult(pOutput, px, pSql->self, false, false);
+  convertQueryResult(pOutput, px, pSql->self, true, false);
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {

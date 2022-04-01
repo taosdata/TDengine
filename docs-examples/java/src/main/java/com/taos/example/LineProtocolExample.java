@@ -12,7 +12,8 @@ import java.sql.Statement;
 public class LineProtocolExample {
     // format: measurement,tag_set field_set timestamp
     private static String[] lines = {
-            "meters,location=Beijing.Haidian,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249000", // micro seconds
+            "meters,location=Beijing.Haidian,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249000", // micro
+                                                                                                              // seconds
             "meters,location=Beijing.Haidian,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500",
             "meters,location=Beijing.Haidian,groupid=3 current=10.8,voltage=223,phase=0.29 1648432611249300",
             "meters,location=Beijing.Haidian,groupid=3 current=11.3,voltage=221,phase=0.35 1648432611249800",
@@ -26,8 +27,8 @@ public class LineProtocolExample {
     private static void createDatabase(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             // the default precision is ms (microsecond), but we use us(microsecond) here.
-            stmt.execute("create database test precision 'us'");
-            stmt.execute("use test");
+            stmt.execute("CREATE DATABASE test precision 'us'");
+            stmt.execute("USE test");
         }
     }
 
@@ -39,4 +40,3 @@ public class LineProtocolExample {
         }
     }
 }
-

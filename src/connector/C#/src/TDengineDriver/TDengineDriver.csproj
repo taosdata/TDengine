@@ -4,7 +4,7 @@
     <TargetFrameworks>net5;netstandard2.1;</TargetFrameworks>
     <PackageId>TDengine.Connector</PackageId>
     <PackageIcon>logo.jpg</PackageIcon>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
     <Authors>taosdata</Authors>
     <Company>www.taosdata.com</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

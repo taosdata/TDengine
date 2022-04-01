@@ -16,4 +16,4 @@ select * from <tb_name> >> data.csv;
 
 利用 taosdump，用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表，所有数据或一时间段的数据，甚至仅仅表的定义。
 
-具体使用方法，请参见博客：[TDengine DUMP 工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)。
+具体使用方法，请参见博客：[TDengine DUMP 工具使用指南](https://github.com/taosdata/taos-tools/blob/develop/taosdump-user-manual-CN.md)。

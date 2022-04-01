@@ -17,8 +17,8 @@ public class JSONProtocolExample {
 
     private static void createDatabase(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.execute("create database test");
-            stmt.execute("use test");
+            stmt.execute("CREATE DATABASE test");
+            stmt.execute("USE test");
         }
     }
 
