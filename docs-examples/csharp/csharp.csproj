@@ -5,10 +5,11 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <StartupObject>TDengineExample.StmtInsertExample</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="1.0.4" />
+    <PackageReference Include="TDengine.Connector" Version="1.0.5" />
   </ItemGroup>
 
 </Project>

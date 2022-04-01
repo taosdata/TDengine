@@ -1,8 +1,7 @@
-
+using TDengineDriver;
 
 namespace TDengineExample
 {
-    using TDengineDriver;
 
     internal class ConnectExample
     {
@@ -23,6 +22,7 @@ namespace TDengineExample
             { 
                 Console.WriteLine("Connect to TDengine success");
             }
+            TDengine.Close(conn);
             TDengine.Cleanup();
         }
     }
