@@ -27,11 +27,12 @@ sleep 10
 
 cd ../../../../
 WKC=`pwd`
-echo ${WKC}"/src/connector/TypeScript-REST"
+echo ${WKC}
 cd ${WKC}/src/connector/TypeScript-REST
 
 pwd 
 ls -al
+
 npm run example 
 # npm run test 
 
