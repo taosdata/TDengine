@@ -255,6 +255,7 @@ void tmqClearUnhandleMsg(tmq_t* tmq) {
       break;
   }
 
+  msg = NULL;
   taosReadAllQitems(tmq->mqueue, tmq->qall);
   while (1) {
     taosGetQitem(tmq->qall, (void**)&msg);
@@ -787,7 +788,7 @@ void tmqShowMsg(tmq_message_t* tmq_message) {
   static bool noPrintSchema;
   char        pBuf[128];
   SMqPollRsp* pRsp = &tmq_message->msg;
-  int32_t     colNum = pRsp->schema->nCols;
+  int32_t     colNum = 2;
   if (!noPrintSchema) {
     printf("|");
     for (int32_t i = 0; i < colNum; i++) {
@@ -838,6 +839,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   int32_t msgEpoch = ((SMqRspHead*)pMsg->pData)->epoch;
   int32_t tmqEpoch = atomic_load_32(&tmq->epoch);
   if (msgEpoch < tmqEpoch) {
+    /*printf("discard rsp epoch %d, current epoch %d\n", msgEpoch, tmqEpoch);*/
     tsem_post(&tmq->rspSem);
     tscWarn("discard rsp epoch %d, current epoch %d", msgEpoch, tmqEpoch);
     return 0;
@@ -886,6 +888,9 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     goto WRITE_QUEUE_FAIL;
   }
 
+  tscError("tmq recv poll: vg %d, req offset %ld, rsp offset %ld", pParam->pVg->vgId, pRsp->msg.reqOffset,
+           pRsp->msg.rspOffset);
+
   pRsp->vg = pParam->pVg;
   taosWriteQitem(tmq->mqueue, pRsp);
   atomic_add_fetch_32(&tmq->readyRequest, 1);
@@ -902,6 +907,7 @@ WRITE_QUEUE_FAIL:
 
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
+  /*printf("tmq update ep epoch %d to epoch %d\n", tmq->epoch, epoch);*/
   bool    set = false;
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
@@ -932,6 +938,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
         for (int32_t k = 0; k < vgNumCur; k++) {
           SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, k);
           sprintf(vgKey, "%s:%d", topic.topicName, pVgCur->vgId);
+          /*printf("epoch %d vg %d build %s\n", epoch, pVgCur->vgId, vgKey);*/
           taosHashPut(pHash, vgKey, strlen(vgKey), &pVgCur->currentOffset, sizeof(int64_t));
         }
         break;
@@ -945,9 +952,12 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
       sprintf(vgKey, "%s:%d", topic.topicName, pVgEp->vgId);
       int64_t* pOffset = taosHashGet(pHash, vgKey, strlen(vgKey));
       int64_t  offset = pVgEp->offset;
+      /*printf("epoch %d vg %d offset og to %ld\n", epoch, pVgEp->vgId, offset);*/
       if (pOffset != NULL) {
         offset = *pOffset;
+        /*printf("epoch %d vg %d found %s\n", epoch, pVgEp->vgId, vgKey);*/
       }
+      /*printf("epoch %d vg %d offset set to %ld\n", epoch, pVgEp->vgId, offset);*/
       SMqClientVg clientVg = {
           .pollCnt = 0,
           .currentOffset = offset,
@@ -1195,6 +1205,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       int32_t      vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus != TMQ_VG_STATUS__IDLE) {
+        /*printf("skip vg %d\n", pVg->vgId);*/
         continue;
       }
       SMqPollReq* pReq = tmqBuildConsumeReqImpl(tmq, blockingTime, pTopic, pVg);
@@ -1238,6 +1249,8 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
       atomic_add_fetch_32(&tmq->waitingRequest, 1);
+      /*tscDebug("tmq send poll: vg %d, req offset %ld", pVg->vgId, pVg->currentOffset);*/
+      /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/
       asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
       pVg->pollCnt++;
       tmq->pollCnt++;

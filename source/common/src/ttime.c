@@ -361,6 +361,18 @@ int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
+char getPrecisionUnit(int32_t precision) {
+  static char units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+    case TSDB_TIME_PRECISION_MICRO:
+    case TSDB_TIME_PRECISION_NANO:
+      return units[precision];
+    default:
+      return 0;
+  }
+}
+
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
   assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);
@@ -368,6 +380,33 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
          toPrecision == TSDB_TIME_PRECISION_NANO);
   static double factors[3][3] = {{1., 1000., 1000000.}, {1.0 / 1000, 1., 1000.}, {1.0 / 1000000, 1.0 / 1000, 1.}};
   return (int64_t)((double)time * factors[fromPrecision][toPrecision]);
+}
+
+int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit) {
+  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
+         fromPrecision == TSDB_TIME_PRECISION_NANO);
+  static double factors[3] = {1000000., 1000., 1.};
+  switch (toUnit) {
+    case 's':
+      return time * factors[fromPrecision] / NANOSECOND_PER_SEC;
+    case 'm':
+      return time * factors[fromPrecision] / NANOSECOND_PER_MINUTE;
+    case 'h':
+      return time * factors[fromPrecision] / NANOSECOND_PER_HOUR;
+    case 'd':
+      return time * factors[fromPrecision] / NANOSECOND_PER_DAY;
+    case 'w':
+      return time * factors[fromPrecision] / NANOSECOND_PER_WEEK;
+    case 'a':
+      return time * factors[fromPrecision] / NANOSECOND_PER_MSEC;
+    case 'u':
+      return time * factors[fromPrecision] / NANOSECOND_PER_USEC;
+    case 'b':
+      return time * factors[fromPrecision];
+    default: {
+      return -1;
+    }
+  }  
 }
 
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {

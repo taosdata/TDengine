@@ -21,8 +21,8 @@
 
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
-#define MEM_TERM_LIMIT 10 * 10000
-#define MEM_THRESHOLD 1024 * 1024
+#define MEM_TERM_LIMIT     10 * 10000
+#define MEM_THRESHOLD      1024 * 1024
 #define MEM_ESTIMATE_RADIO 1.5
 
 static void indexMemRef(MemTable* tbl);

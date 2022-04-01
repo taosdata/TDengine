@@ -61,16 +61,16 @@ extern "C" {
     }                                                             \
   }
 
-#define WAL_HEAD_VER     0
+#define WAL_HEAD_VER 0
 #define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX   "log"
+#define WAL_SUFFIX_AT (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX "log"
 #define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS   1000
-#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
-#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
-#define WAL_MAGIC        0xFAFBFCFDULL
+#define WAL_REFRESH_MS 1000
+#define WAL_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
+#define WAL_PATH_LEN (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN (WAL_PATH_LEN + 32)
+#define WAL_MAGIC 0xFAFBFCFDULL
 
 #define WAL_CUR_FAILED 1
 
@@ -150,14 +150,15 @@ typedef struct SWal {
 } SWal;  // WAL HANDLE
 
 typedef struct SWalReadHandle {
-  SWal     *pWal;
-  TdFilePtr pReadLogTFile;
-  TdFilePtr pReadIdxTFile;
-  int64_t   curFileFirstVer;
-  int64_t   curVersion;
-  int64_t   capacity;
-  int64_t   status;  // if cursor valid
-  SWalHead *pHead;
+  SWal         *pWal;
+  TdFilePtr     pReadLogTFile;
+  TdFilePtr     pReadIdxTFile;
+  int64_t       curFileFirstVer;
+  int64_t       curVersion;
+  int64_t       capacity;
+  int64_t       status;  // if cursor valid
+  TdThreadMutex mutex;
+  SWalHead     *pHead;
 } SWalReadHandle;
 #pragma pack(pop)
 
@@ -191,6 +192,7 @@ int32_t walEndSnapshot(SWal *);
 SWalReadHandle *walOpenReadHandle(SWal *);
 void            walCloseReadHandle(SWalReadHandle *);
 int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
+int32_t         walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
 
 // deprecated
 #if 0
