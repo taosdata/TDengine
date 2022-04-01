@@ -22,7 +22,6 @@ static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SMsgCb msgCb = {0};
   msgCb.pWrapper = pMgmt->pWrapper;
   msgCb.sendReqFp = dndSendReqToDnode;
-  msgCb.sendMnodeReqFp = dndSendReqToMnode;
   msgCb.sendRspFp = dndSendRsp;
   msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
   pOption->msgCb = msgCb;

@@ -39,16 +39,11 @@ static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
 }
 
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SMsgCb msgCb = {0};
-  msgCb.pWrapper = pMgmt->pWrapper;
+  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
   msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToQueryQueue;
   msgCb.queueFps[READ_QUEUE] = mmPutMsgToReadQueue;
   msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
   msgCb.queueFps[SYNC_QUEUE] = mmPutMsgToWriteQueue;
-  msgCb.sendReqFp = dndSendReqToDnode;
-  msgCb.sendMnodeReqFp = dndSendReqToMnode;
-  msgCb.sendRspFp = dndSendRsp;
-  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
   pOption->msgCb = msgCb;
 }
 

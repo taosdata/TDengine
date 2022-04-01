@@ -76,16 +76,12 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  SMsgCb msgCb = {0};
+  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
   msgCb.pWrapper = pMgmt->pWrapper;
   msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
   msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
   msgCb.qsizeFp = vmGetQueueSize;
-  msgCb.sendReqFp = dndSendReqToDnode;
-  msgCb.sendMnodeReqFp = dndSendReqToMnode;
-  msgCb.sendRspFp = dndSendRsp;
-  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
 
   vnodeCfg.msgCb = msgCb;
   vnodeCfg.pTfs = pMgmt->pTfs;

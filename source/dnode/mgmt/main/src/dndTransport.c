@@ -398,7 +398,6 @@ SMsgCb dndCreateMsgcb(SMgmtWrapper *pWrapper) {
       .pWrapper = pWrapper,
       .registerBrokenLinkArgFp = dndRegisterBrokenLinkArg,
       .releaseHandleFp = dndReleaseHandle,
-      .sendMnodeReqFp = dndSendReqToMnode,
       .sendReqFp = dndSendReqToDnode,
       .sendRspFp = dndSendRsp,
   };

@@ -19,15 +19,10 @@
 static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
 static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
-  SMsgCb msgCb = {0};
-  msgCb.pWrapper = pMgmt->pWrapper;
+  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
   msgCb.queueFps[QUERY_QUEUE] = qmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = qmPutMsgToFetchQueue;
   msgCb.qsizeFp = qmGetQueueSize;
-  msgCb.sendReqFp = dndSendReqToDnode;
-  msgCb.sendMnodeReqFp = dndSendReqToMnode;
-  msgCb.sendRspFp = dndSendRsp;
-  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
   pOption->msgCb = msgCb;
 }
 
