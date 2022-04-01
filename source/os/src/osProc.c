@@ -33,7 +33,7 @@ int32_t taosNewProc(char **args) {
 }
 
 void taosWaitProc(int32_t pid) {
-  int32_t status = 0;
+  int32_t status = -1;
   waitpid(pid, &status, 0);
 }
 
