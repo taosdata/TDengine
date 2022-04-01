@@ -37,6 +37,14 @@ enum {
   TMQ_MSG_TYPE__EP_RSP,
 };
 
+enum {
+  STREAM_TRIGGER__AT_ONCE = 1,
+  STREAM_TRIGGER__WINDOW_CLOSE,
+  STREAM_TRIGGER__BY_COUNT,
+  STREAM_TRIGGER__BY_BATCH_COUNT,
+  STREAM_TRIGGER__BY_EVENT_TIME,
+};
+
 typedef struct {
   uint32_t  numOfTables;
   SArray*   pGroupList;
@@ -54,13 +62,16 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow    window;
-  int32_t        rows;
-  int32_t        rowSize;
-  int16_t        numOfCols;
-  int16_t        hasVarCol;
-  union {int64_t uid; int64_t blockId;};
-  int64_t        groupId;     // no need to serialize
+  STimeWindow window;
+  int32_t     rows;
+  int32_t     rowSize;
+  int16_t     numOfCols;
+  int16_t     hasVarCol;
+  union {
+    int64_t uid;
+    int64_t blockId;
+  };
+  int64_t groupId;  // no need to serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -93,7 +104,7 @@ void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
 void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
-void    colDataDestroy(SColumnInfoData* pColData) ;
+void    colDataDestroy(SColumnInfoData* pColData);
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   // WARNING: do not use info.numOfCols,
@@ -198,8 +209,8 @@ typedef struct SGroupbyExpr {
 } SGroupbyExpr;
 
 enum {
-  FUNC_PARAM_TYPE_VALUE = 0,
-  FUNC_PARAM_TYPE_COLUMN,
+  FUNC_PARAM_TYPE_VALUE = 0x1,
+  FUNC_PARAM_TYPE_COLUMN= 0x2,
 };
 
 typedef struct SFunctParam {
@@ -239,7 +250,7 @@ typedef struct SSessionWindow {
   SColumn col;
 } SSessionWindow;
 
-#define QUERY_ASC_FORWARD_STEP  1
+#define QUERY_ASC_FORWARD_STEP 1
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)

@@ -1217,6 +1217,9 @@ static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt
   SName tableName;
   int32_t code = getTableMetaImpl(
       pCxt, toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &tableName), &pTableMeta);
+  if ((TSDB_CODE_TDB_INVALID_TABLE_ID == code || TSDB_CODE_VND_TB_NOT_EXIST == code) && pClause->ignoreNotExists) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (TSDB_CODE_SUCCESS == code) {
     if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
       code = doTranslateDropSuperTable(pCxt, &tableName, pClause->ignoreNotExists);
@@ -2167,7 +2170,7 @@ typedef struct SVgroupTablesBatch {
 static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
-  pSchema->bytes = pCol->dataType.bytes;
+  pSchema->bytes = calcTypeBytes(pCol->dataType);
   strcpy(pSchema->name, pCol->colName);
 }
 
@@ -2592,8 +2595,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     default:
       pQuery->directRpc = true;
-      TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg, SCmdMsgInfo*);
-      pQuery->msgType = pQuery->pCmdMsg->msgType;
+      if (NULL != pCxt->pCmdMsg) {
+        TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg, SCmdMsgInfo*);
+        pQuery->msgType = pQuery->pCmdMsg->msgType;
+      }
       break;
   }
 

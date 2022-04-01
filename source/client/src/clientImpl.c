@@ -181,6 +181,11 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 }
 
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  // drop table if exists not_exists_table
+  if (NULL == pQuery->pCmdMsg) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
