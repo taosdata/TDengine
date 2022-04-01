@@ -4,4 +4,4 @@ const conn = taos.connect({
   host: "localhost",
 });
 
-// 未完成, 等待 TD-1448 解决
+// 未完成, 等待 TD-14448 解决
