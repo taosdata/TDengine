@@ -81,7 +81,6 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: maybe need to clear the request struct
       taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
       taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
-      taosMemoryFree(vCreateTbReq.stbCfg.pBSmaCols);
       taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
       taosMemoryFree(vCreateTbReq.dbFName);
       taosMemoryFree(vCreateTbReq.name);
@@ -116,13 +115,11 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
           taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
-          taosMemoryFree(pCreateTbReq->stbCfg.pBSmaCols);
           taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
         } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
           taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
         } else {
           taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
-          taosMemoryFree(pCreateTbReq->ntbCfg.pBSmaCols);
           taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
         }
       }
@@ -150,7 +147,6 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
       taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
       taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
-      taosMemoryFree(vAlterTbReq.stbCfg.pBSmaCols);
       taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
       taosMemoryFree(vAlterTbReq.dbFName);
       taosMemoryFree(vAlterTbReq.name);

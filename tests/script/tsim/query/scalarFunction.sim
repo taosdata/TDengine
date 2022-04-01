@@ -202,7 +202,7 @@ if $rows != $rowNum then
 endi
 
 print ====> sin
-#sql select c1, sin(c1), sin(c1) * 3.14159265 / 180 from ct1  # TD-14426
+sql select c1, sin(c1), sin(c1) * 3.14159265 / 180 from ct1
 sql select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ct1
 print ====> select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ct1
 print ====> rows: $rows

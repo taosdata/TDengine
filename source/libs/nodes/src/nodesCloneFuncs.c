@@ -206,6 +206,12 @@ static SNode* orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNode
   return (SNode*)pDst;
 }
 
+static SNode* nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  CLONE_NODE_LIST_FIELD(pNodeList);
+  return (SNode*)pDst;
+}
+
 static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
@@ -360,6 +366,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
     case QUERY_NODE_LIMIT:
       break;
+    case QUERY_NODE_NODE_LIST:
+      return nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);
     case QUERY_NODE_FILL:
       return fillNodeCopy((const SFillNode*)pNode, (SFillNode*)pDst);
     case QUERY_NODE_DATABLOCK_DESC:
