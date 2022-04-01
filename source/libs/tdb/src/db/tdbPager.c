@@ -137,7 +137,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   // Set page as dirty
   pPage->isDirty = 1;
 
-  // Add page to dirty list
+  // Add page to dirty list(TODO: NOT use O(n^2) algorithm)
   for (ppPage = &pPager->pDirty; (*ppPage) && TDB_PAGE_PGNO(*ppPage) < TDB_PAGE_PGNO(pPage);
        ppPage = &((*ppPage)->pDirtyNext)) {
   }
@@ -198,7 +198,7 @@ int tdbPagerCommit(SPager *pPager) {
   }
 
   // release the page
-  for (pPage = pPager->pDirty; pPage; pPage = pPage->pDirtyNext) {
+  for (pPage = pPager->pDirty; pPage; pPage = pPager->pDirty) {
     pPager->pDirty = pPage->pDirtyNext;
     pPage->pDirtyNext = NULL;
 
