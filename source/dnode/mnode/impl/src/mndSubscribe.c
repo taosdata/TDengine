@@ -507,7 +507,7 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
 
       // TODO: log rebalance statistics
       SSdbRaw *pSubRaw = mndSubActionEncode(pSub);
-      sdbSetRawStatus(pSubRaw, SDB_STATUS_UPDATING);
+      sdbSetRawStatus(pSubRaw, SDB_STATUS_READY);
       mndTransAppendRedolog(pTrans, pSubRaw);
     }
     mndReleaseSubscribe(pMnode, pSub);
