@@ -37,8 +37,10 @@ int32_t taosMemorySize(void *ptr);
 
 #define taosMemoryFreeClear(ptr) \
   do {                           \
-    taosMemoryFree(ptr);         \
-    (ptr)=NULL;                  \
+    if (ptr) {                   \
+      taosMemoryFree(ptr);       \
+      (ptr) = NULL;              \
+    }                            \
   } while (0)
 
 #ifdef __cplusplus
