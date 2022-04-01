@@ -150,6 +150,8 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
+SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
+SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
@@ -170,6 +172,16 @@ SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* p
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
 SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
+SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups);
+SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize);
+SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName);
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName, const SToken* pTableName, SNode* pQuery);
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName);
+SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
+SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
+SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
+SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);
+SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 
 #ifdef __cplusplus
 }
