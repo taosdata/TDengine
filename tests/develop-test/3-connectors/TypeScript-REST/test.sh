@@ -25,8 +25,8 @@ nohup taosd -c ${taosdConfig} > /dev/null 2>&1 &
 nohup taosadapter -c ${adapterConfig} > /dev/null 2>&1 &
 sleep 10
 
-echo `pwd`
-cd ../../
+# echo `pwd`
+# cd ../../
 WKC=`pwd`
 echo ${WKC}
 cd ${WKC}/src/connector/TypeScript-REST
