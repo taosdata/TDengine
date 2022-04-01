@@ -32,6 +32,18 @@ int32_t taosNewProc(char **args) {
   }
 }
 
+void taosWaitProc(int32_t pid) {
+  int32_t status = 0;
+  waitpid(pid, &status, 0);
+}
+
+void taosKillProc(int32_t pid) { kill(pid, SIGINT); }
+
+bool taosProcExist(int32_t pid) {
+  int32_t p = getpgid(pid);
+  return p >= 0;
+}
+
 // the length of the new name must be less than the original name to take effect
 void taosSetProcName(int32_t argc, char **argv, const char *name) {
   prctl(PR_SET_NAME, name);
@@ -48,8 +60,3 @@ void taosSetProcName(int32_t argc, char **argv, const char *name) {
 }
 
 void taosSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }
-
-bool taosProcExists(int32_t pid) {
-  int32_t p = getpgid(pid);
-  return p >= 0;
-}
