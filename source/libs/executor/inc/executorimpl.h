@@ -393,6 +393,7 @@ typedef struct STableScanInfo {
   int32_t         times;  // repeat counts
   int32_t         current;
   int32_t         reverseTimes;  // 0 by default
+  SNode*          pFilterNode;   // filter operator info
   SqlFunctionCtx* pCtx;  // next operator query context
   SResultRowInfo* pResultRowInfo;
   int32_t*        rowCellInfoOffset;
@@ -501,12 +502,6 @@ typedef struct SProjectOperatorInfo {
   int64_t        curOutput;
 } SProjectOperatorInfo;
 
-typedef struct SLimitOperatorInfo {
-  SLimit             limit;
-  int64_t            currentOffset;
-  int64_t            currentRows;
-} SLimitOperatorInfo;
-
 typedef struct SSLimitOperatorInfo {
   int64_t            groupTotal;
   int64_t            currentGroupOffset;
@@ -524,11 +519,6 @@ typedef struct SSLimitOperatorInfo {
   int64_t            capacity;
   int64_t            threshold;
 } SSLimitOperatorInfo;
-
-typedef struct SFilterOperatorInfo {
-  SSingleColumnFilterInfo* pFilterInfo;
-  int32_t                  numOfFilterCols;
-} SFilterOperatorInfo;
 
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
@@ -639,7 +629,7 @@ typedef struct SDistinctOperatorInfo {
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
-                                           int32_t reverseTime, SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo);
+                                           int32_t reverseTime, SArray* pColMatchInfo, SNode* pCondition, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
@@ -682,22 +672,12 @@ SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
 
-void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
-
 void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 
 void finalizeQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput);
-
-void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
-int32_t createQueryFilter(char* data, uint16_t len, SFilterInfo** pFilters);
-
-int32_t createFilterInfo(STaskAttr* pQueryAttr, uint64_t qId);
-void    freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
-
 STableQueryInfo* createTableQueryInfo(void* buf, bool groupbyColumn, STimeWindow win);
-STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
 
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
