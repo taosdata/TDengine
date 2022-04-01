@@ -118,10 +118,10 @@ TEST(tdb_test, simple_test) {
   TENV          *pEnv;
   TDB           *pDb;
   FKeyComparator compFunc;
-  int            nData = 1000000;
+  int            nData = 50000000;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 4096, 8192, &pEnv);
+  ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -149,6 +149,8 @@ TEST(tdb_test, simple_test) {
       }
     }
 
+    tdbCommit(pEnv);
+
     {  // Query the data
       void *pVal = NULL;
       int   vLen;
@@ -158,6 +160,7 @@ TEST(tdb_test, simple_test) {
         sprintf(val, "value%d", i);
 
         ret = tdbDbGet(pDb, key, strlen(key), &pVal, &vLen);
+        ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, strlen(val));
