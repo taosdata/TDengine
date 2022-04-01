@@ -369,13 +369,11 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   int bSmaStat = 0;                             // no column has bsma
   if (pStb->numOfSmas == pStb->numOfColumns) {  // assume pColumns > 0
     bSmaStat = 1;                               // all columns have bsma
-    TASSERT(pStb->pSmas == NULL);               // TODO: remove the assert
   } else if (pStb->numOfSmas != 0) {
     bSmaStat = 2;                  // partial columns have bsma
     TASSERT(pStb->pSmas != NULL);  // TODO: remove the assert
-  } else {
-    TASSERT(pStb->pSmas == NULL);  // TODO: remove the assert
   }
+
   for (int32_t i = 0; i < req.stbCfg.nCols; ++i) {
     SSchemaEx *pSchemaEx = req.stbCfg.pSchema + i;
     SSchema   *pSchema = pStb->pColumns + i;
