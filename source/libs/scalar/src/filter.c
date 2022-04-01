@@ -3668,7 +3668,6 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     taosArrayPush(pList, &pSrc);
     
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
-
     taosArrayDestroy(pList);
     // TODO Fix it
 //    *p = output.orig.data;

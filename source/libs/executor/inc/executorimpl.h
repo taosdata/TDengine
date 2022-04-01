@@ -393,6 +393,7 @@ typedef struct STableScanInfo {
   int32_t         times;  // repeat counts
   int32_t         current;
   int32_t         reverseTimes;  // 0 by default
+  SNode*          pFilterNode;   // filter operator info
   SqlFunctionCtx* pCtx;  // next operator query context
   SResultRowInfo* pResultRowInfo;
   int32_t*        rowCellInfoOffset;
@@ -628,7 +629,7 @@ typedef struct SDistinctOperatorInfo {
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
-                                           int32_t reverseTime, SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo);
+                                           int32_t reverseTime, SArray* pColMatchInfo, SNode* pCondition, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);

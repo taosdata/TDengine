@@ -3016,6 +3016,23 @@ int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, 
     taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
   }
 
+  if (pTableScanInfo->pFilterNode != NULL) {
+    SFilterInfo* filter = NULL;
+    int32_t      code = filterInitFromNode((SNode*)pTableScanInfo->pFilterNode, &filter, 0);
+
+    SFilterColumnParam param1 = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
+    code = filterSetDataFromSlotId(filter, &param1);
+
+    int8_t* rowRes = NULL;
+    bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+
+//    filterSetColFieldData(pQueryAttr->pFilters, pBlock->info.numOfCols, pBlock->pDataBlock);
+
+//    if (pQueryAttr->pFilters != NULL) {
+//      filterColRowsInDataBlock(pRuntimeEnv, pBlock, ascQuery);
+//    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4655,7 +4672,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     //        break;
     //      }
     //
-    //      pRuntimeEnv->current = *pTableQueryInfo;
     //      doTableQueryInfoTimeWindowCheck(pTaskInfo, *pTableQueryInfo, pTableScanInfo->order);
     //    }
 
@@ -5413,7 +5429,7 @@ SSDataBlock* createResultDataBlock(const SArray* pExprInfo) {
 
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo,
-                                           SExecTaskInfo* pTaskInfo) {
+                                           SNode* pCondition, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
@@ -5432,21 +5448,22 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
     taosArrayPush(pInfo->block.pDataBlock, &idata);
   }
 
-  pInfo->pTsdbReadHandle = pTsdbReadHandle;
-  pInfo->times = repeatTime;
-  pInfo->reverseTimes = reverseTime;
-  pInfo->order = order;
-  pInfo->current = 0;
-  pInfo->scanFlag = MAIN_SCAN;
-  pInfo->pColMatchInfo = pColMatchInfo;
-  pOperator->name = "TableScanOperator";
+  pInfo->pFilterNode      = pCondition;
+  pInfo->pTsdbReadHandle  = pTsdbReadHandle;
+  pInfo->times            = repeatTime;
+  pInfo->reverseTimes     = reverseTime;
+  pInfo->order            = order;
+  pInfo->current          = 0;
+  pInfo->scanFlag         = MAIN_SCAN;
+  pInfo->pColMatchInfo    = pColMatchInfo;
+  pOperator->name         = "TableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfOutput = numOfOutput;
-  pOperator->getNextFn = doTableScan;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = numOfOutput;
+  pOperator->getNextFn    = doTableScan;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   return pOperator;
 }
@@ -5703,7 +5720,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
         SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, i);
         int64_t          tmp = 0;
         char             t[10] = {0};
-        STR_TO_VARSTR(t, "_");
+        STR_TO_VARSTR(t, "_");  //TODO
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
           colDataAppend(pColInfoData, numOfRows, t, false);
         } else {
@@ -8618,7 +8635,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
 
       return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pScanPhyNode->count,
-                                         pScanPhyNode->reverse, pColList, pTaskInfo);
+                                         pScanPhyNode->reverse, pColList, pScanPhyNode->node.pConditions, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pPhyNode)) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock*        pResBlock = createOutputBuf_rv1(pExchange->node.pOutputDataBlockDesc);
