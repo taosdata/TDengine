@@ -40,6 +40,7 @@
 # ---- tmq
 ./test.sh -f tsim/tmq/basic.sim
 ./test.sh -f tsim/tmq/basic1.sim
+./test.sh -f tsim/tmq/oneTopic.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
