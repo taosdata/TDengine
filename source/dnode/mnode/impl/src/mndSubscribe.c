@@ -446,26 +446,21 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
         if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb ||
             (vgThisConsumerAfterRb != 0 && status != MQ_CONSUMER_STATUS__ACTIVE) ||
             (vgThisConsumerAfterRb == 0 && status != MQ_CONSUMER_STATUS__LOST)) {
-          SMqConsumerObj* pNewRebConsumer = taosMemoryMalloc(sizeof(SMqConsumerObj));
-          ASSERT(pNewRebConsumer);
-          memcpy(pNewRebConsumer, pRebConsumer, sizeof(SMqConsumerObj));
-          pNewRebConsumer->currentTopics = taosArrayDup(pRebConsumer->currentTopics);
-          pNewRebConsumer->recentRemovedTopics = taosArrayDup(pRebConsumer->recentRemovedTopics);
-          if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb) {
-            pNewRebConsumer->epoch++;
-          }
+          /*if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb) {*/
+            /*pRebConsumer->epoch++;*/
+          /*}*/
           if (vgThisConsumerAfterRb != 0) {
-            atomic_store_32(&pNewRebConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);
+            atomic_store_32(&pRebConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);
           } else {
-            atomic_store_32(&pNewRebConsumer->status, MQ_CONSUMER_STATUS__IDLE);
+            atomic_store_32(&pRebConsumer->status, MQ_CONSUMER_STATUS__IDLE);
           }
 
-          mInfo("mq consumer:%" PRId64 ", status change from %d to %d", pNewRebConsumer->consumerId, status,
-                pNewRebConsumer->status);
+          mInfo("mq consumer:%" PRId64 ", status change from %d to %d", pRebConsumer->consumerId, status,
+                pRebConsumer->status);
 
-          SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pNewRebConsumer);
+          SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pRebConsumer);
           sdbSetRawStatus(pConsumerRaw, SDB_STATUS_READY);
-          mndTransAppendRedolog(pTrans, pConsumerRaw);
+          mndTransAppendCommitlog(pTrans, pConsumerRaw);
         }
         mndReleaseConsumer(pMnode, pRebConsumer);
       }
@@ -512,7 +507,7 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
 
       // TODO: log rebalance statistics
       SSdbRaw *pSubRaw = mndSubActionEncode(pSub);
-      sdbSetRawStatus(pSubRaw, SDB_STATUS_READY);
+      sdbSetRawStatus(pSubRaw, SDB_STATUS_UPDATING);
       mndTransAppendRedolog(pTrans, pSubRaw);
     }
     mndReleaseSubscribe(pMnode, pSub);

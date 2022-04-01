@@ -264,7 +264,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  printf("tmq poll vg %d req %ld %ld\n", pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
+  /*printf("tmq poll vg %d req %ld %ld\n", pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);*/
 
   SMqPollRsp rsp = {
       /*.consumerId = consumerId,*/
@@ -299,8 +299,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       // response to user
       break;
     }
-    printf("vg %d offset %ld msgType %d from epoch %d\n", pTq->pVnode->vgId, fetchOffset, pHead->msgType,
-     pReq->epoch);
+    /*printf("vg %d offset %ld msgType %d from epoch %d\n", pTq->pVnode->vgId, fetchOffset, pHead->msgType, pReq->epoch);*/
     /*int8_t pos = fetchOffset % TQ_BUFFER_SIZE;*/
     /*pHead = pTopic->pReadhandle->pHead;*/
     if (pHead->msgType == TDMT_VND_SUBMIT) {
@@ -353,7 +352,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       pMsg->pCont = buf;
       pMsg->contLen = tlen;
       pMsg->code = 0;
-      printf("vg %d offset %ld msgType %d from epoch %d actual rsp\n", pTq->pVnode->vgId, fetchOffset, pHead->msgType, pReq->epoch);
+      /*printf("vg %d offset %ld msgType %d from epoch %d actual rsp\n", pTq->pVnode->vgId, fetchOffset, pHead->msgType, pReq->epoch);*/
       tmsgSendRsp(pMsg);
       taosMemoryFree(pHead);
       return 0;
@@ -384,7 +383,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   pMsg->contLen = tlen;
   pMsg->code = 0;
   tmsgSendRsp(pMsg);
-  printf("vg %d offset %ld from epoch %d not rsp\n", pTq->pVnode->vgId, fetchOffset, pReq->epoch);
+  /*printf("vg %d offset %ld from epoch %d not rsp\n", pTq->pVnode->vgId, fetchOffset, pReq->epoch);*/
   /*}*/
 
   return 0;
@@ -451,7 +450,7 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
     pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, &handle);
     ASSERT(pTopic->buffer.output[i].task);
   }
-  printf("set topic %s to consumer %ld on vg %d\n", pTopic->topicName, req.consumerId, pTq->pVnode->vgId);
+  /*printf("set topic %s to consumer %ld on vg %d\n", pTopic->topicName, req.consumerId, pTq->pVnode->vgId);*/
   taosArrayPush(pConsumer->topics, pTopic);
   tqHandleMovePut(pTq->tqMeta, req.consumerId, pConsumer);
   tqHandleCommit(pTq->tqMeta, req.consumerId);
