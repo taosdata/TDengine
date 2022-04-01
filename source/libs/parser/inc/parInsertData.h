@@ -78,8 +78,6 @@ typedef struct STableDataBlocks {
   char       *pData;
   bool        cloned;
   STagData    tagData; 
-  char        tableName[TSDB_TABLE_NAME_LEN];
-  char        dbFName[TSDB_DB_FNAME_LEN];
   
   SParsedDataColInfo boundColumnInfo;
   SRowBuilder        rowBuilder;
