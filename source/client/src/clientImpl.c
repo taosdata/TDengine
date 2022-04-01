@@ -56,7 +56,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   }
 
   char localDb[TSDB_DB_NAME_LEN] = {0};
-  if (db != NULL) {
+  if (db != NULL && strlen(db) > 0) {
     if (!validateDbName(db)) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       return NULL;
@@ -164,6 +164,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
     if ((*pQuery)->haveResultSet) {
       setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
     }
+
     TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
     TSWAP(pRequest->tableList, (*pQuery)->pTableList, SArray*);
   }
@@ -800,6 +801,16 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   assert(db != NULL && pTscObj != NULL);
   taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  taosThreadMutexUnlock(&pTscObj->mutex);
+}
+
+void resetConnectDB(STscObj* pTscObj) {
+  if (pTscObj == NULL) {
+    return;
+  }
+
+  taosThreadMutexLock(&pTscObj->mutex);
+  pTscObj->db[0] = 0;
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
