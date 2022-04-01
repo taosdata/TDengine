@@ -20,9 +20,9 @@ static bool dndRequireNode(SMgmtWrapper *pWrapper) {
   bool    required = false;
   int32_t code = (*pWrapper->fp.requiredFp)(pWrapper, &required);
   if (!required) {
-    dDebug("node:%s, no need to start", pWrapper->name);
+    dDebug("node:%s, does not require startup", pWrapper->name);
   } else {
-    dDebug("node:%s, need to start", pWrapper->name);
+    dDebug("node:%s, needs to be started", pWrapper->name);
   }
   return required;
 }
@@ -278,6 +278,12 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
   dInfo("%s run in child process", pWrapper->name);
+
+  pWrapper->required = dndRequireNode(pWrapper);
+  if (!pWrapper->required) {
+    dError("%s does not require startup", pWrapper->name);
+    return -1;
+  }
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);
   tmsgSetDefaultMsgCb(&msgCb);
