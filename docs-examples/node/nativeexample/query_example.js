@@ -6,4 +6,4 @@ const query = cursor.query("SELECT ts, current FROM meters LIMIT 2");
 query.execute().then(function (result) {
   result.pretty();
 });
-// 目前执行失败，原因不明： TD-1448
+// 目前执行失败，原因不明： TD-14448
