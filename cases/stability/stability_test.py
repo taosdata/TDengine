@@ -19,7 +19,7 @@ import socket
 import os
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
-from taostest.util.file import dict2yaml
+from taostest.util.file import dict2yaml, read_yaml
 import datetime
 import re
 import time
@@ -37,6 +37,7 @@ class TestStability(TDCase):
         self.error_msg = None
         self.env_dir = None
         self.tmp_yaml = None
+        self.stability_config = read_yaml(os.path.join(os.path.abspath(os.path.dirname(__file__)), "stability_config.yaml"))
 
     def init(self):
         self._remote: Remote = Remote(self.logger)
@@ -68,11 +69,11 @@ class TestStability(TDCase):
 
         tag = jfile.schemacfg(intcount=1)
 
-        dbname = "query_db"
+        dbname = self.stability_config["query_dbname"]
         for i in range(len(taosBenchmark_fqdn_list)):
             db = jfile.setDBinfo(name=dbname, drop="yes")
-            stb = jfile.setStbinfo(name="stb", childtable_prefix="stb_" + str(i), childtable_count=100,
-                                   insert_rows=10000, columns=col, tags=tag)
+            stb = jfile.setStbinfo(name="stb", childtable_prefix="stb_" + str(i), childtable_count=self.stability_config["childtable_count"],
+                                   insert_rows=self.stability_config["insert_rows"], columns=col, tags=tag)
 
             database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
             json_info = jfile.setJsoninfo(host=taosd_fqdn, databases=[database1])
@@ -94,7 +95,7 @@ class TestStability(TDCase):
                     "select last(*) from query_db.stb",
                     ]
         for sql in sql_list:
-            self.tdSql.execute(sql_list)
+            self.tdSql.execute(sql)
 
     def re_write_stability_yaml(self):
         self.env_dir = os.path.join(os.environ["TEST_ROOT"], "env")
@@ -140,7 +141,7 @@ class TestStability(TDCase):
 
         start_datetime = datetime.datetime.now()
         start_time = start_datetime.strftime('%Y-%m-%d %H:%M:%S.%f')
-        end_time = (start_datetime + datetime.timedelta(seconds=120)).strftime('%Y-%m-%d %H:%M:%S.%f')
+        end_time = (start_datetime + datetime.timedelta(seconds=self.time2s(self.stability_config["run_time"]))).strftime('%Y-%m-%d %H:%M:%S.%f')
         while start_time < end_time:
             start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 

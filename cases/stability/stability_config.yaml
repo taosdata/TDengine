@@ -1,0 +1,4 @@
+run_time: 1h
+query_dbname: query_db
+childtable_count: 100
+insert_rows: 10000
