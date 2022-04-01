@@ -21,9 +21,11 @@ extern "C" {
 #endif
 
 int32_t taosNewProc(char **args);
+void    taosWaitProc(int32_t pid);
+void    taosKillProc(int32_t pid);
+bool    taosProcExist(int32_t pid);
 void    taosSetProcName(int32_t argc, char **argv, const char *name);
 void    taosSetProcPath(int32_t argc, char **argv);
-bool    taosProcExists(int32_t pid);
 
 #ifdef __cplusplus
 }

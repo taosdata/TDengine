@@ -590,7 +590,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
 }
 
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
-  uInfo("load from global env variables not implemented yet");
+  uInfo("load from env variables not implemented yet");
   return 0;
 }
 
