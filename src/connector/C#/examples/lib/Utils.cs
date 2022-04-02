@@ -15,16 +15,18 @@ namespace Sample.UtilsTools
         static short port = 0;
         static string globalDbName = "csharp_example_db";
         //get a TDengine connection
-        public static IntPtr TDConnection()
+        public static IntPtr TDConnection(string dbName = "csharp_example_db")
         {
             TDengine.Options((int)TDengineInitOption.TSDB_OPTION_CONFIGDIR, GetConfigPath());
             TDengine.Options((int)TDengineInitOption.TSDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
             TDengine.Init();
 
             IntPtr conn = TDengine.Connect(ip, user, password, db, port);
-            UtilsTools.ExecuteUpdate(conn, $"drop database if  exists {globalDbName}");
-            UtilsTools.ExecuteUpdate(conn, $"create database if not exists {globalDbName} keep 3650");
-            UtilsTools.ExecuteUpdate(conn, $"use {globalDbName}");
+
+            UtilsTools.ExecuteUpdate(conn, $"drop database if  exists {dbName}");
+            UtilsTools.ExecuteUpdate(conn, $"create database if not exists {dbName} keep 3650");
+            UtilsTools.ExecuteUpdate(conn, $"use {dbName}");
+
             return conn;
         }
         //get taos.cfg file based on different os
@@ -199,7 +201,7 @@ namespace Sample.UtilsTools
             int fieldCount = meta.Count;
             while ((taosRow = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
-                dataRaw.AddRange(FetchRow(taosRow,res));
+                dataRaw.AddRange(FetchRow(taosRow, res));
             }
             if (TDengine.ErrorNo(res) != 0)
             {
@@ -293,7 +295,7 @@ namespace Sample.UtilsTools
                     case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
                         string v16 = Marshal.PtrToStringUTF8(data, colLengthArr[i]);
                         dataRaw.Add(v16);
-                        break;                    
+                        break;
                     default:
                         dataRaw.Add("nonsupport data type");
                         break;
