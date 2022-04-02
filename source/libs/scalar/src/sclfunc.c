@@ -609,7 +609,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   char *input  = pInputData->pData;
   char *output = NULL;
 
-  int32_t outputLen = pInputData->varmeta.length;
+  int32_t outputLen = pInputData->varmeta.length * pInput->numOfRows;
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
   output = outputBuf;
 
@@ -630,12 +630,12 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       startPosBytes = MAX(startPosBytes, 0);
     }
 
-    subLen = MIN(subLen, len - startPosBytes);
-    if (subLen > 0) {
-      memcpy(varDataVal(output), varDataVal(input) + startPosBytes, subLen);
+    int32_t resLen = MIN(subLen, len - startPosBytes);
+    if (resLen > 0) {
+      memcpy(varDataVal(output), varDataVal(input) + startPosBytes, resLen);
     }
 
-    varDataSetLen(output, subLen);
+    varDataSetLen(output, resLen);
     colDataAppend(pOutputData, i , output, false);
     input += varDataTLen(input);
     output += varDataTLen(output);
