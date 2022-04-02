@@ -1395,11 +1395,10 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
-  float    xFilesFactor;
-  int8_t   delayUnit;
-  int8_t   nFuncIds;
-  int32_t* pFuncIds;
-  int64_t  delay;
+  float      xFilesFactor;
+  int32_t    delay;
+  int8_t     nFuncIds;
+  func_id_t* pFuncIds;
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
