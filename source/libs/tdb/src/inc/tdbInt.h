@@ -111,6 +111,13 @@ typedef struct SPager  SPager;
 typedef struct SPCache SPCache;
 typedef struct SPage   SPage;
 
+typedef struct STxn {
+  u64 txnId;
+  void *(*xMalloc)(void *, size_t);
+  void (*xFree)(void *, void *);
+  void *xArg;
+} TXN;
+
 #include "tdbOs.h"
 
 #include "tdbUtil.h"

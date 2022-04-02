@@ -36,7 +36,7 @@ struct SPCache {
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
 static int    tdbPCacheOpenImpl(SPCache *pCache);
-static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid);
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
 static void   tdbPCachePinPage(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage);
@@ -78,12 +78,12 @@ int tdbPCacheClose(SPCache *pCache) {
   return 0;
 }
 
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid) {
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
   SPage *pPage;
 
   tdbPCacheLock(pCache);
 
-  pPage = tdbPCacheFetchImpl(pCache, pPgid);
+  pPage = tdbPCacheFetchImpl(pCache, pPgid, pTxn);
   if (pPage) {
     TDB_REF_PAGE(pPage);
   }
@@ -106,7 +106,8 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage) {
 
 int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->pageSize; }
 
-static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid) {
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
+  int    ret;
   SPage *pPage;
 
   // 1. Search the hash table
@@ -117,9 +118,11 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid) {
   }
 
   if (pPage) {
+    // TODO: the page need to be copied and
+    // replaced the page in hash table
     tdbPCachePinPage(pCache, pPage);
+    return pPage;
   }
-  return pPage;
 
   // 2. Try to allocate a new page from the free list
   if (pCache->pFree) {
@@ -136,7 +139,20 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid) {
     tdbPCachePinPage(pCache, pPage);
   }
 
-  // 4. Try a stress allocation (TODO)
+  // 4. Try a create new page
+  if (pTxn && pTxn->xMalloc) {
+    ret = tdbPageCreate(pCache->pageSize, &pPage, pTxn->xMalloc, pTxn->xArg);
+    if (ret < 0) {
+      // TODO
+      ASSERT(0);
+      return NULL;
+    }
+
+    // init the page fields
+    pPage->isAnchor = 0;
+    pPage->isLocal = 0;
+    TDB_INIT_PAGE_REF(pPage);
+  }
 
   // 5. Page here are just created from a free list
   // or by recycling or allocated streesly,
@@ -145,6 +161,8 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid) {
     memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
     pPage->pLruNext = NULL;
     pPage->pPager = NULL;
+
+    // TODO: allocated page may not add to hash
     tdbPCacheAddPageToHash(pCache, pPage);
   }
 
@@ -171,16 +189,20 @@ static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
   nRef = TDB_GET_PAGE_REF(pPage);
   ASSERT(nRef >= 0);
   if (nRef == 0) {
-    // Add the page to LRU list
-    ASSERT(pPage->pLruNext == NULL);
+    if (1) {
+      // Add the page to LRU list
+      ASSERT(pPage->pLruNext == NULL);
 
-    pPage->pLruPrev = &(pCache->lru);
-    pPage->pLruNext = pCache->lru.pLruNext;
-    pCache->lru.pLruNext->pLruPrev = pPage;
-    pCache->lru.pLruNext = pPage;
+      pPage->pLruPrev = &(pCache->lru);
+      pPage->pLruNext = pCache->lru.pLruNext;
+      pCache->lru.pLruNext->pLruPrev = pPage;
+      pCache->lru.pLruNext = pPage;
+
+      pCache->nRecyclable++;
+    } else {
+      // TODO: may need to free the page
+    }
   }
-
-  pCache->nRecyclable++;
 
   tdbPCacheUnlock(pCache);
 }
@@ -229,13 +251,14 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 
     // pPage->pgid = 0;
     pPage->isAnchor = 0;
-    pPage->isLocalPage = 1;
+    pPage->isLocal = 1;
     TDB_INIT_PAGE_REF(pPage);
     pPage->pHashNext = NULL;
     pPage->pLruNext = NULL;
     pPage->pLruPrev = NULL;
     pPage->pDirtyNext = NULL;
 
+    // add page to free list
     pPage->pFreeNext = pCache->pFree;
     pCache->pFree = pPage;
     pCache->nFree++;

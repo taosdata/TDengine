@@ -157,7 +157,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-int tdbPagerBegin(SPager *pPager) {
+int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   if (pPager->inTran) {
     return 0;
   }
@@ -175,7 +175,7 @@ int tdbPagerBegin(SPager *pPager) {
   return 0;
 }
 
-int tdbPagerCommit(SPager *pPager) {
+int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
   int    ret;
 
@@ -227,7 +227,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage
   // Fetch a page container from the page cache
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid);
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, NULL);
   if (pPage == NULL) {
     return -1;
   }
@@ -263,7 +263,7 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   // Fetch a page container from the page cache
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = *ppgno;
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid);
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, NULL);
   if (pPage == NULL) {
     return -1;
   }

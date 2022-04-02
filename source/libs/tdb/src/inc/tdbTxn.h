@@ -20,15 +20,6 @@
 extern "C" {
 #endif
 
-typedef struct STxn TXN;
-
-struct STxn {
-  u64 txnId;
-  void *(*xMalloc)(void *, int);
-  void (*xFree)(void *, void *);
-  void *xArg;
-};
-
 #ifdef __cplusplus
 }
 #endif

@@ -135,7 +135,7 @@ TEST(tdb_test, simple_test) {
 
     {  // Insert some data
       for (int i = 1; i <= nData;) {
-        tdbBegin(pEnv);
+        tdbBegin(pEnv, NULL);
 
         for (int k = 0; k < 2000; k++) {
           sprintf(key, "key%d", i);
@@ -145,11 +145,9 @@ TEST(tdb_test, simple_test) {
           i++;
         }
 
-        tdbCommit(pEnv);
+        tdbCommit(pEnv, NULL);
       }
     }
-
-    tdbCommit(pEnv);
 
     {  // Query the data
       void *pVal = NULL;
