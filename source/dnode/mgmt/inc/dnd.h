@@ -178,9 +178,6 @@ int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
 void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
 void          dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 
-// dndMonitor.h
-void dndSendMonitorReport(SDnode *pDnode);
-
 // dndStr.h
 const char *dndStatStr(EDndStatus stat);
 const char *dndNodeLogStr(ENodeType ntype);

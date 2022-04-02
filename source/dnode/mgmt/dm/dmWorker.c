@@ -40,7 +40,7 @@ static void *dmThreadRoutine(void *param) {
 
     float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
     if (monitorInterval >= tsMonitorInterval) {
-      dndSendMonitorReport(pDnode);
+      dmSendMonitorReport(pDnode);
       lastMonitorTime = curTime;
     }
   }

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
+static int32_t dmGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
   pInfo->logdir.size = tsLogSpace.size;
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
@@ -30,14 +30,14 @@ static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   return 0;
 }
 
-static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
   pInfo->dnode_id = pDnode->dnodeId;
   pInfo->cluster_id = pDnode->clusterId;
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
 }
 
-static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
+static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->uptime = (taosGetTimestampMs() - pDnode->rebootTime) / (86400000.0f);
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   taosGetCpuCores(&pInfo->cpu_cores);
@@ -63,7 +63,7 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   }
 }
 
-void dndSendMonitorReport(SDnode *pDnode) {
+void dmSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
 
@@ -71,7 +71,7 @@ void dndSendMonitorReport(SDnode *pDnode) {
   if (pMonitor == NULL) return;
 
   SMonBasicInfo basicInfo = {0};
-  dndGetMonitorBasicInfo(pDnode, &basicInfo);
+  dmGetMonitorBasicInfo(pDnode, &basicInfo);
   monSetBasicInfo(pMonitor, &basicInfo);
 
   SMonClusterInfo clusterInfo = {0};
@@ -89,11 +89,11 @@ void dndSendMonitorReport(SDnode *pDnode) {
   }
 
   SMonDnodeInfo dnodeInfo = {0};
-  dndGetMonitorDnodeInfo(pDnode, &dnodeInfo);
+  dmGetMonitorDnodeInfo(pDnode, &dnodeInfo);
   monSetDnodeInfo(pMonitor, &dnodeInfo);
 
   SMonDiskInfo diskInfo = {0};
-  if (dndGetMonitorDiskInfo(pDnode, &diskInfo) == 0) {
+  if (dmGetMonitorDiskInfo(pDnode, &diskInfo) == 0) {
     monSetDiskInfo(pMonitor, &diskInfo);
   }
 

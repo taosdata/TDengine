@@ -59,6 +59,9 @@ int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessCDnodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 
+// dmMonitor.c
+void dmSendMonitorReport(SDnode *pDnode);
+
 // dmWorker.c
 int32_t dmStartThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
