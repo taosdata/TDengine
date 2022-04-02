@@ -77,7 +77,7 @@ typedef struct STableDataBlocks {
   STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
   bool        cloned;
-  
+  int32_t     createTbReqLen;
   SParsedDataColInfo boundColumnInfo;
   SRowBuilder        rowBuilder;
 } STableDataBlocks;
@@ -118,6 +118,7 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* 
   pBlocks->suid = (TSDB_NORMAL_TABLE == dataBuf->pTableMeta->tableType ? dataBuf->pTableMeta->uid : dataBuf->pTableMeta->suid);
   pBlocks->uid = dataBuf->pTableMeta->uid;
   pBlocks->sversion = dataBuf->pTableMeta->sversion;
+  pBlocks->schemaLen = dataBuf->createTbReqLen;
 
   if (pBlocks->numOfRows + numOfRows >= INT16_MAX) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -136,7 +137,7 @@ void destroyBlockHashmap(SHashObj* pDataBlockHash);
 int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList);
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, SArray** pVgDataBlocks);
+    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq);
+int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** pVgDataBlocks);
 
 #endif  // TDENGINE_DATABLOCKMGT_H
