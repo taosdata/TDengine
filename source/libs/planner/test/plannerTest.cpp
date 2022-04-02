@@ -190,20 +190,17 @@ TEST_F(PlannerTest, subquery) {
 TEST_F(PlannerTest, interval) {
   setDatabase("root", "test");
 
-  // bind("SELECT count(*) FROM t1 interval(10s)");
-  // ASSERT_TRUE(run());
-
-  bind("SELECT _wstartts, count(*) FROM t1 interval(10s)");
+  bind("SELECT count(*) FROM t1 interval(10s)");
   ASSERT_TRUE(run());
 
-  // bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
-  // ASSERT_TRUE(run());
+  bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT count(*) FROM t1 interval(10s) fill(linear)");
-  // ASSERT_TRUE(run());
+  bind("SELECT count(*) FROM t1 interval(10s) fill(linear)");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT count(*), sum(c1) FROM t1 interval(10s) fill(value, 10, 20)");
-  // ASSERT_TRUE(run());
+  bind("SELECT count(*), sum(c1) FROM t1 interval(10s) fill(value, 10, 20)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, sessionWindow) {
