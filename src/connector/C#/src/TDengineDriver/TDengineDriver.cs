@@ -47,6 +47,24 @@ namespace TDengineDriver
         TSDB_OPTION_CONFIGDIR = 3,
         TSDB_OPTION_SHELL_ACTIVITY_TIMER = 4
     }
+    public enum TDengineSchemalessProtocol
+    {
+        TSDB_SML_UNKNOWN_PROTOCOL = 0,
+        TSDB_SML_LINE_PROTOCOL = 1,
+        TSDB_SML_TELNET_PROTOCOL = 2,
+        TSDB_SML_JSON_PROTOCOL = 3
+
+    }
+    public enum TDengineSchemalessPrecision
+    {
+        TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+        TSDB_SML_TIMESTAMP_HOURS = 1,
+        TSDB_SML_TIMESTAMP_MINUTES = 2,
+        TSDB_SML_TIMESTAMP_SECONDS = 3,
+        TSDB_SML_TIMESTAMP_MILLI_SECONDS = 4,
+        TSDB_SML_TIMESTAMP_MICRO_SECONDS = 5,
+        TSDB_SML_TIMESTAMP_NANO_SECONDS = 6
+    }
     enum TaosField
     {
         STRUCT_SIZE = 68,
@@ -268,7 +286,9 @@ namespace TDengineDriver
         [DllImport("taos", EntryPoint = "taos_result_precision", CallingConvention = CallingConvention.Cdecl)]
         static extern public int ResultPrecision(IntPtr taos);
 
-
+        //schemaless API 
+        [DllImport("taos", SetLastError = true, EntryPoint = "taos_schemaless_insert", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr SchemalessInsert(IntPtr taos, string[] lines, int numLines, int protocol, int precision);
 
         //stmt APIs:
         /// <summary>
