@@ -183,11 +183,11 @@ typedef struct SqlFunctionCtx {
   int32_t          columnIndex;  // TODO remove it
   uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
+  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
   /////////////////////////////////////////////////////////////////
   bool             stableQuery;
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
-  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block
   int32_t          numOfParams;
   SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
