@@ -68,12 +68,6 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SWrapperCfg wrapperCfg = {0};
   vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
 
-  if (createReq.dnodeId != pMgmt->pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_VNODE_INVALID_OPTION;
-    dDebug("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
-    return -1;
-  }
-
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, createReq.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, already exist", createReq.vgId);
@@ -82,16 +76,12 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  SMsgCb msgCb = {0};
+  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
   msgCb.pWrapper = pMgmt->pWrapper;
   msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
   msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
   msgCb.qsizeFp = vmGetQueueSize;
-  msgCb.sendReqFp = dndSendReqToDnode;
-  msgCb.sendMnodeReqFp = dndSendReqToMnode;
-  msgCb.sendRspFp = dndSendRsp;
-  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
 
   vnodeCfg.msgCb = msgCb;
   vnodeCfg.pTfs = pMgmt->pTfs;

@@ -30,7 +30,6 @@ static struct {
 } global = {0};
 
 static void dndStopDnode(int signum, void *info, void *ctx) {
-  dInfo("system signal:%d received", signum);
   SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
   if (pDnode != NULL) {
     dndHandleEvent(pDnode, DND_EVENT_STOP);
@@ -41,8 +40,10 @@ static void dndSetSignalHandle() {
   taosSetSignal(SIGTERM, dndStopDnode);
   taosSetSignal(SIGHUP, dndStopDnode);
   taosSetSignal(SIGINT, dndStopDnode);
+  taosSetSignal(SIGTSTP, dndStopDnode);
   taosSetSignal(SIGABRT, dndStopDnode);
   taosSetSignal(SIGBREAK, dndStopDnode);
+  taosSetSignal(SIGQUIT, dndStopDnode);
 
   if (!tsMultiProcess) {
   } else if (global.ntype == DNODE || global.ntype == NODE_MAX) {
@@ -72,7 +73,7 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
       if (global.ntype <= DNODE || global.ntype > NODE_MAX) {
-        printf("'-n' range is [1-5], default is 0\n");
+        printf("'-n' range is [1 - %d], default is 0\n", NODE_MAX - 1);
         return -1;
       }
     } else if (strcmp(argv[i], "-k") == 0) {

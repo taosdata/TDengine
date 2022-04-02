@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-typedef enum { PROC_REQ, PROC_RSP, PROC_REG, PROC_RELEASE } ProcFuncType;
+typedef enum { PROC_QUEUE, PROC_REQ, PROC_RSP, PROC_REGIST, PROC_RELEASE } ProcFuncType;
 
 typedef struct SProcQueue SProcQueue;
 typedef struct SProcObj   SProcObj;
@@ -53,7 +53,7 @@ void      taosProcCleanup(SProcObj *pProc);
 int32_t   taosProcRun(SProcObj *pProc);
 int32_t   taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                               ProcFuncType ftype);
-int32_t   taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+void      taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                                ProcFuncType ftype);
 
 #ifdef __cplusplus

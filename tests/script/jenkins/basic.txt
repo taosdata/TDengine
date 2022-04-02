@@ -52,4 +52,10 @@
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
 
+
+# --- for multi process mode
+./test.sh -f tsim/user/basic1.sim -m
+./test.sh -f tsim/stable/vnode3.sim -m
+./test.sh -f tsim/tmq/basic.sim -m
+
 #======================b1-end===============

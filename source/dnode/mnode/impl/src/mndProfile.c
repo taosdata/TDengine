@@ -433,12 +433,6 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
   pHeartbeat->connId = htonl(pHeartbeat->connId);
   pHeartbeat->pid = htonl(pHeartbeat->pid);
 
-  SRpcConnInfo info = {0};
-  if (rpcGetConnInfo(pReq->rpcMsg.handle, &info) != 0) {
-    mError("user:%s, connId:%d failed to process hb since %s", pReq->user, pHeartbeat->connId, terrstr());
-    return -1;
-  }
-
   SConnObj *pConn = mndAcquireConn(pMnode, pHeartbeat->connId);
   if (pConn == NULL) {
     pConn = mndCreateConn(pMnode, &info, pHeartbeat->pid, pHeartbeat->app, 0);

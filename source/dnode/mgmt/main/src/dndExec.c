@@ -45,7 +45,7 @@ int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
 }
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
-  dDebug("node:%s, start to close", pWrapper->name);
+  dDebug("node:%s, mgmt start to close", pWrapper->name);
   pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
@@ -62,7 +62,7 @@ void dndCloseNode(SMgmtWrapper *pWrapper) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
-  dDebug("node:%s, has been closed", pWrapper->name);
+  dDebug("node:%s, mgmt has been closed", pWrapper->name);
 }
 
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
@@ -90,10 +90,10 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
                                   ProcFuncType ftype) {
   pMsg->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, handle:%p app:%p", pMsg, pMsg->handle, pMsg->ahandle);
+  dTrace("msg:%p, get from parent queue, ftype:%d handle:%p, app:%p", pMsg, ftype, pMsg->handle, pMsg->ahandle);
 
   switch (ftype) {
-    case PROC_REG:
+    case PROC_REGIST:
       rpcRegisterBrokenLinkArg(pMsg);
       break;
     case PROC_RELEASE:
@@ -101,10 +101,13 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t
       rpcFreeCont(pCont);
       break;
     case PROC_REQ:
-      // todo send to dnode
       dndSendReqToMnode(pWrapper, pMsg);
-    default:
+      // dndSendReq(pWrapper, (const SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
+      break;
+    case PROC_RSP:
       dndSendRpcRsp(pWrapper, pMsg);
+      break;
+    default:
       break;
   }
   taosMemoryFree(pMsg);
@@ -180,6 +183,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
       dInfo("dnode is about to stop");
+      dndSetStatus(pDnode, DND_STAT_STOPPED);
       break;
     }
     taosMsleep(100);
@@ -202,7 +206,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     if (!pWrapper->required) continue;
 
     int32_t shmsize = 1024 * 1024 * 2;  // size will be a configuration item
-    if (taosCreateShm(&pWrapper->shm, shmsize) != 0) {
+    if (taosCreateShm(&pWrapper->shm, n, shmsize) != 0) {
       terrno = TAOS_SYSTEM_ERROR(terrno);
       dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());
       return -1;
@@ -255,6 +259,8 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
       dInfo("dnode is about to stop");
+      dndSetStatus(pDnode, DND_STAT_STOPPED);
+
       for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
@@ -263,15 +269,6 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
         if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
           dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
           taosKillProc(pWrapper->procId);
-        }
-      }
-
-      for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
-        SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-        if (!pWrapper->required) continue;
-        if (pDnode->ntype == NODE_MAX) continue;
-
-        if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
           dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pWrapper->procId);
           taosWaitProc(pWrapper->procId);
           dInfo("node:%s, child process:%d is stopped", pWrapper->name, pWrapper->procId);
@@ -331,6 +328,8 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
     }
   }
 
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
+
   if (taosProcRun(pWrapper->pProc) != 0) {
     dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
     return -1;
@@ -340,11 +339,14 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
-      dInfo("dnode is about to stop");
+      dInfo("%s is about to stop", pWrapper->name);
+      dndSetStatus(pDnode, DND_STAT_STOPPED);
       break;
     }
     taosMsleep(100);
   }
+
+  return 0;
 }
 
 int32_t dndRun(SDnode *pDnode) {

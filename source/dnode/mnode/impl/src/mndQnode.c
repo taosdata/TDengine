@@ -423,7 +423,7 @@ static int32_t mndProcessDropQnodeReq(SNodeMsg *pReq) {
 
 DROP_QNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("qnode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
+    mError("qnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
   }
 
   mndReleaseQnode(pMnode, pObj);

@@ -70,46 +70,6 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
     }
   }
-
-  {
-    SCreateVnodeReq createReq = {0};
-    createReq.vgId = 2;
-    createReq.dnodeId = 3;
-    strcpy(createReq.db, "1.d1");
-    createReq.dbUid = 9527;
-    createReq.vgVersion = 1;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
-    createReq.daysPerFile = 10;
-    createReq.daysToKeep0 = 3650;
-    createReq.daysToKeep1 = 3650;
-    createReq.daysToKeep2 = 3650;
-    createReq.minRows = 100;
-    createReq.minRows = 4096;
-    createReq.commitTime = 3600;
-    createReq.fsyncPeriod = 3000;
-    createReq.walLevel = 1;
-    createReq.precision = 0;
-    createReq.compression = 2;
-    createReq.replica = 1;
-    createReq.quorum = 1;
-    createReq.update = 0;
-    createReq.cacheLastRow = 0;
-    createReq.selfIndex = 0;
-    for (int r = 0; r < createReq.replica; ++r) {
-      SReplica* pReplica = &createReq.replicas[r];
-      pReplica->id = 1;
-      pReplica->port = 9527;
-    }
-
-    int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
-    void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_INVALID_OPTION);
-  }
 }
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {

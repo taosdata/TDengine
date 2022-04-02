@@ -133,14 +133,6 @@ _OVER:
 void dndClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
-  if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
-    dError("dnode is shutting down, data:%p", pDnode);
-    return;
-  }
-
-  dInfo("start to close dnode, data:%p", pDnode);
-  dndSetStatus(pDnode, DND_STAT_STOPPED);
-
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     dndCloseNode(pWrapper);
@@ -151,7 +143,6 @@ void dndClose(SDnode *pDnode) {
 }
 
 void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
-  dInfo("dnode receive %s event, data:%p", dndEventStr(event), pDnode);
   if (event == DND_EVENT_STOP) {
     pDnode->event = event;
   }
