@@ -367,7 +367,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nCols));
       buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nBSmaCols));
       pReq->stbCfg.pSchema = (SSchemaEx *)taosMemoryMalloc(pReq->stbCfg.nCols * sizeof(SSchemaEx));
-      for (col_id_t i = 0; i < pReq->stbCfg.nCols; i++) {
+      for (col_id_t i = 0; i < pReq->stbCfg.nCols; ++i) {
         buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
         buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].sma));
         buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.pSchema[i].colId));
@@ -376,7 +376,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       }
       buf = taosDecodeFixedI16(buf, &pReq->stbCfg.nTagCols);
       pReq->stbCfg.pTagSchema = (SSchema *)taosMemoryMalloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
-      for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
+      for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; ++i) {
         buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
         buf = taosDecodeFixedI16(buf, &pReq->stbCfg.pTagSchema[i].colId);
         buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
@@ -408,7 +408,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       buf = taosDecodeFixedI16(buf, &pReq->ntbCfg.nCols);
       buf = taosDecodeFixedI16(buf, &(pReq->ntbCfg.nBSmaCols));
       pReq->ntbCfg.pSchema = (SSchemaEx *)taosMemoryMalloc(pReq->ntbCfg.nCols * sizeof(SSchemaEx));
-      for (col_id_t i = 0; i < pReq->ntbCfg.nCols; i++) {
+      for (col_id_t i = 0; i < pReq->ntbCfg.nCols; ++i) {
         buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].type);
         buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].sma);
         buf = taosDecodeFixedI16(buf, &pReq->ntbCfg.pSchema[i].colId);

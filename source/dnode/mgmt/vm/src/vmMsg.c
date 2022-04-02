@@ -30,6 +30,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep2;
   pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
+  pCfg->tsdbCfg.retentions = pCreate->pRetensions;
   pCfg->metaCfg.lruSize = pCreate->cacheBlockSize;
   pCfg->walCfg.fsyncPeriod = pCreate->fsyncPeriod;
   pCfg->walCfg.level = pCreate->walLevel;
@@ -70,6 +71,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, createReq.vgId);
   if (pVnode != NULL) {
+    tFreeSCreateVnodeReq(&createReq);
     dDebug("vgId:%d, already exist", createReq.vgId);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
@@ -88,12 +90,14 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   vnodeCfg.dbId = wrapperCfg.dbUid;
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
   if (pImpl == NULL) {
+    tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
     return -1;
   }
 
   int32_t code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
   if (code != 0) {
+    tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
     vnodeClose(pImpl);
     vnodeDestroy(wrapperCfg.path);
@@ -103,6 +107,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 
   code = vmWriteVnodesToFile(pMgmt);
   if (code != 0) {
+    tFreeSCreateVnodeReq(&createReq);
     vnodeClose(pImpl);
     vnodeDestroy(wrapperCfg.path);
     terrno = code;
