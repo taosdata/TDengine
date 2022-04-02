@@ -9523,11 +9523,27 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo *operator, SExplainExecInfo **p
     
     *pRes = taosMemoryRealloc(*pRes, (*capacity) * sizeof(SExplainExecInfo));
     if (NULL == *pRes) {
-      qError("malloc %d failed", capacity * sizeof(SExplainExecInfo));
+      qError("malloc %d failed", (*capacity) * (int32_t)sizeof(SExplainExecInfo));
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
   }
 
+  (*pRes)[*resNum].numOfRows = operator->resultInfo.totalRows;
+  (*pRes)[*resNum].startupCost = operator->cost.openCost;
+  (*pRes)[*resNum].totalCost = operator->cost.totalCost;
+  
+  ++(*resNum);
+  
+  int32_t code = 0;
+  for (int32_t i = 0; i < operator->numOfDownstream; ++i) {
+    code = getOperatorExplainExecInfo(operator->pDownstream[i], pRes, capacity, resNum);
+    if (code) {
+      taosMemoryFreeClear(*pRes);
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 

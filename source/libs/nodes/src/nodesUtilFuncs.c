@@ -1052,4 +1052,26 @@ char *nodesGetNameFromColumnNode(SNode *pNode) {
   return ((SColumnNode *)pNode)->colName;
 }
 
+int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
+  if (NULL == pSlots || pSlots->length <= 0) {
+    return 0;
+  }
+
+  SNode* pNode = NULL;
+  int32_t num = 0;
+  FOREACH(pNode, pSlots) {
+    if (QUERY_NODE_SLOT_DESC != pNode->type) {
+      continue;
+    }
+
+    SSlotDescNode *descNode = (SSlotDescNode *)pNode;
+    if (descNode->output) {
+      ++num;
+    }
+  }
+
+  return num;
+}
+
+
 

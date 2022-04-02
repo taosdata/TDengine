@@ -23,7 +23,7 @@ extern "C" {
 #include "qworkerInt.h"
 #include "dataSinkMgt.h"
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType);
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain);
 int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg);
@@ -38,6 +38,7 @@ void    qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComple
 int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SQWConnInfo *pConn);
 int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code);
 int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code);
+int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo, int32_t num);
 void    qwFreeFetchRsp(void *msg);
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp);
 int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRsp **rsp);

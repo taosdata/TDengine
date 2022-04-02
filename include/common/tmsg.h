@@ -915,11 +915,19 @@ typedef struct {
   char    data[];
 } SRetrieveMetaTableRsp;
 
+typedef struct SExplainExecInfo {
+  uint64_t startupCost;
+  uint64_t totalCost;
+  uint64_t numOfRows;
+} SExplainExecInfo;
+
 typedef struct {
-  int32_t numOfItems;
-  char    data[];
+  int32_t           numOfPlans;
+  SExplainExecInfo *subplanInfo;
 } SExplainRsp;
 
+int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
+int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port

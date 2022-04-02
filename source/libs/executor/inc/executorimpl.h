@@ -36,6 +36,7 @@ extern "C" {
 #include "thash.h"
 #include "tlockfree.h"
 #include "tpagedbuf.h"
+#include "tmsg.h"
 
 struct SColumnFilterElem;
 
@@ -160,7 +161,7 @@ typedef struct STaskCostInfo {
 
 typedef struct SOperatorCostInfo {
   uint64_t openCost;
-  uint64_t execCost;
+  uint64_t totalCost;
 } SOperatorCostInfo;
 
 // The basic query information extracted from the SQueryInfo tree to support the
@@ -714,6 +715,7 @@ int32_t getMaximumIdleDurationSec();
 void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, EOPTR_EXEC_MODEL model);
+int32_t getOperatorExplainExecInfo(SOperatorInfo *operator, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum);
 
 #ifdef __cplusplus
 }

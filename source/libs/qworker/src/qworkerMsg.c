@@ -85,6 +85,27 @@ int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo, int32_t num) {  
+  SExplainRsp rsp = {.numOfPlans = num, .subplanInfo = execInfo};
+
+  int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
+  void *pRsp = rpcMallocCont(contLen);
+  tSerializeSExplainRsp(pRsp, contLen, &rsp);
+
+  SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_EXPLAIN_RSP,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
+    .pCont   = pRsp,
+    .contLen = contLen,
+    .code    = 0,
+  };
+
+  tmsgSendRsp(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
   void *pRsp = rpcMallocCont(contLen);

@@ -19,17 +19,11 @@
 
 typedef struct SExplainCtx SExplainCtx;
 
-typedef struct SExplainExecInfo {
-  uint64_t startupCost;
-  uint64_t totalCost;
-  uint64_t numOfRows;
-} SExplainExecInfo;
-
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp);
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp);
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int32_t startTs);
-int32_t qExecExplainEnd(SExplainCtx *pCtx);
+int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp);
 int32_t qExplainUpdateExecInfo(SExplainCtx        *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp);
 void    qExplainFreeCtx(SExplainCtx *pCtx);
 
