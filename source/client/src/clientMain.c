@@ -146,7 +146,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   }
 
   SReqResultInfo *pResInfo = &(((SRequestObj *)res)->body.resInfo);
-  return pResInfo->fields;
+  return pResInfo->userFields;
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
@@ -365,8 +365,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 }
 
 bool taos_is_update_query(TAOS_RES *res) {
-  // TODO
-  return true;
+  return taos_num_fields(res) == 0;
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
@@ -393,8 +392,11 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
 
 void taos_reset_current_db(TAOS *taos) {
-  // TODO
-  return;
+  if (taos == NULL) {
+    return;
+  }
+
+  resetConnectDB(taos);
 }
 
 const char *taos_get_server_info(TAOS *taos) {
