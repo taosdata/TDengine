@@ -15,16 +15,16 @@ use itertools::Itertools;
 
 use taos_sys::*;
 
-use crate::{timestamp::TimestampValue, Result, TaosError, TaosResult};
+use crate::{timestamp::TimestampValue, Error, Result, TaosResult};
 
-pub mod column;
+mod column;
 pub use column::*;
 
-pub mod row;
+mod row;
 pub use row::*;
 
-pub mod value;
-use value::*;
+mod value;
+pub use value::*;
 
 pub struct BlockStream<'a> {
     result: &'a TaosResult<'a>,
@@ -75,7 +75,7 @@ impl<'a> Block<'a> {
     #[inline]
     fn new(result: &'a TaosResult<'a>, block: *mut TAOS_ROW, num_of_rows: i32) -> Self {
         let lengths = unsafe { taos_fetch_lengths(result.as_raw()) };
-        let num_of_fields = result.num_fields();
+        let num_of_fields = result.num_of_fields();
         Self {
             result,
             inner: unsafe { std::slice::from_raw_parts(block.read(), num_of_fields) },
@@ -138,9 +138,7 @@ impl<'a> Block<'a> {
         use TaosDataType::*;
         let ty = field.type_();
         if !matches!(field.type_(), NChar | Binary | Json) {
-            return Err(TaosError::from_string(
-                "unmatched data type pattern for string",
-            ));
+            return Err(Error::from_string("unmatched data type pattern for string"));
         }
         let slice = self.inner.get_unchecked(col);
         let is_null = self.is_null(row, col);
@@ -155,7 +153,7 @@ impl<'a> Block<'a> {
                     let len = ptr.cast::<i16>().read();
                     let start = ptr.offset(2);
                     let s = std::str::from_utf8(slice::from_raw_parts(start as _, len as _))
-                        .map_err(|s| TaosError::from_string(s.to_string()))?;
+                        .map_err(|s| Error::from_string(s.to_string()))?;
                     Ok(Some(s))
                 }
                 _ => Ok(None),

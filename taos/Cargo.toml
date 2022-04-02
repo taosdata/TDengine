@@ -28,6 +28,7 @@ tokio = { version = "1", features = ["full"] }
 [dev-dependencies]
 criterion = "0.3"
 faker_rand = "0.1.1"
+pretty_env_logger = "0.4.0"
 rand = "0.8.5"
 simple_logger = "2.1.0"
 uuid = { version = "0.8.2", features = ["v4"] }

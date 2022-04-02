@@ -95,3 +95,85 @@ impl FromStr for TaosDataType {
         }
     }
 }
+
+impl TaosDataType {
+    pub const fn as_str(&self) -> &'static str {
+        use TaosDataType::*;
+
+        match self {
+            Null => "NULL",
+            Bool => "BOOL",
+            TinyInt => "TINYINT",
+            SmallInt => "SMALLINT",
+            Int => "INT",
+            BigInt => "BIGINT",
+            Float => "FLOAT",
+            Double => "DOUBLE",
+            Binary => "BINARY",
+            Timestamp => "TIMESTAMP",
+            NChar => "NCHAR",
+            UTinyInt => "TINYINT UNSIGNED",
+            USmallInt => "SMALLINT UNSIGNED",
+            UInt => "INT UNSIGNED",
+            UBigInt => "BIGINT UNSIGNED",
+            Json => "JSON",
+            Unknown => "UNKNOWN",
+        }
+    }
+    pub const fn as_variant_str(&self) -> &'static str {
+        use TaosDataType::*;
+
+        match self {
+            Null => "Null",
+            Bool => "Bool",
+            TinyInt => "TinyInt",
+            SmallInt => "SmallInt",
+            Int => "Int",
+            BigInt => "BigInt",
+            Float => "Float",
+            Double => "Double",
+            Binary => "Binary",
+            Timestamp => "Timestamp",
+            NChar => "NChar",
+            UTinyInt => "UTinyInt",
+            USmallInt => "USmallInt",
+            UInt => "UInt",
+            UBigInt => "UBigInt",
+            Json => "Json",
+            Unknown => "Unknown",
+        }
+    }
+}
+
+impl<'de> serde::de::VariantAccess<'de> for TaosDataType {
+    type Error = taos_error::Error;
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: serde::de::DeserializeSeed<'de>,
+    {
+        todo!()
+    }
+
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        todo!()
+    }
+
+    fn struct_variant<V>(
+        self,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        todo!()
+    }
+}

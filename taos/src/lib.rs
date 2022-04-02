@@ -1,11 +1,25 @@
-use block::Row;
-use futures::{Stream, TryStreamExt};
-use serde::de::DeserializeOwned;
-use std::{ffi::CStr, future::Future, sync::Once};
-pub use taos_error::{Code, Error};
+use futures::TryStreamExt;
+use std::{future::Future, sync::Once};
+
+pub use taos_error::*;
 use taos_sys::*;
 
-pub type TaosError = Error;
+macro_rules! custom_error {
+    ($err:expr) => {
+        <::taos_error::Error as ::serde::de::Error>::custom($err)
+    };
+}
+
+macro_rules! err {
+    (custom, $err:expr) => {
+        <::taos_error::Error as ::serde::de::Error>::custom($err)
+    };
+    ($err:expr) => {
+        todo!()
+        // Err(<::taos_error::Error as ::serde::de::Error>::custom($err))
+        // Err()
+    };
+}
 
 pub mod timestamp;
 
@@ -30,7 +44,7 @@ mod result;
 #[cfg(feature = "tmq")]
 pub mod tmq;
 
-type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Taos(*mut TAOS);
 
@@ -47,7 +61,7 @@ impl Drop for Taos {
 
 impl Taos {
     pub fn new<'a>(
-        ip: impl Into<NullableCStr<'a>>,
+        host: impl Into<NullableCStr<'a>>,
         user: impl Into<NullableCStr<'a>>,
         pass: impl Into<NullableCStr<'a>>,
         db: impl Into<NullableCStr<'a>>,
@@ -55,7 +69,7 @@ impl Taos {
     ) -> Result<Self> {
         unsafe {
             taos_connect(
-                ip.into().as_ptr(),
+                host.into().as_ptr(),
                 user.into().as_ptr(),
                 pass.into().as_ptr(),
                 db.into().as_ptr(),
@@ -63,40 +77,15 @@ impl Taos {
             )
             .as_mut()
         }
-        .map(|p| Taos(p as _))
-        .ok_or_else(|| TaosError::from_string("invalid connection"))
+        .map(|ptr| Taos(ptr as _))
+        .ok_or_else(|| Error::from_string("invalid connection"))
     }
 
-    pub fn query_sync<'query>(
-        &'query self,
-        sql: impl IntoCStr<'query>,
-    ) -> Result<TaosResult<'query>> {
-        TaosResult::try_from_ptr(unsafe { taos_query(self.0, sql.into_c_str().as_ptr()) })
-    }
-
-    pub fn query_sync2<'query>(
-        &'query self,
-        sql: impl IntoCStr<'query>,
-    ) -> Result<TaosResult<'query>> {
-        futures::executor::block_on(self.query(sql))
-    }
-
-    pub fn query_with_callback<'a, F>(&'a mut self, _callback: F)
+    pub fn query_with_callback<F>(&mut self, _callback: F)
     where
-        F: FnOnce(TaosResult<'a>, i32),
+        F: FnOnce(Result<TaosResult>),
     {
         unimplemented!()
-        // let callback = Box::new(callback);
-        // eprintln!("callback: {:p}", callback);
-        // let ptr = Box::into_raw(callback) as *mut c_void;
-    }
-
-    /// b"select * from log.logs\0" as *const u8 as _
-    fn query_c_str<'a, 'query>(
-        &'query self,
-        sql: impl IntoCStr<'a>,
-    ) -> impl Future<Output = Result<TaosResult<'query>>> {
-        async_query::QueryFuture::new(self, sql)
     }
 
     /// Asynchronously query with sql
@@ -104,9 +93,10 @@ impl Taos {
         &'query self,
         sql: impl IntoCStr<'a>,
     ) -> impl Future<Output = Result<TaosResult<'query>>> {
-        self.query_c_str(sql)
+        async_query::QueryFuture::new(self, sql)
     }
 
+    /// Query without result.
     pub async fn exec<'a, 'query>(&'query self, sql: impl IntoCStr<'a>) -> Result<usize> {
         let res = self.query(sql).await?;
         Ok(res.affected_rows() as _)
@@ -114,6 +104,20 @@ impl Taos {
 
     pub fn exec_sync<'a, 'query>(&'query self, sql: impl IntoCStr<'a>) -> Result<usize> {
         futures::executor::block_on(self.exec(sql))
+    }
+
+    pub fn query_sync<'query>(
+        &'query self,
+        sql: impl IntoCStr<'query>,
+    ) -> Result<TaosResult<'query>> {
+        futures::executor::block_on(self.query(sql))
+    }
+
+    pub fn query_sync2<'query>(
+        &'query self,
+        sql: impl IntoCStr<'query>,
+    ) -> Result<TaosResult<'query>> {
+        TaosResult::try_from_ptr(unsafe { taos_query(self.0, sql.into_c_str().as_ptr()) })
     }
 
     pub(crate) fn as_raw(&self) -> *mut taos_sys::TAOS {
@@ -127,7 +131,7 @@ impl Taos {
             .try_collect()
             .await
     }
-    pub async fn databases(&self) -> Result<Vec<ColumnMeta>> {
+    pub async fn databases(&self) -> Result<Vec<Database>> {
         self.query(format!("show databases"))
             .await?
             .rows_de_stream()
@@ -148,6 +152,15 @@ mod tests {
     async fn test_describe() -> Result<()> {
         let taos = TaosOptions::new().build()?;
         let desc = taos.describe("log.logs").await?;
+        dbg!(desc);
+        Ok(())
+    }
+    #[tokio::test]
+    async fn databases() -> Result<()> {
+        simple_logger::init().unwrap();
+        let taos = TaosOptions::new().build()?;
+        let desc = taos.databases().await?;
+        println!("done");
         dbg!(desc);
         Ok(())
     }
@@ -202,130 +215,16 @@ fn query_async_await_future_test() {
             println!("lengths is {lengths}");
         });
 }
-
-#[derive(Debug)]
-pub enum TaosResult<'a> {
-    WithFields(*mut TAOS_RES, &'a [TAOS_FIELD]),
-    WithoutFields(*mut TAOS_RES),
-}
-
-unsafe impl<'a> Send for TaosResult<'a> {}
-unsafe impl<'a> Sync for TaosResult<'a> {}
-
-impl<'a> Drop for TaosResult<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.as_raw().is_null() {
-                taos_free_result(self.as_raw());
-            }
-        }
-    }
-}
-
-impl<'a> TaosResult<'a> {
-    const fn as_raw(&self) -> *mut TAOS_RES {
-        match self {
-            TaosResult::WithFields(res, _) => *res,
-            TaosResult::WithoutFields(res) => *res,
-        }
-    }
-
-    fn try_from_ptr(result: *mut TAOS_RES) -> Result<Self> {
-        Self::new(result, unsafe { taos_errno(result) })
-    }
-
-    fn new(result: *mut TAOS_RES, code: i32) -> Result<Self> {
-        let code: Code = (code & 0xffff).into();
-        if code.success() {
-            let num_fields = unsafe { taos_num_fields(result) };
-            if num_fields == 0 {
-                Ok(TaosResult::WithoutFields(result))
-            } else {
-                let fields = unsafe {
-                    std::slice::from_raw_parts(taos_fetch_fields(result), num_fields as _)
-                };
-                Ok(TaosResult::WithFields(result, fields))
-            }
-        } else {
-            let err_str = unsafe { CStr::from_ptr(taos_errstr(result)) };
-            let err_str = err_str.to_string_lossy();
-            if err_str == "success" {
-                return Self::new(result, 0);
-            }
-            Err(TaosError::new(code, err_str))
-        }
-    }
-
-    unsafe fn get_fields_unchecked(&self) -> &'a [TAOS_FIELD] {
-        match self {
-            TaosResult::WithFields(_, fields) => fields,
-            _ => unreachable!("do not fetch fields in a result without fields"),
-        }
-    }
-    fn get_field_names(&self) -> Vec<&'a CStr> {
-        match self {
-            TaosResult::WithFields(_, fields) => fields.iter().map(|f| f.name()).collect(),
-            _ => unreachable!("do not fetch fields in a result without fields"),
-        }
-    }
-    fn get_field_names_to_string_vec(&self) -> Vec<String> {
-        match self {
-            TaosResult::WithFields(_, fields) => fields
-                .iter()
-                .map(|f| f.name().to_string_lossy().into_owned())
-                .collect(),
-            _ => unreachable!("do not fetch fields in a result without fields"),
-        }
-    }
-    unsafe fn get_field_unchecked(&self, index: usize) -> &TAOS_FIELD {
-        match self {
-            TaosResult::WithFields(_, fields) => fields.get_unchecked(index),
-            _ => unreachable!("do not fetch fields in a result without fields"),
-        }
-    }
-
-    const fn num_fields(&self) -> usize {
-        match self {
-            TaosResult::WithFields(_, fields) => fields.len(),
-            _ => 0,
-        }
-    }
-
-    fn precision(&self) -> TimestampPrecision {
-        unsafe { taos_result_precision(self.as_raw()) }.into()
-    }
-
-    pub fn affected_rows(&self) -> usize {
-        unsafe { taos_affected_rows(self.as_raw()) as _ }
-    }
-
-    pub fn fetch_block_stream(&self) -> block::BlockStream {
-        block::BlockStream::new(self)
-    }
-
-    pub fn rows_stream(&self) -> impl Stream<Item = Row> {
-        use futures::StreamExt;
-        block::BlockStream::new(self)
-            .flat_map(|block| futures::stream::iter(block.into_iter_rows()))
-    }
-    pub fn rows_de_stream<T>(&self) -> impl Stream<Item = Result<T>> + '_
-    where
-        T: DeserializeOwned,
-    {
-        use futures::StreamExt;
-
-        self.rows_stream()
-            .map(|row| T::deserialize(&mut row.deserializer()))
-    }
-}
+pub use result::*;
 
 pub mod block;
+pub use block::Value;
 
 pub fn client_info() -> &'static str {
     static ONCE: Once = Once::new();
     static mut VERSION: &str = "";
     ONCE.call_once(|| unsafe {
-        VERSION = CStr::from_ptr(taos_get_client_info())
+        VERSION = std::ffi::CStr::from_ptr(taos_get_client_info())
             .to_str()
             .expect("get client info should always be ok");
     });

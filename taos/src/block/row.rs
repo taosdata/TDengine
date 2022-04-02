@@ -1,4 +1,5 @@
 use std::{
+    any::type_name,
     collections::BTreeMap,
     ops::{Deref, DerefMut},
     rc::Rc,
@@ -10,10 +11,11 @@ use bitvec_simd::BitVec;
 use serde::de::{self, Visitor};
 use taos_sys::TAOS_FIELD;
 
-use crate::{Result, TaosError};
+use crate::{Error, Result};
 
 use super::{value::BorrowedValue, Block};
 
+#[derive(Debug)]
 pub struct Row<'block> {
     // todo: Rc or Arc?
     block: Rc<Block<'block>>,
@@ -108,8 +110,8 @@ impl<'block> Iterator for ValueIter<'block> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let (row, col) = (self.row.index, self.col);
-        println!("get: ({row}, {col})");
-        if self.col < self.num_of_fields() {
+        log::trace!("get: ({row}, {col})");
+        if col < self.num_of_fields() {
             self.col += 1;
             self.hint -= 1;
             self.row.get_value(row, col)
@@ -124,7 +126,7 @@ impl<'block> Iterator for ValueIter<'block> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.col, Some(self.hint))
+        (self.hint, Some(self.hint))
     }
 
     fn count(self) -> usize {
@@ -250,7 +252,7 @@ struct StringDeserializer {
 }
 
 impl<'de> de::Deserializer<'de> for StringDeserializer {
-    type Error = TaosError;
+    type Error = Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
     where
@@ -267,7 +269,7 @@ impl<'de> de::Deserializer<'de> for StringDeserializer {
 }
 
 impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
-    type Error = TaosError;
+    type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
     where
@@ -286,7 +288,7 @@ impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self.value.take().unwrap();
+        let value = self.value.take().unwrap(); // always be here, so it's safe to unwrap
         seed.deserialize(value)
     }
 }
@@ -301,7 +303,7 @@ impl<'de, 'a> SeqReader<'a, 'de> {
 }
 
 impl<'de, 'a> de::SeqAccess<'de> for SeqReader<'a, 'de> {
-    type Error = TaosError;
+    type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
     where
@@ -314,7 +316,7 @@ impl<'de, 'a> de::SeqAccess<'de> for SeqReader<'a, 'de> {
     }
 }
 impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
-    type Error = TaosError;
+    type Error = Error;
 
     // Look at the input data to decide what Serde data model type to
     // deserialize as. Not all data formats are able to support this operation.
@@ -324,9 +326,10 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: de::Visitor<'de>,
     {
         println!("call deserialize any");
+        dbg!(type_name::<V>());
         match self.iter.next() {
             Some(v) => v.deserialize_any(visitor),
-            None => Err(TaosError::from_string("expect value, not none")),
+            None => Err(Error::from_string("expect value, not none")),
         }
     }
 
@@ -346,7 +349,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         if let Some(s) = s {
             visitor.visit_str(s)
         } else {
-            Err(TaosError::from_string(
+            Err(Error::from_string(
                 "expect non-null str, but the value is null",
             ))
         }
@@ -383,7 +386,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         match self.next() {
             Some(_v) => visitor.visit_unit(),
-            _ => Err(TaosError::from_string("there's no enough value")),
+            _ => Err(Error::from_string("there's no enough value")),
         }
     }
 
@@ -402,6 +405,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        dbg!(println!("deserialize_newtype_struct: {_name}"));
         visitor.visit_newtype_struct(self)
     }
 
@@ -412,6 +416,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        dbg!("deserialize_seq");
         visitor.visit_seq(SeqReader::new(self))
     }
 

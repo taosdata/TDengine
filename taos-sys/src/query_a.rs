@@ -41,7 +41,6 @@ fn test_query_a() {
         sender.send(12).unwrap();
     }
     unsafe {
-        taos_init();
         let taos = taos_connect(
             std::ptr::null(),
             std::ptr::null(),

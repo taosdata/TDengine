@@ -1,10 +1,10 @@
-use super::{Result, Taos, TaosError, TaosOptions};
+use super::{Result, Taos, Error, TaosOptions};
 
 pub type TaosPool = r2d2::Pool<TaosOptions>;
 
 impl r2d2::ManageConnection for TaosOptions {
     type Connection = Taos;
-    type Error = TaosError;
+    type Error = Error;
 
     fn connect(&self) -> Result<Self::Connection> {
         self.build()

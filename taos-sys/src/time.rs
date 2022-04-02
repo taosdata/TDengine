@@ -45,7 +45,6 @@ fn test_parse_time() {
     use std::ffi::CString;
     let s = CString::new("1970-01-01 00:00:00").unwrap();
     let mut time = 0i64;
-    unsafe { crate::taos_init() };
     unsafe {
         crate::taos_options(
             crate::TSDB_OPTION_TIMEZONE,

@@ -1,6 +1,7 @@
+use serde::Deserialize;
 use taos_sys::TimestampPrecision;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum TimestampValue {
     Milliseconds(i64),
     Microseconds(i64),

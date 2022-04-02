@@ -1,4 +1,4 @@
-use crate::{util::IntoCStr, Code, Result, Taos, TaosError, TaosResult};
+use crate::{util::IntoCStr, Code, Result, Taos, Error, TaosResult};
 use taos_sys::*;
 
 use std::ffi::CStr;
@@ -36,9 +36,9 @@ impl<'stmt> Stmt<'stmt> {
                     .to_string_lossy()
                     .to_owned();
                 trace!("stmt error: {:?}", err);
-                return Err(TaosError::new(code, err));
+                return Err(Error::new(code, err));
             }
-            return Err(TaosError::new(code, "unknown"));
+            return Err(Error::new(code, "unknown"));
         }
         Ok(())
     }
