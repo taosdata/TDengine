@@ -172,7 +172,7 @@
 #define TK_SYNCDB                         154
 #define TK_NULL                           155
 #define TK_NK_VARIABLE                    156
-#define TK_NK_UNDERLINE                   157
+#define TK_NOW                            157
 #define TK_ROWTS                          158
 #define TK_TBNAME                         159
 #define TK_QSTARTTS                       160
@@ -229,7 +229,6 @@
 #define TK_NK_COLON                       500
 #define TK_NK_BITNOT                      501
 #define TK_INSERT                         502
-#define TK_NOW                            504
 #define TK_VALUES                         507
 #define TK_IMPORT                         509
 #define TK_NK_SEMI                        508
