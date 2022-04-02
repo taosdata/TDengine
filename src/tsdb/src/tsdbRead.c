@@ -173,6 +173,11 @@ typedef struct SRange {
   int32_t to;
 } SRange;
 
+typedef struct STagBlockInfo {
+  SSkipListNode *pSkipListNode;
+  SArray *pBlock;
+} STagBlockInfo;
+
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
 static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
@@ -4334,7 +4339,15 @@ static FORCE_INLINE int32_t tsdbGetTagDataFromId(void *param, int32_t id, void *
   return TSDB_CODE_SUCCESS;
 }
 
-
+static FORCE_INLINE int32_t tsdbGetTagData(void *param, int32_t id, void **data) {
+  STagBlockInfo* pInfo = (STagBlockInfo*) param;
+  if (id == INT32_MAX) {
+   *data = pInfo->pBlock;
+  } else {
+    return tsdbGetTagDataFromId(pInfo->pSkipListNode, id, data);
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static void queryIndexedColumn(SSkipList* pSkipList, void* filterInfo, SArray* res) {
   SSkipListIterator* iter = NULL;
@@ -4389,26 +4402,77 @@ static void queryIndexedColumn(SSkipList* pSkipList, void* filterInfo, SArray* r
   tsdbDebug("filter index column end");
 }
 
+static void getAllExprColId(tExprNode* pExpr, SArray* array) {
+  if (!pExpr) {
+    return;
+  }
+  if (pExpr->nodeType == TSQL_NODE_FUNC) {
+    for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+      getAllExprColId(pExpr->_func.pChildren[i], array);
+    }
+  } else if (pExpr->nodeType == TSQL_NODE_EXPR) {
+    getAllExprColId(pExpr->_node.pLeft, array);
+    getAllExprColId(pExpr->_node.pRight, array);
+  } else if (pExpr->nodeType == TSQL_NODE_COL) {
+    taosArrayPush(array, &pExpr->pSchema->colId);
+  }
+}
+
+static void getAllFilterExprColId(SFilterFields* pSf, SArray* array) {
+  for (uint32_t i = 0; i < pSf->num; ++i) {
+    SFilterField* fi = &(pSf->fields[i]);
+    if (FILTER_GET_TYPE(fi->flag) == FLD_TYPE_EXPR) {
+      getAllExprColId(fi->desc, array);
+    }
+  }
+  taosArraySort(array, getComparFunc(TSDB_DATA_TYPE_SMALLINT, 0));
+  taosArrayRemoveDuplicate(array, getComparFunc(TSDB_DATA_TYPE_SMALLINT, 0), NULL);
+}
+
 static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray* res) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
   int8_t *addToResult = NULL;
+  SFilterInfo *sfInfo = (SFilterInfo *)filterInfo;
+  SArray *array = NULL;
+  SArray *pDataBlock = NULL;
 
+  if (sfInfo->fields[FLD_TYPE_EXPR].num > 0) {
+    array = taosArrayInit(10, sizeof(int16_t));
+    getAllFilterExprColId(&(sfInfo->fields[FLD_TYPE_EXPR]), array);
+  }
   while (tSkipListIterNext(iter)) {
 
     SSkipListNode *pNode = tSkipListIterGet(iter);
 
-    filterSetColFieldData(filterInfo, pNode, tsdbGetTagDataFromId);
+
+    if (sfInfo->fields[FLD_TYPE_EXPR].num > 0) {
+      pDataBlock = taosArrayInit(10, sizeof(SColumnInfoData));
+      size_t num = taosArrayGetSize(array);
+      for(int32_t i = 0; i < num; ++i) {
+        int16_t *pColId = taosArrayGet(array, i);
+        void *data = NULL;
+        tsdbGetTagDataFromId(pNode, *pColId, &data);
+        SColumnInfoData colData = {{0}};
+        colData.pData = data;
+        colData.info.colId = *pColId;
+        taosArrayPush(pDataBlock, &colData);
+      }
+    }
+    STagBlockInfo stInfo = {.pSkipListNode = pNode, .pBlock = pDataBlock};
+    filterSetColFieldData(filterInfo, &stInfo, tsdbGetTagData);
 
     char *pData = SL_GET_NODE_DATA(pNode);
-
-    bool all = filterExecute(filterInfo, 1, &addToResult, NULL, 0);
+    int16_t numOfCols = array ? (int16_t)taosArrayGetSize(array) : 0;
+    bool all = filterExecute(filterInfo, 1, &addToResult, NULL, numOfCols);
 
     if (all || (addToResult && *addToResult)) {
       STableKeyInfo info = {.pTable = (void*)pData, .lastKey = TSKEY_INITIAL_VAL};
       taosArrayPush(res, &info);
     }
+    taosArrayDestroy(&pDataBlock);
   }
 
+  taosArrayDestroy(&array);
   tfree(addToResult);
 
   tSkipListDestroyIter(iter);

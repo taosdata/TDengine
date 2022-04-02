@@ -1005,7 +1005,7 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
     filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
     //bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
-    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, 0);
+    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, (int16_t)taosArrayGetSize(pBlock->pDataBlock));
     if (gotNchar) {
       filterFreeNcharColumns(pFilterInfo);
     }

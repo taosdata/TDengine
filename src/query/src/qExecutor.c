@@ -3155,6 +3155,10 @@ void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFi
 FORCE_INLINE int32_t getColumnDataFromId(void *param, int32_t id, void **data) {
   int32_t numOfCols = ((SColumnDataParam *)param)->numOfCols;
   SArray* pDataBlock = ((SColumnDataParam *)param)->pDataBlock;
+  if (id == INT32_MAX) {
+    *data = pDataBlock;
+    return TSDB_CODE_SUCCESS;
+  }
   
   for (int32_t j = 0; j < numOfCols; ++j) {
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, j);
