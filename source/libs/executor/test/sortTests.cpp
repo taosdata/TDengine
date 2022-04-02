@@ -72,6 +72,39 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
   return pBlock;
 }
 
+SSDataBlock* getSingleColStrBlock(void* param) {
+  _info* pInfo = (_info*) param;
+  if (--pInfo->count < 0) {
+    return NULL;
+  }
+
+  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+
+  SColumnInfoData colInfo = {0};
+  colInfo.info.type = TSDB_DATA_TYPE_NCHAR;
+  colInfo.info.bytes = TSDB_NCHAR_SIZE * 32;
+  colInfo.info.colId = 1;
+  colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
+
+  taosArrayPush(pBlock->pDataBlock, &colInfo);
+
+  for (int32_t i = 0; i < pInfo->pageRows; ++i) {
+    SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
+
+    int32_t size = taosRand() % 32;
+    char str[64] = {0};
+    taosRandStr(varDataVal(str), size);
+    varDataSetLen(str, size);
+    colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
+  }
+
+  pBlock->info.rows = pInfo->pageRows;
+  pBlock->info.numOfCols = 1;
+  return pBlock;
+}
+
+
 int32_t docomp(const void* p1, const void* p2, void* param) {
   int32_t pLeftIdx  = *(int32_t *)p1;
   int32_t pRightIdx = *(int32_t *)p2;
@@ -210,7 +243,9 @@ TEST(testCase, external_mem_sort_Test) {
     void* v = tsortGetValue(pTupleHandle, 0);
     printf("%d: %d\n", row, *(int32_t*) v);
     ASSERT_EQ(row++, *(int32_t*) v);
-
+    //char        buf[64] = {0};
+    //snprintf(buf, varDataLen(v), "%s", varDataVal(v));
+    //printf("%d: %s\n", row, buf);
   }
   tsortDestroySortHandle(phandle);
 }
@@ -222,8 +257,18 @@ TEST(testCase, ordered_merge_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4};
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_MULTISOURCE_MERGE, 1024, 5, NULL,"test_abc");
+  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  pBlock->info.numOfCols = 1;
+  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    SColumnInfoData colInfo = {0};
+    colInfo.info.type = TSDB_DATA_TYPE_INT;
+    colInfo.info.bytes = sizeof(int32_t);
+    colInfo.info.colId = 1;
+    taosArrayPush(pBlock->pDataBlock, &colInfo);
+  }
+
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
   tsortSetComparFp(phandle, docomp);
 
@@ -253,6 +298,7 @@ TEST(testCase, ordered_merge_sort_Test) {
 
   }
   tsortDestroySortHandle(phandle);
+  taosMemoryFree(pBlock);
 }
 
 #endif

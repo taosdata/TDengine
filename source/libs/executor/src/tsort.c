@@ -275,8 +275,8 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
       } else {
         SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
-        SFilePage* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
-        int32_t    code = blockDataFromBuf(pSource->src.pBlock, pPage->data);
+        void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
+        int32_t    code = blockDataFromBuf(pSource->src.pBlock, pPage);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
