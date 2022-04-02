@@ -138,7 +138,7 @@ static SKeyword keywordTable[] = {
     {"RESET",         TK_RESET},
     {"RETENTIONS",    TK_RETENTIONS},
     {"ROLLUP",        TK_ROLLUP},
-    {"ROWTS",         TK_ROWTS},
+    {"_ROWTS",         TK_ROWTS},
     {"SCORES",        TK_SCORES},
     {"SELECT",        TK_SELECT},
     {"SESSION",       TK_SESSION},
@@ -440,10 +440,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       *tokenId = TK_NK_QUESTION;
       return 1;
     }
-    case '_': {
-      *tokenId = TK_NK_UNDERLINE;
-      return 1;
-    }
+    // case '_': {
+    //   *tokenId = TK_NK_UNDERLINE;
+    //   return 1;
+    // }
     case '`':
     case '\'':
     case '"': {

@@ -550,11 +550,12 @@ column_reference(A) ::= column_name(B).                                         
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
 //pseudo_column(A) ::= NK_NOW.                                                    { A = createFunctionNode(pCxt, NULL, NULL); }
-pseudo_column(A) ::=  NK_UNDERLINE(B) ROWTS(C).                                   {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
+//pseudo_column(A) ::=  NK_UNDERLINE(B) ROWTS(C).                                   {
+//                                                                                    SToken t = B;
+//                                                                                    t.n = (C.z + C.n) - B.z;
+//                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+//                                                                                  }
+pseudo_column(A) ::=  ROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  TBNAME(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  NK_UNDERLINE(B) QSTARTTS(C).                                {
                                                                                     SToken t = B;
