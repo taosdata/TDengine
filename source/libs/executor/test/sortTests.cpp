@@ -83,7 +83,7 @@ SSDataBlock* getSingleColStrBlock(void* param) {
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = TSDB_DATA_TYPE_NCHAR;
-  colInfo.info.bytes = TSDB_NCHAR_SIZE * 32;
+  colInfo.info.bytes = TSDB_NCHAR_SIZE * 16;
   colInfo.info.colId = 1;
   colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
 
@@ -92,7 +92,7 @@ SSDataBlock* getSingleColStrBlock(void* param) {
   for (int32_t i = 0; i < pInfo->pageRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
-    int32_t size = taosRand() % 32;
+    int32_t size = taosRand() % 16;
     char str[64] = {0};
     taosRandStr(varDataVal(str), size);
     varDataSetLen(str, size);
@@ -101,6 +101,8 @@ SSDataBlock* getSingleColStrBlock(void* param) {
 
   pBlock->info.rows = pInfo->pageRows;
   pBlock->info.numOfCols = 1;
+  pBlock->info.hasVarCol = true;
+
   return pBlock;
 }
 
@@ -218,7 +220,7 @@ TEST(testCase, external_mem_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 32, 6, NULL, "test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 128, 6, NULL, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
   _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));

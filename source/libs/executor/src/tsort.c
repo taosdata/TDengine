@@ -141,8 +141,8 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSource
   (*sourceId) += 1;
 
   int32_t rowSize = blockDataGetSerialRowSize(pSource->src.pBlock);
-  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock))/rowSize;
-
+  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock))/rowSize;  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+  ASSERT(numOfRows > 0);
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
 
@@ -421,7 +421,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   size_t pgSize = pHandle->pageSize;
   int32_t numOfRows = (pgSize - blockDataGetSerialMetaSize(pHandle->pDataBlock))/ blockDataGetSerialRowSize(pHandle->pDataBlock);
 
-  // blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows); // useless, it is already enough
+  blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows); // useless, it is already enough
 
   size_t numOfSorted = taosArrayGetSize(pHandle->pOrderedSource);
   for(int32_t t = 0; t < sortPass; ++t) {

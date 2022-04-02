@@ -6513,9 +6513,9 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
     return NULL;
   }
 
-  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize;
+  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize*2;
 
-  pInfo->sortBufSize = pInfo->bufPageSize * 16;  // 1MB, TODO dynamic set the available sort buffer
+  pInfo->sortBufSize = pInfo->bufPageSize * 16;  // TODO dynamic set the available sort buffer
   pInfo->numOfRowsInRes = 1024;
   pInfo->pDataBlock = pResBlock;
   pInfo->pSortInfo = pSortInfo;
