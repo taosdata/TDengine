@@ -17,10 +17,6 @@ stopProcess taosd
 rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
 
-# curDir=$(dirname $(readlink -f "$0"))
-# taosdConfig=$curDir/../../../../packaging/cfg
-# adapterConfig=$curDir/../../../../src/plugins/taosadapter/example/config/taosadapter.toml
-
 nohup taosd -c ${taosdConfig} > /dev/null 2>&1 &
 nohup taosadapter -c ${adapterConfig} > /dev/null 2>&1 &
 sleep 10
