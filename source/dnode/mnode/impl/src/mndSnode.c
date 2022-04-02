@@ -433,7 +433,7 @@ static int32_t mndProcessDropSnodeReq(SNodeMsg *pReq) {
 
 DROP_SNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
+    mError("snode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
   }
 
   mndReleaseSnode(pMnode, pObj);

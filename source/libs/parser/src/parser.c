@@ -30,9 +30,12 @@ static bool isInsertSql(const char* pStr, size_t length) {
 }
 
 static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
-  int32_t code = doParse(pCxt, pQuery);
+  int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = doTranslate(pCxt, *pQuery);
+    code = translate(pCxt, *pQuery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calculateConstant(pCxt, *pQuery);
   }
   return code;
 }

@@ -5,18 +5,12 @@ set +e
 
 echo "Executing deploy.sh"
 
-if [ $# != 4 ]; then
-  echo "argument list need input : "
-  echo "  -n nodeName"
-  echo "  -i nodePort"
-  exit 1
-fi
-
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 NODE=
-while getopts "n:i:" arg
+MULTIPROCESS=0
+while getopts "n:i:m" arg
 do
   case $arg in
     n)
@@ -24,6 +18,9 @@ do
       ;;
     i)
       NODE=$OPTARG
+      ;;
+    m)
+      MULTIPROCESS=1
       ;;
     ?)
       echo "unkonw argument"
@@ -145,5 +142,5 @@ echo "statusInterval         1"                  >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
-echo "multiProcess           0"                  >> $TAOS_CFG
+echo "multiProcess           ${MULTIPROCESS}"    >> $TAOS_CFG
 echo " "                                         >> $TAOS_CFG  

@@ -78,11 +78,13 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         // TODO: handle error
       }
 
-      // TODO: maybe need to clear the request struct
+      // TODO: to encapsule a free API
       taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
       taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
-      taosMemoryFree(vCreateTbReq.stbCfg.pBSmaCols);
-      taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
+      if(vCreateTbReq.stbCfg.pRSmaParam) {
+        taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
+        taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
+      }
       taosMemoryFree(vCreateTbReq.dbFName);
       taosMemoryFree(vCreateTbReq.name);
       break;
@@ -111,19 +113,24 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
           // TODO: handle error
           vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
         }
+        // TODO: to encapsule a free API
         taosMemoryFree(pCreateTbReq->name);
         taosMemoryFree(pCreateTbReq->dbFName);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
           taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
-          taosMemoryFree(pCreateTbReq->stbCfg.pBSmaCols);
-          taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
+          if (pCreateTbReq->stbCfg.pRSmaParam) {
+            taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
+            taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
+          }
         } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
           taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
         } else {
           taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
-          taosMemoryFree(pCreateTbReq->ntbCfg.pBSmaCols);
-          taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
+          if (pCreateTbReq->ntbCfg.pRSmaParam) {
+            taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam->pFuncIds);
+            taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
+          }
         }
       }
 
@@ -148,10 +155,13 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SVCreateTbReq vAlterTbReq = {0};
       vTrace("vgId:%d, process alter stb req", pVnode->vgId);
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
+      // TODO: to encapsule a free API
       taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
       taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
-      taosMemoryFree(vAlterTbReq.stbCfg.pBSmaCols);
-      taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
+      if (vAlterTbReq.stbCfg.pRSmaParam) {
+        taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
+        taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
+      }
       taosMemoryFree(vAlterTbReq.dbFName);
       taosMemoryFree(vAlterTbReq.name);
       break;

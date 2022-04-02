@@ -113,6 +113,20 @@ static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uin
   pColumnInfoData->hasNull = true;
 }
 
+static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    for(int32_t i = start; i < start + nRows; ++i) {
+      pColumnInfoData->varmeta.offset[i] = -1;  // it is a null value of VAR type.
+    }
+  } else {
+    for(int32_t i = start; i < start + nRows; ++i) {
+      colDataSetNull_f(pColumnInfoData->nullbitmap, i);
+    }
+  }
+
+  pColumnInfoData->hasNull = true;
+}
+
 static FORCE_INLINE int32_t colDataAppendInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
@@ -179,11 +193,13 @@ size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
-int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
+int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*   blockDataDestroy(SSDataBlock* pBlock);
+
+int32_t blockDataTrimFirstNRows(SSDataBlock *pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 

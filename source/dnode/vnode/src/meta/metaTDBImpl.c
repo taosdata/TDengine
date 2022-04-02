@@ -46,6 +46,10 @@ static int   metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static int   metaEncodeSchema(void **buf, SSchemaWrapper *pSW);
 static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
+static int   metaEncodeSchemaEx(void **buf, SSchemaWrapper *pSW);
+static void *metaDecodeSchemaEx(void *buf, SSchemaWrapper *pSW, bool isGetEx);
+
+static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx);
 
 static inline int metaUidCmpr(const void *arg1, int len1, const void *arg2, int len2) {
   tb_uid_t uid1, uid2;
@@ -228,7 +232,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
       schemaWrapper.pSchema = pTbCfg->ntbCfg.pSchema;
     }
     pVal = pBuf = buf;
-    metaEncodeSchema(&pBuf, &schemaWrapper);
+    metaEncodeSchemaEx(&pBuf, &schemaWrapper);
     vLen = POINTER_DISTANCE(pBuf, buf);
     ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen);
     if (ret < 0) {
@@ -345,6 +349,10 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
+  return *metaGetTableSchemaImpl(pMeta, uid, sver, isinline, false);
+}
+
+static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx) {
   void           *pKey;
   void           *pVal;
   int             kLen;
@@ -368,7 +376,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   // decode
   pBuf = pVal;
   pSchemaWrapper = taosMemoryMalloc(sizeof(*pSchemaWrapper));
-  metaDecodeSchema(pBuf, pSchemaWrapper);
+  metaDecodeSchemaEx(pBuf, pSchemaWrapper, isGetEx);
 
   TDB_FREE(pVal);
 
@@ -379,7 +387,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   tb_uid_t        quid;
   SSchemaWrapper *pSW;
   STSchemaBuilder sb;
-  SSchema        *pSchema;
+  SSchemaEx      *pSchema;
   STSchema       *pTSchema;
   STbCfg         *pTbCfg;
 
@@ -390,15 +398,15 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
     quid = uid;
   }
 
-  pSW = metaGetTableSchema(pMeta, quid, sver, true);
+  pSW = metaGetTableSchemaImpl(pMeta, quid, sver, true, true);
   if (pSW == NULL) {
     return NULL;
   }
 
   tdInitTSchemaBuilder(&sb, 0);
   for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->colId, pSchema->bytes);
+    pSchema = pSW->pSchemaEx + i;
+    tdAddColToSchema(&sb, pSchema->type, pSchema->sma, pSchema->colId, pSchema->bytes);
   }
   pTSchema = tdGetSchemaFromBuilder(&sb);
   tdDestroyTSchemaBuilder(&sb);
@@ -600,6 +608,50 @@ static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
     buf = taosDecodeFixedI16(buf, &pSchema->colId);
     buf = taosDecodeFixedI32(buf, &pSchema->bytes);
     buf = taosDecodeStringTo(buf, pSchema->name);
+  }
+
+  return buf;
+}
+
+static int metaEncodeSchemaEx(void **buf, SSchemaWrapper *pSW) {
+  int        tlen = 0;
+  SSchemaEx *pSchema;
+
+  tlen += taosEncodeFixedU32(buf, pSW->nCols);
+  for (int i = 0; i < pSW->nCols; ++i) {
+    pSchema = pSW->pSchemaEx + i;
+    tlen += taosEncodeFixedI8(buf, pSchema->type);
+    tlen += taosEncodeFixedI8(buf, pSchema->sma);
+    tlen += taosEncodeFixedI16(buf, pSchema->colId);
+    tlen += taosEncodeFixedI32(buf, pSchema->bytes);
+    tlen += taosEncodeString(buf, pSchema->name);
+  }
+
+  return tlen;
+}
+
+static void *metaDecodeSchemaEx(void *buf, SSchemaWrapper *pSW, bool isGetEx) {
+  buf = taosDecodeFixedU32(buf, &pSW->nCols);
+  if (isGetEx) {
+    pSW->pSchemaEx = (SSchemaEx *)taosMemoryMalloc(sizeof(SSchemaEx) * pSW->nCols);
+    for (int i = 0; i < pSW->nCols; i++) {
+      SSchemaEx *pSchema = pSW->pSchemaEx + i;
+      buf = taosDecodeFixedI8(buf, &pSchema->type);
+      buf = taosDecodeFixedI8(buf, &pSchema->sma);
+      buf = taosDecodeFixedI16(buf, &pSchema->colId);
+      buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+      buf = taosDecodeStringTo(buf, pSchema->name);
+    }
+  } else {
+    pSW->pSchema = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
+    for (int i = 0; i < pSW->nCols; i++) {
+      SSchema *pSchema = pSW->pSchema + i;
+      buf = taosDecodeFixedI8(buf, &pSchema->type);
+      buf = taosSkipFixedLen(buf, sizeof(int8_t));
+      buf = taosDecodeFixedI16(buf, &pSchema->colId);
+      buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+      buf = taosDecodeStringTo(buf, pSchema->name);
+    }
   }
 
   return buf;

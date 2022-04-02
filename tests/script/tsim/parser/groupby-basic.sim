@@ -112,21 +112,21 @@ print $data90 $data91 $data92 $data93
 if $rows != 10 then
   return -1
 endi
-#if $data00 != 10 then
-# return -1
-#endi
+if $data00 != 10 then
+ return -1
+endi
 if $data01 != 0 then
   return -1
 endi
-#if $data10 != 10 then
-#  return -1
-#endi
+if $data10 != 10 then
+  return -1
+endi
 if $data11 != 1 then
   return -1
 endi
-#if $data90 != 10 then
-#  return -1
-#endi
+if $data90 != 10 then
+  return -1
+endi
 if $data91 != 9 then
   return -1
 endi
@@ -166,15 +166,6 @@ print $data80 $data81 $data82 $data83
 print $data90 $data91 $data92 $data93
 
 return 
-
-
-
-
-
-
-
-
-
 
 sql select sum(c1), c1, avg(c1), min(c1), max(c2) from group_tb0 where c1 < 20 group by c1;
 if $row != 20 then

@@ -157,6 +157,13 @@ TEST_F(PlannerTest, simple) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, selectConstant) {
+  setDatabase("root", "test");
+
+  bind("SELECT 2-1 FROM t1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, stSimple) {
   setDatabase("root", "test");
 
@@ -194,6 +201,12 @@ TEST_F(PlannerTest, interval) {
   ASSERT_TRUE(run());
 
   bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 interval(10s) fill(linear)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*), sum(c1) FROM t1 interval(10s) fill(value, 10, 20)");
   ASSERT_TRUE(run());
 }
 
