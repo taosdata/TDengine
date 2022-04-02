@@ -193,6 +193,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   transMsg.ahandle = (void*)pHead->ahandle;
   transMsg.handle = NULL;
 
+  // transDestroyBuffer(&pConn->readBuf);
   transClearBuffer(&pConn->readBuf);
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
@@ -249,6 +250,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     conn->broken = true;
     if (conn->status == ConnAcquire) {
       if (conn->regArg.init) {
+        tTrace("server conn %p broken, notify server app", conn);
         STrans* pTransInst = conn->pTransInst;
         (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);
         memset(&conn->regArg, 0, sizeof(conn->regArg));
@@ -270,7 +272,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 
 void uvOnSendCb(uv_write_t* req, int status) {
   SSrvConn* conn = req->data;
-  transClearBuffer(&conn->readBuf);
+  // transClearBuffer(&conn->readBuf);
   if (status == 0) {
     tTrace("server conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
