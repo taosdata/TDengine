@@ -52,7 +52,12 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
+typedef struct SFileBlockInfo {
+  int32_t numBlocksOfStep;
+} SFileBlockInfo;
+
+#define TSDB_BLOCK_DIST_STEP_ROWS 8
+#define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define FUNCTION_TYPE_SCALAR       1
 #define FUNCTION_TYPE_AGG          2
@@ -101,10 +106,6 @@ typedef struct SFuncExecFuncs {
 #define FUNCTION_DERIVATIVE   32
 #define FUNCTION_BLKINFO      33
 
-#define FUNCTION_HISTOGRAM    34
-#define FUNCTION_HLL          35
-#define FUNCTION_MODE         36
-#define FUNCTION_SAMPLE       37
 
 #define FUNCTION_COV          38
 
