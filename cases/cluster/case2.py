@@ -27,8 +27,8 @@ class Case2(ClusterCase):
         self.table_name = "tb"
         self.table_num = 10
         self.row_num = 500000  # row number per table
-        self.max_restart_interval = [1, 10]
-        self.restart_times = 3
+        self.max_restart_interval = [5, 10]
+        self.restart_times = 5
 
     def check_result_db(self, db, stb):
         client_0 = self.tdSql.get_connection(self._conf, "dnode_3:6030")
