@@ -77,9 +77,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .type = FUNCTION_TYPE_PERCENTILE,
       .classification = FUNC_MGT_AGG_FUNC,
       .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
+      .getEnvFunc   = getPercentileFuncEnv,
+      .initFunc     = percentileFunctionSetup,
+      .processFunc  = percentileFunction,
       .finalizeFunc = functionFinalize
   },
   {

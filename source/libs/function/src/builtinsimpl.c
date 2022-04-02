@@ -480,7 +480,6 @@ void stddevFunction(SqlFunctionCtx* pCtx) {
 
   // Only the pre-computing information loaded and actual data does not loaded
   SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
   int32_t               type = pInput->pData[0]->info.type;
 
   SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -601,6 +600,7 @@ void stddevFinalize(SqlFunctionCtx* pCtx) {
 }
 
 typedef struct SPercentileInfo {
+  double      result;
   tMemBucket *pMemBucket;
   int32_t     stage;
   double      minval;
@@ -629,10 +629,15 @@ bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultI
 
 void percentileFunction(SqlFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
-#if 0
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+
+  SColumnInfoData *pCol = pInput->pData[0];
+  int32_t type = pCol->info.type;
+
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
     pInfo->stage += 1;
 
@@ -647,19 +652,17 @@ void percentileFunction(SqlFunctionCtx *pCtx) {
 
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
-    if (pCtx->preAggVals.isSet) {
+    if (pCtx->input.colDataAggIsSet) {
       double tmin = 0.0, tmax = 0.0;
-      if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min);
-        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max);
-      } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
-        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min);
-        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max);
-      } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-        tmin = (double)GET_UINT64_VAL(&pCtx->preAggVals.statis.min);
-        tmax = (double)GET_UINT64_VAL(&pCtx->preAggVals.statis.max);
-      } else {
-        assert(true);
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
+        tmin = (double)GET_INT64_VAL(&pAgg->min);
+        tmax = (double)GET_INT64_VAL(&pAgg->max);
+      } else if (IS_FLOAT_TYPE(type)) {
+        tmin = GET_DOUBLE_VAL(&pAgg->min);
+        tmax = GET_DOUBLE_VAL(&pAgg->max);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        tmin = (double)GET_UINT64_VAL(&pAgg->min);
+        tmax = (double)GET_UINT64_VAL(&pAgg->max);
       }
 
       if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
@@ -670,17 +673,19 @@ void percentileFunction(SqlFunctionCtx *pCtx) {
         SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
-      pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
+      pInfo->numOfElems += (pInput->numOfRows - pAgg->numOfNull);
     } else {
-      for (int32_t i = 0; i < pCtx->size; ++i) {
-        char *data = GET_INPUT_DATA(pCtx, i);
-        if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      // check the valid data one by one
+      int32_t start = pInput->startRowIndex;
+      for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
           continue;
         }
 
+        char *data = colDataGetData(pCol, i);
+
         double v = 0;
         GET_TYPED_DATA(v, double, pCtx->inputType, data);
-
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
         }
@@ -697,20 +702,35 @@ void percentileFunction(SqlFunctionCtx *pCtx) {
   }
 
   // the second stage, calculate the true percentile value
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    char *data = GET_INPUT_DATA(pCtx, i);
-    if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+  int32_t start = pInput->startRowIndex;
+  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+    if (colDataIsNull_f(pCol->nullbitmap, i)) {
       continue;
     }
+
+    char *data = colDataGetData(pCol, i);
 
     notNullElems += 1;
     tMemBucketPut(pInfo->pMemBucket, data, 1);
   }
 
-  SET_VAL(pCtx, notNullElems, 1);
+  SET_VAL(pResInfo, notNullElems, 1);
   pResInfo->hasResult = DATA_SET_FLAG;
-#endif
+}
 
+void percentileFinalize(SqlFunctionCtx* pCtx) {
+  double v = 50;//pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
+
+  tMemBucket * pMemBucket = ppInfo->pMemBucket;
+  if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
+    SET_DOUBLE_VAL(&ppInfo->result, getPercentile(pMemBucket, v));
+  }
+
+  tMemBucketDestroy(pMemBucket);
+  functionFinalize(pCtx);
 }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {

@@ -6104,7 +6104,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
-
     //    if (pAggInfo->current != NULL) {
     //      setTagValue(pOperator, pAggInfo->current->pTable, pInfo->pCtx, pOperator->numOfOutput);
     //    }
