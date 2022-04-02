@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "parInt.h"
 #include "scalar.h"
 
@@ -44,6 +45,9 @@ static EDealRes calcConstOperator(SOperatorNode** pNode, void* pContext) {
 
 static EDealRes calcConstFunction(SFunctionNode** pNode, void* pContext) {
   SFunctionNode* pFunc = *pNode;
+  if (fmIsPseudoColumnFunc(pFunc->funcId)) {
+    return DEAL_RES_CONTINUE;
+  }
   SNode* pParam = NULL;
   FOREACH(pParam, pFunc->pParameterList) {
     if (QUERY_NODE_VALUE != nodeType(pParam)) {
