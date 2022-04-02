@@ -118,7 +118,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 
-static int32_t dndProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dndReleaseWrapper(pWrapper);
@@ -146,7 +146,7 @@ static int32_t dndProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg
   return code;
 }
 
-static int32_t dndProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
@@ -171,24 +171,24 @@ static int32_t dndProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *
   return code;
 }
 
-int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
+int32_t dmProcessCDnodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
   switch (pMsg->rpcMsg.msgType) {
     case TDMT_DND_CREATE_MNODE:
-      return dndProcessCreateNodeMsg(pDnode, MNODE, pMsg);
+      return dmProcessCreateNodeMsg(pDnode, MNODE, pMsg);
     case TDMT_DND_DROP_MNODE:
-      return dndProcessDropNodeMsg(pDnode, MNODE, pMsg);
+      return dmProcessDropNodeMsg(pDnode, MNODE, pMsg);
     case TDMT_DND_CREATE_QNODE:
-      return dndProcessCreateNodeMsg(pDnode, QNODE, pMsg);
+      return dmProcessCreateNodeMsg(pDnode, QNODE, pMsg);
     case TDMT_DND_DROP_QNODE:
-      return dndProcessDropNodeMsg(pDnode, QNODE, pMsg);
+      return dmProcessDropNodeMsg(pDnode, QNODE, pMsg);
     case TDMT_DND_CREATE_SNODE:
-      return dndProcessCreateNodeMsg(pDnode, SNODE, pMsg);
+      return dmProcessCreateNodeMsg(pDnode, SNODE, pMsg);
     case TDMT_DND_DROP_SNODE:
-      return dndProcessDropNodeMsg(pDnode, SNODE, pMsg);
+      return dmProcessDropNodeMsg(pDnode, SNODE, pMsg);
     case TDMT_DND_CREATE_BNODE:
-      return dndProcessCreateNodeMsg(pDnode, BNODE, pMsg);
+      return dmProcessCreateNodeMsg(pDnode, BNODE, pMsg);
     case TDMT_DND_DROP_BNODE:
-      return dndProcessDropNodeMsg(pDnode, BNODE, pMsg);
+      return dmProcessDropNodeMsg(pDnode, BNODE, pMsg);
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       return -1;

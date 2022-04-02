@@ -78,7 +78,7 @@ static int32_t dmStart(SMgmtWrapper *pWrapper) {
   return dmStartThread(pWrapper->pMgmt);
 }
 
-int32_t dmInit(SMgmtWrapper *pWrapper) {
+static int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
   SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
   dInfo("dnode-mgmt start to init");
@@ -124,7 +124,7 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
   return 0;
 }
 
-void dmCleanup(SMgmtWrapper *pWrapper) {
+static void dmCleanup(SMgmtWrapper *pWrapper) {
   SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
@@ -153,12 +153,12 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
   dInfo("dnode-mgmt is cleaned up");
 }
 
-int32_t dmRequire(SMgmtWrapper *pWrapper, bool *required) {
+static int32_t dmRequire(SMgmtWrapper *pWrapper, bool *required) {
   *required = true;
   return 0;
 }
 
-void dmGetMgmtFp(SMgmtWrapper *pWrapper) {
+void dmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = dmInit;
   mgmtFp.closeFp = dmCleanup;

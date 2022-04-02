@@ -66,16 +66,6 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   dTrace("msg:%p, will be processed in dnode queue", pMsg);
 
   switch (pRpc->msgType) {
-    case TDMT_DND_CREATE_MNODE:
-    case TDMT_DND_CREATE_QNODE:
-    case TDMT_DND_CREATE_SNODE:
-    case TDMT_DND_CREATE_BNODE:
-    case TDMT_DND_DROP_MNODE:
-    case TDMT_DND_DROP_QNODE:
-    case TDMT_DND_DROP_SNODE:
-    case TDMT_DND_DROP_BNODE:
-      code = dndProcessNodeMsg(pMgmt->pDnode, pMsg);
-      break;
     case TDMT_DND_CONFIG_DNODE:
       code = dmProcessConfigReq(pMgmt, pMsg);
       break;
@@ -89,8 +79,8 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
       code = dmProcessGrantRsp(pMgmt, pMsg);
       break;
     default:
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      dError("msg:%p, type:%s not processed in dnode queue", pRpc->handle, TMSG_INFO(pRpc->msgType));
+      code = dmProcessCDnodeMsg(pMgmt->pDnode, pMsg);
+      break;
   }
 
   if (pRpc->msgType & 1u) {

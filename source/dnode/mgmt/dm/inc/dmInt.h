@@ -39,18 +39,25 @@ typedef struct SDnodeMgmt {
   SMgmtWrapper *pWrapper;
 } SDnodeMgmt;
 
+// dmInt.c
+void dmSetMgmtFp(SMgmtWrapper *pWrapper);
+void dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
+void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
+void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pMsg);
+
 // dmFile.c
 int32_t dmReadFile(SDnodeMgmt *pMgmt);
 int32_t dmWriteFile(SDnodeMgmt *pMgmt);
 void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
-// dmMsg.c
+// dmHandle.c
 void    dmInitMsgHandle(SMgmtWrapper *pWrapper);
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessCDnodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dmWorker.c
 int32_t dmStartThread(SDnodeMgmt *pMgmt);

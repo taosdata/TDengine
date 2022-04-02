@@ -333,7 +333,7 @@ static int32_t vmRequire(SMgmtWrapper *pWrapper, bool *required) {
   return 0;
 }
 
-void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
+void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = vmInit;
   mgmtFp.closeFp = vmCleanup;

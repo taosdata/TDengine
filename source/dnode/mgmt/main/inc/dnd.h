@@ -27,13 +27,13 @@
 #include "tlockfree.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "tmsgcb.h"
 #include "tprocess.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
-#include "tmsgcb.h"
 
 #include "dnode.h"
 #include "monitor.h"
@@ -42,12 +42,42 @@
 extern "C" {
 #endif
 
-#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
-#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+#define dFatal(...)                                              \
+  {                                                              \
+    if (dDebugFlag & DEBUG_FATAL) {                              \
+      taosPrintLog("DND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
+  }
+#define dError(...)                                              \
+  {                                                              \
+    if (dDebugFlag & DEBUG_ERROR) {                              \
+      taosPrintLog("DND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
+  }
+#define dWarn(...)                                             \
+  {                                                            \
+    if (dDebugFlag & DEBUG_WARN) {                             \
+      taosPrintLog("DND WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
+  }
+#define dInfo(...)                                        \
+  {                                                       \
+    if (dDebugFlag & DEBUG_INFO) {                        \
+      taosPrintLog("DND ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                     \
+  }
+#define dDebug(...)                                               \
+  {                                                               \
+    if (dDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); \
+    }                                                             \
+  }
+#define dTrace(...)                                               \
+  {                                                               \
+    if (dDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); \
+    }                                                             \
+  }
 
 typedef enum { DNODE, VNODES, QNODE, SNODE, MNODE, BNODE, NODE_MAX } ENodeType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
@@ -73,7 +103,7 @@ typedef int32_t (*DropNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*RequireNodeFp)(SMgmtWrapper *pWrapper, bool *required);
 
 typedef struct SMsgHandle {
-  SMgmtWrapper *pQndWrapper; 
+  SMgmtWrapper *pQndWrapper;
   SMgmtWrapper *pMndWrapper;
   SMgmtWrapper *pWrapper;
 } SMsgHandle;
@@ -146,13 +176,10 @@ void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp 
 SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
 int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
 void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
+void          dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 
 // dndMonitor.h
 void dndSendMonitorReport(SDnode *pDnode);
-
-// dndMsg.h
-void    dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dndStr.h
 const char *dndStatStr(EDndStatus stat);
@@ -168,12 +195,12 @@ SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
 int32_t  dndInitMsgHandle(SDnode *pDnode);
 
 // mgmt
-void dmGetMgmtFp(SMgmtWrapper *pWrapper);
-void bmGetMgmtFp(SMgmtWrapper *pWrapper);
-void qmGetMgmtFp(SMgmtWrapper *pMgmt);
-void smGetMgmtFp(SMgmtWrapper *pWrapper);
-void vmGetMgmtFp(SMgmtWrapper *pWrapper);
-void mmGetMgmtFp(SMgmtWrapper *pMgmt);
+void dmSetMgmtFp(SMgmtWrapper *pWrapper);
+void bmSetMgmtFp(SMgmtWrapper *pWrapper);
+void qmSetMgmtFp(SMgmtWrapper *pMgmt);
+void smSetMgmtFp(SMgmtWrapper *pWrapper);
+void vmSetMgmtFp(SMgmtWrapper *pWrapper);
+void mmSetMgmtFp(SMgmtWrapper *pMgmt);
 
 void dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
 void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
@@ -194,8 +221,8 @@ void    vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
 int32_t vmMonitorTfsInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
 void    vmMonitorVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo);
-                         
+                           SMonGrantInfo *pGrantInfo);
+
 #ifdef __cplusplus
 }
 #endif

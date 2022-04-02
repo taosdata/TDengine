@@ -227,7 +227,7 @@ static int32_t mmStart(SMgmtWrapper *pWrapper) {
   return mndStart(pMgmt->pMnode);
 }
 
-void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
+void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = mmOpen;
   mgmtFp.closeFp = mmClose;
