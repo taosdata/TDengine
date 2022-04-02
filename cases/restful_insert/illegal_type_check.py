@@ -18,7 +18,7 @@ from taostest.util.rest import TDRest
 class TestIllegalType(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def int_illegal_type_value_check(self):
         """

@@ -18,7 +18,7 @@ from taostest.util.rest import TDRest
 class TestAutoCreateTable(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def check_tag_value_for_auto_create_table(self):
         """

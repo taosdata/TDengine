@@ -19,7 +19,7 @@ import copy
 class TestTimestamp(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def ms_us_ns_db_check(self):
         """

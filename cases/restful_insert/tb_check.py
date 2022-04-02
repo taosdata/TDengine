@@ -18,8 +18,8 @@ import copy
 
 class TestTb(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = self.get_default_database()
         self.tdRest.request(f'create database if not exists {self.dbname}')
 
