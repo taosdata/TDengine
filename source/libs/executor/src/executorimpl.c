@@ -2224,43 +2224,6 @@ bool isTaskKilled(SExecTaskInfo* pTaskInfo) {
 
 void setTaskKilled(SExecTaskInfo* pTaskInfo) { pTaskInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
 
-// static bool isFixedOutputQuery(STaskAttr* pQueryAttr) {
-//   if (QUERY_IS_INTERVAL_QUERY(pQueryAttr)) {
-//     return false;
-//   }
-//
-//   // Note:top/bottom query is fixed output query
-//   if (pQueryAttr->topBotQuery || pQueryAttr->groupbyColumn || pQueryAttr->tsCompQuery) {
-//     return true;
-//   }
-//
-//   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-//     SExprBasicInfo *pExpr = &pQueryAttr->pExpr1[i].base;
-//
-//     if (pExpr->functionId == FUNCTION_TS || pExpr->functionId == FUNCTION_TS_DUMMY) {
-//       continue;
-//     }
-//
-//     if (!IS_MULTIOUTPUT(aAggs[pExpr->functionId].status)) {
-//       return true;
-//     }
-//   }
-//
-//   return false;
-// }
-
-// todo refactor with isLastRowQuery
-// bool isPointInterpoQuery(STaskAttr *pQueryAttr) {
-//  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-//    int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
-//    if (functionId == FUNCTION_INTERP) {
-//      return true;
-//    }
-//  }
-//
-//  return false;
-//}
-
 static bool isCachedLastQuery(STaskAttr* pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functionId = getExprFunctionId(&pQueryAttr->pExpr1[i]);
@@ -2307,40 +2270,6 @@ void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t ke
   } else {
     win->ekey = taosTimeAdd(win->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
   }
-}
-
-/*
- * todo add more parameters to check soon..
- */
-bool colIdCheck(STaskAttr* pQueryAttr, uint64_t qId) {
-  // load data column information is incorrect
-  for (int32_t i = 0; i < pQueryAttr->numOfCols - 1; ++i) {
-    if (pQueryAttr->tableCols[i].colId == pQueryAttr->tableCols[i + 1].colId) {
-      // qError("QInfo:0x%"PRIx64" invalid data load column for query", qId);
-      return false;
-    }
-  }
-
-  return true;
-}
-
-// todo ignore the avg/sum/min/max/count/stddev/top/bottom functions, of which
-// the scan order is not matter
-static bool onlyOneQueryType(STaskAttr* pQueryAttr, int32_t functId, int32_t functIdDst) {
-  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-    int32_t functionId = getExprFunctionId(&pQueryAttr->pExpr1[i]);
-
-    if (functionId == FUNCTION_TS || functionId == FUNCTION_TS_DUMMY || functionId == FUNCTION_TAG ||
-        functionId == FUNCTION_TAG_DUMMY) {
-      continue;
-    }
-
-    if (functionId != functId && functionId != functIdDst) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
@@ -2817,20 +2746,6 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
   }
 
   return status;
-}
-
-void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock) {
-  // set the initial static data value filter expression
-  for (int32_t i = 0; i < numOfFilterCols; ++i) {
-    for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
-      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, j);
-
-      if (pFilterInfo[i].info.colId == pColInfo->info.colId) {
-        pFilterInfo[i].pData = pColInfo->pData;
-        break;
-      }
-    }
-  }
 }
 
 int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {

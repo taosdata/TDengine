@@ -434,6 +434,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
+    case FUNCTION_TYPE_PERCENTILE:
     case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_SIN:
     case FUNCTION_TYPE_COS:
