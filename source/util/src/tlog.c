@@ -354,9 +354,9 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
     return -1;
   }
   TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
+  tsLogObj.logHandle->pFile = pFile;
   taosUnLockLogFile(pOldFile);
   taosCloseFile(&pOldFile);
-  tsLogObj.logHandle->pFile = pFile;
   taosLockLogFile(tsLogObj.logHandle->pFile);
 
   // only an estimate for number of lines
