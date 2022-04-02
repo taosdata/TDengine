@@ -189,3 +189,17 @@ void dndReleaseWrapper(SMgmtWrapper *pWrapper) {
   taosRUnLockLatch(&pWrapper->latch);
   dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
 }
+
+void dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {
+  pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
+  pWrapper->msgVgIds[TMSG_INDEX(msgType)] = vgId;
+}
+
+EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
+
+void dndSetStatus(SDnode *pDnode, EDndStatus status) {
+  if (pDnode->status != status) {
+    dDebug("dnode status set from %s to %s", dndStatStr(pDnode->status), dndStatStr(status));
+    pDnode->status = status;
+  }
+}

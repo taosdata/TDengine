@@ -510,6 +510,68 @@ void checkFstCheckIteratorRange2() {
   }
   delete m;
 }
+void checkFstCheckIteratorRange3() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("ab", 1);
+  fw->Put("b", 2);
+  fw->Put("cdd", 3);
+  fw->Put("cde", 3);
+  fw->Put("ddd", 4);
+  fw->Put("ed", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "", (RangeType)10, result);
+    assert(result.size() == 5);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "", (RangeType)20, "ab", LE, result);
+    assert(result.size() == 1);
+    automCtxDestroy(ctx);
+    // taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "", (RangeType)30, "ab", LT, result);
+    assert(result.size() == 0);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "ed", GT, "ed", (RangeType)40, result);
+    assert(result.size() == 0);
+    automCtxDestroy(ctx);
+  }
+  delete m;
+}
 
 void fst_get(Fst* fst) {
   for (int i = 0; i < 10000; i++) {
@@ -573,11 +635,12 @@ int main(int argc, char* argv[]) {
   // path suid colName ver
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
-  checkFstCheckIterator1();
-  checkFstCheckIterator2();
-  checkFstCheckIteratorPrefix();
-  checkFstCheckIteratorRange1();
-  checkFstCheckIteratorRange2();
+  // checkFstCheckIterator1();
+  // checkFstCheckIterator2();
+  // checkFstCheckIteratorPrefix();
+  // checkFstCheckIteratorRange1();
+  // checkFstCheckIteratorRange2();
+  checkFstCheckIteratorRange3();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 
