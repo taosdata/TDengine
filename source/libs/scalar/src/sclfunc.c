@@ -333,15 +333,15 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
+    if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[i])) ||
+        GET_PARAM_TYPE(&pInput[i]) != GET_PARAM_TYPE(&pInput[0])) {
+      return TSDB_CODE_FAILED;
+    }
     if (pInput[i].numOfRows > numOfRows) {
       numOfRows = pInput[i].numOfRows;
     }
   }
   for (int32_t i = 0; i < inputNum; ++i) {
-    if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[i])) ||
-        GET_PARAM_TYPE(&pInput[i]) != GET_PARAM_TYPE(&pInput[0])) {
-      return TSDB_CODE_FAILED;
-    }
     pInputData[i] = pInput[i].columnData;
     input[i] = pInputData[i]->pData;
     if (pInput[i].numOfRows == 1) {
@@ -402,20 +402,21 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
-  for (int32_t i = 0; i < inputNum; ++i) {
+  for (int32_t i = 1; i < inputNum; ++i) {
+    if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[i])) ||
+        GET_PARAM_TYPE(&pInput[i]) != GET_PARAM_TYPE(&pInput[1])) {
+      return TSDB_CODE_FAILED;
+    }
     if (pInput[i].numOfRows > numOfRows) {
       numOfRows = pInput[i].numOfRows;
     }
   }
   for (int32_t i = 0; i < inputNum; ++i) {
-    if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[i])) ||
-        GET_PARAM_TYPE(&pInput[i]) != GET_PARAM_TYPE(&pInput[0])) {
-      return TSDB_CODE_FAILED;
-    }
     pInputData[i] = pInput[i].columnData;
     if (i == 0) {
       // calculate required separator space
-      inputLen += (pInputData[0]->varmeta.length - VARSTR_HEADER_SIZE) * numOfRows * (inputNum - 2);
+      int32_t factor =  (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) ? TSDB_NCHAR_SIZE : 1;
+      inputLen += (pInputData[0]->varmeta.length - VARSTR_HEADER_SIZE) * numOfRows * (inputNum - 2) * factor;
     } else if (pInput[i].numOfRows == 1) {
       inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * numOfRows;
     } else {
@@ -429,7 +430,6 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
-    char *sep = pInputData[0]->pData;
     if (colDataIsNull_s(pInputData[0], k)) {
       colDataAppendNULL(pOutputData, k);
       continue;
@@ -437,7 +437,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
     int16_t dataLen = 0;
     for (int32_t i = 1; i < inputNum; ++i) {
-      if (colDataIsNull_f(pInputData[i]->nullbitmap, k)) {
+      if (colDataIsNull_s(pInputData[i], k)) {
         continue;
       }
 
@@ -449,6 +449,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
       if (i < inputNum - 1) {
         //insert the separator
+        char *sep = pInputData[0]->pData;
         memcpy(varDataVal(output) + dataLen, varDataVal(sep), varDataLen(sep));
         dataLen += varDataLen(sep);
       }

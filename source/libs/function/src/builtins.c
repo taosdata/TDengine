@@ -536,6 +536,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
         paraType = pParam->node.resType.type;
       }
       pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
+      break;
       //int32_t paraTypeFirst, totalBytes = 0, sepBytes = 0;
       //int32_t firstParamIndex = 0;
       //if (pFunc->funcType == FUNCTION_TYPE_CONCAT_WS) {
