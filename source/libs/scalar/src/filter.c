@@ -3638,16 +3638,16 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   info = *pInfo;
   info->options = options;
 
-  SFltTreeStat stat = {0};
-  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
+  SFltTreeStat stat1 = {0};
+  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat1));
 
-  info->scalarMode = stat.scalarMode;
+  info->scalarMode = stat1.scalarMode;
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
+    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat1));
   }
   
   return code;
@@ -3664,24 +3664,16 @@ _return:
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
   if (info->scalarMode) {
     SScalarParam output = {0};
+
+    SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+    output.columnData = createColumnInfoData(&type, pSrc->info.rows);
+
+    *p = (int8_t *)output.columnData->pData;
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
-    
+
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
     taosArrayDestroy(pList);
-    // TODO Fix it
-//    *p = output.orig.data;
-//    output.orig.data = NULL;
-//
-//    sclFreeParam(&output);
-//
-//    int8_t *r = output.data;
-//    for (int32_t i = 0; i < output.num; ++i) {
-//      if (0 == *(r+i)) {
-//        return false;
-//      }
-//    }
-    
     return true;
   }
 

@@ -3026,11 +3026,27 @@ int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, 
     int8_t* rowRes = NULL;
     bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
 
-//    filterSetColFieldData(pQueryAttr->pFilters, pBlock->info.numOfCols, pBlock->pDataBlock);
+    SSDataBlock* px = createOneDataBlock(pBlock);
+    blockDataEnsureCapacity(px, pBlock->info.rows);
 
-//    if (pQueryAttr->pFilters != NULL) {
-//      filterColRowsInDataBlock(pRuntimeEnv, pBlock, ascQuery);
-//    }
+    int32_t numOfRow = 0;
+    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+
+      numOfRow = 0;
+      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+        if (rowRes[j] == 0) {
+          continue;
+        }
+
+        colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+        numOfRow += 1;
+      }
+      *pSrc = *pDst;
+    }
+
+    pBlock->info.rows = numOfRow;
   }
 
   return TSDB_CODE_SUCCESS;
