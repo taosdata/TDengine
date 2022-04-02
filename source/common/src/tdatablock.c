@@ -825,14 +825,17 @@ static void copyBackToBlock(SSDataBlock* pDataBlock, SColumnInfoData* pCols) {
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
       taosMemoryFreeClear(pColInfoData->varmeta.offset);
+      pColInfoData->varmeta = pCols[i].varmeta;
     } else {
       taosMemoryFreeClear(pColInfoData->nullbitmap);
+      pColInfoData->nullbitmap = pCols[i].nullbitmap;
     }
 
     taosMemoryFreeClear(pColInfoData->pData);
+    pColInfoData->pData = pCols[i].pData;
   }
 
-  colDataDestroy(pCols);
+  taosMemoryFreeClear(pCols);
 }
 
 static int32_t* createTupleIndex(size_t rows) {
@@ -1197,7 +1200,6 @@ void colDataDestroy(SColumnInfoData* pColData) {
   }
 
   taosMemoryFree(pColData->pData);
-  taosMemoryFree(pColData);
 }
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
