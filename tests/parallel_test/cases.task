@@ -311,6 +311,7 @@
 20,,develop-test,python3 test.py -f 2-query/ltrim_func.py
 20,,develop-test,python3 test.py -f 2-query/rtrim_func.py
 20,,develop-test,python3 test.py -f 2-query/substr_func.py
+20,,develop-test,bash 3-connectors/TypeScript-REST/test.sh 
 20,,pytest,python3 test.py -f query/query.py 
 20,,pytest,python3 test.py -f import_merge/importLastTO.py 
 20,,pytest,python3 test.py -f import_merge/importDataSub.py 
