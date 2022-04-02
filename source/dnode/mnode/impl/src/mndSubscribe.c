@@ -216,7 +216,7 @@ static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg) {
 
   // TODO
   int32_t hbStatus = atomic_load_32(&pConsumer->hbStatus);
-  mTrace("try to get sub ep, old val: %d", hbStatus);
+  mTrace("consumer %ld epoch(%d) try to get sub ep, server epoch %d, old val: %d", consumerId, epoch, pConsumer->epoch, hbStatus);
   atomic_store_32(&pConsumer->hbStatus, 0);
   /*SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pConsumer);*/
   /*sdbSetRawStatus(pConsumerRaw, SDB_STATUS_READY);*/
