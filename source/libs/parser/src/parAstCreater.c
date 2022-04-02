@@ -243,27 +243,27 @@ static SDatabaseOptions* setDbRetentions(SAstCreateContext* pCxt, SDatabaseOptio
     return pOptions;
   }
 
-  char val[20] = {0};
-  int32_t len = trimString(pVal->z, pVal->n, val, sizeof(val));
-  char* pStart = val;
-  char* pEnd = val + len;
-  int32_t sepOrder = 1;
-  while (1) {
-    char* pPos = strchr(pStart, (0 == sepOrder % 2) ? ',' : ':');
-    SToken t = { .type = TK_NK_VARIABLE, .z = pStart, .n = (NULL == pPos ? pEnd - pStart : pPos - pStart)};
-    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pOptions->pRetentions, createDurationValueNode(pCxt, &t))) {
-      pCxt->valid = false;
-      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
-      return pOptions;
+  if (pVal->n > 2) {
+    char* pStart = pVal->z + 1;
+    char* pEnd = pVal->z + pVal->n - 1;
+    int32_t sepOrder = 1;
+    while (1) {
+      char* pPos = strchr(pStart, (0 == (sepOrder++) % 2) ? ',' : ':');
+      SToken t = { .type = TK_NK_VARIABLE, .z = pStart, .n = (NULL == pPos ? pEnd - pStart : pPos - pStart)};
+      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pOptions->pRetentions, createDurationValueNode(pCxt, &t))) {
+        pCxt->valid = false;
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+        return pOptions;
+      }
+      if (NULL == pPos) {
+        break;
+      }
+      pStart = pPos + 1;
     }
-    if (NULL == pPos) {
-      break;
-    }
-    pStart = pPos + 1;
   }
 
-  if (LIST_LENGTH(pOptions->pRetentions) % 2 != 0) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option retentions: %s", val);
+  if (LIST_LENGTH(pOptions->pRetentions) < 2 || LIST_LENGTH(pOptions->pRetentions) % 2 != 0) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option retentions: %s", pVal->z);
     pCxt->valid = false;
   }
 
