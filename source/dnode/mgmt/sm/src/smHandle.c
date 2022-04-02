@@ -56,6 +56,6 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 
 void smInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by SNODE
-  dndSetMsgHandle(pWrapper, TDMT_SND_TASK_DEPLOY, smProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_SND_TASK_EXEC, smProcessExecMsg, VND_VGID);
+  dndSetMsgHandle(pWrapper, TDMT_SND_TASK_DEPLOY, smProcessMgmtMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_SND_TASK_EXEC, smProcessExecMsg, DEFAULT_HANDLE);
 }

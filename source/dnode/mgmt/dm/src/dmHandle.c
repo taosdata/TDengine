@@ -195,14 +195,7 @@ int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
   }
 }
 
-void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
-  SStartupReq *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
-  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  pStartup->finished = 0;
-}
-
-void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+static void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
   pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
 }
@@ -218,21 +211,21 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-void dmInitMsgHandles(SMgmtWrapper *pWrapper) {
+void dmInitMsgHandle(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_DND_NETWORK_TEST, dmProcessMgmtMsg, VND_VGID);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_DND_NETWORK_TEST, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
 
   // Requests handled by MNODE
-  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, VND_VGID);
+  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmPutMsgToStatusWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmPutMsgToMgmtWorker, DEFAULT_HANDLE);
 }

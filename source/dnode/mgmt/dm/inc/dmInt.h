@@ -45,7 +45,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt);
 void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
 // dmMsg.c
-void    dmInitMsgHandles(SMgmtWrapper *pWrapper);
+void    dmInitMsgHandle(SMgmtWrapper *pWrapper);
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
@@ -53,10 +53,11 @@ int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 // dmWorker.c
+int32_t dmStartThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
-int32_t dmStartThread(SDnodeMgmt *pMgmt);
-int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmPutMsgToMgmtWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmPutMsgToStatusWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

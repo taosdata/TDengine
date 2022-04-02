@@ -18,7 +18,7 @@
 
 static void *dmThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = param;
-  SDnode *    pDnode = pMgmt->pDnode;
+  SDnode     *pDnode = pMgmt->pDnode;
   int64_t     lastStatusTime = taosGetTimestampMs();
   int64_t     lastMonitorTime = lastStatusTime;
 
@@ -32,8 +32,7 @@ static void *dmThreadRoutine(void *param) {
     }
 
     int64_t curTime = taosGetTimestampMs();
-
-    float statusInterval = (curTime - lastStatusTime) / 1000.0f;
+    float   statusInterval = (curTime - lastStatusTime) / 1000.0f;
     if (statusInterval >= tsStatusInterval && !pMgmt->statusSent) {
       dmSendStatusReq(pMgmt);
       lastStatusTime = curTime;
@@ -47,10 +46,21 @@ static void *dmThreadRoutine(void *param) {
   }
 }
 
+int32_t dmStartThread(SDnodeMgmt *pMgmt) {
+  pMgmt->threadId = taosCreateThread(dmThreadRoutine, pMgmt);
+  if (pMgmt->threadId == NULL) {
+    dError("failed to init dnode thread");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
 static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
 
-  SDnode * pDnode = pMgmt->pDnode;
+  SDnode  *pDnode = pMgmt->pDnode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
   dTrace("msg:%p, will be processed in dnode queue", pMsg);
@@ -95,32 +105,19 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
-  SSingleWorkerCfg mgmtCfg = {
-      .min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
-  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) {
+  SSingleWorkerCfg mcfg = {.min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mcfg) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg statusCfg = {
-      .min = 1, .max = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
-  if (tSingleWorkerInit(&pMgmt->statusWorker, &statusCfg) != 0) {
+  SSingleWorkerCfg scfg = {.min = 1, .max = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+  if (tSingleWorkerInit(&pMgmt->statusWorker, &scfg) != 0) {
     dError("failed to start dnode status worker since %s", terrstr());
     return -1;
   }
 
   dDebug("dnode workers are initialized");
-  return 0;
-}
-
-int32_t dmStartThread(SDnodeMgmt *pMgmt) {
-  pMgmt->threadId = taosCreateThread(dmThreadRoutine, pMgmt);
-  if (pMgmt->threadId == NULL) {
-    dError("failed to init dnode thread");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
   return 0;
 }
 
@@ -135,12 +132,18 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
-int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+int32_t dmPutMsgToMgmtWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
-  if (pMsg->rpcMsg.msgType == TDMT_MND_STATUS_RSP) {
-    pWorker = &pMgmt->statusWorker;
-  }
+
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
+}
+
+int32_t dmPutMsgToStatusWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SSingleWorker *pWorker = &pMgmt->statusWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);

@@ -204,3 +204,10 @@ void dndSetStatus(SDnode *pDnode, EDndStatus status) {
     pDnode->status = status;
   }
 }
+
+void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
+  SStartupReq *pStartup = &pDnode->startup;
+  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
+  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
+  pStartup->finished = 0;
+}

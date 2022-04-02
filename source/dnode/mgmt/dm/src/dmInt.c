@@ -165,7 +165,7 @@ void dmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.startFp = dmStart;
   mgmtFp.requiredFp = dmRequire;
 
-  dmInitMsgHandles(pWrapper);
+  dmInitMsgHandle(pWrapper);
   pWrapper->name = "dnode";
   pWrapper->fp = mgmtFp;
 }

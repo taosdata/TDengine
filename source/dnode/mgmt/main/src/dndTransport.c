@@ -137,9 +137,9 @@ static void dndProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (pHandle->pMndWrapper != NULL || pHandle->pQndWrapper != NULL) {
     SMsgHead *pHead = pMsg->pCont;
     int32_t   vgId = ntohl(pHead->vgId);
-    if (vgId == QND_VGID) {
+    if (vgId == QNODE_HANDLE) {
       pWrapper = pHandle->pQndWrapper;
-    } else if (vgId == MND_VGID) {
+    } else if (vgId == MNODE_HANDLE) {
       pWrapper = pHandle->pMndWrapper;
     } else {
     }
@@ -315,13 +315,13 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
       if (msgFp == NULL) continue;
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
-      if (vgId == QND_VGID) {
+      if (vgId == QNODE_HANDLE) {
         if (pHandle->pQndWrapper != NULL) {
           dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
           return -1;
         }
         pHandle->pQndWrapper = pWrapper;
-      } else if (vgId == MND_VGID) {
+      } else if (vgId == MNODE_HANDLE) {
         if (pHandle->pMndWrapper != NULL) {
           dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
           return -1;
