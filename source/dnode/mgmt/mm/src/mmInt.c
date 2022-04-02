@@ -39,20 +39,11 @@ static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
 }
 
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SDnode *pDnode = pMgmt->pDnode;
-  pOption->dnodeId = pDnode->dnodeId;
-  pOption->clusterId = pDnode->clusterId;
-
-  SMsgCb msgCb = {0};
-  msgCb.pWrapper = pMgmt->pWrapper;
+  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
   msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToQueryQueue;
   msgCb.queueFps[READ_QUEUE] = mmPutMsgToReadQueue;
   msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
   msgCb.queueFps[SYNC_QUEUE] = mmPutMsgToWriteQueue;
-  msgCb.sendReqFp = dndSendReqToDnode;
-  msgCb.sendMnodeReqFp = dndSendReqToMnode;
-  msgCb.sendRspFp = dndSendRsp;
-  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
   pOption->msgCb = msgCb;
 }
 
@@ -66,6 +57,7 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pReplica->id = 1;
   pReplica->port = pDnode->serverPort;
   tstrncpy(pReplica->fqdn, pDnode->localFqdn, TSDB_FQDN_LEN);
+  pOption->deploy = true;
 
   pMgmt->selfIndex = pOption->selfIndex;
   pMgmt->replica = pOption->replica;
@@ -77,6 +69,7 @@ static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->selfIndex = pMgmt->selfIndex;
   pOption->replica = pMgmt->replica;
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
+  pOption->deploy = false;
 }
 
 static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
@@ -89,7 +82,7 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
     pReplica->id = pCreate->replicas[i].id;
     pReplica->port = pCreate->replicas[i].port;
     memcpy(pReplica->fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    if (pReplica->id == pOption->dnodeId) {
+    if (pReplica->id == pMgmt->pDnode->dnodeId) {
       pOption->selfIndex = i;
     }
   }
@@ -98,6 +91,7 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
     dError("failed to build mnode options since %s", terrstr());
     return -1;
   }
+  pOption->deploy = true;
 
   pMgmt->selfIndex = pOption->selfIndex;
   pMgmt->replica = pOption->replica;
@@ -225,9 +219,7 @@ int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq) {
   return code;
 }
 
-static int32_t mmOpen(SMgmtWrapper *pWrapper) {
-  return mmOpenFromMsg(pWrapper, NULL);
-}
+static int32_t mmOpen(SMgmtWrapper *pWrapper) { return mmOpenFromMsg(pWrapper, NULL); }
 
 static int32_t mmStart(SMgmtWrapper *pWrapper) {
   dDebug("mnode-mgmt start to run");
@@ -258,7 +250,7 @@ int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encry
 }
 
 int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo) {
+                           SMonGrantInfo *pGrantInfo) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   return mndGetMonitorInfo(pMgmt->pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
 }

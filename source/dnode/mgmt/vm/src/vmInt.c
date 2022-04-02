@@ -128,16 +128,12 @@ static void *vmOpenVnodeFunc(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SMsgCb msgCb = {0};
+    SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
     msgCb.pWrapper = pMgmt->pWrapper;
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
     msgCb.qsizeFp = vmGetQueueSize;
-    msgCb.sendReqFp = dndSendReqToDnode;
-    msgCb.sendMnodeReqFp = dndSendReqToMnode;
-    msgCb.sendRspFp = dndSendRsp;
-    msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
     SVnodeCfg cfg = {.msgCb = msgCb, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
     SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
