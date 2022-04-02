@@ -753,6 +753,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pStart += colLength[i];
   }
 
+  // convert UCS4-LE encoded character to native multi-bytes character in current data block.
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
     int32_t bytes = pResultInfo->fields[i].bytes;
@@ -779,6 +780,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
       }
 
       pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
+      pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
   }
 
