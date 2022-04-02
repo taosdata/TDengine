@@ -4564,6 +4564,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator, bool* newgroup) {
 
   tableBlockDist.dataBlockInfos  = taosArrayInit(numRowSteps, sizeof(SFileBlockInfo));
   taosArraySetSize(tableBlockDist.dataBlockInfos, numRowSteps);
+
   tableBlockDist.maxRows = INT_MIN;
   tableBlockDist.minRows = INT_MAX;
 
@@ -4585,8 +4586,8 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator, bool* newgroup) {
 //
 //  tbufCloseWriter(&bw);
 
-  SArray* g = GET_TABLEGROUP(pOperator->pRuntimeEnv, 0);
-  pOperator->pRuntimeEnv->current = taosArrayGetP(g, 0);
+//  SArray* g = GET_TABLEGROUP(pOperator->, 0);
+//  pOperator->pRuntimeEnv->current = taosArrayGetP(g, 0);
 
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
