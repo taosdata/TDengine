@@ -530,10 +530,32 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_CONCAT:
     case FUNCTION_TYPE_CONCAT_WS: {
       int32_t paraType, paraBytes = 0;
+      bool typeSet = false;
       for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
         SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
-        paraBytes += pParam->node.resType.bytes;
-        paraType = pParam->node.resType.type;
+        if (pParam->node.type == QUERY_NODE_COLUMN) {
+          if (typeSet == false) {
+            paraType = pParam->node.resType.type;
+            typeSet = true;
+          } else {
+            //columns have to be the same type
+            if (paraType != pParam->node.resType.type) {
+              return TSDB_CODE_FAILED;
+            }
+          }
+          paraBytes += pParam->node.resType.bytes;
+        }
+      }
+
+      for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
+        SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
+        if (pParam->node.type == QUERY_NODE_VALUE) {
+          if (paraType == TSDB_DATA_TYPE_NCHAR) {
+            paraBytes += pParam->node.resType.bytes * TSDB_NCHAR_SIZE;
+          } else {
+            paraBytes += pParam->node.resType.bytes;
+          }
+        }
       }
       pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
       break;
