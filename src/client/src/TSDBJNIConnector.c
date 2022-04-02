@@ -170,6 +170,11 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *e
   jniDebug("jni initialized successfully, config directory: %s", configDir);
 }
 
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfigImp(JNIEnv *env, jclass jobj,
+                                                                               jstring config) {
+    return NULL;// nothing to do
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv *env, jobject jobj, jint optionIndex,
                                                                           jstring optionValue) {
   if (optionValue == NULL) {
@@ -687,4 +692,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrec
   }
 
   return taos_result_precision(result);
+}
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultTimePrecisionImp(JNIEnv *env, jobject jobj,
+                                                                                         jlong con, jlong res) {
+  return Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrecision(env, jobj, con, res);
 }
