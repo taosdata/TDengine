@@ -4,11 +4,12 @@ namespace TDengineExample
 {
     internal class StmtInsertExample
     {
+        private static IntPtr conn;
         private static IntPtr stmt;
         static void Main()
         {
-            IntPtr conn = GetConnection();
-            PrepareSTable(conn);
+            conn = GetConnection();
+            PrepareSTable();
             // 1. init and prepare
             stmt = TDengine.StmtInit(conn);
             if (stmt == IntPtr.Zero) {
@@ -16,12 +17,12 @@ namespace TDengineExample
                 ExitProgram();
             }
             int res = TDengine.StmtPrepare(stmt, "INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)");
-            CheckResInt(res, "failed to prepare stmt");
+            CheckStmtRes(res, "failed to prepare stmt");
 
             // 2. bind table name and tags
             TAOS_BIND[] tags =  new TAOS_BIND[2] {TaosBind.BindBinary("Beijing.Chaoyang"), TaosBind.BindInt(2) };
             res = TDengine.StmtSetTbnameTags(stmt, "d1001", tags);
-            CheckResInt(res, "failed to bind table name and tags");
+            CheckStmtRes(res, "failed to bind table name and tags");
 
             // 3. bind values
             TAOS_MULTI_BIND[] values = new TAOS_MULTI_BIND[4] {
@@ -31,22 +32,20 @@ namespace TDengineExample
                 TaosMultiBind.MultiBindFloat(new float?[2]{ 0.31f, 0.33f})
             };
             res = TDengine.StmtBindParamBatch(stmt, values);
-            CheckResInt(res, "failed to bind params");
+            CheckStmtRes(res, "failed to bind params");
 
             // 4. add batch
             res = TDengine.StmtAddBatch(stmt);
-            CheckResInt(res, "failed to add batch");
+            CheckStmtRes(res, "failed to add batch");
             
             // 5. execute
             res = TDengine.StmtExecute(stmt);
-            CheckResInt(res, "faild to execute");
+            CheckStmtRes(res, "faild to execute");
 
             // 6. free 
             TaosBind.FreeTaosBind(tags);
             TaosMultiBind.FreeTaosBind(values);
             TDengine.Close(conn);
-            Console.WriteLine("done!");
-
             TDengine.Cleanup();
         }
 
@@ -61,7 +60,7 @@ namespace TDengineExample
             if (conn == IntPtr.Zero)
             {
                 Console.WriteLine("Connect to TDengine failed");
-                System.Environment.Exit(0);
+                Environment.Exit(0);
             }
             else
             {
@@ -72,7 +71,7 @@ namespace TDengineExample
 
    
 
-        static void PrepareSTable(IntPtr conn) {
+        static void PrepareSTable() {
             IntPtr res = TDengine.Query(conn, "CREATE DATABASE power");
             CheckResPtr(res, "failed to create database");
             res = TDengine.Query(conn, "USE power");
@@ -81,17 +80,20 @@ namespace TDengineExample
             CheckResPtr(res, "failed to create stable");
         }
 
-        static void CheckResInt(int res, String errorMsg)
+        static void CheckStmtRes(int res, string errorMsg)
         {
             if (res != 0)
             {
                 Console.WriteLine(errorMsg + ", " + TDengine.StmtErrorStr(stmt));
-                TDengine.StmtClose(stmt);
+                int code = TDengine.StmtClose(stmt);
+                if (code != 0) {
+                    Console.WriteLine($"falied to close stmt, {code} reason: {TDengine.StmtErrorStr(stmt)} ");
+                }
                 ExitProgram();
             }
         }
 
-        static void CheckResPtr(IntPtr res, String errorMsg)
+        static void CheckResPtr(IntPtr res, string errorMsg)
         {
             if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
@@ -107,8 +109,9 @@ namespace TDengineExample
 
         static void ExitProgram()
         {
+            TDengine.Close(conn);
             TDengine.Cleanup();
-            System.Environment.Exit(1);
+            Environment.Exit(1);
         }
     }
 }

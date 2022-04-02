@@ -37,7 +37,7 @@ namespace TDengineExample
             if (conn == IntPtr.Zero)
             {
                 Console.WriteLine("Connect to TDengine failed");
-                System.Environment.Exit(0);
+                Environment.Exit(0);
             }
             else
             {
@@ -62,7 +62,7 @@ namespace TDengineExample
         static void ExitProgram()
         {
             TDengine.Cleanup();
-            System.Environment.Exit(1);
+            Environment.Exit(1);
         }
     }
 }

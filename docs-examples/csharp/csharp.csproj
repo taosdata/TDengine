@@ -5,7 +5,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>TDengineExample.StmtInsertExample</StartupObject>
+    <StartupObject>TDengineExample.AsyncQuerySample</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
