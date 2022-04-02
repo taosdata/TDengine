@@ -18,7 +18,7 @@
 
 static void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
-  dndSendRsp(pWrapper, &rsp);
+  tmsgSendRsp(&rsp);
 }
 
 static void vmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
@@ -116,7 +116,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     int32_t code = vnodeApplyWMsg(pVnode->pImpl, pRpc, &pRsp);
     if (pRsp != NULL) {
       pRsp->ahandle = pRpc->ahandle;
-      dndSendRsp(pVnode->pWrapper, pRsp);
+      tmsgSendRsp(pRsp);
       taosMemoryFree(pRsp);
     } else {
       if (code != 0 && terrno != 0) code = terrno;

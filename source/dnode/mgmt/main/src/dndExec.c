@@ -78,7 +78,7 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t
     dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
     if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-      dndSendRsp(pWrapper, &rsp);
+      tmsgSendRsp(&rsp);
     }
 
     dTrace("msg:%p, is freed", pMsg);

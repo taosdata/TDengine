@@ -37,7 +37,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
         dError("msg:%p, failed to process since %s", pMsg, terrstr());
       }
       SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
-      dndSendRsp(pMgmt->pWrapper, &rsp);
+      tmsgSendRsp(&rsp);
     }
   }
 
@@ -60,7 +60,7 @@ static void mmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     if (pRpc->handle != NULL && code != 0) {
       dError("msg:%p, failed to process since %s", pMsg, terrstr());
       SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .ahandle = pRpc->ahandle};
-      dndSendRsp(pMgmt->pWrapper, &rsp);
+      tmsgSendRsp(&rsp);
     }
   }
 

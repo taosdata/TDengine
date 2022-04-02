@@ -18,7 +18,7 @@
 
 static void qmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
-  dndSendRsp(pWrapper, &rsp);
+  tmsgSendRsp(&rsp);
 }
 
 static void qmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {

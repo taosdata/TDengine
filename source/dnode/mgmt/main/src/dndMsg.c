@@ -86,7 +86,7 @@ _OVER:
     dError("msg:%p, failed to process since 0x%04x:%s", pMsg, code & 0XFFFF, terrstr());
     if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-      dndSendRsp(pWrapper, &rsp);
+      tmsgSendRsp(&rsp);
     }
     dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);

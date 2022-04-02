@@ -36,8 +36,7 @@ static inline void dndProcessQMVnodeRpcMsg(SMsgHandle *pHandle, SRpcMsg *pMsg, S
   dndProcessRpcMsg(pWrapper, pMsg, pEpSet);
 }
 
-static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
-  SDnode     *pDnode = parent;
+static void dndProcessResponse(SDnode *pDnode, SRpcMsg *pRsp, SEpSet *pEpSet) {
   STransMgmt *pMgmt = &pDnode->trans;
   tmsg_t      msgType = pRsp->msgType;
 
@@ -69,7 +68,7 @@ int32_t dndInitClient(SDnode *pDnode) {
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.label = "DND";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = dndProcessResponse;
+  rpcInit.cfp = (RpcCfp)dndProcessResponse;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -101,8 +100,7 @@ void dndCleanupClient(SDnode *pDnode) {
   }
 }
 
-static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
-  SDnode     *pDnode = param;
+static void dndProcessRequest(SDnode *pDnode, SRpcMsg *pReq, SEpSet *pEpSet) {
   STransMgmt *pMgmt = &pDnode->trans;
   tmsg_t      msgType = pReq->msgType;
 
@@ -179,10 +177,8 @@ static int32_t dndGetHideUserAuth(SDnode *pDnode, char *user, char *spi, char *e
   return code;
 }
 
-static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SDnode *pDnode = parent;
-
-  if (dndGetHideUserAuth(parent, user, spi, encrypt, secret, ckey) == 0) {
+static int32_t dndRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (dndGetHideUserAuth(pDnode, user, spi, encrypt, secret, ckey) == 0) {
     dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
     return 0;
   }
@@ -244,11 +240,11 @@ int32_t dndInitServer(SDnode *pDnode) {
   rpcInit.localPort = pDnode->serverPort;
   rpcInit.label = "DND";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp = dndProcessRequest;
+  rpcInit.cfp = (RpcCfp)dndProcessRequest;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.afp = dndRetrieveUserAuthInfo;
+  rpcInit.afp = (RpcAfp)dndRetrieveUserAuthInfo;
   rpcInit.parent = pDnode;
 
   pMgmt->serverRpc = rpcOpen(&rpcInit);
@@ -363,6 +359,7 @@ int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) 
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
+
     memcpy(pHead, pReq, sizeof(SRpcMsg));
     memcpy(pHead + sizeof(SRpcMsg), pEpSet, sizeof(SEpSet));
 
@@ -372,7 +369,7 @@ int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) 
   }
 }
 
-void dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
+static void dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   if (pWrapper->procType != PROC_CHILD) {
     dndSendRpcRsp(pWrapper, pRsp);
   } else {
@@ -380,7 +377,7 @@ void dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   }
 }
 
-void dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+static void dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != PROC_CHILD) {
     rpcRegisterBrokenLinkArg(pMsg);
   } else {

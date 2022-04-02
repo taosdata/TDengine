@@ -18,7 +18,7 @@
 
 static void bmSendErrorRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
-  dndSendRsp(pWrapper, &rpcRsp);
+  tmsgSendRsp(&rpcRsp);
 
   dTrace("msg:%p, is freed", pMsg);
   rpcFreeCont(pMsg->rpcMsg.pCont);
