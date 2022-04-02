@@ -17,7 +17,7 @@
 #define _TD_DND_VNODES_INT_H_
 
 #include "sync.h"
-#include "dnd.h"
+#include "dndInt.h"
 #include "vnode.h"
 
 #ifdef __cplusplus

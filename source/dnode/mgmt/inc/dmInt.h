@@ -16,7 +16,7 @@
 #ifndef _TD_DND_DNODE_INT_H_
 #define _TD_DND_DNODE_INT_H_
 
-#include "dnd.h"
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,12 +38,6 @@ typedef struct SDnodeMgmt {
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
 } SDnodeMgmt;
-
-// dmInt.c
-void dmSetMgmtFp(SMgmtWrapper *pWrapper);
-void dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
-void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
-void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pMsg);
 
 // dmFile.c
 int32_t dmReadFile(SDnodeMgmt *pMgmt);

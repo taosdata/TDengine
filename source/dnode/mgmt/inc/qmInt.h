@@ -16,7 +16,7 @@
 #ifndef _TD_DND_QNODE_INT_H_
 #define _TD_DND_QNODE_INT_H_
 
-#include "dnd.h"
+#include "dndInt.h"
 #include "qnode.h"
 
 #ifdef __cplusplus
