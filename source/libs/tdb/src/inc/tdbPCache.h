@@ -25,6 +25,7 @@ extern "C" {
   u8      isLocalPage;  \
   u8      isDirty;      \
   i32     nRef;         \
+  SPage  *pCacheNext;   \
   SPage  *pFreeNext;    \
   SPage  *pHashNext;    \
   SPage  *pLruNext;     \

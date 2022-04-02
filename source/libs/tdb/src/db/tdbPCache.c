@@ -18,6 +18,7 @@ struct SPCache {
   int         pageSize;
   int         cacheSize;
   tdb_mutex_t mutex;
+  SPage      *pList;
   int         nFree;
   SPage      *pFree;
   int         nPage;
@@ -35,16 +36,17 @@ struct SPCache {
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
 static int    tdbPCacheOpenImpl(SPCache *pCache);
-static void   tdbPCacheInitLock(SPCache *pCache);
-static void   tdbPCacheClearLock(SPCache *pCache);
-static void   tdbPCacheLock(SPCache *pCache);
-static void   tdbPCacheUnlock(SPCache *pCache);
-static bool   tdbPCacheLocked(SPCache *pCache);
 static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
 static void   tdbPCachePinPage(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage);
+static int    tdbPCacheCloseImpl(SPCache *pCache);
+
+static void tdbPCacheInitLock(SPCache *pCache) { tdbMutexInit(&(pCache->mutex), NULL); }
+static void tdbPCacheDestroyLock(SPCache *pCache) { tdbMutexDestroy(&(pCache->mutex)); }
+static void tdbPCacheLock(SPCache *pCache) { tdbMutexLock(&(pCache->mutex)); }
+static void tdbPCacheUnlock(SPCache *pCache) { tdbMutexUnlock(&(pCache->mutex)); }
 
 int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
   SPCache *pCache;
@@ -69,7 +71,10 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
 }
 
 int tdbPCacheClose(SPCache *pCache) {
-  /* TODO */
+  if (pCache) {
+    tdbPCacheCloseImpl(pCache);
+    tdbOsFree(pCache);
+  }
   return 0;
 }
 
@@ -99,19 +104,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage) {
   }
 }
 
-static void tdbPCacheInitLock(SPCache *pCache) { tdbMutexInit(&(pCache->mutex), NULL); }
-
-static void tdbPCacheClearLock(SPCache *pCache) { tdbMutexDestroy(&(pCache->mutex)); }
-
-static void tdbPCacheLock(SPCache *pCache) { tdbMutexLock(&(pCache->mutex)); }
-
-static void tdbPCacheUnlock(SPCache *pCache) { tdbMutexUnlock(&(pCache->mutex)); }
-
-static bool tdbPCacheLocked(SPCache *pCache) {
-  assert(0);
-  // TODO
-  return true;
-}
+int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->pageSize; }
 
 static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
   SPage *pPage;
@@ -268,4 +261,18 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   return 0;
 }
 
-int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->pageSize; }
+static int tdbPCacheDestroyPage(SPage *pPage) {
+  // TODO
+  return 0;
+}
+
+static int tdbPCacheCloseImpl(SPCache *pCache) {
+  SPage *pPage;
+
+  for (pPage = pCache->pList; pPage; pPage = pCache->pList) {
+    pCache->pList = pPage->pCacheNext;
+    tdbPCacheDestroyPage(pPage);
+  }
+
+  tdbPCacheDestroyLock(pCache);
+}
