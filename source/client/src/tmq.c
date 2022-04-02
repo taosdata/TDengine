@@ -140,6 +140,7 @@ typedef struct {
   tmq_t*          tmq;
   SMqClientVg*    pVg;
   int32_t         epoch;
+  int32_t         vgId;
   tsem_t          rspSem;
   tmq_message_t** msg;
   int32_t         sync;
@@ -839,7 +840,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqClientVg*    pVg = pParam->pVg;
   tmq_t*          tmq = pParam->tmq;
   if (code != 0) {
-    tscWarn("msg discard, code:%x", code);
+    tscWarn("msg discard from vg %d, epoch %d, code:%x", pParam->vgId, pParam->epoch, code);
     goto CREATE_MSG_FAIL;
   }
 
@@ -848,12 +849,12 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (msgEpoch < tmqEpoch) {
     /*printf("discard rsp epoch %d, current epoch %d\n", msgEpoch, tmqEpoch);*/
     /*tsem_post(&tmq->rspSem);*/
-    tscWarn("discard rsp epoch %d, current epoch %d", msgEpoch, tmqEpoch);
+    tscWarn("discard rsp from vg %d, epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
     return 0;
   }
 
   if (msgEpoch != tmqEpoch) {
-    tscWarn("mismatch rsp epoch %d, current epoch %d", msgEpoch, tmqEpoch);
+    tscWarn("mismatch rsp from vg %d, epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
   } else {
     atomic_sub_fetch_32(&tmq->waitingRequest, 1);
   }
@@ -1041,7 +1042,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   if (epStatus == 1) {
     int32_t epSkipCnt = atomic_add_fetch_32(&tmq->epSkipCnt, 1);
     tscDebug("consumer %ld skip ask ep cnt %d", tmq->consumerId, epSkipCnt);
-    if (epSkipCnt < 40) return 0;
+    if (epSkipCnt < 5000) return 0;
   }
   atomic_store_32(&tmq->epSkipCnt, 0);
   int32_t           tlen = sizeof(SMqCMGetSubEpReq);
@@ -1256,6 +1257,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       }
       pParam->tmq = tmq;
       pParam->pVg = pVg;
+      pParam->vgId = pVg->vgId;
       pParam->epoch = tmq->epoch;
       pParam->sync = 0;
 
@@ -1282,7 +1284,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
       atomic_add_fetch_32(&tmq->waitingRequest, 1);
-      tscDebug("consumer %ld send poll: vg %d, req offset %ld", tmq->consumerId, pVg->vgId, pVg->currentOffset);
+      tscDebug("consumer %ld send poll: vg %d, epoch %d, req offset %ld", tmq->consumerId, pVg->vgId, tmq->epoch, pVg->currentOffset);
       /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/
       asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
       pVg->pollCnt++;
