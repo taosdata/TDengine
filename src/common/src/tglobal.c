@@ -48,6 +48,7 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 int64_t  tsDnodeStartTime = 0;
 int8_t   tsDnodeNopLoop = 0;
+int32_t  tsTcpConnTimeout = 1; // timeout for tcp client connection in second.
 
 // common
 int32_t tsRpcTimer = 300;
@@ -633,6 +634,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tcpConnTimeout";
+  cfg.ptr = &tsTcpConnTimeout;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosInitConfigOption(cfg);
 
   cfg.option = "balance";
