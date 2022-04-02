@@ -36,7 +36,7 @@ struct SPCache {
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
 static int    tdbPCacheOpenImpl(SPCache *pCache);
-static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid);
 static void   tdbPCachePinPage(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage);
 static void   tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage);
@@ -78,12 +78,12 @@ int tdbPCacheClose(SPCache *pCache) {
   return 0;
 }
 
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid) {
   SPage *pPage;
 
   tdbPCacheLock(pCache);
 
-  pPage = tdbPCacheFetchImpl(pCache, pPgid, alcNewPage);
+  pPage = tdbPCacheFetchImpl(pCache, pPgid);
   if (pPage) {
     TDB_REF_PAGE(pPage);
   }
@@ -106,7 +106,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage) {
 
 int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->pageSize; }
 
-static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid) {
   SPage *pPage;
 
   // 1. Search the hash table
@@ -116,12 +116,10 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
     pPage = pPage->pHashNext;
   }
 
-  if (pPage || !alcNewPage) {
-    if (pPage) {
-      tdbPCachePinPage(pCache, pPage);
-    }
-    return pPage;
+  if (pPage) {
+    tdbPCachePinPage(pCache, pPage);
   }
+  return pPage;
 
   // 2. Try to allocate a new page from the free list
   if (pCache->pFree) {
@@ -261,17 +259,12 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   return 0;
 }
 
-static int tdbPCacheDestroyPage(SPage *pPage) {
-  // TODO
-  return 0;
-}
-
 static int tdbPCacheCloseImpl(SPCache *pCache) {
   SPage *pPage;
 
   for (pPage = pCache->pList; pPage; pPage = pCache->pList) {
     pCache->pList = pPage->pCacheNext;
-    tdbPCacheDestroyPage(pPage);
+    tdbPageDestroy(pPage, NULL, NULL);
   }
 
   tdbPCacheDestroyLock(pCache);

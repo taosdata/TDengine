@@ -48,7 +48,7 @@ extern "C" {
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage);
 int    tdbPCacheGetPageSize(SPCache *pCache);
 
