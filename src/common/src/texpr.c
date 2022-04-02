@@ -439,7 +439,7 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
       }
       pInputs[i].numOfRows = (int16_t)numOfRows;
     } else if (pChild->nodeType == TSQL_NODE_VALUE) {
-      pChildrenOutput[i] = malloc((pChild->resultBytes+1)*TSDB_NCHAR_SIZE);
+      pChildrenOutput[i] = malloc((pChild->resultBytes+1)*TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
       tVariantDump(pChild->pVal, pChildrenOutput[i], pChild->resultType, true);
       pInputs[i].data = pChildrenOutput[i];
       pInputs[i].numOfRows = 1;
@@ -956,7 +956,7 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
