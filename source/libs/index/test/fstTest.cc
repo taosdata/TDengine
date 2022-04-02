@@ -485,6 +485,15 @@ void checkFstCheckIteratorRange2() {
     std::vector<uint64_t> result;
     AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
+    m->SearchRange(ctx, "bb", GE, "ed", LT, result);
+    assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LE, result);
     assert(result.size() == 5);
     automCtxDestroy(ctx);
@@ -635,11 +644,11 @@ int main(int argc, char* argv[]) {
   // path suid colName ver
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
-  // checkFstCheckIterator1();
-  // checkFstCheckIterator2();
-  // checkFstCheckIteratorPrefix();
-  // checkFstCheckIteratorRange1();
-  // checkFstCheckIteratorRange2();
+  checkFstCheckIterator1();
+  checkFstCheckIterator2();
+  checkFstCheckIteratorPrefix();
+  checkFstCheckIteratorRange1();
+  checkFstCheckIteratorRange2();
   checkFstCheckIteratorRange3();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
