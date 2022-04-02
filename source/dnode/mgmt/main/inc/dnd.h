@@ -149,7 +149,7 @@ int32_t dndInitClient(SDnode *pDnode);
 void    dndCleanupClient(SDnode *pDnode);
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
+int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 void    dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 SMsgCb  dndCreateMsgcb(SMgmtWrapper *pWrapper);

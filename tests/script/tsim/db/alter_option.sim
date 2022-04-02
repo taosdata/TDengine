@@ -138,7 +138,7 @@ sql_error alter database db ntables 0
 sql_error alter database db ntables 1
 sql_error alter database db ntables 10
 
-#print ============== modify replica
+#print ============== modify replica        # TD-14409
 sql_error alter database db replica 2
 sql_error alter database db replica 5
 sql_error alter database db replica -1
@@ -270,7 +270,7 @@ if $data12_db != 2 then
   return -1
 endi
 
-#sql_error alter database db wal 0     # TD-14436
+sql_error alter database db wal 0     # TD-14436
 sql_error alter database db wal 3
 sql_error alter database db wal 100
 sql_error alter database db wal -1

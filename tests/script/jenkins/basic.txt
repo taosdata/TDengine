@@ -23,8 +23,8 @@
 ./test.sh -f tsim/insert/null.sim
 
 # ---- parser
-#./test.sh -f tsim/parser/groupby-basic.sim
-#./test.sh -f tsim/parser/fourArithmetic-basic.sim
+./test.sh -f tsim/parser/groupby-basic.sim
+./test.sh -f tsim/parser/fourArithmetic-basic.sim
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim
@@ -40,6 +40,8 @@
 # ---- tmq
 ./test.sh -f tsim/tmq/basic.sim
 ./test.sh -f tsim/tmq/basic1.sim
+#./test.sh -f tsim/tmq/oneTopic.sim
+#./test.sh -f tsim/tmq/multiTopic.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
@@ -49,5 +51,11 @@
 # ./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
+
+
+# --- for multi process mode
+./test.sh -f tsim/user/basic1.sim -m
+./test.sh -f tsim/stable/vnode3.sim -m
+./test.sh -f tsim/tmq/basic.sim -m
 
 #======================b1-end===============

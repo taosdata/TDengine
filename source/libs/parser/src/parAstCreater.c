@@ -1221,6 +1221,18 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, S
   return (SNode*)pStmt;
 }
 
+SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_SHOW_CREATE_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
+  SNode* pStmt = nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword) {
   char password[TSDB_USET_PASSWORD_LEN] = {0};
   if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
@@ -1430,6 +1442,66 @@ SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
 
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
   SNode* pStmt = nodesMakeNode(QUERY_NODE_RESET_QUERY_CACHE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_COMPACT_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_DROP_FUNCTION_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName, const SToken* pTableName, SNode* pQuery) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
+  SNode* pStmt = nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_MERGE_VGROUP_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_REDISTRIBUTE_VGROUP_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_SPLIT_VGROUP_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}
+
+SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_SYNCDB_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   return pStmt;
 }

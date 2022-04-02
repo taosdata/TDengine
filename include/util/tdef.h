@@ -128,18 +128,20 @@ extern const int32_t TYPE_BYTES[15];
   } while (0)
 
 typedef enum EOperatorType {
-  // arithmetic operator
+  // binary arithmetic operator
   OP_TYPE_ADD = 1,
   OP_TYPE_SUB,
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
   OP_TYPE_MOD,
+  // unary arithmetic operator
+  OP_TYPE_MINUS,
 
   // bit operator
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
-  // comparison operator
+  // binary comparison operator
   OP_TYPE_GREATER_THAN,
   OP_TYPE_GREATER_EQUAL,
   OP_TYPE_LOWER_THAN,
@@ -152,6 +154,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  // unary comparison operator
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
   OP_TYPE_IS_TRUE,

@@ -197,6 +197,12 @@ typedef struct SShowStmt {
   SNode* pTbNamePattern; // SValueNode
 } SShowStmt;
 
+typedef struct SShowCreatStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+} SShowCreatStmt;
+
 typedef enum EIndexType {
   INDEX_TYPE_SMA = 1,
   INDEX_TYPE_FULLTEXT

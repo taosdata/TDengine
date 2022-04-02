@@ -306,6 +306,7 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
 
 bool nodesIsExprNode(const SNode* pNode);
 
+bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);

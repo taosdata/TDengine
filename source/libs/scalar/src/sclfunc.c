@@ -23,7 +23,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
-        out[i] = (in[i] > 0)? in[i] : -in[i];
+        out[i] = (in[i] >= 0)? in[i] : -in[i];
       }
       break;
     }
@@ -36,7 +36,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
-        out[i] = (in[i] > 0)? in[i] : -in[i];
+        out[i] = (in[i] >= 0)? in[i] : -in[i];
       }
       break;
     }
@@ -49,7 +49,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
-        out[i] = (in[i] > 0)? in[i] : -in[i];
+        out[i] = (in[i] >= 0)? in[i] : -in[i];
       }
       break;
     }
@@ -62,7 +62,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
-        out[i] = (in[i] > 0)? in[i] : -in[i];
+        out[i] = (in[i] >= 0)? in[i] : -in[i];
       }
       break;
     }
@@ -75,7 +75,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
-        out[i] = (in[i] > 0)? in[i] : -in[i];
+        out[i] = (in[i] >= 0)? in[i] : -in[i];
       }
       break;
     }
@@ -88,7 +88,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
-        out[i] = (in[i] > 0)? in[i] : -in[i];
+        out[i] = (in[i] >= 0)? in[i] : -in[i];
       }
       break;
     }

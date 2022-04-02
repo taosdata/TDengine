@@ -19,6 +19,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
   TENV *pEnv;
   int   dsize;
   int   zsize;
+  int   tsize;
   u8   *pPtr;
   int   ret;
 
@@ -53,6 +54,14 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
     return -1;
   }
 
+  pEnv->nPgrHash = 8;
+  tsize = sizeof(SPager *) * pEnv->nPgrHash;
+  pEnv->pgrHash = TDB_REALLOC(pEnv->pgrHash, tsize);
+  if (pEnv->pgrHash == NULL) {
+    return -1;
+  }
+  memset(pEnv->pgrHash, 0, tsize);
+
   mkdir(rootDir, 0755);
 
   *ppEnv = pEnv;
@@ -64,7 +73,99 @@ int tdbEnvClose(TENV *pEnv) {
   return 0;
 }
 
+int tdbBegin(TENV *pEnv) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pEnv->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerBegin(pPager);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int tdbCommit(TENV *pEnv) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pEnv->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerCommit(pPager);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int tdbRollback(TENV *pEnv) {
+  ASSERT(0);
+  return 0;
+}
+
 SPager *tdbEnvGetPager(TENV *pEnv, const char *fname) {
-  // TODO
-  return NULL;
+  u32      hash;
+  SPager **ppPager;
+
+  hash = tdbCstringHash(fname);
+  ppPager = &pEnv->pgrHash[hash % pEnv->nPgrHash];
+  for (; *ppPager && (strcmp(fname, (*ppPager)->dbFileName) != 0); ppPager = &((*ppPager)->pHashNext)) {
+  }
+
+  return *ppPager;
+}
+
+void tdbEnvAddPager(TENV *pEnv, SPager *pPager) {
+  u32      hash;
+  SPager **ppPager;
+
+  // rehash if neccessary
+  if (pEnv->nPager + 1 > pEnv->nPgrHash) {
+    // TODO
+  }
+
+  // add to list
+  pPager->pNext = pEnv->pgrList;
+  pEnv->pgrList = pPager;
+
+  // add to hash
+  hash = tdbCstringHash(pPager->dbFileName);
+  ppPager = &pEnv->pgrHash[hash % pEnv->nPgrHash];
+  pPager->pHashNext = *ppPager;
+  *ppPager = pPager;
+
+  // increase the counter
+  pEnv->nPager++;
+}
+
+void tdbEnvRemovePager(TENV *pEnv, SPager *pPager) {
+  u32      hash;
+  SPager **ppPager;
+
+  // remove from the list
+  for (ppPager = &pEnv->pgrList; *ppPager && (*ppPager != pPager); ppPager = &((*ppPager)->pNext)) {
+  }
+  ASSERT(*ppPager == pPager);
+  *ppPager = pPager->pNext;
+
+  // remove from hash
+  hash = tdbCstringHash(pPager->dbFileName);
+  ppPager = &pEnv->pgrHash[hash % pEnv->nPgrHash];
+  for (; *ppPager && *ppPager != pPager; ppPager = &((*ppPager)->pHashNext)) {
+  }
+  ASSERT(*ppPager == pPager);
+  *ppPager = pPager->pNext;
+
+  // decrease the counter
+  pEnv->nPager--;
+
+  // rehash if necessary
+  if (pEnv->nPgrHash > 8 && pEnv->nPager < pEnv->nPgrHash / 2) {
+    // TODO
+  }
 }

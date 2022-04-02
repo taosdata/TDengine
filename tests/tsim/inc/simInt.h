@@ -155,6 +155,7 @@ extern int32_t  simScriptSucced;
 extern int32_t  simDebugFlag;
 extern char     simScriptDir[];
 extern bool     abortExecution;
+extern bool     useMultiProcess;
 
 SScript *simParseScript(char *fileName);
 SScript *simProcessCallOver(SScript *script);

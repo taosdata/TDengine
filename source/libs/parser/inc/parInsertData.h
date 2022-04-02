@@ -77,9 +77,6 @@ typedef struct STableDataBlocks {
   STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
   bool        cloned;
-  STagData    tagData; 
-  char        tableName[TSDB_TABLE_NAME_LEN];
-  char        dbFName[TSDB_DB_FNAME_LEN];
   
   SParsedDataColInfo boundColumnInfo;
   SRowBuilder        rowBuilder;

@@ -361,6 +361,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = winDurFunction,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "now",
+    .type = FUNCTION_TYPE_NOW,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = winDurFunction,
+    .finalizeFunc = NULL
   }
 };
 
@@ -436,7 +446,9 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
       break;
     }
-
+    case FUNCTION_TYPE_NOW:
+      // todo
+      break;
     default:
       ASSERT(0); // to found the fault ASAP.
   }

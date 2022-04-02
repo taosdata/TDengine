@@ -305,25 +305,24 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceShToBat(char *dst) {
-  char *sh = strstr(dst, ".sh");
-  if (sh != NULL) {
+void simReplaceStr(char *buf, char *src, char *dst) {
+  char *begin = strstr(buf, src);
+  if (begin != NULL) {
+    int32_t srcLen = (int32_t)strlen(src);
     int32_t dstLen = (int32_t)strlen(dst);
-    char   *end = dst + dstLen;
-    *(end + 1) = 0;
+    int32_t interval = (dstLen - srcLen);
+    int32_t remainLen = (int32_t)strlen(buf);
+    char   *end = buf + remainLen;
+    *(end + interval) = 0;
 
-    for (char *p = end; p >= sh; p--) {
-      *(p + 1) = *p;
+    for (char *p = end; p >= begin; p--) {
+      *(p + interval) = *p;
     }
 
-    sh[0] = '.';
-    sh[1] = 'b';
-    sh[2] = 'a';
-    sh[3] = 't';
-    sh[4] = ' ';
+    memcpy(begin, dst, dstLen);
   }
 
-  simDebug("system cmd is %s", dst);
+  simInfo("system cmd is %s", buf);
 }
 
 bool simExecuteSystemCmd(SScript *script, char *option) {
@@ -334,8 +333,12 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
   sprintf(buf, "%s%s", simScriptDir, option);
-  simReplaceShToBat(buf);
+  simReplaceStr(buf, ".sh", ".bat");
 #endif
+
+  if (useMultiProcess) {
+    simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
+  }
 
   simLogSql(buf, true);
   int32_t code = system(buf);
