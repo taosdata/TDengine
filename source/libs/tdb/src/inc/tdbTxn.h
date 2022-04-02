@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
+               int flags);
+int tdbTxnClose(TXN *pTxn);
+
 #ifdef __cplusplus
 }
 #endif

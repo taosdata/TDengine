@@ -111,12 +111,20 @@ typedef struct SPager  SPager;
 typedef struct SPCache SPCache;
 typedef struct SPage   SPage;
 
+// transaction
+#define TDB_TXN_WRITE            0x1
+#define TDB_TXN_READ_UNCOMMITTED 0x2
 typedef struct STxn {
-  u64 txnId;
+  int flags;
+  i64 txnId;
   void *(*xMalloc)(void *, size_t);
   void (*xFree)(void *, void *);
   void *xArg;
 } TXN;
+
+#define TDB_TXN_IS_WRITE(PTXN)            ((PTXN)->flags & TDB_TXN_WRITE)
+#define TDB_TXN_IS_READ(PTXN)             (!TDB_TXN_IS_WRITE(PTXN))
+#define TDB_TXN_IS_READ_UNCOMMITTED(PTXN) ((PTXN)->flags & TDB_TXN_READ_UNCOMMITTED)
 
 #include "tdbOs.h"
 

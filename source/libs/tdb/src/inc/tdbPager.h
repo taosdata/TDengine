@@ -42,9 +42,12 @@ int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
-int  tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
-int  tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
-void tdbPagerReturnPage(SPager *pPager, SPage *pPage);
+int  tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg,
+                       TXN *pTxn);
+int  tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg,
+                     TXN *pTxn);
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
+int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 
 #ifdef __cplusplus
 }

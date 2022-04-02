@@ -93,14 +93,33 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
   return pPage;
 }
 
-void tdbPCacheRelease(SPCache *pCache, SPage *pPage) {
+void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
   i32 nRef;
 
   nRef = TDB_UNREF_PAGE(pPage);
   ASSERT(nRef >= 0);
 
   if (nRef == 0) {
-    tdbPCacheUnpinPage(pCache, pPage);
+    tdbPCacheLock(pCache);
+
+    // test the nRef again to make sure
+    // it is safe th handle the page
+    nRef = TDB_GET_PAGE_REF(pPage);
+    if (nRef == 0) {
+      if (pPage->isLocal) {
+        tdbPCacheUnpinPage(pCache, pPage);
+      } else {
+        // remove from hash
+        tdbPCacheRemovePageFromHash(pCache, pPage);
+
+        // free the page
+        if (pTxn && pTxn->xFree) {
+          tdbPageDestroy(pPage, pTxn->xFree, pTxn->xArg);
+        }
+      }
+    }
+
+    tdbPCacheUnlock(pCache);
   }
 }
 
@@ -140,7 +159,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   }
 
   // 4. Try a create new page
-  if (pTxn && pTxn->xMalloc) {
+  if (!pPage && pTxn && pTxn->xMalloc) {
     ret = tdbPageCreate(pCache->pageSize, &pPage, pTxn->xMalloc, pTxn->xArg);
     if (ret < 0) {
       // TODO
@@ -182,29 +201,17 @@ static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
 static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
   i32 nRef;
 
-  tdbPCacheLock(pCache);
-
   ASSERT(!pPage->isDirty);
+  ASSERT(TDB_GET_PAGE_REF(pPage) == 0);
 
-  nRef = TDB_GET_PAGE_REF(pPage);
-  ASSERT(nRef >= 0);
-  if (nRef == 0) {
-    if (1) {
-      // Add the page to LRU list
-      ASSERT(pPage->pLruNext == NULL);
+  ASSERT(pPage->pLruNext == NULL);
 
-      pPage->pLruPrev = &(pCache->lru);
-      pPage->pLruNext = pCache->lru.pLruNext;
-      pCache->lru.pLruNext->pLruPrev = pPage;
-      pCache->lru.pLruNext = pPage;
+  pPage->pLruPrev = &(pCache->lru);
+  pPage->pLruNext = pCache->lru.pLruNext;
+  pCache->lru.pLruNext->pLruPrev = pPage;
+  pCache->lru.pLruNext = pPage;
 
-      pCache->nRecyclable++;
-    } else {
-      // TODO: may need to free the page
-    }
-  }
-
-  tdbPCacheUnlock(pCache);
+  pCache->nRecyclable++;
 }
 
 static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {

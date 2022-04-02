@@ -27,7 +27,6 @@ TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct")
 
 #define TDB_PAGE_INITIALIZED(pPage) ((pPage)->pPager != NULL)
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg, u8 loadPage);
 static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage);
 static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage);
@@ -204,7 +203,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
     pPage->isDirty = 0;
 
-    tdbPCacheRelease(pPager->pCache, pPage);
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
   // sync the db file
@@ -219,7 +218,8 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   return 0;
 }
 
-int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
+int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg,
+                      TXN *pTxn) {
   SPage *pPage;
   SPgid  pgid;
   int    ret;
@@ -227,7 +227,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage
   // Fetch a page container from the page cache
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid, NULL);
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn);
   if (pPage == NULL) {
     return -1;
   }
@@ -247,7 +247,8 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage
   return 0;
 }
 
-int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
+int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg,
+                    TXN *pTxn) {
   int    ret;
   SPage *pPage;
   SPgid  pgid;
@@ -255,6 +256,7 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   // Allocate a page number
   ret = tdbPagerAllocPage(pPager, ppgno);
   if (ret < 0) {
+    ASSERT(0);
     return -1;
   }
 
@@ -263,8 +265,9 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   // Fetch a page container from the page cache
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = *ppgno;
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid, NULL);
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn);
   if (pPage == NULL) {
+    ASSERT(0);
     return -1;
   }
 
@@ -273,6 +276,7 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   // Initialize the page if need
   ret = tdbPagerInitPage(pPager, pPage, initPage, arg, 0);
   if (ret < 0) {
+    ASSERT(0);
     return -1;
   }
 
@@ -283,7 +287,7 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   return 0;
 }
 
-void tdbPagerReturnPage(SPager *pPager, SPage *pPage) { tdbPCacheRelease(pPager->pCache, pPage); }
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) { tdbPCacheRelease(pPager->pCache, pPage, pTxn); }
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
   // TODO: Allocate a page from the free list
@@ -295,7 +299,7 @@ static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
   return 0;
 }
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
+int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
   int ret;
 
   *ppgno = 0;
