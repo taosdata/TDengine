@@ -3589,7 +3589,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       pVariant = &pParamElem[2].pNode->value;
-      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+      if (pVariant == NULL || pVariant->nType != TSDB_DATA_TYPE_BINARY) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
