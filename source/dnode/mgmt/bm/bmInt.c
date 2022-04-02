@@ -117,7 +117,7 @@ void bmSetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.dropMsgFp = bmProcessDropReq;
   mgmtFp.requiredFp = bmRequire;
 
-  bmInitMsgHandles(pWrapper);
+  bmInitMsgHandle(pWrapper);
   pWrapper->name = "bnode";
   pWrapper->fp = mgmtFp;
 }

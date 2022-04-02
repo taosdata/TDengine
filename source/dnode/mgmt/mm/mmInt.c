@@ -236,7 +236,7 @@ void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.dropMsgFp = mmProcessDropReq;
   mgmtFp.requiredFp = mmRequire;
 
-  mmInitMsgHandles(pWrapper);
+  mmInitMsgHandle(pWrapper);
   pWrapper->name = "mnode";
   pWrapper->fp = mgmtFp;
 }

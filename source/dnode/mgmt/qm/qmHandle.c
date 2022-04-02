@@ -54,7 +54,7 @@ int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 }
 
-void qmInitMsgHandles(SMgmtWrapper *pWrapper) {
+void qmInitMsgHandle(SMgmtWrapper *pWrapper) {
   // Requests handled by VNODE
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY, qmProcessQueryMsg, QNODE_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_CONTINUE, qmProcessQueryMsg, QNODE_HANDLE);

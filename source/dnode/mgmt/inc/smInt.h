@@ -38,8 +38,8 @@ typedef struct SSnodeMgmt {
 int32_t smOpen(SMgmtWrapper *pWrapper);
 int32_t smDrop(SMgmtWrapper *pWrapper);
 
-// smMsg.c
-void    smInitMsgHandles(SMgmtWrapper *pWrapper);
+// smHandle.c
+void    smInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 

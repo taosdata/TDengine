@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_H_
-#define _TD_DND_H_
+#ifndef _TD_DND_INT_H_
+#define _TD_DND_INT_H_
 
 #include "os.h"
 
@@ -203,4 +203,4 @@ int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo
 }
 #endif
 
-#endif /*_TD_DND_H_*/
+#endif /*_TD_DND_INT_H_*/

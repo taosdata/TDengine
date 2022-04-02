@@ -35,8 +35,8 @@ typedef struct SBnodeMgmt {
 int32_t bmOpen(SMgmtWrapper *pWrapper);
 int32_t bmDrop(SMgmtWrapper *pWrapper);
 
-// bmMsg.c
-void    bmInitMsgHandles(SMgmtWrapper *pWrapper);
+// bmHandle.c
+void    bmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 

@@ -233,7 +233,7 @@ int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   return 0;
 }
 
-void vmInitMsgHandles(SMgmtWrapper *pWrapper) {
+void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
   // Requests handled by VNODE
   dndSetMsgHandle(pWrapper, TDMT_VND_SUBMIT, (NodeMsgFp)vmProcessWriteMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY, (NodeMsgFp)vmProcessQueryMsg, DEFAULT_HANDLE);

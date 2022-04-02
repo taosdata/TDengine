@@ -120,7 +120,7 @@ void qmSetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.dropMsgFp = qmProcessDropReq;
   mgmtFp.requiredFp = qmRequire;
 
-  qmInitMsgHandles(pWrapper);
+  qmInitMsgHandle(pWrapper);
   pWrapper->name = "qnode";
   pWrapper->fp = mgmtFp;
 }
