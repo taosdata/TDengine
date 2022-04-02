@@ -49,6 +49,8 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
     if (ret < 0) {
       return -1;
     }
+
+    tdbEnvAddPager(pEnv, pPager);
   }
 
   ASSERT(pPager != NULL);
@@ -74,26 +76,15 @@ int tdbDbDrop(TDB *pDb) {
 }
 
 int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBTC  btc;
-  SBTC *pCur;
-  int   ret;
-
-  pCur = &btc;
-  ret = tdbBtcOpen(pCur, pDb->pBt);
-  if (ret < 0) {
-    return -1;
-  }
-
-  ret = tdbBtCursorInsert(pCur, pKey, keyLen, pVal, valLen);
-  if (ret < 0) {
-    return -1;
-  }
-
-  return 0;
+  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen);
 }
 
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
+}
+
+int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
+  return tdbBtreePGet(pDb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
 }
 
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
@@ -129,5 +120,11 @@ int tdbDbcClose(TDBC *pDbc) {
     tdbOsFree(pDbc);
   }
 
+  return 0;
+}
+
+int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  // TODO
+  ASSERT(0);
   return 0;
 }

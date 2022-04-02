@@ -1057,6 +1057,7 @@ static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit  = "slidingUnit";
 static const char* jkIntervalPhysiPlanFill = "Fill";
 static const char* jkIntervalPhysiPlanTsPk = "TsPk";
+static const char* jkIntervalPhysiPlanPrecision = "Precision";
 
 static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
@@ -1082,6 +1083,9 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkIntervalPhysiPlanTsPk, nodeToJson, pNode->pTspk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanPrecision, pNode->precision);
   }
 
   return code;
@@ -1111,6 +1115,9 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkIntervalPhysiPlanTsPk, (SNode**)&pNode->pTspk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUTinyIntValue(pJson, jkIntervalPhysiPlanPrecision, &pNode->precision);
   }
 
   return code;
@@ -2008,6 +2015,31 @@ static int32_t jsonToNodeListNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkFillMode = "Mode";
+static const char* jkFillValues = "Values";
+
+static int32_t fillNodeToJson(const void* pObj, SJson* pJson) {
+  const SFillNode* pNode = (const SFillNode*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkFillMode, pNode->mode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkFillValues, nodeToJson, pNode->pValues);
+  }
+
+  return code;
+}
+
+static int32_t jsonToFillNode(const SJson* pJson, void* pObj) {
+  SFillNode* pNode = (SFillNode*)pObj;
+
+  int32_t code = tjsonGetNumberValue(pJson, jkFillMode, pNode->mode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkFillValues, &pNode->pValues);
+  }
+
+  return code;
+}
+
 static const char* jkTargetDataBlockId = "DataBlockId";
 static const char* jkTargetSlotId = "SlotId";
 static const char* jkTargetExpr = "Expr";
@@ -2321,6 +2353,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_NODE_LIST:
       return nodeListNodeToJson(pObj, pJson);
     case QUERY_NODE_FILL:
+      return fillNodeToJson(pObj, pJson);
     case QUERY_NODE_RAW_EXPR:
       break;
     case QUERY_NODE_TARGET:
@@ -2424,7 +2457,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToIntervalWindowNode(pJson, pObj);
     case QUERY_NODE_NODE_LIST:
       return jsonToNodeListNode(pJson, pObj);
-    // case QUERY_NODE_FILL:
+    case QUERY_NODE_FILL:
+      return jsonToFillNode(pJson, pObj);
     case QUERY_NODE_TARGET:
       return jsonToTargetNode(pJson, pObj);
     // case QUERY_NODE_RAW_EXPR:

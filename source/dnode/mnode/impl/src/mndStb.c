@@ -333,6 +333,15 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
+static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSchema) {
+  if (*(col_id_t *)colId < ((SSchemaEx *)pSchema)->colId) {
+    return -1;
+  } else if (*(col_id_t *)colId > ((SSchemaEx *)pSchema)->colId) {
+    return 1;
+  }
+  return 0;
+}
+
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
@@ -348,13 +357,58 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.type = TD_SUPER_TABLE;
   req.stbCfg.suid = pStb->uid;
   req.stbCfg.nCols = pStb->numOfColumns;
-  req.stbCfg.pSchema = pStb->pColumns;
   req.stbCfg.nTagCols = pStb->numOfTags;
   req.stbCfg.pTagSchema = pStb->pTags;
+  req.stbCfg.nBSmaCols = pStb->numOfSmas;
+  req.stbCfg.pSchema = (SSchemaEx *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaEx));
+  if (req.stbCfg.pSchema == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  
+  int bSmaStat = 0;                             // no column has bsma
+  if (pStb->numOfSmas == pStb->numOfColumns) {  // assume pColumns > 0
+    bSmaStat = 1;                               // all columns have bsma
+  } else if (pStb->numOfSmas != 0) {
+    bSmaStat = 2;                  // partial columns have bsma
+    TASSERT(pStb->pSmas != NULL);  // TODO: remove the assert
+  }
 
-  int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+  for (int32_t i = 0; i < req.stbCfg.nCols; ++i) {
+    SSchemaEx *pSchemaEx = req.stbCfg.pSchema + i;
+    SSchema   *pSchema = pStb->pColumns + i;
+    pSchemaEx->type = pSchema->type;
+    pSchemaEx->sma = (bSmaStat == 1) ? TSDB_BSMA_TYPE_LATEST : TSDB_BSMA_TYPE_NONE;
+    pSchemaEx->colId = pSchema->colId;
+    pSchemaEx->bytes = pSchema->bytes;
+    memcpy(pSchemaEx->name, pSchema->name, TSDB_COL_NAME_LEN);
+  }
+
+  if (bSmaStat == 2) {
+    if (pStb->pSmas == NULL) {
+      mError("stb:%s, sma options is empty", pStb->name);
+      taosMemoryFreeClear(req.stbCfg.pSchema);
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      return NULL;
+    }
+    for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
+      SSchema   *pSmaSchema = pStb->pSmas + i;
+      SSchemaEx *pColSchema = taosbsearch(&pSmaSchema->colId, req.stbCfg.pSchema, req.stbCfg.nCols, sizeof(SSchemaEx),
+                                          schemaExColIdCompare, TD_EQ);
+      if (pColSchema == NULL) {
+        terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+        taosMemoryFreeClear(req.stbCfg.pSchema);
+        mError("stb:%s, sma col:%s not found in columns", pStb->name, pSmaSchema->name);
+        return NULL;
+      }
+      pColSchema->sma = TSDB_BSMA_TYPE_LATEST;
+    }
+  }
+
+  int32_t contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
+    taosMemoryFreeClear(req.stbCfg.pSchema);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -366,6 +420,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   tSerializeSVCreateTbReq(&pBuf, &req);
 
   *pContLen = contLen;
+  taosMemoryFreeClear(req.stbCfg.pSchema);
   return pHead;
 }
 
@@ -498,7 +553,6 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
 
@@ -559,9 +613,9 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 }
 
 static SSchema *mndFindStbColumns(const SStbObj *pStb, const char *colName) {
-  for (int32_t col = 0; col < pStb->numOfColumns; col++) {
+  for (int32_t col = 0; col < pStb->numOfColumns; ++col) {
     SSchema *pSchema = &pStb->pColumns[col];
-    if (strcasecmp(pStb->pColumns[col].name, colName) == 0) {
+    if (strncasecmp(pSchema->name, colName, TSDB_COL_NAME_LEN) == 0) {
       return pSchema;
     }
   }
@@ -625,7 +679,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
     SSchema *pSchema = &stbObj.pSmas[i];
     SSchema *pColSchema = mndFindStbColumns(&stbObj, pField->name);
     if (pColSchema == NULL) {
-      mError("stb:%s, sma:%s not found in columns", stbObj.name, pSchema->name);
+      mError("stb:%s, sma:%s not found in columns", stbObj.name, pField->name);
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
@@ -1061,7 +1115,6 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
 
@@ -1608,7 +1661,6 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   SStbObj *pStb = NULL;
   int32_t  cols = 0;
   char    *pWrite;
-  char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
   SDbObj* pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -1651,10 +1703,6 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int32_t *)pWrite = pStb->numOfTags;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = 0; // number of tables
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

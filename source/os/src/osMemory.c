@@ -17,19 +17,28 @@
 #include <malloc.h>
 #include "os.h"
 
+#ifdef USE_TD_MEMORY
+
 #define TD_MEMORY_SYMBOL ('T'<<24|'A'<<16|'O'<<8|'S')
 
 #define TD_MEMORY_STACK_TRACE_DEPTH 10
+
+typedef struct TdMemoryInfo *TdMemoryInfoPtr;
 
 typedef struct TdMemoryInfo {
   int32_t symbol;
   int32_t memorySize;
   void *stackTrace[TD_MEMORY_STACK_TRACE_DEPTH];     // gdb: disassemble /m 0xXXX
-} *TdMemoryInfoPtr , TdMemoryInfo;
+  // TdMemoryInfoPtr pNext;
+  // TdMemoryInfoPtr pPrev;
+} TdMemoryInfo;
+
+// static TdMemoryInfoPtr GlobalMemoryPtr = NULL;
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-
+  #define tstrdup(str) _strdup(str)
 #else
+  #define tstrdup(str) strdup(str)
 
 #include<execinfo.h>
 
@@ -69,6 +78,8 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
 //   *size = taosBackTrace(buffer, 20);
 //   return backtrace_symbols(buffer, *size);
 // }
+
+#endif
 
 void *taosMemoryMalloc(int32_t size) {
 #ifdef USE_TD_MEMORY
@@ -125,10 +136,30 @@ void *taosMemoryRealloc(void *ptr, int32_t size) {
 #endif
 }
 
-void taosMemoryFree(const void *ptr) {
+void *taosMemoryStrDup(void *ptr) {
 #ifdef USE_TD_MEMORY
+  if (ptr == NULL) return NULL;
+  
+  TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
+  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+
+  void *tmp = tstrdup((const char *)pTdMemoryInfo);
+  if (tmp == NULL) return NULL;
+  
+  memcpy(tmp, pTdMemoryInfo, sizeof(TdMemoryInfo));
+  taosBackTrace(((TdMemoryInfoPtr)tmp)->stackTrace,TD_MEMORY_STACK_TRACE_DEPTH);
+
+  return (char*)tmp  + sizeof(TdMemoryInfo);
+#else
+  return tstrdup((const char *)ptr);
+#endif
+}
+
+
+void taosMemoryFree(const void *ptr) {
   if (ptr == NULL) return;
 
+#ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   if(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL) {
     pTdMemoryInfo->memorySize = 0;
@@ -143,9 +174,9 @@ void taosMemoryFree(const void *ptr) {
 }
 
 int32_t taosMemorySize(void *ptr) {
-#ifdef USE_TD_MEMORY
   if (ptr == NULL) return 0;
-  
+
+#ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
 

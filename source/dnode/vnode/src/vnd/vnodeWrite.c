@@ -17,7 +17,9 @@
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
+
   blockDebugShowData(data);
+  tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
 }
 
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
@@ -79,7 +81,6 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: maybe need to clear the request struct
       taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
       taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
-      taosMemoryFree(vCreateTbReq.stbCfg.pBSmaCols);
       taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
       taosMemoryFree(vCreateTbReq.dbFName);
       taosMemoryFree(vCreateTbReq.name);
@@ -114,13 +115,11 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
           taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
-          taosMemoryFree(pCreateTbReq->stbCfg.pBSmaCols);
           taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
         } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
           taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
         } else {
           taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
-          taosMemoryFree(pCreateTbReq->ntbCfg.pBSmaCols);
           taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
         }
       }
@@ -148,7 +147,6 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
       taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
       taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
-      taosMemoryFree(vAlterTbReq.stbCfg.pBSmaCols);
       taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
       taosMemoryFree(vAlterTbReq.dbFName);
       taosMemoryFree(vAlterTbReq.name);
@@ -163,6 +161,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       break;
     case TDMT_VND_SUBMIT:
+      /*printf("vnode %d write data %ld\n", pVnode->vgId, ver);*/
       if (pVnode->config.streamMode == 0) {
         if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
           // TODO: handle error
@@ -184,24 +183,25 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_TASK_WRITE_EXEC: {
-      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                            pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                            0) < 0) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
 #if 1
-      
+
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        vWarn("vgId%d: TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId, terrstr(terrno));
+        vWarn("vgId%d: TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId,
+              terrstr(terrno));
         return -1;
       }
       vWarn("vgId%d: TDMT_VND_CREATE_SMA received for %s:%" PRIi64, pVnode->config.vgId, vCreateSmaReq.tSma.indexName,
             vCreateSmaReq.tSma.indexUid);
 
       // record current timezone of server side
-      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
+      vCreateSmaReq.tSma.timezoneInt = tsTimezone;
 
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error

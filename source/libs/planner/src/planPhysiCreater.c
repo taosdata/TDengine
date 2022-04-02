@@ -398,6 +398,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
 
   pTableScan->scanFlag = pScanLogicNode->scanFlag;
   pTableScan->scanRange = pScanLogicNode->scanRange;
+  pTableScan->ratio = pScanLogicNode->ratio;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
@@ -718,6 +719,14 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
   if (NULL == pScan->pScanCols) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = sortScanCols(pScan->pScanCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = sortScanCols(pScan->pScanCols);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
   }
@@ -780,6 +789,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->sliding = pWindowLogicNode->sliding;
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
+  pInterval->precision = ((SColumnNode*)pWindowLogicNode->pTspk)->node.resType.precision;
 
   pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
   if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {
@@ -1080,6 +1090,30 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   return code;
 }
 
+static void destoryLocationHash(void* p) {
+  SHashObj* pHash = *(SHashObj**)p;
+  SSlotIndex* pIndex = taosHashIterate(pHash, NULL);
+  while (NULL != pIndex) {
+    taosArrayDestroy(pIndex->pSlotIdsInfo);
+    pIndex = taosHashIterate(pHash, pIndex);
+  }
+  taosHashCleanup(pHash);
+}
+
+static void destoryPhysiPlanContext(SPhysiPlanContext* pCxt) {
+  taosArrayDestroyEx(pCxt->pLocationHelper, destoryLocationHash);
+}
+
+static void setExplainInfo(SPlanContext* pCxt, SQueryPlan* pPlan) {
+  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pCxt->pAstRoot)) {
+    SExplainStmt* pStmt = (SExplainStmt*)pCxt->pAstRoot;
+    pPlan->explainInfo.mode = pStmt->analyze ? EXPLAIN_MODE_ANALYZE : EXPLAIN_MODE_STATIC;
+    pPlan->explainInfo.verbose = pStmt->pOptions->verbose;
+  } else {
+    pPlan->explainInfo.mode = EXPLAIN_MODE_DISABLE;
+  }
+}
+
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SPhysiPlanContext cxt = {
     .pPlanCxt = pCxt,
@@ -1091,5 +1125,12 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+
+  int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  if (TSDB_CODE_SUCCESS == code) {
+    setExplainInfo(pCxt, *pPlan);
+  }
+
+  destoryPhysiPlanContext(&cxt);
+  return code;
 }

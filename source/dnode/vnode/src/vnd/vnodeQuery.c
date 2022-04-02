@@ -41,7 +41,7 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 }
 
-int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
   char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -66,12 +66,12 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessPollReq(pVnode->pTq, pMsg);
+      return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
     case TDMT_VND_TASK_PIPE_EXEC:
     case TDMT_VND_TASK_MERGE_EXEC:
-      return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen);
+      return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, 0);
     case TDMT_VND_STREAM_TRIGGER:
-      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen);
+      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:

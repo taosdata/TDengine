@@ -52,8 +52,6 @@ typedef struct SInsertParseContext {
   SParseContext* pComCxt;       // input
   char          *pSql;          // input
   SMsgBuf        msg;           // input
-  char           dbFName[TSDB_DB_FNAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pTableMeta;       // each table
   SParsedDataColInfo tags;      // each table
   SKVRowBuilder tagsBuilder;    // each table
@@ -65,7 +63,7 @@ typedef struct SInsertParseContext {
   SVnodeModifOpStmt* pOutput;
 } SInsertParseContext;
 
-typedef int32_t (*_row_append_fn_t)(const void *value, int32_t len, void *param);
+typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void *value, int32_t len, void *param);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -231,9 +229,6 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
-  pCxt->pTableMeta->vgId = vg.vgId; // todo remove
-  strcpy(pCxt->tableName, name.tname);
-  tNameGetFullDbName(&name, pCxt->dbFName);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -444,26 +439,26 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
   if (isNullStr(pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       int64_t tmpVal = 0;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
-    return func(NULL, 0, param);
+    return func(pMsgBuf, NULL, 0, param);
   }
 
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
         if (strncmp(pToken->z, "true", pToken->n) == 0) {
-          return func(&TRUE_VALUE, pSchema->bytes, param);
+          return func(pMsgBuf, &TRUE_VALUE, pSchema->bytes, param);
         } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
-          return func(&FALSE_VALUE, pSchema->bytes, param);
+          return func(pMsgBuf, &FALSE_VALUE, pSchema->bytes, param);
         } else {
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
         }
       } else if (pToken->type == TK_NK_INTEGER) {
-        return func(((strtoll(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+        return func(pMsgBuf, ((strtoll(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else if (pToken->type == TK_NK_FLOAT) {
-        return func(((strtod(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+        return func(pMsgBuf, ((strtod(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
       }
@@ -477,7 +472,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       }
 
       uint8_t tmpVal = (uint8_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_UTINYINT:{
@@ -487,7 +482,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "unsigned tinyint data overflow", pToken->z);
       }
       uint8_t tmpVal = (uint8_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_SMALLINT: {
@@ -497,7 +492,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "smallint data overflow", pToken->z);
       }
       int16_t tmpVal = (int16_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_USMALLINT: {
@@ -507,7 +502,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "unsigned smallint data overflow", pToken->z);
       }
       uint16_t tmpVal = (uint16_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_INT: {
@@ -517,7 +512,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "int data overflow", pToken->z);
       }
       int32_t tmpVal = (int32_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_UINT: {
@@ -527,7 +522,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "unsigned int data overflow", pToken->z);
       }
       uint32_t tmpVal = (uint32_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_BIGINT: {
@@ -536,7 +531,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       } else if (!IS_VALID_BIGINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "bigint data overflow", pToken->z);
       }
-      return func(&iv, pSchema->bytes, param);
+      return func(pMsgBuf, &iv, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_UBIGINT: {
@@ -546,7 +541,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "unsigned bigint data overflow", pToken->z);
       }
       uint64_t tmpVal = (uint64_t)iv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
@@ -558,7 +553,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
       float tmpVal = (float)dv;
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_DOUBLE: {
@@ -569,7 +564,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
       }
-      return func(&dv, pSchema->bytes, param);
+      return func(pMsgBuf, &dv, pSchema->bytes, param);
     }
 
     case TSDB_DATA_TYPE_BINARY: {
@@ -578,11 +573,11 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "string data overflow", pToken->z);
       }
 
-      return func(pToken->z, pToken->n, param);
+      return func(pMsgBuf, pToken->z, pToken->n, param);
     }
 
     case TSDB_DATA_TYPE_NCHAR: {
-      return func(pToken->z, pToken->n, param);
+      return func(pMsgBuf, pToken->z, pToken->n, param);
     }
 
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -591,7 +586,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp", pToken->z);
       }
 
-      return func(&tmpVal, pSchema->bytes, param);
+      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
     }
   }
 
@@ -605,7 +600,7 @@ typedef struct SMemParam {
   col_id_t     colIdx;
 } SMemParam;
 
-static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* param) {
+static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param) {
   SMemParam*   pa = (SMemParam*)param;
   SRowBuilder* rb = pa->rb;
   if (TSDB_DATA_TYPE_BINARY == pa->schema->type) {
@@ -617,7 +612,9 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
     int32_t     output = 0;
     const char* rowEnd = tdRowEnd(rb->pBuf);
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
-      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      char buf[512] = {0};
+      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      return buildSyntaxErrMsg(pMsgBuf, buf, value);
     }
     varDataSetLen(rowEnd, output);
     tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
@@ -714,7 +711,7 @@ typedef struct SKvParam {
   char           buf[TSDB_MAX_TAGS_LEN];
 } SKvParam;
 
-static int32_t KvRowAppend(const void *value, int32_t len, void *param) {
+static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, void *param) {
   SKvParam* pa = (SKvParam*) param;
 
   int8_t  type = pa->schema->type;
@@ -727,7 +724,9 @@ static int32_t KvRowAppend(const void *value, int32_t len, void *param) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t output = 0;
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
-      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      char buf[512] = {0};
+      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      return buildSyntaxErrMsg(pMsgBuf, buf, value);;
     }
 
     varDataSetLen(pa->buf, output);
@@ -973,8 +972,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     STableDataBlocks *dataBuf = NULL;
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
         sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
-    strcpy(dataBuf->tableName, pCxt->tableName);
-    strcpy(dataBuf->dbFName, pCxt->dbFName);
     
     if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)

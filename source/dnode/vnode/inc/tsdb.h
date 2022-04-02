@@ -100,10 +100,11 @@ int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, const char *msg);
  * @brief Insert tSma(Time-range-wise SMA) data from stream computing engine
  *
  * @param pTsdb
+ * @param indexUid
  * @param msg
  * @return int32_t
  */
-int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg);
+int32_t tsdbInsertTSmaData(STsdb *pTsdb, int64_t indexUid, const char *msg);
 
 /**
  * @brief Drop tSma data and local cache.
@@ -130,16 +131,11 @@ int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
  * @param pTsdb 
  * @param pData 
  * @param indexUid 
- * @param interval 
- * @param intervalUnit 
- * @param tableUid 
- * @param colId 
  * @param querySKey 
  * @param nMaxResult 
  * @return int32_t 
  */
-int32_t tsdbGetTSmaData(STsdb *pTsdb, STSmaDataWrapper *pData, int64_t indexUid, int64_t interval, int8_t intervalUnit,
-                        tb_uid_t tableUid, col_id_t colId, TSKEY querySKey, int32_t nMaxResult);
+int32_t tsdbGetTSmaData(STsdb *pTsdb, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
 
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);

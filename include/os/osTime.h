@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include <time.h>
+
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
@@ -43,6 +45,14 @@ extern "C" {
 #define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
 #define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
 #define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
+
+#define NANOSECOND_PER_USEC   (1000L)
+#define NANOSECOND_PER_MSEC   (1000000L)
+#define NANOSECOND_PER_SEC    (1000000000L)
+#define NANOSECOND_PER_MINUTE (NANOSECOND_PER_SEC * 60)
+#define NANOSECOND_PER_HOUR   (NANOSECOND_PER_MINUTE * 60)
+#define NANOSECOND_PER_DAY    (NANOSECOND_PER_HOUR * 24)
+#define NANOSECOND_PER_WEEK   (NANOSECOND_PER_DAY * 7)
 
 int32_t taosGetTimeOfDay(struct timeval *tv);
 

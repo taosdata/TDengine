@@ -24,6 +24,8 @@ extern "C" {
 #define TDB_FOR_TDENGINE
 
 #ifdef TDB_FOR_TDENGINE
+#include "os.h"
+#include "thash.h"
 
 // For memory -----------------
 #define tdbOsMalloc  taosMemoryMalloc
@@ -64,7 +66,7 @@ typedef TdThreadSpinlock tdb_spinlock_t;
 #define tdbSpinlockDestroy taosThreadSpinDestroy
 #define tdbSpinlockLock    taosThreadSpinLock
 #define tdbSpinlockUnlock  taosThreadSpinUnlock
-#define tdbSpinlockTrylock pthread_spin_trylock
+#define tdbSpinlockTrylock taosThreadSpinTrylock
 
 /* mutex lock */
 typedef TdThreadMutex tdb_mutex_t;
@@ -95,7 +97,11 @@ typedef int tdb_fd_t;
 
 #define tdbOsOpen(PATH, OPTION, MODE) open((PATH), (OPTION), (MODE))
 
-#define tdbOsClose close
+#define tdbOsClose(FD) \
+  do {                 \
+    close(FD);         \
+    (FD) = -1;         \
+  } while (0)
 
 i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
 i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset);

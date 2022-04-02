@@ -190,10 +190,16 @@ TEST_F(PlannerTest, subquery) {
 TEST_F(PlannerTest, interval) {
   setDatabase("root", "test");
 
-  bind("SELECT count(*) FROM t1 interval(10s)");
-  ASSERT_TRUE(run());
+  // bind("SELECT count(*) FROM t1 interval(10s)");
+  // ASSERT_TRUE(run());
 
-  bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  // bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  // ASSERT_TRUE(run());
+
+  // bind("SELECT count(*) FROM t1 interval(10s) fill(linear)");
+  // ASSERT_TRUE(run());
+
+  bind("SELECT count(*), sum(c1) FROM t1 interval(10s) fill(value, 10, 20)");
   ASSERT_TRUE(run());
 }
 
@@ -248,6 +254,11 @@ TEST_F(PlannerTest, showTables) {
 
   bind("show tables");
   ASSERT_TRUE(run());
+
+  setDatabase("root", "information_schema");
+
+  bind("show tables");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, showStables) {
@@ -275,5 +286,18 @@ TEST_F(PlannerTest, createSmaIndex) {
   setDatabase("root", "test");
 
   bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, explain) {
+  setDatabase("root", "test");
+
+  bind("explain SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
   ASSERT_TRUE(run());
 }

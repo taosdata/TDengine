@@ -14,11 +14,11 @@
  */
 
 #include "index.h"
+#include "indexCache.h"
+#include "indexComm.h"
 #include "indexInt.h"
-#include "index_cache.h"
-#include "index_comm.h"
-#include "index_tfile.h"
-#include "index_util.h"
+#include "indexTfile.h"
+#include "indexUtil.h"
 #include "tdef.h"
 #include "tsched.h"
 
@@ -27,7 +27,7 @@
 #endif
 
 #define INDEX_NUM_OF_THREADS 4
-#define INDEX_QUEUE_SIZE 200
+#define INDEX_QUEUE_SIZE     200
 
 void* indexQhandle = NULL;
 
@@ -236,11 +236,11 @@ int indexDelete(SIndex* index, SIndexMultiTermQuery* query) {
 
   return 1;
 }
-int indexRebuild(SIndex* index, SIndexOpts* opts){
+int indexRebuild(SIndex* index, SIndexOpts* opts) {
 #ifdef USE_INVERTED_INDEX
 #endif
 
-    return 0;
+  return 0;
 }
 
 SIndexOpts* indexOptsCreate() {

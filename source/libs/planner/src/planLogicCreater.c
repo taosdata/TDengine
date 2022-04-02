@@ -197,6 +197,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   strcpy(pScan->tableName.dbname, pRealTable->table.dbName);
   strcpy(pScan->tableName.tname, pRealTable->table.tableName);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
+  pScan->ratio = pRealTable->ratio;
 
   // set columns to scan
   SNodeList* pCols = NULL;
@@ -287,7 +288,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     pJoin->node.pTargets = nodesCloneList(pLeft->pTargets);
-    if (NULL == pJoin->pOnConditions) {
+    if (NULL == pJoin->node.pTargets) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -692,7 +693,7 @@ static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpS
   if (NULL == pModif) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pModif->pDataBlocks = pStmt->pDataBlocks;
+  TSWAP(pModif->pDataBlocks, pStmt->pDataBlocks, SArray*);
   pModif->msgType = getMsgType(pStmt->sqlNodeType);
   *pLogicNode = (SLogicNode*)pModif;
   return TSDB_CODE_SUCCESS;
@@ -704,6 +705,8 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
       return createSelectLogicNode(pCxt, (SSelectStmt*)pStmt, pLogicNode);
     case QUERY_NODE_VNODE_MODIF_STMT:
       return createVnodeModifLogicNode(pCxt, (SVnodeModifOpStmt*)pStmt, pLogicNode);
+    case QUERY_NODE_EXPLAIN_STMT:
+      return createQueryLogicNode(pCxt, ((SExplainStmt*)pStmt)->pQuery, pLogicNode);
     default:
       break;
   }

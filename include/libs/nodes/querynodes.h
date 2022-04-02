@@ -131,6 +131,7 @@ typedef struct SRealTableNode {
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
   char useDbName[TSDB_DB_NAME_LEN];
+  double ratio;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -282,6 +283,19 @@ typedef struct SVnodeModifOpStmt {
   const char* sql;                 // current sql statement position
 } SVnodeModifOpStmt;
 
+typedef struct SExplainOptions {
+  ENodeType type;
+  bool verbose;
+  double ratio;
+} SExplainOptions;
+
+typedef struct SExplainStmt {
+  ENodeType type;
+  bool analyze;
+  SExplainOptions* pOptions;
+  SNode* pQuery;
+} SExplainStmt;
+
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
@@ -300,6 +314,7 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
+char* nodesGetStrValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

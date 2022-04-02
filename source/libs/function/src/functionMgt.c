@@ -92,6 +92,7 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
     return TSDB_CODE_FAILED;
   }
   pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
+  pFpSet->getEnv  = funcMgtBuiltins[funcId].getEnvFunc;
   return TSDB_CODE_SUCCESS;
 }
 

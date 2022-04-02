@@ -53,15 +53,13 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
   pResultRowInfo->size     = 0;
-  pResultRowInfo->curPos  = -1;
+  pResultRowInfo->curPos   = -1;
   pResultRowInfo->capacity = size;
-
-  pResultRowInfo->pResult = taosMemoryCalloc(pResultRowInfo->capacity, POINTER_BYTES);
   pResultRowInfo->pPosition = taosMemoryCalloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
-  if (pResultRowInfo->pResult == NULL || pResultRowInfo->pPosition == NULL) {
+
+  if (pResultRowInfo->pPosition == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -71,17 +69,17 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
   }
 
   if (pResultRowInfo->capacity == 0) {
-    assert(pResultRowInfo->pResult == NULL);
+//    assert(pResultRowInfo->pResult == NULL);
     return;
   }
 
   for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    if (pResultRowInfo->pResult[i]) {
-      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
-    }
+//    if (pResultRowInfo->pResult[i]) {
+//      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
+//    }
   }
   
-  taosMemoryFreeClear(pResultRowInfo->pResult);
+  taosMemoryFreeClear(pResultRowInfo->pPosition);
 }
 
 void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo) {
@@ -90,8 +88,8 @@ void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRow
   }
 
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    SResultRow *pWindowRes = pResultRowInfo->pResult[i];
-    clearResultRow(pRuntimeEnv, pWindowRes);
+//    SResultRow *pWindowRes = pResultRowInfo->pResult[i];
+//    clearResultRow(pRuntimeEnv, pWindowRes);
 
     int32_t groupIndex = 0;
     int64_t uid = 0;
@@ -101,14 +99,13 @@ void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRow
   }
 
   pResultRowInfo->size     = 0;
-  pResultRowInfo->curPos  = -1;
 }
 
 int32_t numOfClosedResultRows(SResultRowInfo *pResultRowInfo) {
   int32_t i = 0;
-  while (i < pResultRowInfo->size && pResultRowInfo->pResult[i]->closed) {
-    ++i;
-  }
+//  while (i < pResultRowInfo->size && pResultRowInfo->pResult[i]->closed) {
+//    ++i;
+//  }
   
   return i;
 }
@@ -117,21 +114,22 @@ void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
   
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    SResultRow* pRow = pResultRowInfo->pResult[i];
-    if (pRow->closed) {
-      continue;
-    }
+//    ASSERT(0);
+//    SResultRow* pRow = pResultRowInfo->pResult[i];
+//    if (pRow->closed) {
+//      continue;
+//    }
     
-    pRow->closed = true;
+//    pRow->closed = true;
   }
 }
 
-bool isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot) {
-  return (getResultRow(pResultRowInfo, slot)->closed == true);
+bool isResultRowClosed(SResultRow* pRow) {
+  return (pRow->closed == true);
 }
 
-void closeResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
-  getResultRow(pResultRowInfo, slot)->closed = true;
+void closeResultRow(SResultRow* pResultRow) {
+  pResultRow->closed = true;
 }
 
 void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
@@ -181,29 +179,6 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   return rowSize;
 }
 
-SResultRow* getNewResultRow(SResultRowPool* p) {
-  if (p == NULL) {
-    return NULL;
-  }
-
-  void* ptr = NULL;
-  if (p->position.pos == 0) {
-    ptr = taosMemoryCalloc(1, p->blockSize);
-    taosArrayPush(p->pData, &ptr);
-
-  } else {
-    size_t last = taosArrayGetSize(p->pData);
-
-    void** pBlock = taosArrayGet(p->pData, last - 1);
-    ptr = ((char*) (*pBlock)) + p->elemSize * p->position.pos;
-  }
-
-  p->position.pos = (p->position.pos + 1)%p->numOfElemPerBlock;
-  initResultRow(ptr);
-
-  return ptr;
-}
-
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
@@ -220,6 +195,16 @@ void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo)
   pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pPosition, pResultInfo->size, sizeof(SResultRowPosition));
   pGroupResInfo->index = 0;
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
+}
+
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
+  if (pGroupResInfo->pRows != NULL) {
+    taosArrayDestroy(pGroupResInfo->pRows);
+  }
+
+  pGroupResInfo->pRows = pArrayList;
+  pGroupResInfo->index = 0;
+  ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
 bool hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo) {
@@ -251,8 +236,9 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
   return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
 }
 
-static int64_t getNumOfResultWindowRes(STaskRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow, int32_t* rowCellInfoOffset) {
+static int64_t getNumOfResultWindowRes(STaskRuntimeEnv* pRuntimeEnv, SResultRowPosition *pos, int32_t* rowCellInfoOffset) {
   STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+  ASSERT(0);
 
   for (int32_t j = 0; j < pQueryAttr->numOfOutput; ++j) {
     int32_t functionId = 0;//pQueryAttr->pExpr1[j].base.functionId;
@@ -295,25 +281,26 @@ static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *
     return -1;
   }
 
+  ASSERT(0);
   STableQueryInfo** pList = supporter->pTableQueryInfo;
-  SResultRow* pWindowRes1 = pList[left]->resInfo.pResult[leftPos];
+//  SResultRow* pWindowRes1 = pList[left]->resInfo.pResult[leftPos];
 //  SResultRow * pWindowRes1 = getResultRow(&(pList[left]->resInfo), leftPos);
-  TSKEY leftTimestamp = pWindowRes1->win.skey;
+//  TSKEY leftTimestamp = pWindowRes1->win.skey;
 
 //  SResultRowInfo *pWindowResInfo2 = &(pList[right]->resInfo);
 //  SResultRow * pWindowRes2 = getResultRow(pWindowResInfo2, rightPos);
-  SResultRow* pWindowRes2 = pList[right]->resInfo.pResult[rightPos];
-  TSKEY rightTimestamp = pWindowRes2->win.skey;
+//  SResultRow* pWindowRes2 = pList[right]->resInfo.pResult[rightPos];
+//  TSKEY rightTimestamp = pWindowRes2->win.skey;
 
-  if (leftTimestamp == rightTimestamp) {
+//  if (leftTimestamp == rightTimestamp) {
     return 0;
-  }
+//  }
 
-  if (supporter->order == TSDB_ORDER_ASC) {
-    return (leftTimestamp > rightTimestamp)? 1:-1;
-  } else {
-    return (leftTimestamp < rightTimestamp)? 1:-1;
-  }
+//  if (supporter->order == TSDB_ORDER_ASC) {
+//    return (leftTimestamp > rightTimestamp)? 1:-1;
+//  } else {
+//    return (leftTimestamp < rightTimestamp)? 1:-1;
+//  }
 }
 
 int32_t tsAscOrder(const void* p1, const void* p2) {
@@ -321,11 +308,12 @@ int32_t tsAscOrder(const void* p1, const void* p2) {
   SResultRowCell* pc2 = (SResultRowCell*) p2;
 
   if (pc1->groupId == pc2->groupId) {
-    if (pc1->pRow->win.skey == pc2->pRow->win.skey) {
-      return 0;
-    } else {
-      return (pc1->pRow->win.skey < pc2->pRow->win.skey)? -1:1;
-    }
+    ASSERT(0);
+//    if (pc1->pRow->win.skey == pc2->pRow->win.skey) {
+//      return 0;
+//    } else {
+//      return (pc1->pRow->win.skey < pc2->pRow->win.skey)? -1:1;
+//    }
   } else {
     return (pc1->groupId < pc2->groupId)? -1:1;
   }
@@ -336,11 +324,12 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   SResultRowCell* pc2 = (SResultRowCell*) p2;
 
   if (pc1->groupId == pc2->groupId) {
-    if (pc1->pRow->win.skey == pc2->pRow->win.skey) {
-      return 0;
-    } else {
-      return (pc1->pRow->win.skey < pc2->pRow->win.skey)? 1:-1;
-    }
+    ASSERT(0);
+//    if (pc1->pRow->win.skey == pc2->pRow->win.skey) {
+//      return 0;
+//    } else {
+//      return (pc1->pRow->win.skey < pc2->pRow->win.skey)? 1:-1;
+//    }
   } else {
     return (pc1->groupId < pc2->groupId)? -1:1;
   }
@@ -374,13 +363,13 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
       break;
     }
 
-    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pResultRowCell->pRow, rowCellInfoOffset);
+    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, &pResultRowCell->pos, rowCellInfoOffset);
     if (num <= 0) {
       continue;
     }
 
-    taosArrayPush(pGroupResInfo->pRows, &pResultRowCell->pRow);
-    pResultRowCell->pRow->numOfRows = (uint32_t) num;
+    taosArrayPush(pGroupResInfo->pRows, &pResultRowCell->pos);
+//    pResultRowCell->pRow->numOfRows = (uint32_t) num;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -439,9 +428,10 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
     int32_t tableIndex = tMergeTreeGetChosenIndex(pTree);
 
     SResultRowInfo *pWindowResInfo = &pTableQueryInfoList[tableIndex]->resInfo;
-    SResultRow  *pWindowRes = getResultRow(pWindowResInfo, cs.rowIndex[tableIndex]);
+    ASSERT(0);
+    SResultRow  *pWindowRes = NULL;//getResultRow(pBuf, pWindowResInfo, cs.rowIndex[tableIndex]);
 
-    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pWindowRes, rowCellInfoOffset);
+    int64_t num = 0;//getNumOfResultWindowRes(pRuntimeEnv, pWindowRes, rowCellInfoOffset);
     if (num <= 0) {
       cs.rowIndex[tableIndex] += 1;
 

@@ -395,31 +395,31 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_qstartts",
     .type = FUNCTION_TYPE_QSTARTTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = qStartTsFunction,
     .finalizeFunc = NULL
   },
   {
     .name = "_qendts",
     .type = FUNCTION_TYPE_QENDTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = qEndTsFunction,
     .finalizeFunc = NULL
   },
   {
     .name = "_wstartts",
-    .type = FUNCTION_TYPE_QSTARTTS,
+    .type = FUNCTION_TYPE_WSTARTTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = winStartTsFunction,
     .finalizeFunc = NULL
   },
   {
@@ -427,9 +427,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_QENDTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = winEndTsFunction,
     .finalizeFunc = NULL
   },
   {
@@ -437,9 +437,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_WDURATION,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = winDurFunction,
     .finalizeFunc = NULL
   }
 };
@@ -448,6 +448,7 @@ const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFun
 
 int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
   switch(pFunc->funcType) {
+    case FUNCTION_TYPE_WDURATION:
     case FUNCTION_TYPE_COUNT:
       pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
       break;
@@ -476,6 +477,14 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
       int32_t paraType = pParam->node.resType.type;
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      break;
+    }
+
+    case FUNCTION_TYPE_QENDTS:
+    case FUNCTION_TYPE_QSTARTTS:
+    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WSTARTTS: {
+      pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
       break;
     }
 
@@ -554,14 +563,10 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
     }
 
     case FUNCTION_TYPE_ROWTS:
-    case FUNCTION_TYPE_TBNAME:
-    case FUNCTION_TYPE_QSTARTTS:
-    case FUNCTION_TYPE_QENDTS:
-    case FUNCTION_TYPE_WSTARTTS:
-    case FUNCTION_TYPE_WENDTS:
-    case FUNCTION_TYPE_WDURATION:
+    case FUNCTION_TYPE_TBNAME: {
       // todo
       break;
+    }
 
     default:
       ASSERT(0); // to found the fault ASAP.
