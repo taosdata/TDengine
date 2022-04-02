@@ -66,8 +66,8 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
     code = (*msgFp)(pWrapper, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {
-    dTrace("msg:%p, is created and put into child queue, handle:%p app:%p user:%s", pMsg, pRpc->handle,
-           pRpc->ahandle, pMsg->user);
+    dTrace("msg:%p, is created and put into child queue, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle,
+           pMsg->user);
     code = taosProcPutToChildQ(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, PROC_REQ);
   } else {
     dTrace("msg:%p, should not processed in child process, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle,
@@ -171,4 +171,27 @@ int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       return -1;
   }
+}
+
+void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
+  SStartupReq *pStartup = &pDnode->startup;
+  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
+  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
+  pStartup->finished = 0;
+}
+
+void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
+  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
+}
+
+void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
+  dDebug("startup req is received");
+  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
+  dndGetStartup(pDnode, pStartup);
+
+  dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
+  SRpcMsg rpcRsp = {
+      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
+  rpcSendResponse(&rpcRsp);
 }
