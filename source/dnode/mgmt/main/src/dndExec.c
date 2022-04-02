@@ -65,53 +65,6 @@ void dndCloseNode(SMgmtWrapper *pWrapper) {
   dDebug("node:%s, mgmt has been closed", pWrapper->name);
 }
 
-static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
-                                 ProcFuncType ftype) {
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
-  pRpc->pCont = pCont;
-  dTrace("msg:%p, get from child queue, handle:%p app:%p", pMsg, pRpc->handle, pRpc->ahandle);
-
-  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
-  int32_t   code = (*msgFp)(pWrapper, pMsg);
-
-  if (code != 0) {
-    dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-    if (pRpc->msgType & 1U) {
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-      tmsgSendRsp(&rsp);
-    }
-
-    dTrace("msg:%p, is freed", pMsg);
-    taosFreeQitem(pMsg);
-    rpcFreeCont(pCont);
-  }
-}
-
-static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
-                                  ProcFuncType ftype) {
-  pMsg->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, ftype:%d handle:%p, app:%p", pMsg, ftype, pMsg->handle, pMsg->ahandle);
-
-  switch (ftype) {
-    case PROC_REGIST:
-      rpcRegisterBrokenLinkArg(pMsg);
-      break;
-    case PROC_RELEASE:
-      rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
-      rpcFreeCont(pCont);
-      break;
-    case PROC_REQ:
-      dndSendReqToMnode(pWrapper, pMsg);
-      // dndSendReq(pWrapper, (const SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
-      break;
-    case PROC_RSP:
-      dndSendRpcRsp(pWrapper, pMsg);
-      break;
-    default:
-      break;
-  }
-  taosMemoryFree(pMsg);
-}
 
 static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
   char  tstr[8] = {0};
@@ -135,22 +88,6 @@ static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
   return 0;
 }
 
-static SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper) {
-  SProcCfg cfg = {.childConsumeFp = (ProcConsumeFp)dndConsumeChildQueue,
-                  .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
-                  .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-                  .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                  .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                  .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
-                  .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
-                  .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-                  .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                  .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                  .shm = pWrapper->shm,
-                  .pParent = pWrapper,
-                  .name = pWrapper->name};
-  return cfg;
-}
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process");

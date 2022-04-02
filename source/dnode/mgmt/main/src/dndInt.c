@@ -95,6 +95,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     pWrapper->path = strdup(path);
     pWrapper->shm.id = -1;
     pWrapper->pDnode = pDnode;
+    pWrapper->ntype = n;
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;

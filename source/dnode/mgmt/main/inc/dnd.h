@@ -92,6 +92,7 @@ typedef struct SMgmtWrapper {
   char       *path;
   int32_t     refCount;
   SRWLatch    latch;
+  ENodeType   ntype;
   bool        deployed;
   bool        required;
   EProcType   procType;
@@ -160,13 +161,10 @@ const char *dndNodeProcStr(ENodeType ntype);
 const char *dndEventStr(EDndEvent ev);
 
 // dndTransport.h
-int32_t dndInitServer(SDnode *pDnode);
-void    dndCleanupServer(SDnode *pDnode);
-int32_t dndInitClient(SDnode *pDnode);
-void    dndCleanupClient(SDnode *pDnode);
-int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
-SMsgCb  dndCreateMsgcb(SMgmtWrapper *pWrapper);
+int32_t  dndInitTrans(SDnode *pDnode);
+void     dndCleanupTrans(SDnode *pDnode);
+SMsgCb   dndCreateMsgcb(SMgmtWrapper *pWrapper);
+SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }

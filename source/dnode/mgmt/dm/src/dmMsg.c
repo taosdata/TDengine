@@ -57,7 +57,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   pMgmt->statusSent = 1;
 
   dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
-  dndSendReqToMnode(pMgmt->pWrapper, &rpcMsg);
+  SEpSet epSet = {0};
+  dmGetMnodeEpSet(pMgmt, &epSet);
+  tmsgSendReq(&pMgmt->msgCb, &epSet, &rpcMsg);
 }
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {

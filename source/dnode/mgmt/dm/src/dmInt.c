@@ -112,17 +112,14 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (dndInitServer(pDnode) != 0) {
-    dError("failed to init trans server since %s", terrstr());
-    return -1;
-  }
-
-  if (dndInitClient(pDnode) != 0) {
-    dError("failed to init trans client since %s", terrstr());
+  if (dndInitTrans(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
     return -1;
   }
 
   pWrapper->pMgmt = pMgmt;
+  pMgmt->msgCb = dndCreateMsgcb(pWrapper);
+
   dInfo("dnode-mgmt is initialized");
   return 0;
 }
@@ -151,8 +148,7 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
 
   taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
-  dndCleanupServer(pDnode);
-  dndCleanupClient(pDnode);
+  dndCleanupTrans(pDnode);
 
   dInfo("dnode-mgmt is cleaned up");
 }

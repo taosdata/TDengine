@@ -33,6 +33,7 @@ typedef struct SDnodeMgmt {
   SRWLatch      latch;
   SSingleWorker mgmtWorker;
   SSingleWorker statusWorker;
+  SMsgCb        msgCb;
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;

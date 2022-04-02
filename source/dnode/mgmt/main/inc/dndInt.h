@@ -49,7 +49,6 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dndTransport.c
 int32_t dndInitMsgHandle(SDnode *pDnode);
-void    dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 
 // dndFile.c
 TdFilePtr dndCheckRunning(const char *dataDir);
