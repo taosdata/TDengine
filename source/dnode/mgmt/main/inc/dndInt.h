@@ -37,7 +37,6 @@ void    dndClose(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
 // dndMsg.c
-void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dndFile.c

@@ -20,45 +20,133 @@
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
 
-static inline void dndProcessQMVnodeRpcMsg(SMsgHandle *pHandle, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SMsgHead *pHead = pMsg->pCont;
-  int32_t   vgId = htonl(pHead->vgId);
-
-  SMgmtWrapper *pWrapper = pHandle->pWrapper;
-  if (vgId == QND_VGID) {
-    pWrapper = pHandle->pQndWrapper;
-  } else if (vgId == MND_VGID) {
-    pWrapper = pHandle->pMndWrapper;
-  }
-
-  dTrace("msg:%s will be processed by %s, handle:%p app:%p vgId:%d", TMSG_INFO(pMsg->msgType), pWrapper->name,
-         pMsg->handle, pMsg->ahandle, vgId);
-  dndProcessRpcMsg(pWrapper, pMsg, pEpSet);
+static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[DNODE];
+  dmUpdateMnodeEpSet(pWrapper->pMgmt, pEpSet);
 }
 
-static void dndProcessResponse(SDnode *pDnode, SRpcMsg *pRsp, SEpSet *pEpSet) {
-  STransMgmt *pMgmt = &pDnode->trans;
-  tmsg_t      msgType = pRsp->msgType;
+static inline NodeMsgFp dndGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
+  if (msgFp == NULL) {
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  }
 
-  if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
-    dTrace("rsp:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
-    rpcFreeCont(pRsp->pCont);
+  return msgFp;
+}
+
+static inline int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
+  SRpcConnInfo connInfo = {0};
+  if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->ahandle, pRpc->handle);
+    return -1;
+  }
+
+  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
+  pMsg->clientIp = connInfo.clientIp;
+  pMsg->clientPort = connInfo.clientPort;
+  memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
+  return 0;
+}
+
+static void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  int32_t   code = -1;
+  SNodeMsg *pMsg = NULL;
+  NodeMsgFp msgFp = NULL;
+
+  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
+    dndUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
+  }
+
+  if (dndMarkWrapper(pWrapper) != 0) goto _OVER;
+  if ((msgFp = dndGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
+  if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
+  if (dndBuildMsg(pMsg, pRpc) != 0) goto _OVER;
+
+  if (pWrapper->procType == PROC_SINGLE) {
+    dTrace("msg:%p, is created, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
+    code = (*msgFp)(pWrapper, pMsg);
+  } else if (pWrapper->procType == PROC_PARENT) {
+    dTrace("msg:%p, is created and put into child queue, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
+    code = taosProcPutToChildQ(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, PROC_REQ);
+  } else {
+    dTrace("msg:%p, should not processed in child process, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
+    ASSERT(1);
+  }
+
+_OVER:
+  if (code == 0) {
+    if (pWrapper->procType == PROC_PARENT) {
+      dTrace("msg:%p, is freed in parent process", pMsg);
+      taosFreeQitem(pMsg);
+      rpcFreeCont(pRpc->pCont);
+    }
+  } else {
+    dError("msg:%p, failed to process since 0x%04x:%s", pMsg, code & 0XFFFF, terrstr());
+    if (pRpc->msgType & 1U) {
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      tmsgSendRsp(&rsp);
+    }
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
+  }
+
+  dndReleaseWrapper(pWrapper);
+}
+
+static void dndProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  STransMgmt   *pMgmt = &pDnode->trans;
+  tmsg_t        msgType = pMsg->msgType;
+  bool          isReq = msgType & 1u;
+  SMsgHandle   *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
+  SMgmtWrapper *pWrapper = pHandle->pWrapper;
+
+  if (msgType == TDMT_DND_NETWORK_TEST) {
+    dTrace("network test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+    dndProcessStartupReq(pDnode, pMsg);
     return;
   }
 
-  SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-  if (pHandle->pWrapper != NULL) {
-    if (pHandle->pMndWrapper == NULL && pHandle->pQndWrapper == NULL) {
-      dTrace("rsp:%s will be processed by %s, handle:%p app:%p code:0x%04x:%s", TMSG_INFO(msgType),
-             pHandle->pWrapper->name, pRsp->handle, pRsp->ahandle, pRsp->code & 0XFFFF, tstrerror(pRsp->code));
-      dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
-    } else {
-      dndProcessQMVnodeRpcMsg(pHandle, pRsp, pEpSet);
+  if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
+    dError("msg:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
+    if (isReq) {
+      SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_APP_NOT_READY, .ahandle = pMsg->ahandle};
+      rpcSendResponse(&rspMsg);
     }
-  } else {
-    dError("rsp:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
-    rpcFreeCont(pRsp->pCont);
+    rpcFreeCont(pMsg->pCont);
+    return;
   }
+
+  if (isReq && pMsg->pCont == NULL) {
+    dError("req:%s not processed since its empty, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
+    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN, .ahandle = pMsg->ahandle};
+    rpcSendResponse(&rspMsg);
+    return;
+  }
+
+  if (pWrapper == NULL) {
+    dError("msg:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
+    if (isReq) {
+      SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pMsg->ahandle};
+      rpcSendResponse(&rspMsg);
+    }
+    rpcFreeCont(pMsg->pCont);
+  }
+
+  if (pHandle->pMndWrapper != NULL || pHandle->pQndWrapper != NULL) {
+    SMsgHead *pHead = pMsg->pCont;
+    int32_t   vgId = ntohl(pHead->vgId);
+    if (vgId == QND_VGID) {
+      pWrapper = pHandle->pQndWrapper;
+    } else if (vgId == MND_VGID) {
+      pWrapper = pHandle->pMndWrapper;
+    } else {
+    }
+  }
+
+  dTrace("msg:%s will be processed by %s, app:%p", TMSG_INFO(msgType), pWrapper->name, pMsg->ahandle);
+  dndProcessRpcMsg(pWrapper, pMsg, pEpSet);
 }
 
 static int32_t dndInitClient(SDnode *pDnode) {
@@ -68,7 +156,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.label = "DND";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)dndProcessResponse;
+  rpcInit.cfp = (RpcCfp)dndProcessMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -100,48 +188,6 @@ static void dndCleanupClient(SDnode *pDnode) {
   }
 }
 
-static void dndProcessRequest(SDnode *pDnode, SRpcMsg *pReq, SEpSet *pEpSet) {
-  STransMgmt *pMgmt = &pDnode->trans;
-  tmsg_t      msgType = pReq->msgType;
-
-  if (msgType == TDMT_DND_NETWORK_TEST) {
-    dTrace("network test req will be processed, handle:%p, app:%p", pReq->handle, pReq->ahandle);
-    dndProcessStartupReq(pDnode, pReq);
-    return;
-  }
-
-  if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
-    dError("req:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pReq->handle, pReq->ahandle);
-    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_APP_NOT_READY, .ahandle = pReq->ahandle};
-    rpcSendResponse(&rspMsg);
-    rpcFreeCont(pReq->pCont);
-    return;
-  }
-
-  if (pReq->pCont == NULL) {
-    dTrace("req:%s not processed since its empty, handle:%p app:%p", TMSG_INFO(msgType), pReq->handle, pReq->ahandle);
-    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN, .ahandle = pReq->ahandle};
-    rpcSendResponse(&rspMsg);
-    return;
-  }
-
-  SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-  if (pHandle->pWrapper != NULL) {
-    if (pHandle->pMndWrapper == NULL && pHandle->pQndWrapper == NULL) {
-      dTrace("req:%s will be processed by %s, handle:%p app:%p", TMSG_INFO(msgType), pHandle->pWrapper->name,
-             pReq->handle, pReq->ahandle);
-      dndProcessRpcMsg(pHandle->pWrapper, pReq, pEpSet);
-    } else {
-      dndProcessQMVnodeRpcMsg(pHandle, pReq, pEpSet);
-    }
-  } else {
-    dError("req:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pReq->handle, pReq->ahandle);
-    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pReq->ahandle};
-    rpcSendResponse(&rspMsg);
-    rpcFreeCont(pReq->pCont);
-  }
-}
-
 static inline void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
   SEpSet        epSet = {0};
   SMgmtWrapper *pWrapper = &pDnode->wrappers[DNODE];
@@ -149,7 +195,8 @@ static inline void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg 
   rpcSendRecv(pDnode->trans.clientRpc, &epSet, pReq, pRsp);
 }
 
-static inline int32_t dndGetHideUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+static inline int32_t dndGetHideUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret,
+                                         char *ckey) {
   int32_t code = 0;
   char    pass[TSDB_PASSWORD_LEN + 1] = {0};
 
@@ -219,7 +266,7 @@ static int32_t dndInitServer(SDnode *pDnode) {
   rpcInit.localPort = pDnode->serverPort;
   rpcInit.label = "DND";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp = (RpcCfp)dndProcessRequest;
+  rpcInit.cfp = (RpcCfp)dndProcessMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
