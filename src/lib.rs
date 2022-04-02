@@ -1,7 +1,9 @@
-use std::path::PathBuf;
-
+use bevy_reflect::Reflect;
 use chrono_tz::Tz;
 use clap::Args;
+use core::panic;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use url::Url;
 
 #[derive(Debug, Args)]
@@ -31,4 +33,23 @@ pub struct TaosOpts {
     #[clap(short, long, env = "TAOS_CFG_DIR")]
     /// TDengine config directory
     pub cfg_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Reflect)]
+pub struct Database {
+    pub name: String,
+    pub replica: i16,
+    pub quorum: i16,
+    pub days: i16,
+    pub keep: String,
+    // pub cache: i32,
+    pub blocks: i32,
+    pub minrows: i32,
+    pub maxrows: i32,
+    pub wallevel: i8,
+    pub fsync: i32,
+    pub comp: i8,
+    pub cachelast: i8,
+    pub precision: String,
+    pub update: i8,
 }
