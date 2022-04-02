@@ -513,7 +513,7 @@ expression(A) ::= NK_PLUS(B) expression(C).                                     
                                                                                   }
 expression(A) ::= NK_MINUS(B) expression(C).                                      {
                                                                                     SToken t = getTokenFromRawExprNode(pCxt, C);
-                                                                                    A = createRawExprNodeExt(pCxt, &B, &t, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, C), NULL));
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &t, createOperatorNode(pCxt, OP_TYPE_MINUS, releaseRawExprNode(pCxt, C), NULL));
                                                                                   }
 expression(A) ::= expression(B) NK_PLUS expression(C).                            {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
@@ -549,39 +549,14 @@ expression_list(A) ::= expression_list(B) NK_COMMA expression(C).               
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
-//pseudo_column(A) ::= NK_NOW.                                                    { A = createFunctionNode(pCxt, NULL, NULL); }
-//pseudo_column(A) ::=  NK_UNDERLINE(B) ROWTS(C).                                   {
-//                                                                                    SToken t = B;
-//                                                                                    t.n = (C.z + C.n) - B.z;
-//                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-//                                                                                  }
+pseudo_column(A) ::=  NOW(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  ROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  TBNAME(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  NK_UNDERLINE(B) QSTARTTS(C).                                {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) QENDTS(C).                                  {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) WSTARTTS(C).                                {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) WENDTS(C).                                  {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) WDURATION(C).                               {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
+pseudo_column(A) ::=  QSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  QENDTS(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  WSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  WENDTS(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  WDURATION(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 /************************************************ predicate ***********************************************************/
 predicate(A) ::= expression(B) compare_op(C) expression(D).                       {

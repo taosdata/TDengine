@@ -439,6 +439,9 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
 }
 
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+  if (nodesIsUnaryOp(pOp)) {
+    return DEAL_RES_CONTINUE;
+  }
   SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
   if (nodesIsArithmeticOp(pOp)) {

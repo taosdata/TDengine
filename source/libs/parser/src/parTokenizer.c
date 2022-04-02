@@ -125,10 +125,10 @@ static SKeyword keywordTable[] = {
     {"PRECISION",     TK_PRECISION},
     {"PRIVILEGE",     TK_PRIVILEGE},
     {"PREV",          TK_PREV},
-    {"QENDTS",        TK_QENDTS},
+    {"_QENDTS",        TK_QENDTS},
     {"QNODE",         TK_QNODE},
     {"QNODES",        TK_QNODES},
-    {"QSTARTTS",      TK_QSTARTTS},
+    {"_QSTARTTS",      TK_QSTARTTS},
     {"QTIME",         TK_QTIME},
     {"QUERIES",       TK_QUERIES},
     {"QUERY",         TK_QUERY},
@@ -184,10 +184,10 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",       TK_VGROUPS},
     {"VNODES",        TK_VNODES},
     {"WAL",           TK_WAL},
-    {"WDURATION",     TK_WDURATION},
-    {"WENDTS",        TK_WENDTS},
+    {"_WDURATION",     TK_WDURATION},
+    {"_WENDTS",        TK_WENDTS},
     {"WHERE",         TK_WHERE},
-    {"WSTARTTS",      TK_WSTARTTS},
+    {"_WSTARTTS",     TK_WSTARTTS},
     // {"ID",           TK_ID},
     // {"STRING",       TK_STRING},
     // {"EQ",           TK_EQ},
@@ -440,10 +440,6 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       *tokenId = TK_NK_QUESTION;
       return 1;
     }
-    // case '_': {
-    //   *tokenId = TK_NK_UNDERLINE;
-    //   return 1;
-    // }
     case '`':
     case '\'':
     case '"': {
