@@ -68,9 +68,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .classification = FUNC_MGT_AGG_FUNC,
       .checkFunc    = stubCheckAndGetResultType,
       .getEnvFunc   = getStddevFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+      .initFunc     = stddevFunctionSetup,
+      .processFunc  = stddevFunction,
+      .finalizeFunc = stddevFinalize
   },
   {
       .name = "percentile",
@@ -434,6 +434,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
+    case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_SIN:
     case FUNCTION_TYPE_COS:
     case FUNCTION_TYPE_TAN:

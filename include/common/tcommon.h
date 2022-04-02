@@ -193,20 +193,19 @@ typedef struct SColumn {
   uint8_t scale;
 } SColumn;
 
-typedef struct SLimit {
-  int64_t limit;
-  int64_t offset;
-} SLimit;
-
-typedef struct SOrder {
-  uint32_t order;
-  SColumn  col;
-} SOrder;
-
-typedef struct SGroupbyExpr {
-  SArray* columnInfo;  // SArray<SColIndex>, group by columns information
-  bool    groupbyTag;  // group by tag or column
-} SGroupbyExpr;
+typedef struct STableBlockDistInfo {
+  uint16_t  rowSize;
+  uint16_t  numOfFiles;
+  uint32_t  numOfTables;
+  uint64_t  totalSize;
+  uint64_t  totalRows;
+  int32_t   maxRows;
+  int32_t   minRows;
+  int32_t   firstSeekTimeUs;
+  uint32_t  numOfRowsInMemTable;
+  uint32_t  numOfSmallBlocks;
+  SArray   *dataBlockInfos;
+} STableBlockDistInfo;
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
@@ -240,15 +239,6 @@ typedef struct SExprInfo {
   struct SExprBasicInfo base;
   struct tExprNode*     pExpr;
 } SExprInfo;
-
-typedef struct SStateWindow {
-  SColumn col;
-} SStateWindow;
-
-typedef struct SSessionWindow {
-  int64_t gap;  // gap between two session window(in microseconds)
-  SColumn col;
-} SSessionWindow;
 
 #define QUERY_ASC_FORWARD_STEP 1
 #define QUERY_DESC_FORWARD_STEP -1
