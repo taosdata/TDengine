@@ -26,6 +26,7 @@ FstRegex *regexCreate(const char *str) {
   memcpy(orig, str, sz);
 
   regex->orig = orig;
+  return regex;
 }
 
 void regexSetup(FstRegex *regex, uint32_t size, const char *str) {

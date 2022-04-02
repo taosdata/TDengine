@@ -350,8 +350,7 @@ static void lruListMoveToFront(SList* pList, SPageInfo* pi) {
 }
 
 static SPageInfo* getPageInfoFromPayload(void* page) {
-  int32_t offset = offsetof(SPageInfo, pData);
-  char*   p = (char *)page - offset;
+  char*   p = (char *)page - POINTER_BYTES;
 
   SPageInfo* ppi = ((SPageInfo**)p)[0];
   return ppi;

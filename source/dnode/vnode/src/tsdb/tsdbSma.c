@@ -331,6 +331,7 @@ int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
     }
     taosHashCleanup(pSmaStat->smaStatItems);
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
@@ -433,6 +434,7 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
     return TSDB_CODE_FAILED;
   }
   tsdbDebug("vgId:%d smaIndex %" PRIi64 " tsKey %" PRIi64 " is put to hash", REPO_ID(pTsdb), indexUid, winSKey);
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -1051,6 +1053,7 @@ static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid) {
   }
   // clear sma data files
   // TODO:
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tsdbSetRSmaDataFile(STSmaWriteH *pSmaH, int32_t fid) {
@@ -1173,6 +1176,7 @@ static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, int64_t interv
   pSmaH->interval = tsdbGetIntervalByPrecision(interval, intervalUnit, REPO_CFG(pTsdb)->precision, true);
   pSmaH->storageLevel = tsdbGetSmaStorageLevel(interval, intervalUnit);
   pSmaH->days = tsdbGetTSmaDays(pTsdb, pSmaH->interval, pSmaH->storageLevel);
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -1192,6 +1196,7 @@ static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, int64_t indexUid, TSKEY skey)
   pSmaH->dFile.path = strdup(tSmaFile);
   pSmaH->smaFsIter.iter = 0;
   pSmaH->smaFsIter.fid = fid;
+  return TSDB_CODE_SUCCESS;
 }
 
 /**

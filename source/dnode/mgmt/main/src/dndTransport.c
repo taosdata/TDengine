@@ -333,6 +333,7 @@ int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg 
       taosMsleep(1);
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {

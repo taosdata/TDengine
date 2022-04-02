@@ -50,6 +50,7 @@ static void *dmThreadRoutine(void *param) {
       lastMonitorTime = curTime;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {

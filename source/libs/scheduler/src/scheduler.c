@@ -258,6 +258,7 @@ _return:
 
   SCH_JOB_ELOG("invalid job status update, from %s to %s", jobTaskStatusStr(oriStatus), jobTaskStatusStr(newStatus));
   SCH_ERR_RET(code);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
@@ -791,7 +792,7 @@ _return:
   SCH_RET(schProcessOnJobFailure(pJob, code));
 }
 
-int32_t schProcessOnDataFetched(SSchJob *job) {
+void schProcessOnDataFetched(SSchJob *job) {
   atomic_val_compare_exchange_32(&job->remoteFetch, 1, 0);
   tsem_post(&job->rspSem);
 }
@@ -1150,6 +1151,7 @@ int32_t schHandleReadyCallback(void *param, const SDataBuf *pMsg, int32_t code) 
 int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:%" PRIx64 ",TID:%" PRIx64 " drop task rsp received, code:%x", pParam->queryId, pParam->taskId, code);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
@@ -2029,7 +2031,7 @@ void schDropJobAllTasks(SSchJob *pJob) {
 
 int32_t schCancelJob(SSchJob *pJob) {
   // TODO
-
+  return TSDB_CODE_SUCCESS;
   // TODO MOVE ALL TASKS FROM EXEC LIST TO FAIL LIST
 }
 

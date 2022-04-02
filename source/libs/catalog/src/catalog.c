@@ -2532,7 +2532,7 @@ _return:
 }
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet) {
-
+  return 0;
 }
 
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, const SName* pTableName) {
@@ -2599,7 +2599,7 @@ _return:
 }
 
 int32_t catalogGetIndexMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, const char *pIndexName, SIndexMeta** pIndexMeta) {
-
+  return 0;
 }
 
 int32_t catalogGetTableMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {

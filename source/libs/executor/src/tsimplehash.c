@@ -258,6 +258,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key) {
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key) {
   // todo
+  return TSDB_CODE_SUCCESS;
 }
 
 void tSimpleHashClear(SSHashObj *pHashObj) {

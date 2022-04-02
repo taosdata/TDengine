@@ -22,6 +22,7 @@
 #include "tpagedbuf.h"
 #include "tsort.h"
 #include "tutil.h"
+#include "tcompare.h"
 
 struct STupleHandle {
   SSDataBlock* pBlock;
@@ -123,6 +124,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
   taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSources, SSDataBlock* pBlock, int32_t* sourceId) {
@@ -164,7 +166,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     }
 
     int32_t pageId = -1;
-    SFilePage* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
+    void* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
     if (pPage == NULL) {
       return terrno;
     }
@@ -172,7 +174,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + p->info.numOfCols * sizeof(int32_t);
     assert(size <= getBufPageSize(pHandle->pBuf));
 
-    blockDataToBuf(pPage->data, p);
+    blockDataToBuf(pPage, p);
 
     setBufPageDirty(pPage, true);
     releaseBufPage(pHandle->pBuf, pPage);
@@ -184,10 +186,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
   blockDataCleanup(pDataBlock);
 
   SSDataBlock* pBlock = createOneDataBlock(pDataBlock);
-  int32_t code = doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  return doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
 }
 
 static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int32_t startIndex, int32_t endIndex, SSortHandle* pHandle) {
@@ -201,8 +200,8 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
       SExternalMemSource* pSource = cmpParam->pSources[i];
       SPageInfo*          pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
-      SFilePage* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
-      code = blockDataFromBuf(pSource->src.pBlock, pPage->data);
+      void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
+      code = blockDataFromBuf(pSource->src.pBlock, pPage);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -236,6 +235,7 @@ static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
   }
 
   cmpParam->numOfSources = 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSource, int32_t* rowIndex) {
@@ -309,6 +309,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
   printf("\nafter adjust:\t");
   tMergeTreePrint(pTree);
 #endif
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
@@ -392,23 +393,13 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
     void* left1  = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
     void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
 
-    switch(pLeftColInfoData->info.type) {
-      case TSDB_DATA_TYPE_INT: {
-        int32_t leftv = *(int32_t*)left1;
-        int32_t rightv = *(int32_t*)right1;
+    __compar_fn_t fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
 
-        if (leftv == rightv) {
-          break;
-        } else {
-          if (pOrder->order == TSDB_ORDER_ASC) {
-            return leftv < rightv? -1 : 1;
-          } else {
-            return leftv < rightv? 1 : -1;
-          }
-        }
-      }
-      default:
-        assert(0);
+    int ret = fn(left1, right1);
+    if (ret == 0) {
+      continue;
+    } else {
+      return ret;
     }
   }
   return 0;
@@ -424,13 +415,13 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   double sortPass = floorl(log2(numOfSources) / log2(pHandle->numOfPages));
 
   pHandle->totalElapsed = taosGetTimestampUs() - pHandle->startTs;
-  qDebug("%s %d rounds mergesort required to complete the sort, first-round sorted data size:%"PRIzu", sort:%"PRId64", total elapsed:%"PRId64,
+  qDebug("%s %d rounds mergesort required to complete the sort, first-round sorted data size:%"PRIzu", sort elapsed:%"PRId64", total elapsed:%"PRId64,
          pHandle->idStr, (int32_t) (sortPass + 1), getTotalBufSize(pHandle->pBuf), pHandle->sortElapsed, pHandle->totalElapsed);
 
   size_t pgSize = pHandle->pageSize;
   int32_t numOfRows = (pgSize - blockDataGetSerialMetaSize(pHandle->pDataBlock))/ blockDataGetSerialRowSize(pHandle->pDataBlock);
 
-  blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);
+  // blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows); // useless, it is already enough
 
   size_t numOfSorted = taosArrayGetSize(pHandle->pOrderedSource);
   for(int32_t t = 0; t < sortPass; ++t) {
@@ -469,7 +460,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         }
 
         int32_t pageId = -1;
-        SFilePage* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
+        void* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
         if (pPage == NULL) {
           return terrno;
         }
@@ -477,7 +468,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         int32_t size = blockDataGetSize(pDataBlock) + sizeof(int32_t) + pDataBlock->info.numOfCols * sizeof(int32_t);
         assert(size <= getBufPageSize(pHandle->pBuf));
 
-        blockDataToBuf(pPage->data, pDataBlock);
+        blockDataToBuf(pPage, pDataBlock);
 
         setBufPageDirty(pPage, true);
         releaseBufPage(pHandle->pBuf, pPage);
@@ -526,7 +517,6 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     SGenericSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
     taosArrayClear(pHandle->pOrderedSource);
-
     while (1) {
       SSDataBlock* pBlock = pHandle->fetchfp(source->param);
       if (pBlock == NULL) {
@@ -559,7 +549,12 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       size_t size = blockDataGetSize(pHandle->pDataBlock);
 
       // Perform the in-memory sort and then flush data in the buffer into disk.
+      int64_t p = taosGetTimestampUs();
+
       blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+
+      int64_t el = taosGetTimestampUs() - p;
+      pHandle->sortElapsed += el;
 
       // All sorted data can fit in memory, external memory sort is not needed. Return to directly
       if (size <= sortBufSize) {
@@ -573,8 +568,6 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
         doAddToBuf(pHandle->pDataBlock, pHandle);
       }
     }
-
-    taosMemoryFreeClear(source);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -616,22 +609,22 @@ int32_t tsortOpen(SSortHandle* pHandle) {
     return code;
   }
 
-  code = tMergeTreeCreate(&pHandle->pMergeTree, pHandle->cmpParam.numOfSources, &pHandle->cmpParam, pHandle->comparFn);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  return tMergeTreeCreate(&pHandle->pMergeTree, pHandle->cmpParam.numOfSources, &pHandle->cmpParam, pHandle->comparFn);
 }
 
 int32_t tsortClose(SSortHandle* pHandle) {
   // do nothing
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp) {
   pHandle->fetchfp = fp;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {
   pHandle->comparFn = fp;
+  return TSDB_CODE_SUCCESS;
 }
 
 STupleHandle* tsortNextTuple(SSortHandle* pHandle) {

@@ -33,6 +33,7 @@
 #include "tdef.h"
 #include "trpc.h"
 #include "tvariant.h"
+#include "tcompare.h"
 
 namespace {
 typedef struct {
@@ -125,24 +126,13 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 
     void* left1  = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
     void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
+    __compar_fn_t fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
 
-    switch(pLeftColInfoData->info.type) {
-      case TSDB_DATA_TYPE_INT: {
-        int32_t leftv = *(int32_t*)left1;
-        int32_t rightv = *(int32_t*)right1;
-
-        if (leftv == rightv) {
-          break;
-        } else {
-          if (pOrder->order == TSDB_ORDER_ASC) {
-            return leftv < rightv? -1 : 1;
-          } else {
-            return leftv < rightv? 1 : -1;
-          }
-        }
-      }
-      default:
-        assert(0);
+    int ret = fn(left1, right1);
+    if (ret == 0) {
+      continue;
+    } else {
+      return ret;
     }
   }
 

@@ -359,6 +359,10 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
     idata.info.precision = pDescNode->dataType.precision;
 
     taosArrayPush(pBlock->pDataBlock, &idata);
+
+    if (IS_VAR_DATA_TYPE(idata.info.type)) {
+      pBlock->info.hasVarCol = true;
+    }
   }
 
   return pBlock;
@@ -4924,6 +4928,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator, bool* newgroup) {
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
 #endif
+  return TSDB_CODE_SUCCESS;
 }
 
 static void doClearBufferedBlocks(SStreamBlockScanInfo* pInfo) {
@@ -5000,6 +5005,7 @@ int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) 
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   tsem_post(&pSourceDataInfo->pEx->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -5673,6 +5679,7 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
   }
 
   tsem_post(&pScanResInfo->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
@@ -6484,6 +6491,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
   tsortAddSource(pInfo->pSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
+  taosMemoryFreeClear(ps);
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, terrno);
   }
@@ -6496,15 +6504,18 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
                                       SExecTaskInfo* pTaskInfo) {
   SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  if (pInfo == NULL || pOperator == NULL) {
+  int32_t rowSize = pResBlock->info.rowSize;
+
+  if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
     taosMemoryFreeClear(pInfo);
     taosMemoryFreeClear(pOperator);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pInfo->sortBufSize = 1024 * 16;  // 1MB, TODO dynamic set the available sort buffer
-  pInfo->bufPageSize = 1024;
+  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize;
+
+  pInfo->sortBufSize = pInfo->bufPageSize * 16;  // 1MB, TODO dynamic set the available sort buffer
   pInfo->numOfRowsInRes = 1024;
   pInfo->pDataBlock = pResBlock;
   pInfo->pSortInfo = pSortInfo;
@@ -7590,6 +7601,7 @@ static int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, S
   pBasicInfo->capacity = numOfRows;
 
   doInitAggInfoSup(pAggSup, pBasicInfo->pCtx, numOfCols, pkey);
+  return TSDB_CODE_SUCCESS;
 }
 
 static STableQueryInfo* initTableQueryInfo(const STableGroupInfo* pTableGroupInfo) {
@@ -8389,6 +8401,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator, bool* newgroup) {
   return (pRes->info.rows == 0)? NULL:pInfo->pRes;
 
 #endif
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput) {
@@ -8906,6 +8919,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
        return createMultiTableAggOperatorInfo(op, pPhyNode->pTargets, pTaskInfo, pTableGroupInfo);
      }
    }*/
+  return NULL;
 }
 
 static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STableGroupInfo* pGroupInfo,
@@ -9217,6 +9231,7 @@ int32_t createQueryFilter(char* data, uint16_t len, SFilterInfo** pFilters) {
   //  tExprTreeDestroy(expr, NULL);
 
   //  return ret;
+  return TSDB_CODE_SUCCESS;
 }
 
 // int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols, SSingleColumnFilterInfo**
