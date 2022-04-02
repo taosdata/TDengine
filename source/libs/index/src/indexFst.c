@@ -1251,7 +1251,6 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
       taosArrayPush(sws->stack, &s);
       out += trn.out;
       node = fstGetNode(sws->fst, trn.addr);
-      fstNodeDestroy(node);
     } else {
       // This is a little tricky. We're in this case if the
       // given bound is not a prefix of any key in the FST.
@@ -1349,7 +1348,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     for (uint32_t i = 0; i < isz; i++) {
       buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);
     }
-    FstSlice slice = fstSliceCreate(buf, taosArrayGetSize(sws->inp));
+    FstSlice slice = fstSliceCreate(buf, isz);
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
       taosArrayDestroyEx(sws->stack, streamStateDestroy);
       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));

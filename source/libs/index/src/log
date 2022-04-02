@@ -1,0 +1,1445 @@
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    1) /*
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    2)  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    3)  *
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    4)  * This program is free software: you can use, redistribute, and/or modify
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    5)  * it under the terms of the GNU Affero General Public License, version 3
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    6)  * or later ("AGPL"), as published by the Free Software Foundation.
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    7)  *
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    8)  * This program is distributed in the hope that it will be useful, but WITHOUT
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800    9)  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800   10)  * FITNESS FOR A PARTICULAR PURPOSE.
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800   11)  *
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800   12)  * You should have received a copy of the GNU Affero General Public License
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800   13)  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800   14)  */
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800   15) 
+5cf0c4a61c6 source/libs/index/src/indexFst.c  (yihaoDeng         2022-03-29 23:11:57 +0800   16) #include "indexFst.h"
+5cf0c4a61c6 source/libs/index/src/indexFst.c  (yihaoDeng         2022-03-29 23:11:57 +0800   17) #include "indexFstAutomation.h"
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   18) #include "indexInt.h"
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   19) #include "tchecksum.h"
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   20) #include "tcoding.h"
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800   21) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   22) static void fstPackDeltaIn(FstCountingWriter* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800   23)   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   24)   fstCountingWriterPackUintIn(wrt, deltaAddr, nBytes);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800   25) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   26) static uint8_t fstPackDetla(FstCountingWriter* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+20203e47eb5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:57:50 +0800   27)   uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   28)   fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes);
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800   29)   return nBytes;
+20203e47eb5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:57:50 +0800   30) }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800   31) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   32) FstUnFinishedNodes* fstUnFinishedNodesCreate() {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800   33)   FstUnFinishedNodes* nodes = taosMemoryMalloc(sizeof(FstUnFinishedNodes));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   34)   if (nodes == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   35)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   36)   }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   37) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   38)   nodes->stack = (SArray*)taosArrayInit(64, sizeof(FstBuilderNodeUnfinished));
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   39)   fstUnFinishedNodesPushEmpty(nodes, false);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   40)   return nodes;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   41) }
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   42) static void unFinishedNodeDestroyElem(void* elem) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   43)   FstBuilderNodeUnfinished* b = (FstBuilderNodeUnfinished*)elem;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   44)   fstBuilderNodeDestroy(b->node);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800   45)   taosMemoryFree(b->last);
+7e1f68f86fc source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 14:32:54 +0800   46)   b->last = NULL;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   47) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   48) void fstUnFinishedNodesDestroy(FstUnFinishedNodes* nodes) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   49)   if (nodes == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   50)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   51)   }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800   52) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   53)   taosArrayDestroyEx(nodes->stack, unFinishedNodeDestroyElem);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800   54)   taosMemoryFree(nodes);
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800   55) }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800   56) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   57) void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800   58)   FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   59)   node->isFinal = isFinal;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   60)   node->finalOutput = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   61)   node->trans = taosArrayInit(16, sizeof(FstTransition));
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   62) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   63)   FstBuilderNodeUnfinished un = {.node = node, .last = NULL};
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   64)   taosArrayPush(nodes->stack, &un);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   65) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   66) FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   67)   assert(taosArrayGetSize(nodes->stack) == 1);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   68) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   69)   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   70)   assert(un->last == NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   71)   return un->node;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   72) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   73) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   74) FstBuilderNode* fstUnFinishedNodesPopFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   75)   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   76)   fstBuilderNodeUnfinishedLastCompiled(un, addr);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800   77)   // taosMemoryFree(un->last); // TODO add func FstLastTransitionFree()
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   78)   // un->last = NULL;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   79)   return un->node;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   80) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   81) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   82) FstBuilderNode* fstUnFinishedNodesPopEmpty(FstUnFinishedNodes* nodes) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   83)   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   84)   assert(un->last == NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   85)   return un->node;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   86) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   87) void fstUnFinishedNodesSetRootOutput(FstUnFinishedNodes* nodes, Output out) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   88)   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, 0);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   89)   un->node->isFinal = true;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   90)   un->node->finalOutput = out;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   91)   // un->node->trans       = NULL;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800   92) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   93) void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   94)   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, taosArrayGetSize(nodes->stack) - 1);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   95)   fstBuilderNodeUnfinishedLastCompiled(un, addr);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800   96) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   97) void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output out) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800   98)   FstSlice* s = &bs;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800   99)   if (fstSliceIsEmpty(s)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  100)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  101)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  102)   size_t                    sz = taosArrayGetSize(nodes->stack) - 1;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  103)   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, sz);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  104)   assert(un->last == NULL);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  105) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  106)   // FstLastTransition *trn = taosMemoryMalloc(sizeof(FstLastTransition));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  107)   // trn->inp = s->data[s->start];
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  108)   // trn->out = out;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  109)   int32_t  len = 0;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  110)   uint8_t* data = fstSliceData(s, &len);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  111)   un->last = fstLastTransitionCreate(data[0], out);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  112) 
+d0844e5dda0 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-04 21:40:09 +0800  113)   for (uint64_t i = 1; i < len; i++) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  114)     FstBuilderNode* n = taosMemoryMalloc(sizeof(FstBuilderNode));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  115)     n->isFinal = false;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  116)     n->finalOutput = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  117)     n->trans = taosArrayInit(16, sizeof(FstTransition));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  118) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  119)     // FstLastTransition *trn = taosMemoryMalloc(sizeof(FstLastTransition));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  120)     // trn->inp = s->data[i];
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  121)     // trn->out = out;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  122)     FstLastTransition* trn = fstLastTransitionCreate(data[i], 0);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  123) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  124)     FstBuilderNodeUnfinished un = {.node = n, .last = trn};
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  125)     taosArrayPush(nodes->stack, &un);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  126)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  127)   fstUnFinishedNodesPushEmpty(nodes, true);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  128) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  129) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  130) uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes* node, FstSlice bs) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  131)   FstSlice* s = &bs;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  132) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  133)   size_t   ssz = taosArrayGetSize(node->stack);  // stack size
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  134)   uint64_t count = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  135)   int32_t  lsz;  // data len
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  136)   uint8_t* data = fstSliceData(s, &lsz);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  137)   for (size_t i = 0; i < ssz && i < lsz; i++) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  138)     FstBuilderNodeUnfinished* un = taosArrayGet(node->stack, i);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  139)     if (un->last->inp == data[i]) {
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  140)       count++;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  141)     } else {
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  142)       break;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  143)     }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  144)   }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  145)   return count;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  146) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  147) uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes* node, FstSlice bs, Output in, Output* out) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  148)   FstSlice* s = &bs;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  149) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  150)   size_t lsz = (size_t)(s->end - s->start + 1);  // data len
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  151)   size_t ssz = taosArrayGetSize(node->stack);    // stack size
+db2bf567c25 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 18:43:48 +0800  152)   *out = in;
+16f089c39a7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 15:24:55 +0800  153)   uint64_t i = 0;
+16f089c39a7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 15:24:55 +0800  154)   for (i = 0; i < lsz && i < ssz; i++) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  155)     FstBuilderNodeUnfinished* un = taosArrayGet(node->stack, i);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  156) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  157)     FstLastTransition* t = un->last;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  158)     uint64_t           addPrefix = 0;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  159)     uint8_t*           data = fstSliceData(s, NULL);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  160)     if (t && t->inp == data[i]) {
+92bef71ec7e source/libs/index/src/index_fst.c (yihaoDeng         2022-01-24 12:53:17 +0800  161)       uint64_t commPrefix = TMIN(t->out, *out);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  162)       uint64_t tAddPrefix = t->out - commPrefix;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  163)       (*out) = (*out) - commPrefix;
+16f089c39a7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 15:24:55 +0800  164)       t->out = commPrefix;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  165)       addPrefix = tAddPrefix;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  166)     } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  167)       break;
+16f089c39a7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 15:24:55 +0800  168)     }
+16f089c39a7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 15:24:55 +0800  169)     if (addPrefix != 0) {
+73d938b09a4 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-08 18:07:13 +0800  170)       if (i + 1 < ssz) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  171)         FstBuilderNodeUnfinished* unf = taosArrayGet(node->stack, i + 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  172)         fstBuilderNodeUnfinishedAddOutputPrefix(unf, addPrefix);
+73d938b09a4 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-08 18:07:13 +0800  173)       }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  174)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  175)   }
+16f089c39a7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 15:24:55 +0800  176)   return i;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  177) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  178) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  179) FstState fstStateCreateFrom(FstSlice* slice, CompiledAddr addr) {
+93c102e2940 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 14:15:23 +0800  180)   FstState fs = {.state = EmptyFinal, .val = 0};
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  181)   if (addr == EMPTY_ADDRESS) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  182)     return fs;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  183)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  184) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  185)   uint8_t* data = fstSliceData(slice, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  186)   uint8_t  v = data[addr];
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  187)   uint8_t  t = (v & 0b11000000) >> 6;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  188)   if (t == 0b11) {
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  189)     fs.state = OneTransNext;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  190)   } else if (t == 0b10) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  191)     fs.state = OneTrans;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  192)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  193)     fs.state = AnyTrans;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  194)   }
+93c102e2940 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 14:15:23 +0800  195)   fs.val = v;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  196)   return fs;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  197) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  198) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  199) static FstState fstStateDict[] = {{.state = OneTransNext, .val = 0b11000000},
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  200)                                   {.state = OneTrans, .val = 0b10000000},
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  201)                                   {.state = AnyTrans, .val = 0b00000000},
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  202)                                   {.state = EmptyFinal, .val = 0b00000000}};
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  203) // debug
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  204) static const char* fstStateStr[] = {"ONE_TRANS_NEXT", "ONE_TRANS", "ANY_TRANS", "EMPTY_FINAL"};
+0aa47daf89c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 20:01:19 +0800  205) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  206) FstState fstStateCreate(State state) {
+0aa47daf89c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 20:01:19 +0800  207)   uint8_t idx = (uint8_t)state;
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  208)   return fstStateDict[idx];
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  209) }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  210) // compile
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  211) void fstStateCompileForOneTransNext(FstCountingWriter* w, CompiledAddr addr, uint8_t inp) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  212)   FstState s = fstStateCreate(OneTransNext);
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  213)   fstStateSetCommInput(&s, inp);
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  214) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  215)   bool    null = false;
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  216)   uint8_t v = fstStateCommInput(&s, &null);
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  217)   if (null) {
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  218)     // w->write_all(&[inp])
+7b62d02f95e source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:17:37 +0800  219)     fstCountingWriterWrite(w, &inp, 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  220)   }
+7b62d02f95e source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:17:37 +0800  221)   fstCountingWriterWrite(w, &(s.val), 1);
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  222)   // w->write_all(&[s.val])
+7b62d02f95e source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:17:37 +0800  223)   return;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  224) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  225) void fstStateCompileForOneTrans(FstCountingWriter* w, CompiledAddr addr, FstTransition* trn) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  226)   Output    out = trn->out;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  227)   uint8_t   outPackSize = (out == 0 ? 0 : fstCountingWriterPackUint(w, out));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  228)   uint8_t   transPackSize = fstPackDetla(w, addr, trn->addr);
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800  229)   PackSizes packSizes = 0;
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800  230) 
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800  231)   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800  232)   FST_SET_TRANSITION_PACK_SIZE(packSizes, transPackSize);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  233)   fstCountingWriterWrite(w, (char*)&packSizes, sizeof(packSizes));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  234) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  235)   FstState st = fstStateCreate(OneTrans);
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800  236) 
+d39f80185f7 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 20:42:19 +0800  237)   fstStateSetCommInput(&st, trn->inp);
+22938fcc5ed source/libs/index/src/index_fst.c (yihaoDeng         2022-02-23 17:51:07 +0800  238) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  239)   bool    null = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  240)   uint8_t inp = fstStateCommInput(&st, &null);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  241)   if (null == true) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  242)     fstCountingWriterWrite(w, (char*)&trn->inp, sizeof(trn->inp));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  243)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  244)   fstCountingWriterWrite(w, (char*)(&(st.val)), sizeof(st.val));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  245)   return;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  246) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  247) void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuilderNode* node) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  248)   size_t sz = taosArrayGetSize(node->trans);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  249)   assert(sz <= 256);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  250) 
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  251)   uint8_t tSize = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  252)   uint8_t oSize = packSize(node->finalOutput);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  253) 
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  254)   // finalOutput.is_zero()
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  255)   bool anyOuts = (node->finalOutput != 0);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  256)   for (size_t i = 0; i < sz; i++) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  257)     FstTransition* t = taosArrayGet(node->trans, i);
+92bef71ec7e source/libs/index/src/index_fst.c (yihaoDeng         2022-01-24 12:53:17 +0800  258)     tSize = TMAX(tSize, packDeltaSize(addr, t->addr));
+92bef71ec7e source/libs/index/src/index_fst.c (yihaoDeng         2022-01-24 12:53:17 +0800  259)     oSize = TMAX(oSize, packSize(t->out));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  260)     anyOuts = anyOuts || (t->out != 0);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  261)   }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  262) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  263)   PackSizes packSizes = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  264)   if (anyOuts) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  265)     FST_SET_OUTPUT_PACK_SIZE(packSizes, oSize);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  266)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  267)     FST_SET_OUTPUT_PACK_SIZE(packSizes, 0);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  268)   }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  269) 
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  270)   FST_SET_TRANSITION_PACK_SIZE(packSizes, tSize);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  271) 
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  272)   FstState st = fstStateCreate(AnyTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  273)   fstStateSetFinalState(&st, node->isFinal);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  274)   fstStateSetStateNtrans(&st, (uint8_t)sz);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  275) 
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  276)   if (anyOuts) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  277)     if (FST_BUILDER_NODE_IS_FINAL(node)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  278)       fstCountingWriterPackUintIn(w, node->finalOutput, oSize);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  279)     }
+d266c6f29f3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 21:58:33 +0800  280)     for (int32_t i = sz - 1; i >= 0; i--) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  281)       FstTransition* t = taosArrayGet(node->trans, i);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  282)       fstCountingWriterPackUintIn(w, t->out, oSize);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  283)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  284)   }
+d266c6f29f3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 21:58:33 +0800  285)   for (int32_t i = sz - 1; i >= 0; i--) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  286)     FstTransition* t = taosArrayGet(node->trans, i);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  287)     fstPackDeltaIn(w, addr, t->addr, tSize);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  288)   }
+d266c6f29f3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 21:58:33 +0800  289)   for (int32_t i = sz - 1; i >= 0; i--) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  290)     FstTransition* t = taosArrayGet(node->trans, i);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  291)     fstCountingWriterWrite(w, (char*)&t->inp, 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  292)     // fstPackDeltaIn(w, addr, t->addr, tSize);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  293)   }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  294)   if (sz > TRANS_INDEX_THRESHOLD) {
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  295)     // A value of 255 indicates that no transition exists for the byte
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  296)     // at that index. (Except when there are 256 transitions.) Namely,
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  297)     // any value greater than or equal to the number of transitions in
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  298)     // this node indicates an absent transition.
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  299)     uint8_t* index = (uint8_t*)taosMemoryMalloc(sizeof(uint8_t) * 256);
+984f3023537 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-09 20:08:40 +0800  300)     memset(index, 255, sizeof(uint8_t) * 256);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  301)     /// for (uint8_t i = 0; i < 256; i++) {
+984f3023537 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-09 20:08:40 +0800  302)     //  index[i] = 255;
+984f3023537 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-09 20:08:40 +0800  303)     ///}
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  304)     for (size_t i = 0; i < sz; i++) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  305)       FstTransition* t = taosArrayGet(node->trans, i);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  306)       index[t->inp] = i;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  307)       // fstPackDeltaIn(w, addr, t->addr, tSize);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  308)     }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  309)     fstCountingWriterWrite(w, (char*)index, 256);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  310)     taosMemoryFree(index);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  311)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  312)   fstCountingWriterWrite(w, (char*)&packSizes, 1);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  313)   bool null = false;
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  314)   fstStateStateNtrans(&st, &null);
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  315)   if (null == true) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  316)     // 256 can't be represented in a u8, so we abuse the fact that
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  317)     // the # of transitions can never be 1 here, since 1 is always
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  318)     // encoded in the state byte.
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  319)     uint8_t v = 1;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  320)     if (sz == 256) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  321)       fstCountingWriterWrite(w, (char*)&v, 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  322)     } else {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  323)       fstCountingWriterWrite(w, (char*)&sz, 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  324)     }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  325)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  326)   fstCountingWriterWrite(w, (char*)(&(st.val)), 1);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  327)   return;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  328) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  329) 
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  330) // set_comm_input
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  331) void fstStateSetCommInput(FstState* s, uint8_t inp) {
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  332)   assert(s->state == OneTransNext || s->state == OneTrans);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  333) 
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  334)   uint8_t val;
+9920b43be59 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-31 18:06:13 +0800  335)   COMMON_INDEX(inp, 0b111111, val);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  336)   s->val = (s->val & fstStateDict[s->state].val) | val;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  337) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  338) 
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  339) // comm_input
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  340) uint8_t fstStateCommInput(FstState* s, bool* null) {
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  341)   assert(s->state == OneTransNext || s->state == OneTrans);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  342)   uint8_t v = s->val & 0b00111111;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  343)   if (v == 0) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  344)     *null = true;
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  345)     return v;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  346)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  347)   // v = 0 indicate that common_input is None
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  348)   return v == 0 ? 0 : COMMON_INPUT(v);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  349) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  350) 
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  351) // input_len
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  352) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  353) uint64_t fstStateInputLen(FstState* s) {
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  354)   assert(s->state == OneTransNext || s->state == OneTrans);
+d674fcc8bab source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 20:03:20 +0800  355)   bool null = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  356)   fstStateCommInput(s, &null);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  357)   return null ? 1 : 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  358) }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  359) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  360) // end_addr
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  361) uint64_t fstStateEndAddrForOneTransNext(FstState* s, FstSlice* data) {
+4e9fba6dd31 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 14:37:32 +0800  362)   assert(s->state == OneTransNext);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  363)   return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  364) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  365) uint64_t fstStateEndAddrForOneTrans(FstState* s, FstSlice* data, PackSizes sizes) {
+4e9fba6dd31 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 14:37:32 +0800  366)   assert(s->state == OneTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  367)   return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s) - 1  // pack size
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  368)          - FST_GET_TRANSITION_PACK_SIZE(sizes) - FST_GET_OUTPUT_PACK_SIZE(sizes);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  369) }
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  370) uint64_t fstStateEndAddrForAnyTrans(FstState* state, uint64_t version, FstSlice* date, PackSizes sizes,
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  371)                                     uint64_t nTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  372)   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(sizes);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  373)   uint8_t finalOsize = !fstStateIsFinalState(state) ? 0 : oSizes;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  374)   return FST_SLICE_LEN(date) - 1 - fstStateNtransLen(state) - 1                     // pack size
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  375)          - fstStateTotalTransSize(state, version, sizes, nTrans) - nTrans * oSizes  // output values
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  376)          - finalOsize;                                                              // final output
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  377) }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  378) // input
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  379) uint8_t fstStateInput(FstState* s, FstNode* node) {
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  380)   assert(s->state == OneTransNext || s->state == OneTrans);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  381)   FstSlice* slice = &node->data;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  382)   bool      null = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  383)   uint8_t   inp = fstStateCommInput(s, &null);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  384)   uint8_t*  data = fstSliceData(slice, NULL);
+9920b43be59 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-31 18:06:13 +0800  385)   return null == false ? inp : data[node->start - 1];
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  386) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  387) uint8_t fstStateInputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  388)   assert(s->state == AnyTrans);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  389)   FstSlice* slice = &node->data;
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  390) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  391)   uint64_t at = node->start - fstStateNtransLen(s) - 1                             // pack size
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  392)                 - fstStateTransIndexSize(s, node->version, node->nTrans) - i - 1;  // the output size
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  393) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  394)   uint8_t* data = fstSliceData(slice, NULL);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  395)   return data[at];
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  396) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  397) 
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  398) // trans_addr
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  399) CompiledAddr fstStateTransAddr(FstState* s, FstNode* node) {
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  400)   assert(s->state == OneTransNext || s->state == OneTrans);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  401)   FstSlice* slice = &node->data;
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  402)   if (s->state == OneTransNext) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  403)     return (CompiledAddr)(node->end) - 1;
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  404)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  405)     PackSizes sizes = node->sizes;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  406)     uint8_t   tSizes = FST_GET_TRANSITION_PACK_SIZE(sizes);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  407)     uint64_t  i = node->start - fstStateInputLen(s) - 1  // PackSizes
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  408)                  - tSizes;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  409) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  410)     // refactor error logic
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  411)     uint8_t* data = fstSliceData(slice, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  412)     return unpackDelta(data + i, tSizes, node->end);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  413)   }
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  414) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  415) CompiledAddr fstStateTransAddrForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  416)   assert(s->state == AnyTrans);
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  417) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  418)   FstSlice* slice = &node->data;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  419)   uint8_t   tSizes = FST_GET_TRANSITION_PACK_SIZE(node->sizes);
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  420)   uint64_t  at = node->start - fstStateNtransLen(s) - 1 - fstStateTransIndexSize(s, node->version, node->nTrans) -
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  421)                 node->nTrans - (i * tSizes) - tSizes;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  422)   uint8_t* data = fstSliceData(slice, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  423)   return unpackDelta(data + at, tSizes, node->end);
+0aa47daf89c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 20:01:19 +0800  424) }
+0aa47daf89c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 20:01:19 +0800  425) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  426) // sizes
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  427) PackSizes fstStateSizes(FstState* s, FstSlice* slice) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  428)   assert(s->state == OneTrans || s->state == AnyTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  429)   uint64_t i;
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  430)   if (s->state == OneTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  431)     i = FST_SLICE_LEN(slice) - 1 - fstStateInputLen(s) - 1;
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  432)   } else {
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  433)     i = FST_SLICE_LEN(slice) - 1 - fstStateNtransLen(s) - 1;
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  434)   }
+169d9e17ed8 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 14:05:25 +0800  435) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  436)   uint8_t* data = fstSliceData(slice, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  437)   return (PackSizes)(*(data + i));
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  438) }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  439) // Output
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  440) Output fstStateOutput(FstState* s, FstNode* node) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  441)   assert(s->state == OneTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  442) 
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  443)   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(node->sizes);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  444)   if (oSizes == 0) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  445)     return 0;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  446)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  447)   FstSlice* slice = &node->data;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  448)   uint8_t   tSizes = FST_GET_TRANSITION_PACK_SIZE(node->sizes);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  449) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  450)   uint64_t i = node->start - fstStateInputLen(s) - 1 - tSizes - oSizes;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  451)   uint8_t* data = fstSliceData(slice, NULL);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  452)   return unpackUint64(data + i, oSizes);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  453) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  454) Output fstStateOutputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  455)   assert(s->state == AnyTrans);
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  456) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  457)   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(node->sizes);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  458)   if (oSizes == 0) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  459)     return 0;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  460)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  461)   FstSlice* slice = &node->data;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  462)   uint8_t*  data = fstSliceData(slice, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  463)   uint64_t  at = node->start - fstStateNtransLen(s) - 1  // pack size
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  464)                 - fstStateTotalTransSize(s, node->version, node->sizes, node->nTrans) - (i * oSizes) - oSizes;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  465) 
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  466)   return unpackUint64(data + at, oSizes);
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  467) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  468) 
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  469) // anyTrans specify function
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  470) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  471) void fstStateSetFinalState(FstState* s, bool yes) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  472)   assert(s->state == AnyTrans);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  473)   if (yes) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  474)     s->val |= 0b01000000;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  475)   }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  476)   return;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  477) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  478) bool fstStateIsFinalState(FstState* s) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  479)   assert(s->state == AnyTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  480)   return (s->val & 0b01000000) == 0b01000000;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  481) }
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  482) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  483) void fstStateSetStateNtrans(FstState* s, uint8_t n) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  484)   assert(s->state == AnyTrans);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  485)   if (n <= 0b00111111) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  486)     s->val = (s->val & 0b11000000) | n;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  487)   }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  488)   return;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  489) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  490) // state_ntrans
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  491) uint8_t fstStateStateNtrans(FstState* s, bool* null) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  492)   assert(s->state == AnyTrans);
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  493)   *null = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  494)   uint8_t n = s->val & 0b00111111;
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  495) 
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  496)   if (n == 0) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  497)     *null = true;  // None
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  498)   }
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  499)   return n;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  500) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  501) uint64_t fstStateTotalTransSize(FstState* s, uint64_t version, PackSizes sizes, uint64_t nTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  502)   assert(s->state == AnyTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  503)   uint64_t idxSize = fstStateTransIndexSize(s, version, nTrans);
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  504)   return nTrans + (nTrans * FST_GET_TRANSITION_PACK_SIZE(sizes)) + idxSize;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  505) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  506) uint64_t fstStateTransIndexSize(FstState* s, uint64_t version, uint64_t nTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  507)   assert(s->state == AnyTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  508)   return (version >= 2 && nTrans > TRANS_INDEX_THRESHOLD) ? 256 : 0;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  509) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  510) uint64_t fstStateNtransLen(FstState* s) {
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  511)   assert(s->state == AnyTrans);
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  512)   bool null = false;
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  513)   fstStateStateNtrans(s, &null);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  514)   return null == true ? 1 : 0;
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  515) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  516) uint64_t fstStateNtrans(FstState* s, FstSlice* slice) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  517)   bool    null = false;
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  518)   uint8_t n = fstStateStateNtrans(s, &null);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  519)   if (null != true) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  520)     return n;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  521)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  522)   int32_t  len;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  523)   uint8_t* data = fstSliceData(slice, &len);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  524)   n = data[len - 2];
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  525)   // n = data[slice->end - 1]; // data[data.len() - 2]
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  526)   return n == 1 ? 256 : n;  // // "1" is never a normal legal value here, because if there, // is only 1 transition,
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  527)                             // then it is encoded in the state byte
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  528) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  529) Output fstStateFinalOutput(FstState* s, uint64_t version, FstSlice* slice, PackSizes sizes, uint64_t nTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  530)   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(sizes);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  531)   if (oSizes == 0 || !fstStateIsFinalState(s)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  532)     return 0;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  533)   }
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  534) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  535)   uint64_t at = FST_SLICE_LEN(slice) - 1 - fstStateNtransLen(s) - 1  // pack size
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  536)                 - fstStateTotalTransSize(s, version, sizes, nTrans) - (nTrans * oSizes) - oSizes;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  537)   uint8_t* data = fstSliceData(slice, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  538)   return unpackUint64(data + at, (uint8_t)oSizes);
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  539) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  540) uint64_t fstStateFindInput(FstState* s, FstNode* node, uint8_t b, bool* null) {
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  541)   assert(s->state == AnyTrans);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  542)   FstSlice* slice = &node->data;
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  543)   if (node->version >= 2 && node->nTrans > TRANS_INDEX_THRESHOLD) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  544)     uint64_t at = node->start - fstStateNtransLen(s) - 1  // pack size
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  545)                   - fstStateTransIndexSize(s, node->version, node->nTrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  546)     int32_t  dlen = 0;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  547)     uint8_t* data = fstSliceData(slice, &dlen);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  548)     uint64_t i = data[at + b];
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  549)     // uint64_t i = slice->data[slice->start + at + b];
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  550)     if (i >= node->nTrans) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  551)       *null = true;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  552)     }
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  553)     return i;
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  554)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  555)     uint64_t start = node->start - fstStateNtransLen(s) - 1  // pack size
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  556)                      - node->nTrans;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  557)     uint64_t end = start + node->nTrans;
+73d938b09a4 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-08 18:07:13 +0800  558)     FstSlice t = fstSliceCopy(slice, start, end - 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  559)     int32_t  len = 0;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  560)     uint8_t* data = fstSliceData(&t, &len);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  561)     int      i = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  562)     for (; i < len; i++) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  563)       uint8_t v = data[i];
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  564)       if (v == b) {
+f8ca5dc15b2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 16:23:22 +0800  565)         fstSliceDestroy(&t);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  566)         return node->nTrans - i - 1;  // bug
+c5d53978743 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-24 18:41:00 +0800  567)       }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  568)     }
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  569)     if (i == len) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  570)       *null = true;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  571)     }
+f8ca5dc15b2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 16:23:22 +0800  572)     fstSliceDestroy(&t);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  573)   }
+23bef711fca source/libs/index/src/index_fst.c (Shuduo Sang       2022-03-15 21:35:04 +0800  574) 
+23bef711fca source/libs/index/src/index_fst.c (Shuduo Sang       2022-03-15 21:35:04 +0800  575)   return 0;
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  576) }
+169f6b3ad8c source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 23:53:45 +0800  577) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  578) // fst node function
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  579) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  580) FstNode* fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice* slice) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  581)   FstNode* n = (FstNode*)taosMemoryMalloc(sizeof(FstNode));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  582)   if (n == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  583)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  584)   }
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800  585) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  586)   FstState st = fstStateCreateFrom(slice, addr);
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  587) 
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  588)   if (st.state == EmptyFinal) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  589)     n->data = fstSliceCreate(NULL, 0);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  590)     n->version = version;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  591)     n->state = st;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  592)     n->start = EMPTY_ADDRESS;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  593)     n->end = EMPTY_ADDRESS;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  594)     n->isFinal = true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  595)     n->nTrans = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  596)     n->sizes = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  597)     n->finalOutput = 0;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  598)   } else if (st.state == OneTransNext) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  599)     n->data = fstSliceCopy(slice, 0, addr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  600)     n->version = version;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  601)     n->state = st;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  602)     n->start = addr;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  603)     n->end = fstStateEndAddrForOneTransNext(&st, &n->data);  //? s.end_addr(data);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  604)     n->isFinal = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  605)     n->sizes = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  606)     n->nTrans = 1;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  607)     n->finalOutput = 0;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  608)   } else if (st.state == OneTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  609)     FstSlice  data = fstSliceCopy(slice, 0, addr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  610)     PackSizes sz = fstStateSizes(&st, &data);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  611)     n->data = data;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  612)     n->version = version;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  613)     n->state = st;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  614)     n->start = addr;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  615)     n->end = fstStateEndAddrForOneTrans(&st, &data, sz);  // s.end_addr(data, sz);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  616)     n->isFinal = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  617)     n->nTrans = 1;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  618)     n->sizes = sz;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  619)     n->finalOutput = 0;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  620)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  621)     FstSlice data = fstSliceCopy(slice, 0, addr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  622)     uint64_t sz = fstStateSizes(&st, &data);       // s.sizes(data)
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  623)     uint32_t nTrans = fstStateNtrans(&st, &data);  // s.ntrans(data)
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  624)     n->data = data;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  625)     n->version = version;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  626)     n->state = st;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  627)     n->start = addr;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  628)     n->end = fstStateEndAddrForAnyTrans(&st, version, &data, sz, nTrans);  // s.end_addr(version, data, sz, ntrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  629)     n->isFinal = fstStateIsFinalState(&st);                                // s.is_final_state();
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  630)     n->nTrans = nTrans;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  631)     n->sizes = sz;
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  632)     n->finalOutput =
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  633)         fstStateFinalOutput(&st, version, &data, sz, nTrans);  // s.final_output(version, data, sz, ntrans);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  634)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  635)   return n;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  636) }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  637) 
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  638) // debug state transition
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  639) static const char* fstNodeState(FstNode* node) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  640)   FstState* st = &node->state;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  641)   return fstStateStr[st->state];
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  642) }
+55282bbfa2f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 19:35:31 +0800  643) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  644) void fstNodeDestroy(FstNode* node) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  645)   fstSliceDestroy(&node->data);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  646)   taosMemoryFree(node);
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  647) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  648) FstTransitions* fstNodeTransitions(FstNode* node) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  649)   FstTransitions* t = taosMemoryMalloc(sizeof(FstTransitions));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  650)   if (NULL == t) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  651)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  652)   }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  653)   FstRange range = {.start = 0, .end = FST_NODE_LEN(node)};
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  654)   t->range = range;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  655)   t->node = node;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  656)   return t;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  657) }
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800  658) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  659) // Returns the transition at index `i`.
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  660) bool fstNodeGetTransitionAt(FstNode* node, uint64_t i, FstTransition* trn) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  661)   bool      s = true;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  662)   FstState* st = &node->state;
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  663)   if (st->state == OneTransNext) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  664)     trn->inp = fstStateInput(st, node);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  665)     trn->out = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  666)     trn->addr = fstStateTransAddr(st, node);
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  667)   } else if (st->state == OneTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  668)     trn->inp = fstStateInput(st, node);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  669)     trn->out = fstStateOutput(st, node);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  670)     trn->addr = fstStateTransAddr(st, node);
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  671)   } else if (st->state == AnyTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  672)     trn->inp = fstStateInputForAnyTrans(st, node, i);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  673)     trn->out = fstStateOutputForAnyTrans(st, node, i);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  674)     trn->addr = fstStateTransAddrForAnyTrans(st, node, i);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  675)   } else {
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  676)     s = false;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  677)   }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  678)   return s;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  679) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  680) 
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  681) // Returns the transition address of the `i`th transition
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  682) bool fstNodeGetTransitionAddrAt(FstNode* node, uint64_t i, CompiledAddr* res) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  683)   bool      s = true;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  684)   FstState* st = &node->state;
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  685)   if (st->state == OneTransNext) {
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  686)     assert(i == 0);
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  687)     fstStateTransAddr(st, node);
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  688)   } else if (st->state == OneTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  689)     assert(i == 0);
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  690)     fstStateTransAddr(st, node);
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  691)   } else if (st->state == AnyTrans) {
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  692)     fstStateTransAddrForAnyTrans(st, node, i);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  693)   } else if (FST_STATE_EMPTY_FINAL(node)) {
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  694)     s = false;
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  695)   } else {
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  696)     assert(0);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  697)   }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  698)   return s;
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800  699) }
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800  700) 
+dc9163a29a3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 12:13:44 +0800  701) //  Finds the `i`th transition corresponding to the given input byte.
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  702) //  If no transition for this byte exists, then `false` is returned.
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  703) bool fstNodeFindInput(FstNode* node, uint8_t b, uint64_t* res) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  704)   bool      s = true;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  705)   FstState* st = &node->state;
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  706)   if (st->state == OneTransNext) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  707)     if (fstStateInput(st, node) == b) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  708)       *res = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  709)     } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  710)       s = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  711)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  712)   } else if (st->state == OneTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  713)     if (fstStateInput(st, node) == b) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  714)       *res = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  715)     } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  716)       s = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  717)     }
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  718)   } else if (st->state == AnyTrans) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  719)     bool     null = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  720)     uint64_t out = fstStateFindInput(st, node, b, &null);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  721)     if (null == false) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  722)       *res = out;
+2354cd9ec0e source/libs/index/src/index_fst.c (yihaoDeng         2022-03-28 22:21:51 +0800  723)     } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  724)       s = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  725)     }
+21592f572e5 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-25 17:39:53 +0800  726)   }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  727)   return s;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  728) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  729) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  730) bool fstNodeCompile(FstNode* node, void* w, CompiledAddr lastAddr, CompiledAddr addr, FstBuilderNode* builderNode) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  731)   size_t sz = taosArrayGetSize(builderNode->trans);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  732)   assert(sz < 256);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  733)   if (sz == 0 && builderNode->isFinal && builderNode->finalOutput == 0) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  734)     return true;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  735)   } else if (sz != 1 || builderNode->isFinal) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  736)     fstStateCompileForAnyTrans(w, addr, builderNode);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  737)     // AnyTrans->Compile(w, addr, node);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  738)   } else {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  739)     FstTransition* tran = taosArrayGet(builderNode->trans, 0);
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  740)     if (tran->addr == lastAddr && tran->out == 0) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  741)       fstStateCompileForOneTransNext(w, addr, tran->inp);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  742)       // OneTransNext::compile(w, lastAddr, tran->inp);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  743)       return true;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  744)     } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  745)       fstStateCompileForOneTrans(w, addr, tran);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  746)       // OneTrans::Compile(w, lastAddr, *tran);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  747)       return true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  748)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  749)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  750)   return true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  751) }
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  752) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  753) bool fstBuilderNodeCompileTo(FstBuilderNode* b, FstCountingWriter* wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
+32ac2d02c87 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 10:54:49 +0800  754)   return fstNodeCompile(NULL, wrt, lastAddr, startAddr, b);
+32ac2d02c87 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 10:54:49 +0800  755) }
+32ac2d02c87 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 10:54:49 +0800  756) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  757) FstBuilder* fstBuilderCreate(void* w, FstType ty) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  758)   FstBuilder* b = taosMemoryMalloc(sizeof(FstBuilder));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  759)   if (NULL == b) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  760)     return b;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  761)   }
+32ac2d02c87 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 10:54:49 +0800  762) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  763)   b->wrt = fstCountingWriterCreate(w);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  764)   b->unfinished = fstUnFinishedNodesCreate();
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  765)   b->registry = fstRegistryCreate(10000, 2);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  766)   b->last = fstSliceCreate(NULL, 0);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  767)   b->lastAddr = NONE_ADDRESS;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  768)   b->len = 0;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  769) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  770)   char  buf64[8] = {0};
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  771)   void* pBuf64 = buf64;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  772)   taosEncodeFixedU64(&pBuf64, VERSION);
+db2bf567c25 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 18:43:48 +0800  773)   fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  774) 
+db2bf567c25 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 18:43:48 +0800  775)   pBuf64 = buf64;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  776)   memset(buf64, 0, sizeof(buf64));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  777)   taosEncodeFixedU64(&pBuf64, ty);
+db2bf567c25 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 18:43:48 +0800  778)   fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+db2bf567c25 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 18:43:48 +0800  779) 
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  780)   return b;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  781) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  782) void fstBuilderDestroy(FstBuilder* b) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  783)   if (b == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  784)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  785)   }
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  786) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  787)   fstCountingWriterDestroy(b->wrt);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  788)   fstUnFinishedNodesDestroy(b->unfinished);
+260588b6922 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 23:07:07 +0800  789)   fstRegistryDestroy(b->registry);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  790)   fstSliceDestroy(&b->last);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  791)   taosMemoryFree(b);
+260588b6922 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 23:07:07 +0800  792) }
+ccca561d11f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 09:52:29 +0800  793) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  794) bool fstBuilderInsert(FstBuilder* b, FstSlice bs, Output in) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  795)   OrderType t = fstBuilderCheckLastKey(b, bs, true);
+ccca561d11f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 09:52:29 +0800  796)   if (t == Ordered) {
+ccca561d11f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 09:52:29 +0800  797)     // add log info
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  798)     fstBuilderInsertOutput(b, bs, in);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  799)     return true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  800)   }
+ebcb9be39fc source/libs/index/src/index_fst.c (yihaoDeng         2021-12-22 12:20:59 +0800  801)   indexInfo("fst write key must be ordered");
+ccca561d11f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 09:52:29 +0800  802)   return false;
+ccca561d11f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 09:52:29 +0800  803) }
+ccca561d11f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-23 09:52:29 +0800  804) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  805) void fstBuilderInsertOutput(FstBuilder* b, FstSlice bs, Output in) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  806)   FstSlice* s = &bs;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  807)   if (fstSliceIsEmpty(s)) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  808)     b->len = 1;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  809)     fstUnFinishedNodesSetRootOutput(b->unfinished, in);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  810)     return;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  811)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  812)   // if (in != 0) { //if let Some(in) = in
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  813)   //   prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  814)   //} else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  815)   //   prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  816)   //   out = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  817)   //}
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  818)   Output   out;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  819)   uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  820) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  821)   if (prefixLen == FST_SLICE_LEN(s)) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  822)     assert(out == 0);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  823)     return;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  824)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  825) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  826)   b->len += 1;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  827)   fstBuilderCompileFrom(b, prefixLen);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  828) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  829)   FstSlice sub = fstSliceCopy(s, prefixLen, s->end);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  830)   fstUnFinishedNodesAddSuffix(b->unfinished, sub, out);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  831)   fstSliceDestroy(&sub);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  832)   return;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  833) }
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  834) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  835) OrderType fstBuilderCheckLastKey(FstBuilder* b, FstSlice bs, bool ckDup) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  836)   FstSlice* input = &bs;
+716c0045f8a source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 17:29:59 +0800  837)   if (fstSliceIsEmpty(&b->last)) {
+f8ca5dc15b2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 16:23:22 +0800  838)     fstSliceDestroy(&b->last);
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  839)     // deep copy or not
+f8ca5dc15b2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 16:23:22 +0800  840)     b->last = fstSliceDeepCopy(&bs, input->start, input->end);
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  841)   } else {
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  842)     int comp = fstSliceCompare(&b->last, &bs);
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  843)     if (comp == 0 && ckDup) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  844)       return DuplicateKey;
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  845)     } else if (comp == 1) {
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  846)       return OutOfOrdered;
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  847)     }
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  848)     // deep copy or not
+d8d6c04fd50 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-09 16:18:35 +0800  849)     fstSliceDestroy(&b->last);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  850)     b->last = fstSliceDeepCopy(&bs, input->start, input->end);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  851)   }
+e769d0a0023 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 18:40:44 +0800  852)   return Ordered;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  853) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  854) void fstBuilderCompileFrom(FstBuilder* b, uint64_t istate) {
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  855)   CompiledAddr addr = NONE_ADDRESS;
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  856)   while (istate + 1 < FST_UNFINISHED_NODES_LEN(b->unfinished)) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  857)     FstBuilderNode* bn = NULL;
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  858)     if (addr == NONE_ADDRESS) {
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  859)       bn = fstUnFinishedNodesPopEmpty(b->unfinished);
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  860)     } else {
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  861)       bn = fstUnFinishedNodesPopFreeze(b->unfinished, addr);
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  862)     }
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  863)     addr = fstBuilderCompile(b, bn);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  864) 
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  865)     fstBuilderNodeDestroy(bn);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  866)     assert(addr != NONE_ADDRESS);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  867)     // fstBuilderNodeDestroy(n);
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  868)   }
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  869)   fstUnFinishedNodesTopLastFreeze(b->unfinished, addr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  870)   return;
+5441bab5dc1 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 19:27:41 +0800  871) }
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  872) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  873) CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  874)   if (FST_BUILDER_NODE_IS_FINAL(bn) && FST_BUILDER_NODE_TRANS_ISEMPTY(bn) && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(bn)) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  875)     return EMPTY_ADDRESS;
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  876)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  877)   FstRegistryEntry* entry = fstRegistryGetEntry(b->registry, bn);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  878)   if (entry->state == FOUND) {
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  879)     CompiledAddr ret = entry->addr;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  880)     fstRegistryEntryDestroy(entry);
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  881)     return ret;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  882)   }
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  883)   CompiledAddr startAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt));
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  884) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  885)   fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  886)   b->lastAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt) - 1);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  887)   if (entry->state == NOTFOUND) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  888)     FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  889)   }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  890)   fstRegistryEntryDestroy(entry);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  891) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  892)   return b->lastAddr;
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  893) }
+0cd12fd353b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 12:05:03 +0800  894) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  895) void* fstBuilderInsertInner(FstBuilder* b) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  896)   fstBuilderCompileFrom(b, 0);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  897)   FstBuilderNode* rootNode = fstUnFinishedNodesPopRoot(b->unfinished);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  898)   CompiledAddr    rootAddr = fstBuilderCompile(b, rootNode);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800  899)   fstBuilderNodeDestroy(rootNode);
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  900) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  901)   char buf64[8] = {0};
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  902) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  903)   void* pBuf64 = buf64;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  904)   taosEncodeFixedU64(&pBuf64, b->len);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  905)   fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  906) 
+d0844e5dda0 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-04 21:40:09 +0800  907)   pBuf64 = buf64;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  908)   taosEncodeFixedU64(&pBuf64, rootAddr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  909)   fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  910) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  911)   char     buf32[4] = {0};
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  912)   void*    pBuf32 = buf32;
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  913)   uint32_t sum = fstCountingWriterMaskedCheckSum(b->wrt);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  914)   taosEncodeFixedU32(&pBuf32, sum);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  915)   fstCountingWriterWrite(b->wrt, buf32, sizeof(buf32));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  916) 
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  917)   fstCountingWriterFlush(b->wrt);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  918)   // fstCountingWriterDestroy(b->wrt);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  919)   // b->wrt = NULL;
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  920)   return b->wrt;
+e10b4bc05e0 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 00:16:42 +0800  921) }
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800  922) void fstBuilderFinish(FstBuilder* b) { fstBuilderInsertInner(b); }
+06fe44cabdb source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 17:43:03 +0800  923) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  924) FstSlice fstNodeAsSlice(FstNode* node) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  925)   FstSlice* slice = &node->data;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  926)   FstSlice  s = fstSliceCopy(slice, slice->end, FST_SLICE_LEN(slice) - 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  927)   return s;
+60e339b31df source/libs/index/src/index_fst.c (yihaoDeng         2021-11-20 13:13:21 +0800  928) }
+980ace09b54 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-15 11:36:51 +0800  929) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  930) FstLastTransition* fstLastTransitionCreate(uint8_t inp, Output out) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  931)   FstLastTransition* trn = taosMemoryMalloc(sizeof(FstLastTransition));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  932)   if (trn == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  933)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  934)   }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  935) 
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  936)   trn->inp = inp;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  937)   trn->out = out;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  938)   return trn;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  939) }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  940) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800  941) void fstLastTransitionDestroy(FstLastTransition* trn) { taosMemoryFree(trn); }
+22938fcc5ed source/libs/index/src/index_fst.c (yihaoDeng         2022-02-23 17:51:07 +0800  942) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  943) void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, CompiledAddr addr) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  944)   FstLastTransition* trn = unNode->last;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  945)   if (trn == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  946)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  947)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  948)   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  949)   taosArrayPush(unNode->node->trans, &t);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  950)   fstLastTransitionDestroy(trn);
+7e1f68f86fc source/libs/index/src/index_fst.c (yihaoDeng         2021-12-06 14:32:54 +0800  951)   unNode->last = NULL;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  952)   return;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  953) }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  954) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  955) void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished* unNode, Output out) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  956)   if (FST_BUILDER_NODE_IS_FINAL(unNode->node)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  957)     unNode->node->finalOutput += out;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  958)   }
+06fe44cabdb source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 17:43:03 +0800  959)   size_t sz = taosArrayGetSize(unNode->node->trans);
+06fe44cabdb source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 17:43:03 +0800  960)   for (size_t i = 0; i < sz; i++) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  961)     FstTransition* trn = taosArrayGet(unNode->node->trans, i);
+06fe44cabdb source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 17:43:03 +0800  962)     trn->out += out;
+06fe44cabdb source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 17:43:03 +0800  963)   }
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  964)   if (unNode->last) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  965)     unNode->last->out += out;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  966)   }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  967)   return;
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  968) }
+0bbe42df45d source/libs/index/src/index_fst.c (yihaoDeng         2021-11-22 15:35:12 +0800  969) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  970) Fst* fstCreate(FstSlice* slice) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  971)   int32_t slen;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800  972)   char*   buf = fstSliceData(slice, &slen);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  973)   if (slen < 36) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  974)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  975)   }
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800  976)   uint64_t len = slen;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  977)   uint64_t skip = 0;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  978) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  979)   uint64_t version;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  980)   taosDecodeFixedU64(buf, &version);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  981)   skip += sizeof(version);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  982)   if (version == 0 || version > VERSION) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  983)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800  984)   }
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  985) 
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  986)   uint64_t type;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  987)   taosDecodeFixedU64(buf + skip, &type);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  988)   skip += sizeof(type);
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  989) 
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  990)   uint32_t checkSum = 0;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  991)   len -= sizeof(checkSum);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  992)   taosDecodeFixedU32(buf + len, &checkSum);
+15c0275333c source/libs/index/src/index_fst.c (yihaoDeng         2022-01-08 23:58:51 +0800  993)   if (taosCheckChecksum(buf, len, checkSum)) {
+f9d83c044dd source/libs/index/src/index_fst.c (yihaoDeng         2022-01-10 23:42:58 +0800  994)     indexError("index file is corrupted");
+15c0275333c source/libs/index/src/index_fst.c (yihaoDeng         2022-01-08 23:58:51 +0800  995)     // verify fst
+15c0275333c source/libs/index/src/index_fst.c (yihaoDeng         2022-01-08 23:58:51 +0800  996)     return NULL;
+15c0275333c source/libs/index/src/index_fst.c (yihaoDeng         2022-01-08 23:58:51 +0800  997)   }
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800  998)   CompiledAddr rootAddr;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800  999)   len -= sizeof(rootAddr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1000)   taosDecodeFixedU64(buf + len, &rootAddr);
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1001) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1002)   uint64_t fstLen;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1003)   len -= sizeof(fstLen);
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1004)   taosDecodeFixedU64(buf + len, &fstLen);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1005)   // TODO(validate root addr)
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1006)   Fst* fst = (Fst*)taosMemoryCalloc(1, sizeof(Fst));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1007)   if (fst == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1008)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1009)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1010) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1011)   fst->meta = (FstMeta*)taosMemoryMalloc(sizeof(FstMeta));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1012)   if (NULL == fst->meta) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1013)     goto FST_CREAT_FAILED;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1014)   }
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1015) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1016)   fst->meta->version = version;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1017)   fst->meta->rootAddr = rootAddr;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1018)   fst->meta->ty = type;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1019)   fst->meta->len = fstLen;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1020)   fst->meta->checkSum = checkSum;
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1021) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1022)   FstSlice* s = taosMemoryCalloc(1, sizeof(FstSlice));
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1023)   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1024)   fst->data = s;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1025) 
+79057240bd6 source/libs/index/src/index_fst.c (afwerar           2022-03-20 00:47:45 +0800 1026)   taosThreadMutexInit(&fst->mtx, NULL);
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1027)   return fst;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1028) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1029) FST_CREAT_FAILED:
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1030)   taosMemoryFree(fst->meta);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1031)   taosMemoryFree(fst);
+23bef711fca source/libs/index/src/index_fst.c (Shuduo Sang       2022-03-15 21:35:04 +0800 1032) 
+23bef711fca source/libs/index/src/index_fst.c (Shuduo Sang       2022-03-15 21:35:04 +0800 1033)   return NULL;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1034) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1035) void fstDestroy(Fst* fst) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1036)   if (fst) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1037)     taosMemoryFree(fst->meta);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1038)     fstSliceDestroy(fst->data);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1039)     taosMemoryFree(fst->data);
+79057240bd6 source/libs/index/src/index_fst.c (afwerar           2022-03-20 00:47:45 +0800 1040)     taosThreadMutexDestroy(&fst->mtx);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1041)   }
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1042)   taosMemoryFree(fst);
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1043) }
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1044) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1045) bool fstGet(Fst* fst, FstSlice* b, Output* out) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1046)   // dec lock range
+79057240bd6 source/libs/index/src/index_fst.c (afwerar           2022-03-20 00:47:45 +0800 1047)   // taosThreadMutexLock(&fst->mtx);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1048)   FstNode* root = fstGetRoot(fst);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1049)   Output   tOut = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1050)   int32_t  len;
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1051) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1052)   uint8_t* data = fstSliceData(b, &len);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1053) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1054)   SArray* nodes = (SArray*)taosArrayInit(len, sizeof(FstNode*));
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1055)   taosArrayPush(nodes, &root);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1056)   for (uint32_t i = 0; i < len; i++) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1057)     uint8_t inp = data[i];
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1058)     Output  res = 0;
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1059)     if (false == fstNodeFindInput(root, inp, &res)) {
+79057240bd6 source/libs/index/src/index_fst.c (afwerar           2022-03-20 00:47:45 +0800 1060)       // taosThreadMutexUnlock(&fst->mtx);
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1061)       return false;
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1062)     }
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1063) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1064)     FstTransition trn;
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1065)     fstNodeGetTransitionAt(root, res, &trn);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1066)     tOut += trn.out;
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1067)     root = fstGetNode(fst, trn.addr);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1068)     taosArrayPush(nodes, &root);
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1069)   }
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1070)   if (!FST_NODE_IS_FINAL(root)) {
+79057240bd6 source/libs/index/src/index_fst.c (afwerar           2022-03-20 00:47:45 +0800 1071)     // taosThreadMutexUnlock(&fst->mtx);
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1072)     return false;
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1073)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1074)     tOut = tOut + FST_NODE_FINAL_OUTPUT(root);
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1075)   }
+f8ca5dc15b2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 16:23:22 +0800 1076) 
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1077)   for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1078)     FstNode** node = (FstNode**)taosArrayGet(nodes, i);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1079)     fstNodeDestroy(*node);
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1080)   }
+29278327133 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-10 15:30:39 +0800 1081)   taosArrayDestroy(nodes);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1082)   // fst->root = NULL;
+79057240bd6 source/libs/index/src/index_fst.c (afwerar           2022-03-20 00:47:45 +0800 1083)   // taosThreadMutexUnlock(&fst->mtx);
+2082e86476b source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 14:01:25 +0800 1084)   *out = tOut;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1085)   return true;
+f07045c1d8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-11 17:28:58 +0800 1086) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1087) FstStreamBuilder* fstSearch(Fst* fst, AutomationCtx* ctx) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1088)   // refactor later
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1089)   return fstStreamBuilderCreate(fst, ctx);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1090) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1091) StreamWithState* streamBuilderIntoStream(FstStreamBuilder* sb) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1092)   if (sb == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1093)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1094)   }
+26a98602263 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-15 23:24:03 +0800 1095)   return streamWithStateCreate(sb->fst, sb->aut, sb->min, sb->max);
+26a98602263 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-15 23:24:03 +0800 1096) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1097) FstStreamWithStateBuilder* fstSearchWithState(Fst* fst, AutomationCtx* ctx) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1098)   // refactor later
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1099)   return fstStreamBuilderCreate(fst, ctx);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1100) }
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1101) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1102) FstNode* fstGetRoot(Fst* fst) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1103)   CompiledAddr rAddr = fstGetRootAddr(fst);
+2eb0053e5ad source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 22:19:56 +0800 1104)   return fstGetNode(fst, rAddr);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1105) }
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1106) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1107) FstNode* fstGetNode(Fst* fst, CompiledAddr addr) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1108)   // refactor later
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1109)   return fstNodeCreate(fst->meta->version, addr, fst->data);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1110) }
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1111) FstType      fstGetType(Fst* fst) { return fst->meta->ty; }
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1112) CompiledAddr fstGetRootAddr(Fst* fst) { return fst->meta->rootAddr; }
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1113) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1114) Output fstEmptyFinalOutput(Fst* fst, bool* null) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1115)   Output   res = 0;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1116)   FstNode* node = fstGetRoot(fst);
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1117)   if (FST_NODE_IS_FINAL(node)) {
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1118)     *null = false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1119)     res = FST_NODE_FINAL_OUTPUT(node);
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1120)   } else {
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1121)     *null = true;
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1122)   }
+40fc4b6cf38 source/libs/index/src/index_fst.c (yihaoDeng         2022-01-02 17:50:40 +0800 1123)   fstNodeDestroy(node);
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1124)   return res;
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1125) }
+500130daf70 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 18:34:24 +0800 1126) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1127) bool fstVerify(Fst* fst) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1128)   uint32_t len, checkSum = fst->meta->checkSum;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1129)   uint8_t* data = fstSliceData(fst->data, &len);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1130)   TSCKSUM  initSum = 0;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1131)   if (!taosCheckChecksumWhole(data, len)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1132)     return false;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1133)   }
+a09dcbdd85f source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 10:59:51 +0800 1134)   return true;
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1135) }
+c0ca718eed2 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-26 11:29:43 +0800 1136) 
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1137) // data bound function
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1138) FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice* data) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1139)   FstBoundWithData* b = taosMemoryCalloc(1, sizeof(FstBoundWithData));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1140)   if (b == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1141)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1142)   }
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1143) 
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1144)   if (data != NULL) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1145)     b->data = fstSliceCopy(data, data->start, data->end);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1146)   } else {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1147)     b->data = fstSliceCreate(NULL, 0);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1148)   }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1149)   b->type = type;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1150) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1151)   return b;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1152) }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1153) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1154) bool fstBoundWithDataExceededBy(FstBoundWithData* bound, FstSlice* slice) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1155)   int comp = fstSliceCompare(slice, &bound->data);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1156)   if (bound->type == Included) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1157)     return comp > 0 ? true : false;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1158)   } else if (bound->type == Excluded) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1159)     return comp >= 0 ? true : false;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1160)   } else {
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1161)     return false;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1162)   }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1163) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1164) bool fstBoundWithDataIsEmpty(FstBoundWithData* bound) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1165)   if (bound->type == Unbounded) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1166)     return true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1167)   } else {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1168)     return fstSliceIsEmpty(&bound->data);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1169)   }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1170) }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1171) 
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1172) bool fstBoundWithDataIsIncluded(FstBoundWithData* bound) { return bound->type == Excluded ? false : true; }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1173) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1174) void fstBoundDestroy(FstBoundWithData* bound) { taosMemoryFree(bound); }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1175) 
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1176) StreamWithState* streamWithStateCreate(Fst* fst, AutomationCtx* automation, FstBoundWithData* min,
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1177)                                        FstBoundWithData* max) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1178)   StreamWithState* sws = taosMemoryCalloc(1, sizeof(StreamWithState));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1179)   if (sws == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1180)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1181)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1182) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1183)   sws->fst = fst;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1184)   sws->aut = automation;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1185)   sws->inp = (SArray*)taosArrayInit(256, sizeof(uint8_t));
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1186) 
+0c5f2d1da95 source/libs/index/src/index_fst.c (yihaoDeng         2022-03-28 21:41:41 +0800 1187)   sws->emptyOutput.null = true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1188)   sws->emptyOutput.out = 0;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1189) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1190)   sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1191)   sws->endAt = max;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1192)   streamWithStateSeekMin(sws, min);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1193) 
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1194)   return sws;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1195) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1196) void streamWithStateDestroy(StreamWithState* sws) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1197)   if (sws == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1198)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1199)   }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1200) 
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1201)   taosArrayDestroy(sws->inp);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1202)   taosArrayDestroyEx(sws->stack, streamStateDestroy);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1203) 
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1204)   taosMemoryFree(sws);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1205) }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1206) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1207) bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1208)   AutomationCtx* aut = sws->aut;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1209)   if (fstBoundWithDataIsEmpty(min)) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1210)     if (fstBoundWithDataIsIncluded(min)) {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1211)       sws->emptyOutput.out = fstEmptyFinalOutput(sws->fst, &(sws->emptyOutput.null));
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1212)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1213)     StreamState s = {.node = fstGetRoot(sws->fst),
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1214)                      .trans = 0,
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1215)                      .out = {.null = false, .out = 0},
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1216)                      .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1217)     taosArrayPush(sws->stack, &s);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1218)     return true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1219)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1220)   FstSlice* key = NULL;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1221)   bool      inclusize = false;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1222) 
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1223)   if (min->type == Included) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1224)     key = &min->data;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1225)     inclusize = true;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1226)   } else if (min->type == Excluded) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1227)     key = &min->data;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1228)   } else {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1229)     return false;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1230)   }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1231) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1232)   FstNode* node = fstGetRoot(sws->fst);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1233)   Output   out = 0;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1234)   // void*   autState = sws->aut->start();
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1235)   void* autState = automFuncs[aut->type].start(aut);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1236) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1237)   int32_t  len;
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1238)   uint8_t* data = fstSliceData(key, &len);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1239)   for (uint32_t i = 0; i < len; i++) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1240)     uint8_t  b = data[i];
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1241)     uint64_t res = 0;
+2354cd9ec0e source/libs/index/src/index_fst.c (yihaoDeng         2022-03-28 22:21:51 +0800 1242)     bool     find = fstNodeFindInput(node, b, &res);
+2354cd9ec0e source/libs/index/src/index_fst.c (yihaoDeng         2022-03-28 22:21:51 +0800 1243)     if (find == true) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1244)       FstTransition trn;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1245)       fstNodeGetTransitionAt(node, res, &trn);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1246)       void* preState = autState;
+cd653e56abd source/libs/index/src/index_fst.c (yihaoDeng         2021-12-11 15:42:09 +0800 1247)       // autState = sws->aut->accept(preState, b);
+cd653e56abd source/libs/index/src/index_fst.c (yihaoDeng         2021-12-11 15:42:09 +0800 1248)       autState = automFuncs[aut->type].accept(aut, preState, b);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1249)       taosArrayPush(sws->inp, &b);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1250)       StreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1251)       taosArrayPush(sws->stack, &s);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1252)       out += trn.out;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1253)       node = fstGetNode(sws->fst, trn.addr);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1254)     } else {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1255)       // This is a little tricky. We're in this case if the
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1256)       // given bound is not a prefix of any key in the FST.
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1257)       // Since this is a minimum bound, we need to find the
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1258)       // first transition in this node that proceeds the current
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1259)       // input byte.
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1260)       FstTransitions* trans = fstNodeTransitions(node);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1261)       uint64_t        i = 0;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1262)       for (i = trans->range.start; i < trans->range.end; i++) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1263)         FstTransition trn;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1264)         if (fstNodeGetTransitionAt(node, i, &trn) && trn.inp > b) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1265)           break;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1266)         }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1267)       }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1268) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1269)       StreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1270)       taosArrayPush(sws->stack, &s);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1271)       return true;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1272)     }
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1273)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1274)   uint32_t sz = taosArrayGetSize(sws->stack);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1275)   if (sz != 0) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1276)     StreamState* s = taosArrayGet(sws->stack, sz - 1);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1277)     if (inclusize) {
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1278)       s->trans -= 1;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1279)       taosArrayPop(sws->inp);
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1280)     } else {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1281)       FstNode*      n = s->node;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1282)       uint64_t      trans = s->trans;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1283)       FstTransition trn;
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1284)       fstNodeGetTransitionAt(n, trans - 1, &trn);
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1285)       StreamState s = {
+236b8bc3c8d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-30 17:03:00 +0800 1286)           .node = fstGetNode(sws->fst, trn.addr), .trans = 0, .out = {.null = false, .out = out}, .autState = autState};
+23c9ea680b3 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-29 23:37:21 +0800 1287)       taosArrayPush(sws->stack, &s);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1288)       return true;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1289)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1290)     return false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1291)   }
+23bef711fca source/libs/index/src/index_fst.c (Shuduo Sang       2022-03-15 21:35:04 +0800 1292) 
+23bef711fca source/libs/index/src/index_fst.c (Shuduo Sang       2022-03-15 21:35:04 +0800 1293)   return false;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1294) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1295) StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1296)   AutomationCtx* aut = sws->aut;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1297)   FstOutput      output = sws->emptyOutput;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1298)   if (output.null == false) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1299)     FstSlice emptySlice = fstSliceCreate(NULL, 0);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1300)     if (fstBoundWithDataExceededBy(sws->endAt, &emptySlice)) {
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1301)       taosArrayDestroyEx(sws->stack, streamStateDestroy);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1302)       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1303)       return NULL;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1304)     }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1305)     void* start = automFuncs[aut->type].start(aut);
+cd653e56abd source/libs/index/src/index_fst.c (yihaoDeng         2021-12-11 15:42:09 +0800 1306)     if (automFuncs[aut->type].isMatch(aut, start)) {
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1307)       FstSlice s = fstSliceCreate(NULL, 0);
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1308)       return swsResultCreate(&s, output, callback == NULL ? NULL : callback(start));
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1309)     }
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1310)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1311)   SArray* nodes = taosArrayInit(8, sizeof(FstNode*));
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1312)   while (taosArrayGetSize(sws->stack) > 0) {
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1313)     StreamState* p = (StreamState*)taosArrayPop(sws->stack);
+f0110af30ec source/libs/index/src/index_fst.c (yihaoDeng         2021-12-16 22:04:47 +0800 1314)     if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1315)       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1316)         taosArrayPop(sws->inp);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1317)       }
+6a4199d3ede source/libs/index/src/index_fst.c (yihaoDeng         2022-03-29 15:01:05 +0800 1318)       streamStateDestroy(p);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1319)       continue;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1320)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1321)     FstTransition trn;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1322)     fstNodeGetTransitionAt(p->node, p->trans, &trn);
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1323) 
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1324)     Output out = p->out.out + trn.out;
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1325)     void*  nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1326)     void*  tState = (callback == NULL) ? NULL : callback(nextState);
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1327)     bool   isMatch = automFuncs[aut->type].isMatch(aut, nextState);
+f45119ea5e2 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-26 15:09:21 +0800 1328) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1329)     FstNode* nextNode = fstGetNode(sws->fst, trn.addr);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1330)     taosArrayPush(nodes, &nextNode);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1331)     taosArrayPush(sws->inp, &(trn.inp));
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1332) 
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1333)     if (FST_NODE_IS_FINAL(nextNode)) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1334)       // void *eofState = sws->aut->acceptEof(nextState);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1335)       void* eofState = automFuncs[aut->type].acceptEof(aut, nextState);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1336)       if (eofState != NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1337)         isMatch = automFuncs[aut->type].isMatch(aut, eofState);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1338)       }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1339)     }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1340)     StreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1341)     taosArrayPush(sws->stack, &s1);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1342) 
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1343)     StreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1344)     taosArrayPush(sws->stack, &s2);
+6f3c49ee73d source/libs/index/src/index_fst.c (yihaoDeng         2021-12-14 16:17:38 +0800 1345) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1346)     size_t   isz = taosArrayGetSize(sws->inp);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1347)     uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1348)     for (uint32_t i = 0; i < isz; i++) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1349)       buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1350)     }
+00000000000 source/libs/index/src/indexFst.c  (Not Committed Yet 2022-04-02 15:19:56 +0800 1351)     FstSlice slice = fstSliceCreate(buf, isz);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1352)     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1353)       taosArrayDestroyEx(sws->stack, streamStateDestroy);
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1354)       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1355)       taosMemoryFreeClear(buf);
+e3ccb28c097 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-02 10:32:58 +0800 1356)       fstSliceDestroy(&slice);
+06535139684 source/libs/index/src/index_fst.c (yihaoDeng         2022-03-29 15:06:28 +0800 1357)       taosArrayDestroy(nodes);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1358)       return NULL;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1359)     }
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1360)     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1361)       FstOutput              fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1362)       StreamWithStateResult* result = swsResultCreate(&slice, fOutput, tState);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1363)       taosMemoryFreeClear(buf);
+e3ccb28c097 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-02 10:32:58 +0800 1364)       fstSliceDestroy(&slice);
+06535139684 source/libs/index/src/index_fst.c (yihaoDeng         2022-03-29 15:06:28 +0800 1365)       taosArrayDestroy(nodes);
+6a4199d3ede source/libs/index/src/index_fst.c (yihaoDeng         2022-03-29 15:01:05 +0800 1366)       nodes = NULL;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1367)       return result;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1368)     }
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1369)     taosMemoryFreeClear(buf);
+e3ccb28c097 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-02 10:32:58 +0800 1370)     fstSliceDestroy(&slice);
+6a4199d3ede source/libs/index/src/index_fst.c (yihaoDeng         2022-03-29 15:01:05 +0800 1371)   };
+06535139684 source/libs/index/src/index_fst.c (yihaoDeng         2022-03-29 15:06:28 +0800 1372)   taosArrayDestroy(nodes);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1373)   return NULL;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1374) }
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1375) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1376) StreamWithStateResult* swsResultCreate(FstSlice* data, FstOutput fOut, void* state) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1377)   StreamWithStateResult* result = taosMemoryCalloc(1, sizeof(StreamWithStateResult));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1378)   if (result == NULL) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1379)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1380)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1381) 
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1382)   result->data = fstSliceCopy(data, 0, FST_SLICE_LEN(data) - 1);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1383)   result->out = fOut;
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1384)   result->state = state;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1385)   return result;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1386) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1387) void swsResultDestroy(StreamWithStateResult* result) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1388)   if (NULL == result) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1389)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1390)   }
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1391) 
+e3ccb28c097 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-02 10:32:58 +0800 1392)   fstSliceDestroy(&result->data);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1393)   startWithStateValueDestroy(result->state);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1394)   taosMemoryFree(result);
+e3ccb28c097 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-02 10:32:58 +0800 1395) }
+e3ccb28c097 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-02 10:32:58 +0800 1396) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1397) void streamStateDestroy(void* s) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1398)   if (NULL == s) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1399)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1400)   }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1401)   StreamState* ss = (StreamState*)s;
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1402)   fstNodeDestroy(ss->node);
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1403) }
+fbb9d515bf6 source/libs/index/src/index_fst.c (yihaoDeng         2021-11-30 14:51:24 +0800 1404) 
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1405) FstStreamBuilder* fstStreamBuilderCreate(Fst* fst, AutomationCtx* aut) {
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1406)   FstStreamBuilder* b = taosMemoryCalloc(1, sizeof(FstStreamBuilder));
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1407)   if (NULL == b) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1408)     return NULL;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1409)   }
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1410) 
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1411)   b->fst = fst;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1412)   b->aut = aut;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1413)   b->min = fstBoundStateCreate(Unbounded, NULL);
+5d4d7b47a0f source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 16:36:31 +0800 1414)   b->max = fstBoundStateCreate(Unbounded, NULL);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1415)   return b;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1416) }
+10b70175b5b source/libs/index/src/index_fst.c (yihaoDeng         2021-12-21 22:57:30 +0800 1417) void fstStreamBuilderDestroy(FstStreamBuilder* b) {
+7ee1cf62ca4 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 12:00:20 +0800 1418)   fstSliceDestroy(&b->min->data);
+7ee1cf62ca4 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 12:00:20 +0800 1419)   fstSliceDestroy(&b->max->data);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1420)   taosMemoryFreeClear(b->min);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1421)   taosMemoryFreeClear(b->max);
+222db126bcf source/libs/index/src/index_fst.c (afwerar           2022-03-26 00:29:53 +0800 1422)   taosMemoryFree(b);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1423) }
+30d49687e9a source/libs/index/src/index_fst.c (yihaoDeng         2022-03-28 19:01:57 +0800 1424) void fstStreamBuilderSetRange(FstStreamBuilder* b, FstSlice* val, RangeType type) {
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1425)   if (b == NULL) {
+30d49687e9a source/libs/index/src/index_fst.c (yihaoDeng         2022-03-28 19:01:57 +0800 1426)     return;
+9233663a985 source/libs/index/src/index_fst.c (yihaoDeng         2022-02-22 22:02:28 +0800 1427)   }
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1428)   if (type == GE) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1429)     b->min->type = Included;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1430)     fstSliceDestroy(&(b->min->data));
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1431)     b->min->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1432)   } else if (type == GT) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1433)     b->min->type = Excluded;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1434)     fstSliceDestroy(&(b->min->data));
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1435)     b->min->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1436)   } else if (type == LE) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1437)     b->max->type = Included;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1438)     fstSliceDestroy(&(b->max->data));
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1439)     b->max->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1440)   } else if (type == LT) {
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1441)     b->max->type = Excluded;
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1442)     fstSliceDestroy(&(b->max->data));
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1443)     b->max->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1444)   }
+d46ca756bf3 source/libs/index/src/index_fst.c (yihaoDeng         2021-12-01 00:24:12 +0800 1445) }
