@@ -147,22 +147,22 @@ settings:
         logDir: /root/var/taosbenchmark/log
         debugFlag: 131
 
-  # - name: agent
-  #   fqdn: [k8smaster]
-  #   taosadapter_fqdn: [k8smaster]
-  #   spec:
-  #     collectd:
-  #       count: 2
-  #       interval: 1
-  #     node_exporter:
-  #       port_range: [10000, 10005]
-  #     statsd:
-  #       count: 2
-  #     telegraf:
-  #       count: 2
-  #       interval: 1
-  #     icinga2:
-  #       count: 2
-  #       interval: 1
-  #     tcollector:
-  #       count: 2
+  - name: agent
+    fqdn: [k8smaster]
+    taosadapter_fqdn: [cs219]
+    spec:
+      collectd:
+        count: 2
+        interval: 1
+      node_exporter:
+        port_range: [10000, 10005]
+      statsd:
+        count: 2
+      telegraf:
+        count: 2
+        interval: 1
+      icinga2:
+        count: 2
+        interval: 1
+      tcollector:
+        count: 2

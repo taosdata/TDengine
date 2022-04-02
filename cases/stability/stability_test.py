@@ -90,9 +90,9 @@ class TestStability(TDCase):
         result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_fqdn_list, json_data, file_name)
 
     def make_query(self):
-        sql_list = ["select * from query_db.stb limit 10000",
-                    "select first(*) from query_db.stb",
-                    "select last(*) from query_db.stb",
+        sql_list = [f'select * from {self.stability_config["query_dbname"]}.stb limit 10000',
+                    f'select first(*) from {self.stability_config["query_dbname"]}.stb',
+                    f'select last(*) from {self.stability_config["query_dbname"]}.stb',
                     ]
         for sql in sql_list:
             self.tdSql.execute(sql)
@@ -172,7 +172,6 @@ class TestStability(TDCase):
             for agent_type in ["collectd", "node_exporter", "statsd", "telegraf", "icinga2", "tcollector"]:
                 for key, value in self.taosadapter_ip_port_dict.items():
                     if agent_type in str(key.lower()):
-                        dbname = key
                         taosadapter_port = int(value)
                 if agent_type in self.agent_settings["spec"]:
                     for agent_fqdn in self.agent_settings["fqdn"]:
@@ -182,6 +181,7 @@ class TestStability(TDCase):
                             if "interval" in self.agent_settings["spec"][agent_type]:
                                 interval = self.agent_settings["spec"][agent_type]["interval"]
                                 if agent_type == "telegraf":
+                                    dbname = agent_type
                                     taosadapter_port = 6041
                                     self._remote.cmd(agent_fqdn, [f'cd /opt/agent_dockerfile/{agent_type}', f'./run_{agent_type}.sh {self.agent_settings["spec"][agent_type]["count"]} {taosadapter_fqdn}_{agent_type}_agent* {taosadapter_ip} {taosadapter_port} {interval}s {taosadapter_fqdn}_{dbname}'])
                                 else:
@@ -196,8 +196,8 @@ class TestStability(TDCase):
                                     self._remote.cmd(agent_fqdn, [f'cd /opt/agent_dockerfile/{agent_type}', f'./run_{agent_type}.sh {self.agent_settings["spec"][agent_type]["count"]} {taosadapter_fqdn}_{agent_type}_agent* {taosadapter_ip} {taosadapter_port}'])
 
     def run(self) -> bool:
-        # self.run_all_agent()
-        self.stability_test()
+        self.run_all_agent()
+        # self.stability_test()
 
     def cleanup(self):
         pass

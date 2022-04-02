@@ -18,8 +18,8 @@ import copy
 
 class TestStb(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = self.get_default_database()
         self.tdRest.request(f'create database if not exists {self.dbname}')
 
@@ -28,13 +28,13 @@ class TestStb(TDCase):
         max length: 192
         """
         stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = self.tdCom.get_long_name(length=192, mode="letters")
+        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
         self.tdRest.error(f'create table {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
         self.tdRest.request(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname)
-        tbname_exceed = self.tdCom.get_long_name(length=193, mode="letters")
+        tbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{tbname_exceed} tags (127)')
 
     def child_tbname_with_backquote(self):

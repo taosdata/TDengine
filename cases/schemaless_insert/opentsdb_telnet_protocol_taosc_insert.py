@@ -5,7 +5,7 @@ from taos.error import SchemalessError
 import datetime
 class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
         self.tdCom.env_setting = self.env_setting
         self.tdCom.sml_type = "opentsdb_telnet"
         self.tdCom.drop_all_db()

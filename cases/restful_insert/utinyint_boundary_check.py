@@ -18,7 +18,7 @@ from taostest.util.rest import TDRest
 class TestUnsignedTinyintBoundary(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def utinyint_boundary_check(self):
         """

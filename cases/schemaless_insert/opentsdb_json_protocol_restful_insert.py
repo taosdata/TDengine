@@ -7,7 +7,7 @@ import json
 
 class TestOpentsdbJsonRestfulInsert(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
         self.tdCom.sml_type = "opentsdb_json_restful"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
