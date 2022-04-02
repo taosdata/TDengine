@@ -753,7 +753,7 @@ static int32_t buildCreateTbReq(SInsertParseContext* pCxt, const SName* pName, S
 }
 
 // pSql -> tag1_value, ...)
-static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, uint8_t precision, const SName* pName) {
+static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint8_t precision, const SName* pName) {
   if (tdInitKVRowBuilder(&pCxt->tagsBuilder) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -763,9 +763,9 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, 
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
-    SSchema* pSchema = &pTagsSchema[pCxt->tags.boundColumns[i]];
-    param.schema = pSchema;
-    CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, precision, tmpTokenBuf, KvRowAppend, &param, &pCxt->msg));
+    SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i] - 1]; // colId starts with 1
+    param.schema = pTagSchema;
+    CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pTagSchema, precision, tmpTokenBuf, KvRowAppend, &param, &pCxt->msg));
   }
 
   SKVRow row = tdGetKVRowFromBuilder(&pCxt->tagsBuilder);
@@ -791,6 +791,7 @@ static int32_t storeTableMeta(SHashObj* pHash, const char* pName, int32_t len, S
   if (TSDB_CODE_SUCCESS != cloneTableMeta(pMeta, &pBackup)) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+  pBackup->uid = tGenIdPI64();
   return taosHashPut(pHash, pName, len, &pBackup, POINTER_BYTES);
 }
 
@@ -833,7 +834,11 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   if (TK_NK_LP != sToken.type) {
     return buildSyntaxErrMsg(&pCxt->msg, "( is expected", sToken.z);
   }
-  CHECK_CODE(parseTagsClause(pCxt, pTagsSchema, getTableInfo(pCxt->pTableMeta).precision, &name));
+  CHECK_CODE(parseTagsClause(pCxt, pCxt->pTableMeta->schema, getTableInfo(pCxt->pTableMeta).precision, &name));
+  NEXT_TOKEN(pCxt->pSql, sToken);
+  if (TK_NK_RP != sToken.type) {
+    return buildSyntaxErrMsg(&pCxt->msg, ") is expected", sToken.z);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1015,7 +1020,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     STableDataBlocks *dataBuf = NULL;
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-        sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
+        sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL, &pCxt->createTblReq));
         
     if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)
@@ -1046,7 +1051,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   }
   // merge according to vgId
   if (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCxt->pTableBlockHashObj) > 0) {
-    CHECK_CODE(mergeTableDataBlocks(pCxt->pTableBlockHashObj, pCxt->pOutput->schemaAttache, pCxt->pOutput->payloadType, &pCxt->pVgDataBlocks));
+    CHECK_CODE(mergeTableDataBlocks(pCxt->pTableBlockHashObj, pCxt->pOutput->payloadType, &pCxt->pVgDataBlocks));
   }
   return buildOutput(pCxt);
 }
