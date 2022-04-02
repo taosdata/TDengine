@@ -4662,3 +4662,9 @@ void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callba
   pQueryHandle->param       = param;
   return ;
 }
+
+// get table tid
+int32_t tsdbTableTid(void* pTable) {
+  STable *p = (STable *)pTable;
+  return p->tableId.tid;
+}

@@ -20,13 +20,18 @@ extern "C" {
 #endif
 
 // SControlData addition information
-#define GET_CTLINFO_SIZE(p) (sizeof(SControlDataInfo) + p.ctlData.tnum * sizeof(int32_t))
+#define GET_CTLINFO_SIZE(p) (sizeof(SControlDataInfo) + p->tnum * sizeof(int32_t))
 typedef struct {
   // addition info
   tsem_t*      pSem;
   bool         memNull; // pRepo->mem is NULL, this is true
   SShellSubmitRspMsg *pRsp;
-  SControlData ctlData;
+  
+  // base ControlData
+  STimeWindow win;      // come from SControlData.win
+  uint32_t    command;  // come from SControlData.command
+  int32_t     tnum;     // num of tids array
+  int32_t     tids[];
 } SControlDataInfo;
 
 // -------- interface ---------

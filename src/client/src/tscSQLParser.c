@@ -1068,6 +1068,14 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (code != TSDB_CODE_SUCCESS) {
         return code ; // async load table meta
       }
+      
+      // vgroupInfo if super
+      if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
+      }
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        return code;
+      }
 
       // CHECK AND SET WHERE
       if (pInfo->pDelData->pWhere) {
@@ -6460,6 +6468,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   const char* msg1 = "invalid expression";
   const char* msg2 = "the timestamp column condition must be in an interval";
+
   int32_t ret = TSDB_CODE_SUCCESS;
 
   // tags query condition may be larger than 512bytes, therefore, we need to prepare enough large space
@@ -6509,7 +6518,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
     goto PARSE_WHERE_EXIT;
   }
 
-   // check timestamp range
+  // check timestamp range
   if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {
     return invalidOperationMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
   }

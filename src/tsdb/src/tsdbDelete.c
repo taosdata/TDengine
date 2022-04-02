@@ -179,14 +179,14 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
   SDeleteH       truncateH = {0};
   SDFileSet *      pSet = NULL;
 
-  tsdbDebug("vgId:%d start to truncate TS data for %d", REPO_ID(pRepo), pCtlInfo->ctlData.tids[0]);
+  tsdbDebug("vgId:%d start to truncate TS data for %d", REPO_ID(pRepo), pCtlInfo->tids[0]);
 
   if (tsdbInitDeleteH(&truncateH, pRepo) < 0) {
     return -1;
   }
 
   truncateH.pCtlInfo = pCtlInfo;
-  STimeWindow win = pCtlInfo->ctlData.win;
+  STimeWindow win = pCtlInfo->win;
 
   int sFid = TSDB_KEY_FID(win.skey, pCfg->daysPerFile, pCfg->precision);
   int eFid = TSDB_KEY_FID(win.ekey, pCfg->daysPerFile, pCfg->precision);
@@ -216,8 +216,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     }
 #endif
     
-
-    if (pCtlInfo->ctlData.command == CMD_DELETE_DATA) {
+    if (pCtlInfo->command & CMD_DELETE_DATA) {
       if (tsdbFSetDelete(&truncateH, pSet) < 0) {
         tsdbDestroyDeleteH(&truncateH);
         tsdbError("vgId:%d failed to truncate data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
@@ -448,12 +447,12 @@ static int tsdbFSetInit(SDeleteH *pdh, SDFileSet *pSet) {
   return 0;
 }
 
-static void tsdbDeleteFSetEnd(SDeleteH *pdh) { tsdbCloseAndUnsetFSet(&(pdh->readh)); }
-
+static void tsdbDeleteFSetEnd(SDeleteH *pdh) { 
+  tsdbCloseAndUnsetFSet(&(pdh->readh)); 
+}
 
 static int32_t tsdbFilterDataCols(SDeleteH *pdh, SDataCols *pSrcDCols) {
   SDataCols * pDstDCols = pdh->pDCols;
-  SControlData* pCtlData = &pdh->pCtlInfo->ctlData;
   int32_t delRows = 0;
 
   tdResetDataCols(pDstDCols);
@@ -464,7 +463,7 @@ static int32_t tsdbFilterDataCols(SDeleteH *pdh, SDataCols *pSrcDCols) {
 
   for (int i = 0; i < pSrcDCols->numOfRows; ++i) {
     int64_t tsKey = *(int64_t *)tdGetColDataOfRow(pSrcDCols->cols, i);
-    if ((tsKey >= pCtlData->win.skey) && (tsKey <= pCtlData->win.ekey)) {
+    if ((tsKey >= pdh->pCtlInfo->win.skey) && (tsKey <= pdh->pCtlInfo->win.ekey)) {
       // delete row
       delRows ++;
       continue;
@@ -488,8 +487,8 @@ static int32_t tsdbFilterDataCols(SDeleteH *pdh, SDataCols *pSrcDCols) {
 
 // table in delete list
 bool tableInDel(SDeleteH* pdh, int32_t tid) {
-  for (int32_t i = 0; i < pdh->pCtlInfo->ctlData.tnum; i++) {
-    if (tid == pdh->pCtlInfo->ctlData.tids[i])
+  for (int32_t i = 0; i < pdh->pCtlInfo->tnum; i++) {
+    if (tid == pdh->pCtlInfo->tids[i])
       return true;
   }
 
@@ -499,7 +498,7 @@ bool tableInDel(SDeleteH* pdh, int32_t tid) {
 // if pBlock is border block return true else return false
 static int tsdbBlockSolve(SDeleteH *pdh, SBlock *pBlock) {
   // delete window
-  STimeWindow* pdel = &pdh->pCtlInfo->ctlData.win;
+  STimeWindow* pdel = &pdh->pCtlInfo->win;
 
   // do nothing for no delete
   if(pBlock->keyFirst > pdel->ekey || pBlock->keyLast < pdel->skey)

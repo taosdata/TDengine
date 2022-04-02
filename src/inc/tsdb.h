@@ -449,6 +449,8 @@ char* parseTagDatatoJson(void *p);
 typedef bool (*readover_callback)(void* param, int8_t type, int32_t tid);
 void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callback, void* param);
 
+int32_t tsdbTableTid(void* pTable);
+
 #ifdef __cplusplus
 }
 #endif

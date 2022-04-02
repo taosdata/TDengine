@@ -15,9 +15,9 @@
 
 #include "tdataformat.h"
 #include "tfunctional.h"
-#include "tsdbint.h"
 #include "tskiplist.h"
 #include "tsdbRowMergeBuf.h"
+#include "tsdbint.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 #define TSDB_MAX_INSERT_BATCH 512
@@ -706,6 +706,10 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
     pBlock->numOfRows = htons(pBlock->numOfRows);
 
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
+      if (IS_CONTROL_BLOCK(pBlock)) {
+        // super talbe control block tid == 0
+        continue;
+      }
       tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
                 pBlock->tid);
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
@@ -1119,6 +1123,25 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
   return 0;
 }
 
+// set tid to ptids and return all tables num 
+int32_t tsdbTableGroupInfo(STableGroupInfo* pTableGroup, int32_t * ptids) {
+  int32_t pos = 0;
+  size_t  numOfGroup = taosArrayGetSize(pTableGroup->pGroupList);
+  for (int32_t i = 0; i < numOfGroup; ++i) {
+    SArray* group = taosArrayGetP(pTableGroup->pGroupList, i);
+    size_t  cnt   = taosArrayGetSize(group);
+    for(int32_t j = 0; j < cnt; ++j) {
+      STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
+      if (pKeyInfo->pTable != NULL) {
+        if(ptids)
+          ptids[pos] = tsdbTableTid(pKeyInfo->pTable);
+        pos ++;
+      }
+    }
+  }
+  return pos;
+}
+
 // Control Data
 int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
   int32_t ret = TSDB_CODE_SUCCESS;
@@ -1135,23 +1158,55 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
 
   // anti-serialize
   pCtlData->command  = htonl(pCtlData->command);
-  pCtlData->tnum     = htonl(pCtlData->tnum);
   pCtlData->win.skey = htobe64(pCtlData->win.skey);
   pCtlData->win.ekey = htobe64(pCtlData->win.ekey);
-  for (int32_t i=0; i < pCtlData->tnum; i++) {
-    pCtlData->tids[i] = htonl(pCtlData->tids[i]);
+  pCtlData->tagCondLen = htonl(pCtlData->tagCondLen);
+
+  // get tables after filter tag condition
+  STableGroupInfo tableGroupInfo = {0};
+  tableGroupInfo.sVersion = -1;
+  tableGroupInfo.tVersion = -1;
+  
+  // get del tables tid
+  int32_t tnum;
+  if (pCtlData->command & FLAG_SUPER_TABLE) {
+    // super table
+    ret = tsdbQuerySTableByTagCond(pRepo, pBlock->uid, pCtlData->win.skey, pCtlData->tagCond, pCtlData->tagCondLen, &tableGroupInfo, NULL, 0);
+    if (ret != TSDB_CODE_SUCCESS) {
+      tsdbError(":SDEL vgId:%d failed to get child tables id from stable with tag condition. uid=%ld", REPO_ID(pRepo), pBlock->uid);
+      return ret;
+    }
+
+    tnum = tsdbTableGroupInfo(&tableGroupInfo, NULL);
+    if (tnum == 0) {
+      tsdbWarn(":SDEL vgId:%d super table no child tables after filter by tag. uid=%ld", REPO_ID(pRepo), pBlock->uid);
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    // single table
+    tnum = 1;
   }
   
   // server data set 
-  size_t nsize = sizeof(SControlDataInfo) + pCtlData->tnum * sizeof(int32_t);
+  size_t nsize = sizeof(SControlDataInfo) + tnum * sizeof(int32_t);
   SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(nsize);
   memset(pNew, 0, nsize);
-  memcpy(&pNew->ctlData, pCtlData, GET_CTLDATA_SIZE(pCtlData));
+  pNew->win     = pCtlData->win;
+  pNew->command = pCtlData->command;
   pNew->pRsp    = pRsp;
   if (ppSem)
      pNew->pSem = *ppSem;
+  
+  // tids
+  pNew->tnum = tnum;
+  // copy tid
+  if (pCtlData->command & FLAG_SUPER_TABLE) {
+    tsdbTableGroupInfo(&tableGroupInfo, pNew->tids);
+  } else {
+    pNew->tids[0] = pBlock->tid;
+  }
 
-  if(pCtlData->command == CMD_DELETE_DATA) {
+  if(pCtlData->command & CMD_DELETE_DATA) {
     // malloc new to pass commit thread
     ret = tsdbAsyncCommit(pRepo, pNew);
   }

@@ -73,7 +73,7 @@ static int32_t removeDupVgid(int32_t *src, int32_t sz) {
   return ret;
 }
 
-static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupMsg* pVgroupInfo) {
+void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupMsg* pVgroupInfo) {
   assert(pEpSet != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
 
   // Issue the query to one of the vnode among a vgroup randomly.
@@ -619,7 +619,7 @@ int tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   }
 
   tscDebug("0x%"PRIx64" SQL cmd:%s will be processed, name:%s, type:%d", pSql->self, sqlCmd[pCmd->command], name, type);
-  if (pCmd->command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
+  if (pCmd->command < TSDB_SQL_MGMT && pCmd->command != TSDB_SQL_DELETE_DATA) { // the pTableMetaInfo cannot be NULL
     if (pTableMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_TSC_APP_ERROR;
       return pSql->res.code;
@@ -3318,20 +3318,41 @@ int buildSTableDelDataMsg(SSqlObj *pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
   return 0;
 }
 
-// Normal Child Table
-int buildTableDelDataMsg(SSqlObj* pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SSqlInfo *pInfo) {
-  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  SSqlCmd        *pCmd           = &pSql->cmd;
+  SQueryInfo     *pQueryInfo     = tscGetQueryInfo(pCmd);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMeta     *pTableMeta     = pTableMetaInfo->pTableMeta;
+  uint32_t       command         = CMD_DELETE_DATA;
+  
   // pSql->cmd.payloadLen is set during copying data into payload
   pCmd->msgType = TSDB_MSG_TYPE_SUBMIT;
+  if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
+    // super table to do
+    command |= FLAG_SUPER_TABLE;
+  } else {
+    // no super table to do  copy epSet
+    SNewVgroupInfo vgroupInfo = {0};
+    taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo);
+    tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
+    tscDebug("0x%"PRIx64" table deldata submit msg built, numberOfEP:%d", pSql->self, pSql->epSet.numOfEps);
+  }
 
-  SNewVgroupInfo vgroupInfo = {0};
-  taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo);
-  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
+  SCond *pCond = NULL;
+  // serialize tag column query condition
+  if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0) {
+    STagCond* pTagCond = &pQueryInfo->tagCond;
+    pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->id.uid);
+  }
 
-  tscDebug("0x%"PRIx64" table deldata submit msg built, numberOfEP:%d", pSql->self, pSql->epSet.numOfEps);
-  
   // set payload
-  size_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData) + sizeof(int32_t);
+  int32_t tagCondLen = 0;
+  if (pCond) {
+    tagCondLen = pCond->len;
+  }
+
+  size_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData) + tagCondLen;
+    
   int32_t ret = tscAllocPayload(pCmd, payloadLen);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
@@ -3362,28 +3383,19 @@ int buildTableDelDataMsg(SSqlObj* pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
   pSubmitBlk->numOfRows = htons(1);
   pSubmitBlk->schemaLen = 0; // only server return TSDB_CODE_TDB_TABLE_RECONFIGURE need schema attached
   pSubmitBlk->sversion  = htonl(pTableMeta->sversion);
-  pSubmitBlk->dataLen   = htonl(sizeof(SControlData) + sizeof(int32_t));
+  pSubmitBlk->dataLen   = htonl(sizeof(SControlData) + tagCondLen);
   // SControlData
-  pControlData->command  = htonl(CMD_DELETE_DATA);
+  pControlData->command  = htonl(command);
   pControlData->win.skey = htobe64(pQueryInfo->window.skey);
   pControlData->win.ekey = htobe64(pQueryInfo->window.ekey);
-  pControlData->tnum     = htonl(1);
-  pControlData->tids[0]  = htonl(pTableMeta->id.tid);   
+
+  // set tagCond
+  if (pCond) {
+    pControlData->tagCondLen = htonl(pCond->len);
+    memcpy(pControlData->tagCond, pCond->cond, pCond->len);
+  }
 
   return TSDB_CODE_SUCCESS;
-}
-
-
-int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SSqlCmd        *pCmd = &pSql->cmd;
-  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  if(UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    return buildTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
-  } else {
-    return buildTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
-  }
 }
 
 void tscInitMsgsFp() {
@@ -3467,4 +3479,3 @@ void tscInitMsgsFp() {
   tscKeepConn[TSDB_SQL_FETCH] = 1;
   tscKeepConn[TSDB_SQL_HB] = 1;
 }
-

@@ -2611,7 +2611,7 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   tfree(p);
 }
 
-static void doConcurrentlySendSubQueries(SSqlObj* pSql) {
+void doConcurrentlySendSubQueries(SSqlObj* pSql) {
   SSubqueryState *pState = &pSql->subState;
 
   // concurrently sent the query requests.

@@ -1787,7 +1787,7 @@ int tsdbCommitControl(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo) {
   int ret = TSDB_CODE_SUCCESS;
   
   // do command
-  if(pCtlDataInfo->ctlData.command == CMD_DELETE_DATA) {
+  if(pCtlDataInfo->command & CMD_DELETE_DATA) {
     // delete data
     ret = tsdbControlDelete(pRepo, pCtlDataInfo);
   }

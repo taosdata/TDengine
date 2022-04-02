@@ -1003,15 +1003,19 @@ typedef struct {
   char    value[];
 } STLV;
 
+// Ox00000001 ~ 0x00010000 command id  16 items
 #define CMD_DELETE_DATA 0x00000001
-#define CMD_TRUNCATE    0x00000002
+
+// 0x00010000 ~ 0x10000000 command flag 16 items
+#define FLAG_SUPER_TABLE 0x00010000
 
 #define GET_CTLDATA_SIZE(p) (sizeof(SControlData) + p->tnum * sizeof(int32_t))
-typedef struct SControlData{
+typedef struct SControlData {
   uint32_t    command;  // see define CMD_???
   STimeWindow win;
-  int32_t     tnum;     // tids nums
-  int32_t     tids[];   // delete table tid
+  // tag cond
+  int32_t     tagCondLen;
+  char        tagCond[];
 } SControlData;
 
 enum {
