@@ -8,7 +8,7 @@ from math import inf
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<shenglian zhou>: [TD-11204]Difference improvement that can ignore negative 
+        case1<shenglian zhou>: nchar bugs on outer query, order by ts in outer query, and ucs4 mbs conversion 
         ''' 
         return
     
