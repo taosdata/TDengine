@@ -12,7 +12,8 @@
 # -*- coding: utf-8 -*-
 from curses.ascii import alt
 from http import client
-import os ,time
+import os
+import time
 import random
 import time
 from types import DynamicClassAttribute
@@ -53,31 +54,30 @@ class TestCluster(TDCase):
         self._replica = 3
         self._db_nums = 100
         self._alter_times = 1000
-        self._dbs = ["db_%d" % db_num for db_num in range(self._db_nums)]
+        self._dbs = 0
         self._used_dbs = []
-        self._tags = ["alter_tags_%d" %
-                      tag_num for tag_num in range(self._tags_nums)]
+        self._tags = 0
         self._alter_tags = []
-        self._stablenames = ["stable_%d" %
-                             table_num for table_num in range(self._stables_nums)]
+        self._stablenames = 0
         self._used_stables = []
 
     def get_db_name(self):
-        dbname = random.sample(self._dbs, 1)[0]
-        self._dbs.remove(dbname)
+
+        dbname = 'db_%d'%self._dbs
         self._used_dbs.append(dbname)
+        self._dbs  += 1 
         return dbname
 
     def get_stable_name(self):
-        stablename = random.sample(self._stablenames, 1)[0]
-        self._stablenames.remove(stablename)
+        stablename = "stable_%d"%self._stablenames
         self._used_stables.append(stablename)
+        self._stablenames += 1
         return stablename
 
     def get_tag_name(self):
-        tagname = random.sample(self._tags, 1)[0]
-        self._tags.remove(tagname)
+        tagname = "alter_tag_%d"%self._alter_tags
         self._alter_tags.append(tagname)
+        self._alter_tags +=1 
         return tagname
 
     def create_db_tables(self, db_name, stable_name):
@@ -121,10 +121,9 @@ class TestCluster(TDCase):
 
     def generate_insert_rows(self, ts):
         values = []
-        
+
         for i in range(self._col_nums):
             values.append(str(float(ts + i*0.1)))
-        
 
         basic_values = []
         if self._col_nums > 11:  # if col_nums >11 ,it contain 11 basic rows
@@ -142,8 +141,9 @@ class TestCluster(TDCase):
         row_values = "{} ,{} , {}".format(ts, str_basic_values, str_values)
         return row_values
 
-
     def insert_per_rows(self, db_name, stable_name):
+
+        self.tdSql.execute("use {}".format(db_name))
 
         tags = []
         for i in range(self._tags_nums):
@@ -154,49 +154,389 @@ class TestCluster(TDCase):
 
             ts = self._ts + self._ts_step * row
             rows = self.generate_insert_rows(ts)
-         
+
             for sub_table_ind in range(self.tables_of_per_stable):
                 insert_sql = 'insert into sub_{}_{} using {} tags ({}) values ({})'.format(
-                    stable_name, sub_table_ind, stable_name, str_tags,rows )
+                    stable_name, sub_table_ind, stable_name, str_tags, rows)
                 self.tdSql.execute(insert_sql)
 
     def alter_talbes():
         pass
 
     def alter_tags(self):
-        # # alter tag length
-        # altered_length = []
-        # alter_tags = ["tag_%d" % i for i in range(10)]
 
-        # for x in range(200):
+        def _MODIFY_TAG(dbname, stbname, old_tag, set_length):
+            self.tdSql.execute("use {}".format(dbname))
+            alter_length_sql = "alter stable {} modify TAG {} nchar({})".format(
+                stbname, old_tag, set_length)
+
+            # get before schema and last rows
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            tag_value = []
+            get_index = 0
+            index = 0
+            for schema_item in schema:
+                if schema_item[0] == old_tag and schema_item[-1] == "TAG":
+                    get_index = index
+                if schema_item[-1] == "TAG":
+                    tag_value.append(str(schema_item[0]))
+                    index += 1
+
+            tag_value[get_index] = tag_value[get_index] + \
+                "e" * (set_length - len(tag_value[get_index]))
+            str_tags = " , ".join(tag_value)
+
+            self.tdSql.query(" select last(*) from {}".format(stbname))
+            last_row = self.tdSql.query_data
+            # replace datetime , only first ts and the q_ts is timestamp
+            replace_row = []
+            for elem in last_row[0]:
+                if isinstance(elem, bool):
+                    elem = str(elem)
+                elif isinstance(elem, str):
+                    elem = "'" + elem + "'"
+                else:
+                    pass
+                replace_row.append(str(elem))
+
+            extra_ts_start = self._ts + self._ts_step * self._row_nums
+            self.tdSql.execute(alter_length_sql)
+            self.tdSql.execute("reset query cache ")
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+
+            self.tdSql.query("show tables ")
+            tables = self.tdSql.query_data
+            sub_tablenames = []
+            for table in tables:
+                sub_tablenames.append(table[0])
+
+            random_sub_table = random.sample(sub_tablenames, 1)[0]
+
+            for i in range(100):
+                extra_ts = extra_ts_start + i * self._ts_step
+                replace_row[0] = str(extra_ts)
+                replace_row[10] = str(extra_ts)
+
+                str_value = " , ".join(replace_row)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    "extra_schema_table", stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    random_sub_table, stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+            self.tdSql.query("select count(*) from {}".format(stbname))
+            self.tdSql.checkData(0, 0, self._row_nums *
+                                 self.tables_of_per_stable + 200)
+
+        def _ADD_TAG(dbname, stbname, new_tag):
+            self.tdSql.execute("use {}".format(dbname))
+            alter_length_sql = "alter stable {} ADD TAG {} int".format(
+                stbname, new_tag)
+
+            # get before schema and last rows
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            self.tdSql.query(" select last(*) from {}".format(stbname))
+            last_row = self.tdSql.query_data
+            # replace datetime , only first ts and the q_ts is timestamp
+            replace_row = []
+            for elem in last_row[0]:
+                if isinstance(elem, bool):
+                    elem = str(elem)
+                elif isinstance(elem, str):
+                    elem = "'" + elem + "'"
+                else:
+                    pass
+                replace_row.append(str(elem))
+
+            extra_ts_start = self._ts + self._ts_step * self._row_nums
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            tag_value = []
+            index = 0
+            for schema_item in schema:
+                if schema_item[-1] == "TAG":
+                    tag_value.append(str(schema_item[0]))
+                    index += 1
+            tag_value.append("10086")
+
+            self.tdSql.execute(alter_length_sql)
+            self.tdSql.execute("reset query cache ")
+            str_tags = " , ".join(tag_value)
+
+            self.tdSql.query("show tables ")
+            tables = self.tdSql.query_data
+            sub_tablenames = []
+            for table in tables:
+                sub_tablenames.append(table[0])
+
+            random_sub_table = random.sample(sub_tablenames, 1)[0]
+
+            for i in range(100):
+                extra_ts = extra_ts_start + i * self._ts_step
+                replace_row[0] = str(extra_ts)
+                replace_row[10] = str(extra_ts)
+
+                str_value = " , ".join(replace_row)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    "extra_schema_table", stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    random_sub_table, stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+            self.tdSql.query("select count(*) from {}".format(stbname))
+            self.tdSql.checkData(0, 0, self._row_nums *
+                                 self.tables_of_per_stable + 200)
+        
+        def _DROP_TAG(dbname, stbname, old_tag):
+            self.tdSql.execute("use {}".format(dbname))
+            alter_length_sql = "alter stable {} DROP TAG {}".format(
+                stbname, old_tag)
+
+            # get before schema and last rows
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            self.tdSql.query(" select last(*) from {}".format(stbname))
+            last_row = self.tdSql.query_data
+            # replace datetime , only first ts and the q_ts is timestamp
+            replace_row = []
+            for elem in last_row[0]:
+                if isinstance(elem, bool):
+                    elem = str(elem)
+                elif isinstance(elem, str):
+                    elem = "'" + elem + "'"
+                else:
+                    pass
+                replace_row.append(str(elem))
+
+            extra_ts_start = self._ts + self._ts_step * self._row_nums
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            tag_value = []
+            get_index = 0
+            index = 0
+            for schema_item in schema:
+                if schema_item[0] == old_tag and schema_item[-1] == "TAG":
+                    get_index = index
+                    continue
+                if schema_item[-1] == "TAG":
+                    tag_value.append(str(schema_item[0]))
+                    index += 1
+
+            self.tdSql.execute(alter_length_sql)
+            self.tdSql.execute("reset query cache ")
+            str_tags = " , ".join(tag_value)
+
+            self.tdSql.query("show tables ")
+            tables = self.tdSql.query_data
+            sub_tablenames = []
+            for table in tables:
+                sub_tablenames.append(table[0])
+
+            random_sub_table = random.sample(sub_tablenames, 1)[0]
+
+            for i in range(100):
+                extra_ts = extra_ts_start + i * self._ts_step
+                replace_row[0] = str(extra_ts)
+                replace_row[10] = str(extra_ts)
+
+                str_value = " , ".join(replace_row)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    "extra_schema_table", stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    random_sub_table, stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+            self.tdSql.query("select count(*) from {}".format(stbname))
+            self.tdSql.checkData(0, 0, self._row_nums *
+                                 self.tables_of_per_stable + 200)
+
+        def _CHANGE_TAG(dbname, stbname, old_tag, new_tag):
+
+            self.tdSql.execute("use {}".format(dbname))
+            alter_length_sql = "alter stable {} CHANGE TAG {} {}".format(
+                stbname, old_tag , new_tag)
+
+            # get before schema and last rows
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            self.tdSql.query(" select last(*) from {}".format(stbname))
+            last_row = self.tdSql.query_data
+            # replace datetime , only first ts and the q_ts is timestamp
+            replace_row = []
+            for elem in last_row[0]:
+                if isinstance(elem, bool):
+                    elem = str(elem)
+                elif isinstance(elem, str):
+                    elem = "'" + elem + "'"
+                else:
+                    pass
+                replace_row.append(str(elem))
+
+            extra_ts_start = self._ts + self._ts_step * self._row_nums
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            tag_value = []
+            get_index = 0
+            index = 0
+            for schema_item in schema:
+                if schema_item[0] == old_tag and schema_item[-1] == "TAG":
+                    get_index = index
+                    tag_value.append(str(new_tag))
+                    continue
+                if schema_item[-1] == "TAG":
+                    tag_value.append(str(schema_item[0]))
+                    index += 1
+
+            self.tdSql.execute(alter_length_sql)
+            self.tdSql.execute("reset query cache ")
+            str_tags = " , ".join(tag_value)
+
+            self.tdSql.query("show tables ")
+            tables = self.tdSql.query_data
+            sub_tablenames = []
+            for table in tables:
+                sub_tablenames.append(table[0])
+
+            random_sub_table = random.sample(sub_tablenames, 1)[0]
+
+            for i in range(100):
+                extra_ts = extra_ts_start + i * self._ts_step
+                replace_row[0] = str(extra_ts)
+                replace_row[10] = str(extra_ts)
+
+                str_value = " , ".join(replace_row)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    "extra_schema_table", stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    random_sub_table, stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+            self.tdSql.query("select count(*) from {}".format(stbname))
+            self.tdSql.checkData(0, 0, self._row_nums *
+                                 self.tables_of_per_stable + 200)
+
+        def _SET_TAG(dbname, stbname, old_tag, set_tag_value):
+            self.tdSql.execute("use {}".format(dbname))
             
-        #     if x % 10 ==0:
-        #         dbname = self.get_db_name
-        #         tbname = self.get_stable_name
-        #         self.insert_per_rows(dbname , tbname)
+            # get before schema and last rows
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            self.tdSql.query(" select last(*) from {}".format(stbname))
+            last_row = self.tdSql.query_data
+            # replace datetime , only first ts and the q_ts is timestamp
+            replace_row = []
+            for elem in last_row[0]:
+                if isinstance(elem, bool):
+                    elem = str(elem)
+                elif isinstance(elem, str):
+                    elem = "'" + elem + "'"
+                else:
+                    pass
+                replace_row.append(str(elem))
+            extra_ts_start = self._ts + self._ts_step * self._row_nums
+            self.tdSql.query("describe {}".format(stbname))
+            schema = self.tdSql.query_data
+            tag_value = []
+            get_index = 0
+            index = 0
+            for schema_item in schema:
+                if schema_item[0] == old_tag and schema_item[-1] == "TAG":
+                    get_index = index
+                    tag_value.append(str(set_tag_value))
+                    continue
+                if schema_item[-1] == "TAG":
+                    tag_value.append(str(schema_item[0]))
+                    index += 1
 
-        #     tag = random.sample(alter_tags, 1)[0]
-        #     alter_time_step = random.randint(1, 5)
-        #     time.sleep(alter_time_step)
-        #     alter_length_sql = "alter stable {} modify {} nchar(100)".format(
-        #         tbname, tag)
+            self.tdSql.query("show tables ")
+            tables = self.tdSql.query_data
+            sub_tablenames = []
+            for table in tables:
+                sub_tablenames.append(table[0])
 
-        # ALTER STABLE stb_name MODIFY TAG tag_name data_type(length)
-        # # add tag
-        # ALTER STABLE stb_name ADD TAG new_tag_name tag_type
-        # # drop tag
-        # ALTER STABLE stb_name DROP TAG tag_name
-        # # change tag
-        # ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name
+            random_sub_table = random.sample(sub_tablenames, 1)[0]
+
+            alter_length_sql = "alter table {} SET TAG {}=\"{}\" ".format(
+                random_sub_table, old_tag , set_tag_value)
+            
+            self.tdSql.execute(alter_length_sql)
+            self.tdSql.execute("reset query cache ")
+            str_tags = " , ".join(tag_value)
+
+            for i in range(100):
+                extra_ts = extra_ts_start + i * self._ts_step
+                replace_row[0] = str(extra_ts)
+                replace_row[10] = str(extra_ts)
+
+                str_value = " , ".join(replace_row)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    "extra_schema_table", stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+                insert_sql = " insert into {} using {} tags ({}) values({})".format(
+                    random_sub_table, stbname, str_tags,  str_value)
+                self.tdSql.execute(insert_sql)
+            self.tdSql.query("select count(*) from {}".format(stbname))
+            self.tdSql.checkData(0, 0, self._row_nums *
+                                 self.tables_of_per_stable + 200)
+            self.tdSql.query("select {} from {}".format(old_tag ,random_sub_table ))
+            self.tdSql.checkData(0,0,set_tag_value)
+
+        def alter_tasks_loop(alter_nums , alter_step_time , db_nums ,tag_nums , stable_nums):
+            pass
+
+
+    def alter_dbs(self,dbname):
+        db_propertys = {"days": int(random.randint(1, 5)),
+                    #   "keep": int(random.randint(10, 20)),
+                      "blocks": int(random.randint(1, 6)*2),
+                      "quorum": int(random.randint(0, 3)),
+                      "comp": int(random.randint(0, 3)),
+                      "minrows": int(random.randint(1, 3)*100),
+                    #   "replica": int(random.randint(1, 3))
+                      }
+        alter_list = ['days', 'blocks',
+                      'quorum', 'comp', 'minrows']
+        random_key = random.sample(alter_list, 1)[0]
+        random_value = db_propertys[random_key]
+        sql = "alter database {} {} {}".format(
+            dbname, random_key, random_value)
+
+        db_propertys_index = {
+            "days" : 6 ,
+            "blocks" : 9 ,
+            "quorum" : 5 ,
+            "comp" : 14 , 
+            "minrows" : 10 
+        }
+        # alter database  randomly
+        try:
+            self.tdSql.execute(sql)
+            # check alter success
+            self.tdSql.query("show databases")
+            databases = self.tdSql.query_data
+            for db in databases:
+                if db[0] == dbname:
+                    if not db[db_propertys_index[random_key]] == random_value:
+                        print("alter sql :" , sql)
+                        raise ("alter database wrong somethings")
+                        break
+
+        except Exception as e:
+            pass
+
+
+    def create_drop_stables(self, dbname ,stb_nums):
         pass
 
-    def alter_dbs():
+    
+    def create_drop_tables(self, dbname ,stablename ,table_nums):
         pass
 
-    def drop_tables():
-        pass
+    def create_drop_dbs(self, db_nums):
 
-    def drop_dbs():
         pass
 
     def run(self):
@@ -205,6 +545,10 @@ class TestCluster(TDCase):
         # self.tdSql.execute('use db0')
         self.create_db_tables("db0", "st")
         self.insert_per_rows("db0", "st")
+        self.tdSql.query("describe st")
+        self.alter_dbs("db0")
+        # self.alter_tags()
+        # get before schema and last rows
 
     def cleanup(self):
         pass
