@@ -31,6 +31,7 @@ typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
 typedef int32_t  col_bytes_t;
 typedef uint16_t schema_ver_t;
+typedef int32_t  func_id_t;
 
 #pragma pack(push, 1)
 typedef struct {

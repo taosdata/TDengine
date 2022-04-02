@@ -253,7 +253,7 @@ typedef struct SIntervalPhysiNode {
   int64_t    sliding;
   int8_t     intervalUnit;
   int8_t     slidingUnit;
-  uint8_t precision;
+  uint8_t    precision;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 

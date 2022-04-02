@@ -128,18 +128,20 @@ extern const int32_t TYPE_BYTES[15];
   } while (0)
 
 typedef enum EOperatorType {
-  // arithmetic operator
+  // binary arithmetic operator
   OP_TYPE_ADD = 1,
   OP_TYPE_SUB,
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
   OP_TYPE_MOD,
+  // unary arithmetic operator
+  OP_TYPE_MINUS,
 
   // bit operator
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
-  // comparison operator
+  // binary comparison operator
   OP_TYPE_GREATER_THAN,
   OP_TYPE_GREATER_EQUAL,
   OP_TYPE_LOWER_THAN,
@@ -152,6 +154,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  // unary comparison operator
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
   OP_TYPE_IS_TRUE,
@@ -224,6 +227,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_APP_NAME_LEN    TSDB_UNI_LEN
 #define TSDB_STB_COMMENT_LEN 1024
+
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
  *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
@@ -303,13 +307,13 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TOTAL_BLOCKS     10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS 6
 
-#define TSDB_MIN_DAYS_PER_FILE     1
-#define TSDB_MAX_DAYS_PER_FILE     3650
-#define TSDB_DEFAULT_DAYS_PER_FILE 10
+#define TSDB_MIN_DAYS_PER_FILE     60    // unit minute
+#define TSDB_MAX_DAYS_PER_FILE     (3650 * 1440)
+#define TSDB_DEFAULT_DAYS_PER_FILE (10 * 1440)
 
-#define TSDB_MIN_KEEP     1       // data in db to be reserved.
-#define TSDB_MAX_KEEP     365000  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP 3650    // ten years
+#define TSDB_MIN_KEEP     (1 * 1440)       // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP     (365000 * 1440) // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP (3650 * 1440)    // ten years
 
 #define TSDB_MIN_MIN_ROW_FBLOCK     10
 #define TSDB_MAX_MIN_ROW_FBLOCK     1000
@@ -327,7 +331,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_FSYNC_PERIOD     180000  // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD 3000    // three second
 
-#define TSDB_MIN_WAL_LEVEL     0
+#define TSDB_MIN_WAL_LEVEL     1
 #define TSDB_MAX_WAL_LEVEL     2
 #define TSDB_DEFAULT_WAL_LEVEL 1
 
@@ -388,6 +392,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_EXPLAIN_RATIO   0.001
 
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE 1024
+#define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY PLAN"
 
 #define TSDB_MAX_JOIN_TABLE_NUM 10
 #define TSDB_MAX_UNION_CLAUSE   5
@@ -478,6 +483,9 @@ enum {
 #define MND_VGID -1
 #define QND_VGID 1
 #define VND_VGID 0
+
+#define MAX_NUM_STR_SIZE 40
+
 
 #ifdef __cplusplus
 }

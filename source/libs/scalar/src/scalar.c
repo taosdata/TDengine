@@ -29,7 +29,7 @@ SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
   pColumnData->info.scale     = pType->scale;
   pColumnData->info.precision = pType->precision;
 
-  int32_t code = blockDataEnsureColumnCapacity(pColumnData, numOfRows);
+  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pColumnData);
@@ -44,7 +44,7 @@ int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
   in.columnData = createColumnInfoData(&pValueNode->node.resType, 1);
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
-  blockDataEnsureColumnCapacity(out->columnData, 1);
+  colInfoDataEnsureCapacity(out->columnData, 1);
 
   int32_t code = vectorConvertImpl(&in, out);
   sclFreeParam(&in);
@@ -162,7 +162,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->numOfRows = 1;
       param->columnData = createColumnInfoData(&valueNode->node.resType, 1);
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type) {
-        colDataAppend(param->columnData, 0, NULL, true);
+        colDataAppendNULL(param->columnData, 0);
       } else {
         colDataAppend(param->columnData, 0, nodesGetValueFromNode(valueNode), false);
       }
@@ -310,12 +310,10 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-//  for (int32_t i = 0; i < rowNum; ++i) {
-    code = (*ffpSet.process)(params, node->pParameterList->length, output);
-    if (code) {
-      sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
-      SCL_ERR_JRET(code);    
-//    }
+  code = (*ffpSet.process)(params, node->pParameterList->length, output);
+  if (code) {
+    sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+    SCL_ERR_JRET(code);
   }
 
 _return:
@@ -446,7 +444,6 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   *pNode = (SNode*)res;
 
   sclFreeParam(&output);
-
   return DEAL_RES_CONTINUE;
 }
 
@@ -688,8 +685,9 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
 
   int32_t code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList};
+
   // TODO: OPT performance
-  ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);

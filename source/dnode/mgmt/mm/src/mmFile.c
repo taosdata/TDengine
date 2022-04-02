@@ -111,7 +111,7 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);;
+    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to write %s since %s", file, terrstr());
     return -1;
   }
@@ -145,7 +145,7 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);;
+    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }

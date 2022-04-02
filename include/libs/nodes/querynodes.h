@@ -277,7 +277,6 @@ typedef struct SVnodeModifOpStmt {
   ENodeType   nodeType;
   ENodeType   sqlNodeType;
   SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  int8_t      schemaAttache;       // denote if submit block is built with table schema or not
   uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
   const char* sql;                 // current sql statement position
@@ -306,6 +305,7 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
 
 bool nodesIsExprNode(const SNode* pNode);
 
+bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
@@ -314,6 +314,7 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
+char* nodesGetStrValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

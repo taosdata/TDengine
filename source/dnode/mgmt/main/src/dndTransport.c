@@ -319,23 +319,6 @@ static int32_t dndSendRpcReq(STransMgmt *pMgmt, const SEpSet *pEpSet, SRpcMsg *p
   return 0;
 }
 
-int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
-  if (pWrapper->procType != PROC_CHILD) {
-    SDnode *pDnode = pWrapper->pDnode;
-    if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
-      terrno = TSDB_CODE_DND_OFFLINE;
-      dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
-      return -1;
-    }
-    return dndSendRpcReq(&pDnode->trans, pEpSet, pReq);
-  } else {
-    while (taosProcPutToParentQ(pWrapper->pProc, pReq, sizeof(SRpcMsg), pReq->pCont, pReq->contLen, PROC_REQ) != 0) {
-      taosMsleep(1);
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   SDnode     *pDnode = pWrapper->pDnode;
   STransMgmt *pTrans = &pDnode->trans;
@@ -363,13 +346,37 @@ void dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   }
 }
 
+int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
+  SDnode *pDnode = pWrapper->pDnode;
+  if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
+    terrno = TSDB_CODE_DND_OFFLINE;
+    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
+    return -1;
+  }
+
+  if (pWrapper->procType != PROC_CHILD) {
+    return dndSendRpcReq(&pDnode->trans, pEpSet, pReq);
+  } else {
+    int32_t headLen = sizeof(SRpcMsg) + sizeof(SEpSet);
+    char   *pHead = taosMemoryMalloc(headLen);
+    if (pHead == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(pHead, pReq, sizeof(SRpcMsg));
+    memcpy(pHead + sizeof(SRpcMsg), pEpSet, sizeof(SEpSet));
+
+    taosProcPutToParentQ(pWrapper->pProc, pReq, headLen, pReq->pCont, pReq->contLen, PROC_REQ);
+    taosMemoryFree(pHead);
+    return 0;
+  }
+}
+
 void dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   if (pWrapper->procType != PROC_CHILD) {
     dndSendRpcRsp(pWrapper, pRsp);
   } else {
-    while (taosProcPutToParentQ(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_RSP) != 0) {
-      taosMsleep(1);
-    }
+    taosProcPutToParentQ(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_RSP);
   }
 }
 
@@ -377,9 +384,7 @@ void dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != PROC_CHILD) {
     rpcRegisterBrokenLinkArg(pMsg);
   } else {
-    while (taosProcPutToParentQ(pWrapper->pProc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_REG) != 0) {
-      taosMsleep(1);
-    }
+    taosProcPutToParentQ(pWrapper->pProc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_REGIST);
   }
 }
 
@@ -388,20 +393,17 @@ static void dndReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type) 
     rpcReleaseHandle(handle, type);
   } else {
     SRpcMsg msg = {.handle = handle, .code = type};
-    while (taosProcPutToParentQ(pWrapper->pProc, &msg, sizeof(SRpcMsg), NULL, 0, PROC_RELEASE) != 0) {
-      taosMsleep(1);
-    }
+    taosProcPutToParentQ(pWrapper->pProc, &msg, sizeof(SRpcMsg), NULL, 0, PROC_RELEASE);
   }
 }
 
 SMsgCb dndCreateMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = {
       .pWrapper = pWrapper,
+      .sendReqFp = dndSendReq,
+      .sendRspFp = dndSendRsp,
       .registerBrokenLinkArgFp = dndRegisterBrokenLinkArg,
       .releaseHandleFp = dndReleaseHandle,
-      .sendMnodeReqFp = dndSendReqToMnode,
-      .sendReqFp = dndSendReqToDnode,
-      .sendRspFp = dndSendRsp,
   };
   return msgCb;
 }

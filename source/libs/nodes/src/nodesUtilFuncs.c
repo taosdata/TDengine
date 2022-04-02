@@ -136,6 +136,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_EXPLAIN_STMT:
       return makeNode(type, sizeof(SExplainStmt));
+    case QUERY_NODE_DESCRIBE_STMT:
+      return makeNode(type, sizeof(SDescribeStmt));
+    case QUERY_NODE_RESET_QUERY_CACHE_STMT:
+      return makeNode(type, sizeof(SNode));
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
@@ -786,9 +790,92 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
   return NULL;
 }
 
+char* nodesGetStrValueFromNode(SValueNode *pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+      
+      sprintf(buf, "%s", pNode->datum.b ? "true" : "false");
+      return buf;
+    }
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+      
+      sprintf(buf, "%" PRId64, pNode->datum.i);
+      return buf;
+    }
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+      
+      sprintf(buf, "%" PRIu64, pNode->datum.u);
+      return buf;
+    }
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+      
+      sprintf(buf, "%e", pNode->datum.d);
+      return buf;
+    }
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: {
+      int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
+      void *buf = taosMemoryMalloc(bufSize);
+      if (NULL == buf) {
+        return NULL;
+      }
+      
+      snprintf(buf, bufSize, "'%s'", varDataVal(pNode->datum.p));
+      return buf;
+    }
+    default:
+      break;
+  }
+
+  return NULL;
+}
+
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type || QUERY_NODE_FUNCTION == type);
+}
+
+bool nodesIsUnaryOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_MINUS:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    case OP_TYPE_IS_TRUE:
+    case OP_TYPE_IS_FALSE:
+    case OP_TYPE_IS_UNKNOWN:
+    case OP_TYPE_IS_NOT_TRUE:
+    case OP_TYPE_IS_NOT_FALSE:
+    case OP_TYPE_IS_NOT_UNKNOWN:
+      return true;
+    default:
+      break;
+  }
+  return false;
 }
 
 bool nodesIsArithmeticOp(const SOperatorNode* pOp) {

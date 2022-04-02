@@ -134,31 +134,41 @@ typedef struct SDnode {
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
 
+// dndFile.h
+int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
+int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
+
+// dndInt.h
+EDndStatus    dndGetStatus(SDnode *pDnode);
+void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
+void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
+int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
+void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
+
+// dndMonitor.h
+void dndSendMonitorReport(SDnode *pDnode);
+
+// dndMsg.h
+void    dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
+int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
+
+// dndStr.h
+const char *dndStatStr(EDndStatus stat);
 const char *dndNodeLogStr(ENodeType ntype);
 const char *dndNodeProcStr(ENodeType ntype);
-EDndStatus  dndGetStatus(SDnode *pDnode);
-void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
-void        dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
-void        dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-void        dndSendMonitorReport(SDnode *pDnode);
+const char *dndEventStr(EDndEvent ev);
 
+// dndTransport.h
 int32_t dndInitServer(SDnode *pDnode);
 void    dndCleanupServer(SDnode *pDnode);
 int32_t dndInitClient(SDnode *pDnode);
 void    dndCleanupClient(SDnode *pDnode);
-int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
+int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 void    dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 SMsgCb  dndCreateMsgcb(SMgmtWrapper *pWrapper);
-
-int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
-int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
-
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
-int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
-void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }

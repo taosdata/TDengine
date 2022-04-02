@@ -78,6 +78,10 @@ while $i < $tbNum
   $tstart = 1640966400000
 endw
 
+
+$loop_test = 0
+loop_test_pos:
+
 sql select ts, c2-c1, c3/c1, c4+c1, c1*9, c1%3 from ct0
 print ===> rows: $rows 
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
@@ -107,4 +111,31 @@ endi
 if $data93 != 8.000000000 then
  return -1
 endi
+
+if $loop_test == 0 then
+  print =============== stop and restart taosd
+  system sh/exec.sh -n dnode1 -s stop -x SIGINT
+  system sh/exec.sh -n dnode1 -s start
+  
+  $loop_cnt = 0
+  check_dnode_ready_0:
+  	$loop_cnt = $loop_cnt + 1
+  	sleep 200
+  	if $loop_cnt == 10 then
+  	  print ====> dnode not ready!
+  		return -1
+  	endi
+  sql show dnodes
+  print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+  if $data00 != 1 then
+    return -1
+  endi
+  if $data04 != ready then
+    goto check_dnode_ready_0
+  endi
+
+  $loop_test = 1  
+  goto loop_test_pos
+endi
+
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

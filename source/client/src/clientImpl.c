@@ -1,6 +1,7 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
+#include "command.h"
 #include "scheduler.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -55,7 +56,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   }
 
   char localDb[TSDB_DB_NAME_LEN] = {0};
-  if (db != NULL) {
+  if (db != NULL && strlen(db) > 0) {
     if (!validateDbName(db)) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       return NULL;
@@ -163,6 +164,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
     if ((*pQuery)->haveResultSet) {
       setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
     }
+
     TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
     TSWAP(pRequest->tableList, (*pQuery)->pTableList, SArray*);
   }
@@ -170,7 +172,21 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   return code;
 }
 
+int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
+  SRetrieveTableRsp* pRsp = NULL;
+  int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
+  if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp);
+  }
+  return code;
+}
+
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  // drop table if exists not_exists_table
+  if (NULL == pQuery->pCmdMsg) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
@@ -213,12 +229,24 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   assert(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
-  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(pSchema[0]));
+  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
-    pResInfo->fields[i].type = pSchema[i].type;
+    pResInfo->fields[i].type  = pSchema[i].type;
+
+    pResInfo->userFields[i].bytes = pSchema[i].bytes;
+    pResInfo->userFields[i].type  = pSchema[i].type;
+
+    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR) {
+      pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+    }
+
     tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
+    tstrncpy(pResInfo->userFields[i].name, pSchema[i].name, tListLen(pResInfo->userFields[i].name));
   }
 }
 
@@ -259,7 +287,9 @@ SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
 
-  if (pQuery->directRpc) {
+  if (pQuery->localCmd) {
+    CHECK_CODE_GOTO(execLocalCmd(pRequest, pQuery), _return);
+  } else if (pQuery->directRpc) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
@@ -464,9 +494,11 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   taosMemoryFreeClear(pMsgBody);
 }
+
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
   return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP || msgType == TDMT_VND_QUERY_HEARTBEAT_RSP;
 }
+
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
@@ -647,6 +679,11 @@ void* doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr) {
       }
     }
 
+    if (pResultInfo->completed) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
+
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
 
     int64_t  transporterId = 0;
@@ -716,6 +753,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pStart += colLength[i];
   }
 
+  // convert UCS4-LE encoded character to native multi-bytes character in current data block.
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
     int32_t bytes = pResultInfo->fields[i].bytes;
@@ -742,6 +780,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
       }
 
       pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
+      pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
   }
 
@@ -764,6 +803,16 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   assert(db != NULL && pTscObj != NULL);
   taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  taosThreadMutexUnlock(&pTscObj->mutex);
+}
+
+void resetConnectDB(STscObj* pTscObj) {
+  if (pTscObj == NULL) {
+    return;
+  }
+
+  taosThreadMutexLock(&pTscObj->mutex);
+  pTscObj->db[0] = 0;
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 

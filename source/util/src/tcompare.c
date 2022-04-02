@@ -173,6 +173,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   if (isnan(p2)) {
     return 1;
   }
+
   if (FLT_EQUAL(p1, p2)) {
     return 0;
   }

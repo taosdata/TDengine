@@ -29,25 +29,23 @@
 extern "C" {
 #endif
 
-// dndInt.c
-int32_t     dndInit();
-void        dndCleanup();
-const char *dndStatStr(EDndStatus stat);
-void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
-void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+// dndEnv.h
+int32_t dndInit();
+void    dndCleanup();
 
-// dndMsg.c
-void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
-
-// dndExec.c
+// dndExec.h
 int32_t dndOpenNode(SMgmtWrapper *pWrapper);
 void    dndCloseNode(SMgmtWrapper *pWrapper);
 int32_t dndRun(SDnode *pDnode);
 
-// dndObj.c
+// dndInt.c
 SDnode *dndCreate(const SDnodeOpt *pOption);
 void    dndClose(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
+
+// dndMsg.c
+void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
+void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dndTransport.c
 int32_t dndInitMsgHandle(SDnode *pDnode);

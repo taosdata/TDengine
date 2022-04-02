@@ -642,6 +642,9 @@ static const char* fstNodeState(FstNode* node) {
 }
 
 void fstNodeDestroy(FstNode* node) {
+  if (node == NULL) {
+    return;
+  }
   fstSliceDestroy(&node->data);
   taosMemoryFree(node);
 }
@@ -1247,11 +1250,13 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
       // autState = sws->aut->accept(preState, b);
       autState = automFuncs[aut->type].accept(aut, preState, b);
       taosArrayPush(sws->inp, &b);
+
       StreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
+      node = NULL;
+
       taosArrayPush(sws->stack, &s);
       out += trn.out;
       node = fstGetNode(sws->fst, trn.addr);
-      fstNodeDestroy(node);
     } else {
       // This is a little tricky. We're in this case if the
       // given bound is not a prefix of any key in the FST.
@@ -1272,6 +1277,9 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
       return true;
     }
   }
+
+  fstNodeDestroy(node);
+
   uint32_t sz = taosArrayGetSize(sws->stack);
   if (sz != 0) {
     StreamState* s = taosArrayGet(sws->stack, sz - 1);
@@ -1349,7 +1357,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     for (uint32_t i = 0; i < isz; i++) {
       buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);
     }
-    FstSlice slice = fstSliceCreate(buf, taosArrayGetSize(sws->inp));
+    FstSlice slice = fstSliceCreate(buf, isz);
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
       taosArrayDestroyEx(sws->stack, streamStateDestroy);
       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));

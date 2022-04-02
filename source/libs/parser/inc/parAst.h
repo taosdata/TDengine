@@ -71,6 +71,7 @@ typedef enum ETableOptionType {
 typedef struct SAlterOption {
   int32_t type;
   SToken val;
+  SNodeList* pKeep;
 } SAlterOption;
 
 extern SToken nil_token;
@@ -121,6 +122,8 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
 SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
 SNode* createDefaultAlterDatabaseOptions(SAstCreateContext* pCxt);
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, const SToken* pVal);
+SNode* setDatabaseKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep);
+SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions);
 SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
@@ -129,6 +132,8 @@ SNode* createDefaultAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, const SToken* pVal);
 SNode* setTableSmaOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pSma);
 SNode* setTableRollupOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pFuncs);
+SNode* setTableKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep);
+SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment);
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
@@ -145,6 +150,8 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
+SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
+SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
@@ -163,6 +170,18 @@ SNode* createDefaultExplainOptions(SAstCreateContext* pCxt);
 SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
+SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
+SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups);
+SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize);
+SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName);
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName, const SToken* pTableName, SNode* pQuery);
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName);
+SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
+SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
+SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
+SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);
+SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 
 #ifdef __cplusplus
 }

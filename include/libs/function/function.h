@@ -52,7 +52,12 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
+typedef struct SFileBlockInfo {
+  int32_t numBlocksOfStep;
+} SFileBlockInfo;
+
+#define TSDB_BLOCK_DIST_STEP_ROWS 8
+#define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define FUNCTION_TYPE_SCALAR       1
 #define FUNCTION_TYPE_AGG          2
@@ -101,10 +106,6 @@ typedef struct SFuncExecFuncs {
 #define FUNCTION_DERIVATIVE   32
 #define FUNCTION_BLKINFO      33
 
-#define FUNCTION_HISTOGRAM    34
-#define FUNCTION_HLL          35
-#define FUNCTION_MODE         36
-#define FUNCTION_SAMPLE       37
 
 #define FUNCTION_COV          38
 
@@ -183,11 +184,11 @@ typedef struct SqlFunctionCtx {
   int32_t          columnIndex;  // TODO remove it
   uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
+  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
   /////////////////////////////////////////////////////////////////
   bool             stableQuery;
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
-  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block
   int32_t          numOfParams;
   SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list

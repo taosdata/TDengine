@@ -17,11 +17,46 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int32_t taosNewProc(const char *args) {
-  return 0;
+static char *tsProcPath = NULL;
+
+int32_t taosNewProc(char **args) {
+  int32_t pid = fork();
+  if (pid == 0) {
+    args[0] = tsProcPath;
+    // close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    // close(STDERR_FILENO);
+    return execvp(tsProcPath, args);
+  } else {
+    return pid;
+  }
 }
 
-void taosSetProcName(char **argv, const char *name) {
-  prctl(PR_SET_NAME, name);
-  strcpy(argv[0], name);
+void taosWaitProc(int32_t pid) {
+  int32_t status = -1;
+  waitpid(pid, &status, 0);
 }
+
+void taosKillProc(int32_t pid) { kill(pid, SIGINT); }
+
+bool taosProcExist(int32_t pid) {
+  int32_t p = getpgid(pid);
+  return p >= 0;
+}
+
+// the length of the new name must be less than the original name to take effect
+void taosSetProcName(int32_t argc, char **argv, const char *name) {
+  prctl(PR_SET_NAME, name);
+
+  for (int32_t i = 0; i < argc; ++i) {
+    int32_t len = strlen(argv[i]);
+    for (int32_t j = 0; j < len; ++j) {
+      argv[i][j] = 0;
+    }
+    if (i == 0) {
+      tstrncpy(argv[0], name, len + 1);
+    }
+  }
+}
+
+void taosSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }
