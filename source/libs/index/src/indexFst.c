@@ -642,6 +642,9 @@ static const char* fstNodeState(FstNode* node) {
 }
 
 void fstNodeDestroy(FstNode* node) {
+  if (node == NULL) {
+    return;
+  }
   fstSliceDestroy(&node->data);
   taosMemoryFree(node);
 }
@@ -1247,7 +1250,10 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
       // autState = sws->aut->accept(preState, b);
       autState = automFuncs[aut->type].accept(aut, preState, b);
       taosArrayPush(sws->inp, &b);
+
       StreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
+      node = NULL;
+
       taosArrayPush(sws->stack, &s);
       out += trn.out;
       node = fstGetNode(sws->fst, trn.addr);
@@ -1271,6 +1277,9 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
       return true;
     }
   }
+
+  fstNodeDestroy(node);
+
   uint32_t sz = taosArrayGetSize(sws->stack);
   if (sz != 0) {
     StreamState* s = taosArrayGet(sws->stack, sz - 1);
