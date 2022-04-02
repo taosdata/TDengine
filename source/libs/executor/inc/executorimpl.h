@@ -550,15 +550,16 @@ typedef struct SGroupbyOperatorInfo {
 } SGroupbyOperatorInfo;
 
 typedef struct SSessionAggOperatorInfo {
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-  SGroupResInfo  groupResInfo;
-  STimeWindow    curWindow;  // current time window
-  TSKEY          prevTs;     // previous timestamp
-  int32_t        numOfRows;  // number of rows
-  int32_t        start;      // start row index
-  bool           reptScan;   // next round scan
-  int64_t        gap;        // session window gap
+  SOptrBasicInfo   binfo;
+  SAggSupporter    aggSup;
+  SGroupResInfo    groupResInfo;
+  STimeWindow      curWindow;        // current time window
+  TSKEY            prevTs;           // previous timestamp
+  int32_t          numOfRows;        // number of rows
+  int32_t          start;            // start row index
+  bool             reptScan;         // next round scan
+  int64_t          gap;              // session window gap
+  SColumnInfoData  timeWindowData;   // query time window info for scalar function execution.
 } SSessionAggOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
