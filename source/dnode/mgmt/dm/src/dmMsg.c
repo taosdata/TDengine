@@ -117,6 +117,107 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
+
+static int32_t dndProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+  if (pWrapper != NULL) {
+    dndReleaseWrapper(pWrapper);
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    dError("failed to create node since %s", terrstr());
+    return -1;
+  }
+
+  pWrapper = &pDnode->wrappers[ntype];
+
+  if (taosMkDir(pWrapper->path) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+    return -1;
+  }
+
+  int32_t code = (*pWrapper->fp.createMsgFp)(pWrapper, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+  } else {
+    dDebug("node:%s, has been opened", pWrapper->name);
+    pWrapper->deployed = true;
+  }
+
+  return code;
+}
+
+static int32_t dndProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    dError("failed to drop node since %s", terrstr());
+    return -1;
+  }
+
+  taosWLockLatch(&pWrapper->latch);
+  pWrapper->deployed = false;
+
+  int32_t code = (*pWrapper->fp.dropMsgFp)(pWrapper, pMsg);
+  if (code != 0) {
+    pWrapper->deployed = true;
+    dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
+  } else {
+    pWrapper->deployed = false;
+    dDebug("node:%s, has been dropped", pWrapper->name);
+  }
+
+  taosWUnLockLatch(&pWrapper->latch);
+  dndReleaseWrapper(pWrapper);
+  return code;
+}
+
+int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
+  switch (pMsg->rpcMsg.msgType) {
+    case TDMT_DND_CREATE_MNODE:
+      return dndProcessCreateNodeMsg(pDnode, MNODE, pMsg);
+    case TDMT_DND_DROP_MNODE:
+      return dndProcessDropNodeMsg(pDnode, MNODE, pMsg);
+    case TDMT_DND_CREATE_QNODE:
+      return dndProcessCreateNodeMsg(pDnode, QNODE, pMsg);
+    case TDMT_DND_DROP_QNODE:
+      return dndProcessDropNodeMsg(pDnode, QNODE, pMsg);
+    case TDMT_DND_CREATE_SNODE:
+      return dndProcessCreateNodeMsg(pDnode, SNODE, pMsg);
+    case TDMT_DND_DROP_SNODE:
+      return dndProcessDropNodeMsg(pDnode, SNODE, pMsg);
+    case TDMT_DND_CREATE_BNODE:
+      return dndProcessCreateNodeMsg(pDnode, BNODE, pMsg);
+    case TDMT_DND_DROP_BNODE:
+      return dndProcessDropNodeMsg(pDnode, BNODE, pMsg);
+    default:
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      return -1;
+  }
+}
+
+void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
+  SStartupReq *pStartup = &pDnode->startup;
+  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
+  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
+  pStartup->finished = 0;
+}
+
+void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
+  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
+}
+
+void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
+  dDebug("startup req is received");
+  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
+  dndGetStartup(pDnode, pStartup);
+
+  dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
+  SRpcMsg rpcRsp = {
+      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
+  rpcSendResponse(&rpcRsp);
+}
+
 void dmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg, VND_VGID);
