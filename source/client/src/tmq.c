@@ -917,10 +917,10 @@ CREATE_MSG_FAIL:
 
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
-  tscDebug("consumer %ld update ep epoch %d to epoch %d", tmq->consumerId, tmq->epoch, epoch);
   bool    set = false;
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
+  tscDebug("consumer %ld update ep epoch %d to epoch %d, topic num: %d", tmq->consumerId, tmq->epoch, epoch, topicNumGet);
   SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
   if (newTopics == NULL) {
     return false;
@@ -938,17 +938,19 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
     taosHashClear(pHash);
     topic.topicName = strdup(pTopicEp->topic);
 
+    tscDebug("consumer %ld update topic: %s", tmq->consumerId, topic.topicName);
     int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
     for (int32_t j = 0; j < topicNumCur; j++) {
       // find old topic
       SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
       if (pTopicCur->vgs && strcmp(pTopicCur->topicName, pTopicEp->topic) == 0) {
         int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
+        tscDebug("consumer %ld new vg num: %d", tmq->consumerId, vgNumCur);
         if (vgNumCur == 0) break;
         for (int32_t k = 0; k < vgNumCur; k++) {
           SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, k);
           sprintf(vgKey, "%s:%d", topic.topicName, pVgCur->vgId);
-          tscDebug("consumer %ld epoch %d vg %d build %s\n", tmq->consumerId, epoch, pVgCur->vgId, vgKey);
+          tscDebug("consumer %ld epoch %d vg %d build %s", tmq->consumerId, epoch, pVgCur->vgId, vgKey);
           taosHashPut(pHash, vgKey, strlen(vgKey), &pVgCur->currentOffset, sizeof(int64_t));
         }
         break;
@@ -962,10 +964,10 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
       sprintf(vgKey, "%s:%d", topic.topicName, pVgEp->vgId);
       int64_t* pOffset = taosHashGet(pHash, vgKey, strlen(vgKey));
       int64_t  offset = pVgEp->offset;
-      tscDebug("consumer %ld epoch %d vg %d offset og to %ld\n", tmq->consumerId, epoch, pVgEp->vgId, offset);
+      tscDebug("consumer %ld epoch %d vg %d offset og to %ld", tmq->consumerId, epoch, pVgEp->vgId, offset);
       if (pOffset != NULL) {
         offset = *pOffset;
-        tscDebug("consumer %ld epoch %d vg %d found %s\n", tmq->consumerId, epoch, pVgEp->vgId, vgKey);
+        tscDebug("consumer %ld epoch %d vg %d found %s", tmq->consumerId, epoch, pVgEp->vgId, vgKey);
       }
       tscDebug("consumer %ld epoch %d vg %d offset set to %ld\n", tmq->consumerId, epoch, pVgEp->vgId, offset);
       SMqClientVg clientVg = {
@@ -1231,7 +1233,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       int32_t      vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus != TMQ_VG_STATUS__IDLE) {
         int64_t skipCnt = atomic_add_fetch_64(&pVg->skipCnt, 1);
-        tscDebug("consumer %ld skip vg %d skip cnt %ld", tmq->consumerId, pVg->vgId, skipCnt);
+        tscDebug("consumer %ld epoch %d skip vg %d skip cnt %ld", tmq->consumerId, tmq->epoch, pVg->vgId, skipCnt);
         continue;
 #if 0
         if (skipCnt < 30000) {
