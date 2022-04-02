@@ -165,7 +165,37 @@ int32_t  dndInitTrans(SDnode *pDnode);
 void     dndCleanupTrans(SDnode *pDnode);
 SMsgCb   dndCreateMsgcb(SMgmtWrapper *pWrapper);
 SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
+int32_t  dndInitMsgHandle(SDnode *pDnode);
 
+// mgmt
+void dmGetMgmtFp(SMgmtWrapper *pWrapper);
+void bmGetMgmtFp(SMgmtWrapper *pWrapper);
+void qmGetMgmtFp(SMgmtWrapper *pMgmt);
+void smGetMgmtFp(SMgmtWrapper *pWrapper);
+void vmGetMgmtFp(SMgmtWrapper *pWrapper);
+void mmGetMgmtFp(SMgmtWrapper *pMgmt);
+
+void dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
+void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
+void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pMsg);
+
+typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+} SVnodesStat;
+
+void    vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
+int32_t vmMonitorTfsInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
+void    vmMonitorVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
+int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                         SMonGrantInfo *pGrantInfo);
+                         
 #ifdef __cplusplus
 }
 #endif

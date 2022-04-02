@@ -14,12 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "bm.h"
 #include "dmInt.h"
-#include "mm.h"
-#include "qm.h"
-#include "sm.h"
-#include "vm.h"
 
 static void *dmThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = param;

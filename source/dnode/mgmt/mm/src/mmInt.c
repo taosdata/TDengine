@@ -241,14 +241,6 @@ void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->fp = mgmtFp;
 }
 
-int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-
-  int32_t code = mndRetriveAuth(pMgmt->pMnode, user, spi, encrypt, secret, ckey);
-  dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
-  return code;
-}
-
 int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                            SMonGrantInfo *pGrantInfo) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;

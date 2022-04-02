@@ -16,7 +16,7 @@
 #ifndef _TD_DND_SNODE_INT_H_
 #define _TD_DND_SNODE_INT_H_
 
-#include "sm.h"
+#include "dnd.h"
 #include "snode.h"
 
 #ifdef __cplusplus

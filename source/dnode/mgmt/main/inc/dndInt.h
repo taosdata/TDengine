@@ -18,13 +18,6 @@
 
 #include "dnd.h"
 
-#include "bm.h"
-#include "dm.h"
-#include "mm.h"
-#include "qm.h"
-#include "sm.h"
-#include "vm.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,9 +39,6 @@ void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 // dndMsg.c
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
-
-// dndTransport.c
-int32_t dndInitMsgHandle(SDnode *pDnode);
 
 // dndFile.c
 TdFilePtr dndCheckRunning(const char *dataDir);

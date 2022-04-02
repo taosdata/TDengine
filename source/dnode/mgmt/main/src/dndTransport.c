@@ -142,20 +142,14 @@ static void dndProcessRequest(SDnode *pDnode, SRpcMsg *pReq, SEpSet *pEpSet) {
   }
 }
 
-static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRpcRsp) {
-  STransMgmt *pMgmt = &pDnode->trans;
-  SEpSet      epSet = {0};
-
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
-  if (pWrapper != NULL) {
-    dmGetMnodeEpSet(pWrapper->pMgmt, &epSet);
-    dndReleaseWrapper(pWrapper);
-  }
-
-  rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
+static inline void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
+  SEpSet        epSet = {0};
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[DNODE];
+  dmGetMnodeEpSet(pWrapper->pMgmt, &epSet);
+  rpcSendRecv(pDnode->trans.clientRpc, &epSet, pReq, pRsp);
 }
 
-static int32_t dndGetHideUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+static inline int32_t dndGetHideUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   int32_t code = 0;
   char    pass[TSDB_PASSWORD_LEN + 1] = {0};
 
@@ -181,21 +175,6 @@ static int32_t dndRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *spi, ch
   if (dndGetHideUserAuth(pDnode, user, spi, encrypt, secret, ckey) == 0) {
     dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
     return 0;
-  }
-
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL) {
-    if (mmGetUserAuth(pWrapper, user, spi, encrypt, secret, ckey) == 0) {
-      dndReleaseWrapper(pWrapper);
-      dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
-      return 0;
-    }
-    dndReleaseWrapper(pWrapper);
-  }
-
-  if (terrno != TSDB_CODE_APP_NOT_READY) {
-    dTrace("failed to get user auth from mnode since %s", terrstr());
-    return -1;
   }
 
   SAuthReq authReq = {0};
@@ -285,10 +264,8 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
       NodeMsgFp msgFp = pWrapper->msgFps[msgIndex];
-      int32_t   vgId = pWrapper->msgVgIds[msgIndex];
+      int8_t    vgId = pWrapper->msgVgIds[msgIndex];
       if (msgFp == NULL) continue;
-
-      // dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
       if (vgId == QND_VGID) {

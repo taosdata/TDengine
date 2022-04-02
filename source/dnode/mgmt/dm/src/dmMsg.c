@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
-#include "vm.h"
 
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SDnode    *pDnode = pMgmt->pDnode;

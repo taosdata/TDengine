@@ -25,7 +25,7 @@ const char *dndStatStr(EDndStatus status) {
     case DND_STAT_STOPPED:
       return "stopped";
     default:
-      return "unknown";
+      return "UNKNOWN";
   }
 }
 

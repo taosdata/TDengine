@@ -16,7 +16,7 @@
 #ifndef _TD_DND_DNODE_INT_H_
 #define _TD_DND_DNODE_INT_H_
 
-#include "dm.h"
+#include "dnd.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +45,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt);
 void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
 // dmMsg.c
+void    dmInitMsgHandles(SMgmtWrapper *pWrapper);
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
