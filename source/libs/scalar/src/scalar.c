@@ -673,7 +673,7 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
   
-  nodesRewriteNodePostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
+  nodesRewriteExprPostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
   SCL_ERR_JRET(ctx.code);
   *pRes = pNode;
 
@@ -696,7 +696,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
   
-  nodesWalkNodePostOrder(pNode, sclCalcWalker, (void *)&ctx);
+  nodesWalkExprPostOrder(pNode, sclCalcWalker, (void *)&ctx);
   SCL_ERR_JRET(ctx.code);
 
   if (pDst) {

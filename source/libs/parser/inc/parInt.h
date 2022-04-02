@@ -23,9 +23,10 @@ extern "C" {
 #include "parser.h"
 
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
-int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
+int32_t translate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
+int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }

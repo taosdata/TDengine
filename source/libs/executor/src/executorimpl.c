@@ -5801,7 +5801,7 @@ void getDBNameFromCondition(SNode* pCondition, char* dbName) {
     return;
   }
 
-  nodesWalkNode(pCondition, getDBNameFromConditionWalker, dbName);
+  nodesWalkExpr(pCondition, getDBNameFromConditionWalker, dbName);
 }
 
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
