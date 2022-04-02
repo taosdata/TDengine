@@ -43,6 +43,7 @@ extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
 extern int64_t  tsDnodeStartTime;
 extern int8_t   tsDnodeNopLoop;
+extern int32_t  tsTcpConnTimeout;
 
 // common
 extern int      tsRpcTimer;

@@ -17,6 +17,7 @@
 #include "tulog.h"
 #include "tsocket.h"
 #include "taoserror.h"
+#include "tglobal.h"
 
 #ifndef SIGPIPE
   #define SIGPIPE EPIPE
