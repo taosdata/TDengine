@@ -158,23 +158,23 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
 
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   int64_t value = strtoll(buf, NULL, 10);
-  colDataAppend(pOut->columnData, rowIndex, (char*) &value, false);
+  colDataAppendInt64(pOut->columnData, rowIndex, &value);
 }
 
 static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   uint64_t value = strtoull(buf, NULL, 10);
-  colDataAppend(pOut->columnData, rowIndex, (char*) &value, false);
+  colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*) &value);
 }
 
 static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   double value = strtod(buf, NULL);
-  colDataAppend(pOut->columnData, rowIndex, (char*) &value, false);
+  colDataAppendDouble(pOut->columnData, rowIndex, &value);
 }
 
 static FORCE_INLINE void varToBool(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   int64_t value = strtoll(buf, NULL, 10);
   bool v = (value != 0)? true:false;
-  colDataAppend(pOut->columnData, rowIndex, (char*) &v, false);
+  colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*) &v);
 }
 
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
@@ -198,7 +198,7 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
   pOut->numOfRows = pIn->numOfRows;
   for (int32_t i = 0; i < pIn->numOfRows; ++i) {
     if (colDataIsNull(pIn->columnData, pIn->numOfRows, i, NULL)) {
-      colDataAppend(pOut->columnData, i, NULL, true);
+      colDataAppendNULL(pOut->columnData, i);
       continue;
     }
 
@@ -242,13 +242,13 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
     case TSDB_DATA_TYPE_BOOL: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
         bool value = 0;
         GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
-        colDataAppend(pOutputCol, i, (char*) &value, false);
+        colDataAppendInt8(pOutputCol, i, (int8_t*) &value);
       }
       break;
     }
@@ -259,13 +259,13 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
     case TSDB_DATA_TYPE_TIMESTAMP: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
         int64_t value = 0;
         GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
-        colDataAppend(pOutputCol, i, (char *)&value, false);
+        colDataAppendInt64(pOutputCol, i, &value);
       }
       break;
     }
@@ -275,26 +275,26 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
     case TSDB_DATA_TYPE_UBIGINT:
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
         
         uint64_t value = 0;
         GET_TYPED_DATA(value, uint64_t, inType, colDataGetData(pInputCol, i));
-        colDataAppend(pOutputCol, i, (char*) &value, false);
+        colDataAppendInt64(pOutputCol, i, (int64_t*)&value);
       }
       break;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
         
         double value = 0;
         GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, i));
-        colDataAppend(pOutputCol, i, (char*) &value, false);
+        colDataAppendDouble(pOutputCol, i, &value);
       }
       break;      
     default:
@@ -445,7 +445,7 @@ static void vectorMathAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
   double *output = (double *)pOutputCol->pData;
 
   if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-    // TODO set numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) + getVectorDoubleValueFnRight(pRightCol->pData, 0);
@@ -527,7 +527,7 @@ static void vectorMathSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
   double *output = (double *)pOutputCol->pData;
 
   if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-    // TODO set numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       *output = (getVectorDoubleValueFnLeft(pLeftCol->pData, i) - getVectorDoubleValueFnRight(pRightCol->pData, 0)) * factor;
@@ -586,7 +586,7 @@ static void vectorMathMultiplyHelper(SColumnInfoData* pLeftCol, SColumnInfoData*
   double *output = (double *)pOutputCol->pData;
 
   if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-    // TODO set numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) * getVectorDoubleValueFnRight(pRightCol->pData, 0);
@@ -666,7 +666,7 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
 
   } else if (pLeft->numOfRows == 1) {
     if (colDataIsNull_f(pLeftCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-      // TODO set numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
         *output = getVectorDoubleValueFnLeft(pLeftCol->pData, 0) / getVectorDoubleValueFnRight(pRightCol->pData, i);
@@ -678,7 +678,7 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
     }
   } else if (pRight->numOfRows == 1) {
     if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-      // TODO set numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
         *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) / getVectorDoubleValueFnRight(pRightCol->pData, 0);
@@ -714,14 +714,14 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
       if (colDataIsNull_f(pLeftCol->nullbitmap, i) || colDataIsNull_f(pRightCol->nullbitmap, i)) {
-        colDataAppend(pOutputCol, i, NULL, true);
+        colDataAppendNULL(pOutputCol, i);
         continue;
       }
 
       double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, i);
       double rx = getVectorDoubleValueFnRight(pRightCol->pData, i);
       if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx)) {
-        colDataAppend(pOutputCol, i, NULL, true);
+        colDataAppendNULL(pOutputCol, i);
         continue;
       }
 
@@ -730,17 +730,17 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
   } else if (pLeft->numOfRows == 1) {
     double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, 0);
     if (colDataIsNull_f(pLeftCol->nullbitmap, 0) || isnan(lx) || isinf(lx)) {  // Set pLeft->numOfRows NULL value
-      // TODO set numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
         if (colDataIsNull_f(pRightCol->nullbitmap, i)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
         double rx = getVectorDoubleValueFnRight(pRightCol->pData, i);
         if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
@@ -750,17 +750,17 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
   } else if (pRight->numOfRows == 1) {
     double rx = getVectorDoubleValueFnRight(pRightCol->pData, 0);
     if (colDataIsNull_f(pRightCol->nullbitmap, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
-      // TODO set numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
         if (colDataIsNull_f(pLeftCol->nullbitmap, i)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
         double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, i);
         if (isnan(lx) || isinf(lx)) {
-          colDataAppend(pOutputCol, i, NULL, true);
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
@@ -831,7 +831,7 @@ static void vectorBitAndHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRigh
   double *output = (double *)pOutputCol->pData;
 
   if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-    // TODO set numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) & getVectorBigintValueFnRight(pRightCol->pData, 0);
@@ -888,7 +888,7 @@ static void vectorBitOrHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRight
   int64_t *output = (int64_t *)pOutputCol->pData;
 
   if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
-    // TODO set numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     int64_t rx = getVectorBigintValueFnRight(pRightCol->pData, 0);
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
@@ -947,56 +947,51 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
 
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull(pLeft->columnData, pLeft->numOfRows, i, NULL) /*||
-          colDataIsNull(pRight->columnData, pRight->numOfRows, i, NULL)*/) {
+      if (colDataIsNull_s(pLeft->columnData, i)) {
         continue;
       }
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
-      colDataAppend(pOut->columnData, i, (char *)&res, false);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
     return;
   }
 
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step) {
-      if (colDataIsNull(pLeft->columnData, pLeft->numOfRows, i, NULL) ||
-          colDataIsNull(pRight->columnData, pRight->numOfRows, i, NULL)) {
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
         continue;  // TODO set null or ignore
       }
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       char *pRightData = colDataGetData(pRight->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
-      colDataAppend(pOut->columnData, i, (char *)&res, false);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
   } else if (pRight->numOfRows == 1) {
     char *pRightData = colDataGetData(pRight->columnData, 0);
     ASSERT(pLeft->pHashFilter == NULL);
 
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull(pLeft->columnData, pLeft->numOfRows, i, NULL) /*||
-          colDataIsNull(pRight->columnData, pRight->numOfRows, i, NULL)*/) {
+      if (colDataIsNull_s(pLeft->columnData, i)) {
         continue;
       }
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
-      colDataAppend(pOut->columnData, i, (char *)&res, false);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
   } else if (pLeft->numOfRows == 1) {
     char *pLeftData = colDataGetData(pLeft->columnData, 0);
-
     for (; i >= 0 && i < pRight->numOfRows; i += step) {
-      if (colDataIsNull(pRight->columnData, pRight->numOfRows, i, NULL) /*||
-          colDataIsNull(pRight->columnData, pRight->numOfRows, i, NULL)*/) {
+      if (colDataIsNull_s(pRight->columnData, i)) {
         continue;
       }
 
       char *pRightData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
-      colDataAppend(pOut->columnData, i, (char *)&res, false);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
   }
 }
@@ -1077,23 +1072,16 @@ void vectorNotMatch(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOu
 
 void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
-    int8_t v = 0;
-    if (colDataIsNull(pLeft->columnData, pLeft->numOfRows, i, NULL)) {
-      v = 1;
-    }
-    colDataAppend(pOut->columnData, i, (char*) &v, false);
+    int8_t v = colDataIsNull_s(pLeft->columnData, i)? 1:0;
+    colDataAppendInt8(pOut->columnData, i, &v);
   }
-
   pOut->numOfRows = pLeft->numOfRows;
 }
 
 void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
-    int8_t v = 1;
-    if (colDataIsNull(pLeft->columnData, pLeft->numOfRows, i, NULL)) {
-      v = 0;
-    }
-    colDataAppend(pOut->columnData, i, (char*) &v, false);
+    int8_t v = colDataIsNull_s(pLeft->columnData, i)? 0:1;
+    colDataAppendInt8(pOut->columnData, i, &v);
   }
   pOut->numOfRows = pLeft->numOfRows;
 }
