@@ -19,8 +19,10 @@ namespace AsyncQueryExample
             SubscribeSample subscribeSample = new SubscribeSample();
             subscribeSample.RunSubscribeWithCallback(conn, "subscribe_with_callback");
             subscribeSample.RunSubscribeWithoutCallback(conn, "subscribe_without_callback");
-
             UtilsTools.CloseConnection(conn);
+            
+            SchemalessSample schemalessSample = new SchemalessSample();
+            schemalessSample.RunSchemaless();
         }
     }
 }
