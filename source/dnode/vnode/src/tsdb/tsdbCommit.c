@@ -1281,7 +1281,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   uint32_t tsizeAggr = (uint32_t)tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
   int32_t  keyLen = 0;
   int32_t  nBitmaps = (int32_t)TD_BITMAP_BYTES(rowsToWrite);
-  int32_t  tBitmaps = 0;
+  // int32_t  tBitmaps = 0;
 
   for (int ncol = 0; ncol < pDataCols->numOfCols; ++ncol) {
     // All not NULL columns finish
@@ -1297,7 +1297,10 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
+    int32_t tBitmapsLen = 0;
     if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+      tBitmaps = nBitmaps;
+#if 0
       if (IS_VAR_DATA_TYPE(pDataCol->type)) {
         tBitmaps = nBitmaps;
         tlen += tBitmaps;
@@ -1305,16 +1308,17 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
         tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
         tlen += tBitmaps * TYPE_BYTES[pDataCol->type];
       }
+#endif
       // move bitmap parts ahead
       // TODO: put bitmap part to the 1st location(pBitmap points to pData) to avoid the memmove
-      memcpy(POINTER_SHIFT(pDataCol->pData, pDataCol->len), pDataCol->pBitmap, nBitmaps);
+      // memcpy(POINTER_SHIFT(pDataCol->pData, pDataCol->len), pDataCol->pBitmap, nBitmaps);
     }
 #endif
 
     void *tptr;
 
     // Make room
-    if (tsdbMakeRoom(ppBuf, lsize + tlen + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
+    if (tsdbMakeRoom(ppBuf, lsize + tlen + tBitmaps + 2 * COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
       return -1;
     }
     pBlockData = (SBlockData *)(*ppBuf);
@@ -1327,23 +1331,44 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 
     // Compress or just copy
     if (pCfg->compression) {
+#if 0
       flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite + tBitmaps, tptr,
                                                       tlen + COMP_OVERFLOW_BYTES, pCfg->compression, *ppCBuf,
                                                       tlen + COMP_OVERFLOW_BYTES);
+#endif
+      flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
+                                                      tlen + COMP_OVERFLOW_BYTES, pCfg->compression, *ppCBuf,
+                                                      tlen + COMP_OVERFLOW_BYTES);
+      if (tBitmaps > 0) {
+        tptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        tBitmapsLen =
+            tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, rowsToWrite, tptr, tBitmaps + COMP_OVERFLOW_BYTES,
+                              pCfg->compression, *ppCBuf, tBitmaps + COMP_OVERFLOW_BYTES);
+        TASSERT((tBitmapsLen > 0) && (tBitmapsLen <= (tBitmaps + COMP_OVERFLOW_BYTES)));
+        flen += tBitmapsLen;
+      }
     } else {
       flen = tlen;
       memcpy(tptr, pDataCol->pData, flen);
+      if (tBitmaps > 0) {
+        tptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        memcpy(tptr, pDataCol->pBitmap, tBitmaps);
+        tBitmapsLen = tBitmaps;
+        flen += tBitmapsLen;
+      }
     }
 
     // Add checksum
     ASSERT(flen > 0);
+    ASSERT(tBitmapsLen <= 1024);
     flen += sizeof(TSCKSUM);
     taosCalcChecksumAppend(0, (uint8_t *)tptr, flen);
     tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)));
 
     if (ncol != 0) {
       tsdbSetBlockColOffset(pBlockCol, toffset);
-      pBlockCol->len = flen;
+      pBlockCol->len = flen;  // data + bitmaps
+      pBlockCol->blen = tBitmapsLen;
       ++tcol;
     } else {
       keyLen = flen;

@@ -503,7 +503,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
           memcpy(pRet->cols[i].dataOff, pDataCols->cols[i].dataOff, dataOffSize);
         }
         if (!TD_COL_ROWS_NORM(pRet->cols + i)) {
-          int32_t nBitmapBytes = (int32_t)TD_BITMAP_BYTES(pDataCols->maxPoints);
+          int32_t nBitmapBytes = (int32_t)TD_BITMAP_BYTES(pDataCols->numOfRows);
           memcpy(pRet->cols[i].pBitmap, pDataCols->cols[i].pBitmap, nBitmapBytes);
         }
       }
