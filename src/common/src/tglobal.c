@@ -49,7 +49,7 @@ int32_t  tsDnodeId = 0;
 int64_t  tsDnodeStartTime = 0;
 int8_t   tsDnodeNopLoop = 0;
 int32_t  tsTcpConnTimeout = 1000; // timeout for tcp client connection in ms.
-int32_t  tsSyncCheckInterval = 1000; // peer sync check interval in ms.
+int32_t  tsSyncCheckInterval = 3000; // peer sync check interval in ms.
 
 // common
 int32_t tsRpcTimer = 300;
