@@ -1315,7 +1315,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     }
 #endif
 
-    void *tptr;
+    void *tptr, *bptr;
 
     // Make room
     if (tsdbMakeRoom(ppBuf, lsize + tlen + tBitmaps + 2 * COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
@@ -1340,9 +1340,9 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
                                                       tlen + COMP_OVERFLOW_BYTES, pCfg->compression, *ppCBuf,
                                                       tlen + COMP_OVERFLOW_BYTES);
       if (tBitmaps > 0) {
-        tptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        bptr = POINTER_SHIFT(pBlockData, lsize + flen);
         tBitmapsLen =
-            tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, rowsToWrite, tptr, tBitmaps + COMP_OVERFLOW_BYTES,
+            tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, tBitmaps, bptr, tBitmaps + COMP_OVERFLOW_BYTES,
                               pCfg->compression, *ppCBuf, tBitmaps + COMP_OVERFLOW_BYTES);
         TASSERT((tBitmapsLen > 0) && (tBitmapsLen <= (tBitmaps + COMP_OVERFLOW_BYTES)));
         flen += tBitmapsLen;
@@ -1351,8 +1351,8 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       flen = tlen;
       memcpy(tptr, pDataCol->pData, flen);
       if (tBitmaps > 0) {
-        tptr = POINTER_SHIFT(pBlockData, lsize + flen);
-        memcpy(tptr, pDataCol->pBitmap, tBitmaps);
+        bptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        memcpy(bptr, pDataCol->pBitmap, tBitmaps);
         tBitmapsLen = tBitmaps;
         flen += tBitmapsLen;
       }
