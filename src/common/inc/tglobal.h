@@ -44,6 +44,7 @@ extern int32_t  tsDnodeId;
 extern int64_t  tsDnodeStartTime;
 extern int8_t   tsDnodeNopLoop;
 extern int32_t  tsTcpConnTimeout;
+extern int32_t  tsSyncCheckInterval;
 
 // common
 extern int      tsRpcTimer;

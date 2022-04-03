@@ -363,7 +363,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
       wfd[0].fd = sockFd;
       wfd[0].events = POLLOUT;
     
-      int res = poll(wfd, 1, tsTcpConnTimeout * 1000);
+      int res = poll(wfd, 1, tsTcpConnTimeout);
       if (res == -1 || res == 0) {
         uError("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
         taosCloseSocket(sockFd); //  
