@@ -83,7 +83,7 @@ SSDataBlock* getSingleColStrBlock(void* param) {
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = TSDB_DATA_TYPE_NCHAR;
-  colInfo.info.bytes = TSDB_NCHAR_SIZE * 16;
+  colInfo.info.bytes = TSDB_NCHAR_SIZE * 16 + VARSTR_HEADER_SIZE;
   colInfo.info.colId = 1;
   colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
 

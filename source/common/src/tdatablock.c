@@ -176,6 +176,8 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
 
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,
                           int32_t numOfRow2) {
+  if (numOfRow2 <= 0) return;
+
   uint32_t total = numOfRow1 + numOfRow2;
 
   if (BitmapLen(numOfRow1) < BitmapLen(total)) {
@@ -190,22 +192,32 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
 
   if (remindBits == 0) {  // no need to shift bits of bitmap
     memcpy(pColumnInfoData->nullbitmap + BitmapLen(numOfRow1), pSource->nullbitmap, BitmapLen(numOfRow2));
-  } else {
-    int32_t len = BitmapLen(numOfRow2);
-    int32_t i = 0;
+    return;
+  }
 
-    uint8_t* p = (uint8_t*)pSource->nullbitmap;
-    pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] |= (p[0] >> remindBits);
+  uint8_t* p = (uint8_t*)pSource->nullbitmap;
+  pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] |= (p[0] >> remindBits);  // copy remind bits
 
-    uint8_t* start = (uint8_t*)&pColumnInfoData->nullbitmap[BitmapLen(numOfRow1)];
-    while (i < len) {
-      start[i] |= (p[i] << shiftBits);
-      i += 1;
+  if (BitmapLen(numOfRow1) == BitmapLen(total)) {
+    return;
+  }
 
-      if (i > 1) {
-        start[i - 1] |= (p[i] >> remindBits);
-      }
+  int32_t len = BitmapLen(numOfRow2);
+  int32_t i = 0;
+
+  uint8_t* start = (uint8_t*)&pColumnInfoData->nullbitmap[BitmapLen(numOfRow1)];
+  int32_t overCount = BitmapLen(total) - BitmapLen(numOfRow1);
+  while (i < len) { // size limit of pSource->nullbitmap
+    if (i >= 1) {
+      start[i - 1] |= (p[i] >> remindBits); //copy remind bits
     }
+
+    if (i >= overCount) { // size limit of pColumnInfoData->nullbitmap
+      return;
+    }
+
+    start[i] |= (p[i] << shiftBits);  //copy shift bits
+    i += 1;
   }
 }
 
@@ -408,44 +420,44 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
     }
 
     return TSDB_CODE_SUCCESS;
-  } else {
-    // iterate the rows that can be fit in this buffer page
-    int32_t size = (headerSize + colHeaderSize);
+  }
+  // iterate the rows that can be fit in this buffer page
+  int32_t size = (headerSize + colHeaderSize);
 
-    for (int32_t j = startIndex; j < numOfRows; ++j) {
-      for (int32_t i = 0; i < numOfCols; ++i) {
-        SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, i);
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          bool isNull = colDataIsNull(pColInfoData, numOfRows, j, NULL);
-          if (isNull) {
-            // do nothing
-          } else {
-            char* p = colDataGetData(pColInfoData, j);
-            size += varDataTLen(p);
-          }
-
-          size += sizeof(pColInfoData->varmeta.offset[0]);
-        } else {    // this block is unreached, because hasVarCol = true
-          size += pColInfoData->info.bytes;
-
-          if (((j - startIndex) & 0x07) == 0) {
-            size += 1;  // the space for null bitmap
-          }
+  for (int32_t j = startIndex; j < numOfRows; ++j) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, i);
+      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        bool isNull = colDataIsNull(pColInfoData, numOfRows, j, NULL);
+        if (isNull) {
+          // do nothing
+        } else {
+          char* p = colDataGetData(pColInfoData, j);
+          size += varDataTLen(p);
         }
-      }
 
-      if (size > pageSize) {
-        *stopIndex = j - 1;
-        ASSERT(*stopIndex > startIndex);
+        size += sizeof(pColInfoData->varmeta.offset[0]);
+      } else {    // this block is unreached, because hasVarCol = true
+        size += pColInfoData->info.bytes;
 
-        return TSDB_CODE_SUCCESS;
+        if (((j - startIndex) & 0x07) == 0) {
+          size += 1;  // the space for null bitmap
+        }
       }
     }
 
-    // all fit in
-    *stopIndex = numOfRows - 1;
-    return TSDB_CODE_SUCCESS;
+    if (size > pageSize) {
+      *stopIndex = j - 1;
+      ASSERT(*stopIndex > startIndex);
+
+      return TSDB_CODE_SUCCESS;
+    }
   }
+
+  // all fit in
+  *stopIndex = numOfRows - 1;
+  return TSDB_CODE_SUCCESS;
+
 }
 
 SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount) {
