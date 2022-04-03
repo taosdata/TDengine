@@ -2972,7 +2972,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         if (sep == NULL) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        *dbIncluded = true;
+        if (dbIncluded) *dbIncluded = true;
 
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
