@@ -644,7 +644,7 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 1;
   cfg.maxValue = 10000;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
   taosInitConfigOption(cfg);
 
   cfg.option = "syncCheckInterval";
@@ -654,7 +654,7 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 1;
   cfg.maxValue = 10000;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
   taosInitConfigOption(cfg);
 
   cfg.option = "balance";
