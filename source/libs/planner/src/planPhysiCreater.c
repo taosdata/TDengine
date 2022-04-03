@@ -264,7 +264,7 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
     .pLeftHash = taosArrayGetP(pCxt->pLocationHelper, leftDataBlockId),
     .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId))
   };
-  nodesWalkNode(pRes, doSetSlotId, &cxt);
+  nodesWalkExpr(pRes, doSetSlotId, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyNode(pRes);
     return cxt.errCode;
@@ -285,7 +285,7 @@ static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
     .pLeftHash = taosArrayGetP(pCxt->pLocationHelper, leftDataBlockId),
     .pRightHash = (rightDataBlockId < 0 ? NULL : taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId))
   };
-  nodesWalkList(pRes, doSetSlotId, &cxt);
+  nodesWalkExprs(pRes, doSetSlotId, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(pRes);
     return cxt.errCode;
@@ -419,7 +419,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
-    SQueryNodeAddr addr = { .nodeId = MND_VGID, .epSet = pCxt->pPlanCxt->mgmtEpSet };
+    SQueryNodeAddr addr = { .nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet };
     taosArrayPush(pCxt->pExecNodeList, &addr);
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
@@ -606,7 +606,7 @@ static int32_t rewritePrecalcExprs(SPhysiPlanContext* pCxt, SNodeList* pList, SN
     }
   }
   SRewritePrecalcExprsCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pPrecalcExprs = *pPrecalcExprs };
-  nodesRewriteList(*pRewrittenList, doRewritePrecalcExprs, &cxt);
+  nodesRewriteExprs(*pRewrittenList, doRewritePrecalcExprs, &cxt);
   if (0 == LIST_LENGTH(cxt.pPrecalcExprs)) {
     nodesDestroyList(cxt.pPrecalcExprs);
     *pPrecalcExprs = NULL;

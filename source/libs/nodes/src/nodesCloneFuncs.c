@@ -113,36 +113,13 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 }
 
 static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_POINT_FIELD(literal);
-  COPY_SCALAR_FIELD(isDuration);
-  COPY_SCALAR_FIELD(translate);
   if (!pSrc->translate) {
     return (SNode*)pDst;
   }
   switch (pSrc->node.resType.type) {
-    case TSDB_DATA_TYPE_NULL:
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      COPY_SCALAR_FIELD(datum.b);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      COPY_SCALAR_FIELD(datum.i);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      COPY_SCALAR_FIELD(datum.u);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      COPY_SCALAR_FIELD(datum.d);
-      break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:

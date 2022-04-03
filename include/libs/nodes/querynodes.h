@@ -79,6 +79,7 @@ typedef struct SValueNode {
   char* literal;
   bool isDuration;
   bool translate;
+  bool genByCalc;
   union {
     bool b;
     int64_t i;
