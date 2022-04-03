@@ -289,7 +289,11 @@ ENDIF ()
 
 MESSAGE(STATUS "CMAKE_CXX_COMPILER_ID: " ${CMAKE_CXX_COMPILER_ID})
 IF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-  SET(COMMON_FLAGS "${COMMON_FLAGS} -Wno-unused-but-set-variable")
+  EXECUTE_PROCESS( COMMAND ${CMAKE_CXX_COMPILER} --version OUTPUT_VARIABLE clang_full_version_string )
+  string (REGEX REPLACE ".*clang version ([0-9]+\\.[0-9]+).*" "\\1" CLANG_VERSION_STRING ${clang_full_version_string})
+  IF (CLANG_VERSION_STRING VERSION_GREATER 13.1)
+    SET(COMMON_FLAGS "${COMMON_FLAGS} -Wno-unused-but-set-variable")
+  ENDIF ()
 ENDIF ()
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
