@@ -116,9 +116,26 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      *str = '\'';
+      bool squote = false;
+      for (int32_t i = 0; i < bufSize; ++i) {
+        if (((char *)buf)[i] == '\'') {
+          squote = true;
+          break;
+        }
+      }
+
+      if (squote) {
+        *str = '\"';
+      } else {
+        *str = '\'';
+      }
+
       memcpy(str + 1, buf, bufSize);
-      *(str + bufSize + 1) = '\'';
+      if (squote) {
+        *(str + bufSize + 1) = '\"';
+      } else {
+        *(str + bufSize + 1) = '\'';
+      }
       n = bufSize + 2;
       break;
 
