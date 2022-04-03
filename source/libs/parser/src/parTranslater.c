@@ -939,7 +939,7 @@ static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbRe
     SNode* pNode = NULL;
     int32_t index = 0;
     FOREACH(pNode, pRetentions) {
-      if (0 == index % 2) {
+      if (0 == ((index++) & 1)) {
         pFreq = (SValueNode*)pNode;
       } else {
         pKeep = (SValueNode*)pNode;
@@ -952,6 +952,7 @@ static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbRe
         taosArrayPush(pReq->pRetensions, &retention);
       }
     }
+    pReq->numOfRetensions = taosArrayGetSize(pReq->pRetensions);
   }
   return TSDB_CODE_SUCCESS;
 }
