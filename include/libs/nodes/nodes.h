@@ -213,16 +213,16 @@ typedef enum EDealRes {
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkList(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprs(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
-void nodesRewriteNode(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExpr(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 

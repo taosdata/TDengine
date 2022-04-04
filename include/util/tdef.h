@@ -307,7 +307,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TOTAL_BLOCKS     10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS 6
 
-#define TSDB_MIN_DAYS_PER_FILE     (1 * 1440)    // unit minute
+#define TSDB_MIN_DAYS_PER_FILE     60    // unit minute
 #define TSDB_MAX_DAYS_PER_FILE     (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE (10 * 1440)
 
@@ -480,9 +480,9 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define MND_VGID -1
-#define QND_VGID 1
-#define VND_VGID 0
+#define MNODE_HANDLE -1
+#define QNODE_HANDLE 1
+#define DEFAULT_HANDLE 0
 
 #define MAX_NUM_STR_SIZE 40
 

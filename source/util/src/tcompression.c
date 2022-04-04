@@ -28,11 +28,11 @@
  *
  * BOOLEAN Compression Algorithm:
  *   We provide two methods for compress boolean types. Because boolean types in C
- *   code are char bytes with 0 and 1 values only, only one bit can used to discrimenate
+ *   code are char bytes with 0 and 1 values only, only one bit can used to discriminate
  *   the values.
  *   1. The first method is using only 1 bit to represent the boolean value with 1 for
  *   true and 0 for false. Then the compression rate is 1/8.
- *   2. The second method is using run length encoding (RLE) methods. This methos works
+ *   2. The second method is using run length encoding (RLE) methods. This method works
  *   better when there are a lot of consecutive true values or false values.
  *
  * STRING Compression Algorithm:

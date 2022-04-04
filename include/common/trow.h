@@ -147,20 +147,20 @@ typedef struct {
 
 typedef struct {
   // basic info
-  int8_t  rowType;
-  int16_t sver;
-  STSRow *pBuf;
+  int8_t       rowType;
+  schema_ver_t sver;
+  STSRow      *pBuf;
 
   // extended info
-  int32_t flen;
-  int16_t nBoundCols;
-  int16_t nCols;
-  int16_t nBitmaps;
-  int16_t nBoundBitmaps;
-  int32_t offset;
-  void   *pBitmap;
-  void   *pOffset;
-  int32_t extendedRowSize;
+  int32_t  flen;
+  col_id_t nBoundCols;
+  col_id_t nCols;
+  col_id_t nBitmaps;
+  col_id_t nBoundBitmaps;
+  int32_t  offset;
+  void    *pBitmap;
+  void    *pOffset;
+  int32_t  extendedRowSize;
 } SRowBuilder;
 
 #define TD_ROW_HEAD_LEN (sizeof(STSRow))
@@ -448,9 +448,9 @@ static FORCE_INLINE int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t
   }
 #ifdef TD_SUPPORT_BITMAP
   // the primary TS key is stored separatedly
-  pBuilder->nBitmaps = (int16_t)TD_BITMAP_BYTES(pBuilder->nCols - 1);
+  pBuilder->nBitmaps = (col_id_t)TD_BITMAP_BYTES(pBuilder->nCols - 1);
   if (nBoundCols > 0) {
-    pBuilder->nBoundBitmaps = (int16_t)TD_BITMAP_BYTES(pBuilder->nBoundCols - 1);
+    pBuilder->nBoundBitmaps = (col_id_t)TD_BITMAP_BYTES(pBuilder->nBoundCols - 1);
   } else {
     pBuilder->nBoundBitmaps = 0;
   }

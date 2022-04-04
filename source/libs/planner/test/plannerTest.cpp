@@ -157,6 +157,13 @@ TEST_F(PlannerTest, simple) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, selectConstant) {
+  setDatabase("root", "test");
+
+  bind("SELECT 2-1 FROM t1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, stSimple) {
   setDatabase("root", "test");
 

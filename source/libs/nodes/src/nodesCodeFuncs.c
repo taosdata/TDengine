@@ -1491,6 +1491,7 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkValueGenByCalc = "GenByCalc";
 static const char* jkValueLiteral = "Literal";
 static const char* jkValueDuration = "Duration";
 static const char* jkValueTranslate = "Translate";
@@ -1544,6 +1545,9 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = exprNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkValueGenByCalc, pNode->genByCalc);
+  }
+  if (TSDB_CODE_SUCCESS == code && !pNode->genByCalc) {
     code = tjsonAddStringToObject(pJson, jkValueLiteral, pNode->literal);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1614,6 +1618,9 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToExprNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkValueGenByCalc, &pNode->genByCalc);
+  }
+  if (TSDB_CODE_SUCCESS == code && !pNode->genByCalc) {
     code = tjsonDupStringValue(pJson, jkValueLiteral, &pNode->literal);
   }
   if (TSDB_CODE_SUCCESS == code) {

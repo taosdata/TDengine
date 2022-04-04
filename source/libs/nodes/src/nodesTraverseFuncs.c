@@ -138,19 +138,19 @@ static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalke
   return DEAL_RES_CONTINUE;
 }
 
-void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkList(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
+void nodesWalkExprs(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
   (void)walkList(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
-void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext) {
+void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext) {
   (void)walkList(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
@@ -267,19 +267,19 @@ static EDealRes rewriteList(SNodeList* pNodeList, ETraversalOrder order, FNodeRe
   return DEAL_RES_CONTINUE;
 }
 
-void nodesRewriteNode(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
+void nodesRewriteExpr(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
   (void)rewriteNode(pNode, TRAVERSAL_PREORDER, rewriter, pContext);
 }
 
-void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
+void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
   (void)rewriteList(pList, TRAVERSAL_PREORDER, rewriter, pContext);
 }
 
-void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
+void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
   (void)rewriteNode(pNode, TRAVERSAL_POSTORDER, rewriter, pContext);
 }
 
-void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
+void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
   (void)rewriteList(pList, TRAVERSAL_POSTORDER, rewriter, pContext);
 }
 
@@ -290,20 +290,20 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
 
   switch (clause) {
     case SQL_CLAUSE_FROM:
-      nodesWalkNode(pSelect->pFromTable, walker, pContext);
-      nodesWalkNode(pSelect->pWhere, walker, pContext);
+      nodesWalkExpr(pSelect->pFromTable, walker, pContext);
+      nodesWalkExpr(pSelect->pWhere, walker, pContext);
     case SQL_CLAUSE_WHERE:
-      nodesWalkList(pSelect->pPartitionByList, walker, pContext);
+      nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
-      nodesWalkNode(pSelect->pWindow, walker, pContext);
+      nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
-      nodesWalkList(pSelect->pGroupByList, walker, pContext);
+      nodesWalkExprs(pSelect->pGroupByList, walker, pContext);
     case SQL_CLAUSE_GROUP_BY:
-      nodesWalkNode(pSelect->pHaving, walker, pContext);
+      nodesWalkExpr(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
-      nodesWalkList(pSelect->pOrderByList, walker, pContext);
+      nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
-      nodesWalkList(pSelect->pProjectionList, walker, pContext);
+      nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
     case SQL_CLAUSE_SELECT:
     default:
       break;
@@ -319,20 +319,20 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
 
   switch (clause) {
     case SQL_CLAUSE_FROM:
-      nodesRewriteNode(&(pSelect->pFromTable), rewriter, pContext);
-      nodesRewriteNode(&(pSelect->pWhere), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pFromTable), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pWhere), rewriter, pContext);
     case SQL_CLAUSE_WHERE:
-      nodesRewriteList(pSelect->pPartitionByList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
-      nodesRewriteNode(&(pSelect->pWindow), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
-      nodesRewriteList(pSelect->pGroupByList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pGroupByList, rewriter, pContext);
     case SQL_CLAUSE_GROUP_BY:
-      nodesRewriteNode(&(pSelect->pHaving), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pHaving), rewriter, pContext);
     case SQL_CLAUSE_HAVING:
-      nodesRewriteList(pSelect->pProjectionList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pProjectionList, rewriter, pContext);
     case SQL_CLAUSE_SELECT:
-      nodesRewriteList(pSelect->pOrderByList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pOrderByList, rewriter, pContext);
     default:
       break;
   }

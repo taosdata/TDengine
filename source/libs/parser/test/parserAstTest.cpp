@@ -54,7 +54,7 @@ private:
   static const int max_err_len = 1024;
 
   bool runImpl(int32_t parseCode, int32_t translateCode) {
-    int32_t code = doParse(&cxt_, &query_);
+    int32_t code = parse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
       parseErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
       return (terrno == parseCode);
@@ -63,7 +63,7 @@ private:
       return false;
     }
     parsedAstStr_ = toString(query_->pRoot);
-    code = doTranslate(&cxt_, query_);
+    code = translate(&cxt_, query_);
     if (code != TSDB_CODE_SUCCESS) {
       translateErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
       return (terrno == translateCode);

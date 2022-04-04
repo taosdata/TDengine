@@ -23,20 +23,20 @@
 #include "tutil.h"
 
 typedef struct {
-  int       index;
-  SEpSet    epSet;
-  int       num;
-  int       numOfReqs;
-  int       msgSize;
-  tsem_t    rspSem;
-  tsem_t *  pOverSem;
+  int      index;
+  SEpSet   epSet;
+  int      num;
+  int      numOfReqs;
+  int      msgSize;
+  tsem_t   rspSem;
+  tsem_t * pOverSem;
   TdThread thread;
-  void *    pRpc;
+  void *   pRpc;
 } SInfo;
 static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->ahandle;
-  tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
-         pMsg->code);
+  // tError("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
+  //       pMsg->code);
 
   if (pEpSet) pInfo->epSet = *pEpSet;
 
@@ -51,9 +51,9 @@ static void *sendRequest(void *param) {
   SInfo * pInfo = (SInfo *)param;
   SRpcMsg rpcMsg = {0};
 
-  tDebug("thread:%d, start to send request", pInfo->index);
+  tError("thread:%d, start to send request", pInfo->index);
 
-  tDebug("thread:%d, reqs: %d", pInfo->index, pInfo->numOfReqs);
+  tError("thread:%d, reqs: %d", pInfo->index, pInfo->numOfReqs);
   int u100 = 0;
   int u500 = 0;
   int u1000 = 0;
@@ -68,7 +68,7 @@ static void *sendRequest(void *param) {
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     int64_t start = taosGetTimestampUs();
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
-    if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
+    if (pInfo->num % 20000 == 0) tError("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
     int64_t end = taosGetTimestampUs() - start;
@@ -88,7 +88,7 @@ static void *sendRequest(void *param) {
   }
 
   tError("send and recv sum: %d, %d, %d, %d", u100, u500, u1000, u10000);
-  tDebug("thread:%d, it is over", pInfo->index);
+  tError("thread:%d, it is over", pInfo->index);
   tcount++;
 
   return NULL;
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
   char           secret[20] = "mypassword";
   struct timeval systemTime;
   int64_t        startTime, endTime;
-  TdThreadAttr thattr;
+  TdThreadAttr   thattr;
 
   // server info
   epSet.inUse = 0;
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcDebugFlag = 143;
+  rpcDebugFlag = 131;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
@@ -170,6 +170,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  const char *path = "/tmp/transport/client";
+  taosRemoveDir(path);
+  taosMkDir(path);
+  tstrncpy(tsLogDir, path, PATH_MAX);
   taosInitLog("client.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
@@ -178,8 +182,8 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  tInfo("client is initialized");
-  tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
+  tError("client is initialized");
+  tError("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
   taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
@@ -208,8 +212,9 @@ int main(int argc, char *argv[]) {
   endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
   float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 
-  tInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs * appThreads);
-  tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime, msgSize);
+  tError("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs * appThreads);
+  tError("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime,
+         msgSize);
 
   int ch = getchar();
   UNUSED(ch);

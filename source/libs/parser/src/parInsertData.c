@@ -149,8 +149,28 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
+  int32_t len = tSerializeSVCreateTbReq(NULL, pCreateTbReq);
+  if (pBlocks->nAllocSize - pBlocks->size < len) {
+    pBlocks->nAllocSize += len + pBlocks->rowSize;
+    char* pTmp = taosMemoryRealloc(pBlocks->pData, pBlocks->nAllocSize);
+    if (pTmp != NULL) {
+      pBlocks->pData = pTmp;
+      memset(pBlocks->pData + pBlocks->size, 0, pBlocks->nAllocSize - pBlocks->size);
+    } else {
+      pBlocks->nAllocSize -= len + pBlocks->rowSize;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+  char* pBuf = pBlocks->pData + pBlocks->size;
+  tSerializeSVCreateTbReq((void**)&pBuf, pCreateTbReq);
+  pBlocks->size += len;
+  pBlocks->createTbReqLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList) {
+    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
@@ -161,6 +181,13 @@ int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int3
     int32_t ret = createDataBlock((size_t)size, rowSize, startOffset, pTableMeta, dataBlocks);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
+    }
+
+    if (NULL != pCreateTbReq && NULL != pCreateTbReq->ctbCfg.pTag) {
+      ret = buildCreateTbMsg(*dataBlocks, pCreateTbReq);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
+      }
     }
 
     taosHashPut(pHashList, (const char*)&id, sizeof(int64_t), (char*)dataBlocks, POINTER_BYTES);
@@ -294,7 +321,7 @@ int sortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKey
 
   int32_t         extendedRowSize = getExtendedRowSize(dataBuf);
   SBlockKeyTuple *pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
-  char *          pBlockData = pBlocks->data;
+  char *          pBlockData = pBlocks->data + pBlocks->schemaLen;
   int             n = 0;
   while (n < nRows) {
     pBlkKeyTuple->skey = TD_ROW_KEY((STSRow *)pBlockData);
@@ -340,44 +367,26 @@ int sortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKey
 }
 
 // Erase the empty space reserved for binary data
-static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SBlockKeyTuple* blkKeyTuple, int8_t schemaAttached, bool isRawPayload) {
+static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SBlockKeyTuple* blkKeyTuple, bool isRawPayload) {
   // TODO: optimize this function, handle the case while binary is not presented
   STableMeta*     pTableMeta = pTableDataBlock->pTableMeta;
   STableComInfo   tinfo = getTableInfo(pTableMeta);
   SSchema*        pSchema = getTableColumnSchema(pTableMeta);
 
+  int32_t nonDataLen = sizeof(SSubmitBlk) + pTableDataBlock->createTbReqLen;
   SSubmitBlk* pBlock = pDataBlock;
-  memcpy(pDataBlock, pTableDataBlock->pData, sizeof(SSubmitBlk));
-  pDataBlock = (char*)pDataBlock + sizeof(SSubmitBlk);
+  memcpy(pDataBlock, pTableDataBlock->pData, nonDataLen);
+  pDataBlock = (char*)pDataBlock + nonDataLen;
 
   int32_t flen = 0;  // original total length of row
-
-  // schema needs to be included into the submit data block
-  if (schemaAttached) {
-    int32_t numOfCols = getNumOfColumns(pTableDataBlock->pTableMeta);
-    for(int32_t j = 0; j < numOfCols; ++j) {
-      STColumn* pCol = (STColumn*) pDataBlock;
-      pCol->colId = htons(pSchema[j].colId);
-      pCol->type  = pSchema[j].type;
-      pCol->bytes = htons(pSchema[j].bytes);
-      pCol->offset = 0;
-
-      pDataBlock = (char*)pDataBlock + sizeof(STColumn);
+  if (isRawPayload) {
+    for (int32_t j = 0; j < tinfo.numOfColumns; ++j) {
       flen += TYPE_BYTES[pSchema[j].type];
     }
-
-    int32_t schemaSize = sizeof(STColumn) * numOfCols;
-    pBlock->schemaLen = schemaSize;
-  } else {
-    if (isRawPayload) {
-      for (int32_t j = 0; j < tinfo.numOfColumns; ++j) {
-        flen += TYPE_BYTES[pSchema[j].type];
-      }
-    }
-    pBlock->schemaLen = 0;
   }
+  pBlock->schemaLen = pTableDataBlock->createTbReqLen;
 
-  char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
+  char* p = pTableDataBlock->pData + nonDataLen;
   pBlock->dataLen = 0;
   int32_t numOfRows = pBlock->numOfRows;
 
@@ -414,7 +423,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
   return pBlock->dataLen + pBlock->schemaLen;
 }
 
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, SArray** pVgDataBlocks) {
+int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** pVgDataBlocks) {
   const int INSERT_HEAD_SIZE = sizeof(SSubmitReq);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(payloadType);
@@ -429,7 +438,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
     if (pBlocks->numOfRows > 0) {
       STableDataBlocks* dataBuf = NULL;
       int32_t ret = getDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
-          INSERT_HEAD_SIZE, 0, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
+          INSERT_HEAD_SIZE, 0, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList, NULL);
       if (ret != TSDB_CODE_SUCCESS) {
         taosHashCleanup(pVnodeDataBlockHashList);
         destroyBlockArrayList(pVnodeDataBlockList);
@@ -474,7 +483,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
                     sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
 
       // erase the empty space reserved for binary data
-      int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, blkKeyInfo.pKeyTuple, schemaAttached, isRawPayload);
+      int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, blkKeyInfo.pKeyTuple, isRawPayload);
       assert(finalLen <= len);
 
       dataBuf->size += (finalLen + sizeof(SSubmitBlk));

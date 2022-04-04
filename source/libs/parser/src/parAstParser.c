@@ -26,7 +26,7 @@ extern void Parse(void*, int, SToken, void*);
 extern void ParseFree(void*, FFree);
 extern void ParseTrace(FILE*, char*);
 
-int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
+int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
   void *pParser = ParseAlloc((FMalloc)taosMemoryMalloc);

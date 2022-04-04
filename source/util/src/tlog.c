@@ -214,6 +214,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
+  taosSsleep(3);
   taosCloseLogByFd(pOldFile);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
@@ -347,16 +348,12 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
   taosUmaskFile(0);
-  TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CTEATE | TD_FILE_WRITE);
+  tsLogObj.logHandle->pFile = taosOpenFile(fileName, TD_FILE_CTEATE | TD_FILE_WRITE);
 
-  if (pFile == NULL) {
+  if (tsLogObj.logHandle->pFile == NULL) {
     printf("\nfailed to open log file:%s, reason:%s\n", fileName, strerror(errno));
     return -1;
   }
-  TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
-  tsLogObj.logHandle->pFile = pFile;
-  taosUnLockLogFile(pOldFile);
-  taosCloseFile(&pOldFile);
   taosLockLogFile(tsLogObj.logHandle->pFile);
 
   // only an estimate for number of lines

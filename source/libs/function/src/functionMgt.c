@@ -104,6 +104,10 @@ bool fmIsScalarFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC);
 }
 
+bool fmIsPseudoColumnFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC);
+}
+
 bool fmIsWindowPseudoColumnFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC);
 }
