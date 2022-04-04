@@ -687,6 +687,7 @@ int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return doLengthFunction(pInput, inputNum, pOutput, tcharlength);
 }
 
+#if 0
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
   switch(type) {
     case TSDB_DATA_TYPE_TINYINT:
@@ -751,6 +752,7 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
     default: assert(0);
   }
 }
+#endif
 
 bool getTimePseudoFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(int64_t);

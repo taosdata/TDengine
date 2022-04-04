@@ -588,7 +588,7 @@ void getDBNameFromCondition(SNode* pCondition, char* dbName) {
     return;
   }
 
-  nodesWalkNode(pCondition, getDBNameFromConditionWalker, dbName);
+  nodesWalkExpr(pCondition, getDBNameFromConditionWalker, dbName);
 }
 
 static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t code) {
