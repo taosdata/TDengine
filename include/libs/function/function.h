@@ -36,7 +36,7 @@ typedef struct SFuncExecEnv {
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
-typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -154,7 +154,9 @@ typedef struct SResultDataInfo {
   int32_t interBufSize;
 } SResultDataInfo;
 
-#define GET_RES_INFO(ctx) ((ctx)->resultInfo)
+#define GET_RES_INFO(ctx)        ((ctx)->resultInfo)
+#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowEntryInfo)))
+#define DATA_SET_FLAG ','        // to denote the output area has data, not null value
 
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;      // total rows in current columnar data
