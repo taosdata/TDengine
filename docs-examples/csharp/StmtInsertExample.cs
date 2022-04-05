@@ -95,14 +95,9 @@ namespace TDengineExample
 
         static void CheckResPtr(IntPtr res, string errorMsg)
         {
-            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
+            if (TDengine.ErrorNo(res) != 0)
             {
-                Console.Write(errorMsg);
-                if (res != IntPtr.Zero)
-                {
-                    Console.Write(", reason: " + TDengine.Error(res));
-                }
-                Console.WriteLine("");
+                Console.WriteLine(errorMsg + " since:" + TDengine.Error(res));
                 ExitProgram();
             }
         }

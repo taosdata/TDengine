@@ -9,10 +9,18 @@ namespace TDengineExample
             IntPtr conn = GetConnection();
             // run query
             IntPtr res = TDengine.Query(conn, "SELECT * FROM meters LIMIT 2");
-            CheckResPtr(res, "failed to query");
+            if (TDengine.ErrorNo(res) != 0)
+            {
+                Console.WriteLine("Failed to query since: " + TDengine.Error(res));  
+                TDengine.Close(conn);
+                TDengine.Cleanup();
+                return;
+            }
+
             // get filed count
             int fieldCount = TDengine.FieldCount(res);
-            Console.WriteLine("fieldCount=" + fieldCount); // 
+            Console.WriteLine("fieldCount=" + fieldCount); 
+
             // print column names
             List<TDengineMeta> metas = TDengine.FetchFields(res);
             for (int i = 0; i < metas.Count; i++)
@@ -20,6 +28,7 @@ namespace TDengineExample
                 Console.Write(metas[i].name + "\t");
             }
             Console.WriteLine();
+
             // print values
             IntPtr row;
             while ((row = TDengine.FetchRows(res)) != IntPtr.Zero) {
@@ -82,6 +91,7 @@ namespace TDengineExample
             {
                 Console.WriteLine($"Query is not complete, Error { TDengine.ErrorNo(res)} {TDengine.Error(res)}");
             }
+            // exit
             TDengine.FreeResult(res);
             TDengine.Close(conn);
             TDengine.Cleanup();
@@ -104,26 +114,6 @@ namespace TDengineExample
                 Console.WriteLine("Connect to TDengine success");
             }
             return conn;
-        }
-
-        static void CheckResPtr(IntPtr res, String errorMsg)
-        {
-            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
-            {
-                Console.Write(errorMsg);
-                if (res != IntPtr.Zero)
-                {
-                    Console.Write(", reason: " + TDengine.Error(res));
-                }
-                Console.WriteLine("");
-                ExitProgram();
-            }
-        }
-
-        static void ExitProgram()
-        {
-            TDengine.Cleanup();
-            System.Environment.Exit(1);
         }
     }
 }

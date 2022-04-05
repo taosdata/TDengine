@@ -7,6 +7,26 @@ namespace TDengineExample
         static void Main() {
             IntPtr conn = GetConnection();
             PrepareDatabase(conn);
+            string[] lines = {
+                "meters,location=Beijing.Haidian,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249",
+                "meters,location=Beijing.Haidian,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611250",
+                "meters,location=Beijing.Haidian,groupid=3 current=10.8,voltage=223,phase=0.29 1648432611249",
+                "meters,location=Beijing.Haidian,groupid=3 current=11.3,voltage=221,phase=0.35 1648432611250"
+            };
+            IntPtr res = TDengine.SchemalessInsert(conn, lines, lines.Length, (int)TDengineSchemalessProtocol.TSDB_SML_LINE_PROTOCOL, (int)TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+            if (TDengine.ErrorNo(res) != 0)
+            {
+                Console.WriteLine("SchemalessInsert failed since " + TDengine.Error(res));
+                ExitProgram(conn, 1);
+            }
+            else
+            {
+                int affectedRows = TDengine.AffectRows(res);
+                Console.WriteLine($"SchemalessInsert success, affected {affectedRows} rows");
+            }
+            TDengine.FreeResult(res);
+            ExitProgram(conn, 0);
+
         }
         static IntPtr GetConnection()
         {
@@ -19,7 +39,8 @@ namespace TDengineExample
             if (conn == IntPtr.Zero)
             {
                 Console.WriteLine("Connect to TDengine failed");
-                System.Environment.Exit(0);
+                TDengine.Cleanup();
+                Environment.Exit(1);
             }
             else
             {
@@ -31,29 +52,23 @@ namespace TDengineExample
         static void PrepareDatabase(IntPtr conn)
         {
             IntPtr res = TDengine.Query(conn, "CREATE DATABASE test");
-            CheckResPtr(res, "failed to create database");
+            if (TDengine.ErrorNo(res) != 0) {
+                Console.WriteLine("failed to create database, reason: " + TDengine.Error(res));
+                ExitProgram(conn, 1);
+            }
             res = TDengine.Query(conn, "USE test");
-            CheckResPtr(res, "failed to change database");
-        }
-
-        static void CheckResPtr(IntPtr res, String errorMsg)
-        {
-            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
+            if (TDengine.ErrorNo(res) != 0)
             {
-                Console.Write(errorMsg);
-                if (res != IntPtr.Zero)
-                {
-                    Console.Write(", reason: " + TDengine.Error(res));
-                }
-                Console.WriteLine("");
-                ExitProgram();
+                Console.WriteLine("failed to change database, reason: " + TDengine.Error(res));
+                ExitProgram(conn, 1);
             }
         }
 
-        static void ExitProgram()
+        static void ExitProgram(IntPtr conn, int exitCode)
         {
+            TDengine.Close(conn);
             TDengine.Cleanup();
-            System.Environment.Exit(1);
+            Environment.Exit(exitCode);
         }
     }
 
