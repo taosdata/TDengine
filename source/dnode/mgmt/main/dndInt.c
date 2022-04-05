@@ -211,3 +211,19 @@ void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   pStartup->finished = 0;
 }
+
+static void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
+  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
+}
+
+void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
+  dDebug("startup req is received");
+  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
+  dndGetStartup(pDnode, pStartup);
+
+  dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
+  SRpcMsg rpcRsp = {
+      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
+  rpcSendResponse(&rpcRsp);
+}

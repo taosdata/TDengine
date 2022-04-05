@@ -339,7 +339,7 @@ void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.closeFp = vmCleanup;
   mgmtFp.requiredFp = vmRequire;
 
-  vmInitMsgHandles(pWrapper);
+  vmInitMsgHandle(pWrapper);
   pWrapper->name = "vnode";
   pWrapper->fp = mgmtFp;
 }

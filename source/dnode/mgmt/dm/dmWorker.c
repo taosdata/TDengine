@@ -40,7 +40,7 @@ static void *dmThreadRoutine(void *param) {
 
     float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
     if (monitorInterval >= tsMonitorInterval) {
-      dndSendMonitorReport(pDnode);
+      dmSendMonitorReport(pDnode);
       lastMonitorTime = curTime;
     }
   }
@@ -79,7 +79,7 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
       code = dmProcessGrantRsp(pMgmt, pMsg);
       break;
     default:
-      code = dmProcessCDnodeMsg(pMgmt->pDnode, pMsg);
+      code = dmProcessCDnodeReq(pMgmt->pDnode, pMsg);
       break;
   }
 
@@ -122,7 +122,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
-int32_t dmPutMsgToMgmtWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
 
@@ -131,7 +131,7 @@ int32_t dmPutMsgToMgmtWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t dmPutMsgToStatusWorker(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->statusWorker;
 

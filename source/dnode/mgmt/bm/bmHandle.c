@@ -54,4 +54,4 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 }
 
-void bmInitMsgHandles(SMgmtWrapper *pWrapper) {}
+void bmInitMsgHandle(SMgmtWrapper *pWrapper) {}

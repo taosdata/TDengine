@@ -117,7 +117,7 @@ void smSetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.dropMsgFp = smProcessDropReq;
   mgmtFp.requiredFp = smRequire;
 
-  smInitMsgHandles(pWrapper);
+  smInitMsgHandle(pWrapper);
   pWrapper->name = "snode";
   pWrapper->fp = mgmtFp;
 }

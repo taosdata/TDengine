@@ -16,7 +16,7 @@
 #ifndef _TD_DND_QNODE_INT_H_
 #define _TD_DND_QNODE_INT_H_
 
-#include "dnd.h"
+#include "dndInt.h"
 #include "qnode.h"
 
 #ifdef __cplusplus
@@ -36,8 +36,8 @@ typedef struct SQnodeMgmt {
 int32_t qmOpen(SMgmtWrapper *pWrapper);
 int32_t qmDrop(SMgmtWrapper *pWrapper);
 
-// qmMsg.c
-void    qmInitMsgHandles(SMgmtWrapper *pWrapper);
+// qmHandle.c
+void    qmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 

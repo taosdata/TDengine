@@ -16,7 +16,7 @@
 #ifndef _TD_DND_MNODE_INT_H_
 #define _TD_DND_MNODE_INT_H_
 
-#include "dnd.h"
+#include "dndInt.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -46,8 +46,8 @@ int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq);
 int32_t mmDrop(SMgmtWrapper *pWrapper);
 int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq);
 
-// mmMsg.c
-void    mmInitMsgHandles(SMgmtWrapper *pWrapper);
+// mmHandle.c
+void    mmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
