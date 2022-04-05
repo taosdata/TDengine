@@ -14,6 +14,7 @@ function prepareSTable() {
   );
 }
 
+//ANCHOR: insertData
 function insertData() {
   // init
   cursor.stmtInit();
@@ -29,24 +30,19 @@ function insertData() {
   cursor.stmtSetTbnameTags("d1001", tagBind.getBind());
 
   // bind values
-  let rows = [
-    [1648432611249, 10.3, 219, 0.31],
-    [1648432611749, 12.6, 218, 0.33],
-  ];
-  for (let row of rows) {
-    let valueBind = new taos.TaosBind(4);
-    valueBind.bindTimestamp(row[0]);
-    valueBind.bindFloat(row[1]);
-    valueBind.bindInt(row[2]);
-    valueBind.bindFloat(row[3]);
-    cursor.stmtBindParam(valueBind.getBind());
-    cursor.stmtAddBatch();
-  }
+  let valueBind = new taos.TaosMultiBindArr(4);
+  valueBind.multiBindTimestamp([1648432611249, 1648432611749]);
+  valueBind.multiBindFloat([10.3, 12.6]);
+  valueBind.multiBindInt([219, 218]);
+  valueBind.multiBindFloat([0.31, 0.33]);
+  cursor.stmtBindParamBatch(valueBind.getMultiBindArr());
+  cursor.stmtAddBatch();
 
   // execute
   cursor.stmtExecute();
   cursor.stmtClose();
 }
+//ANCHOR_END: insertData
 
 try {
   prepareSTable();
