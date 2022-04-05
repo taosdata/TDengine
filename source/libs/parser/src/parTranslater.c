@@ -50,14 +50,12 @@ static bool beforeHaving(ESqlClause clause) {
   return clause < SQL_CLAUSE_HAVING;
 }
 
-static EDealRes generateDealNodeErrMsg(STranslateContext* pCxt, int32_t errCode, ...) {
-  va_list vArgList;
-  va_start(vArgList, errCode);
-  generateSyntaxErrMsg(&pCxt->msgBuf, errCode, vArgList);
-  va_end(vArgList);
-  pCxt->errCode = errCode;
-  return DEAL_RES_ERROR;
-}
+#define generateDealNodeErrMsg(pCxt, code, ...) \
+  ({ \
+    generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__); \
+    pCxt->errCode = code; \
+    DEAL_RES_ERROR; \
+  })
 
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
@@ -240,7 +238,11 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
   if (NULL != pTable) {
     strcpy(pCol->tableAlias, pTable->tableAlias);
   } else if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    strcpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias);
+    SColumnNode* pProjCol = (SColumnNode*)pExpr;
+    strcpy(pCol->tableAlias, pProjCol->tableAlias);
+    pCol->tableId = pProjCol->tableId;
+    pCol->colId = pProjCol->colId;
+    pCol->colType = pProjCol->colType;
   }
   strcpy(pCol->colName, pExpr->aliasName);
   pCol->node.resType = pExpr->resType;
@@ -435,6 +437,12 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
 }
 
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+  if (nodesIsUnaryOp(pOp)) {
+    if (OP_TYPE_MINUS == pOp->opType && !IS_NUMERIC_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
+    }
+    return DEAL_RES_CONTINUE;
+  }
   SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
   if (nodesIsArithmeticOp(pOp)) {
@@ -503,12 +511,12 @@ static EDealRes doTranslateExpr(SNode* pNode, void* pContext) {
 }
 
 static int32_t translateExpr(STranslateContext* pCxt, SNode* pNode) {
-  nodesWalkNodePostOrder(pNode, doTranslateExpr, pCxt);
+  nodesWalkExprPostOrder(pNode, doTranslateExpr, pCxt);
   return pCxt->errCode;
 }
 
 static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList) {
-  nodesWalkListPostOrder(pList, doTranslateExpr, pCxt);
+  nodesWalkExprsPostOrder(pList, doTranslateExpr, pCxt);
   return pCxt->errCode;
 }
 
@@ -563,7 +571,7 @@ static EDealRes doCheckExprForGroupBy(SNode* pNode, void* pContext) {
 }
 
 static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode* pNode) {
-  nodesWalkNode(pNode, doCheckExprForGroupBy, pCxt);
+  nodesWalkExpr(pNode, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
@@ -571,7 +579,7 @@ static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList
   if (NULL == getGroupByList(pCxt)) {
     return TSDB_CODE_SUCCESS;
   }
-  nodesWalkList(pList, doCheckExprForGroupBy, pCxt);
+  nodesWalkExprs(pList, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
@@ -598,9 +606,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
     return TSDB_CODE_SUCCESS;
   }
   CheckAggColCoexistCxt cxt = { .pTranslateCxt = pCxt, .existAggFunc = false, .existCol = false };
-  nodesWalkList(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
+  nodesWalkExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
-    nodesWalkList(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
+    nodesWalkExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
   if (cxt.existAggFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
@@ -931,7 +939,7 @@ static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbRe
     SNode* pNode = NULL;
     int32_t index = 0;
     FOREACH(pNode, pRetentions) {
-      if (0 == index % 2) {
+      if (0 == ((index++) & 1)) {
         pFreq = (SValueNode*)pNode;
       } else {
         pKeep = (SValueNode*)pNode;
@@ -944,6 +952,7 @@ static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbRe
         taosArrayPush(pReq->pRetensions, &retention);
       }
     }
+    pReq->numOfRetensions = taosArrayGetSize(pReq->pRetensions);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1095,10 +1104,6 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
 }
 
 static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
-  if (NULL == pList) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -1161,10 +1166,15 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   createReq.delay = pStmt->pOptions->delay;
   columnDefNodeToField(pStmt->pCols, &createReq.pColumns);
   columnDefNodeToField(pStmt->pTags, &createReq.pTags);
-  columnNodeToField(pStmt->pOptions->pSma, &createReq.pSmas);
   createReq.numOfColumns = LIST_LENGTH(pStmt->pCols);
   createReq.numOfTags = LIST_LENGTH(pStmt->pTags);
-  createReq.numOfSmas = LIST_LENGTH(pStmt->pOptions->pSma);
+  if (NULL == pStmt->pOptions->pSma) {
+    columnDefNodeToField(pStmt->pCols, &createReq.pSmas);
+    createReq.numOfSmas = createReq.numOfColumns;
+  } else {
+    columnNodeToField(pStmt->pOptions->pSma, &createReq.pSmas);
+    createReq.numOfSmas = LIST_LENGTH(pStmt->pOptions->pSma);
+  }
 
   SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
   strcpy(tableName.dbname, pStmt->dbName);
@@ -1470,20 +1480,20 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
 
 static int32_t nodeTypeToShowType(ENodeType nt) {
   switch (nt) {
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-      return TSDB_MGMT_TABLE_DB;
-    case QUERY_NODE_SHOW_STABLES_STMT:
-      return TSDB_MGMT_TABLE_STB;
-    case QUERY_NODE_SHOW_USERS_STMT:
-      return TSDB_MGMT_TABLE_USER;
-    case QUERY_NODE_SHOW_DNODES_STMT:
-      return TSDB_MGMT_TABLE_DNODE;
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-      return TSDB_MGMT_TABLE_VGROUP;
-    case QUERY_NODE_SHOW_MNODES_STMT:
-      return TSDB_MGMT_TABLE_MNODE;
-    case QUERY_NODE_SHOW_QNODES_STMT:
-      return TSDB_MGMT_TABLE_QNODE;
+    case QUERY_NODE_SHOW_APPS_STMT:
+      return 0; // todo
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+      return TSDB_MGMT_TABLE_CONNS;
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+      return 0; // todo
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+      return TSDB_MGMT_TABLE_QUERIES;
+    case QUERY_NODE_SHOW_SCORES_STMT:
+      return 0; // todo
+    case QUERY_NODE_SHOW_TOPICS_STMT:
+      return 0; // todo
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
+      return TSDB_MGMT_TABLE_VARIABLES;
     default:
       break;
   }
@@ -1505,30 +1515,6 @@ static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSShowReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &showReq);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t translateShowTables(STranslateContext* pCxt) {
-  SVShowTablesReq* pShowReq = taosMemoryCalloc(1, sizeof(SVShowTablesReq));
-
-  SArray* array = NULL;
-  int32_t code = getDBVgInfo(pCxt, pCxt->pParseCxt->db, &array);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-  SVgroupInfo* info = taosArrayGet(array, 0);
-  pShowReq->head.vgId = htonl(info->vgId);
-
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = info->epSet;
-  pCxt->pCmdMsg->msgType = TDMT_VND_SHOW_TABLES;
-  pCxt->pCmdMsg->msgLen = sizeof(SVShowTablesReq);
-  pCxt->pCmdMsg->pMsg = pShowReq;
-  pCxt->pCmdMsg->pExtension = array;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1868,17 +1854,19 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_DNODE_STMT:
       code = translateAlterDnode(pCxt, (SAlterDnodeStmt*)pNode);
       break;
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
-    case QUERY_NODE_SHOW_USERS_STMT:
-    case QUERY_NODE_SHOW_DNODES_STMT:
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_MNODES_STMT:
-    case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_SCORES_STMT:
+    case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
       code = translateShow(pCxt, (SShowStmt*)pNode);
       break;
-    case QUERY_NODE_SHOW_TABLES_STMT:
-      code = translateShowTables(pCxt);
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      // todo
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
@@ -2169,10 +2157,11 @@ typedef struct SVgroupTablesBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupTablesBatch;
 
-static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
+static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchemaEx* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = calcTypeBytes(pCol->dataType);
+  pSchema->sma = TSDB_BSMA_TYPE_LATEST;  // TODO: use default value currently, and use the real value later.
   strcpy(pSchema->name, pCol->colName);
 }
 
@@ -2194,7 +2183,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const char* pDbName, con
   req.dbFName = strdup(dbFName);
   req.name = strdup(pTableName);
   req.ntbCfg.nCols = LIST_LENGTH(pColumns);
-  req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchema));
+  req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchemaEx));
   if (NULL == req.name || NULL == req.ntbCfg.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2205,6 +2194,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const char* pDbName, con
     toSchema((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
     ++index;
   }
+  // TODO: use the real sma for normal table.
 
   pBatch->info = *pVgroupInfo;
   strcpy(pBatch->dbName, pDbName);
@@ -2647,7 +2637,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
+int32_t translate(SParseContext* pParseCxt, SQuery* pQuery) {
   STranslateContext cxt = {
     .pParseCxt = pParseCxt,
     .errCode = TSDB_CODE_SUCCESS,

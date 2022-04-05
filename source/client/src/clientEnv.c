@@ -169,6 +169,7 @@ static void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->row);
   taosMemoryFreeClear(pResInfo->pCol);
   taosMemoryFreeClear(pResInfo->fields);
+  taosMemoryFreeClear(pResInfo->userFields);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {

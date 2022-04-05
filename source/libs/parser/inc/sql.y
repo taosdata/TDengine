@@ -301,6 +301,17 @@ cmd ::= SHOW QNODES.                                                            
 cmd ::= SHOW FUNCTIONS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_FUNCTIONS_STMT, NULL, NULL); }
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, A, B); }
 cmd ::= SHOW STREAMS.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_STREAMS_STMT, NULL, NULL); }
+cmd ::= SHOW ACCOUNTS.                                                            { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+cmd ::= SHOW APPS.                                                                { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_APPS_STMT, NULL, NULL); }
+cmd ::= SHOW CONNECTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONNECTIONS_STMT, NULL, NULL); }
+cmd ::= SHOW LICENCE.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCE_STMT, NULL, NULL); }
+cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
+cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
+cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT, A); }
+cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT, NULL, NULL); }
+cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT, NULL, NULL); }
+cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT, NULL, NULL); }
+cmd ::= SHOW VARIABLES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VARIABLE_STMT, NULL, NULL); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
@@ -363,6 +374,45 @@ analyze_opt(A) ::= ANALYZE.                                                     
 explain_options(A) ::= .                                                          { A = createDefaultExplainOptions(pCxt); }
 explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                     { A = setExplainVerbose(pCxt, B, &C); }
 explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
+
+/************************************************ compact *************************************************************/
+cmd ::= COMPACT VNODES IN NK_LP integer_list(A) NK_RP.                            { pCxt->pRootNode = createCompactStmt(pCxt, A); }
+
+/************************************************ create/drop function ************************************************/
+cmd ::= CREATE agg_func_opt(A) FUNCTION function_name(B) 
+  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E).                         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, A, &B, &C, D, E); }
+cmd ::= DROP FUNCTION function_name(A).                                           { pCxt->pRootNode = createDropFunctionStmt(pCxt, &A); }
+
+%type agg_func_opt                                                                { bool }
+%destructor agg_func_opt                                                          { }
+agg_func_opt(A) ::= .                                                             { A = false; }
+agg_func_opt(A) ::= AGGREGATE.                                                    { A = true; }
+
+%type bufsize_opt                                                                 { int32_t }
+%destructor bufsize_opt                                                           { }
+bufsize_opt(A) ::= .                                                              { A = 0; }
+bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = strtol(B.z, NULL, 10); }
+
+/************************************************ create/drop stream **************************************************/
+cmd ::= CREATE STREAM stream_name(A) INTO table_name(B) AS query_expression(C).   { pCxt->pRootNode = createCreateStreamStmt(pCxt, &A, &B, C); }
+cmd ::= DROP STREAM stream_name(A).                                               { pCxt->pRootNode = createDropStreamStmt(pCxt, &A); }
+
+/************************************************ kill connection/query ***********************************************/
+cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
+cmd ::= KILL QUERY NK_INTEGER(A).                                                 { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_QUERY_STMT, &A); }
+
+/************************************************ merge/redistribute/ vgroup ******************************************/
+cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
+cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
+cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }
+
+%type dnode_list                                                                  { SNodeList* }
+%destructor dnode_list                                                            { nodesDestroyList($$); }
+dnode_list(A) ::= DNODE NK_INTEGER(B).                                            { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
+dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                              { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C)); }
+
+/************************************************ syncdb **************************************************************/
+cmd ::= SYNCDB db_name(A) REPLICA.                                                { pCxt->pRootNode = createSyncdbStmt(pCxt, &A); }
 
 /************************************************ select **************************************************************/
 cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
@@ -442,6 +492,10 @@ index_name(A) ::= NK_ID(B).                                                     
 %destructor topic_name                                                            { }
 topic_name(A) ::= NK_ID(B).                                                       { A = B; }
 
+%type stream_name                                                                 { SToken }
+%destructor stream_name                                                           { }
+stream_name(A) ::= NK_ID(B).                                                      { A = B; }
+
 /************************************************ expression **********************************************************/
 expression(A) ::= literal(B).                                                     { A = B; }
 //expression(A) ::= NK_QUESTION(B).                                                 { A = B; }
@@ -459,7 +513,7 @@ expression(A) ::= NK_PLUS(B) expression(C).                                     
                                                                                   }
 expression(A) ::= NK_MINUS(B) expression(C).                                      {
                                                                                     SToken t = getTokenFromRawExprNode(pCxt, C);
-                                                                                    A = createRawExprNodeExt(pCxt, &B, &t, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, C), NULL));
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &t, createOperatorNode(pCxt, OP_TYPE_MINUS, releaseRawExprNode(pCxt, C), NULL));
                                                                                   }
 expression(A) ::= expression(B) NK_PLUS expression(C).                            {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
@@ -495,38 +549,14 @@ expression_list(A) ::= expression_list(B) NK_COMMA expression(C).               
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
-//pseudo_column(A) ::= NK_NOW.                                                    { A = createFunctionNode(pCxt, NULL, NULL); }
-pseudo_column(A) ::=  NK_UNDERLINE(B) ROWTS(C).                                   {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
+pseudo_column(A) ::=  NOW(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  ROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  TBNAME(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  NK_UNDERLINE(B) QSTARTTS(C).                                {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) QENDTS(C).                                  {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) WSTARTTS(C).                                {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) WENDTS(C).                                  {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
-pseudo_column(A) ::=  NK_UNDERLINE(B) WDURATION(C).                               {
-                                                                                    SToken t = B;
-                                                                                    t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
-                                                                                  }
+pseudo_column(A) ::=  QSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  QENDTS(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  WSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  WENDTS(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  WDURATION(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 /************************************************ predicate ***********************************************************/
 predicate(A) ::= expression(B) compare_op(C) expression(D).                       {

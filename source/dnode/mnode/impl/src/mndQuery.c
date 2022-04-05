@@ -52,7 +52,7 @@ int32_t mndProcessFetchMsg(SNodeMsg *pReq) {
 }
 
 int32_t mndInitQuery(SMnode *pMnode) {
-  if (qWorkerInit(NODE_TYPE_MNODE, MND_VGID, NULL, (void **)&pMnode->pQuery, &pMnode->msgCb) != 0) {
+  if (qWorkerInit(NODE_TYPE_MNODE, MNODE_HANDLE, NULL, (void **)&pMnode->pQuery, &pMnode->msgCb) != 0) {
     mError("failed to init qworker in mnode since %s", terrstr());
     return -1;
   }

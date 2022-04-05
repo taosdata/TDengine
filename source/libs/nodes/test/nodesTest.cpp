@@ -49,7 +49,7 @@ TEST(NodesTest, traverseTest) {
 
 	EXPECT_EQ(nodeType(pRoot), QUERY_NODE_OPERATOR);
 	EDealRes res = DEAL_RES_CONTINUE;
-	nodesRewriteNodePostOrder(&pRoot, rewriterTest, &res);
+	nodesRewriteExprPostOrder(&pRoot, rewriterTest, &res);
 	EXPECT_EQ(res, DEAL_RES_CONTINUE);
 	EXPECT_EQ(nodeType(pRoot), QUERY_NODE_VALUE);
 	EXPECT_EQ(string(((SValueNode*)pRoot)->literal), "18");

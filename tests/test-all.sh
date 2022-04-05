@@ -91,20 +91,23 @@ function runSimCaseOneByOnefq {
   for ((i=$start;i<=$end;i++)) ; do
     line=`sed -n "$i"p jenkins/basic.txt`
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
-      case=`echo $line | grep sim$ |awk '{print $NF}'`
+      #case=`echo $line | grep sim$ |awk '{print $NF}'`
+      case=`echo $line | grep -o ".*\.sim" |awk '{print $NF}'`
 
       start_time=`date +%s`
       date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
-        echo -n $case
-        ./test.sh -f $case > case.log 2>&1 \
+        #echo -n $case
+        echo -n $line
+        $line > case.log 2>&1 \
             && \
         ([ -f ../../../sim/tsim/log/taoslog0.0 ] && grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ([ -f ../../../sim/tsim/log/taoslog0.0 ] && grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
         ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' && cat case.log )
       else
-        echo -n $case
-        ./test.sh -f $case > ../../sim/case.log 2>&1 && \
+        #echo -n $case
+        echo -n $line
+        $line > ../../sim/case.log 2>&1 && \
         ([ -f ../../sim/tsim/log/taoslog0.0 ] && grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ([ -f ../../sim/tsim/log/taoslog0.0 ] && grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
         ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  pwd && cat ../../sim/case.log )

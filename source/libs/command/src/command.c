@@ -16,7 +16,16 @@
 #include "command.h"
 #include "tdatablock.h"
 
-// #define SET_VARSTR(pData, val, pOffset)
+static int32_t getSchemaBytes(const SSchema* pSchema) {
+  switch (pSchema->type) {
+    case TSDB_DATA_TYPE_BINARY:
+      return (pSchema->bytes - VARSTR_HEADER_SIZE);
+    case TSDB_DATA_TYPE_NCHAR:
+      return (pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+    default:
+      return pSchema->bytes;
+  }
+}
 
 static void buildRspData(const STableMeta* pMeta, char* pData) {
   int32_t* pColSizes = (int32_t*)pData;
@@ -50,7 +59,7 @@ static void buildRspData(const STableMeta* pMeta, char* pData) {
   // Length
   pData += BitmapLen(numOfRows);
   for (int32_t i = 0; i < numOfRows; ++i) {
-    *(int32_t*)pData = pMeta->schema[i].bytes;
+    *(int32_t*)pData = getSchemaBytes(pMeta->schema + i);
     pData += sizeof(int32_t);
   }
   pColSizes[2] = sizeof(int32_t) * numOfRows;

@@ -212,19 +212,24 @@ static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg) {
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
   }
+  //TODO add lock
   ASSERT(strcmp(pReq->cgroup, pConsumer->cgroup) == 0);
+  int32_t           serverEpoch = pConsumer->epoch;
 
   // TODO
   int32_t hbStatus = atomic_load_32(&pConsumer->hbStatus);
-  mTrace("try to get sub ep, old val: %d", hbStatus);
+  mDebug("consumer %ld epoch(%d) try to get sub ep, server epoch %d, old val: %d", consumerId, epoch, serverEpoch, hbStatus);
   atomic_store_32(&pConsumer->hbStatus, 0);
   /*SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pConsumer);*/
   /*sdbSetRawStatus(pConsumerRaw, SDB_STATUS_READY);*/
   /*sdbWrite(pMnode->pSdb, pConsumerRaw);*/
 
   strcpy(rsp.cgroup, pReq->cgroup);
-  if (epoch != pConsumer->epoch) {
-    mInfo("send new assignment to consumer, consumer epoch %d, server epoch %d", epoch, pConsumer->epoch);
+  if (epoch != serverEpoch) {
+    mInfo("send new assignment to consumer %ld, consumer epoch %d, server epoch %d", pConsumer->consumerId, epoch, serverEpoch);
+    mDebug("consumer %ld try r lock", consumerId);
+    taosRLockLatch(&pConsumer->lock);
+    mDebug("consumer %ld r locked", consumerId);
     SArray *pTopics = pConsumer->currentTopics;
     int32_t sz = taosArrayGetSize(pTopics);
     rsp.topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
@@ -237,7 +242,8 @@ static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg) {
       for (int32_t j = 0; j < csz; j++) {
         SMqSubConsumer *pSubConsumer = taosArrayGet(pSub->consumers, j);
         if (consumerId == pSubConsumer->consumerId) {
-          int32_t       vgsz = taosArrayGetSize(pSubConsumer->vgInfo);
+          int32_t vgsz = taosArrayGetSize(pSubConsumer->vgInfo);
+          mInfo("topic %s has %d vg", topicName, serverEpoch);
           SMqSubTopicEp topicEp;
           strcpy(topicEp.topic, topicName);
           topicEp.vgs = taosArrayInit(vgsz, sizeof(SMqSubVgEp));
@@ -263,6 +269,8 @@ static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg) {
       }
       mndReleaseSubscribe(pMnode, pSub);
     }
+    taosRUnLockLatch(&pConsumer->lock);
+    mDebug("consumer %ld r unlock", consumerId);
   }
   int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqCMGetSubEpRsp(NULL, &rsp);
   void   *buf = rpcMallocCont(tlen);
@@ -271,7 +279,7 @@ static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg) {
     return -1;
   }
   ((SMqRspHead *)buf)->mqMsgType = TMQ_MSG_TYPE__EP_RSP;
-  ((SMqRspHead *)buf)->epoch = pConsumer->epoch;
+  ((SMqRspHead *)buf)->epoch = serverEpoch;
   ((SMqRspHead *)buf)->consumerId = pConsumer->consumerId;
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
@@ -394,7 +402,7 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
     SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pRebSub->key);
     taosMemoryFreeClear(pRebSub->key);
 
-    mInfo("mq rebalance subscription: %s", pSub->key);
+    mInfo("mq rebalance subscription: %s, vgNum: %d, unassignedVg: %d", pSub->key, pSub->vgNum, (int32_t)taosArrayGetSize(pSub->unassignedVg));
 
     // remove lost consumer
     for (int32_t i = 0; i < taosArrayGetSize(pRebSub->lostConsumers); i++) {
@@ -419,7 +427,6 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
       int32_t vgNum = pSub->vgNum;
       int32_t vgEachConsumer = vgNum / consumerNum;
       int32_t imbalanceVg = vgNum % consumerNum;
-      int32_t imbalanceSolved = 0;
 
       // iterate all consumers, set unassignedVgStash
       for (int32_t i = 0; i < consumerNum; i++) {
@@ -442,13 +449,16 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
         }
 
         SMqConsumerObj *pRebConsumer = mndAcquireConsumer(pMnode, pSubConsumer->consumerId);
+        mDebug("consumer %ld try w lock", pRebConsumer->consumerId);
+        taosWLockLatch(&pRebConsumer->lock);
+        mDebug("consumer %ld w locked", pRebConsumer->consumerId);
         int32_t         status = atomic_load_32(&pRebConsumer->status);
         if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb ||
             (vgThisConsumerAfterRb != 0 && status != MQ_CONSUMER_STATUS__ACTIVE) ||
             (vgThisConsumerAfterRb == 0 && status != MQ_CONSUMER_STATUS__LOST)) {
-          if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb) {
-            pRebConsumer->epoch++;
-          }
+          /*if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb) {*/
+            /*pRebConsumer->epoch++;*/
+          /*}*/
           if (vgThisConsumerAfterRb != 0) {
             atomic_store_32(&pRebConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);
           } else {
@@ -460,8 +470,10 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
 
           SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pRebConsumer);
           sdbSetRawStatus(pConsumerRaw, SDB_STATUS_READY);
-          mndTransAppendRedolog(pTrans, pConsumerRaw);
+          mndTransAppendCommitlog(pTrans, pConsumerRaw);
         }
+        taosWUnLockLatch(&pRebConsumer->lock);
+        mDebug("consumer %ld w unlock", pRebConsumer->consumerId);
         mndReleaseConsumer(pMnode, pRebConsumer);
       }
 
@@ -469,7 +481,6 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
       if (taosArrayGetSize(pSub->unassignedVg) != 0) {
         for (int32_t i = 0; i < consumerNum; i++) {
           SMqSubConsumer *pSubConsumer = taosArrayGet(pSub->consumers, i);
-          int32_t         vgThisConsumerBeforeRb = taosArrayGetSize(pSubConsumer->vgInfo);
           int32_t         vgThisConsumerAfterRb;
           if (i < imbalanceVg)
             vgThisConsumerAfterRb = vgEachConsumer + 1;
