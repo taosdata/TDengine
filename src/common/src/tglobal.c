@@ -48,6 +48,8 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 int64_t  tsDnodeStartTime = 0;
 int8_t   tsDnodeNopLoop = 0;
+int32_t  tsTcpConnTimeout = 1000;
+int32_t  tsSyncCheckInterval = 1500;
 
 // common
 int32_t tsRpcTimer = 300;
@@ -634,6 +636,26 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tcpConnTimout";
+  cfg.ptr = &tsTcpConnTimeout;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "syncCheckInterval";
+  cfg.ptr = &tsSyncCheckInterval;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
   taosInitConfigOption(cfg);
 
   cfg.option = "balance";
