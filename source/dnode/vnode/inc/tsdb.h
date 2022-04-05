@@ -55,13 +55,14 @@ typedef struct STsdbCfg {
   int8_t   precision;
   int8_t   update;
   int8_t   compression;
-  uint64_t lruCacheSize;
   int32_t  daysPerFile;
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int32_t  keep;
   int32_t  keep1;
   int32_t  keep2;
+  uint64_t lruCacheSize;
+  SArray  *retentions;
 } STsdbCfg;
 
 // query condition to build multi-table data block iterator
@@ -170,6 +171,8 @@ tsdbReaderT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo
 
 
 tsdbReaderT tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, void* pMemRef);
+
+int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDistInfo* pTableBlockInfo);
 
 bool isTsdbCacheLastRow(tsdbReaderT* pTsdbReadHandle);
 

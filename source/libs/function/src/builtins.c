@@ -68,9 +68,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .classification = FUNC_MGT_AGG_FUNC,
       .checkFunc    = stubCheckAndGetResultType,
       .getEnvFunc   = getStddevFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+      .initFunc     = stddevFunctionSetup,
+      .processFunc  = stddevFunction,
+      .finalizeFunc = stddevFinalize
   },
   {
       .name = "percentile",
@@ -283,13 +283,93 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "length",
+    .type = FUNCTION_TYPE_LENGTH,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = lengthFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "char_length",
+    .type = FUNCTION_TYPE_CHAR_LENGTH,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = charLengthFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = concatFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "concat_ws",
+    .type = FUNCTION_TYPE_CONCAT_WS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = concatWsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "lower",
+    .type = FUNCTION_TYPE_LOWER,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = lowerFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "upper",
+    .type = FUNCTION_TYPE_UPPER,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = upperFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "ltrim",
+    .type = FUNCTION_TYPE_LTRIM,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = ltrimFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "rtrim",
+    .type = FUNCTION_TYPE_RTRIM,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = rtrimFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "substr",
+    .type = FUNCTION_TYPE_SUBSTR,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = substrFunction,
     .finalizeFunc = NULL
   },
   {
@@ -409,12 +489,6 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
       break;
     }
-    case FUNCTION_TYPE_CONCAT:
-    case FUNCTION_TYPE_ROWTS:
-    case FUNCTION_TYPE_TBNAME: {
-      // todo
-      break;
-    }
 
     case FUNCTION_TYPE_QENDTS:
     case FUNCTION_TYPE_QSTARTTS:
@@ -434,6 +508,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
+    case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_SIN:
     case FUNCTION_TYPE_COS:
     case FUNCTION_TYPE_TAN:
@@ -446,6 +521,65 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
       break;
     }
+
+    case FUNCTION_TYPE_LENGTH:
+    case FUNCTION_TYPE_CHAR_LENGTH: {
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes, .type = TSDB_DATA_TYPE_SMALLINT };
+      break;
+    }
+
+    case FUNCTION_TYPE_CONCAT:
+    case FUNCTION_TYPE_CONCAT_WS: {
+      int32_t paraType, paraBytes = 0;
+      for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
+        SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
+        paraBytes += pParam->node.resType.bytes;
+        paraType = pParam->node.resType.type;
+      }
+      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
+      break;
+      //int32_t paraTypeFirst, totalBytes = 0, sepBytes = 0;
+      //int32_t firstParamIndex = 0;
+      //if (pFunc->funcType == FUNCTION_TYPE_CONCAT_WS) {
+      //  firstParamIndex = 1;
+      //  SColumnNode* pSep = nodesListGetNode(pFunc->pParameterList, 0);
+      //  sepBytes = pSep->node.resType.type;
+      //}
+      //for (int32_t i = firstParamIndex; i < pFunc->pParameterList->length; ++i) {
+      //  SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
+      //  int32_t paraType = pParam->node.resType.type;
+      //  if (i == firstParamIndex) {
+      //    paraTypeFirst = paraType;
+      //  }
+      //  if (paraType != paraTypeFirst) {
+      //    return TSDB_CODE_FAILED;
+      //  }
+      //  //TODO: for constants also needs numOfRows
+      //  totalBytes += pParam->node.resType.bytes;
+      //}
+      ////TODO: need to get numOfRows to decide how much space separator needed. Currently set to 100.
+      //totalBytes += sepBytes * (pFunc->pParameterList->length - 2) * 100;
+      //pFunc->node.resType = (SDataType) { .bytes = totalBytes, .type = paraTypeFirst };
+      //break;
+    }
+    case FUNCTION_TYPE_LOWER:
+    case FUNCTION_TYPE_UPPER:
+    case FUNCTION_TYPE_LTRIM:
+    case FUNCTION_TYPE_RTRIM:
+    case FUNCTION_TYPE_SUBSTR: {
+      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      int32_t paraType  = pParam->node.resType.type;
+      int32_t paraBytes = pParam->node.resType.bytes;
+      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
+      break;
+    }
+
+    case FUNCTION_TYPE_ROWTS:
+    case FUNCTION_TYPE_TBNAME: {
+      // todo
+      break;
+    }
+
     case FUNCTION_TYPE_NOW:
       // todo
       break;

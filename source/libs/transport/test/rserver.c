@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
   rpcInit.idleTime = 2 * 1500;
   rpcInit.afp = retrieveAuthInfo;
 
-  rpcDebugFlag = 143;
+  rpcDebugFlag = 131;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
@@ -160,6 +160,11 @@ int main(int argc, char *argv[]) {
 
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
+
+  const char *path = "/tmp/transport/server";
+  taosRemoveDir(path);
+  taosMkDir(path);
+  tstrncpy(tsLogDir, path, PATH_MAX);
   taosInitLog("server.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);

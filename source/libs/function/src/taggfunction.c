@@ -176,26 +176,6 @@ typedef struct SResPair {
   double avg;
 } SResPair;
 
-#define TSDB_BLOCK_DIST_STEP_ROWS 16
-
-typedef struct STableBlockDist {
-  uint16_t  rowSize;
-  uint16_t  numOfFiles;
-  uint32_t  numOfTables;
-  uint64_t  totalSize;
-  uint64_t  totalRows;
-  int32_t   maxRows;
-  int32_t   minRows;
-  int32_t   firstSeekTimeUs;
-  uint32_t  numOfRowsInMemTable;
-  uint32_t  numOfSmallBlocks;
-  SArray   *dataBlockInfos;
-} STableBlockDist;
-
-typedef struct SFileBlockInfo {
-  int32_t numBlocksOfStep;
-} SFileBlockInfo;
-
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell) {
   pCell->initialized = false;
 }
@@ -3984,7 +3964,7 @@ static void irate_function(SqlFunctionCtx *pCtx) {
   }
 }
 
-static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
+static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDistInfo* pDist) {
   SBufferReader br = tbufInitReader(data, len, false);
 
   pDist->numOfTables = tbufReadUint32(&br);
@@ -4024,7 +4004,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
 
 static void blockInfo_func(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
 
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary((char*)pCtx->pInput + sizeof(int32_t), len, pDist);
@@ -4036,8 +4016,8 @@ static void blockInfo_func(SqlFunctionCtx* pCtx) {
   //pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlockDist* pSrc) {
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlockDistInfo* pSrc) {
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
   assert(pDist != NULL && pSrc != NULL);
 
   pDist->numOfTables += pSrc->numOfTables;
@@ -4071,7 +4051,7 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
 }
 
 void block_func_merge(SqlFunctionCtx* pCtx) {
-  STableBlockDist info = {0};
+  STableBlockDistInfo info = {0};
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -4082,7 +4062,7 @@ void block_func_merge(SqlFunctionCtx* pCtx) {
   //pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
+void getPercentiles(STableBlockDistInfo *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
                     double* percents, int32_t* percentiles) {
   if (totalBlocks == 0) {
     for (int32_t i = 0; i < numOfPercents; ++i) {
@@ -4117,7 +4097,7 @@ void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32
   }
 }
 
-void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
+void generateBlockDistResult(STableBlockDistInfo *pTableBlockDist, char* result) {
   if (pTableBlockDist == NULL) {
     return;
   }
@@ -4178,7 +4158,7 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
 
 void blockinfo_func_finalizer(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
 
   pDist->rowSize = (uint16_t)pCtx->param[0].i;
   generateBlockDistResult(pDist, pCtx->pOutput);

@@ -471,6 +471,9 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     consumerEp.consumerId = -1;
     consumerEp.epSet = plan->execNode.epSet;
     consumerEp.vgId = plan->execNode.nodeId;
+    
+    mDebug("init subscribption %s, assign vg: %d", pSub->key, consumerEp.vgId);
+
     int32_t msgLen;
     if (qSubPlanToString(plan, &consumerEp.qmsg, &msgLen) < 0) {
       sdbRelease(pSdb, pVgroup);

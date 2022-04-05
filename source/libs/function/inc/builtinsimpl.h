@@ -38,8 +38,13 @@ void minFunction(SqlFunctionCtx* pCtx);
 void maxFunction(SqlFunctionCtx *pCtx);
 
 bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 void stddevFunction(SqlFunctionCtx* pCtx);
 void stddevFinalize(SqlFunctionCtx* pCtx);
+
+bool getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+void percentileFunction(SqlFunctionCtx *pCtx);
 
 bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void firstFunction(SqlFunctionCtx *pCtx);

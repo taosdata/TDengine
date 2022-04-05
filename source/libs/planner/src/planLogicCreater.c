@@ -83,7 +83,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
 }
 
 static int32_t rewriteExpr(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
-  nodesWalkList(pExprs, doNameExpr, NULL);
+  nodesWalkExprs(pExprs, doNameExpr, NULL);
   SRewriteExprCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs };
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
   return cxt.errCode;
@@ -384,7 +384,7 @@ static int32_t createColumnByRewriteExps(SLogicPlanContext* pCxt, SNodeList* pEx
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  nodesWalkList(pExprs, doCreateColumn, &cxt);
+  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pList);
     return cxt.errCode;
