@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+  
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
@@ -68,7 +68,8 @@ static void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpS
     code = (*msgFp)(pWrapper, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {
     dTrace("msg:%p, is created and put into child queue, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
-    code = taosProcPutToChildQ(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, PROC_REQ);
+    code = taosProcPutToChildQ(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, pRpc->handle,
+                               PROC_REQ);
   } else {
     dTrace("msg:%p, should not processed in child process, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
     ASSERT(1);
@@ -454,6 +455,7 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t
       rpcRegisterBrokenLinkArg(pMsg);
       break;
     case PROC_RELEASE:
+      taosProcRemoveHandle(pWrapper->pProc, pMsg->handle);
       rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
       rpcFreeCont(pCont);
       break;
@@ -461,6 +463,7 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t
       dndSendRpcReq(&pWrapper->pDnode->trans, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
       break;
     case PROC_RSP:
+      taosProcRemoveHandle(pWrapper->pProc, pMsg->handle);
       dndSendRpcRsp(pWrapper, pMsg);
       break;
     default:
@@ -481,7 +484,7 @@ SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper) {
                   .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                   .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                   .shm = pWrapper->shm,
-                  .pParent = pWrapper,
+                  .parent = pWrapper,
                   .name = pWrapper->name};
   return cfg;
 }

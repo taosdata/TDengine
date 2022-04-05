@@ -24,11 +24,10 @@ extern "C" {
 
 typedef enum { PROC_QUEUE, PROC_REQ, PROC_RSP, PROC_REGIST, PROC_RELEASE } ProcFuncType;
 
-typedef struct SProcQueue SProcQueue;
-typedef struct SProcObj   SProcObj;
+typedef struct SProcObj SProcObj;
 typedef void *(*ProcMallocFp)(int32_t contLen);
 typedef void *(*ProcFreeFp)(void *pCont);
-typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+typedef void *(*ProcConsumeFp)(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
                                ProcFuncType ftype);
 
 typedef struct {
@@ -43,7 +42,7 @@ typedef struct {
   ProcMallocFp  parentMallocBodyFp;
   ProcFreeFp    parentFreeBodyFp;
   SShm          shm;
-  void         *pParent;
+  void         *parent;
   const char   *name;
   bool          isChild;
 } SProcCfg;
@@ -51,10 +50,13 @@ typedef struct {
 SProcObj *taosProcInit(const SProcCfg *pCfg);
 void      taosProcCleanup(SProcObj *pProc);
 int32_t   taosProcRun(SProcObj *pProc);
-int32_t   taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                              ProcFuncType ftype);
-void      taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                               ProcFuncType ftype);
+
+int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                            void *handle, ProcFuncType ftype);
+void    taosProcRemoveHandle(SProcObj *pProc, void *handle);
+void    taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle));
+void    taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                             ProcFuncType ftype);
 
 #ifdef __cplusplus
 }

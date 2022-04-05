@@ -88,6 +88,10 @@ static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
   return 0;
 }
 
+static void dndProcessProcHandle(void *handle) {
+  SRpcMsg rpcMsg = {.handle = handle, .code = TSDB_CODE_DND_OFFLINE};
+  rpcSendResponse(&rpcMsg);
+}
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process");
@@ -220,6 +224,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 
         if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
           dInfo("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
+          taosProcCloseHandles(pWrapper->pProc, dndProcessProcHandle);
           dndNewProc(pWrapper, n);
         }
       }
