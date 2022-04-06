@@ -14,14 +14,14 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
+import com.taosdata.jdbc.enums.TimestampPrecision;
+import com.taosdata.jdbc.utils.NullType;
+
 import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.DoubleBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.LongBuffer;
-import java.nio.ShortBuffer;
+import java.nio.*;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -29,12 +29,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
-import com.google.common.primitives.Shorts;
-import com.taosdata.jdbc.enums.TimestampPrecision;
-import com.taosdata.jdbc.utils.NullType;
 
 public class TSDBResultSetBlockData {
     private static final int BINARY_LENGTH_OFFSET = 2;
@@ -514,6 +508,7 @@ public class TSDBResultSetBlockData {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 ByteBuffer bb = (ByteBuffer) this.colData.get(col);
 //                bb.position((fieldSize * 4 + 2 + 1) * this.rowIndex);
+
                 bb.position(bb.capacity() / numOfRows * this.rowIndex);
                 int length = bb.getShort();
                 byte[] dest = new byte[length];
