@@ -46,11 +46,11 @@ add_executable(encodeTest "encodeTest.cpp")
 target_link_libraries(encodeTest os util gtest gtest_main)
 
 # queueTest
-add_executable(queue_test "queueTest.cpp")
-target_link_libraries(queue_test os util gtest_main)   
+add_executable(proc_test "procTest.cpp")
+target_link_libraries(proc_test os util gtest_main)   
 add_test(
-    NAME queue_test
-    COMMAND queue_test
+    NAME proc_test
+    COMMAND proc_test
 )
 
 # cfgTest

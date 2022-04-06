@@ -392,7 +392,7 @@ static void taosProcThreadLoop(SProcObj *pProc) {
       uDebug("proc:%s, get no msg from queue:%p and exit the proc thread", pProc->name, pQueue);
       break;
     } else if (numOfMsgs < 0) {
-      uTrace("proc:%s, get no msg from queue:%p since %s", pProc->name, pQueue, terrstr());
+      uError("proc:%s, get no msg from queue:%p since %s", pProc->name, pQueue, terrstr());
       taosMsleep(1);
       continue;
     } else {
@@ -470,7 +470,10 @@ void taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle)) {
 
 void taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                           ProcFuncType ftype) {
+  int32_t retry = 0;
   while (taosProcQueuePush(pProc, pProc->pParentQueue, pHead, headLen, pBody, bodyLen, 0, ftype) != 0) {
-    taosMsleep(1);
+    uInfo("proc:%s, failed to put msg to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(), retry);
+    retry++;
+    taosMsleep(retry);
   }
 }
