@@ -373,9 +373,9 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   size_t payloadSize = pageSize - (headerSize + colHeaderSize);
 
   // TODO speedup by checking if the whole page can fit in firstly.
-  if (!hasVarCol) {
+  /*if (!hasVarCol) {
     size_t  rowSize = blockDataGetRowSize(pBlock);
-    int32_t capacity = (payloadSize / (rowSize * 8 + bitmapChar * numOfCols)) * 8;
+    int32_t capacity = (payloadSize / (rowSize * 8 + bitmapChar * numOfCols)) * 8; //if pageSize = 128, rowSize = 2, it will core in doAddToBuf:assert(size <= getBufPageSize(pHandle->pBuf));
 
     *stopIndex = startIndex + capacity;
     if (*stopIndex >= numOfRows) {
@@ -383,7 +383,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
     }
 
     return TSDB_CODE_SUCCESS;
-  }
+  }*/
   // iterate the rows that can be fit in this buffer page
   int32_t size = (headerSize + colHeaderSize);
 

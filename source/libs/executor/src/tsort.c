@@ -131,7 +131,12 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   destroyDiskbasedBuf(pSortHandle->pBuf);
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
-  sortComparClearup(&pSortHandle->cmpParam);    // pOrderedSource is in cmpParam
+  for (size_t i = 0; i < taosArrayGetSize(pSortHandle->pOrderedSource); i++){
+    SExternalMemSource* pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
+    blockDataDestroy(pSource->src.pBlock);
+    taosMemoryFreeClear(pSource);
+  }
+  taosArrayDestroy(pSortHandle->pOrderedSource);
   taosMemoryFreeClear(pSortHandle);
 }
 

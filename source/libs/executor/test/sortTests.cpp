@@ -122,7 +122,8 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
       }
 
       colDataAppend(pColInfo, i, result, false);
-      printf("int: %lld\n", v);
+      printf("int: %ld\n", v);
+      taosMemoryFree(result);
     }
   }
 
@@ -238,11 +239,12 @@ TEST(testCase, inMem_sort_Test) {
   }
   taosArrayDestroy(orderInfo);
   tsortDestroySortHandle(phandle);
+  taosMemoryFree(pInfo);
 }
 
 TEST(testCase, external_mem_sort_Test) {
 
-  _info* pInfo = (_info*) taosMemoryCalloc(7, sizeof(_info));
+  _info* pInfo = (_info*) taosMemoryCalloc(8, sizeof(_info));
   pInfo[0].startVal = 0;
   pInfo[0].pageRows = 10;
   pInfo[0].count = 6;
@@ -258,32 +260,32 @@ TEST(testCase, external_mem_sort_Test) {
   pInfo[2].count = 6;
   pInfo[2].type = TSDB_DATA_TYPE_USMALLINT;
 
-  pInfo[2].startVal = 0;
-  pInfo[2].pageRows = 100;
-  pInfo[2].count = 6;
-  pInfo[2].type = TSDB_DATA_TYPE_INT;
-
   pInfo[3].startVal = 0;
   pInfo[3].pageRows = 100;
   pInfo[3].count = 6;
-  pInfo[3].type = TSDB_DATA_TYPE_UBIGINT;
+  pInfo[3].type = TSDB_DATA_TYPE_INT;
 
   pInfo[4].startVal = 0;
   pInfo[4].pageRows = 100;
   pInfo[4].count = 6;
-  pInfo[4].type = TSDB_DATA_TYPE_DOUBLE;
+  pInfo[4].type = TSDB_DATA_TYPE_UBIGINT;
 
   pInfo[5].startVal = 0;
-  pInfo[5].pageRows = 50;
+  pInfo[5].pageRows = 100;
   pInfo[5].count = 6;
-  pInfo[5].type = TSDB_DATA_TYPE_NCHAR;
+  pInfo[5].type = TSDB_DATA_TYPE_DOUBLE;
 
   pInfo[6].startVal = 0;
-  pInfo[6].pageRows = 100;
+  pInfo[6].pageRows = 50;
   pInfo[6].count = 6;
-  pInfo[6].type = TSDB_DATA_TYPE_BINARY;
+  pInfo[6].type = TSDB_DATA_TYPE_NCHAR;
 
-  for (int i = 0; i < 7; i++){
+  pInfo[7].startVal = 0;
+  pInfo[7].pageRows = 100;
+  pInfo[7].count = 6;
+  pInfo[7].type = TSDB_DATA_TYPE_BINARY;
+
+  for (int i = 0; i < 8; i++){
     SBlockOrderInfo oi = {0};
     oi.order = TSDB_ORDER_ASC;
     oi.slotId = 0;
@@ -326,7 +328,7 @@ TEST(testCase, external_mem_sort_Test) {
         }else{
           memcpy((char*)(&result) + sizeof(int64_t) - tDataTypes[pInfo[i].type].bytes, v, tDataTypes[pInfo[i].type].bytes);
         }
-        printf("%d: %lld\n", row++, result);
+        printf("%d: %ld\n", row++, result);
       }
     }
     taosArrayDestroy(orderInfo);
