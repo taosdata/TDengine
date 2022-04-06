@@ -156,6 +156,11 @@ static void taosProcCleanupQueue(SProcQueue *pQueue) {
 
 static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char *pHead, int16_t rawHeadLen,
                                  const char *pBody, int32_t rawBodyLen, int64_t handle, ProcFuncType ftype) {
+  if (rawHeadLen == 0 || pHead == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+
   const int32_t headLen = CEIL8(rawHeadLen);
   const int32_t bodyLen = CEIL8(rawBodyLen);
   const int32_t fullLen = headLen + bodyLen + 8;
@@ -177,13 +182,13 @@ static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char
 
   const int32_t pos = pQueue->tail;
   if (pQueue->tail < pQueue->total) {
-    *(int16_t *)(pQueue->pBuffer + pQueue->tail) = headLen;
+    *(int16_t *)(pQueue->pBuffer + pQueue->tail) = rawHeadLen;
     *(int8_t *)(pQueue->pBuffer + pQueue->tail + 2) = (int8_t)ftype;
-    *(int32_t *)(pQueue->pBuffer + pQueue->tail + 4) = bodyLen;
+    *(int32_t *)(pQueue->pBuffer + pQueue->tail + 4) = rawBodyLen;
   } else {
-    *(int16_t *)(pQueue->pBuffer) = headLen;
+    *(int16_t *)(pQueue->pBuffer) = rawHeadLen;
     *(int8_t *)(pQueue->pBuffer + 2) = (int8_t)ftype;
-    *(int32_t *)(pQueue->pBuffer + 4) = bodyLen;
+    *(int32_t *)(pQueue->pBuffer + 4) = rawBodyLen;
   }
 
   if (pQueue->tail < pQueue->head) {
@@ -239,18 +244,20 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
     return 0;
   }
 
-  int16_t headLen = 0;
+  int16_t rawHeadLen = 0;
   int8_t  ftype = 0;
-  int32_t bodyLen = 0;
+  int32_t rawBodyLen = 0;
   if (pQueue->head < pQueue->total) {
-    headLen = *(int16_t *)(pQueue->pBuffer + pQueue->head);
+    rawHeadLen = *(int16_t *)(pQueue->pBuffer + pQueue->head);
     ftype = *(int8_t *)(pQueue->pBuffer + pQueue->head + 2);
-    bodyLen = *(int32_t *)(pQueue->pBuffer + pQueue->head + 4);
+    rawBodyLen = *(int32_t *)(pQueue->pBuffer + pQueue->head + 4);
   } else {
-    headLen = *(int16_t *)(pQueue->pBuffer);
+    rawHeadLen = *(int16_t *)(pQueue->pBuffer);
     ftype = *(int8_t *)(pQueue->pBuffer + 2);
-    bodyLen = *(int32_t *)(pQueue->pBuffer + 4);
+    rawBodyLen = *(int32_t *)(pQueue->pBuffer + 4);
   }
+  int16_t headLen = CEIL8(rawHeadLen);
+  int16_t bodyLen = CEIL8(rawBodyLen);
 
   void *pHead = (*mallocHeadFp)(headLen);
   void *pBody = (*mallocBodyFp)(bodyLen);
@@ -301,12 +308,12 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
 
   *ppHead = pHead;
   *ppBody = pBody;
-  *pHeadLen = headLen;
-  *pBodyLen = bodyLen;
+  *pHeadLen = rawHeadLen;
+  *pBodyLen = rawBodyLen;
   *pFuncType = (ProcFuncType)ftype;
 
   uTrace("proc:%s, pop msg at pos:%d ftype:%d remain:%d, head:%d %p body:%d %p", pQueue->name, pos, ftype,
-         pQueue->items, headLen, pHead, bodyLen, pBody);
+         pQueue->items, rawHeadLen, pHead, rawBodyLen, pBody);
   return 1;
 }
 
@@ -383,7 +390,7 @@ static void taosProcThreadLoop(SProcObj *pProc) {
     freeBodyFp = pProc->parentFreeBodyFp;
   }
 
-  uDebug("proc:%s, start to get msg from queue:%p", pProc->name, pQueue);
+  uDebug("proc:%s, start to get msg from queue:%p, thread:%" PRId64, pProc->name, pQueue, pProc->thread);
 
   while (1) {
     int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen, &ftype, mallocHeadFp, freeHeadFp,
@@ -412,11 +419,11 @@ int32_t taosProcRun(SProcObj *pProc) {
     return -1;
   }
 
-  uDebug("proc:%s, start to consume queue:%p, thread:%" PRId64, pProc->name, pProc->pChildQueue, pProc->thread);
+  uDebug("proc:%s, start to consume, thread:%" PRId64, pProc->name, pProc->thread);
   return 0;
 }
 
-static void taosProcStop(SProcObj *pProc) {
+void taosProcStop(SProcObj *pProc) {
   if (!taosCheckPthreadValid(pProc->thread)) return;
 
   uDebug("proc:%s, start to join thread:%" PRId64, pProc->name, pProc->thread);
@@ -428,6 +435,7 @@ static void taosProcStop(SProcObj *pProc) {
   }
   tsem_post(&pQueue->sem);
   taosThreadJoin(pProc->thread, NULL);
+  pProc->thread = 0;
 }
 
 void taosProcCleanup(SProcObj *pProc) {
@@ -448,6 +456,10 @@ void taosProcCleanup(SProcObj *pProc) {
 
 int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                             void *handle, ProcFuncType ftype) {
+  if (ftype != PROC_REQ) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
   return taosProcQueuePush(pProc, pProc->pChildQueue, pHead, headLen, pBody, bodyLen, (int64_t)handle, ftype);
 }
 
@@ -472,8 +484,7 @@ void taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, c
                           ProcFuncType ftype) {
   int32_t retry = 0;
   while (taosProcQueuePush(pProc, pProc->pParentQueue, pHead, headLen, pBody, bodyLen, 0, ftype) != 0) {
-    uInfo("proc:%s, failed to put msg to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(),
-          retry);
+    uInfo("proc:%s, failed to put to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(), retry);
     retry++;
     taosMsleep(retry);
   }
