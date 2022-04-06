@@ -22,16 +22,20 @@ class Case2(ClusterCase):
         super().init()
         self.db_name = "testdb"
         self.replicas = 3
-        self.thread_num = 10
+        self.thread_num = 2
         self.stable_name = "stb"
         self.table_name = "tb"
         self.table_num = 10
         self.row_num = 500000  # row number per table
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
+        self.slave_nodes = self.get_slaves()
+        i = random.randint(0, len(self.slave_nodes) - 1)
+        self.slave_node = self.slave_nodes[i]
+        self.logger.info("slave: %s", self.slave_node)
 
     def check_result_db(self, db, stb):
-        client_0 = self.tdSql.get_connection(self._conf, "dnode_3:6030")
+        client_0 = self.get_spec_conn(self.slave_node)
         # use database
         sql = "use %s" % (db)
         self.logger.info(sql)
@@ -94,7 +98,7 @@ class Case2(ClusterCase):
             mthread.start()
             i = i + 1
         # restart slave dnode thread
-        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=("dnode_3:6030", self.max_restart_interval, self.restart_times))
+        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.slave_node, self.max_restart_interval, self.restart_times))
         # start thread
         dthread.start()
         # wait thread
