@@ -55,15 +55,16 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 ## JDBC driver version and supported TDengine and JDK versions
 
 | taos-jdbcdriver version | TDengine 2.0.x.x version | TDengine 2.2.x.x version | TDengine 2.4.x.x version | JDK version |
-|---------------------| ----------------------| ----------------------| ----------------------| -------- |
-| 2.0.37              |            X          |            X          | 2.4.0.6 以上           | 1.8.x    |
-| 2.0.36              |            X          | 2.2.2.11 以上          | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.35              |            X          | 2.2.2.11 以上          | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.33 - 2.0.34     | 2.0.3.0 以上           | 2.2.0.0 以上           | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.31 - 2.0.32     | 2.1.3.0 - 2.1.7.7     |            X          |            X          | 1.8.x    |
-| 2.0.22 - 2.0.30     | 2.0.18.0 - 2.1.2.1    |            X          |            X          | 1.8.x    |
-| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.4    |            X          |            X          | 1.8.x    |
-| 2.0.4 - 2.0.11      | 2.0.0.0 - 2.0.7.3     |            X          |            X          | 1.8.x    |
+| ----------------------- | ------------------------ | ------------------------ | ------------------------ | ----------- |
+| 2.0.38                  | X                        | X                        | 2.4.0.12 以上            | 1.8.x       |
+| 2.0.37                  | X                        | X                        | 2.4.0.6 以上             | 1.8.x       |
+| 2.0.36                  | X                        | 2.2.2.11 以上            | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.35                  | X                        | 2.2.2.11 以上            | 2.3.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.33 - 2.0.34         | 2.0.3.0 以上             | 2.2.0.0 以上             | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.31 - 2.0.32         | 2.1.3.0 - 2.1.7.7        | X                        | X                        | 1.8.x       |
+| 2.0.22 - 2.0.30         | 2.0.18.0 - 2.1.2.1       | X                        | X                        | 1.8.x       |
+| 2.0.12 - 2.0.21         | 2.0.8.0 - 2.0.17.4       | X                        | X                        | 1.8.x       |
+| 2.0.4 - 2.0.11          | 2.0.0.0 - 2.0.7.3        | X                        | X                        | 1.8.x       |
 
 ## DataType in TDengine and Java connector
 
@@ -148,6 +149,16 @@ The JDBC-RESTful does not depend on the local function library. Compared with JD
 * JdbcUrl starts with "JDBC:TAOS-RS://"
 * Use port 6041 as the connection port
 
+Starting with version taos-jdbcdriver-2.0.38 and TDengine 2.4.0.12, **JDBC-RESTful** support batch load function. Data is transmitted between TAOS-JDBcDriver and TDengine through WebSocket connection. Compared with HTTP, WebSocket enables **JDBC-restful** to support large data volume query and improves query performance.
+
+Create batch load connection:
+
+```
+String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";Properties properties = new Properties();
+properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
+Connection connection = DriverManager.getConnection(url, properties);
+```
+
 For better write and query performance, Java applications can use the JDBC-JNI driver, as shown below:
 
 ```java
@@ -173,7 +184,7 @@ The configuration parameters in the URL are as follows:
 * charset: character set used by the client. The default value is the system character set.
 * locale: client locale. The default value is the current system locale.
 * timezone: timezone used by the client. The default value is the current timezone of the system.
-* batchfetch: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is false.
+* batchfetch: True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is false.
 * timestampFormat: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * batchErrorIgnore: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
