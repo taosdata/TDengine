@@ -547,7 +547,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
     return 0;
   }
 
-  pCtbIdxKey = pCtbCur->pVal;
+  pCtbIdxKey = pCtbCur->pKey;
 
   return pCtbIdxKey->uid;
 }
