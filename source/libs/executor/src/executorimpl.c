@@ -1289,6 +1289,12 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
 
       taosArrayDestroy(pBlockList);
 
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
+      for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+        colDataAppend(pColInfoData, i, taosVariantGet(&pExpr[k].base.pParam[0].param, pExpr[k].base.pParam[0].type), TSDB_DATA_TYPE_NULL == pExpr[k].base.pParam[0].param.nType);
+      }
+      pResult->info.rows = pSrcBlock->info.rows;
     } else {
       ASSERT(0);
     }
@@ -2093,7 +2099,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
         }
       }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
-    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR) {
+    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR || pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
       pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes; // for simple column, the intermediate buffer needs to hold one element.
     }
 
@@ -2864,6 +2870,9 @@ int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, 
   if (pTableScanInfo->pFilterNode != NULL) {
     SFilterInfo* filter = NULL;
     int32_t      code = filterInitFromNode((SNode*)pTableScanInfo->pFilterNode, &filter, 0);
+    if (code) {
+      return code;
+    }
 
     SFilterColumnParam param1 = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
     code = filterSetDataFromSlotId(filter, &param1);
@@ -8309,6 +8318,17 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
 //      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
 //      pExp->base.pParam[0].pCol = createColumn(pTargetNode->dataBlockId, pTargetNode->slotId, pType);
+    } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_VALUE) {
+      pExp->pExpr->nodeType = QUERY_NODE_VALUE;
+      SValueNode* pValNode = (SValueNode*)pTargetNode->pExpr;
+
+      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+      pExp->base.numOfParams = 1;
+
+      SDataType* pType = &pValNode->node.resType;
+      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale, pType->precision, pValNode->node.aliasName);
+      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
+      valueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
     } else {
       ASSERT(0);
     }

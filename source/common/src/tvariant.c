@@ -1015,3 +1015,27 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
 
   return 0;
 }
+
+char * taosVariantGet(SVariant *pVar, int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL: 
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_INT: 
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (char *)&pVar->i;
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_FLOAT:
+      return (char *)&pVar->d;
+    case TSDB_DATA_TYPE_BINARY:
+      return (char *)pVar->pz;
+    case TSDB_DATA_TYPE_NCHAR:
+      return (char *)pVar->ucs4;
+    default: 
+      return NULL;
+  }
+
+  return NULL;
+}
+
