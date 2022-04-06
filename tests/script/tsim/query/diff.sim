@@ -63,8 +63,11 @@ print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
+print ===> select diff(tbcol) from $tb
 sql select diff(tbcol) from $tb
-print ===> $data11
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data11 != 1 then 
   return -1
 endi
@@ -72,28 +75,38 @@ endi
 print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
+print ===> select diff(tbcol) from $tb where ts > $ms
 sql select diff(tbcol) from $tb where ts > $ms
-print ===> $data11
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data11 != 1 then 
   return -1
 endi
 
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
+print ===> select diff(tbcol) from $tb where ts <= $ms
 sql select diff(tbcol) from $tb where ts <= $ms
-print ===> $data11
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data11 != 1 then 
   return -1
 endi
 
 print =============== step4
+print ===> select diff(tbcol) as b from $tb
 sql select diff(tbcol) as b from $tb
-print ===> $data11
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data11 != 1 then 
   return -1
 endi
 
 print =============== step5
+print ===> select diff(tbcol) as b from $tb interval(1m)
 sql select diff(tbcol) as b from $tb interval(1m) -x step5
   return -1
 step5:
@@ -101,6 +114,7 @@ step5:
 print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
+print ===> select diff(tbcol) as b from $tb where ts <= $ms interval(1m)
 sql select diff(tbcol) as b from $tb where ts <= $ms interval(1m) -x step6
   return -1
 step6:
