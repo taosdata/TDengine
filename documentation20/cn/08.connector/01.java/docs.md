@@ -152,7 +152,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
 3. 使用 6041 作为连接端口。
 
-从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，**JDBC-RESTful** 的 driver 增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于HTTP，WebSocket 可以使 **JDBC-RESTful** 支持大数据量查询，并提升查询性能。
+从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，**JDBC-RESTful** 的 driver 增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 **JDBC-RESTful** 支持大数据量查询，并提升查询性能。
 
 连接开启批量拉取方式：
 
