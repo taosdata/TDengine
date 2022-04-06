@@ -80,7 +80,7 @@ static int32_t taosProcInitMutex(SProcQueue *pQueue) {
   }
 
   if (taosThreadMutexInit(&pQueue->mutex, &mattr) != 0) {
-    taosThreadMutexDestroy(&pQueue->mutex);
+    taosThreadMutexAttrDestroy(&mattr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex since %s", terrstr());
     return -1;
@@ -472,7 +472,8 @@ void taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, c
                           ProcFuncType ftype) {
   int32_t retry = 0;
   while (taosProcQueuePush(pProc, pProc->pParentQueue, pHead, headLen, pBody, bodyLen, 0, ftype) != 0) {
-    uInfo("proc:%s, failed to put msg to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(), retry);
+    uInfo("proc:%s, failed to put msg to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(),
+          retry);
     retry++;
     taosMsleep(retry);
   }
