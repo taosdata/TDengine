@@ -391,11 +391,11 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
     }
 
     if (rightNull) {
-      return pParam->nullFirst? 1:-1;
+      return pOrder->nullFirst? 1:-1;
     }
 
     if (leftNull) {
-      return pParam->nullFirst? -1:1;
+      return pOrder->nullFirst? -1:1;
     }
 
     void* left1  = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);

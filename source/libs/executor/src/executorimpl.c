@@ -4144,6 +4144,7 @@ int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) 
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   tsem_post(&pSourceDataInfo->pEx->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
