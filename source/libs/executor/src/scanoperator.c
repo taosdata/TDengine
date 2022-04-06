@@ -34,6 +34,7 @@
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)           (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
+
 void switchCtxOrder(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SWITCH_ORDER(pCtx[i].order);
@@ -91,39 +92,7 @@ int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, 
     taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
   }
 
-  if (pTableScanInfo->pFilterNode != NULL) {
-    SFilterInfo* filter = NULL;
-    int32_t      code = filterInitFromNode((SNode*)pTableScanInfo->pFilterNode, &filter, 0);
-
-    SFilterColumnParam param1 = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
-    code = filterSetDataFromSlotId(filter, &param1);
-
-    int8_t* rowRes = NULL;
-    bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
-
-    SSDataBlock* px = createOneDataBlock(pBlock);
-    blockDataEnsureCapacity(px, pBlock->info.rows);
-
-    int32_t numOfRow = 0;
-    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
-      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-
-      numOfRow = 0;
-      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-        if (rowRes[j] == 0) {
-          continue;
-        }
-
-        colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
-        numOfRow += 1;
-      }
-      *pSrc = *pDst;
-    }
-
-    pBlock->info.rows = numOfRow;
-  }
-
+  doFilter(pTableScanInfo->pFilterNode, pBlock);
   return TSDB_CODE_SUCCESS;
 }
 

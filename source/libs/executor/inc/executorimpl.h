@@ -551,6 +551,7 @@ typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   SArray*        pGroupCols;
   SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
+  SNode*         pCondition;
   bool           isInit;       // denote if current val is initialized or not
   char*          keyBuf;       // group by keys for hash
   int32_t        groupKeyLen;  // total group by column width
@@ -630,9 +631,10 @@ typedef struct SDistinctOperatorInfo {
   SHashObj*    pSet;
   SSDataBlock* pRes;
   bool         recordNullVal;  // has already record the null value, no need to try again
-  int64_t      threshold;  // todo remove it
-  int64_t      outputCapacity;// todo remove it
-  int32_t      totalBytes; // todo remove it
+//  int64_t      threshold;  // todo remove it
+//  int64_t      outputCapacity;// todo remove it
+//  int32_t      totalBytes; // todo remove it
+  SResultInfo  resInfo;
   char*        buf;
   SArray*      pDistinctDataInfo;
 } SDistinctOperatorInfo;
@@ -651,6 +653,8 @@ void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
 int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows,
                                          char* pData, int32_t compLen, int32_t numOfOutput, int64_t startTs,
                                          uint64_t* total, SArray* pColList);
+void doSetOperatorCompleted(SOperatorInfo* pOperator);
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
@@ -667,7 +671,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
                                           const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, int64_t gap, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
-                                       SArray* pGroupColList, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+                                       SArray* pGroupColList, SNode* pCondition, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList, SExecTaskInfo* pTaskInfo);
 

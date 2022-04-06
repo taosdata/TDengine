@@ -917,7 +917,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
             colDataAppendInt32(pOutput, pos, &delta);
           }
 
-          if (tsList != NULL) {
+          if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &tsList[i]);
           }
         }
