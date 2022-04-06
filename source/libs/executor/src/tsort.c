@@ -113,7 +113,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
 
 static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
   for(int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-    SExternalMemSource* pSource = cmpParam->pSources[i];
+    SSortSource* pSource = cmpParam->pSources[i];    // NOTICE: pSource may be SGenericSource *, if it is SORT_MULTISOURCE_MERGE
     blockDataDestroy(pSource->src.pBlock);
     taosMemoryFreeClear(pSource);
   }
@@ -132,7 +132,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
   for (size_t i = 0; i < taosArrayGetSize(pSortHandle->pOrderedSource); i++){
-    SExternalMemSource** pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
+    SSortSource** pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
     blockDataDestroy((*pSource)->src.pBlock);
     taosMemoryFreeClear(*pSource);
   }
@@ -146,7 +146,7 @@ int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
 }
 
 static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSources, SSDataBlock* pBlock, int32_t* sourceId) {
-  SExternalMemSource* pSource = taosMemoryCalloc(1, sizeof(SExternalMemSource));
+  SSortSource* pSource = taosMemoryCalloc(1, sizeof(SSortSource));
   if (pSource == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -216,7 +216,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-      SExternalMemSource* pSource = cmpParam->pSources[i];
+      SSortSource* pSource = cmpParam->pSources[i];
       SPageInfo*          pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
       void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
@@ -238,7 +238,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
     }
 
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-      SGenericSource* pSource = cmpParam->pSources[i];
+      SSortSource* pSource = cmpParam->pSources[i];
       pSource->src.pBlock = pHandle->fetchfp(pSource->param);
     }
   }
@@ -265,7 +265,7 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSou
   *rowIndex += 1;
 }
 
-static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwayMergeTreeInfo *pTree, SSortHandle *pHandle, int32_t* numOfCompleted) {
+static int32_t adjustMergeTreeForNextTuple(SSortSource *pSource, SMultiwayMergeTreeInfo *pTree, SSortHandle *pHandle, int32_t* numOfCompleted) {
   /*
    * load a new SDataBlock into memory of a given intermediate data-set source,
    * since it's last record in buffer has been chosen to be processed, as the winner of loser-tree
@@ -292,7 +292,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
         releaseBufPage(pHandle->pBuf, pPage);
       }
     } else {
-      pSource->src.pBlock = pHandle->fetchfp(((SGenericSource*)pSource)->param);
+      pSource->src.pBlock = pHandle->fetchfp(((SSortSource*)pSource)->param);
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
@@ -330,7 +330,7 @@ static SSDataBlock* getSortedBlockDataInner(SSortHandle* pHandle, SMsortComparPa
 
     int32_t index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
 
-    SExternalMemSource *pSource = (*cmpParam).pSources[index];
+    SSortSource *pSource = (*cmpParam).pSources[index];
     appendOneRowToDataBlock(pHandle->pDataBlock, pSource->src.pBlock, &pSource->src.rowIndex);
 
     int32_t code = adjustMergeTreeForNextTuple(pSource, pHandle->pMergeTree, pHandle, &pHandle->numOfCompletedSources);
@@ -355,8 +355,8 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
 
   SArray *pInfo = pParam->orderInfo;
 
-  SExternalMemSource* pLeftSource  = pParam->pSources[pLeftIdx];
-  SExternalMemSource* pRightSource = pParam->pSources[pRightIdx];
+  SSortSource* pLeftSource  = pParam->pSources[pLeftIdx];
+  SSortSource* pRightSource = pParam->pSources[pRightIdx];
 
   // this input is exhausted, set the special value to denote this
   if (pLeftSource->src.rowIndex == -1) {
@@ -484,6 +484,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         blockDataCleanup(pDataBlock);
       }
 
+      sortComparClearup(&pHandle->cmpParam);
       tMergeTreeDestroy(pHandle->pMergeTree);
       pHandle->numOfCompletedSources = 0;
 
@@ -493,8 +494,6 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         return code;
       }
     }
-
-    sortComparClearup(&pHandle->cmpParam);
 
     taosArrayClear(pHandle->pOrderedSource);
     taosArrayAddAll(pHandle->pOrderedSource, pResList);
@@ -523,7 +522,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
-    SGenericSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
+    SSortSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
     taosArrayClear(pHandle->pOrderedSource);
     while (1) {
       SSDataBlock* pBlock = pHandle->fetchfp(source->param);
@@ -652,7 +651,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   }
 
   int32_t index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
-  SExternalMemSource *pSource = pHandle->cmpParam.pSources[index];
+  SSortSource *pSource = pHandle->cmpParam.pSources[index];
 
   if (pHandle->needAdjust) {
     int32_t code = adjustMergeTreeForNextTuple(pSource, pHandle->pMergeTree, pHandle, &pHandle->numOfCompletedSources);

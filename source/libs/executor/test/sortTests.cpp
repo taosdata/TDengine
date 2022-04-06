@@ -138,12 +138,12 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
   int32_t pRightIdx = *(int32_t *)p2;
 
   SMsortComparParam *pParam = (SMsortComparParam *)param;
-  SGenericSource** px = reinterpret_cast<SGenericSource**>(pParam->pSources);
+  SSortSource** px = reinterpret_cast<SSortSource**>(pParam->pSources);
 
   SArray *pInfo = pParam->orderInfo;
 
-  SGenericSource* pLeftSource  = px[pLeftIdx];
-  SGenericSource* pRightSource = px[pRightIdx];
+  SSortSource* pLeftSource  = px[pLeftIdx];
+  SSortSource* pRightSource = px[pRightIdx];
 
   // this input is exhausted, set the special value to denote this
   if (pLeftSource->src.rowIndex == -1) {
@@ -218,7 +218,7 @@ TEST(testCase, inMem_sort_Test) {
   pInfo->count = 6;
   pInfo->type = TSDB_DATA_TYPE_USMALLINT;
 
-  SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
+  SSortSource* ps = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
   ps->param = pInfo;
   tsortAddSource(phandle, ps);
 
@@ -301,7 +301,7 @@ TEST(testCase, external_mem_sort_Test) {
     SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 128, 3, NULL, "test_abc");
     tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
-    SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
+    SSortSource* ps = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
     ps->param = &pInfo[i];
 
     tsortAddSource(phandle, ps);
@@ -369,10 +369,10 @@ TEST(testCase, ordered_merge_sort_Test) {
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
   tsortSetComparFp(phandle, docomp);
 
-  SGenericSource* p[10] = {0};
+  SSortSource* p[10] = {0};
   _info c[10] = {0};
   for(int32_t i = 0; i < 10; ++i) {
-    p[i] = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
+    p[i] = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
     c[i].count    = 1;
     c[i].pageRows = 1000;
     c[i].startVal = i*1000;
@@ -396,9 +396,8 @@ TEST(testCase, ordered_merge_sort_Test) {
     ASSERT_EQ(row++, *(int32_t*) v);
 
   }
-  for(int32_t i = 0; i < 10; ++i) {
-    taosMemoryFree(p[i]);
-  }
+
+  taosArrayDestroy(orderInfo);
   tsortDestroySortHandle(phandle);
   blockDataDestroy(pBlock);
 }

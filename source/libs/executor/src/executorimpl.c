@@ -5982,7 +5982,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator, bool* newgroup) {
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-    SGenericSource* ps = taosMemoryCalloc(1, sizeof(SGenericSource));
+    SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
     ps->param = pOperator->pDownstream[i];
     tsortAddSource(pInfo->pSortHandle, ps);
   }
@@ -6128,7 +6128,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
 
-  SGenericSource* ps = taosMemoryCalloc(1, sizeof(SGenericSource));
+  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = pOperator->pDownstream[0];
   tsortAddSource(pInfo->pSortHandle, ps);
 

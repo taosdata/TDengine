@@ -34,16 +34,17 @@ typedef struct SMultiMergeSource {
   SSDataBlock *pBlock;
 } SMultiMergeSource;
 
-typedef struct SExternalMemSource {
+typedef struct SSortSource {
   SMultiMergeSource src;
-  SArray*           pageIdList;
-  int32_t           pageIndex;
-} SExternalMemSource;
+  union{
+    struct{
+      SArray*           pageIdList;
+      int32_t           pageIndex;
+    };
+    void             *param;
+  };
 
-typedef struct SGenericSource {
-  SMultiMergeSource src;
-  void             *param;
-} SGenericSource;
+} SSortSource;
 
 typedef struct SMsortComparParam {
   void        **pSources;
