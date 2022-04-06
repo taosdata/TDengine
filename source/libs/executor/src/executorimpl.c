@@ -297,6 +297,10 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
     idata.info.slotId = pDescNode->slotId;
     idata.info.precision = pDescNode->dataType.precision;
 
+    if (IS_VAR_DATA_TYPE(idata.info.type)) {
+      pBlock->info.hasVarCol = true;
+    }
+
     taosArrayPush(pBlock->pDataBlock, &idata);
   }
 
