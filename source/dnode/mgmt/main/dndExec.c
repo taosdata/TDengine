@@ -147,7 +147,20 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
-    int32_t shmsize = 1024 * 1024 * 2;  // size will be a configuration item
+    int32_t shmsize = tsMnodeShmSize;
+    if (n == VNODES) {
+      shmsize = tsVnodeShmSize;
+    } else if (n == QNODE) {
+      shmsize = tsQnodeShmSize;
+    } else if (n == SNODE) {
+      shmsize = tsSnodeShmSize;
+    } else if (n == MNODE) {
+      shmsize = tsMnodeShmSize;
+    } else if (n == BNODE) {
+      shmsize = tsBnodeShmSize;
+    } else {
+    }
+
     if (taosCreateShm(&pWrapper->shm, n, shmsize) != 0) {
       terrno = TAOS_SYSTEM_ERROR(terrno);
       dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());

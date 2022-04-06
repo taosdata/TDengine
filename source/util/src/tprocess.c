@@ -256,7 +256,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
     rawBodyLen = *(int32_t *)(pQueue->pBuffer + 4);
   }
   int16_t headLen = CEIL8(rawHeadLen);
-  int16_t bodyLen = CEIL8(rawBodyLen);
+  int32_t bodyLen = CEIL8(rawBodyLen);
 
   void *pHead = (*mallocHeadFp)(headLen);
   void *pBody = (*mallocBodyFp)(bodyLen);

@@ -48,7 +48,7 @@ bool    tsPrintAuth = 0;
 
 // multi process
 bool    tsMultiProcess = false;
-int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 1;
+int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 2;
 int32_t tsVnodeShmSize = TSDB_MAX_WAL_SIZE * 10;
 int32_t tsQnodeShmSize = TSDB_MAX_WAL_SIZE * 4;
 int32_t tsSnodeShmSize = TSDB_MAX_WAL_SIZE * 4;
@@ -485,7 +485,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsVnodeShmSize = cfgGetItem(pCfg, "vnodeShmSize")->i32;
   tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
   tsSnodeShmSize = cfgGetItem(pCfg, "snodeShmSize")->i32;
-  tsBnodeShmSize = cfgGetItem(pCfg, "bnodeShmSize")->i32;
+  // tsBnodeShmSize = cfgGetItem(pCfg, "bnodeShmSize")->i32;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
