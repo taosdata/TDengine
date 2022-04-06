@@ -47,7 +47,7 @@ int vnodeSyncCommit(SVnode *pVnode) {
 static int vnodeCommit(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
 
-  metaCommit(pVnode->pMeta);
+  // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
   tsdbCommit(pVnode->pTsdb);
 
