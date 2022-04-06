@@ -730,10 +730,10 @@ SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap
   return (SNode*)session;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   SStateWindowNode* state = (SStateWindowNode*)nodesMakeNode(QUERY_NODE_STATE_WINDOW);
   CHECK_OUT_OF_MEM(state);
-  state->pCol = pCol;
+  state->pExpr = pExpr;
   return (SNode*)state;
 }
 

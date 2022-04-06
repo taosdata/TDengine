@@ -107,15 +107,17 @@ typedef struct SQWTaskCtx {
   SRWLatch        lock;
   int8_t          phase;
   int8_t          taskType;
+  int8_t          explain;
   
-  bool            emptyRes;
   bool            queryFetched;
   bool            queryEnd;
   bool            queryContinue;
   bool            queryInQueue;
   int32_t         rspCode; 
 
-  SQWConnInfo     connInfo;
+  SQWConnInfo     ctrlConnInfo;
+  SQWConnInfo     dataConnInfo;
+
   int8_t          events[QW_EVENT_MAX];
   
   qTaskInfo_t     taskHandle;
