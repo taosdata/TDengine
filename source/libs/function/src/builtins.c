@@ -387,7 +387,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
@@ -504,6 +504,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
+    case FUNCTION_TYPE_ROWTS:
     case FUNCTION_TYPE_QSTARTTS:
     case FUNCTION_TYPE_QENDTS:
     case FUNCTION_TYPE_WSTARTTS:
@@ -589,7 +590,6 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
-    case FUNCTION_TYPE_ROWTS:
     case FUNCTION_TYPE_TBNAME: {
       // todo
       break;

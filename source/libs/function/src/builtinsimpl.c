@@ -847,8 +847,10 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
 }
 
 typedef struct SDiffInfo {
-  bool  valueAssigned;
+  bool  hasPrev;
+  bool  includeNull;
   bool  ignoreNegative;
+  bool  firstOutput;
   union { int64_t i64; double d64;} prev;
 } SDiffInfo;
 
@@ -863,9 +865,11 @@ bool diffFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo) {
   }
 
   SDiffInfo* pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pDiffInfo->valueAssigned  = false;
-  pDiffInfo->prev.i64       = 0;
+  pDiffInfo->hasPrev  = false;
+  pDiffInfo->prev.i64 = 0;
   pDiffInfo->ignoreNegative = false; // TODO set correct param
+  pDiffInfo->includeNull = false;
+  pDiffInfo->firstOutput = false;
   return true;
 }
 
@@ -876,65 +880,79 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pInputCol = pInput->pData[0];
 
-  bool  isFirstBlock = (pDiffInfo->valueAssigned == false);
+  bool  isFirstBlock = (pDiffInfo->hasPrev == false);
   int32_t numOfElems = 0;
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
 //  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
+  int32_t startOffset = 0;
   switch (pInputCol->info.type) {
     case TSDB_DATA_TYPE_INT: {
-      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+      SColumnInfoData *pOutput = (SColumnInfoData *)pCtx->pOutput;
       for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+
+        int32_t pos = startOffset + (isFirstBlock? (numOfElems-1):numOfElems);
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          if (pDiffInfo->includeNull) {
+            colDataSetNull_f(pOutput->nullbitmap, pos);
+            if (tsList != NULL) {
+              colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+            }
+
+            numOfElems += 1;
+          }
           continue;
         }
 
         int32_t v = *(int32_t*) colDataGetData(pInputCol, i);
-        if (pDiffInfo->valueAssigned) {
-          int64_t delta = (int32_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
-          if (pDiffInfo->ignoreNegative) {
-            continue;
+        if (pDiffInfo->hasPrev) {
+          int32_t delta = (int32_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
+          if (delta < 0 && pDiffInfo->ignoreNegative) {
+            colDataSetNull_f(pOutput->nullbitmap, pos);
+          } else {
+            colDataAppendInt32(pOutput, pos, &delta);
           }
+        }
 
-          *(pOutput++) = delta;
-//          *pTimestamp  = (tsList != NULL)? tsList[i]:0;
-          pTimestamp += 1;
+        if (tsList != NULL) {
+          colDataAppendInt64(pTsOutput, pos, &tsList[i]);
         }
 
         pDiffInfo->prev.i64 = v;
-        pDiffInfo->valueAssigned = true;
+        pDiffInfo->hasPrev  = true;
         numOfElems++;
       }
       break;
     }
+
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+      SColumnInfoData *pOutput = (SColumnInfoData *)pCtx->pOutput;
       for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
         int32_t v = 0;
-        if (pDiffInfo->valueAssigned) {
+        if (pDiffInfo->hasPrev) {
           v = *(int64_t*) colDataGetData(pInputCol, i);
           int64_t delta = (int64_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
           if (pDiffInfo->ignoreNegative) {
             continue;
           }
 
-          *(pOutput++) = delta;
-          *pTimestamp  = (tsList != NULL)? tsList[i]:0;
-
-          pOutput    += 1;
-          pTimestamp += 1;
+//          *(pOutput++) = delta;
+//          *pTimestamp  = (tsList != NULL)? tsList[i]:0;
+//
+//          pOutput    += 1;
+//          pTimestamp += 1;
         }
 
         pDiffInfo->prev.i64 = v;
-        pDiffInfo->valueAssigned = true;
+        pDiffInfo->hasPrev = true;
         numOfElems++;
       }
       break;
@@ -952,7 +970,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
           SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
@@ -960,7 +978,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
         }
 
         pDiffInfo->d64Prev = pData[i];
-        pDiffInfo->valueAssigned = true;
+        pDiffInfo->hasPrev = true;
         numOfElems++;
       }
       break;
@@ -977,7 +995,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
           *pOutput = (float)(pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
@@ -985,7 +1003,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
         }
 
         pDiffInfo->d64Prev = pData[i];
-        pDiffInfo->valueAssigned = true;
+        pDiffInfo->hasPrev = true;
         numOfElems++;
       }
       break;
@@ -1002,7 +1020,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
           *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
@@ -1010,7 +1028,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
         }
 
         pDiffInfo->i64Prev = pData[i];
-        pDiffInfo->valueAssigned = true;
+        pDiffInfo->hasPrev = true;
         numOfElems++;
       }
       break;
@@ -1028,7 +1046,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
           *pOutput = (int8_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
@@ -1036,7 +1054,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
         }
 
         pDiffInfo->i64Prev = pData[i];
-        pDiffInfo->valueAssigned = true;
+        pDiffInfo->hasPrev = true;
         numOfElems++;
       }
       break;
@@ -1048,7 +1066,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
   }
 
   // initial value is not set yet
-  if (!pDiffInfo->valueAssigned || numOfElems <= 0) {
+  if (!pDiffInfo->hasPrev || numOfElems <= 0) {
     /*
      * 1. current block and blocks before are full of null
      * 2. current block may be null value
@@ -1064,7 +1082,6 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
 
     int32_t forwardStep = (isFirstBlock) ? numOfElems - 1 : numOfElems;
     return forwardStep;
-//    pResInfo->numOfRes += forwardStep;
   }
 }
 

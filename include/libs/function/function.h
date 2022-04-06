@@ -194,7 +194,8 @@ typedef struct SqlFunctionCtx {
   int32_t          numOfParams;
   SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
-  void            *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  int32_t          offset;
   SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo     subsidiaryRes;

@@ -1264,17 +1264,21 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
 
       taosArrayDestroy(pBlockList);
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
-      ASSERT(!fmIsAggFunc(pCtx->functionId));
+      ASSERT(!fmIsAggFunc(pCtx[k].functionId));
 
-      if (fmIsNonstandardSQLFunc(pCtx->functionId)) {
+      if (fmIsPseudoColumnFunc(pCtx[k].functionId)) {
+        // TODO: set the correct _rowts column output buffer, there may be multiple _rowts columns
+      } else if (fmIsNonstandardSQLFunc(pCtx[k].functionId)) {
         SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
 
+        pCtx[k].ptsList = 0;
         SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[k]);
         pCtx[k].fpSet.init(&pCtx[k], pResInfo);
 
-        pCtx[k].pOutput = pColInfoData->pData;
+        pCtx[k].pOutput = (char*)pColInfoData;
+//        pCtx[k].pTsOutput =
         int32_t numOfRows = pCtx[k].fpSet.process(&pCtx[k]);
-        pResult->info.rows = numOfRows;
+        pResult->info.rows += numOfRows;
       } else {
         SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
         taosArrayPush(pBlockList, &pSrcBlock);
@@ -1284,7 +1288,6 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
 
         scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
         pResult->info.rows = dest.numOfRows;
-
         taosArrayDestroy(pBlockList);
       }
     } else {
@@ -1926,12 +1929,12 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
     pCtx->input.pData = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
     pCtx->input.pColumnDataAgg = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
 
-    pCtx->ptsOutputBuf = NULL;
+    pCtx->pTsOutput         = NULL;
     pCtx->resDataInfo.bytes = pFunct->resSchema.bytes;
-    pCtx->resDataInfo.type = pFunct->resSchema.type;
-    pCtx->order = TSDB_ORDER_ASC;
+    pCtx->resDataInfo.type  = pFunct->resSchema.type;
+    pCtx->order             = TSDB_ORDER_ASC;
     pCtx->start.key = INT64_MIN;
-    pCtx->end.key = INT64_MIN;
+    pCtx->end.key   = INT64_MIN;
 #if 0
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
 //      int16_t type = pFunct->param[j].nType;
@@ -2983,7 +2986,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
     // set the timestamp output buffer for top/bottom/diff query
     //    int32_t fid = pCtx[i].functionId;
     //    if (fid == FUNCTION_TOP || fid == FUNCTION_BOTTOM || fid == FUNCTION_DIFF || fid == FUNCTION_DERIVATIVE) {
-    //      if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
+    //      if (i > 0) pCtx[i].pTsOutput = pCtx[i-1].pOutput;
     //    }
   }
 
@@ -3020,7 +3023,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity, int32_t numOf
 
     if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF ||
         functionId == FUNCTION_DERIVATIVE) {
-      if (i > 0) pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i - 1].pOutput;
+//      if (i > 0) pBInfo->pCtx[i].pTsOutput = pBInfo->pCtx[i - 1].pOutput;
     }
   }
 }
@@ -3058,7 +3061,7 @@ void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput) 
 void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
   for (int32_t j = 0; j < size; ++j) {
     struct SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
-    if (isRowEntryInitialized(pResInfo) || pCtx[j].functionId == -1) {
+    if (isRowEntryInitialized(pResInfo) || fmIsPseudoColumnFunc(pCtx[j].functionId) || pCtx[j].functionId == -1 || fmIsScalarFunc(pCtx[j].functionId)) {
       continue;
     }
 
@@ -3224,7 +3227,7 @@ void setResultRowOutputBufInitCtx(STaskRuntimeEnv* pRuntimeEnv, SResultRow* pRes
     }
 
     if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
-      if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i - 1].pOutput;
+//      if (i > 0) pCtx[i].pTsOutput = pCtx[i - 1].pOutput;
     }
 
     //    if (!pResInfo->initialized) {
