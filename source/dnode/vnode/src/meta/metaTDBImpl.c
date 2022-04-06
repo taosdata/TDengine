@@ -226,10 +226,10 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
 
     if (pTbCfg->type == META_SUPER_TABLE) {
       schemaWrapper.nCols = pTbCfg->stbCfg.nCols;
-      schemaWrapper.pSchema = pTbCfg->stbCfg.pSchema;
+      schemaWrapper.pSchemaEx = pTbCfg->stbCfg.pSchema;
     } else {
       schemaWrapper.nCols = pTbCfg->ntbCfg.nCols;
-      schemaWrapper.pSchema = pTbCfg->ntbCfg.pSchema;
+      schemaWrapper.pSchemaEx = pTbCfg->ntbCfg.pSchema;
     }
     pVal = pBuf = buf;
     metaEncodeSchemaEx(&pBuf, &schemaWrapper);
@@ -349,7 +349,7 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
-  return *metaGetTableSchemaImpl(pMeta, uid, sver, isinline, false);
+  return metaGetTableSchemaImpl(pMeta, uid, sver, isinline, false);
 }
 
 static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx) {
