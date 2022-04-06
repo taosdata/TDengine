@@ -54,6 +54,7 @@ def get_path():
                 break
     return buildPath
 
+  
 def random_args(args_list):
     nums_args_list = ["--max-dbs","--num-replicas","--num-dnodes","--max-steps","--num-threads",] # record int type arguments
     bools_args_list = ["--auto-start-service" , "--debug","--run-tdengine","--ignore-errors","--track-memory-leaks","--larger-data","--mix-oos-data","--dynamic-db-table-names",
@@ -76,6 +77,12 @@ def random_args(args_list):
     args_list["--debug"]=False
     args_list["--per-thread-db-connection"]=True
     args_list["--track-memory-leaks"]=False
+
+    num = random.randint(1, 10)   # set --track-memory-leaks randomly
+    if num > 8 :
+        args_list["--track-memory-leaks"]=True
+    
+
     args_list["--max-steps"]=random.randint(300,500)
     
     threads = [32,64,128,256]
@@ -175,12 +182,40 @@ def run_crash_gen(crash_cmds,result_file):
 def check_status(result_file):
     run_code = subprocess.Popen("tail -n 50 %s"%result_file, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
     os.system("tail -n 50 %s>>%s"%(result_file,exit_status_logs))
+    mem_status = check_memory(run_dir)
+    if mem_status >0:
+        return mem_status
     if "Crash_Gen is now exiting with status code: 1" in run_code:
         return 1
     elif "Crash_Gen is now exiting with status code: 0" in run_code:
         return 0
     else:
         return 2 
+
+def check_memory(run_dir):
+    '''
+    invalid read, invalid write
+    '''
+    mem_report_path = os.path.join(run_dir , "reporter")
+    if not os.path.exists(mem_report_path):
+        os.mkdir(mem_report_path)
+    status = 0
+    stderr_files = subprocess.Popen("find %s -name \"stderr.log\" "%run_dir , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+    stderr_list = stderr_files.split("\n")[:-1]
+    for stderr_file in stderr_list:
+        print(stderr_file)
+        grep_res = subprocess.Popen("grep -i 'Invalid read' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        if grep_res:
+            os.system("cp %s %s"%(stderr_file , mem_report_path))
+            status = 4
+            break
+        
+        grep_res = subprocess.Popen("grep -i 'Invalid write' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        if grep_res:
+            status = 4
+            os.system("cp %s %s"%(stderr_file , mem_report_path))
+            break
+    return status
 
 def main():
     args_list = {"--auto-start-service":False ,"--max-dbs":0,"--connector-type":"native","--debug":False,"--run-tdengine":False,"--ignore-errors":[],
@@ -215,7 +250,10 @@ def main():
     print(crash_cmds)
     run_crash_gen(crash_cmds,run_log_file)
     status = check_status(run_log_file)
+    
     print("exit status : ", status)
+    if status ==4:
+        print('======== crash_gen found memory bugs at reporter ========')
     if status >0:
         print('======== crash_gen run failed and not exit as expected ========')
     else:
