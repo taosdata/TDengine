@@ -97,6 +97,7 @@ int32_t countFunction(SqlFunctionCtx *pCtx) {
   *((int64_t *)buf) += numOfElem;
 
   SET_VAL(pResInfo, numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 #define LIST_ADD_N(_res, _col, _start, _rows, _t, numOfElem)             \
@@ -167,6 +168,7 @@ int32_t sumFunction(SqlFunctionCtx *pCtx) {
 
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -435,11 +437,13 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
 int32_t minFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = doMinMaxHelper(pCtx, 1);
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t maxFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = doMinMaxHelper(pCtx, 0);
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef struct STopBotRes {
@@ -589,6 +593,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
 
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 void stddevFinalize(SqlFunctionCtx* pCtx) {
@@ -716,6 +721,7 @@ int32_t percentileFunction(SqlFunctionCtx *pCtx) {
 
   SET_VAL(pResInfo, notNullElems, 1);
   pResInfo->hasResult = DATA_SET_FLAG;
+  return TSDB_CODE_SUCCESS;
 }
 
 // TODO set the correct parameter.
@@ -783,6 +789,7 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t lastFunction(SqlFunctionCtx *pCtx) {
@@ -844,6 +851,7 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef struct SDiffInfo {
@@ -1072,6 +1080,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
      * 2. current block may be null value
      */
     assert(pCtx->hasNull);
+    return 0;
   } else {
 //    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
 //      SqlFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
