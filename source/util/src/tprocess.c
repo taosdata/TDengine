@@ -478,6 +478,7 @@ void taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle)) {
     (*HandleFp)(handle);
     h = taosHashIterate(pProc->hash, h);
   }
+  taosHashClear(pProc->hash);
   taosThreadMutexUnlock(&pProc->pChildQueue->mutex);
 }
 
@@ -485,7 +486,7 @@ void taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, c
                           ProcFuncType ftype) {
   int32_t retry = 0;
   while (taosProcQueuePush(pProc, pProc->pParentQueue, pHead, headLen, pBody, bodyLen, 0, ftype) != 0) {
-    uInfo("proc:%s, failed to put to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(), retry);
+    uWarn("proc:%s, failed to put to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(), retry);
     retry++;
     taosMsleep(retry);
   }

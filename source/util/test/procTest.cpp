@@ -10,10 +10,20 @@
  */
 
 #include <gtest/gtest.h>
+#include "tlog.h"
 #include "tprocess.h"
 #include "tqueue.h"
-#include "trpc.h"
-#include "tlog.h"
+
+typedef struct STestMsg {
+  uint16_t msgType;
+  void    *pCont;
+  int      contLen;
+  int32_t  code;
+  void    *handle;         // rpc handle returned to app
+  void    *ahandle;        // app handle set by client
+  int      noResp;         // has response or not(default 0, 0: resp, 1: no resp);
+  int      persistHandle;  // persist handle or not
+} STestMsg;
 
 class UtilTesProc : public ::testing::Test {
  public:
@@ -38,7 +48,7 @@ class UtilTesProc : public ::testing::Test {
   void TearDown() override { taosDropShm(&shm); }
 
  public:
-  static SRpcMsg  head;
+  static STestMsg head;
   static char     body[4000];
   static SShm     shm;
   static void     SetUpTestSuite() {}
@@ -47,7 +57,7 @@ class UtilTesProc : public ::testing::Test {
 
 SShm     UtilTesProc::shm;
 char     UtilTesProc::body[4000];
-SRpcMsg  UtilTesProc::head;
+STestMsg UtilTesProc::head;
 
 TEST_F(UtilTesProc, 00_Init_Cleanup) {
   ASSERT_EQ(taosCreateShm(&shm, 1234, 1024 * 1024 * 2), 0);
@@ -56,13 +66,13 @@ TEST_F(UtilTesProc, 00_Init_Cleanup) {
   SProcCfg  cfg = {.childConsumeFp = (ProcConsumeFp)NULL,
                    .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
                    .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-                   .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .childMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .childFreeBodyFp = (ProcFreeFp)taosMemoryMalloc,
                    .parentConsumeFp = (ProcConsumeFp)NULL,
                    .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                    .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-                   .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .parentMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .parentFreeBodyFp = (ProcFreeFp)taosMemoryMalloc,
                    .shm = shm,
                    .parent = &shm,
                    .name = "1234"};
@@ -80,14 +90,14 @@ TEST_F(UtilTesProc, 00_Init_Cleanup) {
 }
 
 void ConsumeChild1(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, ProcFuncType ftype) {
-  SRpcMsg msg;
+  STestMsg msg;
   memcpy(&msg, pHead, headLen);
   char body[2000] = {0};
   memcpy(body, pBody, bodyLen);
 
   uDebug("====> parent:%" PRId64 " ftype:%d, headLen:%d bodyLen:%d head:%d:%d:%d:%d body:%s <====", (int64_t)parent,
          ftype, headLen, bodyLen, msg.code, msg.msgType, msg.noResp, msg.persistHandle, body);
-  rpcFreeCont(pBody);
+  taosMemoryFree(pBody);
   taosFreeQitem(pHead);
 }
 
@@ -97,13 +107,13 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
   SProcCfg  cfg = {.childConsumeFp = (ProcConsumeFp)ConsumeChild1,
                    .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
                    .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-                   .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .childMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .childFreeBodyFp = (ProcFreeFp)taosMemoryFree,
                    .parentConsumeFp = (ProcConsumeFp)NULL,
                    .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                    .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-                   .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .parentMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .parentFreeBodyFp = (ProcFreeFp)taosMemoryFree,
                    .shm = shm,
                    .parent = (void *)((int64_t)1235),
                    .name = "1235_c"};
@@ -116,14 +126,14 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
   ASSERT_NE(taosProcPutToChildQ(cproc, NULL, 12, body, 0, 0, PROC_REQ), 0);
   ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_REQ), 0);
   ASSERT_NE(taosProcPutToChildQ(cproc, &head, shm.size, body, 0, 0, PROC_REQ), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(SRpcMsg), body, shm.size, 0, PROC_REQ), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, shm.size, 0, PROC_REQ), 0);
 
   for (int32_t j = 0; j < 1000; j++) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
-      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(SRpcMsg), body, i, 0, PROC_REQ), 0);
+      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, 0, PROC_REQ), 0);
     }
-    ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(SRpcMsg), body, i, 0, PROC_REQ), 0);
+    ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, 0, PROC_REQ), 0);
 
     cfg.isChild = true;
     cfg.name = "1235_p";
@@ -138,14 +148,14 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
 }
 
 void ConsumeParent1(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, ProcFuncType ftype) {
-  SRpcMsg msg;
+  STestMsg msg;
   memcpy(&msg, pHead, headLen);
   char body[2000] = {0};
   memcpy(body, pBody, bodyLen);
 
   uDebug("----> parent:%" PRId64 " ftype:%d, headLen:%d bodyLen:%d head:%d:%d:%d:%d body:%s <----", (int64_t)parent,
          ftype, headLen, bodyLen, msg.code, msg.msgType, msg.noResp, msg.persistHandle, body);
-  rpcFreeCont(pBody);
+  taosMemoryFree(pBody);
   taosMemoryFree(pHead);
 }
 
@@ -155,13 +165,13 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
   SProcCfg  cfg = {.childConsumeFp = (ProcConsumeFp)NULL,
                    .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
                    .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-                   .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .childMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .childFreeBodyFp = (ProcFreeFp)taosMemoryFree,
                    .parentConsumeFp = (ProcConsumeFp)ConsumeParent1,
                    .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                    .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-                   .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .parentMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .parentFreeBodyFp = (ProcFreeFp)taosMemoryFree,
                    .shm = shm,
                    .parent = (void *)((int64_t)1236),
                    .name = "1236_c"};
@@ -176,7 +186,7 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
   for (int32_t j = 0; j < 1000; j++) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
-      taosProcPutToParentQ(pproc, &head, sizeof(SRpcMsg), body, i, PROC_REQ);
+      taosProcPutToParentQ(pproc, &head, sizeof(STestMsg), body, i, PROC_REQ);
     }
 
     taosProcRun(cproc);
@@ -189,14 +199,14 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
 }
 
 void ConsumeChild3(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, ProcFuncType ftype) {
-  SRpcMsg msg;
+  STestMsg msg;
   memcpy(&msg, pHead, headLen);
   char body[2000] = {0};
   memcpy(body, pBody, bodyLen);
 
   uDebug("====> parent:%" PRId64 " ftype:%d, headLen:%d bodyLen:%d handle:%" PRId64 " body:%s <====", (int64_t)parent,
          ftype, headLen, bodyLen, (int64_t)msg.handle, body);
-  rpcFreeCont(pBody);
+  taosMemoryFree(pBody);
   taosFreeQitem(pHead);
 }
 
@@ -209,13 +219,13 @@ TEST_F(UtilTesProc, 03_Handle) {
   SProcCfg  cfg = {.childConsumeFp = (ProcConsumeFp)ConsumeChild3,
                    .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
                    .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-                   .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .childMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .childFreeBodyFp = (ProcFreeFp)taosMemoryFree,
                    .parentConsumeFp = (ProcConsumeFp)NULL,
                    .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                    .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-                   .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                   .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                   .parentMallocBodyFp = (ProcMallocFp)taosMemoryMalloc,
+                   .parentFreeBodyFp = (ProcFreeFp)taosMemoryFree,
                    .shm = shm,
                    .parent = (void *)((int64_t)1235),
                    .name = "1237_p"};
@@ -226,7 +236,7 @@ TEST_F(UtilTesProc, 03_Handle) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
       head.handle = (void *)((int64_t)i);
-      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(SRpcMsg), body, i, (void *)((int64_t)i), PROC_REQ), 0);
+      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), PROC_REQ), 0);
     }
 
     cfg.isChild = true;
