@@ -114,7 +114,8 @@ maven 项目中，在pom.xml 中添加以下依赖：
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.18</version>
+ <!--具体版本请参考上面的版本对应表-->
+ <version>2.x.xx</version>
 </dependency>
 ```
 
