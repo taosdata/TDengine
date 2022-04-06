@@ -825,6 +825,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   pResultInfo->current    = 0;
   pResultInfo->completed  = (pRsp->completed == 1);
   pResultInfo->payloadLen = htonl(pRsp->compLen);
+  pResultInfo->precision  = pRsp->precision;
 
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;

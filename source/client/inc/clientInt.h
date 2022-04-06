@@ -163,6 +163,7 @@ typedef struct SReqResultInfo {
   uint64_t       totalRows;
   uint32_t       current;
   bool           completed;
+  int32_t        precision;
   int32_t        payloadLen;
 } SReqResultInfo;
 

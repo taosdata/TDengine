@@ -245,13 +245,14 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   }
 
   SGroupbyOperatorInfo* pInfo = pOperator->info;
+  SSDataBlock* pRes = pInfo->binfo.pRes;
+
   if (pOperator->status == OP_RES_TO_RETURN) {
-    toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pInfo->binfo.pRes, pInfo->binfo.capacity,
-                 pInfo->binfo.rowCellInfoOffset);
-    if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pRes, pInfo->binfo.capacity, pInfo->binfo.rowCellInfoOffset);
+    if (pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
-    return pInfo->binfo.pRes;
+    return pRes;
   }
 
   int32_t        order = TSDB_ORDER_ASC;
@@ -283,18 +284,29 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   //    pInfo->binfo.rowCellInfoOffset);
   //  }
 
-  blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->binfo.capacity);
+  blockDataEnsureCapacity(pRes, pInfo->binfo.capacity);
   initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
-  toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pInfo->binfo.pRes, pInfo->binfo.capacity,
-               pInfo->binfo.rowCellInfoOffset);
-  if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
-    pOperator->status = OP_EXEC_DONE;
+
+  while(1) {
+    toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pRes, pInfo->binfo.capacity,
+                 pInfo->binfo.rowCellInfoOffset);
+    doFilter(pInfo->pCondition, pRes);
+
+    bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);
+    if (!hasRemain) {
+      pOperator->status = OP_EXEC_DONE;
+      break;
+    }
+
+    if (pRes->info.rows > 0) {
+      break;
+    }
   }
 
   return pInfo->binfo.pRes;
 }
 
-SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList, SExecTaskInfo* pTaskInfo,
+SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList, SNode* pCondition, SExecTaskInfo* pTaskInfo,
                                        const STableGroupInfo* pTableGroupInfo) {
   SGroupbyOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupbyOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -303,6 +315,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   }
 
   pInfo->pGroupCols = pGroupColList;
+  pInfo->pCondition = pCondition;
   initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, 4096, pResultBlock, pTaskInfo->id.str);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
@@ -328,5 +341,167 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   _error:
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
+  return NULL;
+}
+
+#define MULTI_KEY_DELIM "-"
+
+static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
+  SDistinctOperatorInfo* pInfo = (SDistinctOperatorInfo*)param;
+  taosHashCleanup(pInfo->pSet);
+  taosMemoryFreeClear(pInfo->buf);
+  taosArrayDestroy(pInfo->pDistinctDataInfo);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
+}
+
+static void buildMultiDistinctKey(SDistinctOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
+  char* p = pInfo->buf;
+//  memset(p, 0, pInfo->totalBytes);
+
+  for (int i = 0; i < taosArrayGetSize(pInfo->pDistinctDataInfo); i++) {
+    SDistinctDataInfo* pDistDataInfo = (SDistinctDataInfo*)taosArrayGet(pInfo->pDistinctDataInfo, i);
+    SColumnInfoData*   pColDataInfo = taosArrayGet(pBlock->pDataBlock, pDistDataInfo->index);
+
+    char* val = ((char*)pColDataInfo->pData) + pColDataInfo->info.bytes * rowId;
+    if (isNull(val, pDistDataInfo->type)) {
+      p += pDistDataInfo->bytes;
+      continue;
+    }
+    if (IS_VAR_DATA_TYPE(pDistDataInfo->type)) {
+      memcpy(p, varDataVal(val), varDataLen(val));
+      p += varDataLen(val);
+    } else {
+      memcpy(p, val, pDistDataInfo->bytes);
+      p += pDistDataInfo->bytes;
+    }
+    memcpy(p, MULTI_KEY_DELIM, strlen(MULTI_KEY_DELIM));
+    p += strlen(MULTI_KEY_DELIM);
+  }
+}
+
+static bool initMultiDistinctInfo(SDistinctOperatorInfo* pInfo, SOperatorInfo* pOperator) {
+  for (int i = 0; i < pOperator->numOfOutput; i++) {
+    //    pInfo->totalBytes += pOperator->pExpr[i].base.colBytes;
+  }
+#if 0
+  for (int i = 0; i < pOperator->numOfOutput; i++) {
+    int numOfCols = (int)(taosArrayGetSize(pBlock->pDataBlock));
+    assert(i < numOfCols);
+    
+    for (int j = 0; j < numOfCols; j++) {
+      SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, j);
+      if (pColDataInfo->info.colId == pOperator->pExpr[i].base.resSchema.colId) {
+        SDistinctDataInfo item = {.index = j, .type = pColDataInfo->info.type, .bytes = pColDataInfo->info.bytes};
+        taosArrayInsert(pInfo->pDistinctDataInfo, i, &item);
+      }
+    }
+  }
+#endif
+
+//  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * (pOperator->numOfOutput);
+//  pInfo->buf = taosMemoryCalloc(1, pInfo->totalBytes);
+  return taosArrayGetSize(pInfo->pDistinctDataInfo) == pOperator->numOfOutput ? true : false;
+}
+
+static SSDataBlock* hashDistinct(SOperatorInfo* pOperator, bool* newgroup) {
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SDistinctOperatorInfo* pInfo = pOperator->info;
+  SSDataBlock*           pRes = pInfo->pRes;
+
+  pRes->info.rows = 0;
+  SSDataBlock* pBlock = NULL;
+
+  SOperatorInfo* pDownstream = pOperator->pDownstream[0];
+  while (1) {
+    publishOperatorProfEvent(pDownstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
+    pBlock = pDownstream->getNextFn(pDownstream, newgroup);
+    publishOperatorProfEvent(pDownstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
+    if (pBlock == NULL) {
+      doSetOperatorCompleted(pOperator);
+      break;
+    }
+
+    // ensure result output buf
+    if (pRes->info.rows + pBlock->info.rows > pInfo->resInfo.capacity) {
+      int32_t newSize = pRes->info.rows + pBlock->info.rows;
+      for (int i = 0; i < taosArrayGetSize(pRes->pDataBlock); i++) {
+        SColumnInfoData*   pResultColInfoData = taosArrayGet(pRes->pDataBlock, i);
+        SDistinctDataInfo* pDistDataInfo = taosArrayGet(pInfo->pDistinctDataInfo, i);
+
+//        char* tmp = taosMemoryRealloc(pResultColInfoData->pData, newSize * pDistDataInfo->bytes);
+//        if (tmp == NULL) {
+//          return NULL;
+//        } else {
+//          pResultColInfoData->pData = tmp;
+//        }
+      }
+      pInfo->resInfo.capacity = newSize;
+    }
+
+    for (int32_t i = 0; i < pBlock->info.rows; i++) {
+      buildMultiDistinctKey(pInfo, pBlock, i);
+      if (taosHashGet(pInfo->pSet, pInfo->buf, 0) == NULL) {
+        taosHashPut(pInfo->pSet, pInfo->buf, 0, NULL, 0);
+
+        for (int j = 0; j < taosArrayGetSize(pRes->pDataBlock); j++) {
+          SDistinctDataInfo* pDistDataInfo = taosArrayGet(pInfo->pDistinctDataInfo, j);  // distinct meta info
+          SColumnInfoData*   pColInfoData = taosArrayGet(pBlock->pDataBlock, pDistDataInfo->index);  // src
+          SColumnInfoData*   pResultColInfoData = taosArrayGet(pRes->pDataBlock, j);                 // dist
+
+          char* val = ((char*)pColInfoData->pData) + pDistDataInfo->bytes * i;
+          char* start = pResultColInfoData->pData + pDistDataInfo->bytes * pInfo->pRes->info.rows;
+          memcpy(start, val, pDistDataInfo->bytes);
+        }
+
+        pRes->info.rows += 1;
+      }
+    }
+
+    if (pRes->info.rows >= pInfo->resInfo.threshold) {
+      break;
+    }
+  }
+
+  return (pInfo->pRes->info.rows > 0) ? pInfo->pRes : NULL;
+}
+
+SOperatorInfo* createDistinctOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo) {
+  SDistinctOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SDistinctOperatorInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    goto _error;
+  }
+
+  pOperator->resultInfo.capacity = 4096;  // todo extract function.
+
+//  pInfo->totalBytes        = 0;
+  pInfo->buf               = NULL;
+
+  pInfo->pDistinctDataInfo = taosArrayInit(numOfCols, sizeof(SDistinctDataInfo));
+  initMultiDistinctInfo(pInfo, pOperator);
+  
+  pInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+
+  pOperator->name         = "DistinctOperator";
+  pOperator->blockingOptr = true;
+  pOperator->status       = OP_NOT_OPENED;
+//  pOperator->operatorType = DISTINCT;
+  pOperator->pExpr        = pExpr;
+  pOperator->numOfOutput  = numOfCols;
+  pOperator->info         = pInfo;
+  pOperator->getNextFn    = hashDistinct;
+  pOperator->closeFn      = destroyDistinctOperatorInfo;
+
+  int32_t code = appendDownstream(pOperator, &downstream, 1);
+  return pOperator;
+
+  _error:
+  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  taosMemoryFree(pInfo);
+  taosMemoryFree(pOperator);
   return NULL;
 }
