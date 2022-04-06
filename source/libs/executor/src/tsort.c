@@ -132,9 +132,9 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
   for (size_t i = 0; i < taosArrayGetSize(pSortHandle->pOrderedSource); i++){
-    SExternalMemSource* pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
-    blockDataDestroy(pSource->src.pBlock);
-    taosMemoryFreeClear(pSource);
+    SExternalMemSource** pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
+    blockDataDestroy((*pSource)->src.pBlock);
+    taosMemoryFreeClear(*pSource);
   }
   taosArrayDestroy(pSortHandle->pOrderedSource);
   taosMemoryFreeClear(pSortHandle);

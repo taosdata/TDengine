@@ -411,7 +411,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
 
     if (size > pageSize) {
       *stopIndex = j - 1;
-      ASSERT(*stopIndex > startIndex);
+      ASSERT(*stopIndex >= startIndex);
 
       return TSDB_CODE_SUCCESS;
     }
