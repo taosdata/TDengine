@@ -89,6 +89,7 @@ static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
 }
 
 static void dndProcessProcHandle(void *handle) {
+  dInfo("handle:%p, the child process dies and send an offline rsp", handle);
   SRpcMsg rpcMsg = {.handle = handle, .code = TSDB_CODE_DND_OFFLINE};
   rpcSendResponse(&rpcMsg);
 }

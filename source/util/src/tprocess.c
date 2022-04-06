@@ -476,6 +476,7 @@ void taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle)) {
   while (h != NULL) {
     void *handle = *((void **)h);
     (*HandleFp)(handle);
+    h = taosHashIterate(pProc->hash, h);
   }
   taosThreadMutexUnlock(&pProc->pChildQueue->mutex);
 }
