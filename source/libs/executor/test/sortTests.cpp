@@ -178,11 +178,11 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
     }
 
     if (rightNull) {
-      return pParam->nullFirst? 1:-1;
+      return pOrder->nullFirst? 1:-1;
     }
 
     if (leftNull) {
-      return pParam->nullFirst? -1:1;
+      return pOrder->nullFirst? -1:1;
     }
 
     void* left1  = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
