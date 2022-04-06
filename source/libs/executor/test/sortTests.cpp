@@ -40,7 +40,21 @@ typedef struct {
   int32_t startVal;
   int32_t count;
   int32_t pageRows;
+  int16_t type;
 } _info;
+
+int16_t VARCOUNT = 16;
+
+float rand_f2()
+{
+  unsigned r = taosRand();
+  r &= 0x007fffff;
+  r |= 0x40800000;
+  return *(float*)&r - 6.0;
+}
+
+static const int32_t TEST_NUMBER = 1;
+#define bigendian()     ((*(char *)&TEST_NUMBER) == 0)
 
 SSDataBlock* getSingleColDummyBlock(void* param) {
   _info* pInfo = (_info*) param;
@@ -52,57 +66,68 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
   pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
   SColumnInfoData colInfo = {0};
-  colInfo.info.type = TSDB_DATA_TYPE_INT;
-  colInfo.info.bytes = sizeof(int32_t);
+  colInfo.info.type = pInfo->type;
+  if (pInfo->type == TSDB_DATA_TYPE_NCHAR){
+    colInfo.info.bytes = TSDB_NCHAR_SIZE * VARCOUNT + VARSTR_HEADER_SIZE;
+    colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
+  } else if(pInfo->type == TSDB_DATA_TYPE_BINARY) {
+    colInfo.info.bytes = VARCOUNT + VARSTR_HEADER_SIZE;
+    colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
+  } else{
+    colInfo.info.bytes = tDataTypes[pInfo->type].bytes;
+    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->pageRows, colInfo.info.bytes));
+    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->pageRows + 7) / 8));
+  }
   colInfo.info.colId = 1;
-  colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
-  colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->pageRows + 7) / 8));
 
   taosArrayPush(pBlock->pDataBlock, &colInfo);
 
   for (int32_t i = 0; i < pInfo->pageRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
-    int32_t v = ++pInfo->startVal;
-    colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+    if (pInfo->type == TSDB_DATA_TYPE_NCHAR){
+      int32_t size = taosRand() % VARCOUNT;
+      char str[128] = {0};
+      char strOri[128] = {0};
+      taosRandStr(strOri, size);
+      int32_t len = 0;
+      bool ret = taosMbsToUcs4(strOri, size, (TdUcs4*)varDataVal(str), 128, &len);
+      if (!ret){
+        printf("error\n");
+        return NULL;
+      }
+      varDataSetLen(str, len);
+      colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      pBlock->info.hasVarCol = true;
+      printf("nchar: %s\n",strOri);
+    } else if(pInfo->type == TSDB_DATA_TYPE_BINARY){
+      int32_t size = taosRand() % VARCOUNT;
+      char str[64] = {0};
+      taosRandStr(varDataVal(str), size);
+      varDataSetLen(str, size);
+      colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      pBlock->info.hasVarCol = true;
+      printf("binary: %s\n", varDataVal(str));
+    } else if(pInfo->type == TSDB_DATA_TYPE_DOUBLE || pInfo->type == TSDB_DATA_TYPE_FLOAT) {
+      double v = rand_f2();
+      colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+      printf("float: %f\n", v);
+    } else{
+      int64_t v = ++pInfo->startVal;
+      char *result = static_cast<char*>(taosMemoryCalloc(tDataTypes[pInfo->type].bytes, 1));
+      if (!bigendian()){
+        memcpy(result, &v, tDataTypes[pInfo->type].bytes);
+      }else{
+        memcpy(result, (char*)(&v) + sizeof(int64_t) - tDataTypes[pInfo->type].bytes, tDataTypes[pInfo->type].bytes);
+      }
+
+      colDataAppend(pColInfo, i, result, false);
+      printf("int: %lld\n", v);
+    }
   }
 
   pBlock->info.rows = pInfo->pageRows;
   pBlock->info.numOfCols = 1;
-  return pBlock;
-}
-
-SSDataBlock* getSingleColStrBlock(void* param) {
-  _info* pInfo = (_info*) param;
-  if (--pInfo->count < 0) {
-    return NULL;
-  }
-
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
-
-  SColumnInfoData colInfo = {0};
-  colInfo.info.type = TSDB_DATA_TYPE_NCHAR;
-  colInfo.info.bytes = TSDB_NCHAR_SIZE * 16 + VARSTR_HEADER_SIZE;
-  colInfo.info.colId = 1;
-  colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
-
-  taosArrayPush(pBlock->pDataBlock, &colInfo);
-
-  for (int32_t i = 0; i < pInfo->pageRows; ++i) {
-    SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
-
-    int32_t size = taosRand() % 16;
-    char str[64] = {0};
-    taosRandStr(varDataVal(str), size);
-    varDataSetLen(str, size);
-    colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
-  }
-
-  pBlock->info.rows = pInfo->pageRows;
-  pBlock->info.numOfCols = 1;
-  pBlock->info.hasVarCol = true;
-
   return pBlock;
 }
 
@@ -183,7 +208,6 @@ TEST(testCase, inMem_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4, };
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 1024, 5, NULL, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
@@ -191,6 +215,7 @@ TEST(testCase, inMem_sort_Test) {
   pInfo->startVal = 0;
   pInfo->pageRows = 100;
   pInfo->count = 6;
+  pInfo->type = TSDB_DATA_TYPE_USMALLINT;
 
   SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
   ps->param = pInfo;
@@ -207,51 +232,107 @@ TEST(testCase, inMem_sort_Test) {
     }
 
     void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row, *(int32_t*) v);
-    ASSERT_EQ(row++, *(int32_t*) v);
+    printf("%d: %d\n", row, *(uint16_t*) v);
+    ASSERT_EQ(row++, *(uint16_t*) v);
 
   }
+  taosArrayDestroy(orderInfo);
   tsortDestroySortHandle(phandle);
 }
 
 TEST(testCase, external_mem_sort_Test) {
-  SBlockOrderInfo oi = {0};
-  oi.order = TSDB_ORDER_ASC;
-  oi.slotId = 0;
-  SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
-  taosArrayPush(orderInfo, &oi);
 
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 128, 6, NULL, "test_abc");
-  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  _info* pInfo = (_info*) taosMemoryCalloc(7, sizeof(_info));
+  pInfo[0].startVal = 0;
+  pInfo[0].pageRows = 10;
+  pInfo[0].count = 6;
+  pInfo[0].type = TSDB_DATA_TYPE_BOOL;
 
-  _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
-  pInfo->startVal = 0;
-  pInfo->pageRows = 100;
-  pInfo->count = 6;
+  pInfo[1].startVal = 0;
+  pInfo[1].pageRows = 10;
+  pInfo[1].count = 6;
+  pInfo[1].type = TSDB_DATA_TYPE_TINYINT;
 
-  SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
-  ps->param = pInfo;
+  pInfo[2].startVal = 0;
+  pInfo[2].pageRows = 100;
+  pInfo[2].count = 6;
+  pInfo[2].type = TSDB_DATA_TYPE_USMALLINT;
 
-  tsortAddSource(phandle, ps);
+  pInfo[2].startVal = 0;
+  pInfo[2].pageRows = 100;
+  pInfo[2].count = 6;
+  pInfo[2].type = TSDB_DATA_TYPE_INT;
 
-  int32_t code = tsortOpen(phandle);
-  int32_t row = 1;
-  taosMemoryFreeClear(ps);
+  pInfo[3].startVal = 0;
+  pInfo[3].pageRows = 100;
+  pInfo[3].count = 6;
+  pInfo[3].type = TSDB_DATA_TYPE_UBIGINT;
 
-  while(1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(phandle);
-    if (pTupleHandle == NULL) {
-      break;
+  pInfo[4].startVal = 0;
+  pInfo[4].pageRows = 100;
+  pInfo[4].count = 6;
+  pInfo[4].type = TSDB_DATA_TYPE_DOUBLE;
+
+  pInfo[5].startVal = 0;
+  pInfo[5].pageRows = 50;
+  pInfo[5].count = 6;
+  pInfo[5].type = TSDB_DATA_TYPE_NCHAR;
+
+  pInfo[6].startVal = 0;
+  pInfo[6].pageRows = 100;
+  pInfo[6].count = 6;
+  pInfo[6].type = TSDB_DATA_TYPE_BINARY;
+
+  for (int i = 0; i < 7; i++){
+    SBlockOrderInfo oi = {0};
+    oi.order = TSDB_ORDER_ASC;
+    oi.slotId = 0;
+    SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+    taosArrayPush(orderInfo, &oi);
+
+    SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 128, 3, NULL, "test_abc");
+    tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+
+    SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
+    ps->param = &pInfo[i];
+
+    tsortAddSource(phandle, ps);
+
+    int32_t code = tsortOpen(phandle);
+    int32_t row = 1;
+    taosMemoryFreeClear(ps);
+
+    printf("--------start with %s-----------\n", tDataTypes[pInfo[i].type].name);
+    while(1) {
+      STupleHandle* pTupleHandle = tsortNextTuple(phandle);
+      if (pTupleHandle == NULL) {
+        break;
+      }
+
+      void* v = tsortGetValue(pTupleHandle, 0);
+
+      if(pInfo[i].type == TSDB_DATA_TYPE_NCHAR){
+        char        buf[128] = {0};
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(v), varDataLen(v), buf);
+        printf("%d: %s\n", row++, buf);
+      }else if(pInfo[i].type == TSDB_DATA_TYPE_BINARY){
+        char        buf[128] = {0};
+        memcpy(buf, varDataVal(v), varDataLen(v));
+        printf("%d: %s\n", row++, buf);
+      }else{
+        int64_t result = 0;
+        if (!bigendian()){
+          memcpy(&result, v, tDataTypes[pInfo[i].type].bytes);
+        }else{
+          memcpy((char*)(&result) + sizeof(int64_t) - tDataTypes[pInfo[i].type].bytes, v, tDataTypes[pInfo[i].type].bytes);
+        }
+        printf("%d: %lld\n", row++, result);
+      }
     }
-
-    void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row, *(int32_t*) v);
-    ASSERT_EQ(row++, *(int32_t*) v);
-    char        buf[64] = {0};
-    memcpy(buf, varDataVal(v), varDataLen(v));
-    //printf("%d: %s\n", row, buf);
+    taosArrayDestroy(orderInfo);
+    tsortDestroySortHandle(phandle);
   }
-  tsortDestroySortHandle(phandle);
+  taosMemoryFree(pInfo);
 }
 
 TEST(testCase, ordered_merge_sort_Test) {
