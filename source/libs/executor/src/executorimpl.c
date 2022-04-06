@@ -5769,9 +5769,10 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHan
   pBlock->info.rows += 1;
 }
 
-static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, bool hasVarCol,
-                                       int32_t capacity) {
+static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity) {
   blockDataCleanup(pDataBlock);
+
+  blockDataEnsureCapacity(pDataBlock, capacity);
 
   while (1) {
     STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
@@ -5971,7 +5972,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator, bool* newgroup) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SSortedMergeOperatorInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pInfo->hasVarCol, pInfo->binfo.capacity);
+    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pInfo->binfo.capacity);
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
@@ -6116,10 +6117,9 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
 
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSortOperatorInfo* pInfo = pOperator->info;
-  bool               hasVarCol = pInfo->pDataBlock->info.hasVarCol;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, hasVarCol, pInfo->numOfRowsInRes);
+    return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
@@ -6139,7 +6139,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
   }
 
   pOperator->status = OP_RES_TO_RETURN;
-  return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, hasVarCol, pInfo->numOfRowsInRes);
+  return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
 }
 
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo,

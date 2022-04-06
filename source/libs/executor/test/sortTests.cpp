@@ -198,6 +198,7 @@ TEST(testCase, inMem_sort_Test) {
 
   int32_t code = tsortOpen(phandle);
   int32_t row = 1;
+  taosMemoryFreeClear(ps);
 
   while(1) {
     STupleHandle* pTupleHandle = tsortNextTuple(phandle);
@@ -235,6 +236,7 @@ TEST(testCase, external_mem_sort_Test) {
 
   int32_t code = tsortOpen(phandle);
   int32_t row = 1;
+  taosMemoryFreeClear(ps);
 
   while(1) {
     STupleHandle* pTupleHandle = tsortNextTuple(phandle);
@@ -245,8 +247,8 @@ TEST(testCase, external_mem_sort_Test) {
     void* v = tsortGetValue(pTupleHandle, 0);
     printf("%d: %d\n", row, *(int32_t*) v);
     ASSERT_EQ(row++, *(int32_t*) v);
-    //char        buf[64] = {0};
-    //snprintf(buf, varDataLen(v), "%s", varDataVal(v));
+    char        buf[64] = {0};
+    memcpy(buf, varDataVal(v), varDataLen(v));
     //printf("%d: %s\n", row, buf);
   }
   tsortDestroySortHandle(phandle);

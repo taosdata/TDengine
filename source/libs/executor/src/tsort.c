@@ -111,6 +111,17 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   return pSortHandle;
 }
 
+static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
+  for(int32_t i = 0; i < cmpParam->numOfSources; ++i) {
+    SExternalMemSource* pSource = cmpParam->pSources[i];
+    blockDataDestroy(pSource->src.pBlock);
+    taosMemoryFreeClear(pSource);
+  }
+
+  cmpParam->numOfSources = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
 void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   tsortClose(pSortHandle);
   if (pSortHandle->pMergeTree != NULL) {
@@ -119,6 +130,8 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 
   destroyDiskbasedBuf(pSortHandle->pBuf);
   taosMemoryFreeClear(pSortHandle->idStr);
+  blockDataDestroy(pSortHandle->pDataBlock);
+  sortComparClearup(&pSortHandle->cmpParam);    // pOrderedSource is in cmpParam
   taosMemoryFreeClear(pSortHandle);
 }
 
@@ -168,6 +181,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     int32_t pageId = -1;
     void* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
     if (pPage == NULL) {
+      blockDataDestroy(p);
       return terrno;
     }
 
@@ -225,17 +239,6 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   }
 
   return code;
-}
-
-static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
-  for(int32_t i = 0; i < cmpParam->numOfSources; ++i) {
-    SExternalMemSource* pSource = cmpParam->pSources[i];
-    blockDataDestroy(pSource->src.pBlock);
-    taosMemoryFreeClear(pSource);
-  }
-
-  cmpParam->numOfSources = 0;
-  return TSDB_CODE_SUCCESS;
 }
 
 static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSource, int32_t* rowIndex) {
@@ -312,7 +315,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
+static SSDataBlock* getSortedBlockDataInner(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
   blockDataCleanup(pHandle->pDataBlock);
 
   while(1) {
@@ -454,7 +457,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       }
 
       while (1) {
-        SSDataBlock* pDataBlock = getSortedBlockData(pHandle, &pHandle->cmpParam, numOfRows);
+        SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
           break;
         }

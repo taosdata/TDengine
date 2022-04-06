@@ -131,44 +131,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     memcpy(pColumnInfoData->pData + len, pData, varDataTLen(pData));
     pColumnInfoData->varmeta.length += varDataTLen(pData);
   } else {
-    char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
-    switch (type) {
-      case TSDB_DATA_TYPE_BOOL: {
-        *(bool*)p = *(bool*)pData;
-        break;
-      }
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_UTINYINT: {
-        *(int8_t*)p = *(int8_t*)pData;
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_USMALLINT: {
-        *(int16_t*)p = *(int16_t*)pData;
-        break;
-      }
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_UINT: {
-        *(int32_t*)p = *(int32_t*)pData;
-        break;
-      }
-      case TSDB_DATA_TYPE_TIMESTAMP:
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_UBIGINT: {
-        *(int64_t*)p = *(int64_t*)pData;
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        *(float*)p = *(float*)pData;
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        *(double*)p = *(double*)pData;
-        break;
-      }
-      default:
-        assert(0);
-    }
+    memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow, pData, pColumnInfoData->info.bytes);
   }
 
   return 0;
@@ -562,6 +525,11 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 
     size_t metaSize = pBlock->info.rows * sizeof(int32_t);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      char* tmp = taosMemoryRealloc(pCol->varmeta.offset, metaSize);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pCol->varmeta.offset = (int32_t*)tmp;
       memcpy(pCol->varmeta.offset, pStart, metaSize);
       pStart += metaSize;
     } else {
@@ -738,61 +706,12 @@ static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataB
         pDst->varmeta.offset[j] = pSrc->varmeta.offset[index[j]];
       }
     } else {
-      switch (pSrc->info.type) {
-        case TSDB_DATA_TYPE_UINT:
-        case TSDB_DATA_TYPE_INT: {
-          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
-            int32_t* p = (int32_t*)pDst->pData;
-            int32_t* srclist = (int32_t*)pSrc->pData;
-
-            p[j] = srclist[index[j]];
-            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
-              colDataSetNull_f(pDst->nullbitmap, j);
-            }
-          }
-          break;
+      for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+        if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
+          colDataSetNull_f(pDst->nullbitmap, j);
+          continue;
         }
-        case TSDB_DATA_TYPE_UTINYINT:
-        case TSDB_DATA_TYPE_TINYINT: {
-          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
-            int32_t* p = (int32_t*)pDst->pData;
-            int32_t* srclist = (int32_t*)pSrc->pData;
-
-            p[j] = srclist[index[j]];
-            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
-              colDataSetNull_f(pDst->nullbitmap, j);
-            }
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT:
-        case TSDB_DATA_TYPE_SMALLINT: {
-          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
-            int32_t* p = (int32_t*)pDst->pData;
-            int32_t* srclist = (int32_t*)pSrc->pData;
-
-            p[j] = srclist[index[j]];
-            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
-              colDataSetNull_f(pDst->nullbitmap, j);
-            }
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT:
-        case TSDB_DATA_TYPE_BIGINT: {
-          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
-            int32_t* p = (int32_t*)pDst->pData;
-            int32_t* srclist = (int32_t*)pSrc->pData;
-
-            p[j] = srclist[index[j]];
-            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
-              colDataSetNull_f(pDst->nullbitmap, j);
-            }
-          }
-          break;
-        }
-        default:
-          assert(0);
+        memcpy(pDst->pData + j * pDst->info.bytes, pSrc->pData + index[j] * pDst->info.bytes, pDst->info.bytes);
       }
     }
   }
@@ -938,12 +857,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 
   int64_t p2 = taosGetTimestampUs();
 
-  int32_t code = blockDataAssign(pCols, pDataBlock, index);
-  if (code != TSDB_CODE_SUCCESS) {
-    destroyTupleIndex(index);
-    terrno = code;
-    return code;
-  }
+  blockDataAssign(pCols, pDataBlock, index);
 
   int64_t p3 = taosGetTimestampUs();
 
