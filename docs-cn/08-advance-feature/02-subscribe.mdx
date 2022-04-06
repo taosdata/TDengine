@@ -1,5 +1,4 @@
 ---
-sidebar_position: 2
 sidebar_label: 数据订阅
 ---
 
@@ -7,6 +6,13 @@ sidebar_label: 数据订阅
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import Java from "./_sub_java.mdx";
+import Python from "./_sub_python.mdx";
+import Go from "./_sub_go.mdx";
+import Rust from "./_sub_rust.mdx";
+import Node from "./_sub_node.mdx";
+import CSharp from "./_sub_cs.mdx";
+import CDemo from "./_sub_c.mdx";
 
 基于数据天然的时间序列特性，TDengine 的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine 在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine 中里每一张表均可视为一个标准的消息队列。
 
@@ -164,23 +170,9 @@ $ taos
 
 这时，因为电流超过了 10A，您应该可以看到示例程序将它输出到了屏幕上。您可以继续插入一些数据观察示例程序的输出。
 
-## 示例代码
+## 示例程序
 
-<Tabs defaultValue="java" groupId="lang">
-  <TabItem label="Java" value="java"></TabItem>
-  <TabItem label="Python" value="Python"></TabItem>
-  <TabItem label="Go" value="go"></TabItem>
-  <TabItem label="C" value="c"></TabItem>
-  <TabItem label="Rust" value="rust"></TabItem>
-  <TabItem label="Node.js" value="nodejs"></TabItem>
-  <TabItem label="C#" value="csharp"></TabItem>
-</Tabs>
-
-## Java 使用数据订阅功能
-
-订阅功能也提供了 Java 开发接口，相关说明请见 [Java Connector](https://www.taosdata.com/cn/documentation/connector/java#subscribe)。需要注意的是，目前 Java 接口没有提供异步订阅模式，但用户程序可以通过创建 `TimerTask` 等方式达到同样的效果。
-
-下面以一个示例程序介绍其具体使用方法。它所完成的功能与前面介绍的 C 语言示例基本相同，也是订阅数据库中所有电流超过 10A 的记录。
+下面以一个示例程序介绍其具体使用方法。示例程序的目的是订阅数据库中所有电流超过 10A 的记录。
 
 ### 准备数据
 
@@ -208,64 +200,37 @@ taos> select * from meters where current > 10;
  2020-08-15 12:20:00.000 |    12.20000  |     220      |      1 |      Beijing.Chaoyang     |           2 |
 Query OK, 5 row(s) in set (0.004896s)
 ```
+### 示例代码
 
-### 示例程序
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+      <Java/>
+  </TabItem>
+  <TabItem label="Python" value="Python">
+      <Python/>
+  </TabItem>
+  <TabItem label="Go" value="go">
+      <Go/>
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+      <Rust/>
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+      <Node/>
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+      <CSharp/>
+  </TabItem>
+  <TabItem label="C" value="c">
+      <CDemo/>
+  </TabItem>
+</Tabs>
 
-```java
-public class SubscribeDemo {
-    private static final String topic = "topic-meter-current-bg-10";
-    private static final String sql = "select * from meters where current > 10";
-
-    public static void main(String[] args) {
-        Connection connection = null;
-        TSDBSubscribe subscribe = null;
-
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            String jdbcUrl = "jdbc:TAOS://127.0.0.1:6030/power?user=root&password=taosdata";
-            connection = DriverManager.getConnection(jdbcUrl, properties);
-            subscribe = ((TSDBConnection) connection).subscribe(topic, sql, true); // 创建订阅
-            int count = 0;
-            while (count < 10) {
-                TimeUnit.SECONDS.sleep(1); // 等待1秒，避免频繁调用 consume，给服务端造成压力
-                TSDBResultSet resultSet = subscribe.consume(); // 消费数据
-                if (resultSet == null) {
-                    continue;
-                }
-                ResultSetMetaData metaData = resultSet.getMetaData();
-                while (resultSet.next()) {
-                    int columnCount = metaData.getColumnCount();
-                    for (int i = 1; i <= columnCount; i++) {
-                        System.out.print(metaData.getColumnLabel(i) + ": " + resultSet.getString(i) + "\t");
-                    }
-                    System.out.println();
-                    count++;
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                if (null != subscribe)
-                    subscribe.close(true); // 关闭订阅
-                if (connection != null)
-                    connection.close();
-            } catch (SQLException throwables) {
-                throwables.printStackTrace();
-            }
-        }
-    }
-}
-```
-
-运行示例程序，首先，它会消费符合查询条件的所有历史数据：
+### 运行示例程序
+ 
+示例程序会先消费符合查询条件的所有历史数据：
 
 ```bash
-# java -jar subscribe.jar
-
 ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
 ts: 1597464600000	current: 12.3	voltage: 220	phase: 2	location: Beijing.Chaoyang	groupid : 2
 ts: 1597465200000	current: 12.2	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2

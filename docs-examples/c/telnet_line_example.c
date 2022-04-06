@@ -1,5 +1,5 @@
 // compile with
-// gcc -o json_protocol_example json_protocol_example.c -ltaos
+// gcc -o line_example line_example.c -ltaos
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,15 +31,17 @@ int main() {
   TAOS *taos = connect();
   execute(taos, "CREATE DATABASE test");
   execute(taos, "USE test");
-  char *line =
-      "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": "
-      "\"Beijing.Chaoyang\", \"groupid\": 2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, "
-      "\"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}},{\"metric\": \"meters.current\", "
-      "\"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": "
-      "2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": "
-      "\"Beijing.Haidian\", \"groupid\": 1}}]";
-  char     *lines[] = {line};
-  TAOS_RES *res = taos_schemaless_insert(taos, lines, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
+  char *lines[] = {
+      "meters.current 1648432611249 10.3 location=Beijing.Chaoyang groupid=2",
+      "meters.current 1648432611250 12.6 location=Beijing.Chaoyang groupid=2",
+      "meters.current 1648432611249 10.8 location=Beijing.Haidian groupid=3",
+      "meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3",
+      "meters.voltage 1648432611249 219 location=Beijing.Chaoyang groupid=2",
+      "meters.voltage 1648432611250 218 location=Beijing.Chaoyang groupid=2",
+      "meters.voltage 1648432611249 221 location=Beijing.Haidian groupid=3",
+      "meters.voltage 1648432611250 217 location=Beijing.Haidian groupid=3",
+  };
+  TAOS_RES *res = taos_schemaless_insert(taos, lines, 8, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   if (taos_errno(res) != 0) {
     printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
   }
