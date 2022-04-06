@@ -976,7 +976,7 @@ void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* 
   for (int32_t k = 0; k < numOfOutput; ++k) {
     pCtx[k].startTs = pWin->skey;
 
-    // keep it temporarialy
+    // keep it temporarily
     bool    hasAgg      = pCtx[k].input.colDataAggIsSet;
     int32_t numOfRows   = pCtx[k].input.numOfRows;
     int32_t startOffset = pCtx[k].input.startRowIndex;

@@ -106,7 +106,7 @@ static bool groupKeyCompare(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, in
   return true;
 }
 
-static void keepGroupKeys(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
+static void recordGroupKeys(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
   SColumnDataAgg* pColAgg = NULL;
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
@@ -197,7 +197,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
-      keepGroupKeys(pInfo, pBlock, j, numOfGroupCols);
+      recordGroupKeys(pInfo, pBlock, j, numOfGroupCols);
       pInfo->isInit = true;
       num++;
       continue;
@@ -206,6 +206,12 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     bool equal = groupKeyCompare(pInfo, pBlock, j, numOfGroupCols);
     if (equal) {
       num++;
+      continue;
+    }
+
+    if (!equal && j == 0) {
+      num++;
+      recordGroupKeys(pInfo, pBlock, j, numOfGroupCols);
       continue;
     }
 
@@ -220,7 +226,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->numOfOutput, pBlock->info.rows, rowIndex);
-    keepGroupKeys(pInfo, pBlock, j, numOfGroupCols);
+    recordGroupKeys(pInfo, pBlock, j, numOfGroupCols);
     num = 1;
   }
 
