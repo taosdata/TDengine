@@ -283,6 +283,12 @@ static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   return (SNode*)pDst;
 }
 
+static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  return (SNode*)pDst;
+}
+
 static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
@@ -367,6 +373,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:
