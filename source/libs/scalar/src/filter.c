@@ -687,11 +687,15 @@ int32_t filterGetRangeRes(void* h, SFilterRange *ra) {
   SFilterRangeNode* r = ctx->rs;
   
   while (r) {
-    FILTER_COPY_RA(ra, &r->ra);
+    if (num) {
+      ra->e = r->ra.e;
+      ra->eflag = r->ra.eflag;
+    } else {
+      FILTER_COPY_RA(ra, &r->ra);
+    }
 
     ++num;
     r = r->next;
-    ++ra;
   }
 
   if (num == 0) {
@@ -3314,8 +3318,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
 
 
 
-int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
-  SFilterInfo *info = NULL;
+int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow       *win, bool *isStrict) {
   SFilterRange ra = {0};
   SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
   SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
@@ -3369,13 +3372,14 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
     *win = TSWINDOW_INITIALIZER;
   } else {
     filterGetRangeNum(prev, &num);
-    if (num > 1) {
-      qError("only one time range accepted, num:%d", num);
-      FLT_ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
-    }
 
     FLT_CHK_JMP(num < 1);
 
+    if (num > 1) {
+      *isStrict = false;
+      qDebug("more than one time range, num:%d", num);
+    }
+    
     SFilterRange tra;
     filterGetRangeRes(prev, &tra);
     win->skey = tra.s; 
@@ -3398,6 +3402,30 @@ _return:
   qDebug("qFilter time range:[%"PRId64 "]-[%"PRId64 "]", win->skey, win->ekey);
 
   return code;
+}
+
+
+int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
+  SFilterInfo *info = NULL;
+  int32_t code = 0;
+  
+  *isStrict = true;
+
+  FLT_ERR_RET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP));
+
+  if (info->scalarMode) {
+    *win = TSWINDOW_INITIALIZER;
+    *isStrict = false;
+    goto _return;
+  }
+
+  FLT_ERR_JRET(filterGetTimeRangeImpl(info, win, isStrict));
+
+_return:
+
+  filterFreeInfo(info);
+
+  FLT_RET(code);
 }
 
 
