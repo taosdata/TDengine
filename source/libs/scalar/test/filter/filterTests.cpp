@@ -234,15 +234,16 @@ TEST(timerangeTest, greater) {
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
 
-  SFilterInfo *filter = NULL;
-  int32_t code = filterInitFromNode(opNode1, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
-  ASSERT_EQ(code, 0);
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(opNode1, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
   STimeWindow win = {0};
-  code = filterGetTimeRange(filter, &win);
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(opNode1, &win, &isStrict);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, INT64_MAX); 
-  filterFreeInfo(filter);
+  //filterFreeInfo(filter);
   nodesDestroyNode(opNode1);
 }
 
@@ -263,15 +264,16 @@ TEST(timerangeTest, greater_and_lower) {
   
   flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
 
-  SFilterInfo *filter = NULL;
-  int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
-  ASSERT_EQ(code, 0);
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
   STimeWindow win = {0};
-  code = filterGetTimeRange(filter, &win);
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(logicNode, &win, &isStrict);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, tbig); 
-  filterFreeInfo(filter);
+  //filterFreeInfo(filter);
   nodesDestroyNode(logicNode);
 }
 

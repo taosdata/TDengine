@@ -5585,6 +5585,10 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pOperator->getNextFn = doTableScan;
   pOperator->pTaskInfo = pTaskInfo;
 
+  //pOperator->cost.openCost = 1314;
+  //pOperator->cost.totalCost = 2324;
+  //pOperator->resultInfo.totalRows = 3334;
+  
   return pOperator;
 }
 
@@ -9517,7 +9521,7 @@ void releaseQueryBuf(size_t numOfTables) {
   atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
 
-int32_t getOperatorExplainExecInfo(SOperatorInfo *operator, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum) {
+int32_t getOperatorExplainExecInfo(SOperatorInfo *operatorInfo, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum) {
   if (*resNum >= *capacity) {
     *capacity += 10;
     
@@ -9528,15 +9532,23 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo *operator, SExplainExecInfo **p
     }
   }
 
-  (*pRes)[*resNum].numOfRows = operator->resultInfo.totalRows;
-  (*pRes)[*resNum].startupCost = operator->cost.openCost;
-  (*pRes)[*resNum].totalCost = operator->cost.totalCost;
+  (*pRes)[*resNum].numOfRows = operatorInfo->resultInfo.totalRows;
+  (*pRes)[*resNum].startupCost = operatorInfo->cost.openCost;
+  (*pRes)[*resNum].totalCost = operatorInfo->cost.totalCost;
+
+  if (operatorInfo->getExplainFn) {
+    int32_t code = (*operatorInfo->getExplainFn)(operatorInfo, &(*pRes)->verboseInfo);
+    if (code) {
+      qError("operator getExplainFn failed, error:%s", tstrerror(code));
+      return code;
+    }
+  }
   
   ++(*resNum);
   
   int32_t code = 0;
-  for (int32_t i = 0; i < operator->numOfDownstream; ++i) {
-    code = getOperatorExplainExecInfo(operator->pDownstream[i], pRes, capacity, resNum);
+  for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
+    code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pRes, capacity, resNum);
     if (code) {
       taosMemoryFreeClear(*pRes);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;

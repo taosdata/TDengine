@@ -58,6 +58,7 @@ extern "C" {
 #define EXPLAIN_LOOPS_FORMAT "loops=%d"
 #define EXPLAIN_REVERSE_FORMAT "reverse=%d"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
+#define EXPLAIN_EXECINFO_FORMAT "cost=%" PRIu64 "..%" PRIu64 " rows=%" PRIu64
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

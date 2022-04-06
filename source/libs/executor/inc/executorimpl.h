@@ -237,6 +237,7 @@ typedef bool (*__optr_decode_fn_t)(struct SOperatorInfo* pOperator, char *result
 typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* pOptr);
 typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* pOptr, bool* newgroup);
 typedef void (*__optr_close_fn_t)(void* param, int32_t num);
+typedef int32_t (*__optr_get_explain_fn_t)(struct SOperatorInfo* pOptr, void **pOptrExplain);
 
 typedef struct STaskIdInfo {
   uint64_t queryId;  // this is also a request id
@@ -305,26 +306,27 @@ enum {
 };
 
 typedef struct SOperatorInfo {
-  uint8_t                operatorType;
-  bool                   blockingOptr;  // block operator or not
-  uint8_t                status;        // denote if current operator is completed
-  int32_t                numOfOutput;   // number of columns of the current operator results
-  char*                  name;          // name, used to show the query execution plan
-  void*                  info;          // extension attribution
-  SExprInfo*             pExpr;
-  STaskRuntimeEnv*       pRuntimeEnv;   // todo remove it
-  SExecTaskInfo*         pTaskInfo;
-  SOperatorCostInfo      cost;
-  SResultInfo            resultInfo;
-  struct SOperatorInfo** pDownstream;      // downstram pointer list
-  int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  __optr_open_fn_t       _openFn;          // DO NOT invoke this function directly
-  __optr_fn_t            getNextFn;
-  __optr_fn_t            getStreamResFn;   // execute the aggregate in the stream model.
-  __optr_fn_t            cleanupFn;        // call this function to release the allocated resources ASAP
-  __optr_close_fn_t      closeFn;
-  __optr_encode_fn_t     encodeResultRow;
-  __optr_decode_fn_t     decodeResultRow;
+  uint8_t                 operatorType;
+  bool                    blockingOptr;  // block operator or not
+  uint8_t                 status;        // denote if current operator is completed
+  int32_t                 numOfOutput;   // number of columns of the current operator results
+  char*                   name;          // name, used to show the query execution plan
+  void*                   info;          // extension attribution
+  SExprInfo*              pExpr;
+  STaskRuntimeEnv*        pRuntimeEnv;   // todo remove it
+  SExecTaskInfo*          pTaskInfo;
+  SOperatorCostInfo       cost;
+  SResultInfo             resultInfo;
+  struct SOperatorInfo**  pDownstream;      // downstram pointer list
+  int32_t                 numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
+  __optr_open_fn_t        _openFn;          // DO NOT invoke this function directly
+  __optr_fn_t             getNextFn;
+  __optr_fn_t             getStreamResFn;   // execute the aggregate in the stream model.
+  __optr_fn_t             cleanupFn;        // call this function to release the allocated resources ASAP
+  __optr_close_fn_t       closeFn;
+  __optr_encode_fn_t      encodeResultRow;
+  __optr_decode_fn_t      decodeResultRow;
+  __optr_get_explain_fn_t getExplainFn;
 } SOperatorInfo;
 
 typedef struct {
@@ -715,7 +717,7 @@ int32_t getMaximumIdleDurationSec();
 void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, EOPTR_EXEC_MODEL model);
-int32_t getOperatorExplainExecInfo(SOperatorInfo *operator, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum);
+int32_t getOperatorExplainExecInfo(SOperatorInfo *operatorInfo, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum);
 
 #ifdef __cplusplus
 }

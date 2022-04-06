@@ -919,6 +919,7 @@ typedef struct SExplainExecInfo {
   uint64_t startupCost;
   uint64_t totalCost;
   uint64_t numOfRows;
+  void    *verboseInfo;
 } SExplainExecInfo;
 
 typedef struct {

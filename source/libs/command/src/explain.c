@@ -228,7 +228,10 @@ int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplai
 
   int32_t code = 0;
   resNode->pNode = pNode;
-  QRY_ERR_JRET(qExplainGenerateResNodeExecInfo(&resNode->pExecInfo, group));
+  
+  if (group->nodeExecInfo) {
+    QRY_ERR_JRET(qExplainGenerateResNodeExecInfo(&resNode->pExecInfo, group));
+  }
   
   QRY_ERR_JRET(qExplainGenerateResChildren(pNode, group, &resNode->pChildren));
 
@@ -247,13 +250,51 @@ _return:
 
 int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
   int32_t tlen = *len;
+  int32_t nodeNum = taosArrayGetSize(pExecInfo);
+  SExplainExecInfo maxExecInfo = {0};
   
-  EXPLAIN_ROW_APPEND("(exec info here)");
+  for (int32_t i = 0; i < nodeNum; ++i) {
+    SExplainExecInfo *execInfo = taosArrayGet(pExecInfo, i);
+    if (execInfo->startupCost > maxExecInfo.startupCost) {
+      maxExecInfo.startupCost = execInfo->startupCost;
+    }
+    if (execInfo->totalCost > maxExecInfo.totalCost) {
+      maxExecInfo.totalCost = execInfo->totalCost;
+    }
+    if (execInfo->numOfRows > maxExecInfo.numOfRows) {
+      maxExecInfo.numOfRows = execInfo->numOfRows;
+    }
+  }
   
+  EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT, maxExecInfo.startupCost, maxExecInfo.totalCost, maxExecInfo.numOfRows);
+
   *len = tlen;
   
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qExplainBufAppendVerboseExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
+  int32_t tlen = 0;
+  bool gotVerbose = false;
+  int32_t nodeNum = taosArrayGetSize(pExecInfo);
+  SExplainExecInfo maxExecInfo = {0};
+  
+  for (int32_t i = 0; i < nodeNum; ++i) {
+    SExplainExecInfo *execInfo = taosArrayGet(pExecInfo, i);
+    if (execInfo->verboseInfo) {
+      gotVerbose = true;
+    }
+  }
+
+  if (gotVerbose) {
+    EXPLAIN_ROW_APPEND("exec verbose info");
+  }
+
+  *len = tlen;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qExplainResAppendRow(SExplainCtx *ctx, char *tbuf, int32_t len, int32_t level) {
   SQueryExplainRowInfo row = {0};
@@ -322,6 +363,14 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pTagScanNode->order));
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        if (pResNode->pExecInfo) {
+          QRY_ERR_RET(qExplainBufAppendVerboseExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+          if (tlen) {
+            EXPLAIN_ROW_END();
+            QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          }
+        }      
       }
       break;
     }
@@ -532,8 +581,8 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }      
-      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExchNode->node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);      
       EXPLAIN_ROW_END();
@@ -710,7 +759,7 @@ int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level) {
   
   QRY_ERR_RET(qExplainGenerateResNode(group->plan->pNode, group, &node));
 
-  if (group->physiPlanNum != group->physiPlanExecNum) {
+  if ((EXPLAIN_MODE_ANALYZE == ctx->mode) && (group->physiPlanNum != group->physiPlanExecNum)) {
     qError("physiPlanNum %d mismatch with physiExecNum %d in group %d", group->physiPlanNum, group->physiPlanExecNum, groupId);
     QRY_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }

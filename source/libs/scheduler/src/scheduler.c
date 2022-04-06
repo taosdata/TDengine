@@ -199,6 +199,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
   int32_t reqMsgType = msgType - 1;
   switch (msgType) {
     case TDMT_SCH_LINK_BROKEN:
+    case TDMT_VND_EXPLAIN_RSP:
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_QUERY_RSP:  // query_rsp may be processed later than ready_rsp
       if (lastMsgType != reqMsgType && -1 != lastMsgType && TDMT_VND_FETCH != lastMsgType) {
@@ -1186,6 +1187,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           
           return TSDB_CODE_SUCCESS;
         }
+
+        atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
         SCH_ERR_JRET(schFetchFromRemote(pJob));
 
