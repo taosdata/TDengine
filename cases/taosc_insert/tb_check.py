@@ -24,12 +24,12 @@ class TestTb(TDCase):
         """
         max length: 192
         """
-        tbname = self.tdCom.get_long_name(length=192, mode="letters")
+        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int)')
         self.tdSql.error(f'create table {tbname} (ts timestamp, c1 int)')
         self.tdSql.query('show tables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
-        dbname_exceed = self.tdCom.get_long_name(length=193, mode="letters")
+        dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdSql.error(f'create table if not exists {dbname_exceed} (ts timestamp, c1 int)')
 
     def tbname_with_backquote(self):

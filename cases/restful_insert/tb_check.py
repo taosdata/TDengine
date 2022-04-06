@@ -27,12 +27,12 @@ class TestTb(TDCase):
         """
         max length: 192
         """
-        tbname = self.tdCom.get_long_name(length=192, mode="letters")
+        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int)')
         self.tdRest.error(f'create table {self.dbname}.{tbname} (ts timestamp, c1 int)')
         self.tdRest.request(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname)
-        dbname_exceed = self.tdCom.get_long_name(length=193, mode="letters")
+        dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdRest.error(f'create table if not exists {self.dbname}.{dbname_exceed} (ts timestamp, c1 int)')
 
     def tbname_with_backquote(self):
@@ -99,7 +99,7 @@ class TestTb(TDCase):
         describe table
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        tbname = self.tdCom.get_long_name(length=192, mode="letters")
+        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool)')
         self.tdRest.request(f'describe {self.dbname}.{tbname}')
@@ -114,7 +114,7 @@ class TestTb(TDCase):
         alter table
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        tbname = self.tdCom.get_long_name(length=192, mode="letters")
+        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (col_ts timestamp, c1 binary(16), c2 nchar(16))')
         self.tdRest.request(f'alter table {self.dbname}.{tbname} modify column c1 binary(32) ')
         self.tdRest.request(f'alter table {self.dbname}.{tbname} modify column c2 nchar(32) ')
@@ -129,7 +129,7 @@ class TestTb(TDCase):
         add/drop column
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        tbname = self.tdCom.get_long_name(length=192, mode="letters")
+        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (col_ts timestamp, c1 int, c2 tinyint)')
         # drop column
         self.tdRest.request(f'alter table {self.dbname}.{tbname} drop column c2')

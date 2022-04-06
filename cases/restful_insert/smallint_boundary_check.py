@@ -22,29 +22,29 @@ class TestSmallintBoundary(TDCase):
 
     def smallint_boundary_check(self):
         """
-        max: +- 32767
+        max: +- {self.tdCom.boundary_config["SMALLINT_MAX"]}
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 smallint) tags (t1 smallint)')
-        self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags (32767)')
-        self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-32767)')
-        self.tdRest.request(f'insert into {dbname}.tb1 values (now, -32767)')
-        self.tdRest.request(f'insert into {dbname}.tb2 values (now, 32767)')
+        self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.boundary_config["SMALLINT_MAX"]})')
+        self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-{self.tdCom.boundary_config["SMALLINT_MAX"]})')
+        self.tdRest.request(f'insert into {dbname}.tb1 values (now, -{self.tdCom.boundary_config["SMALLINT_MAX"]})')
+        self.tdRest.request(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["SMALLINT_MAX"]})')
         self.tdRest.request(f'select t1, c1 from {dbname}.tb1')
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), 32767)
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), -32767)
+        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), self.tdCom.boundary_config["SMALLINT_MAX"])
+        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), -self.tdCom.boundary_config["SMALLINT_MAX"])
         self.tdRest.request(f'select t1, c1 from {dbname}.tb2')
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), -32767)
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), 32767)
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 32767) tags (t1 32768)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 32768) tags (t1 32767)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 32767) tags (t1 -32768)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -32768) tags (t1 -32767)')
-        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, 32768)')
-        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -32768)')
-        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, 32768)')
-        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, -32768)')
+        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), -self.tdCom.boundary_config["SMALLINT_MAX"])
+        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), self.tdCom.boundary_config["SMALLINT_MAX"])
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["SMALLINT_MAX"]}) tags (t1 {self.tdCom.boundary_config["SMALLINT_MAX"]+1})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["SMALLINT_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["SMALLINT_MAX"]})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 {self.tdCom.boundary_config["SMALLINT_MAX"]}) tags (t1 -{self.tdCom.boundary_config["SMALLINT_MAX"]+1})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -{self.tdCom.boundary_config["SMALLINT_MAX"]+1}) tags (t1 -{self.tdCom.boundary_config["SMALLINT_MAX"]})')
+        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, {self.tdCom.boundary_config["SMALLINT_MAX"]+1})')
+        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -{self.tdCom.boundary_config["SMALLINT_MAX"]+1})')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["SMALLINT_MAX"]+1})')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, -{self.tdCom.boundary_config["SMALLINT_MAX"]+1})')
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def run(self):
@@ -55,7 +55,7 @@ class TestSmallintBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            smallint_boundary_check <jayden>: [TD-12748] : smallint boundary check (max 32767);
+            smallint_boundary_check <jayden>: [TD-12748] : smallint boundary check (max {self.tdCom.boundary_config["SMALLINT_MAX"]});
         """
         return case_description
 
