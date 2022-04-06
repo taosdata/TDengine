@@ -190,6 +190,9 @@ int metaOpenDB(SMeta *pMeta) {
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
+    tdbCommit(pMeta->pDB->pEnv, &pMeta->pDB->txn);
+    tdbTxnClose(&pMeta->pDB->txn);
+    clearPool(pMeta->pDB->pPool);
     tdbDbClose(pMeta->pDB->pCtbIdx);
     tdbDbClose(pMeta->pDB->pNtbIdx);
     tdbDbClose(pMeta->pDB->pStbIdx);
