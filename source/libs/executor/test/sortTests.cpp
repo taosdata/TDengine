@@ -287,7 +287,13 @@ TEST(testCase, external_mem_sort_Test) {
 
   for (int i = 0; i < 8; i++){
     SBlockOrderInfo oi = {0};
-    oi.order = TSDB_ORDER_ASC;
+
+    if(pInfo[i].type == TSDB_DATA_TYPE_NCHAR){
+      oi.order = TSDB_ORDER_DESC;
+    }else{
+      oi.order = TSDB_ORDER_ASC;
+    }
+
     oi.slotId = 0;
     SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
     taosArrayPush(orderInfo, &oi);
@@ -363,15 +369,16 @@ TEST(testCase, ordered_merge_sort_Test) {
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
   tsortSetComparFp(phandle, docomp);
 
+  SGenericSource* p = static_cast<SGenericSource*>(taosMemoryCalloc(10, sizeof(SGenericSource)));
+  _info* c = static_cast<_info*>(taosMemoryCalloc(10, sizeof(_info)));
   for(int32_t i = 0; i < 10; ++i) {
-    SGenericSource* p = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
-    _info* c = static_cast<_info*>(taosMemoryCalloc(1, sizeof(_info)));
-    c->count    = 1;
-    c->pageRows = 1000;
-    c->startVal = i*1000;
+    c[i].count    = 1;
+    c[i].pageRows = 1000;
+    c[i].startVal = i*1000;
+    c[i].type = TSDB_DATA_TYPE_INT;
 
-    p->param = c;
-    tsortAddSource(phandle, p);
+    p[i].param = c;
+    tsortAddSource(phandle, &p[i]);
   }
 
   int32_t code = tsortOpen(phandle);
@@ -388,8 +395,10 @@ TEST(testCase, ordered_merge_sort_Test) {
     ASSERT_EQ(row++, *(int32_t*) v);
 
   }
+  taosMemoryFree(p);
+  taosMemoryFree(c);
   tsortDestroySortHandle(phandle);
-  taosMemoryFree(pBlock);
+  blockDataDestroy(pBlock);
 }
 
 #endif

@@ -409,7 +409,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
       }
     }
 
-    if (size > pageSize) {
+    if (size > pageSize) {  // pageSize must be able to hold one row
       *stopIndex = j - 1;
       ASSERT(*stopIndex >= startIndex);
 
