@@ -65,7 +65,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         Parse(pParser, t0.type, t0, &cxt);
-        ParseTrace(stdout, "");
+        // ParseTrace(stdout, "");
         if (!cxt.valid) {
           goto abort_parse;
         }
