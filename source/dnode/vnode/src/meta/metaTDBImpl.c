@@ -212,7 +212,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   pVal = pBuf = buf;
   metaEncodeTbInfo(&pBuf, pTbCfg);
   vLen = POINTER_DISTANCE(pBuf, buf);
-  ret = tdbDbInsert(pMetaDb->pTbDB, pKey, kLen, pVal, vLen);
+  ret = tdbDbInsert(pMetaDb->pTbDB, pKey, kLen, pVal, vLen, NULL);
   if (ret < 0) {
     return -1;
   }
@@ -234,7 +234,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     pVal = pBuf = buf;
     metaEncodeSchemaEx(&pBuf, &schemaWrapper);
     vLen = POINTER_DISTANCE(pBuf, buf);
-    ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen, NULL);
     if (ret < 0) {
       return -1;
     }
@@ -248,7 +248,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   kLen = nameLen + 1 + sizeof(uid);
   pVal = NULL;
   vLen = 0;
-  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, pVal, vLen);
+  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, pVal, vLen, NULL);
   if (ret < 0) {
     return -1;
   }
@@ -259,7 +259,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     kLen = sizeof(uid);
     pVal = NULL;
     vLen = 0;
-    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, pVal, vLen, NULL);
     if (ret < 0) {
       return -1;
     }
@@ -270,7 +270,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     kLen = sizeof(ctbIdxKey);
     pVal = NULL;
     vLen = 0;
-    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, pVal, vLen, NULL);
     if (ret < 0) {
       return -1;
     }
@@ -279,7 +279,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     kLen = sizeof(uid);
     pVal = NULL;
     vLen = 0;
-    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, pVal, vLen, NULL);
     if (ret < 0) {
       return -1;
     }
