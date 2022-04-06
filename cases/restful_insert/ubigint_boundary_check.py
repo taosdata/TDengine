@@ -22,28 +22,28 @@ class TestUnsignedBigintBoundary(TDCase):
 
     def ubigint_boundary_check(self):
         """
-        max: 0 - 18446744073709551614
+        max: 0 - {self.tdCom.boundary_config["UBIGINT_MAX"]}
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 bigint unsigned) tags (t1 bigint unsigned)')
-        self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags (18446744073709551614)')
+        self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.boundary_config["UBIGINT_MAX"]})')
         self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (0)')
         self.tdRest.request(f'insert into {dbname}.tb1 values (now, 0)')
-        self.tdRest.request(f'insert into {dbname}.tb2 values (now, 18446744073709551614)')
+        self.tdRest.request(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["UBIGINT_MAX"]})')
         self.tdRest.request(f'select t1, c1 from {dbname}.tb1')
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), 18446744073709551614)
+        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), self.tdCom.boundary_config["UBIGINT_MAX"])
         self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), 0)
         self.tdRest.request(f'select t1, c1 from {dbname}.tb2')
         self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), 0)
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), 18446744073709551614)
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 18446744073709551614) tags (t1 18446744073709551615)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 18446744073709551615) tags (t1 18446744073709551614)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 18446744073709551614) tags (t1 -1)')
+        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), self.tdCom.boundary_config["UBIGINT_MAX"])
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["UBIGINT_MAX"]}) tags (t1 {self.tdCom.boundary_config["UBIGINT_MAX"]+1})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["UBIGINT_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["UBIGINT_MAX"]})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 {self.tdCom.boundary_config["UBIGINT_MAX"]}) tags (t1 -1)')
         self.tdRest.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -1) tags (t1 0)')
-        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, 18446744073709551615)')
+        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, {self.tdCom.boundary_config["UBIGINT_MAX"]+1})')
         self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -1)')
-        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, 18446744073709551615)')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["UBIGINT_MAX"]+1})')
         self.tdRest.error(f'insert into {dbname}.tb values (now-1h, -1)')
         self.tdRest.request(f'drop database if exists {dbname}')
 
@@ -55,7 +55,7 @@ class TestUnsignedBigintBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            ubigint_boundary_check <jayden>: [TD048] : unsigned bigint boundary check (max 18446744073709551614);
+            ubigint_boundary_check <jayden>: [TD048] : unsigned bigint boundary check (max {self.tdCom.boundary_config["UBIGINT_MAX"]});
         """
         return case_description
 

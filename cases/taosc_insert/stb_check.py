@@ -23,12 +23,12 @@ class TestStb(TDCase):
         """
         max length: 192
         """
-        stbname = self.tdCom.get_long_name(length=192, mode="letters")
+        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.error(f'create stable {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.query('show stables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
-        dbname_exceed = self.tdCom.get_long_name(length=193, mode="letters")
+        dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdSql.error(f'create stable if not exists {dbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
 
     def stbname_with_backquote(self):
