@@ -576,6 +576,7 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
   }
 
   tsem_post(&pScanResInfo->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
