@@ -323,7 +323,12 @@ int taos_affected_rows(TAOS_RES *res) {
 }
 
 int taos_result_precision(TAOS_RES *res) {
-  return TSDB_TIME_PRECISION_MILLI;
+  SRequestObj* pRequest = (SRequestObj*) res;
+  if (pRequest == NULL) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+
+  return pRequest->body.resInfo.precision;
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
