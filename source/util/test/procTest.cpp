@@ -10,16 +10,14 @@
  */
 
 #include <gtest/gtest.h>
-#include "sut.h"
 #include "tprocess.h"
 #include "tqueue.h"
 #include "trpc.h"
+#include "tlog.h"
 
 class UtilTesProc : public ::testing::Test {
  public:
   void SetUp() override {
-    test.InitLog("/tmp/td");
-    // uDebugFlag = 207;
     shm.id = -1;
     for (int32_t i = 0; i < 4000; ++i) {
       body[i] = i % 26 + 'a';
@@ -29,19 +27,24 @@ class UtilTesProc : public ::testing::Test {
     head.msgType = 2;
     head.noResp = 3;
     head.persistHandle = 4;
+
+    taosRemoveDir("/tmp/td");
+    taosMkDir("/tmp/td");
+    tstrncpy(tsLogDir, "/tmp/td", PATH_MAX);
+    if (taosInitLog("taosdlog", 1) != 0) {
+      printf("failed to init log file\n");
+    }
   }
   void TearDown() override { taosDropShm(&shm); }
 
  public:
   static SRpcMsg  head;
   static char     body[4000];
-  static Testbase test;
   static SShm     shm;
   static void     SetUpTestSuite() {}
   static void     TearDownTestSuite() {}
 };
 
-Testbase UtilTesProc::test;
 SShm     UtilTesProc::shm;
 char     UtilTesProc::body[4000];
 SRpcMsg  UtilTesProc::head;

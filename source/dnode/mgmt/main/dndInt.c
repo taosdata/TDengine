@@ -106,7 +106,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   }
 
   if (dndInitMsgHandle(pDnode) != 0) {
-    dError("failed to msg handles since %s", terrstr());
+    dError("failed to init msg handles since %s", terrstr());
     goto _OVER;
   }
 
