@@ -635,7 +635,7 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
     if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
       continue;
     }
-    code = tsdbLoadLastCache(pRepo, pTable);
+    code = tsdbLoadLastCache(pRepo, pTable, false);
     if (code != 0) {
       tsdbError("%p uid:%" PRId64 ", tid:%d, failed to load last cache since %s", pQueryHandle, pTable->tableId.uid,
                 pTable->tableId.tid, tstrerror(terrno));

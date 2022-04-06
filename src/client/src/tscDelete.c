@@ -58,13 +58,11 @@ void tscSubDeleteCallback(void *param, TAOS_RES *tres, int code) {
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
     tscError("0x%"PRIx64" query cancelled or failed, sub:0x%"PRIx64", vgId:%d, orderOfSub:%d, code:%s, global code:%s",
         pParentSql->self, pSql->self, pVgroup->vgId, trsupport->subqueryIndex, tstrerror(code), tstrerror(pParentSql->res.code));
-
-    tscHandleSubDeleteError(param, tres, code);
-    
     if (subAndCheckDone(pSql, pParentSql, trsupport->subqueryIndex)) {
       // all sub done, call parentSQL callback to finish
       (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
     }
+    tfree(pSql->param);
     return;
   }
   
@@ -76,42 +74,27 @@ void tscSubDeleteCallback(void *param, TAOS_RES *tres, int code) {
    * NOTE: thread safe is required.
    */
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
-    assert(code == taos_errno(pSql));
-    int32_t sent = 0;
-
-    if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && (code != TSDB_CODE_TDB_INVALID_TABLE_ID && code != TSDB_CODE_VND_INVALID_VGROUP_ID)) {
-      tscError("0x%"PRIx64" sub:0x%"PRIx64" failed code:%s, retry:%d", pParentSql->self, pSql->self, tstrerror(code), trsupport->numOfRetry);
-      
-      //tscReissueSubquery(trsupport, pSql, code, &sent);
-      if (sent) {
-        return;
-      }
-    } else {
-      tscError("0x%"PRIx64" sub:0x%"PRIx64" reach the max retry times or no need to retry, set global code:%s", pParentSql->self, pSql->self, tstrerror(code));
-      atomic_val_compare_exchange_32(&pParentSql->res.code, TSDB_CODE_SUCCESS, code);  // set global code and abort
-    }
-
+    tscError(":CDEL 0x%"PRIx64" sub:0x%"PRIx64" reach the max retry times or no need to retry, set global code:%s", pParentSql->self, pSql->self, tstrerror(code));
+    atomic_val_compare_exchange_32(&pParentSql->res.code, TSDB_CODE_SUCCESS, code);  // set global code and abort
     tscHandleSubDeleteError(param, tres, pParentSql->res.code);
-
-    if(!sent) {
-      if (subAndCheckDone(pSql, pParentSql, trsupport->subqueryIndex)) {
-        // all sub done, call parentSQL callback to finish
-        (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
-      }
+    if (subAndCheckDone(pSql, pParentSql, trsupport->subqueryIndex)) {
+      // all sub done, call parentSQL callback to finish
+      (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
     }
-    
+    tfree(pSql->param);
     return;
   }
 
   tscDebug("0x%"PRIx64":CDEL sub:0x%"PRIx64" query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql->self,
       pSql->self, pVgroup->epAddr[pSql->epSet.inUse].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
 
-  // do merge
+  // success do total count
   pParentSql->res.numOfRows += pSql->res.numOfRows;
   if (subAndCheckDone(pSql, pParentSql, trsupport->subqueryIndex)) {
     // all sub done, call parentSQL callback to finish
     (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
   }
+  tfree(pSql->param);
 
   return ;
 }
@@ -206,7 +189,6 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
   
-  pRes->qId = 0x1;  // hack the qhandle check
   SSubqueryState *pState = &pSql->subState;
   int32_t numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
 
@@ -237,7 +219,6 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     SSqlObj *pNew = tscCreateSTableSubDelete(pSql, pVgroupMsg, trs);
     if (pNew == NULL) {
       tscError("0x%"PRIx64"CDEL failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql->self, i, strerror(errno));
-      tfree(trs->localBuffer);
       tfree(trs);
       break;
     }

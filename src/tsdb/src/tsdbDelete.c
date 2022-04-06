@@ -32,9 +32,11 @@ typedef struct {
   SBlockIdx * pBlkIdx;
   SBlockIdx   bIndex;
   SBlockInfo *pInfo;
+  bool        update; // need update lastrow
 } STableDeleteH;
 
 typedef struct {
+  STsdbRepo *pRepo;
   SRtn       rtn;
   SFSIter    fsIter;
   SArray *   tblArray;  // STableDeleteH, table array to cache table obj and block indexes
@@ -45,6 +47,7 @@ typedef struct {
   SArray *   aSubBlk;
   SDataCols *pDCols;
   SControlDataInfo* pCtlInfo;
+  SArray *   aUpdates;
 } SDeleteH;
 
 
@@ -63,7 +66,7 @@ typedef struct {
 static void  tsdbStartDelete(STsdbRepo *pRepo);
 static void  tsdbEndDelete(STsdbRepo *pRepo, int eno);
 static int   tsdbDeleteMeta(STsdbRepo *pRepo);
-static int   tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo);
+static int   tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray);
 static int   tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet);
 static int   tsdbInitDeleteH(SDeleteH *pdh, STsdbRepo *pRepo);
 static void  tsdbDestroyDeleteH(SDeleteH *pdh);
@@ -89,6 +92,24 @@ int tsdbControlDelete(STsdbRepo* pRepo, SControlDataInfo* pCtlInfo) {
   }
 
   return ret;
+}
+
+static void tsdbUpdateLastRow(STsdbRepo* pRepo, SArray * pArray) {
+  size_t cnt = taosArrayGetSize(pArray);
+  for (size_t i = 0; i < cnt; ++i) {
+    STable* pTable = taosArrayGetP(pArray, i);
+    tsdbLoadLastCache(pRepo, pTable, true);
+  }
+}
+
+static void tsdbClearUpdates(SArray * pArray) {
+  size_t cnt = taosArrayGetSize(pArray);
+  for (size_t i = 0; i < cnt; ++i) {
+    STable* pTable = taosArrayGetP(pArray, i);
+    tsdbUnRefTable(pTable);
+  }
+  // destory
+  taosArrayDestroy(&pArray);
 }
 
 static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
@@ -117,17 +138,23 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     goto _err;
   }
 
-  if (tsdbDeleteTSData(pRepo, pCtlInfo) < 0) {
+  SArray* aUpdates = taosArrayInit(10, sizeof(STable *));
+  if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates) < 0) {
     tsdbError("vgId:%d failed to truncate TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
   tsdbEndDelete(pRepo, TSDB_CODE_SUCCESS);
+
+  // update last row
+  tsdbUpdateLastRow(pRepo, aUpdates);
+  tsdbClearUpdates(aUpdates);
   return TSDB_CODE_SUCCESS;
 
 _err:
   pRepo->code = terrno;
   tsdbEndDelete(pRepo, terrno);
+  tsdbClearUpdates(aUpdates);
   return -1;
 }
 
@@ -174,27 +201,28 @@ static int tsdbDeleteMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
+static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray) {
   STsdbCfg *       pCfg = REPO_CFG(pRepo);
-  SDeleteH       truncateH = {0};
+  SDeleteH         deleteH = {0};
   SDFileSet *      pSet = NULL;
 
   tsdbDebug("vgId:%d start to truncate TS data for %d", REPO_ID(pRepo), pCtlInfo->tids[0]);
 
-  if (tsdbInitDeleteH(&truncateH, pRepo) < 0) {
+  if (tsdbInitDeleteH(&deleteH, pRepo) < 0) {
     return -1;
   }
 
-  truncateH.pCtlInfo = pCtlInfo;
-  STimeWindow win = pCtlInfo->win;
+  deleteH.aUpdates = pArray;
+  deleteH.pCtlInfo = pCtlInfo;
+  STimeWindow win  = pCtlInfo->win;
 
   int sFid = TSDB_KEY_FID(win.skey, pCfg->daysPerFile, pCfg->precision);
   int eFid = TSDB_KEY_FID(win.ekey, pCfg->daysPerFile, pCfg->precision);
   ASSERT(sFid <= eFid);
 
-  while ((pSet = tsdbFSIterNext(&(truncateH.fsIter)))) {
+  while ((pSet = tsdbFSIterNext(&(deleteH.fsIter)))) {
     // remove expired files
-    if (pSet->fid < truncateH.rtn.minFid) {
+    if (pSet->fid < deleteH.rtn.minFid) {
       tsdbInfo("vgId:%d FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
       continue;
@@ -202,7 +230,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
 
     if ((pSet->fid < sFid) || (pSet->fid > eFid)) {
       tsdbDebug("vgId:%d no need to truncate FSET %d, sFid %d, eFid %d", REPO_ID(pRepo), pSet->fid, sFid, eFid);
-      if (tsdbApplyRtnOnFSet(pRepo, pSet, &(truncateH.rtn)) < 0) {
+      if (tsdbApplyRtnOnFSet(pRepo, pSet, &(deleteH.rtn)) < 0) {
         return -1;
       }
       continue;
@@ -217,8 +245,8 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
 #endif
     
     if (pCtlInfo->command & CMD_DELETE_DATA) {
-      if (tsdbFSetDelete(&truncateH, pSet) < 0) {
-        tsdbDestroyDeleteH(&truncateH);
+      if (tsdbFSetDelete(&deleteH, pSet) < 0) {
+        tsdbDestroyDeleteH(&deleteH);
         tsdbError("vgId:%d failed to truncate data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
         return -1;
       }
@@ -228,7 +256,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     
   }
 
-  tsdbDestroyDeleteH(&truncateH);
+  tsdbDestroyDeleteH(&deleteH);
   tsdbDebug("vgId:%d truncate TS data over", REPO_ID(pRepo));
   return 0;
 }
@@ -295,6 +323,7 @@ static int tsdbInitDeleteH(SDeleteH *pdh, STsdbRepo *pRepo) {
   memset(pdh, 0, sizeof(*pdh));
 
   TSDB_FSET_SET_CLOSED(TSDB_DELETE_WSET(pdh));
+  pdh->pRepo = pRepo;
 
   tsdbGetRtnSnap(pRepo, &(pdh->rtn));
   tsdbFSIterInit(&(pdh->fsIter), REPO_FS(pRepo), TSDB_FS_ITER_FORWARD);
@@ -347,6 +376,21 @@ static void tsdbDestroyDeleteH(SDeleteH *pdh) {
   tsdbDestroyDeleteTblArray(pdh);
   tsdbDestroyReadH(&(pdh->readh));
   tsdbCloseDFileSet(TSDB_DELETE_WSET(pdh));
+}
+
+void tsdbAddUpdates(SArray* pArray, STable* pTable) {
+  size_t cnt = taosArrayGetSize(pArray);
+  for ( size_t i = 0; i < cnt; i++) {
+   STable* pt = taosArrayGetP(pArray, i);
+   if ( pt == pTable) {
+     // found
+     return ;
+   }
+  }
+  // ref count ++
+  tsdbRefTable(pTable);
+  // append
+  taosArrayAddBatch(pArray, &pTable, 1);
 }
 
 // init tbl array with pRepo->meta
@@ -640,7 +684,14 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
     return -1;
   }
 
-  return 0;
+  // update new last row in last row was deleted
+  TSKEY lastKey = pItem->pTable->lastKey;
+  if(lastKey >= pdh->pCtlInfo->win.skey && lastKey <= pdh->pCtlInfo->win.ekey) {
+    // update lastkey and lastrow
+    tsdbAddUpdates(pdh->aUpdates, pItem->pTable);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 // keep intact blocks info and write to head file then save offset to blkIdx
