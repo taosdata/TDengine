@@ -480,13 +480,14 @@ typedef struct STableIntervalOperatorInfo {
   SOptrBasicInfo     binfo;                // basic info
   SGroupResInfo      groupResInfo;         // multiple results build supporter
   SInterval          interval;             // interval info
+  int32_t            primaryTsIndex;       // primary time stamp slot id from result of downstream operator.
   STimeWindow        win;                  // query time range
   bool               timeWindowInterpo;    // interpolation needed or not
   char             **pRow;                 // previous row/tuple of already processed datablock
   SAggSupporter      aggSup;               // aggregate supporter
   STableQueryInfo   *pCurrent;             // current tableQueryInfo struct
   int32_t            order;                // current SSDataBlock scan order
-  EOPTR_EXEC_MODEL    execModel;            // operator execution model [batch model|stream model]
+  EOPTR_EXEC_MODEL   execModel;            // operator execution model [batch model|stream model]
   SArray            *pUpdatedWindow;       // updated time window due to the input data block from the downstream operator.
   SColumnInfoData    timeWindowData;       // query time window info for scalar function execution.
 } STableIntervalOperatorInfo;
@@ -667,7 +668,7 @@ SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
                                               SNode* pCondition, SEpSet epset, SArray* colList, SExecTaskInfo* pTaskInfo, bool showRewrite, int32_t accountId);
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SInterval* pInterval,
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlot,
                                           const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, int64_t gap, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
