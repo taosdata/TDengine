@@ -167,6 +167,8 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  tdbBegin(pMetaDb->pEnv, NULL);
+
   pMeta->pDB = pMetaDb;
   return 0;
 }
@@ -700,4 +702,9 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
     ASSERT(0);
   }
   return buf;
+}
+
+int metaCommit(SMeta *pMeta) {
+  tdbCommit(pMeta->pDB->pEnv, NULL);
+  return 0;
 }
