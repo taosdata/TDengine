@@ -1,0 +1,22 @@
+:::note
+driver-go 使用 cgo 封装了 taosc 的 API。cgo 需要使用 gcc 编译 C 的源码。因此需要确保你的系统上有 gcc。
+
+:::
+
+```go-mod title=go.mod
+module goexample
+
+go 1.17
+
+require github.com/taosdata/driver-go/v2 develop
+```
+
+```go title="使用 database/sql 包建立连接"
+{{#include docs-examples/go/connect/cgoexample/main.go}}
+```
+
+也可以使用 driver-go 的 af 包建立连接。这个模块封装了 TDengine 的高级功能, 如：动态绑定、订阅等。
+
+```go title="使用 af 包建立连接"
+{{#include docs-examples/go/connect/afconn/main.go}}
+```

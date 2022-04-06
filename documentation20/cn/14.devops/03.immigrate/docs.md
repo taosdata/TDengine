@@ -118,8 +118,8 @@ TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的�
 
 | 序号 | 测量（metric） | 值名称 | 类型   | tag1 | tag2        | tag3                 | tag4      | tag5   |
 | ---- | -------------- | ------ | ------ | ---- | ----------- | -------------------- | --------- | ------ |
-| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |   n/a     |
-| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |      n/a  |
+| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |   n/a  |
+| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |   n/a  |
 | 3    | disk           | value  | double | host | disk_point  | disk_instance        | disk_type | source |
 
 TDengine 要求存储的数据具有数据模式，即写入数据之前需创建超级表并指定超级表的模式。对于数据模式的建立，你有两种方式来完成此项工作：1）充分利用 TDengine 对 OpenTSDB 的数据原生写入的支持，调用 TDengine 提供的 API 将（文本行或 JSON 格式）数据写入，并自动化地建立单值模型。采用这种方式不需要对数据写入应用进行较大的调整，也不需要对写入的数据格式进行转换。
@@ -174,7 +174,7 @@ TDengine 支持标准的 JDBC 3.0 接口操纵数据库，你也可以使用其�
 
 为了方便历史数据的迁移工作，我们为数据同步工具 DataX 提供了插件，能够将数据自动写入到 TDengine 中，需要注意的是 DataX 的自动化数据迁移只能够支持单值模型的数据迁移过程。
 
-DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参见[基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)。
+DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参见[基于 DataX 的 TDengine 数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)。
 
 在对 DataX 进行迁移实践后，我们发现通过启动多个进程，同时迁移多个 metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
 
@@ -198,7 +198,7 @@ DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参
 
 2）在系统全负载运行下，如果有足够的剩余计算和 IO 资源，可以建立多线程的导入机制，最大限度地提升数据迁移的效率。考虑到数据解析对于 CPU 带来的巨大负载，需要控制最大的并行任务数量，以避免因导入历史数据而触发的系统整体过载。
 
-由于 TDegnine 本身操作简易性，所以不需要在整个过程中进行索引维护、数据格式的变化处理等工作，整个过程只需要顺序执行即可。
+由于 TDengine 本身操作简易性，所以不需要在整个过程中进行索引维护、数据格式的变化处理等工作，整个过程只需要顺序执行即可。
 
 当历史数据完全导入到 TDengine 以后，此时两个系统处于同时运行的状态，之后便可以将查询请求切换到 TDengine 上，从而实现无缝的应用切换。
 

@@ -1,4 +1,4 @@
-Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily  manipulate the number of columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
+Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily manipulate the number of tables, columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
 
 Running taosBenchmark is very simple. Just download the [TDengine installation package](https://www.taosdata.com/cn/all-downloads/) or compiling the [TDengine code](https://github.com/taosdata/TDengine). It can be found and run in the installation directory or in the compiled results directory.
 
@@ -160,41 +160,70 @@ The complete list of taosBenchmark command-line arguments can be displayed via t
 ```
 $ taosBenchmark --help
 
--f, --file=FILE The meta file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
--u, --user=USER The user name to use when connecting to the server.
--p, --password The password to use when connecting to the server.
--c, --config-dir=CONFIG_DIR Configuration directory.
--h, --host=HOST TDengine server FQDN to connect. The default host is localhost.
--P, --port=PORT The TCP/IP port number to use for the connection.
--I, --interface=INTERFACE The interface (taosc, rest, and stmt) taosBenchmark uses. By default use 'taosc'.
--d, --database=DATABASE Destination database. By default is 'test'.
--a, --replica=REPLICA Set the replica parameters of the database, By default use 1, min: 1, max: 3.
--m, --table-prefix=TABLEPREFIX Table prefix name. By default use 'd'.
--s, --sql-file=FILE The select sql file.
--N, --normal-table Use normal table flag.
--o, --output=FILE Direct output to the named file. By default use './output.txt'.
--q, --query-mode=MODE Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.
--b, --data-type=DATATYPE The data_type of columns, By default use: FLOAT, INT, FLOAT.
--w, --binwidth=WIDTH The width of data_type 'BINARY' or 'NCHAR'. By default use 64
--l, --columns=COLUMNS The number of columns per record. Demo mode by default is 1 (float, int, float). Max values is 4095
-All of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.
--T, --threads=NUMBER The number of threads. By default use 8.
--i, --insert-interval=NUMBER The sleep time (ms) between insertion. By default is 0.
--S, --time-step=TIME_STEP The timestamp step between insertion. By default is 1.
--B, --interlace-rows=NUMBER The interlace rows of insertion. By default is 0.
--r, --rec-per-req=NUMBER The number of records per request. By default is 30000.
--t, --tables=NUMBER The number of tables. By default is 10000.
--n, --records=NUMBER The number of records per table. By default is 10000.
--M, --random The value of records generated are totally random.
-By default to simulate power equipment scenario.
--x, --aggr-func Test aggregation functions after insertion.
--y, --answer-yes Input yes for prompt.
--O, --disorder=NUMBER Insert order mode--0: In order, 1 ~ 50: disorder ratio. By default is in order.
--R, --disorder-range=NUMBER Out of order data's range. Unit is ms. By default is 1000.
--g, --debug Print debug info.
--?, --help Give this help list
---usage Give a short usage message
--V, --version Print program version.
+Usage: taosBenchmark [OPTION...]
+
+  -f, --file=FILE            (**IMPORTANT**) Set JSON configuration file(all
+                             options are going to read from this JSON file),
+                             which is mutually exclusive with other commandline
+                             options
+  -a, --replia=NUMBER        The number of replica when create database,
+                             default is 1.
+  -A, --tag-type=TAG_TYPE    Data type of tables' tags, default is
+                             INT,BINARY(16).
+  -b, --data-type=COL_TYPE   Data type of tables' cols, default is
+                             FLOAT,INT,FLOAT.
+  -B, --interlace-rows=NUMBER   The number of interlace rows insert into
+                             tables, default is 0
+  -c, --config-dir=CONFIG_DIR   Configuration directory.
+  -C, --chinese              Nchar and binary are basic unicode chinese
+                             characters, optional.
+  -d, --database=DATABASE    Name of database, default is test.
+  -E, --escape-character     Use escape character in stable and child table
+                             name, optional.
+  -F, --prepared_rand=NUMBER Random data source size, default is 10000.
+  -g, --debug                Debug mode, optional.
+  -G, --performance           Performance mode, optional.
+  -h, --host=HOST            TDengine server FQDN to connect, default is
+                             localhost.
+  -i, --insert-interval=NUMBER   Insert interval for interlace mode in
+                             milliseconds, default is 0.
+  -I, --interface=IFACE      insert mode, default is taosc, options:
+                             taosc|rest|stmt|sml
+  -l, --columns=NUMBER       Number of INT data type columns in table, default
+                             is 0.
+  -m, --table-prefix=TABLE_PREFIX
+                             Prefix of child table name, default is d.
+  -M, --random               Data source is randomly generated, optional.
+  -n, --records=NUMBER       Number of records for each table, default is
+                             10000.
+  -N, --normal-table         Only create normal table without super table,
+                             optional.
+  -o, --output=FILE          The path of result output file, default is
+                             ./output.txt.
+  -O, --disorder=NUMBER      Ratio of inserting data with disorder timestamp,
+                             default is 0.
+  -p, --password=PASSWORD    The password to use when connecting to the server,
+                             default is taosdata.
+  -P, --port=PORT            The TCP/IP port number to use for the connection,
+                             default is 6030.
+  -r, --rec-per-req=NUMBER   Number of records in each insert request, default
+                             is 30000.
+  -R, --disorder-range=NUMBER   Range of disordered timestamp, default is 1000.
+
+  -S, --time-step=NUMBER     Timestamp step in milliseconds, default is 1.
+  -t, --tables=NUMBER        Number of child tables, default is 10000.
+  -T, --threads=NUMBER       The number of thread when insert data, default is
+                             8.
+  -u, --user=USER            The user name to use when connecting to the
+                             server, default is root.
+  -w, --binwidth=NUMBER      The default length of nchar and binary if not
+                             specified, default is 64.
+  -x, --aggr-func            Query aggregation function after insertion,
+                             optional.
+  -y, --answer-yes           Pass confirmation prompt to continue, optional.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
@@ -205,7 +234,7 @@ Report bugs to <support@taosdata.com>.
 taosBenchmark's parameters are designed to meet the needs of data simulation. A few commonly used parameters are described below.
 
 ```
--I, --interface=INTERFACE     The interface (taosc, rest, and stmt) taosBenchmark uses. Default is 'taosc'.
+-I, --interface=IFACE     The interface (taosc, rest, and stmt) taosBenchmark uses. Default is 'taosc'.
 ```
 
 The performance difference between different interfaces of taosBenchmark has been mentioned earlier, the -I parameter is used to select different interfaces, currently taosc, stmt and rest are supported. The -I parameter is used to select different interfaces, currently taosc, stmt and rest are supported. taosc uses SQL statements to write data, stmt uses parameter binding interface to write data, and rest uses RESTful protocol to write data.
@@ -346,6 +375,7 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -354,7 +384,9 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
 }
 ```
 
-For example, we can specify different number of threads for table creation and data insertion with "thread_count" and "thread_count_create_tbl". You can use a combination of "child_table_exists", "childtable_limit" and "childtable_offset" to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a csv file with "data_source" and "sample_file".
+For example, we can specify different number of threads for table creation and data insertion with `thread_count` and `thread_count_create_tbl`. You can use a combination of `child_table_exists`, `childtable_limit` and `childtable_offset` to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a CSV file with `data_source` and `sample_file`. The argument `use_sample_ts` indicate whether the first column, timestamp in TDengine would use the data of the specified CSV file too.
+
+CSV file is a plain text format and use comma signs as separators between two columns. The number of columns must is same as the number of columns or tags of the table you intend to insert.
 
 # Use taosBenchmark for query and subscription testing
 
@@ -410,7 +442,7 @@ The following parameters are specific to the query in the JSON file.
 "specified_table_query": { query for the specified table
 "query_interval": interval to execute sqls, in seconds. Optional, default is 0.
 "concurrent": the number of threads to execute sqls concurrently, optional, default is 1. Each thread executes all sqls.
-"sqls": multiple sql statements can be added, support up to 100 statements.
+"sqls": multiple SQL statements can be added, support up to 100 statements.
 "sql": query statement. Mandatory.
 "result": the name of the file where the query result will be written. Optional, default is null, means the query result will not be written to the file.
 "super_table_query": { query for all sub-tables in the super table
@@ -470,7 +502,7 @@ The following are the meanings of the parameters specific to the subscription fu
 "restart": subscription restart." yes": restart the subscription if it already exists, "no": continue the previous subscription. (Please note that the executing user needs to have read/write access to the dataDir directory)
 "keepProgress": keep the progress of the subscription information. yes means keep the subscription information, no means don't keep it. The value is yes and restart is no to continue the previous subscriptions.
 "resubAfterConsume": Used in conjunction with keepProgress to call unsubscribe after the subscription has been consumed the appropriate number of times and to subscribe again.
-"result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each sql statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
+"result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each SQL statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
 ```
 
 # Conclusion

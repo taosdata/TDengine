@@ -1146,7 +1146,7 @@ public class WSJsonTagTest {
 
         }
         Assert.assertEquals(8, count);
-        Assert.assertEquals("\"femail\"", s);
+        Assert.assertEquals("\"收到货\"", s);
         close(resultSet);
     }
 

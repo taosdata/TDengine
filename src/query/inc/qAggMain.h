@@ -30,59 +30,68 @@ extern "C" {
 #include "tsdb.h"
 #include "qUdf.h"
 
-#define TSDB_FUNC_INVALID_ID  -1
-#define TSDB_FUNC_COUNT        0
-#define TSDB_FUNC_SUM          1
-#define TSDB_FUNC_AVG          2
-#define TSDB_FUNC_MIN          3
-#define TSDB_FUNC_MAX          4
-#define TSDB_FUNC_STDDEV       5
-#define TSDB_FUNC_PERCT        6
-#define TSDB_FUNC_APERCT       7
-#define TSDB_FUNC_FIRST        8
-#define TSDB_FUNC_LAST         9
-#define TSDB_FUNC_LAST_ROW     10
-#define TSDB_FUNC_TOP          11
-#define TSDB_FUNC_BOTTOM       12
-#define TSDB_FUNC_SPREAD       13
-#define TSDB_FUNC_TWA          14
-#define TSDB_FUNC_LEASTSQR     15
+#define TSDB_FUNC_INVALID_ID     -1
+#define TSDB_FUNC_COUNT           0
+#define TSDB_FUNC_SUM             1
+#define TSDB_FUNC_AVG             2
+#define TSDB_FUNC_MIN             3
+#define TSDB_FUNC_MAX             4
+#define TSDB_FUNC_STDDEV          5
+#define TSDB_FUNC_PERCT           6
+#define TSDB_FUNC_APERCT          7
+#define TSDB_FUNC_FIRST           8
+#define TSDB_FUNC_LAST            9
+#define TSDB_FUNC_LAST_ROW        10
+#define TSDB_FUNC_TOP             11
+#define TSDB_FUNC_BOTTOM          12
+#define TSDB_FUNC_SPREAD          13
+#define TSDB_FUNC_TWA             14
+#define TSDB_FUNC_LEASTSQR        15
 
-#define TSDB_FUNC_TS           16
-#define TSDB_FUNC_TS_DUMMY     17
-#define TSDB_FUNC_TAG_DUMMY    18
-#define TSDB_FUNC_TS_COMP      19
+#define TSDB_FUNC_TS              16
+#define TSDB_FUNC_TS_DUMMY        17
+#define TSDB_FUNC_TAG_DUMMY       18
+#define TSDB_FUNC_TS_COMP         19
 
-#define TSDB_FUNC_TAG          20
-#define TSDB_FUNC_PRJ          21
+#define TSDB_FUNC_TAG             20
+#define TSDB_FUNC_PRJ             21
 
-#define TSDB_FUNC_TAGPRJ       22
-#define TSDB_FUNC_SCALAR_EXPR  23
-#define TSDB_FUNC_DIFF         24
+#define TSDB_FUNC_TAGPRJ          22
+#define TSDB_FUNC_SCALAR_EXPR     23
+#define TSDB_FUNC_DIFF            24
 
-#define TSDB_FUNC_FIRST_DST    25
-#define TSDB_FUNC_LAST_DST     26
-#define TSDB_FUNC_STDDEV_DST   27
-#define TSDB_FUNC_INTERP       28
+#define TSDB_FUNC_FIRST_DST       25
+#define TSDB_FUNC_LAST_DST        26
+#define TSDB_FUNC_STDDEV_DST      27
+#define TSDB_FUNC_INTERP          28
 
-#define TSDB_FUNC_RATE         29
-#define TSDB_FUNC_IRATE        30
-#define TSDB_FUNC_TID_TAG      31
-#define TSDB_FUNC_DERIVATIVE   32
+#define TSDB_FUNC_RATE            29
+#define TSDB_FUNC_IRATE           30
+#define TSDB_FUNC_TID_TAG         31
+#define TSDB_FUNC_DERIVATIVE      32
 
-#define TSDB_FUNC_CSUM         33
-#define TSDB_FUNC_MAVG         34
-#define TSDB_FUNC_SAMPLE       35
+#define TSDB_FUNC_CSUM            33
+#define TSDB_FUNC_MAVG            34
+#define TSDB_FUNC_SAMPLE          35
 
-#define TSDB_FUNC_BLKINFO      36
+#define TSDB_FUNC_BLKINFO         36
 
-#define TSDB_FUNC_ELAPSED      37
-#define TSDB_FUNC_HISTOGRAM    38
-#define TSDB_FUNC_UNIQUE       39
-#define TSDB_FUNC_MODE         40
-#define TSDB_FUNC_TAIL         41
+#define TSDB_FUNC_ELAPSED         37
+#define TSDB_FUNC_HISTOGRAM       38
+#define TSDB_FUNC_UNIQUE          39
+#define TSDB_FUNC_MODE            40
+#define TSDB_FUNC_TAIL            41
+#define TSDB_FUNC_STATE_COUNT     42
+#define TSDB_FUNC_STATE_DURATION  43
+#define TSDB_FUNC_WSTART          44
+#define TSDB_FUNC_WSTOP           45
+#define TSDB_FUNC_WDURATION       46
+#define TSDB_FUNC_QSTART          47
+#define TSDB_FUNC_QSTOP           48
+#define TSDB_FUNC_QDURATION       49
+#define TSDB_FUNC_HYPERLOGLOG     50
 
-#define TSDB_FUNC_MAX_NUM    42
+#define TSDB_FUNC_MAX_NUM         51
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -178,7 +187,7 @@ typedef struct SQLFunctionCtx {
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int32_t      inputBytes;
-  
+
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type
   int32_t      interBufBytes; // internal buffer size
@@ -206,6 +215,8 @@ typedef struct SQLFunctionCtx {
 
   SHashObj     **pUniqueSet;   // for unique function
   SHashObj     **pModeSet;     // for mode function
+  STimeWindow  qWindow;        // for _qstart/_qstop/_qduration column
+  int32_t      allocRows;      // rows allocated for output buffer
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {
@@ -228,7 +239,12 @@ typedef struct SAggFunctionInfo {
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int32_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
+int16_t getTimeWindowFunctionID(int16_t colIndex);
+
+bool isTimeWindowFunction(int32_t functionId);
 int32_t isValidFunction(const char* name, int32_t len);
+bool isValidStateOper(char *oper, int32_t len);
+
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)

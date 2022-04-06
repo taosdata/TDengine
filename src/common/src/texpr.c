@@ -241,7 +241,8 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       return;
     }
     case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
@@ -438,7 +439,7 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
       }
       pInputs[i].numOfRows = (int16_t)numOfRows;
     } else if (pChild->nodeType == TSQL_NODE_VALUE) {
-      pChildrenOutput[i] = malloc(pChild->resultBytes);
+      pChildrenOutput[i] = malloc((pChild->resultBytes+1)*TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
       tVariantDump(pChild->pVal, pChildrenOutput[i], pChild->resultType, true);
       pInputs[i].data = pChildrenOutput[i];
       pInputs[i].numOfRows = 1;
@@ -955,7 +956,7 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -1027,7 +1028,7 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -2230,14 +2231,12 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
 void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
   int32_t charLen = varDataLen(inputData);
-  char *newColData;
+  char *newColData = calloc(1, charLen + 1);
   if (type == TSDB_DATA_TYPE_BINARY) {
-    newColData = calloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
     taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
     tfree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
     int len = taosUcs4ToMbs(varDataVal(inputData), charLen, newColData);
     if (len < 0){
       uError("convertStringToTimestamp taosUcs4ToMbs error");

@@ -1,0 +1,2 @@
+[workspace]
+members = ["restexample", "nativeexample", "schemalessexample"]

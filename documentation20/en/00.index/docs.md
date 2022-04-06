@@ -38,6 +38,8 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Data Writing via Schemaless](/insert#schemaless): write one or multiple records with automatic table creation and adaptive table structure maintenance
 - [Data Writing via Prometheus](/insert#prometheus): Configure Prometheus to write data directly without any code
 - [Data Writing via Telegraf](/insert#telegraf): Configure Telegraf to write collected data directly without any code
+- [Data Writing via collectd](/insert#collectd): Configure collectd to write collected data directly without any code
+- [Data Writing via StatsD](/insert#statsd): Configure StatsD to write collected data directly without any code
 - [Data Writing via EMQX](/insert#emq): Configure EMQX to write MQTT data directly without any code
 - [Data Writing via HiveMQ Broker](/insert#hivemq): Configure HiveMQ to write MQTT data directly without any code
 
@@ -95,7 +97,8 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [R](/connections#r): access data stored in TDengine server via JDBC configured within R
 - [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html): use TDengine visually through IDEA Database Management Tool
 - [TDengineGUI](https://github.com/skye0207/TDengineGUI): a TDengine management tool with Graphical User Interface
-- [DataX](https://github.com/taosdata/datax): a data immigaration tool with TDeninge supported
+- [DataX](https://github.com/taosdata/datax): a data immigration tool with TDengine supported
+- [Awesome TDengine](https://github.com/taosdata/awesome-tdengine)：A curated list of awesome things related to TDengine
 
 ## [Installation and Management of TDengine Cluster](/cluster)
 

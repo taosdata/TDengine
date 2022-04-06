@@ -8,7 +8,7 @@ namespace TDengineDriver.Test
     {
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameBool</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's bool meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's bool meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -24,7 +24,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameTINYINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's TinnyInt's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's TinnyInt's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -40,7 +40,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameSMALLINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's SMALLINT's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's SMALLINT's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -56,7 +56,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's INT's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's INT's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -72,7 +72,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameBIGINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's BIGINT's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's BIGINT's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -88,7 +88,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameUTINYINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's TINYINT UNSIGNED's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's TINYINT UNSIGNED's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -104,7 +104,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameUSMALLINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's SMALLINT UNSIGNED's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's SMALLINT UNSIGNED's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -120,7 +120,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameUINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's INT UNSIGNED's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's INT UNSIGNED's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -136,7 +136,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameUBIGINT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's BIGINT UNSIGNED's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's BIGINT UNSIGNED's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -152,7 +152,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameFLOAT</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's FLOAT's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's FLOAT's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -168,7 +168,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameDOUBLE</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's DOUBLE's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's DOUBLE's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -184,7 +184,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameSTRING</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's BINARY's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's BINARY's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -200,7 +200,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameTIMESTAMP</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's TIMESTAMP's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's TIMESTAMP's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -216,7 +216,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameNCHAR</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's NCHAR's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's NCHAR's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]
@@ -232,7 +232,7 @@ namespace TDengineDriver.Test
         }
         /// <author>xiaolei</author>
         /// <Name>TestTDengineMeta.TestTypeNameUndefined</Name>
-        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's undefine's meta info</describe>
+        /// <describe>Unit test for object TDengineDriver.TDengineMeta's undefine's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
         [Fact]

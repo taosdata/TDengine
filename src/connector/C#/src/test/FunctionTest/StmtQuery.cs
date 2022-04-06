@@ -5,7 +5,7 @@ using Test.UtilsTools.DataSource;
 
 namespace Cases
 {
-    public class StmtStableQuery
+    public class StmtSTableQuery
     {
         public void Test(IntPtr conn, string tableName)
         {
@@ -26,7 +26,7 @@ namespace Cases
         }
     }
 
-    public class StmtNtableQuery
+    public class StmtNTableQuery
     {
         public void Test(IntPtr conn, string tableName)
         {

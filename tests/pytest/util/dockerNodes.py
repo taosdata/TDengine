@@ -142,10 +142,8 @@ class BuildDockerCluser:
             print("create dnode tdnode%d" % i)         
             self.cursor.execute("create dnode tdnode%d" % i)
     
-    def startArbitrator(self):
-        for i in range(1, self.numOfNodes + 1):
-            self.cfg("arbitrator", "tdnode1:6042", i)
-        cmd = "docker exec -d $(docker ps|grep tdnode1|awk '{print $1}') tarbitrator"
+    def startArbitrator(self, hostname = 'tdnode1'):        
+        cmd = "docker exec -d $(docker ps|grep '%s'|awk '{print $1}') tarbitrator" % hostname        
         self.execCmd(cmd)
 
     def prepardBuild(self):

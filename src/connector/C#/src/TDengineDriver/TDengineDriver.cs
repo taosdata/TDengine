@@ -44,8 +44,26 @@ namespace TDengineDriver
         TSDB_OPTION_LOCALE = 0,
         TSDB_OPTION_CHARSET = 1,
         TSDB_OPTION_TIMEZONE = 2,
-        TDDB_OPTION_CONFIGDIR = 3,
-        TDDB_OPTION_SHELL_ACTIVITY_TIMER = 4
+        TSDB_OPTION_CONFIGDIR = 3,
+        TSDB_OPTION_SHELL_ACTIVITY_TIMER = 4
+    }
+    public enum TDengineSchemalessProtocol
+    {
+        TSDB_SML_UNKNOWN_PROTOCOL = 0,
+        TSDB_SML_LINE_PROTOCOL = 1,
+        TSDB_SML_TELNET_PROTOCOL = 2,
+        TSDB_SML_JSON_PROTOCOL = 3
+
+    }
+    public enum TDengineSchemalessPrecision
+    {
+        TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+        TSDB_SML_TIMESTAMP_HOURS = 1,
+        TSDB_SML_TIMESTAMP_MINUTES = 2,
+        TSDB_SML_TIMESTAMP_SECONDS = 3,
+        TSDB_SML_TIMESTAMP_MILLI_SECONDS = 4,
+        TSDB_SML_TIMESTAMP_MICRO_SECONDS = 5,
+        TSDB_SML_TIMESTAMP_NANO_SECONDS = 6
     }
     enum TaosField
     {
@@ -147,7 +165,7 @@ namespace TDengineDriver
     /// <summary>
     /// User defined callback function for interface "QueryAsync()"
     /// ,actually is a delegate in .Net.
-    /// This function aim to handel the taoRes which points to
+    /// This function aim to handle the taoRes which points to
     /// the caller method's sql resultset.
     /// </summary>
     /// <param name="param"> This parameter will sent by caller method (QueryAsync()).</param>
@@ -179,8 +197,6 @@ namespace TDengineDriver
     /// <param name="param"> Additional parameters supplied by the client when taos_subscribe is called.</param>
     /// <param name="code"> Error code.</param>
     public delegate void SubscribeCallback(IntPtr subscribe, IntPtr tasRes, IntPtr param, int code);
-    public delegate void StreamOpenCallback(IntPtr param, IntPtr taosRes, IntPtr taosRow);
-    public delegate void StreamOpenCallback2(IntPtr ptr);
 
     public class TDengine
     {
@@ -234,10 +250,10 @@ namespace TDengineDriver
         {
             // const int fieldSize = 68;
 
-            List<TDengineMeta> metas = new List<TDengineMeta>();
+            List<TDengineMeta> metaList = new List<TDengineMeta>();
             if (res == IntPtr.Zero)
             {
-                return metas;
+                return metaList;
             }
 
             int fieldCount = FieldCount(res);
@@ -250,11 +266,11 @@ namespace TDengineDriver
                 meta.name = Marshal.PtrToStringAnsi(fieldsPtr + offset);
                 meta.type = Marshal.ReadByte(fieldsPtr + offset + (int)TaosField.TYPE_OFFSET);
                 meta.size = Marshal.ReadInt16(fieldsPtr + offset + (int)TaosField.BYTES_OFFSET);
-                metas.Add(meta);
+                metaList.Add(meta);
             }
 
 
-            return metas;
+            return metaList;
         }
 
         [DllImport("taos", EntryPoint = "taos_fetch_row", CallingConvention = CallingConvention.Cdecl)]
@@ -270,7 +286,9 @@ namespace TDengineDriver
         [DllImport("taos", EntryPoint = "taos_result_precision", CallingConvention = CallingConvention.Cdecl)]
         static extern public int ResultPrecision(IntPtr taos);
 
-
+        //schemaless API 
+        [DllImport("taos", SetLastError = true, EntryPoint = "taos_schemaless_insert", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr SchemalessInsert(IntPtr taos, string[] lines, int numLines, int protocol, int precision);
 
         //stmt APIs:
         /// <summary>
@@ -430,7 +448,7 @@ namespace TDengineDriver
         /// returned in this API is unknown.
         /// </summary>
         /// <param name="stmt">could be the value returned by 'StmtInit', that may be a valid object or NULL.</param>
-        /// <returns>piont the error message</returns>
+        /// <returns>point the error message</returns>
         [DllImport("taos", EntryPoint = "taos_stmt_errstr", CallingConvention = CallingConvention.Cdecl)]
         static extern private IntPtr StmtErrPtr(IntPtr stmt);
 
@@ -452,9 +470,9 @@ namespace TDengineDriver
         // Async Query 
         /// <summary>
         /// This API uses non-blocking call mode.
-        /// Application can open mutilple tables and manipulate(query or insert) opened table concurrently. 
-        /// So applications must ensure that opetations on the same table is compeletly serialized.
-        /// Becuase that will cause some query and insert operations cannot be performed.
+        /// Application can open multiple tables and manipulate(query or insert) opened table concurrently. 
+        /// So applications must ensure that opetations on the same table is completely serialized.
+        /// Because that will cause some query and insert operations cannot be performed.
         /// </summary>
         /// <param name="taos"> A taos connection return by Connect()</param>
         /// <param name="sql">sql command need to execute</param>
@@ -561,33 +579,5 @@ namespace TDengineDriver
             }
 
         }
-        // Stream
-
-        /// <summary>
-        /// Used to open an stream, which can do continuous query.
-        /// </summary>
-        /// <param name="taos"> taos connection return by <see cref = "Connect"></param>
-        /// <param name="sql"> Query statement( query only)</param>
-        /// <param name="fp"> User defined callback.</param>
-        /// <param name="stime"> The time when stream computing starts. If it is 0, it means starting from now.
-        /// If it is not zero, it means starting from the specified time (the number of
-        /// milliseconds from 1970/1/1 UTC time).
-        /// </param>
-        /// <param name="param">First parameter provide by application for callback usage.
-        /// While callback,this parameter is provided to the application.</param>
-        /// <param name="callback2">The second callback function which will be caled when the continuous query 
-        /// stop automatically.</param>
-        /// <returns> Return null indicate creation failed, not null for success.</returns>
-        [DllImport("taos", EntryPoint = "taos_open_stream", CallingConvention = CallingConvention.Cdecl)]
-        static extern public IntPtr OpenStream(IntPtr taos, string sql, StreamOpenCallback fp, Int64 stime, IntPtr param, StreamOpenCallback2 callback2);
-
-        /// <summary>
-        /// Used too stop data flow.
-        /// Remember to stop data flow when you stopped steam computing.
-        /// </summary>
-        /// <param name="stream"> Value returned by <see cref = "OpenStream"></param>
-        [DllImport("taos", EntryPoint = "taos_close_stream", CallingConvention = CallingConvention.Cdecl)]
-        static extern public void CloseStream(IntPtr stream);
-
     }
 }
