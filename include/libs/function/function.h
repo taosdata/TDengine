@@ -110,10 +110,11 @@ typedef struct SFileBlockInfo {
 #define FUNCTION_COV          38
 
 typedef struct SResultRowEntryInfo {
-  int8_t   hasResult;       // result generated, not NULL value
-  bool     initialized;     // output buffer has been initialized
-  bool     complete;        // query has completed
-  uint16_t numOfRes;        // num of output result in current buffer
+  int8_t   hasResult:6;       // result generated, not NULL value
+  bool     initialized:1;     // output buffer has been initialized
+  bool     complete:1;        // query has completed
+  uint8_t  isNullRes:1;       // the result is null
+  uint8_t  numOfRes:7;        // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
