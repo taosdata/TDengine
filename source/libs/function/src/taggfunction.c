@@ -1902,10 +1902,10 @@ static void copyTopBotRes(SqlFunctionCtx *pCtx, int32_t type) {
   }
   
   // set the output timestamp of each record.
-  TSKEY *output = pCtx->ptsOutputBuf;
-  for (int32_t i = 0; i < len; ++i, output += step) {
-    *output = tvp[i]->timestamp;
-  }
+//  TSKEY *output = pCtx->pTsOutput;
+//  for (int32_t i = 0; i < len; ++i, output += step) {
+//    *output = tvp[i]->timestamp;
+//  }
   
   // set the corresponding tag data for each record
   // todo check malloc failure
@@ -2687,7 +2687,7 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY *pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY *pTimestamp = NULL;//pCtx->pTsOutput;
   TSKEY *tsList = GET_TS_LIST(pCtx);
 
   double *pOutput = (double *)pCtx->pOutput;
@@ -2867,7 +2867,7 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
     } else {                                                                                 \
       *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i));      \
       *(type *)(&(ctx)->param[1].i) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
+      *(int64_t *)(ctx)->pTsOutput = GET_TS_DATA(ctx, index);                             \
     }                                                                                        \
   } while (0);
 
@@ -2881,7 +2881,7 @@ static void diff_function(SqlFunctionCtx *pCtx) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY* pTimestamp = NULL;//pCtx->pTsOutput;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
   switch (pCtx->inputType) {
