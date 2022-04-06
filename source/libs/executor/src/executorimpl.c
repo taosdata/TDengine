@@ -7122,12 +7122,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SExprInfo*   pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &num);
       SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
 
-      SInterval interval = {.interval     = pIntervalPhyNode->interval,
-                            .sliding      = pIntervalPhyNode->sliding,
-                            .intervalUnit = pIntervalPhyNode->intervalUnit,
-                            .slidingUnit  = pIntervalPhyNode->slidingUnit,
-                            .offset       = pIntervalPhyNode->offset,
-                            .precision    = pIntervalPhyNode->precision};
+      SInterval interval = {
+          .interval     = pIntervalPhyNode->interval,
+          .sliding      = pIntervalPhyNode->sliding,
+          .intervalUnit = pIntervalPhyNode->intervalUnit,
+          .slidingUnit  = pIntervalPhyNode->slidingUnit,
+          .offset       = pIntervalPhyNode->offset,
+          .precision    = pIntervalPhyNode->precision
+      };
 
       int32_t primaryTsSlotId = ((SColumnNode*) pIntervalPhyNode->pTspk)->slotId;
       return createIntervalOperatorInfo(op, pExprInfo, num, pResBlock, &interval, primaryTsSlotId, pTableGroupInfo, pTaskInfo);
