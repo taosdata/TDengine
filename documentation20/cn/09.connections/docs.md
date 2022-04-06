@@ -101,12 +101,12 @@ MatLab 可以通过安装包内提供的 JDBC Driver 直接连接到 TDengine �
 
 MatLab 的适配有下面几个步骤，下面以 Windows10 上适配 MatLab2017a 为例：
 
-- 安装 TDengine JDBC 驱动程序 JDBCDriver-x.x.x-dist.jar 拷贝到 ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
+- 从 (maven.org)[https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/] 或其他 maven 镜像网站下载 TDengine JDBC 驱动程序 JDBCDriver-x.x.x-dist.jar 拷贝到 ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
 - 将 TDengine 安装包内的 taos.lib 文件拷贝至${matlab_ root _dir}\MATLAB\R2017a\lib\win64
 - 将新添加的驱动 jar 包加入 MatLab 的 classpath。在 ${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt 文件中添加下面一行
 
 ```
-$matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
+$matlabroot/java/jar/toolbox/JDBCDriver-x.x.x-dist.jar
 ```
 
 - 在${user_home}\AppData\Roaming\MathWorks\MATLAB\R2017a\下添加一个文件 javalibrarypath.txt, 并在该文件中添加 taos.dll 的路径，比如您的 taos.dll 是在安装时拷贝到了 C:\Windows\System32 下，那么就应该在 javalibrarypath.txt 中添加如下一行：
@@ -143,10 +143,13 @@ exec(conn, sql1)
 
 ## <a class="anchor" id="r"></a>R
 
-R 语言支持通过 JDBC 接口来连接 TDengine 数据库。首先需要安装 R 语言的 JDBC 包。启动 R 语言环境，然后执行以下命令安装 R 语言的 JDBC 支持库：
+R 语言支持通过 JDBC 接口来连接 TDengine 数据库。首先需要安装 R 语言的 JDBC 包，下载 RJDBC 的时候，还会自动下载 RJDBC 依赖的 DBI 和 rJava 这两个package。启动 R 语言环境，然后执行以下命令安装 R 语言的 JDBC 支持库：
 
 ```R
 install.packages('RJDBC', repos='http://cran.us.r-project.org')
+library('DBI')
+library('rJava')
+library('RJDBC')
 ```
 
 安装完成以后，通过执行`library('RJDBC')`命令加载 _RJDBC_ 包：
@@ -160,7 +163,13 @@ drv<-JDBC("com.taosdata.jdbc.TSDBDriver","JDBCDriver-2.0.0-dist.jar", identifier
 如果执行成功，不会出现任何错误信息。之后通过以下命令尝试连接数据库：
 
 ```R
-conn<-dbConnect(drv,"jdbc:TSDB://192.168.0.1:0/?user=root&password=taosdata","root","taosdata")
+conn<-dbConnect(drv,"jdbc:TSDB://127.0.0.1:0/?user=root&password=taosdata","root","taosdata")
+```
+
+也可以使用 RESTful 来连接 TDengine。
+
+```R
+conn<-dbConnect(drv,"jdbc:TAOS-RS://127.0.0.1:6041/test?user=root&password=taosdata","root","taosdata")
 ```
 
 注意将上述命令中的IP地址替换成正确的IP地址。如果没有任务错误的信息，则连接数据库成功，否则需要根据错误提示调整连接的命令。TDengine 支持以下的 _RJDBC_ 包中函数：
@@ -171,9 +180,4 @@ conn<-dbConnect(drv,"jdbc:TSDB://192.168.0.1:0/?user=root&password=taosdata","ro
 -	dbReadTable(conn, "test")：读取表 test 中数据
 -	dbDisconnect(conn)：关闭连接
 -	dbRemoveTable(conn, "test")：删除表 test
-
-TDengine 客户端暂不支持如下函数：
-
-- dbExistsTable(conn, "test")：是否存在表 test
-- dbListTables(conn)：显示连接中的所有表
 
