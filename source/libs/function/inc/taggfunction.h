@@ -52,8 +52,6 @@ typedef struct SInterpInfoDetail {
   int8_t primaryCol;
 } SInterpInfoDetail;
 
-#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowEntryInfo)))
-
 typedef struct STwaInfo {
   int8_t      hasResult;  // flag to denote has value
   double      dOutput;

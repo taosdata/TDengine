@@ -385,6 +385,12 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
 } SExchangeInfo;
 
+typedef struct SColMatchInfo {
+  int32_t colId;
+  int32_t targetSlotId;
+  bool    output;
+} SColMatchInfo;
+
 typedef struct STableScanInfo {
   void*           dataReader;
   int32_t         numOfBlocks;  // extract basic running information.
@@ -497,8 +503,9 @@ typedef struct SAggOperatorInfo {
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
+  SAggSupporter  aggSup;
   SSDataBlock   *existDataBlock;
-  int32_t        threshold;
+  SArray        *pPseudoColInfo;
   SLimit         limit;
   int64_t        curOffset;
   int64_t        curOutput;
@@ -623,12 +630,27 @@ typedef struct SDistinctOperatorInfo {
   SHashObj*    pSet;
   SSDataBlock* pRes;
   bool         recordNullVal;  // has already record the null value, no need to try again
-  int64_t      threshold;
-  int64_t      outputCapacity;
-  int32_t      totalBytes;
+  int64_t      threshold;  // todo remove it
+  int64_t      outputCapacity;// todo remove it
+  int32_t      totalBytes; // todo remove it
   char*        buf;
   SArray*      pDistinctDataInfo;
 } SDistinctOperatorInfo;
+
+int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
+void operatorDummyCloseFn(void* param, int32_t numOfCols);
+int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
+int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
+                    int32_t numOfRows, SSDataBlock* pResultBlock, const char* pkey);
+void toSDatablock(SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf, SSDataBlock* pBlock, int32_t rowCapacity, int32_t* rowCellOffset);
+void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
+void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
+int32_t setGroupResultOutputBuf_rv(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type,
+                                   int16_t bytes, int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
+void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
+int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows,
+                                         char* pData, int32_t compLen, int32_t numOfOutput, int64_t startTs,
+                                         uint64_t* total, SArray* pColList);
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
@@ -647,12 +669,12 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                        SArray* pGroupColList, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SInterval* pInterval, SSDataBlock* pResBlock,
                                       int32_t fillType, char* fillVal, bool multigroupResult, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createDistinctOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                          int32_t numOfOutput);
+SOperatorInfo* createDistinctOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,

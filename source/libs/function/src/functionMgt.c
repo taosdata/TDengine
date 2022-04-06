@@ -116,6 +116,11 @@ bool fmIsWindowClauseFunc(int32_t funcId) {
   return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId);
 }
 
+bool fmIsNonstandardSQLFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_NONSTANDARD_SQL_FUNC);
+}
+
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
