@@ -369,16 +369,17 @@ TEST(testCase, ordered_merge_sort_Test) {
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
   tsortSetComparFp(phandle, docomp);
 
-  SGenericSource* p = static_cast<SGenericSource*>(taosMemoryCalloc(10, sizeof(SGenericSource)));
-  _info* c = static_cast<_info*>(taosMemoryCalloc(10, sizeof(_info)));
+  SGenericSource* p[10] = {0};
+  _info c[10] = {0};
   for(int32_t i = 0; i < 10; ++i) {
+    p[i] = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
     c[i].count    = 1;
     c[i].pageRows = 1000;
     c[i].startVal = i*1000;
     c[i].type = TSDB_DATA_TYPE_INT;
 
-    p[i].param = c;
-    tsortAddSource(phandle, &p[i]);
+    p[i]->param = &c[i];
+    tsortAddSource(phandle, p[i]);
   }
 
   int32_t code = tsortOpen(phandle);
@@ -395,8 +396,9 @@ TEST(testCase, ordered_merge_sort_Test) {
     ASSERT_EQ(row++, *(int32_t*) v);
 
   }
-  taosMemoryFree(p);
-  taosMemoryFree(c);
+  for(int32_t i = 0; i < 10; ++i) {
+    taosMemoryFree(p[i]);
+  }
   tsortDestroySortHandle(phandle);
   blockDataDestroy(pBlock);
 }
