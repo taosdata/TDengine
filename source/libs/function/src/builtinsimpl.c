@@ -25,7 +25,6 @@
       break;                            \
     }                                   \
     (_info)->numOfRes = (res);          \
-    (_info)->hasResult = DATA_SET_FLAG; \
   } while (0)
 
 typedef struct SSumRes {
@@ -715,7 +714,6 @@ int32_t percentileFunction(SqlFunctionCtx *pCtx) {
   }
 
   SET_VAL(pResInfo, notNullElems, 1);
-  pResInfo->hasResult = DATA_SET_FLAG;
 }
 
 // TODO set the correct parameter.
@@ -775,9 +773,7 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
 //      DO_UPDATE_TAG_COLUMNS(pCtx, k);
 //    }
 
-    pResInfo->hasResult = DATA_SET_FLAG;
     pResInfo->complete = true;
-
     numOfElems++;
     break;
   }
@@ -815,8 +811,6 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
 
 //      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
 //      DO_UPDATE_TAG_COLUMNS(pCtx, ts);
-
-      pResInfo->hasResult = DATA_SET_FLAG;
       pResInfo->complete = true;  // set query completed on this column
       numOfElems++;
       break;
@@ -830,10 +824,8 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
       char* data = colDataGetData(pInputCol, i);
       TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
 
-      if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) < ts) {
-        pResInfo->hasResult = DATA_SET_FLAG;
+      if (pResInfo->numOfRes == 0 || (*(TSKEY*)buf) < ts) {
         memcpy(buf, data, pCtx->inputBytes);
-
         *(TSKEY*)buf = ts;
 //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }

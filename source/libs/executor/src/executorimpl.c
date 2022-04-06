@@ -1008,7 +1008,6 @@ void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* 
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
       pCtx[k].sfp.process(&tw, 1, &out);
       pEntryInfo->numOfRes = 1;
-      pEntryInfo->hasResult = ',';
       continue;
     }
 
@@ -3281,7 +3280,8 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   }
 
   SFilterInfo* filter = NULL;
-  int32_t      code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+
+  int32_t code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
 
   SFilterColumnParam param1 = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
@@ -3292,6 +3292,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   SSDataBlock* px = createOneDataBlock(pBlock);
   blockDataEnsureCapacity(px, pBlock->info.rows);
 
+  // todo extract method
   int32_t numOfRow = 0;
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
@@ -3303,7 +3304,11 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
         continue;
       }
 
-      colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+      if (colDataIsNull_s(pSrc, j)) {
+        colDataAppendNULL(pDst, numOfRow);
+      } else {
+        colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+      }
       numOfRow += 1;
     }
 
@@ -3521,7 +3526,7 @@ static int32_t doCopyToSDataBlock(SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResI
       SResultRowEntryInfo* pEntryInfo = getResultCell(pRow, j, rowCellOffset);
 
       char* in = GET_ROWCELL_INTERBUF(pEntryInfo);
-      colDataAppend(pColInfoData, nrows, in, pEntryInfo->numOfRes == 0);
+      colDataAppend(pColInfoData, nrows, in, pEntryInfo->isNullRes);
     }
 
     releaseBufPage(pBuf, page);

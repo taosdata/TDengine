@@ -106,7 +106,7 @@ static bool groupKeyCompare(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, in
   return true;
 }
 
-static void recordGroupKeys(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
+static void recordNewGroupKeys(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
   SColumnDataAgg* pColAgg = NULL;
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
@@ -131,7 +131,7 @@ static void recordGroupKeys(SGroupbyOperatorInfo* pInfo, SSDataBlock* pBlock, in
   }
 }
 
-static int32_t generatedHashKey(void* pKey, int32_t* length, SArray* pGroupColVals) {
+static int32_t buildGroupValKey(void* pKey, int32_t* length, SArray* pGroupColVals) {
   ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
@@ -170,11 +170,12 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        // set result exists, todo refactor
         memcpy(dest, data, pColInfoData->info.bytes);
-        pEntryInfo->hasResult = DATA_SET_FLAG;
-        pEntryInfo->numOfRes = 1;
+      } else { // it is a NULL value
+        pEntryInfo->isNullRes = 1;
       }
+
+      pEntryInfo->numOfRes = 1;
     }
   }
 }
@@ -197,7 +198,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
-      recordGroupKeys(pInfo, pBlock, j, numOfGroupCols);
+      recordNewGroupKeys(pInfo, pBlock, j, numOfGroupCols);
       pInfo->isInit = true;
       num++;
       continue;
@@ -209,13 +210,14 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       continue;
     }
 
+    // The first row of a new block does not belongs to the previous existed group
     if (!equal && j == 0) {
       num++;
-      recordGroupKeys(pInfo, pBlock, j, numOfGroupCols);
+      recordNewGroupKeys(pInfo, pBlock, j, numOfGroupCols);
       continue;
     }
 
-    /*int32_t ret = */ generatedHashKey(pInfo->keyBuf, &len, pInfo->pGroupColVals);
+    /*int32_t ret = */ buildGroupValKey(pInfo->keyBuf, &len, pInfo->pGroupColVals);
     int32_t ret = setGroupResultOutputBuf_rv(&(pInfo->binfo), pOperator->numOfOutput, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len, 0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
@@ -226,12 +228,12 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->numOfOutput, pBlock->info.rows, rowIndex);
-    recordGroupKeys(pInfo, pBlock, j, numOfGroupCols);
+    recordNewGroupKeys(pInfo, pBlock, j, numOfGroupCols);
     num = 1;
   }
 
   if (num > 0) {
-    /*int32_t ret = */ generatedHashKey(pInfo->keyBuf, &len, pInfo->pGroupColVals);
+    /*int32_t ret = */ buildGroupValKey(pInfo->keyBuf, &len, pInfo->pGroupColVals);
     int32_t ret =
         setGroupResultOutputBuf_rv(&(pInfo->binfo), pOperator->numOfOutput, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len,
                                    0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
@@ -294,8 +296,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
 
   while(1) {
-    toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pRes, pInfo->binfo.capacity,
-                 pInfo->binfo.rowCellInfoOffset);
+    toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pRes, pInfo->binfo.capacity, pInfo->binfo.rowCellInfoOffset);
     doFilter(pInfo->pCondition, pRes);
 
     bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);
