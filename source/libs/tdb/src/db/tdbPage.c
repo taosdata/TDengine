@@ -278,7 +278,7 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
 
   // 2. Try to allocate from the page free list
   cellFree = TDB_PAGE_FCELL(pPage);
-  ASSERT(cellFree == 0 || cellFree > pPage->pFreeEnd - pPage->pData);
+  ASSERT(cellFree == 0 || cellFree >= pPage->pFreeEnd - pPage->pData);
   if (cellFree && pPage->pFreeEnd - pPage->pFreeStart >= TDB_PAGE_OFFSET_SIZE(pPage)) {
     SCell *pPrevFreeCell = NULL;
     int    szPrevFreeCell;
