@@ -1307,6 +1307,12 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
         pResult->info.rows = dest.numOfRows;
         taosArrayDestroy(pBlockList);
       }
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
+      for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+        colDataAppend(pColInfoData, i, taosVariantGet(&pExpr[k].base.pParam[0].param, pExpr[k].base.pParam[0].type), TSDB_DATA_TYPE_NULL == pExpr[k].base.pParam[0].param.nType);
+      }
+      pResult->info.rows = pSrcBlock->info.rows;
     } else {
       ASSERT(0);
     }
@@ -1938,7 +1944,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
         }
       }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
-    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR) {
+    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR || pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
       pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes; // for simple column, the intermediate buffer needs to hold one element.
     }
 
@@ -7104,6 +7110,17 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
 //      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
 //      pExp->base.pParam[0].pCol = createColumn(pTargetNode->dataBlockId, pTargetNode->slotId, pType);
+    } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_VALUE) {
+      pExp->pExpr->nodeType = QUERY_NODE_VALUE;
+      SValueNode* pValNode = (SValueNode*)pTargetNode->pExpr;
+
+      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+      pExp->base.numOfParams = 1;
+
+      SDataType* pType = &pValNode->node.resType;
+      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale, pType->precision, pValNode->node.aliasName);
+      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
+      valueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
     } else {
       ASSERT(0);
     }
@@ -7669,3 +7686,42 @@ void releaseQueryBuf(size_t numOfTables) {
   // restore value is not enough buffer available
   atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
+
+int32_t getOperatorExplainExecInfo(SOperatorInfo *operatorInfo, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum) {
+  if (*resNum >= *capacity) {
+    *capacity += 10;
+    
+    *pRes = taosMemoryRealloc(*pRes, (*capacity) * sizeof(SExplainExecInfo));
+    if (NULL == *pRes) {
+      qError("malloc %d failed", (*capacity) * (int32_t)sizeof(SExplainExecInfo));
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+  }
+
+  (*pRes)[*resNum].numOfRows = operatorInfo->resultInfo.totalRows;
+  (*pRes)[*resNum].startupCost = operatorInfo->cost.openCost;
+  (*pRes)[*resNum].totalCost = operatorInfo->cost.totalCost;
+
+  if (operatorInfo->getExplainFn) {
+    int32_t code = (*operatorInfo->getExplainFn)(operatorInfo, &(*pRes)->verboseInfo);
+    if (code) {
+      qError("operator getExplainFn failed, error:%s", tstrerror(code));
+      return code;
+    }
+  }
+  
+  ++(*resNum);
+  
+  int32_t code = 0;
+  for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
+    code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pRes, capacity, resNum);
+    if (code) {
+      taosMemoryFreeClear(*pRes);
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+

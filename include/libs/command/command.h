@@ -17,8 +17,14 @@
 #include "tmsg.h"
 #include "plannodes.h"
 
+typedef struct SExplainCtx SExplainCtx;
+
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp);
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp);
+int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int32_t startTs);
+int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp);
+int32_t qExplainUpdateExecInfo(SExplainCtx        *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp);
+void    qExplainFreeCtx(SExplainCtx *pCtx);
 
 

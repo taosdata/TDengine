@@ -930,6 +930,21 @@ typedef struct {
   char    data[];
 } SRetrieveMetaTableRsp;
 
+typedef struct SExplainExecInfo {
+  uint64_t startupCost;
+  uint64_t totalCost;
+  uint64_t numOfRows;
+  void    *verboseInfo;
+} SExplainExecInfo;
+
+typedef struct {
+  int32_t           numOfPlans;
+  SExplainExecInfo *subplanInfo;
+} SExplainRsp;
+
+int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
+int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
+
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
@@ -1067,6 +1082,7 @@ typedef struct SSubQueryMsg {
   uint64_t taskId;
   int64_t  refId;
   int8_t   taskType;
+  int8_t   explain;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
   char     msg[];

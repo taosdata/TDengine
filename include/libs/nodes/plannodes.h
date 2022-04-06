@@ -334,6 +334,7 @@ typedef enum EExplainMode {
 typedef struct SExplainInfo {
   EExplainMode mode;
   bool verbose;
+  double ratio;
 } SExplainInfo;
 
 typedef struct SQueryPlan {

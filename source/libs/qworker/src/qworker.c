@@ -432,8 +432,10 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(ctx->connInfo.handle, TAOS_CONN_SERVER);
-  ctx->connInfo.handle = NULL;
+  tmsgReleaseHandle(ctx->ctrlConnInfo.handle, TAOS_CONN_SERVER);
+  ctx->ctrlConnInfo.handle = NULL;
+
+  // NO need to release dataConnInfo
 
   qwFreeTaskHandle(QW_FPARAMS(), &ctx->taskHandle);
   
@@ -537,6 +539,29 @@ int32_t qwDropTask(QW_FPARAMS_DEF) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+  qTaskInfo_t *taskHandle = &ctx->taskHandle; 
+
+  if (TASK_TYPE_TEMP == ctx->taskType) {
+    if (ctx->explain) {
+      SExplainExecInfo *execInfo = NULL;
+      int32_t resNum = 0;
+      QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
+
+      SQWConnInfo connInfo = {0};
+      connInfo.handle = ctx->ctrlConnInfo.handle;
+      
+      QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
+    }
+    
+    qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
   int32_t code = 0;
   bool  qcontinue = true;
@@ -562,10 +587,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
       QW_TASK_DLOG("qExecTask end with empty res, useconds:%"PRIu64, useconds);
 
       dsEndPut(sinkHandle, useconds);
-      
-      if (TASK_TYPE_TEMP == ctx->taskType) {
-        qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
-      }
+
+      QW_ERR_RET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
 
       if (queryEnd) {
         *queryEnd = true;
@@ -658,19 +681,6 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
   bool queryEnd = false;
   int32_t code = 0;
 
-  if (ctx->emptyRes) {
-    QW_TASK_DLOG_E("query end with empty result");
-    
-    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED);
-    QW_ERR_RET(qwMallocFetchRsp(len, &rsp));      
-    
-    *rspMsg = rsp;
-    *dataLen = 0;
-    pOutput->queryEnd = true;
-    
-    return TSDB_CODE_SUCCESS;
-  }
-
   dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
 
   if (len < 0) {
@@ -760,12 +770,12 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       }
 
       if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-        dropConnection = &ctx->connInfo;
+        dropConnection = &ctx->ctrlConnInfo;
         QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
         dropConnection = NULL;
 
-        qwBuildAndSendDropRsp(&ctx->connInfo, code);
-        QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
+        qwBuildAndSendDropRsp(&ctx->ctrlConnInfo, code);
+        QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
 
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
         break;
@@ -798,12 +808,12 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       }
 
       if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-        dropConnection = &ctx->connInfo;
+        dropConnection = &ctx->ctrlConnInfo;
         QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
         dropConnection = NULL;
 
-        qwBuildAndSendDropRsp(&ctx->connInfo, code);
-        QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
+        qwBuildAndSendDropRsp(&ctx->ctrlConnInfo, code);
+        QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
 
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
       }
@@ -863,17 +873,13 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_PHASE_POST_QUERY == phase) {
-    if (NULL == ctx->taskHandle && NULL == ctx->sinkHandle) {
-      ctx->emptyRes = true;
-    }
-
 #if 0    
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_READY)) {
       readyConnection = &ctx->connInfo;
       QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
     }
 #else
-    connInfo.handle = ctx->connInfo.handle;
+    connInfo.handle = ctx->ctrlConnInfo.handle;
     readyConnection = &connInfo;
     
     QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
@@ -886,8 +892,8 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
       QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
     }
 
-    qwBuildAndSendDropRsp(&ctx->connInfo, code);
-    QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
+    qwBuildAndSendDropRsp(&ctx->ctrlConnInfo, code);
+    QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
 
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
@@ -931,7 +937,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
   int32_t code = 0;
   bool queryRsped = false;
   struct SSubplan *plan = NULL;
@@ -947,9 +953,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
   
   atomic_store_8(&ctx->taskType, taskType);
+  atomic_store_8(&ctx->explain, explain);
 
-  atomic_store_ptr(&ctx->connInfo.handle, qwMsg->connInfo.handle);
-  atomic_store_ptr(&ctx->connInfo.ahandle, qwMsg->connInfo.ahandle);
+  atomic_store_ptr(&ctx->ctrlConnInfo.handle, qwMsg->connInfo.handle);
+  atomic_store_ptr(&ctx->ctrlConnInfo.ahandle, qwMsg->connInfo.ahandle);
 
   QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
@@ -1011,8 +1018,8 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
   
   if (ctx->phase == QW_PHASE_PRE_QUERY) {
-    ctx->connInfo.handle == qwMsg->connInfo.handle;
-    ctx->connInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo.handle == qwMsg->connInfo.handle;
+    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_READY);
     needRsp = false;
     QW_TASK_DLOG_E("ready msg will not rsp now");
@@ -1089,10 +1096,13 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       
       if (rsp) {
         bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
+        
         qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
-        atomic_store_8((int8_t*)&ctx->queryEnd, qComplete);
+        if (qComplete) {
+          atomic_store_8((int8_t*)&ctx->queryEnd, true);
+        }
 
-        qwMsg->connInfo = ctx->connInfo;
+        qwMsg->connInfo = ctx->dataConnInfo;
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);            
         
         qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);                
@@ -1113,7 +1123,7 @@ _return:
       qwFreeFetchRsp(rsp);
       rsp = NULL;
       
-      qwMsg->connInfo = ctx->connInfo;
+      qwMsg->connInfo = ctx->dataConnInfo;
       qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code), 0);
     }
@@ -1151,14 +1161,17 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
-    atomic_store_ptr(&ctx->connInfo.handle, qwMsg->connInfo.handle);
-    atomic_store_ptr(&ctx->connInfo.ahandle, qwMsg->connInfo.ahandle);
+    atomic_store_ptr(&ctx->dataConnInfo.handle, qwMsg->connInfo.handle);
+    atomic_store_ptr(&ctx->dataConnInfo.ahandle, qwMsg->connInfo.ahandle);
     
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
   } else {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
+    
     qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
-    atomic_store_8((int8_t*)&ctx->queryEnd, qComplete);
+    if (qComplete) {
+      atomic_store_8((int8_t*)&ctx->queryEnd, true);
+    }
   }
 
   if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
@@ -1236,8 +1249,8 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (!rsped) {
-    ctx->connInfo.handle = qwMsg->connInfo.handle;
-    ctx->connInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
+    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
     
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }

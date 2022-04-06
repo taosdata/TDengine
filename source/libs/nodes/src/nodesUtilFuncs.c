@@ -1047,3 +1047,96 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
   
   return TSDB_CODE_SUCCESS;
 }
+
+
+char *getFillModeString(EFillMode mode) {
+  switch (mode) {
+    case FILL_MODE_NONE:
+      return "none";
+    case FILL_MODE_VALUE:
+      return "value";
+    case FILL_MODE_PREV:
+      return "prev";
+    case FILL_MODE_NULL:
+      return "null";
+    case FILL_MODE_LINEAR:
+      return "linear";
+    case FILL_MODE_NEXT:
+      return "next";
+    default:
+      return "unknown";
+  }
+}
+
+char *nodesGetNameFromColumnNode(SNode *pNode) {
+  if (NULL == pNode || QUERY_NODE_COLUMN != pNode->type) {
+    return "NULL";
+  }
+  
+  return ((SColumnNode *)pNode)->colName;
+}
+
+int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
+  if (NULL == pSlots || pSlots->length <= 0) {
+    return 0;
+  }
+
+  SNode* pNode = NULL;
+  int32_t num = 0;
+  FOREACH(pNode, pSlots) {
+    if (QUERY_NODE_SLOT_DESC != pNode->type) {
+      continue;
+    }
+
+    SSlotDescNode *descNode = (SSlotDescNode *)pNode;
+    if (descNode->output) {
+      ++num;
+    }
+  }
+
+  return num;
+}
+
+
+void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  pVal->nType = pNode->node.resType.type;
+  pVal->nLen = pNode->node.resType.bytes;
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+        break;
+    case TSDB_DATA_TYPE_BOOL:
+      pVal->i = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pVal->i = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      pVal->u = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      pVal->d = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      pVal->pz = pNode->datum.p;
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      // todo
+    default:
+      break;
+  }
+}
+
+
+

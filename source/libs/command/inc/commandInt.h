@@ -26,38 +26,54 @@ extern "C" {
 #define EXPLAIN_MAX_GROUP_NUM 100
 
 //newline area
-#define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s columns=%d width=%d"
-#define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s columns=%d width=%d"
-#define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s columns=%d width=%d"
-#define EXPLAIN_PROJECTION_FORMAT "Projection columns=%d width=%d"
-#define EXPLAIN_JOIN_FORMAT "%s between %d tables width=%d"
-#define EXPLAIN_AGG_FORMAT "Aggragate functions=%d"
-#define EXPLAIN_EXCHANGE_FORMAT "Data Exchange %d:1 width=%d"
-#define EXPLAIN_SORT_FORMAT "Sort on %d Column(s) width=%d"
-#define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s functions=%d interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c width=%d"
-#define EXPLAIN_SESSION_FORMAT "Session gap=%" PRId64 " functions=%d width=%d"
+#define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s"
+#define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s"
+#define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
+#define EXPLAIN_PROJECTION_FORMAT "Projection"
+#define EXPLAIN_JOIN_FORMAT "%s"
+#define EXPLAIN_AGG_FORMAT "Aggragate"
+#define EXPLAIN_EXCHANGE_FORMAT "Data Exchange %d:1"
+#define EXPLAIN_SORT_FORMAT "Sort"
+#define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
+#define EXPLAIN_SESSION_FORMAT "Session"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
 #define EXPLAIN_FILL_FORMAT "Fill: %s"
 #define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time Range: [%" PRId64 ", %" PRId64 "]"
+#define EXPLAIN_OUTPUT_FORMAT "Output: "
+#define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
+#define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 
 //append area
-#define EXPLAIN_GROUPS_FORMAT " groups=%d"
-#define EXPLAIN_WIDTH_FORMAT " width=%d"
-#define EXPLAIN_LOOPS_FORMAT " loops=%d"
-#define EXPLAIN_REVERSE_FORMAT " reverse=%d"
+#define EXPLAIN_LEFT_PARENTHESIS_FORMAT " ("
+#define EXPLAIN_RIGHT_PARENTHESIS_FORMAT ")"
+#define EXPLAIN_BLANK_FORMAT " "
+#define EXPLAIN_COST_FORMAT "cost=%.2f..%.2f"
+#define EXPLAIN_ROWS_FORMAT "rows=%" PRIu64
+#define EXPLAIN_COLUMNS_FORMAT "columns=%d"
+#define EXPLAIN_WIDTH_FORMAT "width=%d"
+#define EXPLAIN_GROUPS_FORMAT "groups=%d"
+#define EXPLAIN_WIDTH_FORMAT "width=%d"
+#define EXPLAIN_LOOPS_FORMAT "loops=%d"
+#define EXPLAIN_REVERSE_FORMAT "reverse=%d"
+#define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
+#define EXPLAIN_EXECINFO_FORMAT "cost=%" PRIu64 "..%" PRIu64 " rows=%" PRIu64
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;
+  int32_t   physiPlanExecNum;
+  int32_t   physiPlanNum;
+  int32_t   physiPlanExecIdx;
+  SRWLatch  lock;
   SSubplan *plan;
-  void     *execInfo;  //TODO
+  SArray   *nodeExecInfo;      //Array<SExplainRsp>
 } SExplainGroup;
 
 typedef struct SExplainResNode {
-  SNodeList*  pChildren;
-  SPhysiNode* pNode;
-  void*       pExecInfo;
+  SNodeList*        pChildren;
+  SPhysiNode*       pNode;
+  SArray*           pExecInfo; // Array<SExplainExecInfo>
 } SExplainResNode;
 
 typedef struct SQueryExplainRowInfo {
@@ -67,11 +83,21 @@ typedef struct SQueryExplainRowInfo {
 } SQueryExplainRowInfo;
 
 typedef struct SExplainCtx {
-  int32_t   totalSize;
-  bool      verbose;
-  char     *tbuf;
-  SArray   *rows;
-  SHashObj *groupHash;
+  EExplainMode mode;
+  double       ratio;
+  bool         verbose;
+
+  SRWLatch     lock;
+  int32_t      rootGroupId;
+  int32_t      dataSize;
+  bool         execDone;
+  int64_t      reqStartTs;
+  int64_t      jobStartTs;
+  int64_t      jobDoneTs;
+  char        *tbuf;
+  SArray      *rows;
+  int32_t      groupDoneNum;
+  SHashObj    *groupHash;     // Hash<SExplainGroup>
 } SExplainCtx;
 
 #define EXPLAIN_ORDER_STRING(_order) ((TSDB_ORDER_ASC == _order) ? "Ascending" : "Descending")
