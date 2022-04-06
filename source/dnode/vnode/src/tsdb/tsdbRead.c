@@ -3046,8 +3046,8 @@ bool tsdbGetExternalRow(tsdbReaderT pHandle) {
 //  return code;
 //}
 
-bool isTsdbCacheLastRow(tsdbReaderT* pTsdbReadHandle) {
-  return ((STsdbReadHandle *)pTsdbReadHandle)->cachelastrow > TSDB_CACHED_TYPE_NONE;
+bool isTsdbCacheLastRow(tsdbReaderT* pReader) {
+  return ((STsdbReadHandle *)pReader)->cachelastrow > TSDB_CACHED_TYPE_NONE;
 }
 
 int32_t checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo *groupList) {

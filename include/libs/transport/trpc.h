@@ -58,6 +58,9 @@ typedef struct {
   void    *pNode;
 } SNodeMsg;
 
+typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
+typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
   char *   label;         // for debug purpose
@@ -74,10 +77,10 @@ typedef struct SRpcInit {
   char *ckey;     // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
-  void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
+  RpcCfp cfp;
 
   // call back to retrieve the client auth info, for server app only
-  int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+  RpcAfp afp;;
 
   void *parent;
 } SRpcInit;

@@ -63,74 +63,74 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalize
   },
   {
-      .name = "stddev",
-      .type = FUNCTION_TYPE_STDDEV,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getStddevFuncEnv,
-      .initFunc     = stddevFunctionSetup,
-      .processFunc  = stddevFunction,
-      .finalizeFunc = stddevFinalize
+    .name = "stddev",
+    .type = FUNCTION_TYPE_STDDEV,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getStddevFuncEnv,
+    .initFunc     = stddevFunctionSetup,
+    .processFunc  = stddevFunction,
+    .finalizeFunc = stddevFinalize
   },
   {
-      .name = "percentile",
-      .type = FUNCTION_TYPE_PERCENTILE,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+    .name = "percentile",
+    .type = FUNCTION_TYPE_PERCENTILE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getPercentileFuncEnv,
+    .initFunc     = percentileFunctionSetup,
+    .processFunc  = percentileFunction,
+    .finalizeFunc = percentileFinalize
   },
   {
-      .name = "apercentile",
-      .type = FUNCTION_TYPE_APERCENTILE,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+    .name = "apercentile",
+    .type = FUNCTION_TYPE_APERCENTILE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = maxFunctionSetup,
+    .processFunc  = maxFunction,
+    .finalizeFunc = functionFinalize
   },
   {
-      .name = "top",
-      .type = FUNCTION_TYPE_TOP,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+    .name = "top",
+    .type = FUNCTION_TYPE_TOP,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = maxFunctionSetup,
+    .processFunc  = maxFunction,
+    .finalizeFunc = functionFinalize
   },
   {
-      .name = "bottom",
-      .type = FUNCTION_TYPE_BOTTOM,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+    .name = "bottom",
+    .type = FUNCTION_TYPE_BOTTOM,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = maxFunctionSetup,
+    .processFunc  = maxFunction,
+    .finalizeFunc = functionFinalize
   },
   {
-      .name = "spread",
-      .type = FUNCTION_TYPE_SPREAD,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+    .name = "spread",
+    .type = FUNCTION_TYPE_SPREAD,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = maxFunctionSetup,
+    .processFunc  = maxFunction,
+    .finalizeFunc = functionFinalize
   },
   {
-      .name = "last_row",
-      .type = FUNCTION_TYPE_LAST_ROW,
-      .classification = FUNC_MGT_AGG_FUNC,
-      .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
-      .initFunc     = maxFunctionSetup,
-      .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalize
+    .name = "last_row",
+    .type = FUNCTION_TYPE_LAST_ROW,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = maxFunctionSetup,
+    .processFunc  = maxFunction,
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "first",
@@ -150,6 +150,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
+    .finalizeFunc = functionFinalize
+  },
+  {
+    .name = "diff",
+    .type = FUNCTION_TYPE_DIFF,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getDiffFuncEnv,
+    .initFunc     = diffFunctionSetup,
+    .processFunc  = diffFunction,
     .finalizeFunc = functionFinalize
   },
   {
@@ -377,7 +387,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
@@ -459,9 +469,11 @@ const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFun
 int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
   switch(pFunc->funcType) {
     case FUNCTION_TYPE_WDURATION:
-    case FUNCTION_TYPE_COUNT:
+    case FUNCTION_TYPE_COUNT: {
       pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
       break;
+    }
+
     case FUNCTION_TYPE_SUM: {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
       int32_t paraType = pParam->node.resType.type;
@@ -480,6 +492,8 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType };
       break;
     }
+
+    case FUNCTION_TYPE_DIFF:
     case FUNCTION_TYPE_FIRST:
     case FUNCTION_TYPE_LAST:
     case FUNCTION_TYPE_MIN:
@@ -490,10 +504,11 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
-    case FUNCTION_TYPE_QENDTS:
+    case FUNCTION_TYPE_ROWTS:
     case FUNCTION_TYPE_QSTARTTS:
-    case FUNCTION_TYPE_WENDTS:
-    case FUNCTION_TYPE_WSTARTTS: {
+    case FUNCTION_TYPE_QENDTS:
+    case FUNCTION_TYPE_WSTARTTS:
+    case FUNCTION_TYPE_WENDTS:{
       pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
       break;
     }
@@ -508,6 +523,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
+    case FUNCTION_TYPE_PERCENTILE:
     case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_SIN:
     case FUNCTION_TYPE_COS:
@@ -531,36 +547,35 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_CONCAT:
     case FUNCTION_TYPE_CONCAT_WS: {
       int32_t paraType, paraBytes = 0;
+      bool typeSet = false;
       for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
         SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
-        paraBytes += pParam->node.resType.bytes;
-        paraType = pParam->node.resType.type;
+        if (pParam->node.type == QUERY_NODE_COLUMN) {
+          if (typeSet == false) {
+            paraType = pParam->node.resType.type;
+            typeSet = true;
+          } else {
+            //columns have to be the same type
+            if (paraType != pParam->node.resType.type) {
+              return TSDB_CODE_FAILED;
+            }
+          }
+          paraBytes += pParam->node.resType.bytes;
+        }
+      }
+
+      for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
+        SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
+        if (pParam->node.type == QUERY_NODE_VALUE) {
+          if (paraType == TSDB_DATA_TYPE_NCHAR) {
+            paraBytes += pParam->node.resType.bytes * TSDB_NCHAR_SIZE;
+          } else {
+            paraBytes += pParam->node.resType.bytes;
+          }
+        }
       }
       pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
       break;
-      //int32_t paraTypeFirst, totalBytes = 0, sepBytes = 0;
-      //int32_t firstParamIndex = 0;
-      //if (pFunc->funcType == FUNCTION_TYPE_CONCAT_WS) {
-      //  firstParamIndex = 1;
-      //  SColumnNode* pSep = nodesListGetNode(pFunc->pParameterList, 0);
-      //  sepBytes = pSep->node.resType.type;
-      //}
-      //for (int32_t i = firstParamIndex; i < pFunc->pParameterList->length; ++i) {
-      //  SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
-      //  int32_t paraType = pParam->node.resType.type;
-      //  if (i == firstParamIndex) {
-      //    paraTypeFirst = paraType;
-      //  }
-      //  if (paraType != paraTypeFirst) {
-      //    return TSDB_CODE_FAILED;
-      //  }
-      //  //TODO: for constants also needs numOfRows
-      //  totalBytes += pParam->node.resType.bytes;
-      //}
-      ////TODO: need to get numOfRows to decide how much space separator needed. Currently set to 100.
-      //totalBytes += sepBytes * (pFunc->pParameterList->length - 2) * 100;
-      //pFunc->node.resType = (SDataType) { .bytes = totalBytes, .type = paraTypeFirst };
-      //break;
     }
     case FUNCTION_TYPE_LOWER:
     case FUNCTION_TYPE_UPPER:
@@ -574,7 +589,6 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
-    case FUNCTION_TYPE_ROWTS:
     case FUNCTION_TYPE_TBNAME: {
       // todo
       break;

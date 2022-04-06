@@ -69,7 +69,8 @@ void mndCleanupDb(SMnode *pMnode) {}
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUMBER, sizeof(SDbObj) + TSDB_DB_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUMBER,
+                              sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + TSDB_DB_RESERVE_SIZE);
   if (pRaw == NULL) goto DB_ENCODE_OVER;
 
   int32_t dataPos = 0;

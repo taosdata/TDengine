@@ -1297,7 +1297,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
         resGroup = taosArrayInit(4, sizeof(SFilterGroup));
         
         SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup};
-        nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)&tctx);
+        nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)&tctx);
         FLT_ERR_JRET(tctx.code);
         
         FLT_ERR_JRET(filterDetachCnfGroups(resGroup, preGroup, newGroup));
@@ -1322,7 +1322,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
     if (LOGIC_COND_TYPE_OR == node->condType) {
       SListCell *cell = node->pParameterList->pHead;
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
-        nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)pContext);
+        nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)pContext);
         FLT_ERR_JRET(ctx->code);
         
         cell = cell->pNext;
@@ -3190,7 +3190,7 @@ int32_t fltInitFromNode(SNode* tree, SFilterInfo *info, uint32_t options) {
   filterInitUnitsFields(info);
 
   SFltBuildGroupCtx tctx = {.info = info, .group = group};
-  nodesWalkNode(tree, fltTreeToGroup, (void *)&tctx);
+  nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
   FLT_ERR_JRET(tctx.code);
 
   filterConvertGroupFromArray(info, group);
@@ -3314,7 +3314,8 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
 
 
 
-int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
+int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
+  SFilterInfo *info = NULL;
   SFilterRange ra = {0};
   SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
   SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
@@ -3566,7 +3567,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 }
 
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
-  nodesRewriteNodePostOrder(pNode, fltReviseRewriter, (void *)pStat);
+  nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
   FLT_RET(pStat->code);
 }

@@ -50,14 +50,12 @@ static bool beforeHaving(ESqlClause clause) {
   return clause < SQL_CLAUSE_HAVING;
 }
 
-static EDealRes generateDealNodeErrMsg(STranslateContext* pCxt, int32_t errCode, ...) {
-  va_list vArgList;
-  va_start(vArgList, errCode);
-  generateSyntaxErrMsg(&pCxt->msgBuf, errCode, vArgList);
-  va_end(vArgList);
-  pCxt->errCode = errCode;
-  return DEAL_RES_ERROR;
-}
+#define generateDealNodeErrMsg(pCxt, code, ...) \
+  ({ \
+    generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__); \
+    pCxt->errCode = code; \
+    DEAL_RES_ERROR; \
+  })
 
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
@@ -440,6 +438,13 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
 
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (nodesIsUnaryOp(pOp)) {
+    if (OP_TYPE_MINUS == pOp->opType) {
+      if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
+      }
+      pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+      pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    }
     return DEAL_RES_CONTINUE;
   }
   SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
@@ -510,12 +515,12 @@ static EDealRes doTranslateExpr(SNode* pNode, void* pContext) {
 }
 
 static int32_t translateExpr(STranslateContext* pCxt, SNode* pNode) {
-  nodesWalkNodePostOrder(pNode, doTranslateExpr, pCxt);
+  nodesWalkExprPostOrder(pNode, doTranslateExpr, pCxt);
   return pCxt->errCode;
 }
 
 static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList) {
-  nodesWalkListPostOrder(pList, doTranslateExpr, pCxt);
+  nodesWalkExprsPostOrder(pList, doTranslateExpr, pCxt);
   return pCxt->errCode;
 }
 
@@ -570,7 +575,7 @@ static EDealRes doCheckExprForGroupBy(SNode* pNode, void* pContext) {
 }
 
 static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode* pNode) {
-  nodesWalkNode(pNode, doCheckExprForGroupBy, pCxt);
+  nodesWalkExpr(pNode, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
@@ -578,7 +583,7 @@ static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList
   if (NULL == getGroupByList(pCxt)) {
     return TSDB_CODE_SUCCESS;
   }
-  nodesWalkList(pList, doCheckExprForGroupBy, pCxt);
+  nodesWalkExprs(pList, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
@@ -605,9 +610,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
     return TSDB_CODE_SUCCESS;
   }
   CheckAggColCoexistCxt cxt = { .pTranslateCxt = pCxt, .existAggFunc = false, .existCol = false };
-  nodesWalkList(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
+  nodesWalkExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
-    nodesWalkList(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
+    nodesWalkExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
   if (cxt.existAggFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
@@ -938,7 +943,7 @@ static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbRe
     SNode* pNode = NULL;
     int32_t index = 0;
     FOREACH(pNode, pRetentions) {
-      if (0 == index % 2) {
+      if (0 == ((index++) & 1)) {
         pFreq = (SValueNode*)pNode;
       } else {
         pKeep = (SValueNode*)pNode;
@@ -951,6 +956,7 @@ static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbRe
         taosArrayPush(pReq->pRetensions, &retention);
       }
     }
+    pReq->numOfRetensions = taosArrayGetSize(pReq->pRetensions);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2336,46 +2342,6 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap,
   }
 }
 
-static void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
-  pVal->nType = pNode->node.resType.type;
-  pVal->nLen = pNode->node.resType.bytes;
-  switch (pNode->node.resType.type) {
-    case TSDB_DATA_TYPE_NULL:
-        break;
-    case TSDB_DATA_TYPE_BOOL:
-      pVal->i = pNode->datum.b;
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      pVal->i = pNode->datum.i;
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      pVal->u = pNode->datum.u;
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      pVal->d = pNode->datum.d;
-      break;
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = pNode->datum.p;
-      break;
-    case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
-      // todo
-    default:
-      break;
-  }
-}
-
 static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SSchema* pSchema, SKVRowBuilder* pBuilder) {
   if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
     return pCxt->errCode;
@@ -2635,7 +2601,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
+int32_t translate(SParseContext* pParseCxt, SQuery* pQuery) {
   STranslateContext cxt = {
     .pParseCxt = pParseCxt,
     .errCode = TSDB_CODE_SUCCESS,

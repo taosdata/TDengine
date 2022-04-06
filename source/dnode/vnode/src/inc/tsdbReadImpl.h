@@ -112,10 +112,10 @@ typedef struct {
 #else
 typedef struct {
   int16_t  colId;
-  uint8_t  bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
-  uint8_t  reserve : 7;
-  uint8_t  type;
-  int32_t  len;
+  uint16_t type : 6;
+  uint16_t blen : 10;   // bitmap length(TODO: full UT for the bitmap compress of various data input)
+  uint32_t bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
+  uint32_t len : 31;    // data length + bitmap length
   uint32_t offset;
 } SBlockColV0;
 

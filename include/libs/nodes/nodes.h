@@ -163,6 +163,8 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW,
+  QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW,
+  QUERY_NODE_PHYSICAL_PLAN_PARTITION,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
   QUERY_NODE_PHYSICAL_PLAN_INSERT,
   QUERY_NODE_PHYSICAL_SUBPLAN,
@@ -213,16 +215,16 @@ typedef enum EDealRes {
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkList(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprs(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
-void nodesRewriteNode(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExpr(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 
@@ -237,6 +239,8 @@ int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int3
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len);
+char *nodesGetNameFromColumnNode(SNode *pNode);
+int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 
 #ifdef __cplusplus
 }

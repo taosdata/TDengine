@@ -113,36 +113,13 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 }
 
 static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_POINT_FIELD(literal);
-  COPY_SCALAR_FIELD(isDuration);
-  COPY_SCALAR_FIELD(translate);
   if (!pSrc->translate) {
     return (SNode*)pDst;
   }
   switch (pSrc->node.resType.type) {
-    case TSDB_DATA_TYPE_NULL:
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      COPY_SCALAR_FIELD(datum.b);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      COPY_SCALAR_FIELD(datum.i);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      COPY_SCALAR_FIELD(datum.u);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      COPY_SCALAR_FIELD(datum.d);
-      break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -306,6 +283,12 @@ static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   return (SNode*)pDst;
 }
 
+static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  return (SNode*)pDst;
+}
+
 static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
@@ -390,6 +373,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:

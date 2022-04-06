@@ -53,6 +53,21 @@ void taosWLockLatch(SRWLatch *pLatch) {
   }
 }
 
+int32_t taosWTryLockLatch(SRWLatch *pLatch) {
+  SRWLatch oLatch, nLatch;
+  oLatch = atomic_load_32(pLatch);
+  if (oLatch) {
+    return -1;
+  }
+
+  nLatch = oLatch | TD_RWLATCH_WRITE_FLAG;
+  if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
+    return 0;
+  }
+
+  return -1;
+}
+
 void taosWUnLockLatch(SRWLatch *pLatch) { atomic_store_32(pLatch, 0); }
 
 void taosRLockLatch(SRWLatch *pLatch) {

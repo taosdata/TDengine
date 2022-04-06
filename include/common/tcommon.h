@@ -53,12 +53,12 @@ typedef struct {
 
 typedef struct SColumnDataAgg {
   int16_t colId;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
   int16_t maxIndex;
   int16_t minIndex;
   int16_t numOfNull;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {

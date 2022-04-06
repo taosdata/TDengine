@@ -22,6 +22,7 @@ extern "C" {
 
 #include "nodes.h"
 #include "tmsg.h"
+#include "tvariant.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
@@ -79,6 +80,7 @@ typedef struct SValueNode {
   char* literal;
   bool isDuration;
   bool translate;
+  bool genByCalc;
   union {
     bool b;
     int64_t i;
@@ -187,7 +189,7 @@ typedef struct SLimitNode {
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
-  SNode* pCol;
+  SNode* pExpr;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -315,6 +317,8 @@ bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
 char* nodesGetStrValueFromNode(SValueNode *pNode);
+char *getFillModeString(EFillMode mode);
+void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 #ifdef __cplusplus
 }

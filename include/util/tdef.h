@@ -480,9 +480,9 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define MND_VGID -1
-#define QND_VGID 1
-#define VND_VGID 0
+#define MNODE_HANDLE -1
+#define QNODE_HANDLE 1
+#define DEFAULT_HANDLE 0
 
 #define MAX_NUM_STR_SIZE 40
 

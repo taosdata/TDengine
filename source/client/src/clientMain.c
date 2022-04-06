@@ -264,8 +264,17 @@ int *taos_fetch_lengths(TAOS_RES *res) {
 }
 
 TAOS_ROW *taos_result_block(TAOS_RES *res) {
-  // TODO
-  return NULL;
+  SRequestObj* pRequest = (SRequestObj*) res;
+  if (pRequest == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  if (taos_is_update_query(res)) {
+    return NULL;
+  }
+
+  return &pRequest->body.resInfo.row;
 }
 
 // todo intergrate with tDataTypes
@@ -313,7 +322,14 @@ int taos_affected_rows(TAOS_RES *res) {
   return pResInfo->numOfRows;
 }
 
-int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }
+int taos_result_precision(TAOS_RES *res) {
+  SRequestObj* pRequest = (SRequestObj*) res;
+  if (pRequest == NULL) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+
+  return pRequest->body.resInfo.precision;
+}
 
 int taos_select_db(TAOS *taos, const char *db) {
   STscObj *pObj = (STscObj *)taos;

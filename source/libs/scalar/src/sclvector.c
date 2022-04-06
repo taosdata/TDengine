@@ -772,6 +772,32 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
   doReleaseVec(pRightCol, rightConvert);
 }
 
+void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  pOut->numOfRows = pLeft->numOfRows;
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : (pLeft->numOfRows - 1);
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  int32_t leftConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
+    *output = - getVectorDoubleValueFnLeft(pLeftCol->pData, i);
+  }
+
+  pOutputCol->hasNull = pLeftCol->hasNull;
+  if (pOutputCol->hasNull) {
+    memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(pLeft->numOfRows));
+  }
+
+  doReleaseVec(pLeftCol,  leftConvert);
+}
+
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
 #if 0
   int32_t len = pLeft->bytes + pRight->bytes;
@@ -1101,6 +1127,8 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return vectorMathDivide;
     case OP_TYPE_MOD:
       return vectorMathRemainder;
+    case OP_TYPE_MINUS:
+      return vectorMathMinus;
     case OP_TYPE_GREATER_THAN:
       return vectorGreater;
     case OP_TYPE_GREATER_EQUAL:

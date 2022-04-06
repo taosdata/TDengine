@@ -367,7 +367,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nCols));
       buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nBSmaCols));
       pReq->stbCfg.pSchema = (SSchemaEx *)taosMemoryMalloc(pReq->stbCfg.nCols * sizeof(SSchemaEx));
-      for (col_id_t i = 0; i < pReq->stbCfg.nCols; i++) {
+      for (col_id_t i = 0; i < pReq->stbCfg.nCols; ++i) {
         buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
         buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].sma));
         buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.pSchema[i].colId));
@@ -376,7 +376,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       }
       buf = taosDecodeFixedI16(buf, &pReq->stbCfg.nTagCols);
       pReq->stbCfg.pTagSchema = (SSchema *)taosMemoryMalloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
-      for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
+      for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; ++i) {
         buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
         buf = taosDecodeFixedI16(buf, &pReq->stbCfg.pTagSchema[i].colId);
         buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
@@ -408,7 +408,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       buf = taosDecodeFixedI16(buf, &pReq->ntbCfg.nCols);
       buf = taosDecodeFixedI16(buf, &(pReq->ntbCfg.nBSmaCols));
       pReq->ntbCfg.pSchema = (SSchemaEx *)taosMemoryMalloc(pReq->ntbCfg.nCols * sizeof(SSchemaEx));
-      for (col_id_t i = 0; i < pReq->ntbCfg.nCols; i++) {
+      for (col_id_t i = 0; i < pReq->ntbCfg.nCols; ++i) {
         buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].type);
         buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].sma);
         buf = taosDecodeFixedI16(buf, &pReq->ntbCfg.pSchema[i].colId);
@@ -2767,6 +2767,48 @@ int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq)
     tDecodeSMqOffset(decoder, &pReq->offsets[i]);
   }
   tEndDecode(decoder);
+  return 0;
+}
+
+int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->numOfPlans) < 0) return -1;
+  for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
+    SExplainExecInfo *info = &pRsp->subplanInfo[i];
+    if (tEncodeU64(&encoder, info->startupCost) < 0) return -1;
+    if (tEncodeU64(&encoder, info->totalCost) < 0) return -1;
+    if (tEncodeU64(&encoder, info->numOfRows) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->numOfPlans) < 0) return -1;
+  if (pRsp->numOfPlans > 0) {
+    pRsp->subplanInfo = taosMemoryMalloc(pRsp->numOfPlans * sizeof(SExplainExecInfo));
+    if (pRsp->subplanInfo == NULL) return -1;
+  }
+  for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
+    if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].startupCost) < 0) return -1;
+    if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].totalCost) < 0) return -1;
+    if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].numOfRows) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
   return 0;
 }
 
