@@ -33,6 +33,18 @@ extern "C" {
   SPager *pPager;       \
   SPgid   pgid;
 
+// For page ref
+#define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
+#if 0
+#define TDB_REF_PAGE(pPage)     (++(pPage)->nRef)
+#define TDB_UNREF_PAGE(pPage)   (--(pPage)->nRef)
+#define TDB_GET_PAGE_REF(pPage) ((pPage)->nRef)
+#else
+#define TDB_REF_PAGE(pPage)     atomic_add_fetch_32(&((pPage)->nRef), 1)
+#define TDB_UNREF_PAGE(pPage)   atomic_sub_fetch_32(&((pPage)->nRef), 1)
+#define TDB_GET_PAGE_REF(pPage) atomic_load_32(&((pPage)->nRef))
+#endif
+
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);

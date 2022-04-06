@@ -103,6 +103,15 @@ typedef enum ENodeType {
   QUERY_NODE_EXPLAIN_STMT,
   QUERY_NODE_DESCRIBE_STMT,
   QUERY_NODE_RESET_QUERY_CACHE_STMT,
+  QUERY_NODE_COMPACT_STMT,
+  QUERY_NODE_CREATE_FUNCTION_STMT,
+  QUERY_NODE_DROP_FUNCTION_STMT,
+  QUERY_NODE_CREATE_STREAM_STMT,
+  QUERY_NODE_DROP_STREAM_STMT,
+  QUERY_NODE_MERGE_VGROUP_STMT,
+  QUERY_NODE_REDISTRIBUTE_VGROUP_STMT,
+  QUERY_NODE_SPLIT_VGROUP_STMT,
+  QUERY_NODE_SYNCDB_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_STABLES_STMT,
@@ -115,6 +124,18 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_FUNCTIONS_STMT,
   QUERY_NODE_SHOW_INDEXES_STMT,
   QUERY_NODE_SHOW_STREAMS_STMT,
+  QUERY_NODE_SHOW_APPS_STMT,
+  QUERY_NODE_SHOW_CONNECTIONS_STMT,
+  QUERY_NODE_SHOW_LICENCE_STMT,
+  QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
+  QUERY_NODE_SHOW_CREATE_TABLE_STMT,
+  QUERY_NODE_SHOW_CREATE_STABLE_STMT, 
+  QUERY_NODE_SHOW_QUERIES_STMT,
+  QUERY_NODE_SHOW_SCORES_STMT,
+  QUERY_NODE_SHOW_TOPICS_STMT,
+  QUERY_NODE_SHOW_VARIABLE_STMT,
+  QUERY_NODE_KILL_CONNECTION_STMT,
+  QUERY_NODE_KILL_QUERY_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
@@ -192,16 +213,16 @@ typedef enum EDealRes {
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkList(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprs(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
-void nodesRewriteNode(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExpr(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 

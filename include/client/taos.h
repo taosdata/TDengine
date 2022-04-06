@@ -54,6 +54,7 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_BLOB       18  // binary
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
+#define TSDB_DATA_TYPE_MAX        20
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -188,7 +189,7 @@ DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
 DLL_EXPORT bool        taos_is_update_query(TAOS_RES *res);
 DLL_EXPORT int         taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
 DLL_EXPORT int         taos_validate_sql(TAOS *taos, const char *sql);
-DLL_EXPORT void taos_reset_current_db(TAOS *taos);
+DLL_EXPORT void        taos_reset_current_db(TAOS *taos);
 
 DLL_EXPORT int *taos_fetch_lengths(TAOS_RES *res);
 DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);

@@ -266,6 +266,20 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
+  int8_t   type;
+  int8_t   sma;  // ETsdbBSmaType and default is TSDB_BSMA_TYPE_I
+  col_id_t colId;
+  int32_t  bytes;
+  char     name[TSDB_COL_NAME_LEN];
+} SSchemaEx;
+
+#define SSCHMEA_TYPE(s) ((s)->type)
+#define SSCHMEA_SMA(s) ((s)->sma)
+#define SSCHMEA_COLID(s) ((s)->colId)
+#define SSCHMEA_BYTES(s) ((s)->bytes)
+#define SSCHMEA_NAME(s) ((s)->name)
+
+typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   float   xFilesFactor;
@@ -524,6 +538,7 @@ typedef struct {
   int8_t  walLevel;
   int8_t  quorum;
   int8_t  cacheLastRow;
+  int8_t  replications;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1396,11 +1411,10 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
-  float    xFilesFactor;
-  int8_t   delayUnit;
-  int8_t   nFuncIds;
-  int32_t* pFuncIds;
-  int64_t  delay;
+  float      xFilesFactor;
+  int32_t    delay;
+  int8_t     nFuncIds;
+  func_id_t* pFuncIds;
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
@@ -1418,13 +1432,12 @@ typedef struct SVCreateTbReq {
   };
   union {
     struct {
-      tb_uid_t    suid;
-      uint32_t    nCols;
-      SSchema*    pSchema;
-      uint32_t    nTagCols;
-      SSchema*    pTagSchema;
-      col_id_t    nBSmaCols;
-      col_id_t*   pBSmaCols;
+      tb_uid_t   suid;
+      col_id_t   nCols;
+      col_id_t   nBSmaCols;
+      SSchemaEx* pSchema;
+      col_id_t   nTagCols;
+      SSchema*   pTagSchema;
       SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
@@ -1432,10 +1445,9 @@ typedef struct SVCreateTbReq {
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      uint32_t    nCols;
-      SSchema*    pSchema;
-      col_id_t    nBSmaCols;
-      col_id_t*   pBSmaCols;
+      col_id_t   nCols;
+      col_id_t   nBSmaCols;
+      SSchemaEx* pSchema;
       SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
@@ -1914,7 +1926,10 @@ int32_t tDecodeSMqCMCommitOffsetReq(SCoder* decoder, SMqCMCommitOffsetReq* pReq)
 
 typedef struct {
   uint32_t nCols;
-  SSchema* pSchema;
+  union {
+    SSchema*   pSchema;
+    SSchemaEx* pSchemaEx;
+  };
 } SSchemaWrapper;
 
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {

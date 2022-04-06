@@ -431,7 +431,7 @@ FORCE_INLINE void *getDataMax(int32_t type) {
   }
 }
 
-bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT; }
+bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_MAX; }
 
 void setVardataNull(void *val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {

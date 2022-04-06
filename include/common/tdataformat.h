@@ -70,11 +70,13 @@ typedef struct {
 #pragma pack(pop)
 
 #define colType(col)   ((col)->type)
+#define colSma(col)    ((col)->sma)
 #define colColId(col)  ((col)->colId)
 #define colBytes(col)  ((col)->bytes)
 #define colOffset(col) ((col)->offset)
 
 #define colSetType(col, t)   (colType(col) = (t))
+#define colSetSma(col, s)    (colSma(col) = (s))
 #define colSetColId(col, id) (colColId(col) = (id))
 #define colSetBytes(col, b)  (colBytes(col) = (b))
 #define colSetOffset(col, o) (colOffset(col) = (o))
@@ -133,13 +135,13 @@ typedef struct {
 #define TD_VTYPE_PARTS 4  // 8 bits / TD_VTYPE_BITS = 4
 #define TD_VTYPE_OPTR  3  // TD_VTYPE_PARTS - 1, utilize to get remainder
 
-#define TD_BITMAP_BYTES(cnt) (ceil((double)cnt / TD_VTYPE_PARTS))
-#define TD_BIT_TO_BYTES(cnt) (ceil((double)cnt / 8))
+#define TD_BITMAP_BYTES(cnt) (ceil((double)(cnt) / TD_VTYPE_PARTS))
+#define TD_BIT_TO_BYTES(cnt) (ceil((double)(cnt) / 8))
 
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes);
+int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
@@ -363,6 +365,7 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
 }
 #endif
 // ----------------- Data column structure
+// SDataCol arrangement: data => bitmap => dataOffset
 typedef struct SDataCol {
   int8_t          type;        // column type
   uint8_t         bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM

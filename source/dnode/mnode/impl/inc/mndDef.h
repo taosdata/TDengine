@@ -620,13 +620,13 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
-    taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
+    //taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
     // taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
-    taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
     // taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }

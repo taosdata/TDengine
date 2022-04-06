@@ -146,7 +146,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   }
 
   SReqResultInfo *pResInfo = &(((SRequestObj *)res)->body.resInfo);
-  return pResInfo->fields;
+  return pResInfo->userFields;
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
@@ -264,8 +264,17 @@ int *taos_fetch_lengths(TAOS_RES *res) {
 }
 
 TAOS_ROW *taos_result_block(TAOS_RES *res) {
-  // TODO
-  return NULL;
+  SRequestObj* pRequest = (SRequestObj*) res;
+  if (pRequest == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  if (taos_is_update_query(res)) {
+    return NULL;
+  }
+
+  return &pRequest->body.resInfo.row;
 }
 
 // todo intergrate with tDataTypes
@@ -313,7 +322,9 @@ int taos_affected_rows(TAOS_RES *res) {
   return pResInfo->numOfRows;
 }
 
-int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }
+int taos_result_precision(TAOS_RES *res) {
+  return TSDB_TIME_PRECISION_MILLI;
+}
 
 int taos_select_db(TAOS *taos, const char *db) {
   STscObj *pObj = (STscObj *)taos;
@@ -365,8 +376,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 }
 
 bool taos_is_update_query(TAOS_RES *res) {
-  // TODO
-  return true;
+  return taos_num_fields(res) == 0;
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
@@ -393,8 +403,11 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
 
 void taos_reset_current_db(TAOS *taos) {
-  // TODO
-  return;
+  if (taos == NULL) {
+    return;
+  }
+
+  resetConnectDB(taos);
 }
 
 const char *taos_get_server_info(TAOS *taos) {

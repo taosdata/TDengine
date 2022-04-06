@@ -33,7 +33,8 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   spaceNeeded += (int)nBitmapBytes;
   // TODO: Currently, the compression of bitmap parts is affiliated to the column data parts, thus allocate 1 more
   // TYPE_BYTES as to comprise complete TYPE_BYTES. Otherwise, invalid read/write would be triggered.
-  spaceNeeded += TYPE_BYTES[pCol->type];
+  // spaceNeeded += TYPE_BYTES[pCol->type]; // the bitmap part is append as a single part since 2022.04.03, thus remove
+  // the additional space
 #endif
 
   if (pCol->spaceSize < spaceNeeded) {
@@ -47,6 +48,7 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
     }
   }
 #ifdef TD_SUPPORT_BITMAP
+
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->pBitmap = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
     pCol->dataOff = POINTER_SHIFT(pCol->pBitmap, nBitmapBytes);
@@ -85,6 +87,7 @@ int tdEncodeSchema(void **buf, STSchema *pSchema) {
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
     tlen += taosEncodeFixedI8(buf, colType(pCol));
+    tlen += taosEncodeFixedI8(buf, colSma(pCol));
     tlen += taosEncodeFixedI16(buf, colColId(pCol));
     tlen += taosEncodeFixedI16(buf, colBytes(pCol));
   }
@@ -107,12 +110,14 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
 
   for (int i = 0; i < numOfCols; i++) {
     col_type_t  type = 0;
+    int8_t      sma = TSDB_BSMA_TYPE_NONE;
     col_id_t    colId = 0;
     col_bytes_t bytes = 0;
     buf = taosDecodeFixedI8(buf, &type);
+    buf = taosDecodeFixedI8(buf, &sma);
     buf = taosDecodeFixedI16(buf, &colId);
     buf = taosDecodeFixedI32(buf, &bytes);
-    if (tdAddColToSchema(&schemaBuilder, type, colId, bytes) < 0) {
+    if (tdAddColToSchema(&schemaBuilder, type, sma, colId, bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
     }
@@ -148,7 +153,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   pBuilder->version = version;
 }
 
-int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes) {
+int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col_id_t colId, col_bytes_t bytes) {
   if (!isValidDataType(type)) return -1;
 
   if (pBuilder->nCols >= pBuilder->tCols) {
@@ -161,15 +166,13 @@ int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col
   STColumn *pCol = &(pBuilder->columns[pBuilder->nCols]);
   colSetType(pCol, type);
   colSetColId(pCol, colId);
+  colSetSma(pCol, sma);
   if (pBuilder->nCols == 0) {
     colSetOffset(pCol, 0);
   } else {
     STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols - 1]);
     colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
   }
-
-  // TODO: set sma value by user input
-  pCol->sma = 1;
 
   if (IS_VAR_DATA_TYPE(type)) {
     colSetBytes(pCol, bytes);
@@ -305,7 +308,7 @@ static FORCE_INLINE const void *tdGetColDataOfRowUnsafe(SDataCol *pCol, int row)
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
   if (isAllRowsNull(pCol)) return true;
-  for (int i = 0; i < nEle; i++) {
+  for (int i = 0; i < nEle; ++i) {
     if (!isNull(tdGetColDataOfRowUnsafe(pCol, i), pCol->type)) return false;
   }
   return true;
@@ -326,7 +329,7 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
 static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->len = 0;
-    for (int i = 0; i < nEle; i++) {
+    for (int i = 0; i < nEle; ++i) {
       dataColSetNullAt(pCol, i);
     }
   } else {
@@ -342,7 +345,7 @@ void *dataColSetOffset(SDataCol *pCol, int nEle) {
   // char *tptr = (char *)(pCol->pData);
 
   VarDataOffsetT offset = 0;
-  for (int i = 0; i < nEle; i++) {
+  for (int i = 0; i < nEle; ++i) {
     pCol->dataOff[i] = offset;
     offset += varDataTLen(tptr);
     tptr = POINTER_SHIFT(tptr, varDataTLen(tptr));
@@ -370,6 +373,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
       tdFreeDataCols(pCols);
       return NULL;
     }
+#if 0  // no need as calloc used
     int i;
     for (i = 0; i < maxCols; i++) {
       pCols->cols[i].spaceSize = 0;
@@ -377,6 +381,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
       pCols->cols[i].pData = NULL;
       pCols->cols[i].dataOff = NULL;
     }
+#endif
   }
 
   return pCols;
@@ -390,17 +395,21 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
     void *ptr = (SDataCol *)taosMemoryRealloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
     if (ptr == NULL) return -1;
     pCols->cols = ptr;
-    for (i = oldMaxCols; i < pCols->maxCols; i++) {
+    for (i = oldMaxCols; i < pCols->maxCols; ++i) {
       pCols->cols[i].pData = NULL;
       pCols->cols[i].dataOff = NULL;
+      pCols->cols[i].pBitmap = NULL;
       pCols->cols[i].spaceSize = 0;
     }
   }
+#if 0
+  tdResetDataCols(pCols); // redundant loop to reset len/blen to 0, already reset in following dataColInit(...)
+#endif
 
-  tdResetDataCols(pCols);
+  pCols->numOfRows = 0;
   pCols->numOfCols = schemaNCols(pSchema);
 
-  for (i = 0; i < schemaNCols(pSchema); i++) {
+  for (i = 0; i < schemaNCols(pSchema); ++i) {
     dataColInit(pCols->cols + i, schemaColAt(pSchema, i), pCols->maxPoints);
   }
 
@@ -412,7 +421,7 @@ SDataCols *tdFreeDataCols(SDataCols *pCols) {
   if (pCols) {
     if (pCols->cols) {
       int maxCols = pCols->maxCols;
-      for (i = 0; i < maxCols; i++) {
+      for (i = 0; i < maxCols; ++i) {
         SDataCol *pCol = &pCols->cols[i];
         taosMemoryFreeClear(pCol->pData);
       }
@@ -463,7 +472,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 void tdResetDataCols(SDataCols *pCols) {
   if (pCols != NULL) {
     pCols->numOfRows = 0;
-    for (int i = 0; i < pCols->maxCols; i++) {
+    for (int i = 0; i < pCols->maxCols; ++i) {
       dataColReset(pCols->cols + i);
     }
   }

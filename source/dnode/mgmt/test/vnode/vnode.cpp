@@ -70,46 +70,6 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
     }
   }
-
-  {
-    SCreateVnodeReq createReq = {0};
-    createReq.vgId = 2;
-    createReq.dnodeId = 3;
-    strcpy(createReq.db, "1.d1");
-    createReq.dbUid = 9527;
-    createReq.vgVersion = 1;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
-    createReq.daysPerFile = 10;
-    createReq.daysToKeep0 = 3650;
-    createReq.daysToKeep1 = 3650;
-    createReq.daysToKeep2 = 3650;
-    createReq.minRows = 100;
-    createReq.minRows = 4096;
-    createReq.commitTime = 3600;
-    createReq.fsyncPeriod = 3000;
-    createReq.walLevel = 1;
-    createReq.precision = 0;
-    createReq.compression = 2;
-    createReq.replica = 1;
-    createReq.quorum = 1;
-    createReq.update = 0;
-    createReq.cacheLastRow = 0;
-    createReq.selfIndex = 0;
-    for (int r = 0; r < createReq.replica; ++r) {
-      SReplica* pReplica = &createReq.replicas[r];
-      pReplica->id = 1;
-      pReplica->port = 9527;
-    }
-
-    int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
-    void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_INVALID_OPTION);
-  }
 }
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {
@@ -164,37 +124,37 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
     req.keep = 0;
     req.type = TD_SUPER_TABLE;
 
-    SSchema schemas[5] = {0};
+    SSchemaEx schemas[2] = {0};
     {
-      SSchema* pSchema = &schemas[0];
+      SSchemaEx* pSchema = &schemas[0];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
     }
 
     {
-      SSchema* pSchema = &schemas[1];
+      SSchemaEx* pSchema = &schemas[1];
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
     }
-
+    SSchema tagSchemas[3] = {0};
     {
-      SSchema* pSchema = &schemas[2];
+      SSchema* pSchema = &tagSchemas[0];
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "tag1");
     }
 
     {
-      SSchema* pSchema = &schemas[3];
+      SSchema* pSchema = &tagSchemas[1];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "tag2");
     }
 
     {
-      SSchema* pSchema = &schemas[4];
+      SSchema* pSchema = &tagSchemas[2];
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "tag3");
@@ -204,7 +164,7 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
     req.stbCfg.nCols = 2;
     req.stbCfg.pSchema = &schemas[0];
     req.stbCfg.nTagCols = 3;
-    req.stbCfg.pTagSchema = &schemas[2];
+    req.stbCfg.pTagSchema = &tagSchemas[0];
 
     int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
     SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
@@ -236,37 +196,37 @@ TEST_F(DndTestVnode, 04_Alter_Stb) {
     req.keep = 0;
     req.type = TD_SUPER_TABLE;
 
-    SSchema schemas[5] = {0};
+    SSchemaEx schemas[2] = {0};
     {
-      SSchema* pSchema = &schemas[0];
+      SSchemaEx* pSchema = &schemas[0];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
     }
 
     {
-      SSchema* pSchema = &schemas[1];
+      SSchemaEx* pSchema = &schemas[1];
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
     }
-
+    SSchema tagSchemas[3] = {0};
     {
-      SSchema* pSchema = &schemas[2];
+      SSchema* pSchema = &tagSchemas[0];
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "_tag1");
     }
 
     {
-      SSchema* pSchema = &schemas[3];
+      SSchema* pSchema = &tagSchemas[1];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "_tag2");
     }
 
     {
-      SSchema* pSchema = &schemas[4];
+      SSchema* pSchema = &tagSchemas[2];
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "_tag3");
@@ -276,7 +236,7 @@ TEST_F(DndTestVnode, 04_Alter_Stb) {
     req.stbCfg.nCols = 2;
     req.stbCfg.pSchema = &schemas[0];
     req.stbCfg.nTagCols = 3;
-    req.stbCfg.pTagSchema = &schemas[2];
+    req.stbCfg.pTagSchema = &tagSchemas[0];
 
     int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
     SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);

@@ -155,7 +155,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     
-    blockDataEnsureColumnCapacity(pColumn, rowNum);
+    colInfoDataEnsureCapacity(pColumn, rowNum);
 
     for (int32_t i = 0; i < rowNum; ++i) {
       colDataAppend(pColumn, i, (const char *)value, false);
@@ -277,7 +277,6 @@ TEST(timerangeTest, greater_and_lower) {
   nodesDestroyNode(logicNode);
 }
 
-
 TEST(columnTest, smallint_column_greater_double_value) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int16_t leftv[5]= {1, 2, 3, 4, 5};
@@ -388,7 +387,6 @@ TEST(columnTest, int_column_greater_smallint_value) {
   blockDataDestroy(src);
 }
 
-
 TEST(columnTest, int_column_in_double_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   int32_t leftv[5] = {1, 2, 3, 4, 5};
@@ -433,8 +431,6 @@ TEST(columnTest, int_column_in_double_list) {
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
-
 
 TEST(columnTest, binary_column_in_binary_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
@@ -499,7 +495,6 @@ TEST(columnTest, binary_column_in_binary_list) {
   blockDataDestroy(src);
 }
 
-
 TEST(columnTest, binary_column_like_binary) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   char rightv[64] = {0};
@@ -547,7 +542,6 @@ TEST(columnTest, binary_column_like_binary) {
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(columnTest, binary_column_is_null) {
   SNode *pLeft = NULL, *opNode = NULL;
@@ -643,8 +637,6 @@ TEST(columnTest, binary_column_is_not_null) {
   blockDataDestroy(src);
 }
 
-
-
 TEST(opTest, smallint_column_greater_int_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int16_t leftv[5] = {1, -6, -2, 11, 101};
@@ -681,7 +673,6 @@ TEST(opTest, smallint_column_greater_int_column) {
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(opTest, smallint_value_add_int_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -720,8 +711,6 @@ TEST(opTest, smallint_value_add_int_column) {
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
-
 
 TEST(opTest, bigint_column_multi_binary_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -847,8 +836,6 @@ TEST(opTest, smallint_column_or_float_column) {
   blockDataDestroy(src);
 }
 
-
-
 TEST(opTest, smallint_column_or_double_value) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int16_t leftv[5]= {0, 2, 3, 0, -1};
@@ -886,7 +873,6 @@ TEST(opTest, smallint_column_or_double_value) {
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(opTest, binary_column_is_true) {
   SNode *pLeft = NULL, *opNode = NULL;
@@ -931,7 +917,6 @@ TEST(opTest, binary_column_is_true) {
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(filterModelogicTest, diff_columns_and_or_and) {
   flttInitLogFile();
@@ -1073,7 +1058,6 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   blockDataDestroy(src);
 }
 
-
 TEST(filterModelogicTest, diff_columns_or_and_or) {
   SNode *pLeft1 = NULL, *pRight1 = NULL, *pLeft2 = NULL, *pRight2 = NULL, *opNode1 = NULL, *opNode2 = NULL;
   SNode *logicNode1 = NULL, *logicNode2 = NULL;
@@ -1212,8 +1196,6 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   blockDataDestroy(src);
 }
 
-
-
 TEST(scalarModelogicTest, diff_columns_or_and_or) {
   flttInitLogFile();
 
@@ -1284,8 +1266,6 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
 }
-
-
 
 int main(int argc, char** argv) {
   taosSeedRand(taosGetTimestampSec());

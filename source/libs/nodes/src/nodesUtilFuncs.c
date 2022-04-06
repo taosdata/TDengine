@@ -860,6 +860,24 @@ bool nodesIsExprNode(const SNode* pNode) {
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type || QUERY_NODE_FUNCTION == type);
 }
 
+bool nodesIsUnaryOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_MINUS:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    case OP_TYPE_IS_TRUE:
+    case OP_TYPE_IS_FALSE:
+    case OP_TYPE_IS_UNKNOWN:
+    case OP_TYPE_IS_NOT_TRUE:
+    case OP_TYPE_IS_NOT_FALSE:
+    case OP_TYPE_IS_NOT_UNKNOWN:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_ADD:

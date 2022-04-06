@@ -100,6 +100,7 @@ struct SPage {
 // APIs
 #define TDB_PAGE_TOTAL_CELLS(pPage)        ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
 #define TDB_PAGE_USABLE_SIZE(pPage)        ((u8 *)(pPage)->pPageFtr - (pPage)->pCellIdx)
+#define TDB_PAGE_FREE_SIZE(pPage)          (*(pPage)->pPageMethods->getFreeBytes)(pPage)
 #define TDB_PAGE_PGNO(pPage)               ((pPage)->pgid.pgno)
 #define TDB_BYTES_CELL_TAKEN(pPage, pCell) ((*(pPage)->xCellSize)(pPage, pCell) + (pPage)->pPageMethods->szOffset)
 #define TDB_PAGE_OFFSET_SIZE(pPage)        ((pPage)->pPageMethods->szOffset)

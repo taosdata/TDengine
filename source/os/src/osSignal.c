@@ -59,7 +59,7 @@ void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   struct sigaction act;
   memset(&act, 0, sizeof(act));
 #if 1
-  act.sa_flags = SA_SIGINFO;
+  act.sa_flags = SA_SIGINFO | SA_RESTART;
   act.sa_sigaction = (FLinuxSignalHandler)sigfp;
 #else
   act.sa_handler = sigfp;
