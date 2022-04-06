@@ -76,6 +76,8 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
 
   // pPager->jfd = -1;
   pPager->pageSize = tdbPCacheGetPageSize(pCache);
+  // pPager->dbOrigSize
+  ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
 
   *ppPager = pPager;
   return 0;
@@ -91,26 +93,32 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
   SPage *pPage;
   int    ret;
 
-  {
-    // TODO: try to search the main DB to get the page number
+  if (pPager->dbOrigSize > 0) {
+    pgno = 1;
+  } else {
     pgno = 0;
   }
 
-  // if (pgno == 0 && toCreate) {
-  //   ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
-  //   if (ret < 0) {
-  //     return -1;
-  //   }
+  {
+      // TODO: try to search the main DB to get the page number
+      // pgno = 0;
+  }
 
-  //   // TODO: Need to zero the page
+      // if (pgno == 0 && toCreate) {
+      //   ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
+      //   if (ret < 0) {
+      //     return -1;
+      //   }
 
-  //   ret = tdbPagerWrite(pPager, pPage);
-  //   if (ret < 0) {
-  //     return -1;
-  //   }
-  // }
+      //   // TODO: Need to zero the page
 
-  *ppgno = pgno;
+      //   ret = tdbPagerWrite(pPager, pPage);
+      //   if (ret < 0) {
+      //     return -1;
+      //   }
+      // }
+
+      *ppgno = pgno;
   return 0;
 }
 

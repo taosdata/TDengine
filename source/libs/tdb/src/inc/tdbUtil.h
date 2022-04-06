@@ -29,6 +29,7 @@ extern "C" {
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
+int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size);
 
 #define TDB_REALLOC(PTR, SIZE)                                                               \
   ({                                                                                         \
