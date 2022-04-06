@@ -297,7 +297,8 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   {
     // 1. TODO: Search the main DB to check if the DB exists
-    pgno = 0;
+    ret = tdbPagerOpenDB(pBt->pPager, &pgno, true);
+    ASSERT(ret == 0);
   }
 
   if (pgno != 0) {
