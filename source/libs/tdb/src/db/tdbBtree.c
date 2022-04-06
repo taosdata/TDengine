@@ -233,7 +233,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     ASSERT(0);
   }
 
-  if (cret) {
+  if (btc.idx < 0 || cret) {
     tdbBtcClose(&btc);
     return -1;
   }
@@ -253,15 +253,17 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     memcpy(*ppKey, cd.pKey, cd.kLen);
   }
 
-  pTVal = TDB_REALLOC(*ppVal, cd.vLen);
-  if (pTVal == NULL) {
-    tdbBtcClose(&btc);
-    ASSERT(0);
-    return -1;
+  if (ppVal) {
+    pTVal = TDB_REALLOC(*ppVal, cd.vLen);
+    if (pTVal == NULL) {
+      tdbBtcClose(&btc);
+      ASSERT(0);
+      return -1;
+    }
+    *ppVal = pTVal;
+    *vLen = cd.vLen;
+    memcpy(*ppVal, cd.pVal, cd.vLen);
   }
-  *ppVal = pTVal;
-  *vLen = cd.vLen;
-  memcpy(*ppVal, cd.pVal, cd.vLen);
 
   tdbBtcClose(&btc);
 

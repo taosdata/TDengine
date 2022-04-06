@@ -226,6 +226,14 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     uid = metaGenerateUid(pMeta);
   }
 
+  // check name and uid unique
+  if (tdbDbGet(pMetaDb->pTbDB, &uid, sizeof(uid), NULL, NULL) == 0) {
+    return -1;
+  }
+  if (tdbDbGet(pMetaDb->pNameIdx, pTbCfg->name, strlen(pTbCfg->name) + 1, NULL, NULL) == 0) {
+    return -1;
+  }
+
   // save to table.db
   pKey = &uid;
   kLen = sizeof(uid);
