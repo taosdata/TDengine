@@ -1050,6 +1050,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDat
   if (NULL != pComment) {
     trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
   }
+  pCol->sma = true;
   return (SNode*)pCol;
 }
 
