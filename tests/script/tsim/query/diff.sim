@@ -50,7 +50,6 @@ while $i < $tbNum
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-
     sql insert into $tb values ($ms , $x ) 
     $x = $x + 1
   endw 
@@ -64,55 +63,47 @@ print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
-sql select stddev(tbcol) from $tb
-print ===> $data00
-if $data00 != 5.766281297 then 
+sql select diff(tbcol) from $tb
+print ===> $data11
+if $data11 != 1 then 
   return -1
 endi
 
 print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
+sql select diff(tbcol) from $tb where ts > $ms
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
 
-print ===> select stddev(tbcol) from $tb where ts <= $ms
-sql select stddev(tbcol) from $tb where ts <= $ms
-print ====> $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1.414213562 then 
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select diff(tbcol) from $tb where ts <= $ms
+print ===> $data11
+if $data11 != 1 then 
   return -1
 endi
 
 print =============== step4
-sql select stddev(tbcol) as b from $tb
-print ===> $data00
-if $data00 != 5.766281297 then 
+sql select diff(tbcol) as b from $tb
+print ===> $data11
+if $data11 != 1 then 
   return -1
 endi
 
 print =============== step5
-sql select stddev(tbcol) as b from $tb interval(1m)
-print ===> $data01 
-if $data01 != 0.000000000 then 
+sql select diff(tbcol) as b from $tb interval(1m) -x step5
   return -1
-endi
-
-sql select stddev(tbcol) as b from $tb interval(1d)
-print ===> $data01
-if $data01 != 5.766281297 then 
-  return -1
-endi
+step5:
 
 print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-
-sql select stddev(tbcol) as b from $tb where ts <= $ms interval(1m)
-print ===> $data01
-if $data01 != 0.000000000 then 
+sql select diff(tbcol) as b from $tb where ts <= $ms interval(1m) -x step6
   return -1
-endi
-if $rows != 5 then 
-  return -1
-endi
+step6:
 
 print =============== clear
 sql drop database $db
