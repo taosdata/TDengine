@@ -311,10 +311,6 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   }
 
   uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
-  SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
-  if (pNewNode == NULL) {
-    return -1;
-  }
 
   // need the resize process, write lock applied
   if (HASH_NEED_RESIZE(pHashObj)) {
@@ -355,6 +351,11 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
 
   if (pNode == NULL) {
     // no data in hash table with the specified key, add it into hash table
+    SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
+    if (pNewNode == NULL) {
+      return -1;
+    }
+
     pushfrontNodeInEntryList(pe, pNewNode);
     assert(pe->next != NULL);
 
@@ -368,9 +369,12 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   } else {
     // not support the update operation, return error
     if (pHashObj->enableUpdate) {
+      SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
+      if (pNewNode == NULL) {
+        return -1;
+      }
+
       doUpdateHashNode(pHashObj, pe, prev, pNode, pNewNode);
-    } else {
-      FREE_HASH_NODE(pNewNode);
     }
 
     taosHashEntryWUnlock(pHashObj, pe);

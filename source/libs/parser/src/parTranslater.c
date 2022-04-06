@@ -438,8 +438,12 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
 
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (nodesIsUnaryOp(pOp)) {
-    if (OP_TYPE_MINUS == pOp->opType && !IS_NUMERIC_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
+    if (OP_TYPE_MINUS == pOp->opType) {
+      if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
+      }
+      pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+      pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
     }
     return DEAL_RES_CONTINUE;
   }
@@ -2335,46 +2339,6 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap,
     taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
   } else {  // add to the correct vgroup
     taosArrayPush(pTableBatch->req.pArray, &req);
-  }
-}
-
-static void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
-  pVal->nType = pNode->node.resType.type;
-  pVal->nLen = pNode->node.resType.bytes;
-  switch (pNode->node.resType.type) {
-    case TSDB_DATA_TYPE_NULL:
-        break;
-    case TSDB_DATA_TYPE_BOOL:
-      pVal->i = pNode->datum.b;
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      pVal->i = pNode->datum.i;
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      pVal->u = pNode->datum.u;
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      pVal->d = pNode->datum.d;
-      break;
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = pNode->datum.p;
-      break;
-    case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
-      // todo
-    default:
-      break;
   }
 }
 
