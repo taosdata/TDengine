@@ -188,7 +188,7 @@ typedef struct SLimitNode {
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
-  SNode* pCol;
+  SNode* pExpr;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
