@@ -105,12 +105,13 @@ Several steps are required to adapt MATLAB to TDengine. Taking adapting MATLAB20
 - Copy the file taos.lib in TDengine package to ${matlab root dir}\MATLAB\R2017a\lib\win64
 - Add the .jar package just copied to the MATLAB classpath. Append the line below as the end of the file of ${matlab root dir}\MATLAB\R2017a\toolbox\local\classpath.txt
 
-- ```
+  ```
   $matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
   ```
 
 - Create a file called javalibrarypath.txt in directory ${user_home}\AppData\Roaming\MathWorks\MATLAB\R2017a_, and add the _taos.dll path in the file. For example, if the file taos.dll is in the directory of C:\Windows\System32，then add the following line in file javalibrarypath.txt:
-- ```
+
+  ```
   C:\Windows\System32
   ```
 
