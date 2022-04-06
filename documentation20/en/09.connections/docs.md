@@ -147,12 +147,15 @@ R language supports connection to the TDengine database through the JDBC interfa
 
 ```R
 install.packages('RJDBC', repos='http://cran.us.r-project.org')
+```
+
+After installed, load the DBI, rJava and RJDBC package by executing `library()` command.
+
+```R
 library('DBI')
 library('rJava')
 library('RJDBC')
 ```
-
-After installed, load the RJDBC package by executing `library('RJDBC')` command.
 
 Then load the TDengine JDBC driver:
 

@@ -147,12 +147,15 @@ R 语言支持通过 JDBC 接口来连接 TDengine 数据库。首先需要安�
 
 ```R
 install.packages('RJDBC', repos='http://cran.us.r-project.org')
+```
+
+安装完成以后，通过执行`library()`命令加载 DBI、rJava 和 _RJDBC_ 包：
+
+```R
 library('DBI')
 library('rJava')
 library('RJDBC')
 ```
-
-安装完成以后，通过执行`library('RJDBC')`命令加载 _RJDBC_ 包：
 
 然后加载 TDengine 的 JDBC 驱动：
 
