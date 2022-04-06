@@ -21,7 +21,6 @@
 #include "tlog.h"
 #include "tqueue.h"
 
-#define SHM_DEFAULT_SIZE (20 * 1024 * 1024)
 typedef void *(*ProcThreadFp)(void *param);
 
 typedef struct SProcQueue {
