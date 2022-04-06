@@ -505,7 +505,7 @@ typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
   SSDataBlock   *existDataBlock;
-  int32_t        threshold;
+  SArray        *pPseudoColInfo;
   SLimit         limit;
   int64_t        curOffset;
   int64_t        curOutput;

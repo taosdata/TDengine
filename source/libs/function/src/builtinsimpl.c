@@ -887,9 +887,9 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
 //  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
   SColumnInfoData* pTsOutput = pCtx->pTsOutput;
-  TSKEY* tsList = GET_TS_LIST(pCtx);
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
 
-  int32_t startOffset = 0;
+  int32_t startOffset = pCtx->offset;
   switch (pInputCol->info.type) {
     case TSDB_DATA_TYPE_INT: {
       SColumnInfoData *pOutput = (SColumnInfoData *)pCtx->pOutput;
@@ -916,10 +916,10 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
           } else {
             colDataAppendInt32(pOutput, pos, &delta);
           }
-        }
 
-        if (tsList != NULL) {
-          colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+          if (tsList != NULL) {
+            colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+          }
         }
 
         pDiffInfo->prev.i64 = v;
