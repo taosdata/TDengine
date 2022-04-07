@@ -5,7 +5,13 @@
 #include <string.h>
 #include "taos.h"
 
-void execute(TAOS *taos, const char *sql) {
+/**
+ * @brief execute sql only.
+ * 
+ * @param taos 
+ * @param sql 
+ */
+void executeSQL(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int       code = taos_errno(res);
   if (code != 0) {
@@ -17,16 +23,17 @@ void execute(TAOS *taos, const char *sql) {
   taos_free_result(res);
 }
 
-// ANCHOR: insertData
-void prepareStable(TAOS *taos) {
-  execute(taos, "CREATE DATABASE power");
-  execute(taos, "USE power");
-  execute(taos, "CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)");
-} 
-
+/**
+ * @brief check return status and exit program when error occur.
+ * 
+ * @param stmt 
+ * @param code 
+ * @param msg 
+ */
 void checkErrorCode(TAOS_STMT *stmt, int code, const char* msg) {
   if (code != 0) {
     printf("%s. error: %s\n", msg, taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
 }
@@ -38,6 +45,11 @@ typedef struct {
   float phase;
 } Row;
 
+/**
+ * @brief insert data using stmt API
+ * 
+ * @param taos 
+ */
 void insertData(TAOS *taos) {
   // init
   TAOS_STMT *stmt = taos_stmt_init(taos);
@@ -64,24 +76,33 @@ void insertData(TAOS *taos) {
   code = taos_stmt_set_tbname_tags(stmt, "d1001", tags);
   checkErrorCode(stmt, code, "failed to execute taos_stmt_set_tbname_tags");
 
-  // insert tow rows
+  // insert two rows
   Row rows[2] = {
     {1648432611249, 10.3, 219, 0.31},
     {1648432611749, 12.6, 218, 0.33},
   };
+
   TAOS_BIND values[4];
   values[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   values[0].buffer_length = sizeof(int64_t);
   values[0].length = &values[0].buffer_length;
+  values[0].is_null = NULL;
+
   values[1].buffer_type = TSDB_DATA_TYPE_FLOAT;
   values[1].buffer_length = sizeof(float);
   values[1].length = &values[1].buffer_length;
+  values[1].is_null = NULL;
+
   values[2].buffer_type = TSDB_DATA_TYPE_INT;
   values[2].buffer_length = sizeof(int);
   values[2].length = &values[2].buffer_length;
+  values[2].is_null = NULL;
+
   values[3].buffer_type = TSDB_DATA_TYPE_FLOAT;
   values[3].buffer_length = sizeof(float);
   values[3].length = &values[3].buffer_length;
+  values[3].is_null = NULL;
+
   for (int i = 0; i < 2; ++i) {
     values[0].buffer = &rows[i].ts;
     values[1].buffer = &rows[i].current;
@@ -100,23 +121,21 @@ void insertData(TAOS *taos) {
   // close
   taos_stmt_close(stmt);
 }
-// ANCHOR_END: insertData
 
-TAOS* connect() {
+int main() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 6030);
   if (taos == NULL) {
     printf("failed to connect to server\n");
     exit(EXIT_FAILURE);
   }
-  return taos;
-}
-
-int main() {
-  TAOS *taos = connect();
-  prepareStable(taos);
+  executeSQL(taos, "CREATE DATABASE power");
+  executeSQL(taos, "USE power");
+  executeSQL(taos, "CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)");
   insertData(taos);
   taos_close(taos);
   taos_cleanup();
 }
 
-// runerror: Unable to establish connection
+
+// output:
+// successfully inserted 2 rows

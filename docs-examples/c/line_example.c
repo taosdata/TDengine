@@ -5,7 +5,7 @@
 #include <string.h>
 #include "taos.h"
 
-void execute(TAOS *taos, const char *sql) {
+void executeSQL(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int       code = taos_errno(res);
   if (code != 0) {
@@ -17,20 +17,16 @@ void execute(TAOS *taos, const char *sql) {
   taos_free_result(res);
 }
 
-TAOS *connect() {
+// ANCHOR: main
+int main() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", "", 0);
   if (taos == NULL) {
     printf("failed to connect to server\n");
     exit(EXIT_FAILURE);
   }
-  return taos;
-}
-
-// ANCHOR: main
-int main() {
-  TAOS *taos = connect();
-  execute(taos, "CREATE DATABASE test");
-  execute(taos, "USE test");
+  executeSQL(taos, "DROP DATABASE IF EXISTS test");
+  executeSQL(taos, "CREATE DATABASE test");
+  executeSQL(taos, "USE test");
   char     *lines[] = {"meters,location=Beijing.Haidian,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249",
                    "meters,location=Beijing.Haidian,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611250",
                    "meters,location=Beijing.Haidian,groupid=3 current=10.8,voltage=223,phase=0.29 1648432611249",
@@ -38,10 +34,14 @@ int main() {
   TAOS_RES *res = taos_schemaless_insert(taos, lines, 4, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   if (taos_errno(res) != 0) {
     printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  } else {
+    int affectedRows = taos_affected_rows(res);
+    printf("successfully inserted %d rows\n", affectedRows);
   }
   taos_free_result(res);
   taos_close(taos);
   taos_cleanup();
 }
-// runerror: failed to insert schema-less data, reason: Unable to establish connection
+// output:
+// successfully inserted 4 rows
 // ANCHOR_END: main

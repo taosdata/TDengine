@@ -5,7 +5,7 @@
 #include <string.h>
 #include "taos.h"
 
-void execute(TAOS *taos, const char *sql) {
+void executeSQL(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int       code = taos_errno(res);
   if (code != 0) {
@@ -17,20 +17,16 @@ void execute(TAOS *taos, const char *sql) {
   taos_free_result(res);
 }
 
-TAOS *connect() {
+// ANCHOR: main
+int main() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", "", 6030);
   if (taos == NULL) {
     printf("failed to connect to server\n");
     exit(EXIT_FAILURE);
   }
-  return taos;
-}
-
-// ANCHOR: main
-int main() {
-  TAOS *taos = connect();
-  execute(taos, "CREATE DATABASE test");
-  execute(taos, "USE test");
+  executeSQL(taos, "DROP DATABASE IF EXISTS test");
+  executeSQL(taos, "CREATE DATABASE test");
+  executeSQL(taos, "USE test");
   char *line =
       "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": "
       "\"Beijing.Chaoyang\", \"groupid\": 2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, "
@@ -38,14 +34,19 @@ int main() {
       "\"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": "
       "2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": "
       "\"Beijing.Haidian\", \"groupid\": 1}}]";
+
   char     *lines[] = {line};
   TAOS_RES *res = taos_schemaless_insert(taos, lines, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   if (taos_errno(res) != 0) {
     printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  } else {
+    int affectedRow = taos_affected_rows(res);
+    printf("successfully inserted %d rows\n", affectedRow);
   }
   taos_free_result(res);
   taos_close(taos);
   taos_cleanup();
 }
-// runerror: failed to insert schema-less data, reason: Unable to establish connection
+// output:
+// successfully inserted 4 rows
 // ANCHOR_END: main
