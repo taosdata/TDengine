@@ -493,6 +493,8 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
 
             pConsumerEp->oldConsumerId = pConsumerEp->consumerId;
             pConsumerEp->consumerId = pSubConsumer->consumerId;
+            //TODO
+            pConsumerEp->epoch = 0;
             taosArrayPush(pSubConsumer->vgInfo, pConsumerEp);
 
             if (pConsumerEp->oldConsumerId == -1) {
