@@ -1,9 +1,8 @@
 ---
 sidebar_label: 产品简介
+title: 产品简介
 toc_max_heading_level: 2
 ---
-
-# 产品简介
 
 ## TDengine 简介
 

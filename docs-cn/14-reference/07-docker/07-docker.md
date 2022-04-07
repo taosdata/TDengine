@@ -1,4 +1,6 @@
-# 用 Docker 部署 TDengine
+---
+title: 用 Docker 部署 TDengine
+---
 
 本章主要介绍如何在容器中启动 TDengine 服务并访问它。
 注意：可以在 docker run 命令行中或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。

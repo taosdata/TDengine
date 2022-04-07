@@ -1,8 +1,7 @@
 ---
 sidebar_label: SQL 函数
+title: SQL 函数
 ---
-
-# SQL 函数
 
 ## 聚合函数
 
