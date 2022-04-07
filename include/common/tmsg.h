@@ -273,11 +273,11 @@ typedef struct {
   char     name[TSDB_COL_NAME_LEN];
 } SSchemaEx;
 
-#define SSCHMEA_TYPE(s) ((s)->type)
-#define SSCHMEA_SMA(s) ((s)->sma)
+#define SSCHMEA_TYPE(s)  ((s)->type)
+#define SSCHMEA_SMA(s)   ((s)->sma)
 #define SSCHMEA_COLID(s) ((s)->colId)
 #define SSCHMEA_BYTES(s) ((s)->bytes)
-#define SSCHMEA_NAME(s) ((s)->name)
+#define SSCHMEA_NAME(s)  ((s)->name)
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -934,12 +934,12 @@ typedef struct SExplainExecInfo {
   uint64_t startupCost;
   uint64_t totalCost;
   uint64_t numOfRows;
-  void    *verboseInfo;
+  void*    verboseInfo;
 } SExplainExecInfo;
 
 typedef struct {
   int32_t           numOfPlans;
-  SExplainExecInfo *subplanInfo;
+  SExplainExecInfo* subplanInfo;
 } SExplainRsp;
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
@@ -989,8 +989,8 @@ int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq, SMCreateSnodeReq, SMDropSnodeReq,
-    SDCreateSnodeReq, SDDropSnodeReq, SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
+} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq, SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq, SMCreateBnodeReq,
+    SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
 
 int32_t tSerializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 int32_t tDeserializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
@@ -1432,12 +1432,12 @@ typedef struct SVCreateTbReq {
   };
   union {
     struct {
-      tb_uid_t   suid;
-      col_id_t   nCols;
-      col_id_t   nBSmaCols;
-      SSchemaEx* pSchema;
-      col_id_t   nTagCols;
-      SSchema*   pTagSchema;
+      tb_uid_t    suid;
+      col_id_t    nCols;
+      col_id_t    nBSmaCols;
+      SSchemaEx*  pSchema;
+      col_id_t    nTagCols;
+      SSchema*    pTagSchema;
       SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
@@ -1445,9 +1445,9 @@ typedef struct SVCreateTbReq {
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      col_id_t   nCols;
-      col_id_t   nBSmaCols;
-      SSchemaEx* pSchema;
+      col_id_t    nCols;
+      col_id_t    nBSmaCols;
+      SSchemaEx*  pSchema;
       SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
@@ -2225,6 +2225,13 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
 }
 
 typedef struct {
+} SMCreateFullTextReq;
+
+int32_t tSerializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
+int32_t tDeserializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
+void    tFreeSMCreateFullTextReq(SMCreateFullTextReq* pReq);
+
+typedef struct {
   int8_t  mqMsgType;
   int32_t code;
   int32_t epoch;
@@ -2293,9 +2300,7 @@ static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
   return buf;
 }
 
-static FORCE_INLINE void tDeleteSMqCMGetSubEpRsp(SMqCMGetSubEpRsp* pRsp) {
-  taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
-}
+static FORCE_INLINE void tDeleteSMqCMGetSubEpRsp(SMqCMGetSubEpRsp* pRsp) { taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp); }
 
 static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp) {
   int32_t tlen = 0;
