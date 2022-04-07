@@ -20,7 +20,13 @@
 int32_t taosCreateShm(SShm* pShm, int32_t key, int32_t shmsize) {
   pShm->id = -1;
 
-  int32_t shmid = shmget(0X95270000 + key, shmsize, IPC_CREAT | 0600);
+  // key_t shkey = IPC_PRIVATE;
+  // int32_t __shmflag = IPC_CREAT | IPC_EXCL | 0600;
+
+  key_t   __shkey = 0X95270000 + key;
+  int32_t __shmflag = IPC_CREAT | 0600;
+
+  int32_t shmid = shmget(__shkey, shmsize, __shmflag);
   if (shmid < 0) {
     return -1;
   }
