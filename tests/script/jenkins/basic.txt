@@ -31,6 +31,7 @@
 ./test.sh -f tsim/query/interval.sim
 ./test.sh -f tsim/query/interval-offset.sim
 ./test.sh -f tsim/query/scalarFunction.sim
+./test.sh -f tsim/query/charScalarFunction.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
