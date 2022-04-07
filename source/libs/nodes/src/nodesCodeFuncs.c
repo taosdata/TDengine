@@ -994,6 +994,7 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
 
 static const char* jkSortPhysiPlanExprs = "Exprs";
 static const char* jkSortPhysiPlanSortKeys = "SortKeys";
+static const char* jkSortPhysiPlanTargets = "Targets";
 
 static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
@@ -1004,6 +1005,9 @@ static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSortPhysiPlanSortKeys, pNode->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSortPhysiPlanTargets, pNode->pTargets);
   }
 
   return code;
@@ -1018,6 +1022,9 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSortPhysiPlanSortKeys, &pNode->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSortPhysiPlanTargets, &pNode->pTargets);
   }
 
   return code;
@@ -1177,6 +1184,7 @@ static int32_t jsonToPhysiStateWindowNode(const SJson* pJson, void* pObj) {
 
 static const char* jkPartitionPhysiPlanExprs = "Exprs";
 static const char* jkPartitionPhysiPlanPartitionKeys = "PartitionKeys";
+static const char* jkPartitionPhysiPlanTargets = "Targets";
 
 static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
   const SPartitionPhysiNode* pNode = (const SPartitionPhysiNode*)pObj;
@@ -1187,6 +1195,9 @@ static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkPartitionPhysiPlanPartitionKeys, pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkPartitionPhysiPlanTargets, pNode->pTargets);
   }
 
   return code;
@@ -1201,6 +1212,9 @@ static int32_t jsonToPhysiPartitionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkPartitionPhysiPlanPartitionKeys, &pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkPartitionPhysiPlanTargets, &pNode->pTargets);
   }
 
   return code;

@@ -486,6 +486,8 @@ column_name(A) ::= NK_ID(B).                                                    
 %type function_name                                                               { SToken }
 %destructor function_name                                                         { }
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
+function_name(A) ::= FIRST(B).                                                    { A = B; }
+function_name(A) ::= LAST(B).                                                     { A = B; }
 
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { }
