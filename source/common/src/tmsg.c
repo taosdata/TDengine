@@ -832,6 +832,26 @@ void tFreeSMCreateFullTextReq(SMCreateFullTextReq *pReq) {
   // impl later
   return;
 }
+int32_t tSerializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}
 
 int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   SCoder encoder = {0};

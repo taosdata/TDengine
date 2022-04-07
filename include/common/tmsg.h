@@ -483,8 +483,7 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char    offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -2263,6 +2262,14 @@ typedef struct {
 int32_t tSerializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
 int32_t tDeserializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
 void    tFreeSMCreateFullTextReq(SMCreateFullTextReq* pReq);
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SMDropFullTextReq;
+
+int32_t tSerializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+int32_t tDeserializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
 
 typedef struct {
   int8_t  mqMsgType;
