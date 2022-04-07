@@ -749,3 +749,4 @@
 3,,develop-test,python3 ./test.py -f 1-insert/uppercase_in_stmt.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/TD-13414.py
+3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
