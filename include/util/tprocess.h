@@ -22,12 +22,12 @@
 extern "C" {
 #endif
 
-typedef enum { PROC_QUEUE, PROC_REQ, PROC_RSP, PROC_REGIST, PROC_RELEASE } ProcFuncType;
+typedef enum { PROC_REQ = 1, PROC_RSP, PROC_REGIST, PROC_RELEASE } ProcFuncType;
 
 typedef struct SProcObj SProcObj;
 typedef void *(*ProcMallocFp)(int32_t contLen);
 typedef void *(*ProcFreeFp)(void *pCont);
-typedef void *(*ProcConsumeFp)(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+typedef void (*ProcConsumeFp)(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
                                ProcFuncType ftype);
 
 typedef struct {
@@ -50,6 +50,7 @@ typedef struct {
 SProcObj *taosProcInit(const SProcCfg *pCfg);
 void      taosProcCleanup(SProcObj *pProc);
 int32_t   taosProcRun(SProcObj *pProc);
+void      taosProcStop(SProcObj *pProc);
 
 int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                             void *handle, ProcFuncType ftype);

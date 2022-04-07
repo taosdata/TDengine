@@ -51,7 +51,14 @@ extern int32_t tsCompatibleModel;
 extern bool    tsEnableSlaveQuery;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerDay[3];
+
+// multi-process
 extern bool    tsMultiProcess;
+extern int32_t tsMnodeShmSize;
+extern int32_t tsVnodeShmSize;
+extern int32_t tsQnodeShmSize;
+extern int32_t tsSnodeShmSize;
+extern int32_t tsBnodeShmSize;
 
 // monitor
 extern bool     tsEnableMonitor;

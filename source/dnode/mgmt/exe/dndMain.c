@@ -18,15 +18,15 @@
 #include "tconfig.h"
 
 static struct {
-  bool      dumpConfig;
-  bool      generateGrant;
-  bool      printAuth;
-  bool      printVersion;
-  char      envFile[PATH_MAX];
-  char      apolloUrl[PATH_MAX];
-  SArray   *pArgs;  // SConfigPair
-  SDnode   *pDnode;
-  ENodeType ntype;
+  bool     dumpConfig;
+  bool     generateGrant;
+  bool     printAuth;
+  bool     printVersion;
+  char     envFile[PATH_MAX];
+  char     apolloUrl[PATH_MAX];
+  SArray  *pArgs;  // SConfigPair
+  SDnode  *pDnode;
+  EDndType ntype;
 } global = {0};
 
 static void dndStopDnode(int signum, void *info, void *ctx) {

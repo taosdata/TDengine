@@ -49,7 +49,7 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-typedef enum { DNODE, VNODES, QNODE, SNODE, MNODE, BNODE, NODE_MAX } ENodeType;
+typedef enum { DNODE, VNODES, QNODE, SNODE, MNODE, BNODE, NODE_MAX } EDndType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStatus;
 typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
@@ -92,7 +92,7 @@ typedef struct SMgmtWrapper {
   char       *path;
   int32_t     refCount;
   SRWLatch    latch;
-  ENodeType   ntype;
+  EDndType    ntype;
   bool        deployed;
   bool        required;
   EProcType   procType;
@@ -126,7 +126,7 @@ typedef struct SDnode {
   int32_t      numOfDisks;
   uint16_t     serverPort;
   bool         dropped;
-  ENodeType    ntype;
+  EDndType     ntype;
   EDndStatus   status;
   EDndEvent    event;
   SStartupReq  startup;
@@ -137,8 +137,8 @@ typedef struct SDnode {
 
 // dndEnv.c
 const char *dndStatStr(EDndStatus stat);
-const char *dndNodeLogStr(ENodeType ntype);
-const char *dndNodeProcStr(ENodeType ntype);
+const char *dndNodeLogStr(EDndType ntype);
+const char *dndNodeProcStr(EDndType ntype);
 const char *dndEventStr(EDndEvent ev);
 
 // dndExec.c
@@ -156,7 +156,7 @@ int32_t   dndWriteShmFile(SDnode *pDnode);
 EDndStatus    dndGetStatus(SDnode *pDnode);
 void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
 void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndType nType);
 int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
 void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
 void          dndHandleEvent(SDnode *pDnode, EDndEvent event);
