@@ -1119,7 +1119,7 @@ static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
   return TSDB_CODE_SUCCESS;
 }
 
-static const SColumnDefNode* findColDef(const SNodeList* pCols, const SColumnNode* pCol) {
+static SColumnDefNode* findColDef(SNodeList* pCols, const SColumnNode* pCol) {
   SNode* pColDef = NULL;
   FOREACH(pColDef, pCols) {
     if (0 == strcmp(pCol->colName, ((SColumnDefNode*)pColDef)->colName)) {
@@ -1129,16 +1129,20 @@ static const SColumnDefNode* findColDef(const SNodeList* pCols, const SColumnNod
   return NULL;
 }
 
-static int32_t checkCreateSuperTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
   if (NULL != pStmt->pOptions->pSma) {
     SNode* pNode = NULL;
+    FOREACH(pNode, pStmt->pCols) {
+      ((SColumnDefNode*)pNode)->sma = false;
+    }
     FOREACH(pNode, pStmt->pOptions->pSma) {
       SColumnNode* pSmaCol = (SColumnNode*)pNode;
-      const SColumnDefNode* pColDef = findColDef(pStmt->pCols, pSmaCol);
+      SColumnDefNode* pColDef = findColDef(pStmt->pCols, pSmaCol);
       if (NULL == pColDef) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pSmaCol->colName);
       }
       pSmaCol->node.resType = pColDef->dataType;
+      pColDef->sma = true;
     }
   }
   if (NULL != pStmt->pOptions->pFuncs) {
@@ -1158,7 +1162,7 @@ static int32_t getAggregationMethod(SNodeList* pFuncs) {
 }
 
 static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checkCreateSuperTable(pCxt, pStmt);
+  int32_t code = checkCreateTable(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -1489,7 +1493,7 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
       return TSDB_MGMT_TABLE_CONNS;
     case QUERY_NODE_SHOW_LICENCE_STMT:
-      return 0; // todo
+      return TSDB_MGMT_TABLE_GRANTS;
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return TSDB_MGMT_TABLE_QUERIES;
     case QUERY_NODE_SHOW_SCORES_STMT:
@@ -2161,11 +2165,11 @@ typedef struct SVgroupTablesBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupTablesBatch;
 
-static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchemaEx* pSchema) {
+static void toSchemaEx(const SColumnDefNode* pCol, col_id_t colId, SSchemaEx* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = calcTypeBytes(pCol->dataType);
-  pSchema->sma = TSDB_BSMA_TYPE_LATEST;  // TODO: use default value currently, and use the real value later.
+  pSchema->sma = pCol->sma ? TSDB_BSMA_TYPE_LATEST : TSDB_BSMA_TYPE_NONE;
   strcpy(pSchema->name, pCol->colName);
 }
 
@@ -2175,33 +2179,60 @@ static void destroyCreateTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->ntbCfg.pSchema);
 }
 
-static int32_t buildNormalTableBatchReq(int32_t acctId, const char* pDbName, const char* pTableName,
-    const SNodeList* pColumns, const SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
+static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
+  if (0 == LIST_LENGTH(pOptions->pFuncs)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pReq->ntbCfg.pRSmaParam = taosMemoryCalloc(1, sizeof(SRSmaParam));
+  if (NULL == pReq->ntbCfg.pRSmaParam) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pReq->ntbCfg.pRSmaParam->delay = pOptions->delay;
+  pReq->ntbCfg.pRSmaParam->xFilesFactor = pOptions->filesFactor;
+  pReq->ntbCfg.pRSmaParam->nFuncIds = LIST_LENGTH(pOptions->pFuncs);
+  pReq->ntbCfg.pRSmaParam->pFuncIds = taosMemoryCalloc(pReq->ntbCfg.pRSmaParam->nFuncIds, sizeof(func_id_t));
+  if (NULL == pReq->ntbCfg.pRSmaParam->pFuncIds) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t index = 0;
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pOptions->pFuncs) {
+    pReq->ntbCfg.pRSmaParam->pFuncIds[index++] = ((SFunctionNode*)pFunc)->funcId;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   SName name = { .type = TSDB_DB_NAME_T, .acctId = acctId };
-  strcpy(name.dbname, pDbName);
+  strcpy(name.dbname, pStmt->dbName);
   tNameGetFullDbName(&name, dbFName);
 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.dbFName = strdup(dbFName);
-  req.name = strdup(pTableName);
-  req.ntbCfg.nCols = LIST_LENGTH(pColumns);
+  req.name = strdup(pStmt->tableName);
+  req.ntbCfg.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchemaEx));
   if (NULL == req.name || NULL == req.ntbCfg.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SNode* pCol;
-  int32_t index = 0;
-  FOREACH(pCol, pColumns) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
+  col_id_t index = 0;
+  FOREACH(pCol, pStmt->pCols) {
+    toSchemaEx((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
     ++index;
   }
-  // TODO: use the real sma for normal table.
+  if (TSDB_CODE_SUCCESS != buildSmaParam(pStmt->pOptions, &req)) {
+    destroyCreateTbReq(&req);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   pBatch->info = *pVgroupInfo;
-  strcpy(pBatch->dbName, pDbName);
+  strcpy(pBatch->dbName, pStmt->dbName);
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray) {
     destroyCreateTbReq(&req);
@@ -2282,7 +2313,7 @@ static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt*
   }
 
   SVgroupTablesBatch tbatch = {0};
-  int32_t code = buildNormalTableBatchReq(acctId, pStmt->dbName, pStmt->tableName, pStmt->pCols, pInfo, &tbatch);
+  int32_t code = buildNormalTableBatchReq(acctId, pStmt, pInfo, &tbatch);
   if (TSDB_CODE_SUCCESS == code) {
     code = serializeVgroupTablesBatch(&tbatch, *pBufArray);
   }
@@ -2297,8 +2328,11 @@ static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt*
 static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   SCreateTableStmt* pStmt = (SCreateTableStmt*)pQuery->pRoot;
 
+  int32_t code = checkCreateTable(pCxt, pStmt);
   SVgroupInfo info = {0};
-  int32_t code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
+  }
   SArray* pBufArray = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray);
