@@ -22,6 +22,11 @@ extern "C" {
 
 //======================================================================================
 //begin API to taosd and qworker
+enum {
+  UDFC_CODE_STOPPING = -1,
+  UDFC_CODE_RESTARTING = -2,
+};
+
 /**
  * start udf dameon service
  * @return error code
