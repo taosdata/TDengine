@@ -618,6 +618,13 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
   STSchema  *pSchema = NULL;
   SBlockIdx  blkIdx  = {0};
 
+  // update last row if need
+  TSKEY lastKey = pItem->pTable->lastKey;
+  if(lastKey >= pdh->pCtlInfo->win.skey && lastKey <= pdh->pCtlInfo->win.ekey) {
+    // update lastkey and lastrow
+    tsdbAddUpdates(pdh->aUpdates, pItem->pTable);
+  }
+
   // get pSchema for del table
   if ((pSchema = tsdbGetTableSchemaImpl(pItem->pTable, true, true, -1, -1)) == NULL) {
     return -1;
@@ -684,12 +691,6 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
   }
 
   // update new last row in last row was deleted
-  TSKEY lastKey = pItem->pTable->lastKey;
-  if(lastKey >= pdh->pCtlInfo->win.skey && lastKey <= pdh->pCtlInfo->win.ekey) {
-    // update lastkey and lastrow
-    tsdbAddUpdates(pdh->aUpdates, pItem->pTable);
-  }
-
   if (affectedRows > 0) {
     // affectedRows
     if (pdh->pCtlInfo->pRsp) {
