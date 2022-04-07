@@ -48,6 +48,7 @@ typedef struct {
   SDataCols *pDCols;
   SControlDataInfo* pCtlInfo;
   SArray *   aUpdates;
+  SArray *   aAffectTables;
 } SDeleteH;
 
 
@@ -65,7 +66,7 @@ typedef struct {
 
 static void  tsdbStartDeleteTrans(STsdbRepo *pRepo);
 static void  tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno);
-static int   tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray);
+static int   tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray, SArray* pAffectTables);
 static int   tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet);
 static int   tsdbInitDeleteH(SDeleteH *pdh, STsdbRepo *pRepo);
 static void  tsdbDestroyDeleteH(SDeleteH *pdh);
@@ -126,6 +127,9 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     return -1;
   }
 
+  SArray* aUpdates = taosArrayInit(10, sizeof(STable *));
+  SArray* affectedTables = taosArrayInit(10, sizeof(int32_t)); // put tid
+
   // start transaction
   tsdbStartDeleteTrans(pRepo);
 
@@ -134,8 +138,7 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     goto _err;
   }
 
-  SArray* aUpdates = taosArrayInit(10, sizeof(STable *));
-  if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates) < 0) {
+  if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates, affectedTables) < 0) {
     tsdbError("vgId:%d failed to truncate TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
@@ -145,18 +148,20 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
 
   // set affected tables number
   if(pCtlInfo->pRsp) {
-    pCtlInfo->pRsp->numOfTables = pCtlInfo->tnum;
+    pCtlInfo->pRsp->numOfTables = (int32_t)taosArrayGetSize(affectedTables);
   }
 
   // update last row
   tsdbUpdateLastRow(pRepo, aUpdates);
   tsdbClearUpdates(aUpdates);
+  taosArrayDestroy(&affectedTables);
   return TSDB_CODE_SUCCESS;
 
 _err:
   pRepo->code = terrno;
   tsdbEndDeleteTrans(pRepo, terrno);
   tsdbClearUpdates(aUpdates);
+  taosArrayDestroy(&affectedTables);
   return -1;
 }
 
@@ -179,7 +184,7 @@ static void tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno) {
   tsem_post(&(pRepo->readyToCommit));
 }
 
-static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray) {
+static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray, SArray* pAffectTables) {
   STsdbCfg *       pCfg = REPO_CFG(pRepo);
   SDeleteH         deleteH = {0};
   SDFileSet *      pSet = NULL;
@@ -193,6 +198,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
   deleteH.aUpdates = pArray;
   deleteH.pCtlInfo = pCtlInfo;
   STimeWindow win  = pCtlInfo->win;
+  deleteH.aAffectTables = pAffectTables;
 
   int sFid = TSDB_KEY_FID(win.skey, pCfg->daysPerFile, pCfg->precision);
   int eFid = TSDB_KEY_FID(win.ekey, pCfg->daysPerFile, pCfg->precision);
@@ -371,6 +377,18 @@ void tsdbAddUpdates(SArray* pArray, STable* pTable) {
   taosArrayAddBatch(pArray, &pTable, 1);
 }
 
+void tsdbAddAffectTables(SArray* pArray, int32_t tid) {
+  size_t cnt = taosArrayGetSize(pArray);
+  for ( size_t i = 0; i < cnt; i++) {
+   int32_t tid1 = *(int32_t *)taosArrayGet(pArray, i);
+   if ( tid1 == tid) {
+     // exist return
+     return ;
+   }
+  }
+  // append
+  taosArrayAddBatch(pArray, &tid, 1);
+}
 // init tbl array with pRepo->meta
 static int tsdbInitDeleteTblArray(SDeleteH *pdh) {
   STsdbRepo *pRepo = TSDB_DELETE_REPO(pdh);
@@ -499,12 +517,7 @@ static int32_t tsdbFilterDataCols(SDeleteH *pdh, SDataCols *pSrcDCols) {
     ++ pDstDCols->numOfRows;
   }
 
-  // affectedRows
-  if (pdh->pCtlInfo->pRsp) {
-    pdh->pCtlInfo->pRsp->affectedRows += delRows;
-  }
-
-  return 0;
+  return delRows;
 }
 
 // table in delete list
@@ -565,11 +578,17 @@ int tsdbRemoveDelBlocks(SDeleteH *pdh, STableDeleteH * pItem) {
     numOfBlocks -= delCnt;
   }
 
-  // set value
+  // set current blocks num
   pItem->pBlkIdx->numOfBlocks = numOfBlocks;
-  if(pdh->pCtlInfo->pRsp) {
-    pdh->pCtlInfo->pRsp->affectedRows += delRows;
-  }
+
+  if(delRows > 0) {
+    // affected Rows
+    if(pdh->pCtlInfo->pRsp) {
+      pdh->pCtlInfo->pRsp->affectedRows += delRows;
+    }
+    // affected Tables
+    tsdbAddAffectTables(pdh->aAffectTables, pItem->pTable->tableId.tid);
+  }  
 
   return TSDB_CODE_SUCCESS;
 }
@@ -622,6 +641,8 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
   taosArrayClear(pdh->aSupBlk);
   taosArrayClear(pdh->aSubBlk);
 
+  int32_t affectedRows = 0;
+
   // Loop to truncate each block data
   for (int i = 0; i < pItem->pBlkIdx->numOfBlocks; ++i) {
     SBlock *pBlock = pItem->pInfo->blocks + i;
@@ -636,7 +657,7 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
       return -1;
     }
 
-    tsdbFilterDataCols(pdh, pReadh->pDCols[0]);    
+    affectedRows += tsdbFilterDataCols(pdh, pReadh->pDCols[0]);
     if (pdh->pDCols->numOfRows <= 0) {
       continue;
     }
@@ -667,6 +688,15 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
   if(lastKey >= pdh->pCtlInfo->win.skey && lastKey <= pdh->pCtlInfo->win.ekey) {
     // update lastkey and lastrow
     tsdbAddUpdates(pdh->aUpdates, pItem->pTable);
+  }
+
+  if (affectedRows > 0) {
+    // affectedRows
+    if (pdh->pCtlInfo->pRsp) {
+      pdh->pCtlInfo->pRsp->affectedRows += affectedRows;
+    }
+    // affectTables
+    tsdbAddAffectTables(pdh->aAffectTables, pItem->pTable->tableId.tid);
   }
 
   return TSDB_CODE_SUCCESS;
