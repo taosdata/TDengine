@@ -370,7 +370,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
       if (status == MQ_CONSUMER_STATUS__MODIFY) {
         int32_t removeSz = taosArrayGetSize(pConsumer->recentRemovedTopics);
         for (int32_t i = 0; i < removeSz; i++) {
-          char *topicName = taosArrayGet(pConsumer->recentRemovedTopics, i);
+          char *topicName = taosArrayGetP(pConsumer->recentRemovedTopics, i);
           taosMemoryFree(topicName);
         }
         taosArrayClear(pConsumer->recentRemovedTopics);
