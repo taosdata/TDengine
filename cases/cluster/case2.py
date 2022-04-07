@@ -22,13 +22,17 @@ class Case2(ClusterCase):
         super().init()
         self.db_name = "testdb"
         self.replicas = 3
-        self.thread_num = 2
+        self.thread_num = 10
         self.stable_name = "stb"
         self.table_name = "tb"
         self.table_num = 10
         self.row_num = 500000  # row number per table
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
+        self.master_nodes = self.get_masters()
+        i = random.randint(0, len(self.master_nodes) - 1)
+        self.master_node = self.master_nodes[i]
+        self.logger.info("master: %s", self.master_node)
         self.slave_nodes = self.get_slaves()
         i = random.randint(0, len(self.slave_nodes) - 1)
         self.slave_node = self.slave_nodes[i]
@@ -93,12 +97,12 @@ class Case2(ClusterCase):
             db = f"{self.db_name}_{i}"
             stb = f"{self.stable_name}_{i}"
             tb = f"{self.table_name}_{i}"
-            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas))
+            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas, self.master_node))
             mthreads.append(mthread)
             mthread.start()
             i = i + 1
         # restart slave dnode thread
-        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.slave_node, self.max_restart_interval, self.restart_times))
+        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.slave_node, self.max_restart_interval, self.restart_times, self.master_node))
         # start thread
         dthread.start()
         # wait thread
