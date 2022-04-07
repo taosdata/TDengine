@@ -446,6 +446,12 @@ TEST_F(ParserTest, createDatabase) {
        "RETENTIONS '15s:7d,1m:21d,15m:5y'"
       );
   ASSERT_TRUE(run());
+
+  bind("create database if not exists wxy_db "
+       "DAYS 100m "
+       "KEEP 200m,300h,400d "
+      );
+  ASSERT_TRUE(run());
 }
 
 TEST_F(ParserTest, alterDatabase) {
