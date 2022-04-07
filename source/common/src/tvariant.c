@@ -512,6 +512,16 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
     setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
   }
+
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
+    *result = pVariant->i;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
+    *result = pVariant->u;
+  } else if (IS_FLOAT_TYPE(pVariant->nType)) {
+    *result = (int64_t) pVariant->d;
+  } else {
+    //TODO: handling var types
+  }
 #if 0
   errno = 0;
   if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
@@ -1038,4 +1048,3 @@ char * taosVariantGet(SVariant *pVar, int32_t type) {
 
   return NULL;
 }
-
