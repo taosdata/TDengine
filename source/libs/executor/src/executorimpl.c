@@ -1264,7 +1264,7 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
 
       pResult->info.rows = pCtx[0].input.numOfRows;
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
-      SVariant *pVal = pExpr->pExpr->pVal;
+      SVariant *pVal = pExpr[k].pExpr->pVal;
       char *payload;
       if (IS_VAR_DATA_TYPE(pVal->nType)) {
         payload = taosMemoryCalloc(1, pVal->nLen + VARSTR_HEADER_SIZE);
