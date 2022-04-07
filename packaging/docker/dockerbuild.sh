@@ -115,7 +115,7 @@ docker login -u tdengine -p ${passWord}  #replace the docker registry username a
 docker push tdengine/tdengine-${dockername}:${version}
 
 if [ -n "$(docker ps -aq)" ] ;then 
-  echo "delte docker process"
+  echo "delete docker process"
   docker stop $(docker ps -aq)
   docker rm $(docker ps -aq)
 fi
