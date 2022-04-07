@@ -41,8 +41,6 @@ extern int32_t tsMaxConnections;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsMaxTmrCtrl;
-extern float   tsNumOfThreadsPerCore;
-extern int32_t tsNumOfCommitThreads;
 extern float   tsRatioOfQueryCores;
 extern int32_t tsCompressMsgSize;
 extern int32_t tsCompressColData;
@@ -59,6 +57,11 @@ extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;
 extern int32_t tsSnodeShmSize;
 extern int32_t tsBnodeShmSize;
+
+// queue & threads
+extern int32_t tsNumOfRpcThreads;
+extern int32_t tsNumOfCommitThreads;
+extern int32_t tsNumOfTaskQueueThreads;
 
 // monitor
 extern bool     tsEnableMonitor;
