@@ -1629,7 +1629,7 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
     // window start(end) key interpolation
     doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &nextWin, startPos, forwardStep, pInfo->order, false);
 
-    updateTimeWindowInfo(&pInfo->timeWindowData, &win, true);
+    updateTimeWindowInfo(&pInfo->timeWindowData, &nextWin, true);
     doApplyFunctions(pInfo->binfo.pCtx, &nextWin, &pInfo->timeWindowData, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
   }
 
@@ -3295,6 +3295,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
 
   SFilterInfo* filter = NULL;
 
+  // todo move to the initialization function
   int32_t code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
 
   SFilterColumnParam param1 = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};

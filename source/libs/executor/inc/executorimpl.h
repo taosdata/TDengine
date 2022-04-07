@@ -625,24 +625,6 @@ typedef struct SSortOperatorInfo {
   uint64_t           totalElapsed;  // total elapsed time
 } SSortOperatorInfo;
 
-typedef struct SDistinctDataInfo {
-  int32_t index;
-  int32_t type;
-  int32_t bytes;
-} SDistinctDataInfo;
-
-typedef struct SDistinctOperatorInfo {
-  SHashObj*    pSet;
-  SSDataBlock* pRes;
-  bool         recordNullVal;  // has already record the null value, no need to try again
-//  int64_t      threshold;  // todo remove it
-//  int64_t      outputCapacity;// todo remove it
-//  int32_t      totalBytes; // todo remove it
-  SResultInfo  resInfo;
-  char*        buf;
-  SArray*      pDistinctDataInfo;
-} SDistinctOperatorInfo;
-
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
@@ -682,8 +664,10 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SInterval* pInterval, SSDataBlock* pResBlock,
                                       int32_t fillType, char* fillVal, bool multigroupResult, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createDistinctOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
 
+SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
+                                           SArray* pGroupColList, SNode* pCondition, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+#if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput);
@@ -705,6 +689,7 @@ SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
+#endif
 
 void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 
