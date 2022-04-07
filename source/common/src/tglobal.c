@@ -39,7 +39,6 @@ bool    tsRpcForceTcp = true;  // disable this, means query, show command use ud
 int32_t tsMaxShellConns = 50000;
 int32_t tsMaxConnections = 50000;
 int32_t tsShellActivityTimer = 3;  // second
-float   tsRatioOfQueryCores = 1.0f;
 int32_t tsMaxBinaryDisplayWidth = 30;
 bool    tsEnableSlaveQuery = true;
 bool    tsPrintAuth = false;
@@ -56,6 +55,13 @@ int32_t tsBnodeShmSize = TSDB_MAX_WAL_SIZE * 4;
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 1;
+int32_t tsNumOfMnodeQueryThreads = 1;
+int32_t tsNumOfMnodeReadThreads = 1;
+int32_t tsNumOfVnodeQueryThreads = 2;
+int32_t tsNumOfVnodeFetchThreads = 2;
+int32_t tsNumOfVnodeWriteThreads = 2;
+int32_t tsNumOfVnodeSyncThreads = 2;
+int32_t tsNumOfVnodeMergeThreads = 2;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -343,7 +349,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0) != 0) return -1;
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
-  if (cfgAddFloat(pCfg, "ratioOfQueryCores", tsRatioOfQueryCores, 0, 2, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelemetryReporting, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxConnections", tsMaxConnections, 1, 100000, 0) != 0) return -1;
@@ -372,9 +377,37 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, 4);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfCommitThreads = tsNumOfCommitThreads / 2;
+  tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
-  if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 100, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfMnodeQueryThreads = tsNumOfCores / 8;
+  tsNumOfMnodeQueryThreads = TRANGE(tsNumOfMnodeQueryThreads, 1, 4);
+  if (cfgAddInt32(pCfg, "numOfMnodeQueryThreads", tsNumOfMnodeQueryThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfMnodeReadThreads = tsNumOfCores / 8;
+  tsNumOfMnodeReadThreads = TRANGE(tsNumOfMnodeReadThreads, 1, 4);
+  if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfVnodeQueryThreads = tsNumOfCores / 2;
+  tsNumOfVnodeQueryThreads = TMIN(tsNumOfVnodeQueryThreads, 1);
+  if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfVnodeFetchThreads = tsNumOfCores / 2;
+  tsNumOfVnodeFetchThreads = TRANGE(tsNumOfVnodeFetchThreads, 2, 4);
+  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfVnodeWriteThreads = tsNumOfCores;
+  tsNumOfVnodeWriteThreads = TMIN(tsNumOfVnodeWriteThreads, 1);
+  if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfVnodeSyncThreads = tsNumOfCores / 2;
+  tsNumOfVnodeSyncThreads = TMIN(tsNumOfVnodeSyncThreads, 1);
+  if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfVnodeMergeThreads = tsNumOfCores / 8;
+  tsNumOfVnodeMergeThreads = TRANGE(tsNumOfVnodeMergeThreads, 1, 1);
+  if (cfgAddInt32(pCfg, "numOfVnodeMergeThreads", tsNumOfVnodeMergeThreads, 1, 1024, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
@@ -474,7 +507,6 @@ static void taosSetSystemCfg(SConfig *pCfg) {
 
 static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
-  tsRatioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
   tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
   tsEnableTelemetryReporting = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsMaxConnections = cfgGetItem(pCfg, "maxConnections")->i32;
@@ -501,6 +533,13 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
+  tsNumOfMnodeQueryThreads = cfgGetItem(pCfg, "numOfMnodeQueryThreads")->i32;
+  tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
+  tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
+  tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
+  tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
+  tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
+  tsNumOfVnodeMergeThreads = cfgGetItem(pCfg, "numOfVnodeMergeThreads")->i32;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;

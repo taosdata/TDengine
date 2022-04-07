@@ -41,7 +41,6 @@ extern int32_t tsMaxConnections;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsMaxTmrCtrl;
-extern float   tsRatioOfQueryCores;
 extern int32_t tsCompressMsgSize;
 extern int32_t tsCompressColData;
 extern int32_t tsMaxNumOfDistinctResults;
@@ -62,6 +61,13 @@ extern int32_t tsBnodeShmSize;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
+extern int32_t tsNumOfMnodeQueryThreads;
+extern int32_t tsNumOfMnodeReadThreads;
+extern int32_t tsNumOfVnodeQueryThreads;
+extern int32_t tsNumOfVnodeFetchThreads;
+extern int32_t tsNumOfVnodeWriteThreads;
+extern int32_t tsNumOfVnodeSyncThreads;
+extern int32_t tsNumOfVnodeMergeThreads;
 
 // monitor
 extern bool     tsEnableMonitor;

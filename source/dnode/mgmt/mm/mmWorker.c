@@ -129,25 +129,33 @@ int32_t mmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
-  SSingleWorkerCfg qCfg = {.min = 0, .max = 1, .name = "mnode-query", .fp = (FItem)mmProcessQueryQueue, .param = pMgmt};
+  SSingleWorkerCfg qCfg = {.min = tsNumOfMnodeQueryThreads,
+                           .max = tsNumOfMnodeQueryThreads,
+                           .name = "mnode-query",
+                           .fp = (FItem)mmProcessQueryQueue,
+                           .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->queryWorker, &qCfg) != 0) {
     dError("failed to start mnode-query worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg rCfg = {.min = 0, .max = 1, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg rCfg = {.min = tsNumOfMnodeReadThreads,
+                           .max = tsNumOfMnodeReadThreads,
+                           .name = "mnode-read",
+                           .fp = (FItem)mmProcessQueue,
+                           .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->readWorker, &rCfg) != 0) {
     dError("failed to start mnode-read worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg wCfg = {.min = 0, .max = 1, .name = "mnode-write", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg wCfg = {.min = 1, .max = 1, .name = "mnode-write", .fp = (FItem)mmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->writeWorker, &wCfg) != 0) {
     dError("failed to start mnode-write worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg sCfg = {.min = 0, .max = 1, .name = "mnode-sync", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg sCfg = {.min = 1, .max = 1, .name = "mnode-sync", .fp = (FItem)mmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->syncWorker, &sCfg) != 0) {
     dError("failed to start mnode sync-worker since %s", terrstr());
     return -1;
