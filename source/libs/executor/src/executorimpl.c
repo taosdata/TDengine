@@ -1265,6 +1265,21 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
       colDataAssign(pColInfoData, pCtx[k].input.pData[0], pCtx[k].input.numOfRows);
 
       pResult->info.rows = pCtx[0].input.numOfRows;
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
+      SVariant *pVal = pExpr->pExpr->pVal;
+      char *payload;
+      if (IS_VAR_DATA_TYPE(pVal->nType)) {
+        payload = taosMemoryCalloc(1, pVal->nLen + VARSTR_HEADER_SIZE);
+      } else {
+        payload = taosMemoryCalloc(1, tDataTypes[pVal->nType].bytes);
+      }
+      taosVariantDump(pVal, payload, pVal->nType, true);
+      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
+      for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+        colDataAppend(pColInfoData, i, payload, false);
+      }
+      taosMemoryFree(payload);
+      pResult->info.rows = pSrcBlock->info.rows;
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
       SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
       taosArrayPush(pBlockList, &pSrcBlock);
@@ -7060,6 +7075,16 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
       pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale, pType->precision, pColNode->colName);
       pExp->base.pParam[0].pCol = createColumn(pColNode->dataBlockId, pColNode->slotId, pType);
       pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
+    } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_VALUE) {
+      pExp->pExpr->nodeType  = QUERY_NODE_VALUE;
+      SValueNode* pValueNode = (SValueNode*)pTargetNode->pExpr;
+      SDataType* pType = &pValueNode->node.resType;
+      char *pDatum = nodesGetValueFromNode(pValueNode);
+      if (IS_VAR_DATA_TYPE(pType->type)) {
+        pDatum = varDataVal(pDatum);
+      }
+      pExp->pExpr->pVal = taosMemoryCalloc(1, sizeof(SVariant));
+      taosVariantCreateFromBinary(pExp->pExpr->pVal, pDatum, pType->bytes, pType->type);
     } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_FUNCTION) {
       pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
       SFunctionNode* pFuncNode = (SFunctionNode*)pTargetNode->pExpr;
