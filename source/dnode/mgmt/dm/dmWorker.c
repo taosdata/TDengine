@@ -78,6 +78,9 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     case TDMT_MND_GRANT_RSP:
       code = dmProcessGrantRsp(pMgmt, pMsg);
       break;
+    case TDMT_MON_DISK_INFO_RSP:
+      code = dmSetDiskInfo(pMgmt, pMsg);
+      break;
     default:
       code = dmProcessCDnodeReq(pMgmt->pDnode, pMsg);
       break;

@@ -680,6 +680,18 @@ typedef struct {
 } SClusterCfg;
 
 typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+  int64_t errors;
+} SVnodesStat;
+
+typedef struct {
   int32_t vgId;
   int8_t  role;
   int64_t numOfTables;

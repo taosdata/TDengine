@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndInt.h"
+#include "dmInt.h"
 
 static int32_t dmGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
@@ -104,4 +104,36 @@ void dmSendMonitorReport(SDnode *pDnode) {
 
   monSendReport(pMonitor);
   monCleanupMonitorInfo(pMonitor);
+}
+
+int32_t dmSetDiskInfo(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode      *pDnode = pMgmt->pDnode;
+  SMonDiskInfo info = {0};
+
+  if (tDeserializeSMonDiskInfo(pMsg->rpcMsg.pCont, pMsg->rpcMsg.contLen, &info) != 0) {
+    dError("failed to parse diskinfo since %s", terrstr());
+    return 0;
+  }
+
+  taosWLockLatch(&pMgmt->latch);
+  memcpy(&pMgmt->diskInfo, &info, sizeof(SMonDiskInfo));
+  taosWUnLockLatch(&pMgmt->latch);
+
+  return 0;
+}
+
+int32_t dmSetVnodeStat(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode      *pDnode = pMgmt->pDnode;
+  SVnodesStat info = {0};
+
+  if (tDeserializeSMonDiskInfo(pMsg->rpcMsg.pCont, pMsg->rpcMsg.contLen, &info) != 0) {
+    dError("failed to parse diskinfo since %s", terrstr());
+    return 0;
+  }
+
+  taosWLockLatch(&pMgmt->latch);
+  memcpy(&pMgmt->diskInfo, &info, sizeof(SMonDiskInfo));
+  taosWUnLockLatch(&pMgmt->latch);
+
+  return 0;
 }

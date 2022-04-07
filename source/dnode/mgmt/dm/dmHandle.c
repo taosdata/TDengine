@@ -212,4 +212,7 @@ void dmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessStatusMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
+
+  // Monitor info exchange between processes
+  dndSetMsgHandle(pWrapper, TDMT_MON_DISK_INFO, dmProcessStatusMsg, DEFAULT_HANDLE);
 }

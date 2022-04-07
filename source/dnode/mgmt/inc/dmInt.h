@@ -37,6 +37,11 @@ typedef struct SDnodeMgmt {
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
+
+  // monitor infos
+  SMonDiskInfo   diskInfo;
+  SMonVnodesStat vnodesStat;
+  SMonVnodesLoad vnodesLoad;
 } SDnodeMgmt;
 
 // dmFile.c
@@ -54,7 +59,10 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dmMonitor.c
-void dmSendMonitorReport(SDnode *pDnode);
+int32_t dmSetDiskInfo(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmSetVnodesStat(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmSetVnodesLoad(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+void    dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
 int32_t dmStartThread(SDnodeMgmt *pMgmt);
