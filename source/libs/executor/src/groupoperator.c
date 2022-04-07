@@ -345,45 +345,73 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   return pOperator;
 
   _error:
+  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   return NULL;
 }
 
-SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
-                                           SArray* pGroupColList, SNode* pCondition, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
-  SGroupbyOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupbyOperatorInfo));
-  SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+static SSDataBlock* doPartitionData(SOperatorInfo* pOperator, bool* newgroup) {
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSortOperatorInfo* pInfo = pOperator->info;
+  bool               hasVarCol = pInfo->pDataBlock->info.hasVarCol;
+
+  if (pOperator->status == OP_RES_TO_RETURN) {
+    return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
+  }
+
+  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize, numOfBufPage,
+                                             pInfo->pDataBlock, pTaskInfo->id.str);
+
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
+
+  SGenericSource* ps = taosMemoryCalloc(1, sizeof(SGenericSource));
+  ps->param = pOperator->pDownstream[0];
+  tsortAddSource(pInfo->pSortHandle, ps);
+
+  int32_t code = tsortOpen(pInfo->pSortHandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    longjmp(pTaskInfo->env, terrno);
+  }
+
+  pOperator->status = OP_RES_TO_RETURN;
+  return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
+}
+
+SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResultBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
+  SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
+  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
-  pInfo->pGroupCols = pGroupColList;
-  pInfo->pCondition = pCondition;
-  initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, 4096, pResultBlock, pTaskInfo->id.str);
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
+  pInfo->sortBufSize      = 1024 * 16;  // TODO dynamic set the available sort buffer
+  pInfo->bufPageSize      = 1024;
+  pInfo->numOfRowsInRes   = 1024;
+  pInfo->pDataBlock       = pResultBlock;
+  pInfo->pSortInfo        = pSortInfo;
 
-  int32_t code = initGroupOptrInfo(pInfo, pGroupColList);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-
-  pOperator->name         = "PartitionByOperator";
+  pOperator->name         = "PartitionOperator";
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
   pOperator->blockingOptr = true;
   pOperator->status       = OP_NOT_OPENED;
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
-  pOperator->pExpr        = pExprInfo;
-  pOperator->numOfOutput  = numOfCols;
   pOperator->info         = pInfo;
-  pOperator->_openFn      = operatorDummyOpenFn;
-  pOperator->getNextFn    = hashGroupbyAggregate;
-  pOperator->closeFn      = destroyGroupbyOperatorInfo;
 
-  code = appendDownstream(pOperator, &downstream, 1);
+  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->getNextFn    = doPartitionData;
+//  pOperator->closeFn      = destroyOrderOperatorInfo;
+
+  int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
   _error:
-  taosMemoryFreeClear(pInfo);
-  taosMemoryFreeClear(pOperator);
+  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  taosMemoryFree(pInfo);
+  taosMemoryFree(pOperator);
   return NULL;
 }

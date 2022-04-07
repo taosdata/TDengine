@@ -188,6 +188,8 @@ DLL_EXPORT void        taos_stop_query(TAOS_RES *res);
 DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
 DLL_EXPORT bool        taos_is_update_query(TAOS_RES *res);
 DLL_EXPORT int         taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
+DLL_EXPORT int         taos_fetch_block_s(TAOS_RES *res, int* numOfRows, TAOS_ROW *rows);
+DLL_EXPORT int         taos_fetch_raw_block(TAOS_RES *res, int* numOfRows, void** pData);
 DLL_EXPORT int        *taos_get_column_data_offset(TAOS_RES *res, int columnIndex);
 DLL_EXPORT int         taos_validate_sql(TAOS *taos, const char *sql);
 DLL_EXPORT void        taos_reset_current_db(TAOS *taos);
