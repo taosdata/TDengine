@@ -2225,6 +2225,7 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
 }
 
 typedef struct {
+  int idx;
 } SMCreateFullTextReq;
 
 int32_t tSerializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
