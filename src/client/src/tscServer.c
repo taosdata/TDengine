@@ -523,9 +523,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       pMsg->numOfRows = htonl(pMsg->numOfRows);
       pMsg->affectedRows = htonl(pMsg->affectedRows);
       pMsg->failedRows = htonl(pMsg->failedRows);
-      pMsg->numOfFailedBlocks = htonl(pMsg->numOfFailedBlocks);
+      pMsg->numOfTables = htonl(pMsg->numOfTables);
 
       pRes->numOfRows += pMsg->affectedRows;
+      if(pMsg->numOfTables > 0) {
+        pRes->numOfTables = pMsg->numOfTables;
+      }
       tscDebug("0x%"PRIx64" SQL cmd:%s, code:%s inserted rows:%d rspLen:%d", pSql->self, sqlCmd[pCmd->command],
                tstrerror(pRes->code), pMsg->affectedRows, pRes->rspLen);
     } else {

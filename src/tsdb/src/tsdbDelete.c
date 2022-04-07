@@ -63,9 +63,8 @@ typedef struct {
 #define TSDB_DELETE_EXBUF(pdh) TSDB_READ_EXBUF(&((pdh)->readh))
 
 
-static void  tsdbStartDelete(STsdbRepo *pRepo);
-static void  tsdbEndDelete(STsdbRepo *pRepo, int eno);
-static int   tsdbDeleteMeta(STsdbRepo *pRepo);
+static void  tsdbStartDeleteTrans(STsdbRepo *pRepo);
+static void  tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno);
 static int   tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray);
 static int   tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet);
 static int   tsdbInitDeleteH(SDeleteH *pdh, STsdbRepo *pRepo);
@@ -73,7 +72,6 @@ static void  tsdbDestroyDeleteH(SDeleteH *pdh);
 static int   tsdbInitDeleteTblArray(SDeleteH *pdh);
 static void  tsdbDestroyDeleteTblArray(SDeleteH *pdh);
 static int   tsdbCacheFSetIndex(SDeleteH *pdh);
-static int   tsdbDeleteCache(STsdbRepo *pRepo, void *param);
 static int   tsdbFSetInit(SDeleteH *pdh, SDFileSet *pSet);
 static void  tsdbDeleteFSetEnd(SDeleteH *pdh);
 static int   tsdbFSetDeleteImpl(SDeleteH *pdh);
@@ -88,6 +86,7 @@ int tsdbControlDelete(STsdbRepo* pRepo, SControlDataInfo* pCtlInfo) {
   int32_t ret = tsdbDeleteImplCommon(pRepo, pCtlInfo);
   if(pCtlInfo->pRsp) {
     pCtlInfo->pRsp->affectedRows = htonl(pCtlInfo->pRsp->affectedRows);
+    pCtlInfo->pRsp->numOfTables  = htonl(pCtlInfo->pRsp->numOfTables);
     pCtlInfo->pRsp->code = ret;
   }
 
@@ -112,26 +111,23 @@ static void tsdbClearUpdates(SArray * pArray) {
   taosArrayDestroy(&pArray);
 }
 
+static int tsdbDeleteMeta(STsdbRepo *pRepo) {
+  STsdbFS *pfs = REPO_FS(pRepo);
+  tsdbUpdateMFile(pfs, pfs->cstatus->pmf);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
-  int32_t code = 0;
-  // Step 1: check and clear cache
-  if ((code = tsdbDeleteCache(pRepo, pCtlInfo)) != 0) {
-    pRepo->code = terrno;
-    tsem_post(&(pRepo->readyToCommit));
-    tsdbInfo("vgId:%d failed to truncate since %s", REPO_ID(pRepo), tstrerror(terrno));
-    return -1;
-  }
-
-  // Step 2: truncate and rebuild DFileSets
-  // Check if there are files in TSDB FS to truncate
+  // check valid
   if ((REPO_FS(pRepo)->cstatus->pmf == NULL) || (taosArrayGetSize(REPO_FS(pRepo)->cstatus->df) <= 0)) {
-    pRepo->truncateState = TSDB_NO_DELETE;
+    pRepo->deleteState = TSDB_NO_DELETE;
     tsem_post(&(pRepo->readyToCommit));
-    tsdbInfo("vgId:%d truncate over, no meta or data file", REPO_ID(pRepo));
+    tsdbInfo("vgId:%d delete over, no meta or data file", REPO_ID(pRepo));
     return -1;
   }
 
-  tsdbStartDelete(pRepo);
+  // start transaction
+  tsdbStartDeleteTrans(pRepo);
 
   if (tsdbDeleteMeta(pRepo) < 0) {
     tsdbError("vgId:%d failed to truncate META data since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -144,7 +140,13 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     goto _err;
   }
 
-  tsdbEndDelete(pRepo, TSDB_CODE_SUCCESS);
+  // end transaction
+  tsdbEndDeleteTrans(pRepo, TSDB_CODE_SUCCESS);
+
+  // set affected tables number
+  if(pCtlInfo->pRsp) {
+    pCtlInfo->pRsp->numOfTables = pCtlInfo->tnum;
+  }
 
   // update last row
   tsdbUpdateLastRow(pRepo, aUpdates);
@@ -153,52 +155,28 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
 
 _err:
   pRepo->code = terrno;
-  tsdbEndDelete(pRepo, terrno);
+  tsdbEndDeleteTrans(pRepo, terrno);
   tsdbClearUpdates(aUpdates);
   return -1;
 }
 
-static int tsdbDeleteCache(STsdbRepo *pRepo, void *param) {
-  // step 1: reset query cache(reset all or the specific cache)
-  // TODO ... check with Doctor Liao
-  // if(... <0){
-  //   terrno = ...;
-  //   return -1;
-  // }
-
-  // step 2: check and clear cache of last_row/last
-  // TODO: ... scan/check/clear stable/child table/common table
-  // if(... <0){
-  //   terrno = ...;
-  //   return -1;
-  // }
-
-  return 0;
-}
-
-static void tsdbStartDelete(STsdbRepo *pRepo) {
-  assert(pRepo->truncateState != TSDB_IN_DELETE);
+static void tsdbStartDeleteTrans(STsdbRepo *pRepo) {
+  assert(pRepo->deleteState != TSDB_IN_DELETE);
   tsdbInfo("vgId:%d start to truncate!", REPO_ID(pRepo));
   tsdbStartFSTxn(pRepo, 0, 0);
   pRepo->code = TSDB_CODE_SUCCESS;
-  pRepo->truncateState = TSDB_IN_DELETE;
+  pRepo->deleteState = TSDB_IN_DELETE;
 }
 
-static void tsdbEndDelete(STsdbRepo *pRepo, int eno) {
+static void tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno) {
   if (eno != TSDB_CODE_SUCCESS) {
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
     tsdbEndFSTxn(pRepo);
   }
-  pRepo->truncateState = TSDB_NO_DELETE;
+  pRepo->deleteState = TSDB_NO_DELETE;
   tsdbInfo("vgId:%d truncate over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
   tsem_post(&(pRepo->readyToCommit));
-}
-
-static int tsdbDeleteMeta(STsdbRepo *pRepo) {
-  STsdbFS *pfs = REPO_FS(pRepo);
-  tsdbUpdateMFile(pfs, pfs->cstatus->pmf);
-  return 0;
 }
 
 static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray) {

@@ -256,7 +256,7 @@ typedef struct {
   int32_t              numOfRows;     // number of records the client is trying to write
   int32_t              affectedRows;  // number of records actually written
   int32_t              failedRows;    // number of failed records (exclude duplicate records)
-  int32_t              numOfFailedBlocks;
+  int32_t              numOfTables;   // affected tables
   SShellSubmitRspBlock failedBlocks[];
 } SShellSubmitRspMsg;
 

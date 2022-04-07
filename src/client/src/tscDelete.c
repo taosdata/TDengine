@@ -89,7 +89,8 @@ void tscSubDeleteCallback(void *param, TAOS_RES *tres, int code) {
       pSql->self, pVgroup->epAddr[pSql->epSet.inUse].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
 
   // success do total count
-  pParentSql->res.numOfRows += pSql->res.numOfRows;
+  pParentSql->res.numOfRows   += pSql->res.numOfRows;
+  pParentSql->res.numOfTables += pSql->res.numOfTables;
   if (subAndCheckDone(pSql, pParentSql, trsupport->subqueryIndex)) {
     // all sub done, call parentSQL callback to finish
     (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);

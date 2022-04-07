@@ -319,6 +319,7 @@ typedef struct {
 
   TAOS_FIELD*    final;
   struct SGlobalMerger *pMerger;
+  int32_t        numOfTables;
 } SSqlRes;
 
 typedef struct {
@@ -498,6 +499,7 @@ void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *para
 void tscImportDataFromFile(SSqlObj *pSql);
 struct SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint64_t id);
 bool tscIsUpdateQuery(SSqlObj* pSql);
+bool tscIsDeleteQuery(SSqlObj* pSql);
 char* tscGetSqlStr(SSqlObj* pSql);
 bool tscIsQueryWithLimit(SSqlObj* pSql);
 

@@ -214,7 +214,7 @@ int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
 int8_t tsdbGetCompactState(STsdbRepo *repo) { return (int8_t)(repo->compactState); }
 
-int8_t tsdbGetTruncateState(STsdbRepo *repo) { return (int8_t)(repo->truncateState); }
+int8_t tsdbGetTruncateState(STsdbRepo *repo) { return (int8_t)(repo->deleteState); }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
@@ -575,7 +575,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   pRepo->state = TSDB_STATE_OK;
   pRepo->code = TSDB_CODE_SUCCESS;
   pRepo->compactState = 0;
-  pRepo->truncateState = 0;
+  pRepo->deleteState = 0;
   pRepo->config = *pCfg;
   if (pAppH) {
     pRepo->appH = *pAppH;

@@ -99,7 +99,7 @@ struct STsdbRepo {
 
   SMergeBuf       mergeBuf;  //used when update=2
   int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
-  int8_t          truncateState;  // truncate state: inTruncate/noTruncate/waitingTruncate
+  int8_t          deleteState;  // truncate state: inTruncate/noTruncate/waitingTruncate
 
   pthread_t*      pthread;
 };
