@@ -1182,8 +1182,7 @@ int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr) {
 
 int32_t exprValidateMathNode(tExprNode *pExpr) {
   switch (pExpr->_func.functionId) {
-    case TSDB_FUNC_SCALAR_POW:
-    case TSDB_FUNC_SCALAR_LOG: {
+    case TSDB_FUNC_SCALAR_POW: {
       if (pExpr->_func.numChildren != 2) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -1191,6 +1190,27 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
       tExprNode *child2 = pExpr->_func.pChildren[1];
       if (!IS_NUMERIC_TYPE(child1->resultType) || !IS_NUMERIC_TYPE(child2->resultType)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case TSDB_FUNC_SCALAR_LOG: {
+      if (pExpr->_func.numChildren != 1 && pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (pExpr->_func.numChildren == 2) {
+        tExprNode *child2 = pExpr->_func.pChildren[1];
+        if (!IS_NUMERIC_TYPE(child2->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
 
       pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
@@ -2041,13 +2061,20 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
     if (!hasNullInputs) {
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOG: {
-          assert(numInputs == 2);
-          double base = 0;
-          GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          assert(numInputs == 1 || numInputs == 2);
+          double base = M_E;
+          if (numInputs == 2) {
+            GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          }
           double v1 = 0;
           GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
-          double result = log(v1) / log(base);
-          SET_TYPED_DATA(outputData, pOutput->type, result);
+          if (numInputs == 2) {
+            double result = log(v1) / log(base);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          } else {
+            double result = log(v1);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          }
           break;
         }
 
