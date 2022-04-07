@@ -1,7 +1,7 @@
 ---
 sidebar_label: 参数限制与保留关键字 
+title: TDengine 参数限制与保留关键字
 ---
-# TDengine 参数限制与保留关键字
 
 ## 名称命名规则
 

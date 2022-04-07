@@ -1,8 +1,7 @@
 ---
 sidebar_label: StatsD
+title: StatsD 直接写入
 ---
-
-# StatsD 直接写入
 
 安装 StatsD
 请参考[官方文档](https://github.com/statsd/statsd)。

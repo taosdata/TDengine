@@ -1,4 +1,6 @@
-# 通过 Docker 快速体验 TDengine
+---
+title: 通过 Docker 快速体验 TDengine
+---
 
 虽然并不推荐在生产环境中通过 Docker 来部署 TDengine 服务，但 Docker 工具能够很好地屏蔽底层操作系统的环境差异，很适合在开发测试或初次体验时用于安装运行 TDengine 的工具集。特别是，借助 Docker，能够比较方便地在 macOS 和 Windows 系统上尝试 TDengine，而无需安装虚拟机或额外租用 Linux 服务器。另外，从 2.0.14.0 版本开始，TDengine 提供的镜像已经可以同时支持 X86-64、X86、arm64、arm32 平台，像 NAS、树莓派、嵌入式开发板之类可以运行 docker 的非主流计算机也可以基于本文档轻松体验 TDengine。
 

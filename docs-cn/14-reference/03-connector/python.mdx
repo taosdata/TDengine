@@ -1,15 +1,15 @@
 ---
 sidebar_position: 3
+title: Python Connector
 ---
 
-# Python Connector
 
 Python 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1963.html)
 
 - **安装**：参见下面具体步骤
 - **示例程序**：位于 install_directory/examples/python
 
-### 安装
+## 安装
 
 Python 连接器支持的系统有：Linux 64/Windows x64
 
@@ -19,7 +19,7 @@ Python 连接器支持的系统有：Linux 64/Windows x64
 - 已安装 python 2.7 or >= 3.4
 - 已安装 pip
 
-### Python 连接器安装
+## Python 连接器安装
 
 Python 连接器可以通过 `pip` 从 PyPI 下载安装。注意 TDengine Python 连接器的包名为 `taospy` 而不是 `taos`（这是一个与 TDengine 无关的另一个程序）。但为保持向后兼容性，仍然使用 `import taos` 导入。
 
@@ -38,7 +38,7 @@ Python 命令行依赖 taos 动态库 `libtaos.so` 或 `taos.dll`, 对于 Window
 
 对于无法联网用户，可以将 TDengine 客户端中的 `connector/python` 路径（Linux 下其安装路径为 `/usr/local/taos/connector/python/`，Windows 下默认安装路径为 `C:\TDengine\connector\python`）添加到 `PYTHONPATH` 环境变量中使用。
 
-### 示例程序
+## 示例程序
 
 示例程序源码位于 `<install_directory>/examples/python`，有：
 
@@ -58,7 +58,7 @@ Python 命令行依赖 taos 动态库 `libtaos.so` 或 `taos.dll`, 对于 Window
 
 - 如果执行的是查询语句，则 execute 执行成功后，需要通过 fetchall 方法去拉取结果集。 具体方法可以参考示例代码。
 
-### 安装验证
+## 安装验证
 
 运行如下指令：
 
@@ -69,9 +69,8 @@ python3 PythonChecker.py -host <fqdn>
 
 验证通过将打印出成功信息。
 
-### Python 连接器的使用
 
-#### PEP-249 兼容 API
+## PEP-249 兼容 API
 
 您可以像其他数据库一样，使用类似 [PEP-249](https://www.python.org/dev/peps/pep-0249/) 数据库 API 规范风格的 API：
 
@@ -87,7 +86,7 @@ for row in results:
     print(row)
 ```
 
-##### 代码示例
+### 代码示例
 
 1. 导入 TDengine 客户端模块
 
@@ -144,7 +143,7 @@ for row in results:
        print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1], data[2]))
    ```
 
-#### Query API
+## Query API
 
 从 v2.1.0 版本开始, 我们提供另外一种方法：`connection.query` 来操作数据库。
 
@@ -183,7 +182,7 @@ conn.execute("drop database pytest")
 - `errstr`: 错误信息
 - `close`: 关闭结果对象，一般不需要直接调用
 
-#### 订阅 API
+## 订阅 API
 
 1. 创建一个同步订阅队列：
 
@@ -214,7 +213,7 @@ conn.execute("drop database pytest")
    conn.close()
    ```
 
-#### JSON 类型
+## JSON 类型
 
 从 `taospy` `v2.2.0` 开始，Python 连接器开始支持 JSON 数据类型的标签（TDengine 版本要求 Beta 版 2.3.5+， 稳定版 2.4.0+）。
 
@@ -257,14 +256,14 @@ k1 = conn.query("select info->'k1' as k1 from s1").fetch_all_into_dict()
 
 更多 JSON 类型的操作方式请参考 [JSON 类型使用说明](https://www.taosdata.com/cn/documentation/taos-sql)。
 
-#### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
+## 关于纳秒 (nanosecond) 在 Python 连接器中的说明
 
 由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
 
-#### 帮助信息
+## 帮助信息
 
 用户可通过 python 的帮助信息直接查看模块的使用信息，或者参考 tests/examples/python 中的示例程序。以下为部分常用类和方法：
 

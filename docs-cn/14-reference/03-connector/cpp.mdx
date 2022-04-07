@@ -1,10 +1,10 @@
 ---
 sidebar_position: 1
+title: C/C++ Connector
 ---
 
-# C/C++ Connector
 
-**C/C++连接器支持的系统有**：
+## 支持的系统
 
 | **CPU 类型** | x64（64bit） |          |          | ARM64    | ARM32    |
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
@@ -26,7 +26,7 @@ C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TD
 - 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
 - 在 taoserror.h 中有所有的错误码，以及对应的原因描述。
 
-### 示例程序
+## 示例程序
 
 使用 C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/examples/c 。
 
@@ -40,7 +40,7 @@ C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TD
 
 **提示：**在 ARM 环境下编译时，请将 makefile 中的-msse4.2 打开，这个选项只有在 x64/x86 硬件平台上才能支持。
 
-### 基础 API
+## 基础 API
 
 基础 API 用于完成创建数据库连接等工作，为其它 API 的执行提供运行时环境。
 
@@ -89,7 +89,7 @@ C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TD
 
   关闭连接，其中`taos`是`taos_connect`函数返回的指针。
 
-### 同步查询 API
+## 同步查询 API
 
 传统的数据库操作 API，都属于同步操作。应用调用 API 后，一直处于阻塞状态，直到服务器返回结果。TDengine 支持如下 API：
 
@@ -154,7 +154,7 @@ typedef struct taosField {
 
 :::
 
-### 异步查询 API
+## 异步查询 API
 
 同步 API 之外，TDengine 还提供性能更高的异步调用 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优点尤为突出。
 
@@ -180,7 +180,7 @@ typedef struct taosField {
 
 TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
-### 参数绑定 API
+## 参数绑定 API
 
 除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。文档中有时也会把此功能称为“原生接口写入”。
 
@@ -215,17 +215,17 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   不如 `taos_stmt_bind_param_batch` 效率高，但可以支持非 INSERT 类型的 SQL 语句。  
   进行参数绑定，bind 指向一个数组（代表所要绑定的一行数据），需保证此数组中的元素数量和顺序与 SQL 语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL 中的 MYSQL_BIND 一致，具体定义如下：
 
-```c
-typedef struct TAOS_BIND {
-  int            buffer_type;
-  void *         buffer;
-  unsigned long  buffer_length;  // 未实际使用
-  unsigned long *length;
-  int *          is_null;
-  int            is_unsigned;    // 未实际使用
-  int *          error;          // 未实际使用
-} TAOS_BIND;
-```
+  ```c
+  typedef struct TAOS_BIND {
+    int            buffer_type;
+    void *         buffer;
+    unsigned long  buffer_length;  // 未实际使用
+    unsigned long *length;
+    int *          is_null;
+    int            is_unsigned;    // 未实际使用
+    int *          error;          // 未实际使用
+  } TAOS_BIND;
+  ```
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
@@ -242,16 +242,16 @@ typedef struct TAOS_BIND {
   （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
 
-```c
-typedef struct TAOS_MULTI_BIND {
-  int          buffer_type;
-  void *       buffer;
-  uintptr_t    buffer_length;
-  int32_t *    length;
-  char *       is_null;
-  int          num;             // 列的个数，即 buffer 中的参数个数
-} TAOS_MULTI_BIND;
-```
+  ```c
+  typedef struct TAOS_MULTI_BIND {
+    int          buffer_type;
+    void *       buffer;
+    uintptr_t    buffer_length;
+    int32_t *    length;
+    char *       is_null;
+    int          num;             // 列的个数，即 buffer 中的参数个数
+  } TAOS_MULTI_BIND;
+  ```
 
 - `int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
@@ -274,7 +274,7 @@ typedef struct TAOS_MULTI_BIND {
   （2.1.3.0 版本新增）  
   用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
-### Schemaless 方式写入接口
+## Schemaless 方式写入接口
 
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
 
@@ -316,40 +316,40 @@ typedef struct TAOS_MULTI_BIND {
   **支持版本**  
    该功能接口从 2.3.0.0 版本开始支持。
 
-```c
-#include <stdlib.h>
-#include <stdio.h>
-#include <taos.h>
+  ```c
+  #include <stdlib.h>
+  #include <stdio.h>
+  #include <taos.h>
 
-int main() {
-  const char* host = "127.0.0.1";
-  const char* user = "root";
-  const char* passwd = "taosdata";
+  int main() {
+    const char* host = "127.0.0.1";
+    const char* user = "root";
+    const char* passwd = "taosdata";
 
-  // connect to server
-  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+    // connect to server
+    TAOS* taos = taos_connect(host, user, passwd, "test", 0);
 
-  // prepare the line string
-  char* lines1[] = {
-      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
-      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
-  };
+    // prepare the line string
+    char* lines1[] = {
+        "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+        "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+    };
 
-  // schema-less insert
-  TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  if (taos_errno(res) != 0) {
-    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+    // schema-less insert
+    TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+    if (taos_errno(res) != 0) {
+      printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+    }
+
+    taos_free_result(res);
+
+    // close the connection
+    taos_close(taos);
+    return (code);
   }
+  ```
 
-  taos_free_result(res);
-
-  // close the connection
-  taos_close(taos);
-  return (code);
-}
-```
-
-### 连续查询接口
+## 连续查询接口
 
 TDengine 提供时间驱动的实时流式计算 API。可以每隔一指定的时间段，对一张或多张数据库的表(数据流)进行各种实时聚合计算操作。操作简单，仅有打开、关闭流的 API。具体如下：
 
@@ -370,7 +370,7 @@ TDengine 提供时间驱动的实时流式计算 API。可以每隔一指定的�
 
   关闭数据流，其中提供的参数是 taos_open_stream 的返回值。用户停止流式计算的时候，务必关闭该数据流。
 
-### 数据订阅接口
+## 数据订阅接口
 
 订阅 API 目前支持订阅一张或多张表，并通过定期轮询的方式不断获取写入表中的最新数据。
 

@@ -1,8 +1,7 @@
 ---
 sidebar_label: TCollector
+title: TCollector 写入
 ---
-
-# TCollector 写入
 
 TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdaapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
 
