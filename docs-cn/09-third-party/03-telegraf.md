@@ -1,8 +1,7 @@
 ---
 sidebar_label: Telegraf
+title: Telegraf 写入
 ---
-
-# Telegraf 写入
 
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 

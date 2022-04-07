@@ -1,4 +1,6 @@
-# 客户端及应用驱动配置
+---
+title: 客户端及应用驱动配置
+---
 
 TDengine 系统的前台交互客户端应用程序为 taos，以及应用驱动，它与 taosd 共享同一个配置文件 taos.cfg。运行 taos 时，使用参数-c 指定配置文件目录，如 taos -c /home/cfg，表示使用/home/cfg/目录下的 taos.cfg 配置文件中的参数，缺省目录是/etc/taos。更多 taos 的使用方法请见帮助信息 `taos --help`。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
 
