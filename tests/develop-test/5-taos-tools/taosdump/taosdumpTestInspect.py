@@ -59,15 +59,15 @@ class TDTestCase:
 
         tdSql.execute("use db")
         tdSql.execute(
-            "create table st(ts timestamp, c1 INT) tags(ntag INT)")
-        tdSql.execute("create table t1 using st tags(1)")
-        tdSql.execute("insert into t1 values(1640000000000, 1)")
-        tdSql.execute("create table t2 using st tags(2147483647)")
-        tdSql.execute("insert into t2 values(1640000000000, 2147483647)")
-        tdSql.execute("create table t3 using st tags(-2147483647)")
-        tdSql.execute("insert into t3 values(1640000000000, -2147483647)")
-        tdSql.execute("create table t4 using st tags(NULL)")
-        tdSql.execute("insert into t4 values(1640000000000, NULL)")
+            "create table st(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED) tags(n1 INT, w2 BOOL, t3 TINYINT, t4 SMALLINT, t5 BIGINT, t6 FLOAT, t7 DOUBLE, t8 TIMESTAMP, t9 BINARY(10), t10 NCHAR(10), t11 TINYINT UNSIGNED, t12 SMALLINT UNSIGNED, t13 INT UNSIGNED, t14 BIGINT UNSIGNED)")
+        tdSql.execute(
+            "create table t1 using st tags(1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)")
+        tdSql.execute(
+            "insert into t1 values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)")
+        tdSql.execute(
+            "create table t2 using st tags(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)")
+        tdSql.execute(
+            "insert into t2 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)")
 
 #        sys.exit(1)
 
@@ -96,10 +96,10 @@ class TDTestCase:
             taosdumpInspectCmd, shell=True).decode("utf-8")
         print("schema found times: %d" % int(schemaTimes))
 
-        if (int(schemaTimes) != 5):
+        if (int(schemaTimes) != 3):
             caller = inspect.getframeinfo(inspect.stack()[0][0])
             tdLog.exit(
-                "%s(%d) failed: expected schema found times 5, actual %d" %
+                "%s(%d) failed: expected schema found times 3, actual %d" %
                 (caller.filename, caller.lineno, int(schemaTimes)))
 
         taosdumpInspectCmd = "%s -I %s/*.avro* | grep '=== Records:'|wc -l" % (
@@ -108,10 +108,10 @@ class TDTestCase:
             taosdumpInspectCmd, shell=True).decode("utf-8")
         print("records found times: %d" % int(recordsTimes))
 
-        if (int(recordsTimes) != 5):
+        if (int(recordsTimes) != 3):
             caller = inspect.getframeinfo(inspect.stack()[0][0])
             tdLog.exit(
-                "%s(%d) failed: expected records found times 5, actual %d" %
+                "%s(%d) failed: expected records found times 3, actual %d" %
                 (caller.filename, caller.lineno, int(recordsTimes)))
 
     def stop(self):
