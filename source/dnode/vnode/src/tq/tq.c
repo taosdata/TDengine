@@ -81,6 +81,13 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
     return -1;
   }
   memcpy(data, msg, msgLen);
+
+  if (msgType == TDMT_VND_SUBMIT) {
+    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg) != 0) {
+      return -1;
+    }
+  }
+
   SRpcMsg req = {
       .msgType = TDMT_VND_STREAM_TRIGGER,
       .pCont = data,
@@ -530,6 +537,11 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
     tqHandleMovePut(pTq->tqMeta, req.consumerId, pConsumer);
     tqHandleCommit(pTq->tqMeta, req.consumerId);
   }
+  terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
+int32_t tqProcessCancelConnReq(STQ* pTq, char* msg) {
   terrno = TSDB_CODE_SUCCESS;
   return 0;
 }

@@ -67,6 +67,28 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid identifier name : %s";
     case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
       return "corresponding super table not in this db";
+    case TSDB_CODE_PAR_INVALID_RANGE_OPTION:
+      return "invalid option %s: %"PRId64" valid range: [%d, %d]";
+    case TSDB_CODE_PAR_INVALID_STR_OPTION:
+      return "invalid option %s: %s";
+    case TSDB_CODE_PAR_INVALID_ENUM_OPTION:
+      return "invalid option %s: %"PRId64", only %d, %d allowed";
+    case TSDB_CODE_PAR_INVALID_TTL_OPTION:
+      return "invalid option ttl: %"PRId64", should be greater than or equal to %d";
+    case TSDB_CODE_PAR_INVALID_KEEP_NUM:
+      return "invalid number of keep options";
+    case TSDB_CODE_PAR_INVALID_KEEP_ORDER:
+      return "invalid keep value, should be keep0 <= keep1 <= keep2";
+    case TSDB_CODE_PAR_INVALID_KEEP_VALUE:
+      return "invalid option keep: %d, %d, %d valid range: [%d, %d]";
+    case TSDB_CODE_PAR_INVALID_COMMENT_OPTION:
+      return "invalid option comment, length cannot exceed %d";
+    case TSDB_CODE_PAR_INVALID_F_RANGE_OPTION:
+      return "invalid option %s: %f valid range: [%d, %d]";
+    case TSDB_CODE_PAR_INVALID_ROLLUP_OPTION:
+      return "invalid option rollup: only one function is allowed";
+    case TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION:
+      return "invalid option retentions";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
