@@ -13,17 +13,18 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
-import taos
-from util.cases import *
-from util.dnodes import *
-from util.log import *
-import sys
-import getopt
-import subprocess
-import time
-from distutils.log import warn as printf
 from fabric2 import Connection
+from distutils.log import warn as printf
+import time
+import subprocess
+import getopt
+import sys
+
 sys.path.append("../pytest")
+from util.log import *
+from util.dnodes import *
+from util.cases import *
+import taos
 
 
 if __name__ == "__main__":
