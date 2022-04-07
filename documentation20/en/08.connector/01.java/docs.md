@@ -56,11 +56,11 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 | taos-jdbcdriver version | TDengine 2.0.x.x version | TDengine 2.2.x.x version | TDengine 2.4.x.x version | JDK version |
 | ----------------------- | ------------------------ | ------------------------ | ------------------------ | ----------- |
-| 2.0.38                  | X                        | X                        | 2.4.0.12 以上            | 1.8.x       |
-| 2.0.37                  | X                        | X                        | 2.4.0.6 以上             | 1.8.x       |
-| 2.0.36                  | X                        | 2.2.2.11 以上            | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
-| 2.0.35                  | X                        | 2.2.2.11 以上            | 2.3.0.0 - 2.4.0.5        | 1.8.x       |
-| 2.0.33 - 2.0.34         | 2.0.3.0 以上             | 2.2.0.0 以上             | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.38                  | X                        | X                        | 2.4.0.12 and above       | 1.8.x       |
+| 2.0.37                  | X                        | X                        | 2.4.0.6 and above        | 1.8.x       |
+| 2.0.36                  | X                        | 2.2.2.11 and above       | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.35                  | X                        | 2.2.2.11 and above       | 2.3.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.33 - 2.0.34         | 2.0.3.0 and above        | 2.2.0.0 and above        | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
 | 2.0.31 - 2.0.32         | 2.1.3.0 - 2.1.7.7        | X                        | X                        | 1.8.x       |
 | 2.0.22 - 2.0.30         | 2.0.18.0 - 2.1.2.1       | X                        | X                        | 1.8.x       |
 | 2.0.12 - 2.0.21         | 2.0.8.0 - 2.0.17.4       | X                        | X                        | 1.8.x       |
@@ -149,9 +149,9 @@ The JDBC-RESTful does not depend on the local function library. Compared with JD
 * JdbcUrl starts with "JDBC:TAOS-RS://"
 * Use port 6041 as the connection port
 
-Starting with version taos-jdbcdriver-2.0.38 and TDengine 2.4.0.12, **JDBC-RESTful** support batch load function. Data is transmitted between TAOS-JDBcDriver and TDengine through WebSocket connection. Compared with HTTP, WebSocket enables **JDBC-restful** to support large data volume query and improves query performance.
+JDBC 2.0.38 and later version with TDengine 2.4.0.12 (and later version) start to support a new bulk-pulling feature. It provides higher data transmission performance and larger volume data queries capability via WebSocket communication.
 
-Create batch load connection:
+Create bulk-pulling connection:
 
 ```
 String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";Properties properties = new Properties();
