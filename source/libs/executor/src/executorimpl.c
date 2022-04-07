@@ -7015,7 +7015,6 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
 //      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
 //      pExp->base.pParam[0].pCol = createColumn(pTargetNode->dataBlockId, pTargetNode->slotId, pType);
-    } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_VALUE) {
     } else {
       ASSERT(0);
     }
