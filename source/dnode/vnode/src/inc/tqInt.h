@@ -67,7 +67,7 @@ extern "C" {
     }                                                              \
   }
 
-#define TQ_BUFFER_SIZE 8
+#define TQ_BUFFER_SIZE 4
 
 #define TQ_BUCKET_MASK 0xFF
 #define TQ_BUCKET_SIZE 256
