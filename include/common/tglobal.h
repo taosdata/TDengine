@@ -68,6 +68,8 @@ extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeWriteThreads;
 extern int32_t tsNumOfVnodeSyncThreads;
 extern int32_t tsNumOfVnodeMergeThreads;
+extern int32_t tsNumOfQnodeQueryThreads;
+extern int32_t tsNumOfQnodeFetchThreads;
 
 // monitor
 extern bool     tsEnableMonitor;

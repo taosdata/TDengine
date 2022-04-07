@@ -62,6 +62,8 @@ int32_t tsNumOfVnodeFetchThreads = 2;
 int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
 int32_t tsNumOfVnodeMergeThreads = 2;
+int32_t tsNumOfQnodeQueryThreads = 2;
+int32_t tsNumOfQnodeFetchThreads = 2;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -409,6 +411,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeMergeThreads = TRANGE(tsNumOfVnodeMergeThreads, 1, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeMergeThreads", tsNumOfVnodeMergeThreads, 1, 1024, 0) != 0) return -1;
 
+  tsNumOfQnodeQueryThreads = tsNumOfCores / 2;
+  tsNumOfQnodeQueryThreads = TMIN(tsNumOfQnodeQueryThreads, 1);
+  if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
+  tsNumOfQnodeFetchThreads = TRANGE(tsNumOfQnodeFetchThreads, 2, 4);
+  if (cfgAddInt32(pCfg, "numOfQnodeFetchThreads", tsNumOfQnodeFetchThreads, 1, 1024, 0) != 0) return -1;
+
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
@@ -540,6 +550,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
   tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
   tsNumOfVnodeMergeThreads = cfgGetItem(pCfg, "numOfVnodeMergeThreads")->i32;
+  tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
+  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;

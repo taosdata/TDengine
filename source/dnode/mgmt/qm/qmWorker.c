@@ -106,13 +106,8 @@ int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
 }
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
-  int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);
-  int32_t minQueryThreads = TMAX((int32_t)(tsNumOfCores * 1), 1);
-  int32_t maxQueryThreads = minQueryThreads;
-
-  SSingleWorkerCfg queryCfg = {.min = minQueryThreads,
-                               .max = maxQueryThreads,
+  SSingleWorkerCfg queryCfg = {.min = tsNumOfVnodeQueryThreads,
+                               .max = tsNumOfVnodeQueryThreads,
                                .name = "qnode-query",
                                .fp = (FItem)qmProcessQueryQueue,
                                .param = pMgmt};
@@ -122,8 +117,8 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     return -1;
   }
 
-  SSingleWorkerCfg fetchCfg = {.min = minFetchThreads,
-                               .max = maxFetchThreads,
+  SSingleWorkerCfg fetchCfg = {.min = tsNumOfQnodeFetchThreads,
+                               .max = tsNumOfQnodeFetchThreads,
                                .name = "qnode-fetch",
                                .fp = (FItem)qmProcessFetchQueue,
                                .param = pMgmt};
