@@ -3139,11 +3139,6 @@ void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SD
     }
 
     releaseBufPage(pBuf, bufPage);
-    /*
-     * set the number of output results for group by normal columns, the number of output rows usually is 1 except
-     * the top and bottom query
-     */
-    //    buf->numOfRows = (uint16_t)getNumOfResult(pCtx, numOfOutput);
   }
 }
 

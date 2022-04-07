@@ -48,11 +48,11 @@ bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   return true;
 }
 
-static void doFinalizer(SResultRowEntryInfo* pResInfo) { cleanupResultRowEntry(pResInfo); }
-
 void functionFinalize(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  doFinalizer(pResInfo);
+
+  cleanupResultRowEntry(pResInfo);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0)? 1:0;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
