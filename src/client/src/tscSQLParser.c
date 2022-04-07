@@ -8295,6 +8295,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   int16_t numOfTimeWindow  = 0;
 
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+/*
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
     if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ ||
@@ -8303,7 +8304,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       break;
     }
   }
-
+*/
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
 
