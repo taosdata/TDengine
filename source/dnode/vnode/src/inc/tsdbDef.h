@@ -46,7 +46,7 @@ extern "C" {
 struct STsdb {
   int32_t               vgId;
   bool                  repoLocked;
-  TdThreadMutex       mutex;
+  TdThreadMutex         mutex;
   char *                path;
   STsdbCfg              config;
   STsdbMemTable *       mem;
@@ -56,17 +56,19 @@ struct STsdb {
   STsdbFS *             fs;
   SMeta *               pMeta;
   STfs *                pTfs;
-  SSmaEnv *             pTSmaEnv;
-  SSmaEnv *             pRSmaEnv;
+  SSmaEnvs              smaEnvs;
 };
 
-#define REPO_ID(r)         ((r)->vgId)
-#define REPO_CFG(r)        (&(r)->config)
-#define REPO_FS(r)         (r)->fs
-#define REPO_META(r)       (r)->pMeta
-#define REPO_TFS(r)        (r)->pTfs
-#define IS_REPO_LOCKED(r)  (r)->repoLocked
-#define REPO_SMA_ENV(r, t) ((TSDB_SMA_TYPE_ROLLUP == (t)) ? (r)->pRSmaEnv : (r)->pTSmaEnv)
+#define REPO_ID(r)        ((r)->vgId)
+#define REPO_CFG(r)       (&(r)->config)
+#define REPO_FS(r)        ((r)->fs)
+#define REPO_META(r)      ((r)->pMeta)
+#define REPO_TFS(r)       ((r)->pTfs)
+#define IS_REPO_LOCKED(r) ((r)->repoLocked)
+#define REPO_TSMA_NUM(r)  ((r)->smaEnvs.nTSma)
+#define REPO_RSMA_NUM(r)  ((r)->smaEnvs.nRSma)
+#define REPO_TSMA_ENV(r)  ((r)->smaEnvs.pTSmaEnv)
+#define REPO_RSMA_ENV(r)  ((r)->smaEnvs.pRSmaEnv)
 
 int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);

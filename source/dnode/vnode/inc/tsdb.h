@@ -88,14 +88,18 @@ int    tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int    tsdbPrepareCommit(STsdb *pTsdb);
 int    tsdbCommit(STsdb *pTsdb);
 
+
+int32_t tsdbInitSma(STsdb *pTsdb);
+int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg);
+int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
 /**
  * @brief When submit msg received, update the relative expired window synchronously.
- * 
- * @param pTsdb 
- * @param msg 
- * @return int32_t 
+ *
+ * @param pTsdb
+ * @param msg
+ * @return int32_t
  */
-int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, const char *msg);
+int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, SSubmitReq *pMsg);
 
 /**
  * @brief Insert tSma(Time-range-wise SMA) data from stream computing engine

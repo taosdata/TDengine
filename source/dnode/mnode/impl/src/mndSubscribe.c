@@ -61,6 +61,7 @@ static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqT
                                       const SMqConsumerEp *pConsumerEp);
 
 static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp);
+static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp, const char* oldTopicName);
 
 int32_t mndInitSubscribe(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_SUBSCRIBE,
@@ -74,6 +75,7 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_SET_CONN_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_REB_RSP, mndProcessSubscribeInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_MQ_CANCEL_CONN_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_SUB_EP, mndProcessGetSubEpReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessDoRebalanceMsg);
@@ -154,11 +156,14 @@ static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqC
   return 0;
 }
 
-static int32_t mndBuildCancelConnReq(void **pBuf, int32_t *pLen, const SMqConsumerEp *pConsumerEp) {
-  SMqSetCVgReq req = {0};
+static int32_t mndBuildCancelConnReq(void **pBuf, int32_t *pLen, const SMqConsumerEp *pConsumerEp, const char* oldTopicName) {
+  SMqCancelConnReq req = {0};
   req.consumerId = pConsumerEp->consumerId;
+  req.vgId = pConsumerEp->vgId;
+  req.epoch = pConsumerEp->epoch;
+  strcpy(req.topicName, oldTopicName);
 
-  int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
+  int32_t tlen = tEncodeSMqCancelConnReq(NULL, &req);
   void   *buf = taosMemoryMalloc(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -169,16 +174,16 @@ static int32_t mndBuildCancelConnReq(void **pBuf, int32_t *pLen, const SMqConsum
   pMsgHead->contLen = htonl(sizeof(SMsgHead) + tlen);
   pMsgHead->vgId = htonl(pConsumerEp->vgId);
   void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tEncodeSMqSetCVgReq(&abuf, &req);
+  tEncodeSMqCancelConnReq(&abuf, &req);
   *pBuf = buf;
   *pLen = tlen;
   return 0;
 }
 
-static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp) {
+static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp, const char* oldTopicName) {
   void   *buf;
   int32_t tlen;
-  if (mndBuildCancelConnReq(&buf, &tlen, pConsumerEp) < 0) {
+  if (mndBuildCancelConnReq(&buf, &tlen, pConsumerEp, oldTopicName) < 0) {
     return -1;
   }
 
@@ -189,7 +194,7 @@ static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMq
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
   action.pCont = buf;
   action.contLen = sizeof(SMsgHead) + tlen;
-  action.msgType = TDMT_VND_MQ_SET_CONN;
+  action.msgType = TDMT_VND_MQ_CANCEL_CONN;
 
   mndReleaseVgroup(pMnode, pVgObj);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -365,7 +370,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
       if (status == MQ_CONSUMER_STATUS__MODIFY) {
         int32_t removeSz = taosArrayGetSize(pConsumer->recentRemovedTopics);
         for (int32_t i = 0; i < removeSz; i++) {
-          char *topicName = taosArrayGet(pConsumer->recentRemovedTopics, i);
+          char *topicName = taosArrayGetP(pConsumer->recentRemovedTopics, i);
           taosMemoryFree(topicName);
         }
         taosArrayClear(pConsumer->recentRemovedTopics);
@@ -797,7 +802,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
           int32_t vgsz = taosArrayGetSize(pSubConsumer->vgInfo);
           for (int32_t vgi = 0; vgi < vgsz; vgi++) {
             SMqConsumerEp *pConsumerEp = taosArrayGet(pSubConsumer->vgInfo, vgi);
-            mndPersistCancelConnReq(pMnode, pTrans, pConsumerEp);
+            mndPersistCancelConnReq(pMnode, pTrans, pConsumerEp, oldTopicName);
             taosArrayPush(pSub->unassignedVg, pConsumerEp);
           }
           taosArrayRemove(pSub->consumers, ci);
@@ -859,7 +864,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
     }
   }
 
-  if (oldSub) taosArrayDestroyEx(oldSub, (void (*)(void *))taosMemoryFree);
+  /*if (oldSub) taosArrayDestroyEx(oldSub, (void (*)(void *))taosMemoryFree);*/
 
   // persist consumerObj
   SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pConsumer);

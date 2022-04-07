@@ -483,7 +483,8 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char    offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -1865,6 +1866,37 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->qmsg);
   return buf;
 }
+
+typedef struct {
+  int64_t leftForVer;
+  int32_t vgId;
+  int32_t epoch;
+  int64_t consumerId;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+} SMqCancelConnReq;
+
+static FORCE_INLINE int32_t tEncodeSMqCancelConnReq(void** buf, const SMqCancelConnReq* pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pReq->leftForVer);
+  tlen += taosEncodeFixedI32(buf, pReq->vgId);
+  tlen += taosEncodeFixedI32(buf, pReq->epoch);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  tlen += taosEncodeString(buf, pReq->topicName);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqCancelConnReq(void* buf, SMqCancelConnReq* pReq) {
+  buf = taosDecodeFixedI64(buf, &pReq->leftForVer);
+  buf = taosDecodeFixedI32(buf, &pReq->vgId);
+  buf = taosDecodeFixedI32(buf, &pReq->epoch);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  buf = taosDecodeStringTo(buf, pReq->topicName);
+  return buf;
+}
+
+typedef struct {
+  int8_t reserved;
+} SMqCancelConnRsp;
 
 typedef struct {
   int64_t leftForVer;
