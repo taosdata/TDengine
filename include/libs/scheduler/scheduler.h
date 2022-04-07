@@ -71,7 +71,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
  * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan* pDag, int64_t* pJob, const char* sql, SQueryResult *pRes);
+int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql, int64_t startTs, SQueryResult *pRes);
 
 /**
  * Process the query job, generated according to the query physical plan.

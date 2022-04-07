@@ -94,6 +94,7 @@ typedef struct SColumnDefNode {
   char colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
   char comments[TSDB_STB_COMMENT_LEN];
+  bool sma;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {

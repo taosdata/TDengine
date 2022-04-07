@@ -22,9 +22,10 @@ extern "C" {
 
 #define TDB_PCACHE_PAGE \
   u8      isAnchor;     \
-  u8      isLocalPage;  \
+  u8      isLocal;      \
   u8      isDirty;      \
   i32     nRef;         \
+  SPage  *pCacheNext;   \
   SPage  *pFreeNext;    \
   SPage  *pHashNext;    \
   SPage  *pLruNext;     \
@@ -47,8 +48,8 @@ extern "C" {
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
-void   tdbPCacheRelease(SPCache *pCache, SPage *pPage);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
+void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
 int    tdbPCacheGetPageSize(SPCache *pCache);
 
 #ifdef __cplusplus

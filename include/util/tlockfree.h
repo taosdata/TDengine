@@ -76,6 +76,7 @@ void taosWLockLatch(SRWLatch *pLatch);
 void taosWUnLockLatch(SRWLatch *pLatch);
 void taosRLockLatch(SRWLatch *pLatch);
 void taosRUnLockLatch(SRWLatch *pLatch);
+int32_t taosWTryLockLatch(SRWLatch *pLatch);
 
 // copy on read
 #define taosCorBeginRead(x)                     \

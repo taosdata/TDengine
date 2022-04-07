@@ -36,6 +36,7 @@ extern "C" {
 #include "thash.h"
 #include "tlockfree.h"
 #include "tpagedbuf.h"
+#include "tmsg.h"
 
 struct SColumnFilterElem;
 
@@ -165,7 +166,7 @@ typedef struct STaskCostInfo {
 
 typedef struct SOperatorCostInfo {
   uint64_t openCost;
-  uint64_t execCost;
+  uint64_t totalCost;
 } SOperatorCostInfo;
 
 typedef struct SOrder {
@@ -238,6 +239,7 @@ typedef bool (*__optr_decode_fn_t)(struct SOperatorInfo* pOperator, char *result
 typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* pOptr);
 typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* pOptr, bool* newgroup);
 typedef void (*__optr_close_fn_t)(void* param, int32_t num);
+typedef int32_t (*__optr_get_explain_fn_t)(struct SOperatorInfo* pOptr, void **pOptrExplain);
 
 typedef struct STaskIdInfo {
   uint64_t queryId;  // this is also a request id
@@ -306,26 +308,27 @@ enum {
 };
 
 typedef struct SOperatorInfo {
-  uint8_t                operatorType;
-  bool                   blockingOptr;  // block operator or not
-  uint8_t                status;        // denote if current operator is completed
-  int32_t                numOfOutput;   // number of columns of the current operator results
-  char*                  name;          // name, used to show the query execution plan
-  void*                  info;          // extension attribution
-  SExprInfo*             pExpr;
-  STaskRuntimeEnv*       pRuntimeEnv;   // todo remove it
-  SExecTaskInfo*         pTaskInfo;
-  SOperatorCostInfo      cost;
-  SResultInfo            resultInfo;
-  struct SOperatorInfo** pDownstream;      // downstram pointer list
-  int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  __optr_open_fn_t       _openFn;          // DO NOT invoke this function directly
-  __optr_fn_t            getNextFn;
-  __optr_fn_t            getStreamResFn;   // execute the aggregate in the stream model.
-  __optr_fn_t            cleanupFn;        // call this function to release the allocated resources ASAP
-  __optr_close_fn_t      closeFn;
-  __optr_encode_fn_t     encodeResultRow;
-  __optr_decode_fn_t     decodeResultRow;
+  uint8_t                 operatorType;
+  bool                    blockingOptr;  // block operator or not
+  uint8_t                 status;        // denote if current operator is completed
+  int32_t                 numOfOutput;   // number of columns of the current operator results
+  char*                   name;          // name, used to show the query execution plan
+  void*                   info;          // extension attribution
+  SExprInfo*              pExpr;
+  STaskRuntimeEnv*        pRuntimeEnv;   // todo remove it
+  SExecTaskInfo*          pTaskInfo;
+  SOperatorCostInfo       cost;
+  SResultInfo             resultInfo;
+  struct SOperatorInfo**  pDownstream;      // downstram pointer list
+  int32_t                 numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
+  __optr_open_fn_t        _openFn;          // DO NOT invoke this function directly
+  __optr_fn_t             getNextFn;
+  __optr_fn_t             getStreamResFn;   // execute the aggregate in the stream model.
+  __optr_fn_t             cleanupFn;        // call this function to release the allocated resources ASAP
+  __optr_close_fn_t       closeFn;
+  __optr_encode_fn_t      encodeResultRow;
+  __optr_decode_fn_t      decodeResultRow;
+  __optr_get_explain_fn_t getExplainFn;
 } SOperatorInfo;
 
 typedef struct {
@@ -551,6 +554,7 @@ typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   SArray*        pGroupCols;
   SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
+  SNode*         pCondition;
   bool           isInit;       // denote if current val is initialized or not
   char*          keyBuf;       // group by keys for hash
   int32_t        groupKeyLen;  // total group by column width
@@ -630,9 +634,10 @@ typedef struct SDistinctOperatorInfo {
   SHashObj*    pSet;
   SSDataBlock* pRes;
   bool         recordNullVal;  // has already record the null value, no need to try again
-  int64_t      threshold;  // todo remove it
-  int64_t      outputCapacity;// todo remove it
-  int32_t      totalBytes; // todo remove it
+//  int64_t      threshold;  // todo remove it
+//  int64_t      outputCapacity;// todo remove it
+//  int32_t      totalBytes; // todo remove it
+  SResultInfo  resInfo;
   char*        buf;
   SArray*      pDistinctDataInfo;
 } SDistinctOperatorInfo;
@@ -651,6 +656,8 @@ void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
 int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows,
                                          char* pData, int32_t compLen, int32_t numOfOutput, int64_t startTs,
                                          uint64_t* total, SArray* pColList);
+void doSetOperatorCompleted(SOperatorInfo* pOperator);
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
@@ -667,7 +674,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
                                           const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, int64_t gap, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
-                                       SArray* pGroupColList, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+                                       SArray* pGroupColList, SNode* pCondition, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList, SExecTaskInfo* pTaskInfo);
 
@@ -722,6 +729,7 @@ int32_t getMaximumIdleDurationSec();
 void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, EOPTR_EXEC_MODEL model);
+int32_t getOperatorExplainExecInfo(SOperatorInfo *operatorInfo, SExplainExecInfo **pRes, int32_t *capacity, int32_t *resNum);
 
 #ifdef __cplusplus
 }

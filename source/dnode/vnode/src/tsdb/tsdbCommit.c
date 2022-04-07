@@ -701,7 +701,6 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   // Set pIdx
   pBlock = taosArrayGetLast(pSupA);
 
-  pIdx->tid = TABLE_TID(pTable);
   pIdx->uid = TABLE_UID(pTable);
   pIdx->hasLast = pBlock->last ? 1 : 0;
   pIdx->maxKey = pBlock->keyLast;

@@ -78,7 +78,7 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
       res = walkNode(((SOrderByExprNode*)pNode)->pExpr, order, walker, pContext);
       break;
     case QUERY_NODE_STATE_WINDOW:
-      res = walkNode(((SStateWindowNode*)pNode)->pCol, order, walker, pContext);
+      res = walkNode(((SStateWindowNode*)pNode)->pExpr, order, walker, pContext);
       break;
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
@@ -212,7 +212,7 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       res = rewriteNode(&(((SOrderByExprNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
     case QUERY_NODE_STATE_WINDOW:
-      res = rewriteNode(&(((SStateWindowNode*)pNode)->pCol), order, rewriter, pContext);
+      res = rewriteNode(&(((SStateWindowNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
     case QUERY_NODE_SESSION_WINDOW:
       res = rewriteNode(&(((SSessionWindowNode*)pNode)->pCol), order, rewriter, pContext);
@@ -301,10 +301,9 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkExpr(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
-      nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
-    case SQL_CLAUSE_ORDER_BY:
       nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
     case SQL_CLAUSE_SELECT:
+      nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     default:
       break;
   }
