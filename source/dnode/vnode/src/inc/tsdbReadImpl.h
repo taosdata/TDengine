@@ -17,12 +17,12 @@
 #define _TD_TSDB_READ_IMPL_H_
 
 #include "os.h"
+#include "tcommon.h"
 #include "tfs.h"
 #include "tsdb.h"
 #include "tsdbFile.h"
-#include "tskiplist.h"
 #include "tsdbMemory.h"
-#include "tcommon.h"
+#include "tskiplist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +31,6 @@ extern "C" {
 typedef struct SReadH SReadH;
 
 typedef struct {
-  int32_t  tid;
   uint32_t len;
   uint32_t offset;
   uint32_t hasLast : 2;
@@ -81,7 +80,7 @@ typedef struct {
   TSKEY    keyLast;
 } SBlockV0;
 
-#define SBlock          SBlockV0  // latest SBlock definition
+#define SBlock SBlockV0  // latest SBlock definition
 
 #endif
 
@@ -165,19 +164,19 @@ typedef struct {
 typedef void SAggrBlkData;  // SBlockCol cols[];
 
 struct SReadH {
-  STsdb *       pRepo;
+  STsdb        *pRepo;
   SDFileSet     rSet;     // FSET to read
-  SArray *      aBlkIdx;  // SBlockIdx array
-  STable *      pTable;   // table to read
-  SBlockIdx *   pBlkIdx;  // current reading table SBlockIdx
+  SArray       *aBlkIdx;  // SBlockIdx array
+  STable       *pTable;   // table to read
+  SBlockIdx    *pBlkIdx;  // current reading table SBlockIdx
   int           cidx;
-  SBlockInfo *  pBlkInfo;
-  SBlockData *  pBlkData;      // Block info
+  SBlockInfo   *pBlkInfo;
+  SBlockData   *pBlkData;      // Block info
   SAggrBlkData *pAggrBlkData;  // Aggregate Block info
-  SDataCols *   pDCols[2];
-  void *        pBuf;    // buffer
-  void *        pCBuf;   // compression buffer
-  void *        pExBuf;  // extra buffer
+  SDataCols    *pDCols[2];
+  void         *pBuf;    // buffer
+  void         *pCBuf;   // compression buffer
+  void         *pExBuf;  // extra buffer
 };
 
 #define TSDB_READ_REPO(rh)      ((rh)->pRepo)
@@ -222,14 +221,15 @@ int   tsdbLoadBlockIdx(SReadH *pReadh);
 int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
 int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
-int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds);
+int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds,
+                            int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
 void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock);
 
 static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
-  void * pBuf = *ppBuf;
+  void  *pBuf = *ppBuf;
   size_t tsize = taosTSizeof(pBuf);
 
   if (tsize < size) {

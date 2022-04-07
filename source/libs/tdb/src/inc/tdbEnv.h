@@ -33,9 +33,9 @@ typedef struct STEnv {
 
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
-int tdbBegin(TENV *pEnv);
-int tdbCommit(TENV *pEnv);
-int tdbRollback(TENV *pEnv);
+int tdbBegin(TENV *pEnv, TXN *pTxn);
+int tdbCommit(TENV *pEnv, TXN *pTxn);
+int tdbRollback(TENV *pEnv, TXN *pTxn);
 
 void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
 void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);

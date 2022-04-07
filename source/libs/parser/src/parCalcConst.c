@@ -90,14 +90,91 @@ static EDealRes calcConst(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static bool isCondition(const SNode* pNode) {
+  if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
+    return nodesIsComparisonOp((const SOperatorNode*)pNode);
+  }
+  return (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode));
+}
+
+static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
+  SOperatorNode* pOp = nodesMakeNode(QUERY_NODE_OPERATOR);
+  if (NULL == pOp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pOp->opType = OP_TYPE_IS_TRUE;
+  pOp->pLeft = pSrc;
+  *pIsTrue = (SNode*)pOp;
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes doRewriteCondition(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pNode)) {
+    SNode* pParam = NULL;
+    FOREACH(pParam, ((SLogicConditionNode*)*pNode)->pParameterList) {
+      if (!isCondition(pParam)) {
+        SNode* pIsTrue = NULL;
+        if (TSDB_CODE_SUCCESS != rewriteIsTrue(pParam, &pIsTrue)) {
+          ((SCalcConstContext*)pContext)->code = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        REPLACE_NODE(pIsTrue);
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteCondition(SCalcConstContext* pCxt, SNode** pNode) {
+  if (!isCondition(*pNode)) {
+    return rewriteIsTrue(*pNode, pNode);
+  }
+  nodesRewriteExprPostOrder(pNode, doRewriteCondition, pCxt);
+  return pCxt->code;
+}
+
+static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    pCxt->code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
+    if (TSDB_CODE_SUCCESS == pCxt->code) {
+      pCxt->code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
+    }
+    if (TSDB_CODE_SUCCESS == pCxt->code) {
+      pCxt->code = rewriteCondition(pCxt, &pJoin->pOnCond);
+    }
+  }
+  return pCxt->code;
+}
+
+static int32_t calcConstFromTable(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
+  nodesRewriteExprPostOrder(&pSelect->pFromTable, calcConst, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    pCxt->code = rewriteConditionForFromTable(pCxt, pSelect->pFromTable);
+  }
+  return pCxt->code;
+}
+
+static int32_t calcConstCondition(SCalcConstContext* pCxt, SNode** pCond) {
+  if (NULL == *pCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  nodesRewriteExprPostOrder(pCond, calcConst, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    pCxt->code = rewriteCondition(pCxt, pCond);
+  }
+  return pCxt->code;
+}
+
 static int32_t calcConstSelect(SSelectStmt* pSelect) {
   SCalcConstContext cxt = { .code = TSDB_CODE_SUCCESS };
   nodesRewriteExprsPostOrder(pSelect->pProjectionList, calcConst, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprPostOrder(&pSelect->pFromTable, calcConst, &cxt);
+    cxt.code = calcConstFromTable(&cxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprPostOrder(&pSelect->pWhere, calcConst, &cxt);
+    cxt.code = calcConstCondition(&cxt, &pSelect->pWhere);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
     nodesRewriteExprsPostOrder(pSelect->pPartitionByList, calcConst, &cxt);
@@ -109,7 +186,7 @@ static int32_t calcConstSelect(SSelectStmt* pSelect) {
     nodesRewriteExprsPostOrder(pSelect->pGroupByList, calcConst, &cxt);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprPostOrder(&pSelect->pHaving, calcConst, &cxt);
+    cxt.code = calcConstCondition(&cxt, &pSelect->pHaving);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
     nodesRewriteExprsPostOrder(pSelect->pOrderByList, calcConst, &cxt);

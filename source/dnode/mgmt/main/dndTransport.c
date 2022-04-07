@@ -307,7 +307,7 @@ void dndCleanupTrans(SDnode *pDnode) {
 int32_t dndInitMsgHandle(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->trans;
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+  for (EDndType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {

@@ -127,7 +127,7 @@ int tdbBtreeClose(SBTree *pBt) {
   return 0;
 }
 
-int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen) {
+int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
   SBTC   btc;
   SCell *pCell;
   void  *pBuf;
@@ -137,7 +137,7 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
   int    idx;
   int    c;
 
-  tdbBtcOpen(&btc, pBt);
+  tdbBtcOpen(&btc, pBt, pTxn);
 
   // move to the position to insert
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
@@ -225,7 +225,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   void        *pTVal = NULL;
   SCellDecoder cd;
 
-  tdbBtcOpen(&btc, pBt);
+  tdbBtcOpen(&btc, pBt, NULL);
 
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &cret);
   if (ret < 0) {
@@ -233,7 +233,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     ASSERT(0);
   }
 
-  if (cret) {
+  if (btc.idx < 0 || cret) {
     tdbBtcClose(&btc);
     return -1;
   }
@@ -253,15 +253,17 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     memcpy(*ppKey, cd.pKey, cd.kLen);
   }
 
-  pTVal = TDB_REALLOC(*ppVal, cd.vLen);
-  if (pTVal == NULL) {
-    tdbBtcClose(&btc);
-    ASSERT(0);
-    return -1;
+  if (ppVal) {
+    pTVal = TDB_REALLOC(*ppVal, cd.vLen);
+    if (pTVal == NULL) {
+      tdbBtcClose(&btc);
+      ASSERT(0);
+      return -1;
+    }
+    *ppVal = pTVal;
+    *vLen = cd.vLen;
+    memcpy(*ppVal, cd.pVal, cd.vLen);
   }
-  *ppVal = pTVal;
-  *vLen = cd.vLen;
-  memcpy(*ppVal, cd.pVal, cd.vLen);
 
   tdbBtcClose(&btc);
 
@@ -297,7 +299,8 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   {
     // 1. TODO: Search the main DB to check if the DB exists
-    pgno = 0;
+    ret = tdbPagerOpenDB(pBt->pPager, &pgno, true);
+    ASSERT(ret == 0);
   }
 
   if (pgno != 0) {
@@ -307,13 +310,13 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   // Try to create a new database
   SBtreeInitPageArg zArg = {.flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF, .pBt = pBt};
-  ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage, tdbBtreeZeroPage, &zArg);
+  ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage, tdbBtreeZeroPage, &zArg, NULL);
   if (ret < 0) {
     return -1;
   }
 
   // TODO: here still has problem
-  tdbPagerReturnPage(pBt->pPager, pPage);
+  tdbPagerReturnPage(pBt->pPager, pPage, NULL);
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
@@ -385,7 +388,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
 }
 
 // TDB_BTREE_BALANCE =====================
-static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
+static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN *pTxn) {
   SPager           *pPager;
   SPage            *pChild;
   SPgno             pgnoChild;
@@ -402,7 +405,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   // Allocate a new child page
   zArg.flags = TDB_FLAG_REMOVE(flags, TDB_BTREE_ROOT);
   zArg.pBt = pBt;
-  ret = tdbPagerNewPage(pPager, &pgnoChild, &pChild, tdbBtreeZeroPage, &zArg);
+  ret = tdbPagerNewPage(pPager, &pgnoChild, &pChild, tdbBtreeZeroPage, &zArg, pTxn);
   if (ret < 0) {
     return -1;
   }
@@ -436,7 +439,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   return 0;
 }
 
-static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
+static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTxn) {
   int ret;
 
   int    nOlds;
@@ -477,7 +480,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         pgno = *(SPgno *)pCell;
       }
 
-      ret = tdbPagerFetchPage(pBt->pPager, pgno, pOlds + i, tdbBtreeInitPage, pBt);
+      ret = tdbPagerFetchPage(pBt->pPager, pgno, pOlds + i, tdbBtreeInitPage, pBt, pTxn);
       if (ret < 0) {
         ASSERT(0);
         return -1;
@@ -640,7 +643,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       } else {
         iarg.pBt = pBt;
         iarg.flags = flags;
-        ret = tdbPagerNewPage(pBt->pPager, &pgno, pNews + iNew, tdbBtreeZeroPage, &iarg);
+        ret = tdbPagerNewPage(pBt->pPager, &pgno, pNews + iNew, tdbBtreeZeroPage, &iarg, pTxn);
         if (ret < 0) {
           ASSERT(0);
         }
@@ -767,9 +770,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   // TODO: here is not corrent for drop case
   for (int i = 0; i < nNews; i++) {
     if (i < nOlds) {
-      tdbPagerReturnPage(pBt->pPager, pOlds[i]);
+      tdbPagerReturnPage(pBt->pPager, pOlds[i], pTxn);
     } else {
-      tdbPagerReturnPage(pBt->pPager, pNews[i]);
+      tdbPagerReturnPage(pBt->pPager, pNews[i], pTxn);
     }
   }
 
@@ -805,7 +808,7 @@ static int tdbBtreeBalance(SBTC *pBtc) {
       // ignore the case of empty
       if (pPage->nOverflow == 0) break;
 
-      ret = tdbBtreeBalanceDeeper(pBtc->pBt, pPage, &(pBtc->pgStack[1]));
+      ret = tdbBtreeBalanceDeeper(pBtc->pBt, pPage, &(pBtc->pgStack[1]), pBtc->pTxn);
       if (ret < 0) {
         return -1;
       }
@@ -819,12 +822,12 @@ static int tdbBtreeBalance(SBTC *pBtc) {
       // Generalized balance step
       pParent = pBtc->pgStack[iPage - 1];
 
-      ret = tdbBtreeBalanceNonRoot(pBtc->pBt, pParent, pBtc->idxStack[pBtc->iPage - 1]);
+      ret = tdbBtreeBalanceNonRoot(pBtc->pBt, pParent, pBtc->idxStack[pBtc->iPage - 1], pBtc->pTxn);
       if (ret < 0) {
         return -1;
       }
 
-      tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage);
+      tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
 
       pBtc->iPage--;
       pBtc->pPage = pBtc->pgStack[pBtc->iPage];
@@ -1024,11 +1027,12 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
 // TDB_BTREE_CELL
 
 // TDB_BTREE_CURSOR =====================
-int tdbBtcOpen(SBTC *pBtc, SBTree *pBt) {
+int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn) {
   pBtc->pBt = pBt;
   pBtc->iPage = -1;
   pBtc->pPage = NULL;
   pBtc->idx = -1;
+  pBtc->pTxn = pTxn;
 
   return 0;
 }
@@ -1045,7 +1049,7 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
 
   if (pBtc->iPage < 0) {
     // move a clean cursor
-    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt);
+    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt, pBtc->pTxn);
     if (ret < 0) {
       ASSERT(0);
       return -1;
@@ -1110,7 +1114,7 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
 
   if (pBtc->iPage < 0) {
     // move a clean cursor
-    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt);
+    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt, pBtc->pTxn);
     if (ret < 0) {
       ASSERT(0);
       return -1;
@@ -1284,7 +1288,7 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
   pBtc->pPage = NULL;
   pBtc->idx = -1;
 
-  ret = tdbPagerFetchPage(pBtc->pBt->pPager, pgno, &pBtc->pPage, tdbBtreeInitPage, pBtc->pBt);
+  ret = tdbPagerFetchPage(pBtc->pBt->pPager, pgno, &pBtc->pPage, tdbBtreeInitPage, pBtc->pBt, pBtc->pTxn);
   if (ret < 0) {
     ASSERT(0);
     return -1;
@@ -1296,7 +1300,7 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
 static int tdbBtcMoveUpward(SBTC *pBtc) {
   if (pBtc->iPage == 0) return -1;
 
-  tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage);
+  tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
 
   pBtc->iPage--;
   pBtc->pPage = pBtc->pgStack[pBtc->iPage];
@@ -1319,7 +1323,7 @@ static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
 
   if (pBtc->iPage < 0) {
     // move from a clear cursor
-    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt);
+    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt, pBtc->pTxn);
     if (ret < 0) {
       // TODO
       ASSERT(0);
@@ -1456,7 +1460,7 @@ int tdbBtcClose(SBTC *pBtc) {
   for (;;) {
     ASSERT(pBtc->pPage);
 
-    tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage);
+    tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
 
     pBtc->iPage--;
     if (pBtc->iPage < 0) break;

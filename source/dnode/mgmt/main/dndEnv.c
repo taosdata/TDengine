@@ -71,7 +71,7 @@ const char *dndStatStr(EDndStatus status) {
   }
 }
 
-const char *dndNodeLogStr(ENodeType ntype) {
+const char *dndNodeLogStr(EDndType ntype) {
   switch (ntype) {
     case VNODES:
       return "vnode";
@@ -88,7 +88,7 @@ const char *dndNodeLogStr(ENodeType ntype) {
   }
 }
 
-const char *dndNodeProcStr(ENodeType ntype) {
+const char *dndNodeProcStr(EDndType ntype) {
   switch (ntype) {
     case VNODES:
       return "taosv";
