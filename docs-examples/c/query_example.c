@@ -5,41 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>
-#include <assert.h>
 
-typedef int16_t VarDataLenT;  // maxVarDataLen: 32767
+typedef int16_t VarDataLenT;
 
 #define TSDB_NCHAR_SIZE sizeof(int32_t)
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
 
 #define GET_FLOAT_VAL(x) (*(float *)(x))
 #define GET_DOUBLE_VAL(x) (*(double *)(x))
-#define SET_FLOAT_VAL(x, y) \
-  { (*(float *)(x)) = (float)(y); }
-#define SET_DOUBLE_VAL(x, y) \
-  { (*(double *)(x)) = (double)(y); }
-#define SET_FLOAT_PTR(x, y) \
-  { (*(float *)(x)) = (*(float *)(y)); }
-#define SET_DOUBLE_PTR(x, y) \
-  { (*(double *)(x)) = (*(double *)(y)); }
-
 
 #define varDataLen(v) ((VarDataLenT *)(v))[0]
-#define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataVal(v) ((void *)((char *)v + VARSTR_HEADER_SIZE))
-#define varDataCopy(dst, v) memcpy((dst), (void *)(v), varDataTLen(v))
-#define varDataLenByData(v) (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
-#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
-#define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
-#define varDataNetLen(v) (htons(((VarDataLenT *)(v))[0]))
-#define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
-
-int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
   int  len = 0;
   char split = ' ';
 
-  for (int i = 0; i < num_fields; ++i) {
+  for (int i = 0; i < numFields; ++i) {
     if (i > 0) {
       str[len++] = split;
     }
@@ -97,12 +78,6 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
-        // copy content
         memcpy(str + len, row[i], charLen);
         len += charLen;
       } break;
@@ -121,17 +96,27 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   return len;
 }
 
+/**
+ * @brief print column name and values of each row
+ *
+ * @param res
+ * @return int
+ */
 static int printResult(TAOS_RES *res) {
-  TAOS_ROW    row = NULL;
-  int         num_fields = taos_num_fields(res);
+  int         numFields = taos_num_fields(res);
   TAOS_FIELD *fields = taos_fetch_fields(res);
-  int         nRows = 0;
+  char        header[256] = {0};
+  int len = 0;
+  for (int i = 0; i < numFields; ++i) {
+    len += sprintf(header + len, "%s ", fields[i].name);
+  }
+  puts(header);
 
+  TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(res))) {
     char temp[256] = {0};
-    printRow(temp, row, fields, num_fields);
+    printRow(temp, row, fields, numFields);
     puts(temp);
-    nRows++;
   }
 }
 
@@ -151,3 +136,8 @@ int main() {
   taos_close(taos);
   taos_cleanup();
 }
+
+// output:
+// ts current voltage phase location groupid 
+// 1648432611249 10.300000 219 0.310000 Beijing.Chaoyang 2
+// 1648432611749 12.600000 218 0.330000 Beijing.Chaoyang 2
