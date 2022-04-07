@@ -534,6 +534,11 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   return 0;
 }
 
+int32_t tqProcessCancelConnReq(STQ* pTq, char* msg) {
+  terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
   if (pTask->execType == TASK_EXEC__NONE) return 0;
 
