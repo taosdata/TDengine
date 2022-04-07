@@ -379,39 +379,31 @@ void vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
 }
 
 int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
-  int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);
-  int32_t minQueryThreads = TMAX((int32_t)(tsNumOfCores * tsRatioOfQueryCores), 1);
-  int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = TMAX(tsNumOfCores, 1);
-  int32_t maxSyncThreads = TMAX(tsNumOfCores / 2, 1);
-  int32_t maxMergeThreads = 1;
-
   SQWorkerPool *pQPool = &pMgmt->queryPool;
   pQPool->name = "vnode-query";
-  pQPool->min = minQueryThreads;
-  pQPool->max = maxQueryThreads;
+  pQPool->min = tsNumOfVnodeQueryThreads;
+  pQPool->max = tsNumOfVnodeQueryThreads;
   if (tQWorkerInit(pQPool) != 0) return -1;
 
   SQWorkerPool *pFPool = &pMgmt->fetchPool;
   pFPool->name = "vnode-fetch";
-  pFPool->min = minFetchThreads;
-  pFPool->max = maxFetchThreads;
+  pFPool->min = tsNumOfVnodeFetchThreads;
+  pFPool->max = tsNumOfVnodeFetchThreads;
   if (tQWorkerInit(pFPool) != 0) return -1;
 
   SWWorkerPool *pWPool = &pMgmt->writePool;
   pWPool->name = "vnode-write";
-  pWPool->max = maxWriteThreads;
+  pWPool->max = tsNumOfVnodeWriteThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   pWPool = &pMgmt->syncPool;
   pWPool->name = "vnode-sync";
-  pWPool->max = maxSyncThreads;
+  pWPool->max = tsNumOfVnodeSyncThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   pWPool = &pMgmt->mergePool;
   pWPool->name = "vnode-merge";
-  pWPool->max = maxMergeThreads;
+  pWPool->max = tsNumOfVnodeMergeThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   SSingleWorkerCfg cfg = {.min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
