@@ -544,8 +544,9 @@ static SResultRow* doSetResultOutBufByKey_rv(SDiskbasedBuf* pResultBuf, SResultR
         existInCurrentResusltRowInfo = false;  // this time window created by other timestamp that does not belongs to current table.
         assert(pResultRowInfo->curPos == -1);
       } else if (pResultRowInfo->size == 1) {
-        ASSERT(0);
-//        existInCurrentResusltRowInfo = (pResultRowInfo->pResult[0] == (*p1));
+        // ASSERT(0);
+        SResultRowPosition* p = &pResultRowInfo->pPosition[0];
+        existInCurrentResusltRowInfo = (p->pageId == p1->pageId && p->offset == p1->offset);
       } else {  // check if current pResultRowInfo contains the existInCurrentResusltRowInfo pResultRow
         SET_RES_EXT_WINDOW_KEY(pSup->keyBuf, pData, bytes, tid, pResultRowInfo);
         int64_t* index = taosHashGet(pSup->pResultRowListSet, pSup->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
@@ -597,6 +598,8 @@ static SResultRow* doSetResultOutBufByKey_rv(SDiskbasedBuf* pResultBuf, SResultR
     int64_t index = pResultRowInfo->curPos;
     SET_RES_EXT_WINDOW_KEY(pSup->keyBuf, pData, bytes, tid, pResultRowInfo);
     taosHashPut(pSup->pResultRowListSet, pSup->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes), &index, POINTER_BYTES);
+  } else {
+    pResult = getResultRowByPos(pResultBuf, p1);
   }
 
   // too many time window in query
@@ -1627,7 +1630,8 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
         getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
 
     // window start(end) key interpolation
-    doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &nextWin, startPos, forwardStep, pInfo->order, false);
+    doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &nextWin, startPos, forwardStep,
+                                pInfo->order, false);
 
     updateTimeWindowInfo(&pInfo->timeWindowData, &nextWin, true);
     doApplyFunctions(pInfo->binfo.pCtx, &nextWin, &pInfo->timeWindowData, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
