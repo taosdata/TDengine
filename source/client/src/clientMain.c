@@ -385,11 +385,11 @@ bool taos_is_update_query(TAOS_RES *res) {
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
-  if (res == NULL) {
+  SRequestObj *pRequest = (SRequestObj *)res;
+  if (pRequest == NULL) {
     return 0;
   }
 
-  SRequestObj *pRequest = (SRequestObj *)res;
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
       pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
     return 0;
@@ -403,6 +403,25 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   *rows = pResultInfo->row;
 
   return pResultInfo->numOfRows;
+}
+
+int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
+  SRequestObj *pRequest = (SRequestObj *)res;
+  if (pRequest == NULL) {
+    return 0;
+  }
+
+  int32_t numOfFields = taos_num_fields(pRequest);
+  if (columnIndex < 0 || columnIndex >= numOfFields || numOfFields == 0) {
+    return 0;
+  }
+
+  TAOS_FIELD* pField = &pRequest->body.resInfo.userFields[columnIndex];
+  if (!IS_VAR_DATA_TYPE(pField->type)) {
+    return 0;
+  }
+
+  return pRequest->body.resInfo.pCol[columnIndex].offset;
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
