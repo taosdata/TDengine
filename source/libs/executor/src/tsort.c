@@ -24,11 +24,6 @@
 #include "tutil.h"
 #include "tcompare.h"
 
-struct STupleHandle {
-  SSDataBlock* pBlock;
-  int32_t      rowIndex;
-};
-
 struct SSortHandle {
   int32_t           type;
 

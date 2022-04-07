@@ -302,10 +302,6 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
     }
 
     taosArrayPush(pBlock->pDataBlock, &idata);
-
-    if (IS_VAR_DATA_TYPE(idata.info.type)) {
-      pBlock->info.hasVarCol = true;
-    }
   }
 
   return pBlock;
@@ -4748,7 +4744,8 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHan
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
 
-    bool isNull = tsortIsNullVal(pTupleHandle, i);
+    SColumnInfoData* pColInfoSrc = taosArrayGet(pTupleHandle->pBlock->pDataBlock, i);
+    bool isNull = colDataIsNull(pColInfoSrc, 0, pTupleHandle->rowIndex, NULL);
     if (isNull) {
       colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
     } else {

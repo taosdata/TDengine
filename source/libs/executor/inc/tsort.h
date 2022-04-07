@@ -52,6 +52,11 @@ typedef struct SMsortComparParam {
   SArray       *orderInfo;   // SArray<SBlockOrderInfo>
 } SMsortComparParam;
 
+struct STupleHandle {
+  SSDataBlock* pBlock;
+  int32_t      rowIndex;
+};
+
 typedef struct SSortHandle SSortHandle;
 typedef struct STupleHandle STupleHandle;
 

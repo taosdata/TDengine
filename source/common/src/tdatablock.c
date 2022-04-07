@@ -192,6 +192,9 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     return numOfRow1;
   }
 
+  if (pSource->hasNull) {
+    pColumnInfoData->hasNull = pSource->hasNull;
+  }
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
     char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
@@ -313,9 +316,9 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
 }
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
-  assert(pSrc != NULL && pDest != NULL && pDest->info.numOfCols == pSrc->info.numOfCols);
+  assert(pSrc != NULL && pDest != NULL);
 
-  int32_t numOfCols = pSrc->info.numOfCols;
+  int32_t numOfCols = pDest->info.numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
