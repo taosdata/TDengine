@@ -345,9 +345,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(false);
         }
         if (pDataBlock == NULL) {
-          /*pos = fetchOffset % TQ_BUFFER_SIZE;*/
+          vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d, exec task over, no more data, time passed: %lu", consumerId, pReq->epoch, pTq->pVnode->vgId, ts);
           break;
         }
+        vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d, exec task over", consumerId, pReq->epoch, pTq->pVnode->vgId);
 
         taosArrayPush(pRes, pDataBlock);
       }
