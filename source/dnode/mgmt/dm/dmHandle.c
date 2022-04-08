@@ -42,8 +42,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
   if (pWrapper != NULL) {
-    req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
-    vmMonitorVnodeLoads(pWrapper, req.pVloads);
+    SMonVloadInfo info = {0};
+    dmGetVnodeLoads(pWrapper, &info);
+    req.pVloads = info.pVloads;
     dndReleaseWrapper(pWrapper);
   }
 
@@ -116,7 +117,6 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
-
 
 static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
@@ -209,10 +209,15 @@ void dmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_DND_NETWORK_TEST, dmProcessMgmtMsg, DEFAULT_HANDLE);
 
   // Requests handled by MNODE
-  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessStatusMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessMonitorMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
 
   // Monitor info exchange between processes
-  dndSetMsgHandle(pWrapper, TDMT_MON_DISK_INFO, dmProcessStatusMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_MM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_VM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_QM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_SM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_BM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_VM_LOAD, dmProcessMonitorMsg, DEFAULT_HANDLE);
 }

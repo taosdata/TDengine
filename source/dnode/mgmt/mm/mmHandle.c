@@ -16,6 +16,15 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  mndGetMonitorInfo(pMgmt->pMnode, &mmInfo->cluster, &mmInfo->vgroup, &mmInfo->grant);
+  if (pWrapper->procType == PROC_CHILD) {
+    dmGetMonitorSysInfo(&mmInfo->sys);
+    monGetLogs(&mmInfo->logs);
+  }
+}
+
 int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
@@ -161,5 +170,4 @@ void mmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_VND_FETCH, mmProcessQueryMsg, MNODE_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_DROP_TASK, mmProcessQueryMsg, MNODE_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, mmProcessQueryMsg, MNODE_HANDLE);
-
 }

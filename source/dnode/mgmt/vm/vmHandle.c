@@ -16,6 +16,28 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
+void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  tfsGetMonitorInfo(pMgmt->pTfs, &vmInfo->tfs);
+
+  taosWLockLatch(&pMgmt->latch);
+  vmInfo->vstat.totalVnodes = pMgmt->state.totalVnodes;
+  vmInfo->vstat.masterNum = pMgmt->state.masterNum;
+  vmInfo->vstat.numOfSelectReqs = pMgmt->state.numOfSelectReqs - pMgmt->lastState.numOfSelectReqs;
+  vmInfo->vstat.numOfInsertReqs = pMgmt->state.numOfInsertReqs - pMgmt->lastState.numOfInsertReqs;
+  vmInfo->vstat.numOfInsertSuccessReqs = pMgmt->state.numOfInsertSuccessReqs - pMgmt->lastState.numOfInsertSuccessReqs;
+  vmInfo->vstat.numOfBatchInsertReqs = pMgmt->state.numOfBatchInsertReqs - pMgmt->lastState.numOfBatchInsertReqs;
+  vmInfo->vstat.numOfBatchInsertSuccessReqs =
+      pMgmt->state.numOfBatchInsertSuccessReqs - pMgmt->lastState.numOfBatchInsertSuccessReqs;
+  pMgmt->lastState = pMgmt->state;
+  taosWUnLockLatch(&pMgmt->latch);
+
+  if (pWrapper->procType == PROC_CHILD) {
+    dmGetMonitorSysInfo(&vmInfo->sys);
+    monGetLogs(&vmInfo->logs);
+  }
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;

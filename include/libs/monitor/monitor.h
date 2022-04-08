@@ -162,7 +162,7 @@ typedef struct {
 } SMonVmInfo;
 
 int32_t tSerializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
-int32_t tDeserializeSMonVMmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
+int32_t tDeserializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
 void    tFreeSMonVmInfo(SMonVmInfo *pInfo);
 
 typedef struct {
@@ -171,7 +171,7 @@ typedef struct {
 } SMonQmInfo;
 
 int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
-int32_t tDeserializeSMonQMmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
+int32_t tDeserializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
 void    tFreeSMonQmInfo(SMonQmInfo *pInfo);
 
 typedef struct {
@@ -190,6 +190,14 @@ typedef struct {
 int32_t tSerializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);
 int32_t tDeserializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);
 void    tFreeSMonBmInfo(SMonBmInfo *pInfo);
+
+typedef struct {
+  SArray *pVloads;  // SVnodeLoad
+} SMonVloadInfo;
+
+int32_t tSerializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo);
+int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo);
+void    tFreeSMonVloadInfo(SMonVloadInfo *pInfo);
 
 typedef struct {
   const char *server;

@@ -16,6 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
+void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo) {
+  if (pWrapper->procType == PROC_CHILD) {
+    dmGetMonitorSysInfo(&qmInfo->sys);
+    monGetLogs(&qmInfo->logs);
+  }
+}
+
 int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;

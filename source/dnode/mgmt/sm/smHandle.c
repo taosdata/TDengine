@@ -16,6 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
+void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {
+  if (pWrapper->procType == PROC_CHILD) {
+    dmGetMonitorSysInfo(&smInfo->sys);
+    monGetLogs(&smInfo->logs);
+  }
+}
+
 int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;

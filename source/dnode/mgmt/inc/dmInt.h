@@ -37,11 +37,6 @@ typedef struct SDnodeMgmt {
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
-
-  // monitor infos
-  SMonDiskInfo   diskInfo;
-  SMonVnodesStat vnodesStat;
-  SMonVnodesLoad vnodesLoad;
 } SDnodeMgmt;
 
 // dmFile.c
@@ -59,9 +54,13 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dmMonitor.c
-int32_t dmSetDiskInfo(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmSetVnodesStat(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmSetVnodesLoad(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessGetVnodeLoadsReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t dmProcessGetMonMmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t dmProcessGetMonVmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t dmProcessGetMonQmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t dmProcessGetMonSmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t dmProcessGetMonBmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq);
+void    dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void    dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
@@ -69,7 +68,7 @@ int32_t dmStartThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

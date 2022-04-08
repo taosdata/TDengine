@@ -16,20 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-static int32_t dmGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
-  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
-  pInfo->logdir.size = tsLogSpace.size;
-  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
-  pInfo->tempdir.size = tsTempSpace.size;
-
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
-  if (pWrapper != NULL) {
-    vmMonitorTfsInfo(pWrapper, pInfo);
-    dndReleaseWrapper(pWrapper);
-  }
-  return 0;
-}
-
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
   pInfo->dnode_id = pDnode->dnodeId;
@@ -39,6 +25,305 @@ static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
 
 static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->uptime = (taosGetTimestampMs() - pDnode->rebootTime) / (86400000.0f);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
+  if (pWrapper != NULL) {
+    pInfo->has_mnode = pWrapper->required;
+    dndReleaseWrapper(pWrapper);
+  }
+  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
+  pInfo->logdir.size = tsLogSpace.size;
+  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
+  pInfo->tempdir.size = tsTempSpace.size;
+}
+
+static void dmGetMonitorInfo(SDnode *pDnode, SMonDmInfo *pInfo) {
+  dmGetMonitorBasicInfo(pDnode, &pInfo->basic);
+  dmGetMonitorSysInfo(&pInfo->sys);
+  dmGetMonitorDnodeInfo(pDnode, &pInfo->dnode);
+}
+
+void dmSendMonitorReport(SDnode *pDnode) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
+
+  SMonDmInfo dmInfo = {0};
+  SMonMmInfo mmInfo = {0};
+  SMonVmInfo vmInfo = {0};
+  SMonQmInfo qmInfo = {0};
+  SMonSmInfo smInfo = {0};
+  SMonBmInfo bmInfo = {0};
+
+  SRpcMsg req = {0};
+  SRpcMsg rsp;
+  SEpSet  epset = {.inUse = 0, .numOfEps = 1};
+  tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  epset.eps[0].port = tsServerPort;
+
+  dmGetMonitorInfo(pDnode, &dmInfo);
+
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
+  if (pWrapper != NULL) {
+    if (!tsMultiProcess) {
+      mmGetMonitorInfo(pWrapper, &mmInfo);
+    } else {
+      req.msgType = TDMT_MON_MM_INFO;
+      dndSendRecv(pDnode, &epset, &req, &rsp);
+      tDeserializeSMonMmInfo(rsp.pCont, rsp.contLen, &mmInfo);
+      rpcFreeCont(rsp.pCont);
+    }
+    dndReleaseWrapper(pWrapper);
+  }
+
+  pWrapper = dndAcquireWrapper(pDnode, VNODES);
+  if (pWrapper != NULL) {
+    if (!tsMultiProcess) {
+      vmGetMonitorInfo(pWrapper, &vmInfo);
+    } else {
+      req.msgType = TDMT_MON_VM_INFO;
+      dndSendRecv(pDnode, &epset, &req, &rsp);
+      dndReleaseWrapper(pWrapper);
+      tDeserializeSMonVmInfo(rsp.pCont, rsp.contLen, &vmInfo);
+      rpcFreeCont(rsp.pCont);
+    }
+  }
+
+  pWrapper = dndAcquireWrapper(pDnode, QNODE);
+  if (pWrapper != NULL) {
+    if (!tsMultiProcess) {
+      qmGetMonitorInfo(pWrapper, &qmInfo);
+    } else {
+      req.msgType = TDMT_MON_QM_INFO;
+      dndSendRecv(pDnode, &epset, &req, &rsp);
+      dndReleaseWrapper(pWrapper);
+      tDeserializeSMonQmInfo(rsp.pCont, rsp.contLen, &qmInfo);
+      rpcFreeCont(rsp.pCont);
+    }
+    dndReleaseWrapper(pWrapper);
+  }
+
+  pWrapper = dndAcquireWrapper(pDnode, SNODE);
+  if (pWrapper != NULL) {
+    if (!tsMultiProcess) {
+      smGetMonitorInfo(pWrapper, &smInfo);
+    } else {
+      req.msgType = TDMT_MON_SM_INFO;
+      dndSendRecv(pDnode, &epset, &req, &rsp);
+      dndReleaseWrapper(pWrapper);
+      tDeserializeSMonSmInfo(rsp.pCont, rsp.contLen, &smInfo);
+      rpcFreeCont(rsp.pCont);
+    }
+    dndReleaseWrapper(pWrapper);
+  }
+
+  pWrapper = dndAcquireWrapper(pDnode, BNODE);
+  if (pWrapper != NULL) {
+    if (!tsMultiProcess) {
+      bmGetMonitorInfo(pWrapper, &bmInfo);
+    } else {
+      req.msgType = TDMT_MON_BM_INFO;
+      dndSendRecv(pDnode, &epset, &req, &rsp);
+      dndReleaseWrapper(pWrapper);
+      tDeserializeSMonBmInfo(rsp.pCont, rsp.contLen, &bmInfo);
+      rpcFreeCont(rsp.pCont);
+    }
+    dndReleaseWrapper(pWrapper);
+  }
+
+  monSetDmInfo(&dmInfo);
+  monSetMmInfo(&mmInfo);
+  monSetVmInfo(&vmInfo);
+  monSetQmInfo(&qmInfo);
+  monSetSmInfo(&smInfo);
+  monSetBmInfo(&bmInfo);
+  tFreeSMonMmInfo(&mmInfo);
+  tFreeSMonVmInfo(&vmInfo);
+  tFreeSMonQmInfo(&qmInfo);
+  tFreeSMonSmInfo(&smInfo);
+  tFreeSMonBmInfo(&bmInfo);
+  monSendReport();
+}
+
+int32_t dmProcessGetMonMmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, MNODE);
+  if (pWrapper == NULL) return -1;
+
+  SMonMmInfo mmInfo = {0};
+  mmGetMonitorInfo(pWrapper, &mmInfo);
+  dndReleaseWrapper(pWrapper);
+
+  int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonMmInfo(pRsp, rspLen, &mmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonMmInfo(&mmInfo);
+  return 0;
+}
+
+int32_t dmProcessGetMonVmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, VNODES);
+  if (pWrapper == NULL) return -1;
+
+  SMonVmInfo vmInfo = {0};
+  vmGetMonitorInfo(pWrapper, &vmInfo);
+  dndReleaseWrapper(pWrapper);
+
+  int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonVmInfo(pRsp, rspLen, &vmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonVmInfo(&vmInfo);
+  return 0;
+}
+
+int32_t dmProcessGetMonQmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, QNODE);
+  if (pWrapper == NULL) return -1;
+
+  SMonQmInfo qmInfo = {0};
+  qmGetMonitorInfo(pWrapper, &qmInfo);
+  dndReleaseWrapper(pWrapper);
+
+  int32_t rspLen = tSerializeSMonQmInfo(NULL, 0, &qmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonQmInfo(pRsp, rspLen, &qmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonQmInfo(&qmInfo);
+  return 0;
+}
+
+int32_t dmProcessGetMonSmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, SNODE);
+  if (pWrapper == NULL) return -1;
+
+  SMonSmInfo smInfo = {0};
+  smGetMonitorInfo(pWrapper, &smInfo);
+  dndReleaseWrapper(pWrapper);
+
+  int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonSmInfo(pRsp, rspLen, &smInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonSmInfo(&smInfo);
+  return 0;
+}
+
+int32_t dmProcessGetMonBmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, BNODE);
+  if (pWrapper == NULL) return -1;
+
+  SMonBmInfo bmInfo = {0};
+  bmGetMonitorInfo(pWrapper, &bmInfo);
+  dndReleaseWrapper(pWrapper);
+
+  int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonBmInfo(pRsp, rspLen, &bmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonBmInfo(&bmInfo);
+  return 0;
+}
+
+int32_t dmProcessGetVnodeLoadsReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, VNODES);
+  if (pWrapper == NULL) return -1;
+
+  SMonVloadInfo vloads = {0};
+  vmGetVnodeLoads(pWrapper, &vloads);
+  dndReleaseWrapper(pWrapper);
+
+  int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonVloadInfo(pRsp, rspLen, &vloads);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonVloadInfo(&vloads);
+  return 0;
+}
+
+void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo) {
+  if (!tsMultiProcess) {
+    vmGetVnodeLoads(pWrapper, pInfo);
+  } else {
+    SRpcMsg req = {.msgType = TDMT_MON_VM_LOAD};
+    SRpcMsg rsp = {0};
+    SEpSet  epset = {.inUse = 0, .numOfEps = 1};
+    tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+    epset.eps[0].port = tsServerPort;
+
+    dndSendRecv(pWrapper->pDnode, &epset, &req, &rsp);
+    if (rsp.code == 0) {
+      tDeserializeSMonVloadInfo(rsp.pCont, rsp.contLen, pInfo);
+    }
+    rpcFreeCont(rsp.pCont);
+  }
+}
+
+void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   taosGetCpuCores(&pInfo->cpu_cores);
   taosGetProcMemory(&pInfo->mem_engine);
@@ -47,93 +332,6 @@ static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->disk_engine = 0;
   pInfo->disk_used = tsDataSpace.size.used;
   pInfo->disk_total = tsDataSpace.size.total;
-  taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
-  taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
-
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
-  if (pWrapper != NULL) {
-    vmMonitorVnodeReqs(pWrapper, pInfo);
-    dndReleaseWrapper(pWrapper);
-  }
-
-  pWrapper = dndAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL) {
-    pInfo->has_mnode = pWrapper->required;
-    dndReleaseWrapper(pWrapper);
-  }
-}
-
-void dmSendMonitorReport(SDnode *pDnode) {
-  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
-
-  SMonInfo *pMonitor = monCreateMonitorInfo();
-  if (pMonitor == NULL) return;
-
-  SMonBasicInfo basicInfo = {0};
-  dmGetMonitorBasicInfo(pDnode, &basicInfo);
-  monSetBasicInfo(pMonitor, &basicInfo);
-
-  SMonClusterInfo clusterInfo = {0};
-  SMonVgroupInfo  vgroupInfo = {0};
-  SMonGrantInfo   grantInfo = {0};
-
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL) {
-    if (mmMonitorMnodeInfo(pWrapper, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
-      monSetClusterInfo(pMonitor, &clusterInfo);
-      monSetVgroupInfo(pMonitor, &vgroupInfo);
-      monSetGrantInfo(pMonitor, &grantInfo);
-    }
-    dndReleaseWrapper(pWrapper);
-  }
-
-  SMonDnodeInfo dnodeInfo = {0};
-  dmGetMonitorDnodeInfo(pDnode, &dnodeInfo);
-  monSetDnodeInfo(pMonitor, &dnodeInfo);
-
-  SMonDiskInfo diskInfo = {0};
-  if (dmGetMonitorDiskInfo(pDnode, &diskInfo) == 0) {
-    monSetDiskInfo(pMonitor, &diskInfo);
-  }
-
-  taosArrayDestroy(clusterInfo.dnodes);
-  taosArrayDestroy(clusterInfo.mnodes);
-  taosArrayDestroy(vgroupInfo.vgroups);
-  taosArrayDestroy(diskInfo.datadirs);
-
-  monSendReport(pMonitor);
-  monCleanupMonitorInfo(pMonitor);
-}
-
-int32_t dmSetDiskInfo(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnode      *pDnode = pMgmt->pDnode;
-  SMonDiskInfo info = {0};
-
-  if (tDeserializeSMonDiskInfo(pMsg->rpcMsg.pCont, pMsg->rpcMsg.contLen, &info) != 0) {
-    dError("failed to parse diskinfo since %s", terrstr());
-    return 0;
-  }
-
-  taosWLockLatch(&pMgmt->latch);
-  memcpy(&pMgmt->diskInfo, &info, sizeof(SMonDiskInfo));
-  taosWUnLockLatch(&pMgmt->latch);
-
-  return 0;
-}
-
-int32_t dmSetVnodeStat(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnode      *pDnode = pMgmt->pDnode;
-  SVnodesStat info = {0};
-
-  if (tDeserializeSMonDiskInfo(pMsg->rpcMsg.pCont, pMsg->rpcMsg.contLen, &info) != 0) {
-    dError("failed to parse diskinfo since %s", terrstr());
-    return 0;
-  }
-
-  taosWLockLatch(&pMgmt->latch);
-  memcpy(&pMgmt->diskInfo, &info, sizeof(SMonDiskInfo));
-  taosWUnLockLatch(&pMgmt->latch);
-
-  return 0;
+  taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
+  taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 }

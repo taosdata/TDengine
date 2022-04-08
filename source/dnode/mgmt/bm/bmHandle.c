@@ -16,6 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
+void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {
+  if (pWrapper->procType == PROC_CHILD) {
+    dmGetMonitorSysInfo(&bmInfo->sys);
+    monGetLogs(&bmInfo->logs);
+  }
+}
+
 int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
