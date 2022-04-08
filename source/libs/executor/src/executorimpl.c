@@ -7066,7 +7066,7 @@ static SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo);
 static SArray* extractScanColumnId(SNodeList* pNodeList);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols);
-static SArray* createSortInfo(SNodeList* pNodeList);
+static SArray* createSortInfo(SNodeList* pNodeList, SNodeList* pNodeListTarget);
 static SArray* createIndexMap(SNodeList* pNodeList);
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
@@ -7185,7 +7185,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSortPhysiNode* pSortPhyNode = (SSortPhysiNode*)pPhyNode;
 
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
-    SArray*      info = createSortInfo(pSortPhyNode->pSortKeys);
+    SArray*      info = createSortInfo(pSortPhyNode->pSortKeys, pSortPhyNode->pTargets);
     SArray*      slotMap = createIndexMap(pSortPhyNode->pTargets);
     return createSortOperatorInfo(op, pResBlock, info, slotMap, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == nodeType(pPhyNode)) {
@@ -7298,7 +7298,7 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-SArray* createSortInfo(SNodeList* pNodeList) {
+SArray* createSortInfo(SNodeList* pNodeList, SNodeList* pNodeListTarget) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
@@ -7313,16 +7313,22 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     bi.nullFirst = (pSortKey->nullOrder == NULL_ORDER_FIRST);
 
     SColumnNode* pColNode = (SColumnNode*)pSortKey->pExpr;
-    bi.slotId = pColNode->slotId;
-    //    pColNode->order;
-    //    SColumn c = {0};
-    //    c.slotId = pColNode->slotId;
-    //    c.colId  = pColNode->colId;
-    //    c.type   = pColNode->node.resType.type;
-    //    c.bytes  = pColNode->node.resType.bytes;
-    //    c.precision  = pColNode->node.resType.precision;
-    //    c.scale  = pColNode->node.resType.scale;
 
+    bool found = false;
+    for (int32_t j = 0; j < LIST_LENGTH(pNodeListTarget); ++j) {
+      STargetNode* pTarget = (STargetNode*)nodesListGetNode(pNodeListTarget, j);
+
+      SColumnNode* pColNodeT = (SColumnNode*)pTarget->pExpr;
+      if(pColNode->slotId == pColNodeT->slotId){    // to find slotId in PhysiSort OutputDataBlockDesc
+        bi.slotId = pTarget->slotId;
+        found = true;
+        break;
+      }
+    }
+
+    if(!found){
+      qError("sort slot id does not found");
+    }
     taosArrayPush(pList, &bi);
   }
 
