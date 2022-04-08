@@ -15,9 +15,8 @@
 
 #include "tcompare.h"
 #include "tdatablock.h"
-#include "tqInt.h"
-#include "tqMetaStore.h"
 #include "tstream.h"
+#include "vnodeInt.h"
 
 int32_t tqInit() { return tqPushMgrInit(); }
 
@@ -272,7 +271,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch, pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
+  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+         pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
 
   SMqPollRsp rsp = {
       /*.consumerId = consumerId,*/
@@ -296,10 +296,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   }
 
   STqTopic* pTopic = NULL;
-  int sz = taosArrayGetSize(pConsumer->topics);
+  int       sz = taosArrayGetSize(pConsumer->topics);
   for (int32_t i = 0; i < sz; i++) {
     STqTopic* topic = taosArrayGet(pConsumer->topics, i);
-    //TODO race condition
+    // TODO race condition
     ASSERT(pConsumer->consumerId == consumerId);
     if (strcmp(topic->topicName, pReq->topic) == 0) {
       pTopic = topic;
@@ -307,7 +307,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     }
   }
   if (pTopic == NULL) {
-    vWarn("tmq poll: consumer %ld (epoch %d) topic %s not found in vg %d", consumerId, pReq->epoch, pReq->topic, pTq->pVnode->vgId);
+    vWarn("tmq poll: consumer %ld (epoch %d) topic %s not found in vg %d", consumerId, pReq->epoch, pReq->topic,
+          pTq->pVnode->vgId);
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = -1;
@@ -322,10 +323,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   while (1) {
     /*if (fetchOffset > walGetLastVer(pTq->pWal) || walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {*/
-    //TODO
+    // TODO
     consumerEpoch = atomic_load_32(&pConsumer->epoch);
     if (consumerEpoch > pReq->epoch) {
-      //TODO: return
+      // TODO: return
       break;
     }
     SWalReadHead* pHead;
@@ -333,10 +334,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       // TODO: no more log, set timer to wait blocking time
       // if data inserted during waiting, launch query and
       // response to user
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch, pTq->pVnode->vgId, fetchOffset);
+      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+             pTq->pVnode->vgId, fetchOffset);
       break;
     }
-    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch, pTq->pVnode->vgId, fetchOffset, pHead->msgType);
+    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
+           pTq->pVnode->vgId, fetchOffset, pHead->msgType);
     /*int8_t pos = fetchOffset % TQ_BUFFER_SIZE;*/
     /*pHead = pTopic->pReadhandle->pHead;*/
     if (pHead->msgType == TDMT_VND_SUBMIT) {
@@ -360,7 +363,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       }
 
       if (taosArrayGetSize(pRes) == 0) {
-        vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId, pReq->epoch, pTq->pVnode->vgId, fetchOffset);
+        vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId,
+               pReq->epoch, pTq->pVnode->vgId, fetchOffset);
         fetchOffset++;
         rsp.skipLogNum++;
         taosArrayDestroy(pRes);
@@ -389,7 +393,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       pMsg->pCont = buf;
       pMsg->contLen = tlen;
       pMsg->code = 0;
-      vDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", pTq->pVnode->vgId, fetchOffset, pHead->msgType, consumerId, pReq->epoch);
+      vDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", pTq->pVnode->vgId, fetchOffset,
+             pHead->msgType, consumerId, pReq->epoch);
       tmsgSendRsp(pMsg);
       taosMemoryFree(pHead);
       return 0;
@@ -420,7 +425,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   pMsg->contLen = tlen;
   pMsg->code = 0;
   tmsgSendRsp(pMsg);
-  vDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", pTq->pVnode->vgId, fetchOffset, consumerId, pReq->epoch);
+  vDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", pTq->pVnode->vgId, fetchOffset, consumerId,
+         pReq->epoch);
   /*}*/
 
   return 0;
@@ -431,7 +437,7 @@ int32_t tqProcessRebReq(STQ* pTq, char* msg) {
   terrno = TSDB_CODE_SUCCESS;
   tDecodeSMqMVRebReq(msg, &req);
 
-  vDebug("vg %d set from consumer %ld to consumer %ld", req.vgId, req.oldConsumerId ,req.newConsumerId);
+  vDebug("vg %d set from consumer %ld to consumer %ld", req.vgId, req.oldConsumerId, req.newConsumerId);
   STqConsumer* pConsumer = tqHandleGet(pTq->tqMeta, req.oldConsumerId);
   ASSERT(pConsumer);
   ASSERT(pConsumer->consumerId == req.oldConsumerId);
