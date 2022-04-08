@@ -286,12 +286,14 @@ typedef struct SSortPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of order_by_clause and parameter expression of aggregate function
   SNodeList* pSortKeys; // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
+  SNodeList* pTargets;
 } SSortPhysiNode;
 
 typedef struct SPartitionPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of partition_by_clause
   SNodeList* pPartitionKeys;
+  SNodeList* pTargets;
 } SPartitionPhysiNode;
 
 typedef struct SDataSinkNode {

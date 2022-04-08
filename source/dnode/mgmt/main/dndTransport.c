@@ -257,16 +257,11 @@ static int32_t dndRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *spi, ch
 static int32_t dndInitServer(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->trans;
 
-  int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
-  if (numOfThreads < 1) {
-    numOfThreads = 1;
-  }
-
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = pDnode->serverPort;
   rpcInit.label = "DND";
-  rpcInit.numOfThreads = numOfThreads;
+  rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dndProcessMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
