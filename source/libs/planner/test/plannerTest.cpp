@@ -254,6 +254,9 @@ TEST_F(PlannerTest, orderBy) {
 
   bind("SELECT * FROM t1 order by c1 + 10, c2");
   ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 order by c1 desc nulls first");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, distinct) {

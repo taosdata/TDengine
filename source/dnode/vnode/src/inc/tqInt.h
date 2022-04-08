@@ -67,7 +67,7 @@ extern "C" {
     }                                                              \
   }
 
-#define TQ_BUFFER_SIZE 8
+#define TQ_BUFFER_SIZE 4
 
 #define TQ_BUCKET_MASK 0xFF
 #define TQ_BUCKET_SIZE 256
@@ -206,7 +206,7 @@ typedef struct {
 
 typedef struct {
   int64_t consumerId;
-  int64_t epoch;
+  int32_t epoch;
   char    cgroup[TSDB_TOPIC_FNAME_LEN];
   SArray* topics;  // SArray<STqTopic>
 } STqConsumer;

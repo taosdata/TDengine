@@ -18,8 +18,9 @@
 
 #define TSDB_SMA_TEST // remove after test finished
 
-typedef struct SSmaStat     SSmaStat;
-typedef struct SSmaEnv      SSmaEnv;
+typedef struct SSmaStat SSmaStat;
+typedef struct SSmaEnv  SSmaEnv;
+typedef struct SSmaEnvs SSmaEnvs;
 
 struct SSmaEnv {
   TdThreadRwlock lock;
@@ -35,6 +36,13 @@ struct SSmaEnv {
 #define SMA_ENV_PATH(env)       ((env)->path)
 #define SMA_ENV_STAT(env)       ((env)->pStat)
 #define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
+
+struct SSmaEnvs {
+  int16_t  nTSma;
+  int16_t  nRSma;
+  SSmaEnv *pTSmaEnv;
+  SSmaEnv *pRSmaEnv;
+};
 
 void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);

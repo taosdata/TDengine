@@ -267,7 +267,7 @@ static void trtrim(char *input, char *output, int32_t type, int32_t charLen) {
       numOfSpaces++;
     }
   } else { //NCHAR
-    for (int32_t i = charLen - 1; i < charLen; ++i) {
+    for (int32_t i = charLen - 1; i >= 0; --i) {
       if (!iswspace(*((uint32_t *)varDataVal(input) + i))) {
         break;
       }
