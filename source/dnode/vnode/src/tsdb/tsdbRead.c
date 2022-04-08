@@ -3254,6 +3254,11 @@ SArray* tsdbRetrieveDataBlock(tsdbReaderT* pTsdbReadHandle, SArray* pIdList) {
    */
   STsdbReadHandle* pHandle = (STsdbReadHandle*)pTsdbReadHandle;
 
+  for(int32_t i = 0; i < taosArrayGetSize(pHandle->pColumns); ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pHandle->pColumns, i);
+    colInfoDataCleanup(pColInfo, pHandle->outputCapacity);
+  }
+
   if (pHandle->cur.fid == INT32_MIN) {
     return pHandle->pColumns;
   } else {

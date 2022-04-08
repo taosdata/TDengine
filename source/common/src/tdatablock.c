@@ -1171,15 +1171,9 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
-
-  if (pDataBlock->info.hasVarCol) {
-    for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-
-      if (IS_VAR_DATA_TYPE(p->info.type)) {
-        p->varmeta.length = 0;
-      }
-    }
+  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    colInfoDataCleanup(p, pDataBlock->info.capacity);
   }
 }
 
@@ -1220,11 +1214,21 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+  if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+    pColumn->varmeta.length = 0;
+  } else {
+    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+  }
+}
+
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }
+
+  pDataBlock->info.capacity = numOfRows;
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);

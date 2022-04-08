@@ -67,6 +67,7 @@ typedef struct SDataBlockInfo {
   int32_t     rowSize;
   int16_t     numOfCols;
   int16_t     hasVarCol;
+  int16_t     capacity;
   union {
     int64_t uid;
     int64_t blockId;
