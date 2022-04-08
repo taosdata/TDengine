@@ -4358,7 +4358,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
     };
 
     if (pQueryInfo->colCond == NULL) {
-      pQueryInfo->colCond = taosArrayInit(2, sizeof(SCond));
+      pQueryInfo->colCond = taosArrayInit(2, sizeof(STblCond));
     }
     
     taosArrayPush(pQueryInfo->colCond, &cond);  
