@@ -22,6 +22,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndSma.h"
 
 #define TSDB_DB_VER_NUMBER   1
 #define TSDB_DB_RESERVE_SIZE 64
@@ -41,6 +42,7 @@ static int32_t  mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
 static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq);
+static int32_t mndProcessGetIndexReq(SNodeMsg *pReq);
 
 int32_t mndInitDb(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_DB,

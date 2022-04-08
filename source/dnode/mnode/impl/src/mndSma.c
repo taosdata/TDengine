@@ -689,13 +689,12 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
+int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
   int32_t      code = -1;
   SSmaObj     *pSma = NULL;
 
-  pSma = mndAcquireSma(pMnode, indexReq.indexFName);
+  pSma = mndAcquireSma(pMnode, indexReq->indexFName);
   if (pSma == NULL) {
-    //TODO TRY TO GET INDEX FROM FULLTEXT
     *exist = false;
     return 0;
   }
