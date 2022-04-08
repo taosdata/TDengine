@@ -569,6 +569,44 @@ int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtE
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *dbFName, SDbCfgInfo *out) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+
+  ctgDebug("try to get db cfg from mnode, dbFName:%s", dbFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]((void *)dbFName, &msg, 0, &msgLen);
+  if (code) {
+    ctgError("Build get db cfg msg failed, code:%x, db:%s", code, dbFName);
+    CTG_ERR_RET(code);
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_GET_DB_CFG,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    ctgError("error rsp for get db cfg, error:%s, db:%s", tstrerror(rpcRsp.code), dbFName);
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)](out, rpcRsp.pCont, rpcRsp.contLen);
+  if (code) {
+    ctgError("Process get db cfg rsp failed, code:%x, db:%s", code, dbFName);
+    CTG_ERR_RET(code);
+  }
+
+  ctgDebug("Got db cfg from mnode, dbFName:%s", dbFName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t ctgIsTableMetaExistInCache(SCatalog* pCtg, char *dbFName, char* tbName, int32_t *exist) {
   if (NULL == pCtg->dbCache) {
     *exist = 0;
@@ -2137,7 +2175,6 @@ _return:
   CTG_RET(code);
 }
 
-
 int32_t catalogInit(SCatalogCfg *cfg) {
   if (gCtgMgmt.pCluster) {
     qError("catalog already initialized");
@@ -2717,6 +2754,15 @@ int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbVgVersion **dbs, uint32_t *num) 
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->dbRent, (void **)dbs, num, sizeof(SDbVgVersion)));
 }
 
+int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == dbFName || NULL == pDbCfg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_API_LEAVE(ctgGetDBCfgFromMnode(pCtg, pRpc, pMgmtEps, dbFName, pDbCfg));
+}
 
 void catalogDestroy(void) {
   qInfo("start to destroy catalog");

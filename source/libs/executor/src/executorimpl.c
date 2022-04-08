@@ -7306,6 +7306,7 @@ SArray* createSortInfo(SNodeList* pNodeList, SNodeList* pNodeListTarget) {
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
+    
     SOrderByExprNode* pSortKey = (SOrderByExprNode*)nodesListGetNode(pNodeList, i);
     SBlockOrderInfo   bi = {0};
     bi.order = (pSortKey->order == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
