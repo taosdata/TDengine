@@ -167,8 +167,8 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, false) < 0) {
-        /*if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {*/
+      /*if (colDataAppend(pColData, curRow, sVal.val, false) < 0) {*/
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
         taosArrayDestroyEx(pArray, (void (*)(void*))tDeleteSSDataBlock);
         return NULL;
       }
