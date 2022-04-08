@@ -205,8 +205,12 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
       transRefCliHandle(conn);        \
     }                                 \
   } while (0)
-#define CONN_NO_PERSIST_BY_APP(conn) (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
-#define CONN_RELEASE_BY_SERVER(conn) (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+
+#define CONN_NO_PERSIST_BY_APP(conn) \
+  (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+#define CONN_RELEASE_BY_SERVER(conn) \
+  (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+
 #define REQUEST_NO_RESP(msg)         ((msg)->noResp == 1)
 #define REQUEST_PERSIS_HANDLE(msg)   ((msg)->persistHandle == 1)
 #define REQUEST_RELEASE_HANDLE(cmsg) ((cmsg)->type == Release)
@@ -716,10 +720,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     conn->hThrdIdx = pCtx->hThrdIdx;
 
     transCtxMerge(&conn->ctx, &pCtx->appCtx);
-    if (!transQueuePush(&conn->cliMsgs, pMsg)) {
-      return;
-    }
-    transDestroyBuffer(&conn->readBuf);
+    transQueuePush(&conn->cliMsgs, pMsg);
+    //  tTrace("%s cli conn %p queue msg size %d", ((STrans*)pThrd->pTransInst)->label, conn, 2);
+    //  return;
+    //}
+    // transDestroyBuffer(&conn->readBuf);
     cliSend(conn);
   } else {
     conn = cliCreateConn(pThrd);
