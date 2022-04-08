@@ -16,7 +16,7 @@
 #ifndef _TD_TSDB_MEM_TABLE_H_
 #define _TD_TSDB_MEM_TABLE_H_
 
-#include "tsdb.h"
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {

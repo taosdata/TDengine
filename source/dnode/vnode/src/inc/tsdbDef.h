@@ -18,7 +18,6 @@
 
 #include "tsdbDBDef.h"
 #include "tmallocator.h"
-#include "meta.h"
 #include "tcompression.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -27,7 +26,6 @@
 #include "tskiplist.h"
 #include "ttime.h"
 
-#include "tsdb.h"
 #include "tsdbCommit.h"
 #include "tsdbFS.h"
 #include "tsdbFile.h"

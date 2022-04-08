@@ -16,7 +16,7 @@
 #ifndef _TD_TQ_INT_H_
 #define _TD_TQ_INT_H_
 
-#include "meta.h"
+#include "vnode.h"
 #include "tlog.h"
 #include "tqPush.h"
 #include "vnodeInt.h"

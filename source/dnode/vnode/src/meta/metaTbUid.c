@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
+#include "vnode.h"
 #include "metaDef.h"
 
 int metaOpenUidGnrt(SMeta *pMeta) {

@@ -17,8 +17,7 @@
 #define _TD_META_DEF_H_
 
 #include "tmallocator.h"
-
-#include "meta.h"
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -19,7 +19,7 @@
 #include "os.h"
 #include "tcommon.h"
 #include "tfs.h"
-#include "tsdb.h"
+#include "vnode.h"
 #include "tsdbFile.h"
 #include "tsdbMemory.h"
 #include "tskiplist.h"

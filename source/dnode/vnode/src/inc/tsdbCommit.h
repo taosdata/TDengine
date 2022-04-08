@@ -16,6 +16,8 @@
 #ifndef _TD_TSDB_COMMIT_H_
 #define _TD_TSDB_COMMIT_H_
 
+#include "vnode.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

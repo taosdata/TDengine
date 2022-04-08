@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tsdb.h>
+#include <vnode.h>
 #include "dataSinkMgt.h"
 #include "texception.h"
 #include "os.h"

@@ -20,7 +20,7 @@
 #include "tcompare.h"
 #include "tdataformat.h"
 #include "texception.h"
-#include "tsdb.h"
+#include "vnode.h"
 #include "tsdbFS.h"
 #include "tsdbLog.h"
 #include "tsdbReadImpl.h"

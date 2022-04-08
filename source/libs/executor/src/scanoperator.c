@@ -28,7 +28,7 @@
 #include "query.h"
 #include "tcompare.h"
 #include "thash.h"
-#include "tsdb.h"
+#include "vnode.h"
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
