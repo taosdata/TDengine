@@ -8,7 +8,7 @@ from math import inf
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<shenglian zhou>: [TD-11204]Difference improvement that can ignore negative 
+        case1<shenglian zhou>: [TD-14565]power/log test case. log support default param e
         ''' 
         return
     
