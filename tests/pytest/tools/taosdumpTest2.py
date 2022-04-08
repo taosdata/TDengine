@@ -64,6 +64,7 @@ class TDTestCase:
         else:
             print("directory exists")
 
+        print("DEBUG LN67: %s" % tdSql.getResult("show databases"))
         tdSql.prepare()
 
         tdSql.execute("create table st(ts timestamp, c1 timestamp, c2 int, c3 bigint, c4 float, c5 double, c6 binary(8), c7 smallint, c8 tinyint, c9 bool, c10 nchar(8)) tags(t1 int)")
@@ -79,6 +80,7 @@ class TDTestCase:
                     break
             tdSql.execute(sql)
 
+        print("DEBUG LN83: %s" % tdSql.getResult("show databases"))
         binPath = self.getPath()
         if (binPath == ""):
             tdLog.exit("taosdump not found!")
@@ -91,10 +93,10 @@ class TDTestCase:
             "%s --databases db -o ./taosdumptest/tmp " %
             binPath)
 
-        print("DEBUG: %s" % tdSql.getResult("show databases"))
+        print("DEBUG LN96: %s" % tdSql.getResult("show databases"))
         tdSql.execute("drop database db")
         tdSql.query("show databases")
-        print("DEBUG: %s" % tdSql.getResult("show databases"))
+        print("DEBUG LN99: %s" % tdSql.getResult("show databases"))
         tdSql.checkRows(0)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
