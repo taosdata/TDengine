@@ -17,6 +17,7 @@
 #include "tlog.h"
 #include "tudf.h"
 #include "tudfInt.h"
+#include "tarray.h"
 
 //TODO: when startup, set thread poll size. add it to cfg 
 //TODO: udfd restart when exist or aborts
@@ -103,6 +104,8 @@ uv_async_t gUdfLoopStopAsync;
 uv_mutex_t gUdfTaskQueueMutex;
 int64_t gUdfTaskSeqNum = 0;
 
+SArray* gUdfWaitResultTasks = NULL;
+
 enum {
   UDFC_STATE_INITAL = 0, // initial state
   UDFC_STATE_STARTNG, // starting after startUdfService
@@ -177,7 +180,6 @@ void udfTaskQueueMove(SClientUvTaskQueue q, SClientUvTaskQueue n) {
     udfTaskQueueSplit(q, h, n);
   }
 }
-
 
 int32_t encodeRequest(char **pBuf, int32_t *pBufLen, SUdfRequest *request) {
   debugPrint("%s", "encoding request");
@@ -846,6 +848,7 @@ void startUdfd(void *argsThread) {
   uv_async_init(&gUdfdLoop, &gUdfLoopStopAsync, udfStopAsyncCb);
   uv_mutex_init(&gUdfTaskQueueMutex);
   udfTaskQueueInit(gUdfTaskQueue);
+  gUdfWaitResultTasks = taosArrayInit(256, sizeof(SClientUvTaskNode*));
   uv_barrier_wait(&gUdfInitBarrier);
   //TODO return value of uv_run
   uv_run(&gUdfdLoop, UV_RUN_DEFAULT);
