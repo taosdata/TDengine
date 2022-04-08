@@ -1,0 +1,11 @@
+sql:
+  - "select first (*) from stb"
+  - "select last (*) from stb"
+  - "select * from stb limit 10000"
+  - "select avg(c4),max(c0),min(c5) from stb interval (1d)"
+  - "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00' interval(10s)"
+  - "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00' interval(10s)"
+  - "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00' interval(10s)"
+  - "select * from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00'"
+  - "select * from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00'"
+  - "select * from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00'"
