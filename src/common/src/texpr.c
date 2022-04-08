@@ -2061,7 +2061,6 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
     if (!hasNullInputs) {
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOG: {
-          assert(numInputs == 1 || numInputs == 2);
           double base = M_E;
           if (numInputs == 2) {
             GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
