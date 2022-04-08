@@ -1787,12 +1787,14 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
-    if(type != TSDB_DATA_TYPE_JSON){
+    if(type != TSDB_DATA_TYPE_JSON) {
       if (dType->type == type) {
         assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
       } else {
         SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
+        out.columnData->info.bytes = tDataTypes[type].bytes;
+        ASSERT(!IS_VAR_DATA_TYPE(type));
 
         // todo refactor the convert
         int32_t code = doConvertDataType(var, &out);
@@ -2946,8 +2948,8 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   
   for (int32_t i = 0; i < numOfRows; ++i) {    
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
-
-    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[0].colData, 0, i, NULL)) {
+    SColumnInfoData* pData = info->cunits[0].colData;
+    if (colData == NULL || colDataIsNull_s(pData, i)) {
       all = false;
       continue;
     }

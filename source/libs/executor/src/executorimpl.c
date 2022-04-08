@@ -4604,22 +4604,21 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
     goto _error;
   }
 
-  size_t size = pBlock->info.numOfCols;
-  pInfo->pResult = pBlock;
+  pInfo->pResult     = pBlock;
   pInfo->seqLoadData = true;
 
   tsem_init(&pInfo->ready, 0, 0);
 
-  pOperator->name = "ExchangeOperator";
+  pOperator->name         = "ExchangeOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   pOperator->blockingOptr = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfOutput = size;
-  pOperator->pTaskInfo = pTaskInfo;
-  pOperator->_openFn = prepareLoadRemoteData;  // assign a dummy function.
-  pOperator->getNextFn = doLoadRemoteData;
-  pOperator->closeFn = destroyExchangeOperatorInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = pBlock->info.numOfCols;
+  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->_openFn      = prepareLoadRemoteData;  // assign a dummy function.
+  pOperator->getNextFn    = doLoadRemoteData;
+  pOperator->closeFn      = destroyExchangeOperatorInfo;
 
 #if 1
   {  // todo refactor

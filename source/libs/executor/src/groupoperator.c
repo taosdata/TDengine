@@ -124,6 +124,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       pkey->isNull = true;
     } else {
+      pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataTLen(val));
