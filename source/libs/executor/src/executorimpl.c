@@ -34,7 +34,7 @@
 #include "tcompare.h"
 #include "tcompression.h"
 #include "thash.h"
-#include "tsdb.h"
+#include "vnode.h"
 #include "ttypes.h"
 #include "vnode.h"
 

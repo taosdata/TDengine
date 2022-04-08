@@ -89,6 +89,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "invalid option rollup: only one function is allowed";
     case TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION:
       return "invalid option retentions";
+    case TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST:
+      return "GROUP BY and WINDOW-clause can't be used together";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

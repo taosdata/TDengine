@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 
 static const char *TSDB_SMA_DNAME[] = {
     "",      // TSDB_SMA_TYPE_BLOCK

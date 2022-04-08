@@ -16,17 +16,23 @@
 #ifndef _TD_VNODE_DEF_H_
 #define _TD_VNODE_DEF_H_
 
-#include "tmallocator.h"
-// #include "sync.h"
+#include "executor.h"
+#include "tchecksum.h"
 #include "tcoding.h"
+#include "tcompression.h"
 #include "tdatablock.h"
 #include "tfs.h"
+#include "tglobal.h"
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tmacro.h"
+#include "tmallocator.h"
+#include "tskiplist.h"
+#include "ttime.h"
+#include "ttimer.h"
 #include "vnode.h"
-#include "vnodeQuery.h"
 #include "wal.h"
+#include "qworker.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,8 +40,9 @@ extern "C" {
 
 typedef struct STQ STQ;
 
-typedef struct SVState   SVState;
-typedef struct SVBufPool SVBufPool;
+typedef struct SVState      SVState;
+typedef struct SVBufPool    SVBufPool;
+typedef struct SQWorkerMgmt SQHandle;
 
 typedef struct SVnodeTask {
   TD_DLIST_NODE(SVnodeTask);
@@ -95,7 +102,9 @@ struct SVnode {
   STfs*      pTfs;
 };
 
-int vnodeScheduleTask(SVnodeTask* task);
+int  vnodeScheduleTask(SVnodeTask* task);
+int  vnodeQueryOpen(SVnode* pVnode);
+void vnodeQueryClose(SVnode* pVnode);
 
 #define vFatal(...)                                              \
   do {                                                           \
@@ -204,6 +213,12 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t wo
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+
+#include "meta.h"
+
+#include "tsdb.h"
+
+#include "tq.h"
 
 #ifdef __cplusplus
 }
