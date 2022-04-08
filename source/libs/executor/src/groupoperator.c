@@ -26,6 +26,8 @@
 #include "ttypes.h"
 
 static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
+static void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
+static uint64_t calcGroupId(char* pData, int32_t len);
 
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
@@ -353,7 +355,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 }
 
 static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+//  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   SPartitionOperatorInfo* pInfo = pOperator->info;
 
@@ -362,38 +364,13 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
-    SDataGroupInfo* p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
+    SDataGroupInfo* pGInfo = NULL;
+    void *pPage = getCurrentDataGroupInfo(pInfo, &pGInfo, len);
 
-    void* pPage = NULL;
-    if (p == NULL) { // it is a new group
-      SDataGroupInfo gi = {0};
-      gi.pPageList = taosArrayInit(100, sizeof(int32_t));
-      taosHashPut(pInfo->pGroupSet, pInfo->keyBuf, len, &gi, sizeof(SDataGroupInfo));
-
-      p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
-
-      int32_t pageId = 0;
-      pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
-      taosArrayPush(p->pPageList, &pageId);
-
-      *(int32_t *) pPage = 0;
-    } else {
-      int32_t* curId = taosArrayGetLast(p->pPageList);
-      pPage = getBufPage(pInfo->pBuf, *curId);
-
-      int32_t *rows = (int32_t*) pPage;
-      if (*rows >= pInfo->rowCapacity) {
-        // add a new page for current group
-        int32_t pageId = 0;
-        pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
-        taosArrayPush(p->pPageList, &pageId);
-
-        *(int32_t*) pPage = 0;
-      }
+    pGInfo->numOfRows += 1;
+    if (pGInfo->groupId == 0) {
+      pGInfo->groupId = calcGroupId(pInfo->keyBuf, len);
     }
-
-    // add one for this group
-    p->numOfRows += 1;
 
     int32_t* rows = (int32_t*) pPage;
 
@@ -446,8 +423,53 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     setBufPageDirty(pPage, true);
     releaseBufPage(pInfo->pBuf, pPage);
   }
+}
 
-  // todo set the consistent group id according to the group keys
+void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len) {
+  SDataGroupInfo* p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
+
+  void* pPage = NULL;
+  if (p == NULL) { // it is a new group
+    SDataGroupInfo gi = {0};
+    gi.pPageList = taosArrayInit(100, sizeof(int32_t));
+    taosHashPut(pInfo->pGroupSet, pInfo->keyBuf, len, &gi, sizeof(SDataGroupInfo));
+
+    p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
+
+    int32_t pageId = 0;
+    pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
+    taosArrayPush(p->pPageList, &pageId);
+
+    *(int32_t *) pPage = 0;
+  } else {
+    int32_t* curId = taosArrayGetLast(p->pPageList);
+    pPage = getBufPage(pInfo->pBuf, *curId);
+
+    int32_t *rows = (int32_t*) pPage;
+    if (*rows >= pInfo->rowCapacity) {
+      // add a new page for current group
+      int32_t pageId = 0;
+      pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
+      taosArrayPush(p->pPageList, &pageId);
+
+      *(int32_t*) pPage = 0;
+    }
+  }
+
+  *pGroupInfo = p;
+  return pPage;
+}
+
+uint64_t calcGroupId(char* pData, int32_t len) {
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t*)pData, len);
+  tMD5Final(&context);
+
+  // NOTE: only extract the initial 8 bytes of the final MD5 digest
+  uint64_t id = 0;
+  memcpy(&id, context.digest, sizeof(uint64_t));
+  return id;
 }
 
 int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
@@ -496,6 +518,8 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 
   pInfo->pageIndex += 1;
+
+  pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
   return pInfo->binfo.pRes;
 }
 

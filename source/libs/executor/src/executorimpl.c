@@ -1263,6 +1263,7 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
 static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                                   int32_t numOfOutput, SArray* pPseudoList) {
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
+  pResult->info.groupId = pSrcBlock->info.groupId;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
     if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
@@ -5426,7 +5427,6 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
-      assert(*newgroup == false);
       *newgroup = prevVal;
       setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
       break;
@@ -5453,6 +5453,38 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
     projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfOutput, pProjectInfo->pPseudoColInfo);
+
+    if (pProjectInfo->curSOffset > 0) {
+      if (pProjectInfo->groupId == 0) {  // it is the first group
+        pProjectInfo->groupId = pBlock->info.groupId;
+        blockDataCleanup(pInfo->pRes);
+        continue;
+      } else if (pProjectInfo->groupId != pBlock->info.groupId) {
+        pProjectInfo->curSOffset -= 1;
+
+        // ignore data block in current group
+        if (pProjectInfo->curSOffset > 0) {
+          blockDataCleanup(pInfo->pRes);
+          continue;
+        }
+      }
+
+      pProjectInfo->groupId = pBlock->info.groupId;
+    }
+
+    if (pProjectInfo->groupId != 0 && pProjectInfo->groupId != pBlock->info.groupId) {
+      pProjectInfo->curGroupOutput += 1;
+      if ((pProjectInfo->slimit.limit > 0) && (pProjectInfo->slimit.limit <= pProjectInfo->curGroupOutput)) {
+        pOperator->status = OP_EXEC_DONE;
+        return NULL;
+      }
+
+      // reset the value for a new group data
+      pProjectInfo->curOffset = 0;
+      pProjectInfo->curOutput = 0;
+    }
+
+    pProjectInfo->groupId = pBlock->info.groupId;
 
     // todo extract method
     if (pProjectInfo->curOffset < pInfo->pRes->info.rows && pProjectInfo->curOffset > 0) {
@@ -6321,7 +6353,7 @@ static SArray* setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols)
 }
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num,
-                                         SSDataBlock* pResBlock, SLimit* pLimit, SExecTaskInfo* pTaskInfo) {
+                                         SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SExecTaskInfo* pTaskInfo) {
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -6329,7 +6361,10 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
   }
 
   pInfo->limit      = *pLimit;
+  pInfo->slimit     = *pSlimit;
   pInfo->curOffset  = pLimit->offset;
+  pInfo->curSOffset = pSlimit->offset;
+
   pInfo->binfo.pRes = pResBlock;
 
   int32_t numOfCols = num;
@@ -7117,8 +7152,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
     SLimit limit = {.limit = pProjPhyNode->limit, .offset = pProjPhyNode->offset};
-
-    return createProjectOperatorInfo(op, pExprInfo, num, pResBlock, &limit, pTaskInfo);
+    SLimit slimit = {.limit = pProjPhyNode->slimit, .offset = pProjPhyNode->soffset};
+    return createProjectOperatorInfo(op, pExprInfo, num, pResBlock, &limit, &slimit, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_AGG == type) {
     int32_t num = 0;
 

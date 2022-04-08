@@ -71,7 +71,7 @@ typedef struct SDataBlockInfo {
     int64_t uid;
     int64_t blockId;
   };
-  int64_t groupId;  // no need to serialize
+  uint64_t    groupId;  // no need to serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
