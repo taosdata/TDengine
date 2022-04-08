@@ -255,6 +255,11 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pOperator->getNextFn    = doTableScan;
   pOperator->pTaskInfo    = pTaskInfo;
 
+  static int32_t cost = 0;
+  pOperator->cost.openCost = ++cost;
+  pOperator->cost.totalCost = ++cost;
+  pOperator->resultInfo.totalRows = ++cost;
+
   return pOperator;
 }
 

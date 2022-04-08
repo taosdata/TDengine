@@ -1252,7 +1252,7 @@ int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **
 }
 
 int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle) {
-  if (NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1) {
+  if (NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 || taosArrayGetSize(pTask->execNodes) <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
