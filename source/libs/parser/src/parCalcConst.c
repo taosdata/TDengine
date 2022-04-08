@@ -104,6 +104,8 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
   }
   pOp->opType = OP_TYPE_IS_TRUE;
   pOp->pLeft = pSrc;
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   *pIsTrue = (SNode*)pOp;
   return TSDB_CODE_SUCCESS;
 }
@@ -198,6 +200,8 @@ static int32_t calcConstQuery(SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
       return calcConstSelect((SSelectStmt*)pStmt);    
+    case QUERY_NODE_EXPLAIN_STMT:
+      return calcConstQuery(((SExplainStmt*)pStmt)->pQuery);
     default:
       break;
   }

@@ -130,9 +130,9 @@ static SCliThrdObj* createThrdObj();
 static void         destroyThrdObj(SCliThrdObj* pThrd);
 
 #define CONN_HOST_THREAD_INDEX(conn) (conn ? ((SCliConn*)conn)->hThrdIdx : -1)
-#define CONN_PERSIST_TIME(para) (para * 1000 * 10)
-#define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
-#define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrdObj*)(conn)->hostThrd)->pTransInst))->label)
+#define CONN_PERSIST_TIME(para)      (para * 1000 * 10)
+#define CONN_GET_HOST_THREAD(conn)   (conn ? ((SCliConn*)conn)->hostThrd : NULL)
+#define CONN_GET_INST_LABEL(conn)    (((STrans*)(((SCliThrdObj*)(conn)->hostThrd)->pTransInst))->label)
 #define CONN_SHOULD_RELEASE(conn, head)                                                  \
   do {                                                                                   \
     if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                       \
@@ -154,20 +154,20 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
     }                                                                                    \
   } while (0)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                    \
-  do {                                                               \
-    int i = 0, sz = transQueueSize(&conn->cliMsgs);                  \
-    for (; i < sz; i++) {                                            \
-      pMsg = transQueueGet(&conn->cliMsgs, i);                       \
+#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                         \
+  do {                                                                                    \
+    int i = 0, sz = transQueueSize(&conn->cliMsgs);                                       \
+    for (; i < sz; i++) {                                                                 \
+      pMsg = transQueueGet(&conn->cliMsgs, i);                                            \
       if (pMsg != NULL && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
-        break;                                                       \
-      }                                                              \
-    }                                                                \
-    if (i == sz) {                                                   \
-      pMsg = NULL;                                                   \
-    } else {                                                         \
-      pMsg = transQueueRm(&conn->cliMsgs, i);                        \
-    }                                                                \
+        break;                                                                            \
+      }                                                                                   \
+    }                                                                                     \
+    if (i == sz) {                                                                        \
+      pMsg = NULL;                                                                        \
+    } else {                                                                              \
+      pMsg = transQueueRm(&conn->cliMsgs, i);                                             \
+    }                                                                                     \
   } while (0)
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
   do {                                              \
@@ -209,8 +209,8 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
   (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 #define CONN_RELEASE_BY_SERVER(conn) \
   (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
-#define REQUEST_NO_RESP(msg) ((msg)->noResp == 1)
-#define REQUEST_PERSIS_HANDLE(msg) ((msg)->persistHandle == 1)
+#define REQUEST_NO_RESP(msg)         ((msg)->noResp == 1)
+#define REQUEST_PERSIS_HANDLE(msg)   ((msg)->persistHandle == 1)
 #define REQUEST_RELEASE_HANDLE(cmsg) ((cmsg)->type == Release)
 
 static void* cliWorkThread(void* arg);
@@ -722,10 +722,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     conn->hThrdIdx = pCtx->hThrdIdx;
 
     transCtxMerge(&conn->ctx, &pCtx->appCtx);
-    if (!transQueuePush(&conn->cliMsgs, pMsg)) {
-      return;
-    }
-    transDestroyBuffer(&conn->readBuf);
+    transQueuePush(&conn->cliMsgs, pMsg);
+    //  tTrace("%s cli conn %p queue msg size %d", ((STrans*)pThrd->pTransInst)->label, conn, 2);
+    //  return;
+    //}
+    // transDestroyBuffer(&conn->readBuf);
     cliSend(conn);
   } else {
     conn = cliCreateConn(pThrd);

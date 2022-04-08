@@ -14,7 +14,7 @@
  */
 
 #include <regex.h>
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 #include "os.h"
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
@@ -1111,7 +1111,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
   char         bname[TSDB_FILENAME_LEN];
   STfsDir *       tdir = NULL;
   const STfsFile *pf = NULL;
-  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last)(-ver[0-9]+)?$";
+  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last|smad|smal)(-ver[0-9]+)?$";
   SArray *     fArray = NULL;
   regex_t      regex;
   STsdbFS *    pfs = REPO_FS(pRepo);

@@ -15,7 +15,7 @@
 
 #include "tcoding.h"
 
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
 static void   metaFree(SMeta *pMeta);
