@@ -124,6 +124,7 @@ typedef struct STableNode {
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
   char tableAlias[TSDB_TABLE_NAME_LEN];
+  uint8_t precision;
 } STableNode;
 
 struct STableMeta;
@@ -236,6 +237,7 @@ typedef struct SSelectStmt {
   SNode* pLimit;
   SNode* pSlimit;
   char stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t precision;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
