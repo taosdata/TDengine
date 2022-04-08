@@ -25,6 +25,29 @@ void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo) {
   }
 }
 
+int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonMmInfo mmInfo = {0};
+  mmGetMonitorInfo(pWrapper, &mmInfo);
+
+  int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonMmInfo(pRsp, rspLen, &mmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonMmInfo(&mmInfo);
+  return 0;
+}
+
 int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
@@ -83,6 +106,8 @@ int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 void mmInitMsgHandle(SMgmtWrapper *pWrapper) {
+  dndSetMsgHandle(pWrapper, TDMT_MON_MM_INFO, mmProcessMonitorMsg, DEFAULT_HANDLE);
+
   // Requests handled by DNODE
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE_RSP, mmProcessWriteMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE_RSP, mmProcessWriteMsg, DEFAULT_HANDLE);

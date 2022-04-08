@@ -187,6 +187,7 @@ static void monGenBasicJson(SMonInfo *pMonitor) {
 
 static void monGenClusterJson(SMonInfo *pMonitor) {
   SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) return;
@@ -239,6 +240,7 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
 
 static void monGenVgroupJson(SMonInfo *pMonitor) {
   SMonVgroupInfo *pInfo = &pMonitor->mmInfo.vgroup;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
   SJson *pJson = tjsonAddArrayToObject(pMonitor->pJson, "vgroup_infos");
   if (pJson == NULL) return;
@@ -277,6 +279,7 @@ static void monGenVgroupJson(SMonInfo *pMonitor) {
 
 static void monGenGrantJson(SMonInfo *pMonitor) {
   SMonGrantInfo *pInfo = &pMonitor->mmInfo.grant;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) return;

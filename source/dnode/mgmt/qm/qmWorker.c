@@ -21,6 +21,33 @@ static void qmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   tmsgSendRsp(&rsp);
 }
 
+static void qmProcessMonQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SQnodeMgmt *pMgmt = pInfo->ahandle;
+
+  dTrace("msg:%p, get from qnode monitor queue", pMsg);
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  int32_t  code = -1;
+
+  if (pMsg->rpcMsg.msgType == TDMT_MON_SM_INFO) {
+    code = qmProcessGetMonQmInfoReq(pMgmt->pWrapper, pMsg);
+  }
+
+  if (pRpc->msgType & 1U) {
+    if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      if (code != 0) {
+        code = terrno;
+        dError("msg:%p, failed to process since %s", pMsg, terrstr());
+      }
+      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
+      tmsgSendRsp(&rsp);
+    }
+  }
+
+  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  taosFreeQitem(pMsg);
+}
+
 static void qmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
 
@@ -63,6 +90,15 @@ int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SQnodeMgmt *pMgmt = pWrapper->pMgmt;
   qmPutMsgToWorker(&pMgmt->fetchWorker, pMsg);
+  return 0;
+}
+
+int32_t qmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SQnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SSingleWorker *pWorker = &pMgmt->monitorWorker;
+
+  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
@@ -128,11 +164,21 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     return -1;
   }
 
+  if (tsMultiProcess) {
+    SSingleWorkerCfg sCfg = {
+        .min = 1, .max = 1, .name = "qnode-monitor", .fp = (FItem)qmProcessMonQueue, .param = pMgmt};
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+      dError("failed to start qnode-monitor worker since %s", terrstr());
+      return -1;
+    }
+  }
+
   dDebug("qnode workers are initialized");
   return 0;
 }
 
 void qmStopWorker(SQnodeMgmt *pMgmt) {
+  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   dDebug("qnode workers are closed");

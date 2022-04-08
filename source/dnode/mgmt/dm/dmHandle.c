@@ -212,12 +212,4 @@ void dmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessMonitorMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
-
-  // Monitor info exchange between processes
-  dndSetMsgHandle(pWrapper, TDMT_MON_MM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_MON_VM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_MON_QM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_MON_SM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_MON_BM_INFO, dmProcessMonitorMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_MON_VM_LOAD, dmProcessMonitorMsg, DEFAULT_HANDLE);
 }

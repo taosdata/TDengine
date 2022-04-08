@@ -59,74 +59,92 @@ void dmSendMonitorReport(SDnode *pDnode) {
   tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   epset.eps[0].port = tsServerPort;
 
+  SMgmtWrapper *pWrapper = NULL;
   dmGetMonitorInfo(pDnode, &dmInfo);
 
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL) {
-    if (!tsMultiProcess) {
+  pWrapper = &pDnode->wrappers[MNODE];
+  if (!tsMultiProcess) {
+    if (dndMarkWrapper(pWrapper) != 0) {
       mmGetMonitorInfo(pWrapper, &mmInfo);
-    } else {
+      dndReleaseWrapper(pWrapper);
+    }
+  } else {
+    if (pWrapper->required) {
       req.msgType = TDMT_MON_MM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      tDeserializeSMonMmInfo(rsp.pCont, rsp.contLen, &mmInfo);
+      if (rsp.code == 0) {
+        tDeserializeSMonMmInfo(rsp.pCont, rsp.contLen, &mmInfo);
+      }
       rpcFreeCont(rsp.pCont);
     }
-    dndReleaseWrapper(pWrapper);
   }
 
-  pWrapper = dndAcquireWrapper(pDnode, VNODES);
-  if (pWrapper != NULL) {
-    if (!tsMultiProcess) {
+  pWrapper = &pDnode->wrappers[VNODES];
+  if (!tsMultiProcess) {
+    if (dndMarkWrapper(pWrapper) != 0) {
       vmGetMonitorInfo(pWrapper, &vmInfo);
-    } else {
+      dndReleaseWrapper(pWrapper);
+    }
+  } else {
+    if (pWrapper->required) {
       req.msgType = TDMT_MON_VM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      dndReleaseWrapper(pWrapper);
-      tDeserializeSMonVmInfo(rsp.pCont, rsp.contLen, &vmInfo);
+      if (rsp.code == 0) {
+        tDeserializeSMonVmInfo(rsp.pCont, rsp.contLen, &vmInfo);
+      }
       rpcFreeCont(rsp.pCont);
     }
   }
 
-  pWrapper = dndAcquireWrapper(pDnode, QNODE);
-  if (pWrapper != NULL) {
-    if (!tsMultiProcess) {
+  pWrapper = &pDnode->wrappers[QNODE];
+  if (!tsMultiProcess) {
+    if (dndMarkWrapper(pWrapper) != 0) {
       qmGetMonitorInfo(pWrapper, &qmInfo);
-    } else {
+      dndReleaseWrapper(pWrapper);
+    }
+  } else {
+    if (pWrapper->required) {
       req.msgType = TDMT_MON_QM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      dndReleaseWrapper(pWrapper);
-      tDeserializeSMonQmInfo(rsp.pCont, rsp.contLen, &qmInfo);
+      if (rsp.code == 0) {
+        tDeserializeSMonQmInfo(rsp.pCont, rsp.contLen, &qmInfo);
+      }
       rpcFreeCont(rsp.pCont);
     }
-    dndReleaseWrapper(pWrapper);
   }
 
-  pWrapper = dndAcquireWrapper(pDnode, SNODE);
-  if (pWrapper != NULL) {
-    if (!tsMultiProcess) {
+  pWrapper = &pDnode->wrappers[SNODE];
+  if (!tsMultiProcess) {
+    if (dndMarkWrapper(pWrapper) != 0) {
       smGetMonitorInfo(pWrapper, &smInfo);
-    } else {
+      dndReleaseWrapper(pWrapper);
+    }
+  } else {
+    if (pWrapper->required) {
       req.msgType = TDMT_MON_SM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      dndReleaseWrapper(pWrapper);
-      tDeserializeSMonSmInfo(rsp.pCont, rsp.contLen, &smInfo);
+      if (rsp.code == 0) {
+        tDeserializeSMonSmInfo(rsp.pCont, rsp.contLen, &smInfo);
+      }
       rpcFreeCont(rsp.pCont);
     }
-    dndReleaseWrapper(pWrapper);
   }
 
-  pWrapper = dndAcquireWrapper(pDnode, BNODE);
-  if (pWrapper != NULL) {
-    if (!tsMultiProcess) {
+  pWrapper = &pDnode->wrappers[BNODE];
+  if (!tsMultiProcess) {
+    if (dndMarkWrapper(pWrapper) != 0) {
       bmGetMonitorInfo(pWrapper, &bmInfo);
-    } else {
+      dndReleaseWrapper(pWrapper);
+    }
+  } else {
+    if (pWrapper->required) {
       req.msgType = TDMT_MON_BM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      dndReleaseWrapper(pWrapper);
-      tDeserializeSMonBmInfo(rsp.pCont, rsp.contLen, &bmInfo);
+      if (rsp.code == 0) {
+        tDeserializeSMonBmInfo(rsp.pCont, rsp.contLen, &bmInfo);
+      }
       rpcFreeCont(rsp.pCont);
     }
-    dndReleaseWrapper(pWrapper);
   }
 
   monSetDmInfo(&dmInfo);
@@ -141,168 +159,6 @@ void dmSendMonitorReport(SDnode *pDnode) {
   tFreeSMonSmInfo(&smInfo);
   tFreeSMonBmInfo(&bmInfo);
   monSendReport();
-}
-
-int32_t dmProcessGetMonMmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, MNODE);
-  if (pWrapper == NULL) return -1;
-
-  SMonMmInfo mmInfo = {0};
-  mmGetMonitorInfo(pWrapper, &mmInfo);
-  dndReleaseWrapper(pWrapper);
-
-  int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonMmInfo(pRsp, rspLen, &mmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
-  tFreeSMonMmInfo(&mmInfo);
-  return 0;
-}
-
-int32_t dmProcessGetMonVmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, VNODES);
-  if (pWrapper == NULL) return -1;
-
-  SMonVmInfo vmInfo = {0};
-  vmGetMonitorInfo(pWrapper, &vmInfo);
-  dndReleaseWrapper(pWrapper);
-
-  int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonVmInfo(pRsp, rspLen, &vmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
-  tFreeSMonVmInfo(&vmInfo);
-  return 0;
-}
-
-int32_t dmProcessGetMonQmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, QNODE);
-  if (pWrapper == NULL) return -1;
-
-  SMonQmInfo qmInfo = {0};
-  qmGetMonitorInfo(pWrapper, &qmInfo);
-  dndReleaseWrapper(pWrapper);
-
-  int32_t rspLen = tSerializeSMonQmInfo(NULL, 0, &qmInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonQmInfo(pRsp, rspLen, &qmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
-  tFreeSMonQmInfo(&qmInfo);
-  return 0;
-}
-
-int32_t dmProcessGetMonSmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, SNODE);
-  if (pWrapper == NULL) return -1;
-
-  SMonSmInfo smInfo = {0};
-  smGetMonitorInfo(pWrapper, &smInfo);
-  dndReleaseWrapper(pWrapper);
-
-  int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonSmInfo(pRsp, rspLen, &smInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
-  tFreeSMonSmInfo(&smInfo);
-  return 0;
-}
-
-int32_t dmProcessGetMonBmInfoReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, BNODE);
-  if (pWrapper == NULL) return -1;
-
-  SMonBmInfo bmInfo = {0};
-  bmGetMonitorInfo(pWrapper, &bmInfo);
-  dndReleaseWrapper(pWrapper);
-
-  int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonBmInfo(pRsp, rspLen, &bmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
-  tFreeSMonBmInfo(&bmInfo);
-  return 0;
-}
-
-int32_t dmProcessGetVnodeLoadsReq(SDnodeMgmt *pMgmt, SNodeMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pMgmt->pDnode, VNODES);
-  if (pWrapper == NULL) return -1;
-
-  SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pWrapper, &vloads);
-  dndReleaseWrapper(pWrapper);
-
-  int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonVloadInfo(pRsp, rspLen, &vloads);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
-  tFreeSMonVloadInfo(&vloads);
-  return 0;
 }
 
 void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo) {

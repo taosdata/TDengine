@@ -38,6 +38,52 @@ void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
   }
 }
 
+int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonVmInfo vmInfo = {0};
+  vmGetMonitorInfo(pWrapper, &vmInfo);
+
+  int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonVmInfo(pRsp, rspLen, &vmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonVmInfo(&vmInfo);
+  return 0;
+}
+
+int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonVloadInfo vloads = {0};
+  vmGetVnodeLoads(pWrapper, &vloads);
+
+  int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonVloadInfo(pRsp, rspLen, &vloads);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonVloadInfo(&vloads);
+  return 0;
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
@@ -261,6 +307,9 @@ int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
+  dndSetMsgHandle(pWrapper, TDMT_MON_VM_INFO, vmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_VM_LOAD, vmProcessMonitorMsg, DEFAULT_HANDLE);
+
   // Requests handled by VNODE
   dndSetMsgHandle(pWrapper, TDMT_VND_SUBMIT, (NodeMsgFp)vmProcessWriteMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY, (NodeMsgFp)vmProcessQueryMsg, DEFAULT_HANDLE);

@@ -16,6 +16,33 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
+static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+
+  dTrace("msg:%p, get from snode monitor queue", pMsg);
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  int32_t  code = -1;
+
+  if (pMsg->rpcMsg.msgType == TDMT_MON_SM_INFO) {
+    code = smProcessGetMonSmInfoReq(pMgmt->pWrapper, pMsg);
+  }
+
+  if (pRpc->msgType & 1U) {
+    if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      if (code != 0) {
+        code = terrno;
+        dError("msg:%p, failed to process since %s", pMsg, terrstr());
+      }
+      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
+      tmsgSendRsp(&rsp);
+    }
+  }
+
+  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  taosFreeQitem(pMsg);
+}
+
 static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
@@ -80,11 +107,21 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
+  if (tsMultiProcess) {
+    SSingleWorkerCfg sCfg = {
+        .min = 1, .max = 1, .name = "snode-monitor", .fp = (FItem)smProcessMonitorQueue, .param = pMgmt};
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+      dError("failed to start snode-monitor worker since %s", terrstr());
+      return -1;
+    }
+  }
+
   dDebug("snode workers are initialized");
   return 0;
 }
 
 void smStopWorker(SSnodeMgmt *pMgmt) {
+  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   for (int32_t i = 0; i < taosArrayGetSize(pMgmt->uniqueWorkers); i++) {
     SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, i);
     tMultiWorkerCleanup(pWorker);
@@ -114,6 +151,15 @@ int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
+
+  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
+}
+
+int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);

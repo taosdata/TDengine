@@ -23,11 +23,13 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
 
-  if (pMsg->rpcMsg.msgType != TDMT_DND_ALTER_MNODE) {
+  if (pMsg->rpcMsg.msgType == TDMT_DND_ALTER_MNODE) {
+    code = mmProcessAlterReq(pMgmt, pMsg);
+  } else if (pMsg->rpcMsg.msgType == TDMT_MON_MM_INFO) {
+    code = mmProcessGetMonMmInfoReq(pMgmt->pWrapper, pMsg);
+  } else {
     pMsg->pNode = pMgmt->pMnode;
     code = mndProcessMsg(pMsg);
-  } else {
-    code = mmProcessAlterReq(pMgmt, pMsg);
   }
 
   if (pRpc->msgType & 1U) {
@@ -98,6 +100,15 @@ int32_t mmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
+int32_t mmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SMnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SSingleWorker *pWorker = &pMgmt->monitorWorker;
+
+  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
+}
+
 static int32_t mmPutRpcMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pRpc) {
   SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
   if (pMsg == NULL) return -1;
@@ -157,8 +168,16 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 
   SSingleWorkerCfg sCfg = {.min = 1, .max = 1, .name = "mnode-sync", .fp = (FItem)mmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->syncWorker, &sCfg) != 0) {
-    dError("failed to start mnode sync-worker since %s", terrstr());
+    dError("failed to start mnode mnode-sync worker since %s", terrstr());
     return -1;
+  }
+
+  if (tsMultiProcess) {
+    SSingleWorkerCfg sCfg = {.min = 1, .max = 1, .name = "mnode-monitor", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+      dError("failed to start mnode mnode-monitor worker since %s", terrstr());
+      return -1;
+    }
   }
 
   dDebug("mnode workers are initialized");
@@ -166,6 +185,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 }
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
+  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);

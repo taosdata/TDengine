@@ -78,24 +78,6 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     case TDMT_MND_GRANT_RSP:
       code = dmProcessGrantRsp(pMgmt, pMsg);
       break;
-    case TDMT_MON_MM_INFO:
-      code = dmProcessGetMonMmInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_VM_INFO:
-      code = dmProcessGetMonVmInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_QM_INFO:
-      code = dmProcessGetMonQmInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_SM_INFO:
-      code = dmProcessGetMonSmInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_BM_INFO:
-      code = dmProcessGetMonBmInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_VM_LOAD:
-      code = dmProcessGetVnodeLoadsReq(pMgmt, pMsg);
-      break;
     default:
       code = dmProcessCDnodeReq(pMgmt->pDnode, pMsg);
       break;
