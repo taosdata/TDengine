@@ -275,16 +275,10 @@ int main(int32_t argc, char *argv[]) {
   loop_consume(tmq);
 
   err = tmq_unsubscribe(tmq);
-  ASSERT(err == TMQ_RESP_ERR__SUCCESS);
-
-
-  #if 0
-  err = tmq_unsubscribe(tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
-  #endif
 
   return 0;
 }
