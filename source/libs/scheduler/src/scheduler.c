@@ -1251,8 +1251,8 @@ int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **
    return TSDB_CODE_SUCCESS;
 }
 
-int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle) {
-  if (NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 || taosArrayGetSize(pTask->execNodes) <= 0) {
+int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCode) {
+  if (rspCode || NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 || taosArrayGetSize(pTask->execNodes) <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1293,7 +1293,7 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
   SCH_SET_TASK_HANDLE(pTask, pMsg->handle);
-  schUpdateTaskExecNodeHandle(pTask, pMsg->handle);
+  schUpdateTaskExecNodeHandle(pTask, pMsg->handle, rspCode);
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
