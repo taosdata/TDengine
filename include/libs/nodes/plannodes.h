@@ -104,6 +104,7 @@ typedef struct SWindowLogicNode {
   SFillNode* pFill;
   int64_t sessionGap;
   SNode* pTspk;
+  SNode* pStateExpr;
 } SWindowLogicNode;
 
 typedef struct SSortLogicNode {
@@ -194,11 +195,20 @@ typedef struct SSystemTableScanPhysiNode {
   int32_t accountId;
 } SSystemTableScanPhysiNode;
 
+typedef enum EScanRequired {
+  SCAN_REQUIRED_DATA_NO_NEEDED = 1,
+  SCAN_REQUIRED_DATA_STATIS_NEEDED,
+  SCAN_REQUIRED_DATA_ALL_NEEDED,
+  SCAN_REQUIRED_DATA_DISCARD,
+} EScanRequired;
+
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
   double ratio;
+  EScanRequired scanRequired;
+  SNodeList* pScanReferFuncs;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -257,16 +267,34 @@ typedef struct SIntervalPhysiNode {
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
+typedef struct SMultiTableIntervalPhysiNode {
+  SIntervalPhysiNode interval;
+  SNodeList* pPartitionKeys;
+} SMultiTableIntervalPhysiNode;
+
 typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
   int64_t    gap;
 } SSessionWinodwPhysiNode;
 
+typedef struct SStateWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  SNode* pStateKey;
+} SStateWinodwPhysiNode;
+
 typedef struct SSortPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of order_by_clause and parameter expression of aggregate function
   SNodeList* pSortKeys; // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
+  SNodeList* pTargets;
 } SSortPhysiNode;
+
+typedef struct SPartitionPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of partition_by_clause
+  SNodeList* pPartitionKeys;
+  SNodeList* pTargets;
+} SPartitionPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;

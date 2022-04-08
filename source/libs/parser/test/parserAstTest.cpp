@@ -44,7 +44,7 @@ protected:
     query_ = nullptr;
     bool res = runImpl(parseCode, translateCode);
     qDestroyQuery(query_);
-    if (!res) {
+    if (1/*!res*/) {
       dump();
     }
     return res;
@@ -69,6 +69,12 @@ private:
       return (terrno == translateCode);
     }
     translatedAstStr_ = toString(query_->pRoot);
+    code = calculateConstant(&cxt_, query_);
+    if (code != TSDB_CODE_SUCCESS) {
+      calcConstErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
+      return false;
+    }
+    calcConstAstStr_ = toString(query_->pRoot);
     return (TSDB_CODE_SUCCESS == translateCode);
   }
 
@@ -87,6 +93,13 @@ private:
     if (!translatedAstStr_.empty()) {
       cout << "translate output: " << endl;
       cout << translatedAstStr_ << endl;
+    }
+    if (!calcConstErrStr_.empty()) {
+      cout << "calculateConstant error: " << calcConstErrStr_ << endl;
+    }
+    if (!calcConstAstStr_.empty()) {
+      cout << "calculateConstant output: " << endl;
+      cout << calcConstAstStr_ << endl;
     }
   }
 
@@ -112,6 +125,8 @@ private:
     parsedAstStr_.clear();
     translateErrStr_.clear();
     translatedAstStr_.clear();
+    calcConstErrStr_.clear();
+    calcConstAstStr_.clear();
   }
 
   string acctId_;
@@ -124,6 +139,8 @@ private:
   string parsedAstStr_;
   string translateErrStr_;
   string translatedAstStr_;
+  string calcConstErrStr_;
+  string calcConstAstStr_;
 };
 
 TEST_F(ParserTest, createAccount) {
@@ -190,6 +207,9 @@ TEST_F(ParserTest, selectConstant) {
   ASSERT_TRUE(run());
 
   bind("SELECT 1234567890123456789012345678901234567890, 20.1234567890123456789012345678901234567890, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 15s FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT 123 + 45 FROM t1 where 2 - 1");
   ASSERT_TRUE(run());
 }
 
@@ -424,6 +444,12 @@ TEST_F(ParserTest, createDatabase) {
        "SINGLE_STABLE 0 "
        "STREAM_MODE 1 "
        "RETENTIONS '15s:7d,1m:21d,15m:5y'"
+      );
+  ASSERT_TRUE(run());
+
+  bind("create database if not exists wxy_db "
+       "DAYS 100m "
+       "KEEP 200m,300h,400d "
       );
   ASSERT_TRUE(run());
 }

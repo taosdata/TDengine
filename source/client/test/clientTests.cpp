@@ -400,6 +400,7 @@ TEST(testCase, show_vgroup_Test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, create_multiple_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -458,7 +459,7 @@ TEST(testCase, create_multiple_tables) {
 
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 20; ++i) {
+  for (int32_t i = 0; i < 25000; ++i) {
     char sql[512] = {0};
     snprintf(sql, tListLen(sql),
              "create table t_x_%d using st1 tags(2) t_x_%d using st1 tags(5) t_x_%d using st1 tags(911)", i,
@@ -652,7 +653,6 @@ TEST(testCase, projection_query_stables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

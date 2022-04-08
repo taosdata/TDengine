@@ -40,9 +40,7 @@ class Testbase {
   void     ServerStart();
   void     ClientRestart();
   SRpcMsg* SendReq(tmsg_t msgType, void* pCont, int32_t contLen);
-
- private:
-  void InitLog(const char* path);
+  void     InitLog(const char* path);
 
  private:
   TestServer server;

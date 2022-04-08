@@ -75,8 +75,8 @@ int tdbDbDrop(TDB *pDb) {
   return 0;
 }
 
-int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen);
+int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
+  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
 }
 
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
@@ -97,7 +97,7 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
     return -1;
   }
 
-  tdbBtcOpen(&pDbc->btc, pDb->pBt);
+  tdbBtcOpen(&pDbc->btc, pDb->pBt, NULL);
 
   // TODO: move to first now, we can move to any key-value
   // and in any direction, design new APIs.

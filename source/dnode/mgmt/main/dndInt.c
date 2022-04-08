@@ -46,7 +46,7 @@ static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
 }
 
 static void dndClearVars(SDnode *pDnode) {
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+  for (EDndType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
   }
@@ -89,7 +89,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   smSetMgmtFp(&pDnode->wrappers[SNODE]);
   bmSetMgmtFp(&pDnode->wrappers[BNODE]);
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+  for (EDndType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     snprintf(path, sizeof(path), "%s%s%s", pDnode->dataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
@@ -106,7 +106,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   }
 
   if (dndInitMsgHandle(pDnode) != 0) {
-    dError("failed to msg handles since %s", terrstr());
+    dError("failed to init msg handles since %s", terrstr());
     goto _OVER;
   }
 
@@ -134,7 +134,7 @@ _OVER:
 void dndClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+  for (EDndType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     dndCloseNode(pWrapper);
   }
@@ -149,7 +149,7 @@ void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
   }
 }
 
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType ntype) {
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndType ntype) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
   SMgmtWrapper *pRetWrapper = pWrapper;
 

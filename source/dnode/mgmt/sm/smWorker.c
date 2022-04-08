@@ -50,7 +50,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
-  for (int32_t i = 0; i < SND_UNIQUE_THREAD_NUM; i++) {
+  for (int32_t i = 0; i < tsNumOfSnodeUniqueThreads; i++) {
     SMultiWorker *pUniqueWorker = taosMemoryMalloc(sizeof(SMultiWorker));
     if (pUniqueWorker == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -69,8 +69,8 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     }
   }
 
-  SSingleWorkerCfg cfg = {.min = SND_SHARED_THREAD_NUM,
-                          .max = SND_SHARED_THREAD_NUM,
+  SSingleWorkerCfg cfg = {.min = tsNumOfSnodeSharedThreads,
+                          .max = tsNumOfSnodeSharedThreads,
                           .name = "snode-shared",
                           .fp = (FItem)smProcessSharedQueue,
                           .param = pMgmt};
@@ -97,7 +97,7 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
 static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
   pHead->vgId = htonl(pHead->vgId);
-  return pHead->vgId % SND_UNIQUE_THREAD_NUM;
+  return pHead->vgId % tsNumOfSnodeUniqueThreads;
 }
 
 static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {

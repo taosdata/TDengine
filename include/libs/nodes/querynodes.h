@@ -189,7 +189,7 @@ typedef struct SLimitNode {
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
-  SNode* pCol;
+  SNode* pExpr;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -258,6 +258,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_GROUP_BY,
   SQL_CLAUSE_HAVING,
+  SQL_CLAUSE_DISTINCT,
   SQL_CLAUSE_SELECT,
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;

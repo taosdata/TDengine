@@ -208,7 +208,7 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
     SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
 
     SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[i]);
-    if (!pResInfo->hasResult) {
+    if (pResInfo->numOfRes == 0) {
       for(int32_t j = 0; j < pResInfo->numOfRes; ++j) {
         colDataAppend(pCol, j, NULL, true);  // TODO add set null data api
       }

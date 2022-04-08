@@ -29,6 +29,7 @@ extern "C" {
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
+int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size);
 
 #define TDB_REALLOC(PTR, SIZE)                                                               \
   ({                                                                                         \
@@ -83,15 +84,18 @@ static inline int tdbPutVarInt(u8 *p, int v) {
 static inline int tdbGetVarInt(const u8 *p, int *v) {
   int n = 0;
   int tv = 0;
+  int t;
 
   for (;;) {
     if (p[n] <= 0x7f) {
-      tv = (tv << 7) | p[n];
+      t = p[n];
+      tv |= (t << (7 * n));
       n++;
       break;
     }
 
-    tv = (tv << 7) | (p[n] & 0x7f);
+    t = p[n] & 0x7f;
+    tv |= (t << (7 * n));
     n++;
   }
 

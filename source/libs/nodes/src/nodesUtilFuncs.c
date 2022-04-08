@@ -169,6 +169,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SWindowLogicNode));
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return makeNode(type, sizeof(SSortLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return makeNode(type, sizeof(SPartitionLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -197,6 +199,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+      return makeNode(type, sizeof(SStateWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -302,7 +308,7 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_LIMIT: // no pointer field
       break;
     case QUERY_NODE_STATE_WINDOW:
-      nodesDestroyNode(((SStateWindowNode*)pNode)->pCol);
+      nodesDestroyNode(((SStateWindowNode*)pNode)->pExpr);
       break;
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
@@ -777,11 +783,11 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_UBIGINT:
       return (void*)&pNode->datum.u;
     case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE: 
+    case TSDB_DATA_TYPE_DOUBLE:
       return (void*)&pNode->datum.d;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: 
+    case TSDB_DATA_TYPE_VARBINARY:
       return (void*)pNode->datum.p;
     default:
       break;
@@ -797,7 +803,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
       if (NULL == buf) {
         return NULL;
       }
-      
+
       sprintf(buf, "%s", pNode->datum.b ? "true" : "false");
       return buf;
     }
@@ -810,7 +816,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
       if (NULL == buf) {
         return NULL;
       }
-      
+
       sprintf(buf, "%" PRId64, pNode->datum.i);
       return buf;
     }
@@ -822,7 +828,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
       if (NULL == buf) {
         return NULL;
       }
-      
+
       sprintf(buf, "%" PRIu64, pNode->datum.u);
       return buf;
     }
@@ -832,7 +838,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
       if (NULL == buf) {
         return NULL;
       }
-      
+
       sprintf(buf, "%e", pNode->datum.d);
       return buf;
     }
@@ -844,7 +850,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
       if (NULL == buf) {
         return NULL;
       }
-      
+
       snprintf(buf, bufSize, "'%s'", varDataVal(pNode->datum.p));
       return buf;
     }

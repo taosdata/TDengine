@@ -16,6 +16,7 @@
 
 #include "parAst.h"
 #include "parUtil.h"
+#include "ttime.h"
 
 #define CHECK_OUT_OF_MEM(p) \
   do { \
@@ -36,314 +37,6 @@
 
 SToken nil_token = { .type = TK_NK_NIL, .n = 0, .z = NULL };
 
-typedef SDatabaseOptions* (*FSetDatabaseOption)(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal);
-static FSetDatabaseOption setDbOptionFuncs[DB_OPTION_MAX];
-
-typedef STableOptions* (*FSetTableOption)(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal);
-static FSetTableOption setTableOptionFuncs[TABLE_OPTION_MAX];
-
-static SDatabaseOptions* setDbBlocks(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_TOTAL_BLOCKS || val > TSDB_MAX_TOTAL_BLOCKS) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option totalBlocks: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->numOfBlocks = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbCache(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_CACHE_BLOCK_SIZE || val > TSDB_MAX_CACHE_BLOCK_SIZE) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option cacheBlockSize: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->cacheBlockSize = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbCacheLast(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_CACHE_LAST_ROW || val > TSDB_MAX_DB_CACHE_LAST_ROW) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option cacheLast: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_CACHE_LAST_ROW, TSDB_MAX_DB_CACHE_LAST_ROW);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->cachelast = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbComp(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_COMP_LEVEL || val > TSDB_MAX_COMP_LEVEL) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option compression: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->compressionLevel = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbDays(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option daysPerFile: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->daysPerFile = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbFsync(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option fsyncPeriod: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->fsyncPeriod = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbMaxRows(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_MAX_ROW_FBLOCK || val > TSDB_MAX_MAX_ROW_FBLOCK) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option maxRowsPerBlock: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->maxRowsPerBlock = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbMinRows(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_MIN_ROW_FBLOCK || val > TSDB_MAX_MIN_ROW_FBLOCK) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option minRowsPerBlock: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->minRowsPerBlock = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbPrecision(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  char val[10] = {0};
-  trimString(pVal->z, pVal->n, val, sizeof(val));
-  if (0 == strcmp(val, TSDB_TIME_PRECISION_MILLI_STR)) {
-    pOptions->precision = TSDB_TIME_PRECISION_MILLI;
-  } else if (0 == strcmp(val, TSDB_TIME_PRECISION_MICRO_STR)) {
-    pOptions->precision = TSDB_TIME_PRECISION_MICRO;
-  } else if (0 == strcmp(val, TSDB_TIME_PRECISION_NANO_STR)) {
-    pOptions->precision = TSDB_TIME_PRECISION_NANO;
-  } else {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option precision: %s", val);
-    pCxt->valid = false;
-  }
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbQuorum(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_QUORUM_OPTION || val > TSDB_MAX_DB_QUORUM_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option quorum: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->quorum = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbReplica(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (!(val == TSDB_MIN_DB_REPLICA_OPTION || val == TSDB_MAX_DB_REPLICA_OPTION)) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option replications: %"PRId64", only 1, 3 allowed", val);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->replica = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbTtl(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_TTL_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option ttl: %"PRId64", should be greater than or equal to %d", val, TSDB_MIN_DB_TTL_OPTION);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->ttl = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbWal(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_WAL_LEVEL || val > TSDB_MAX_WAL_LEVEL) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option walLevel: %"PRId64", only 1-2 allowed", val);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->walLevel = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbVgroups(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option vgroups: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->numOfVgroups = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbSingleStable(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_SINGLE_STABLE_OPTION || val > TSDB_MAX_DB_SINGLE_STABLE_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option singleStable: %"PRId64", only 0-1 allowed", val);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->singleStable = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbStreamMode(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_STREAM_MODE_OPTION || val > TSDB_MAX_DB_STREAM_MODE_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option streamMode: %"PRId64", only 0-1 allowed", val);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->streamMode = val;
-  return pOptions;
-}
-
-static SDatabaseOptions* setDbRetentions(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  pOptions->pRetentions = nodesMakeList();
-  if (NULL == pOptions->pRetentions) {
-    pCxt->valid = false;
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
-    return pOptions;
-  }
-
-  if (pVal->n > 2) {
-    char* pStart = pVal->z + 1;
-    char* pEnd = pVal->z + pVal->n - 1;
-    int32_t sepOrder = 1;
-    while (1) {
-      char* pPos = strchr(pStart, (0 == (sepOrder++) % 2) ? ',' : ':');
-      SToken t = { .type = TK_NK_VARIABLE, .z = pStart, .n = (NULL == pPos ? pEnd - pStart : pPos - pStart)};
-      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pOptions->pRetentions, createDurationValueNode(pCxt, &t))) {
-        pCxt->valid = false;
-        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
-        return pOptions;
-      }
-      if (NULL == pPos) {
-        break;
-      }
-      pStart = pPos + 1;
-    }
-  }
-
-  if (LIST_LENGTH(pOptions->pRetentions) < 2 || LIST_LENGTH(pOptions->pRetentions) % 2 != 0) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option retentions: %s", pVal->z);
-    pCxt->valid = false;
-  }
-
-  return pOptions;
-}
-
-static void initSetDatabaseOptionFp() {
-  setDbOptionFuncs[DB_OPTION_BLOCKS] = setDbBlocks;
-  setDbOptionFuncs[DB_OPTION_CACHE] = setDbCache;
-  setDbOptionFuncs[DB_OPTION_CACHELAST] = setDbCacheLast;
-  setDbOptionFuncs[DB_OPTION_COMP] = setDbComp;
-  setDbOptionFuncs[DB_OPTION_DAYS] = setDbDays;
-  setDbOptionFuncs[DB_OPTION_FSYNC] = setDbFsync;
-  setDbOptionFuncs[DB_OPTION_MAXROWS] = setDbMaxRows;
-  setDbOptionFuncs[DB_OPTION_MINROWS] = setDbMinRows;
-  setDbOptionFuncs[DB_OPTION_PRECISION] = setDbPrecision;
-  setDbOptionFuncs[DB_OPTION_QUORUM] = setDbQuorum;
-  setDbOptionFuncs[DB_OPTION_REPLICA] = setDbReplica;
-  setDbOptionFuncs[DB_OPTION_TTL] = setDbTtl;
-  setDbOptionFuncs[DB_OPTION_WAL] = setDbWal;
-  setDbOptionFuncs[DB_OPTION_VGROUPS] = setDbVgroups;
-  setDbOptionFuncs[DB_OPTION_SINGLE_STABLE] = setDbSingleStable;
-  setDbOptionFuncs[DB_OPTION_STREAM_MODE] = setDbStreamMode;
-  setDbOptionFuncs[DB_OPTION_RETENTIONS] = setDbRetentions;
-}
-
-static STableOptions* setTableTtl(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_TTL_OPTION) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option ttl: %"PRId64", should be greater than or equal to %d", val, TSDB_MIN_DB_TTL_OPTION);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->ttl = val;
-  return pOptions;
-}
-
-static STableOptions* setTableComment(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
-  if (pVal->n >= sizeof(pOptions->comments)) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option comment, length cannot exceed %d", (int32_t)(sizeof(pOptions->comments) - 1));
-    pCxt->valid = false;
-    return pOptions;
-  }
-  trimString(pVal->z, pVal->n, pOptions->comments, sizeof(pOptions->comments));
-  return pOptions;
-}
-
-static STableOptions* setTableFileFactor(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
-  double val = strtod(pVal->z, NULL);
-  if (val < TSDB_MIN_DB_FILE_FACTOR || val > TSDB_MAX_DB_FILE_FACTOR) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option file_factor: %f valid range: [%d, %d]", val, TSDB_MIN_DB_FILE_FACTOR, TSDB_MAX_DB_FILE_FACTOR);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->filesFactor = val;
-  return pOptions;
-}
-
-static STableOptions* setTableDelay(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_DELAY || val > TSDB_MAX_DB_DELAY) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option delay: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_DELAY, TSDB_MAX_DB_DELAY);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->delay = val;
-  return pOptions;
-}
-
-static void initSetTableOptionFp() {
-  setTableOptionFuncs[TABLE_OPTION_TTL] = setTableTtl;
-  setTableOptionFuncs[TABLE_OPTION_COMMENT] = setTableComment;
-  setTableOptionFuncs[TABLE_OPTION_FILE_FACTOR] = setTableFileFactor;
-  setTableOptionFuncs[TABLE_OPTION_DELAY] = setTableDelay;
-}
-
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->pQueryCxt = pParseCxt;
   pCxt->msgBuf.buf = pParseCxt->pMsg;
@@ -351,8 +44,6 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->notSupport = false;
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
-  initSetDatabaseOptionFp();
-  initSetTableOptionFp();
 }
 
 static void trimEscape(SToken* pName) {
@@ -652,6 +343,16 @@ SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList) {
   return (SNode*)list;
 }
 
+SNode* createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2) {
+  SNodeListNode* list = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  CHECK_OUT_OF_MEM(list);
+  list->pNodeList = nodesMakeList();
+  CHECK_OUT_OF_MEM(list->pNodeList);
+  nodesListAppend(list->pNodeList, p1);
+  nodesListAppend(list->pNodeList, p2);
+  return (SNode*)list;
+}
+
 SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pTableAlias) {
   if (!checkDbName(pCxt, pDbName, true) || !checkTableName(pCxt, pTableName) || !checkTableName(pCxt, pTableAlias)) {
     return NULL;
@@ -730,10 +431,10 @@ SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap
   return (SNode*)session;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   SStateWindowNode* state = (SStateWindowNode*)nodesMakeNode(QUERY_NODE_STATE_WINDOW);
   CHECK_OUT_OF_MEM(state);
-  state->pCol = pCol;
+  state->pExpr = pExpr;
   return (SNode*)state;
 }
 
@@ -855,58 +556,10 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   return (SNode*)setOp;
 }
 
-SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
+SNode* createDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->numOfBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
-  pOptions->cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
-  pOptions->cachelast = TSDB_DEFAULT_CACHE_LAST_ROW;
-  pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
-  pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
-  pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
-  pOptions->maxRowsPerBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
-  pOptions->minRowsPerBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
-  pOptions->keep0 = TSDB_DEFAULT_KEEP;
-  pOptions->keep1 = TSDB_DEFAULT_KEEP;
-  pOptions->keep2 = TSDB_DEFAULT_KEEP;
-  pOptions->precision = TSDB_TIME_PRECISION_MILLI;
-  pOptions->quorum = TSDB_DEFAULT_DB_QUORUM_OPTION;
-  pOptions->replica = TSDB_DEFAULT_DB_REPLICA_OPTION;
-  pOptions->ttl = TSDB_DEFAULT_DB_TTL_OPTION;
-  pOptions->walLevel = TSDB_DEFAULT_WAL_LEVEL;
-  pOptions->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
-  pOptions->singleStable = TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION;
-  pOptions->streamMode = TSDB_DEFAULT_DB_STREAM_MODE_OPTION;
   return (SNode*)pOptions;
-}
-
-SNode* createDefaultAlterDatabaseOptions(SAstCreateContext* pCxt) {
-  SDatabaseOptions* pOptions = nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
-  CHECK_OUT_OF_MEM(pOptions);
-  pOptions->numOfBlocks = -1;
-  pOptions->cacheBlockSize = -1;
-  pOptions->cachelast = -1;
-  pOptions->compressionLevel = -1;
-  pOptions->daysPerFile = -1;
-  pOptions->fsyncPeriod = -1;
-  pOptions->maxRowsPerBlock = -1;
-  pOptions->minRowsPerBlock = -1;
-  pOptions->keep0 = -1;
-  pOptions->keep1 = -1;
-  pOptions->keep2= -1;
-  pOptions->precision = -1;
-  pOptions->quorum = -1;
-  pOptions->replica = -1;
-  pOptions->ttl = -1;
-  pOptions->walLevel = -1;
-  pOptions->numOfVgroups = -1;
-  pOptions->singleStable = -1;
-  pOptions->streamMode = -1;
-  return (SNode*)pOptions;
-}
-
-SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, const SToken* pVal) {
-  return (SNode*)setDbOptionFuncs[type](pCxt, (SDatabaseOptions*)pOptions, pVal);
 }
 
 static bool checkAndSetKeepOption(SAstCreateContext* pCxt, SNodeList* pKeep, int32_t* pKeep0, int32_t* pKeep1, int32_t* pKeep2) {
@@ -937,18 +590,66 @@ static bool checkAndSetKeepOption(SAstCreateContext* pCxt, SNodeList* pKeep, int
   return true;
 }
 
-SNode* setDatabaseKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep) {
-  SDatabaseOptions* pOp = (SDatabaseOptions*)pOptions;
-  pCxt->valid = checkAndSetKeepOption(pCxt, pKeep, &pOp->keep0, &pOp->keep1, &pOp->keep2);
-  return pOptions;
-}
-
 SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
-  if (DB_OPTION_KEEP == pAlterOption->type) {
-    return setDatabaseKeepOption(pCxt, pOptions, pAlterOption->pKeep);
-  } else {
-    return setDatabaseOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
+  switch (pAlterOption->type) {
+    case DB_OPTION_BLOCKS:
+      ((SDatabaseOptions*)pOptions)->pNumOfBlocks = pAlterOption->pVal;
+      break;
+    case DB_OPTION_CACHE:
+      ((SDatabaseOptions*)pOptions)->pCacheBlockSize = pAlterOption->pVal;
+      break;
+    case DB_OPTION_CACHELAST:
+      ((SDatabaseOptions*)pOptions)->pCachelast = pAlterOption->pVal;
+      break;
+    case DB_OPTION_COMP:
+      ((SDatabaseOptions*)pOptions)->pCompressionLevel = pAlterOption->pVal;
+      break;
+    case DB_OPTION_DAYS:
+      ((SDatabaseOptions*)pOptions)->pDaysPerFile = pAlterOption->pVal;
+      break;
+    case DB_OPTION_FSYNC:
+      ((SDatabaseOptions*)pOptions)->pFsyncPeriod = pAlterOption->pVal;
+      break;
+    case DB_OPTION_MAXROWS:
+      ((SDatabaseOptions*)pOptions)->pMaxRowsPerBlock = pAlterOption->pVal;
+      break;
+    case DB_OPTION_MINROWS:
+      ((SDatabaseOptions*)pOptions)->pMinRowsPerBlock = pAlterOption->pVal;
+      break;
+    case DB_OPTION_KEEP:
+      ((SDatabaseOptions*)pOptions)->pKeep = pAlterOption->pList;
+      break;
+    case DB_OPTION_PRECISION:
+      ((SDatabaseOptions*)pOptions)->pPrecision = pAlterOption->pVal;
+      break;
+    case DB_OPTION_QUORUM:
+      ((SDatabaseOptions*)pOptions)->pQuorum = pAlterOption->pVal;
+      break;
+    case DB_OPTION_REPLICA:
+      ((SDatabaseOptions*)pOptions)->pReplica = pAlterOption->pVal;
+      break;
+    case DB_OPTION_TTL:
+      ((SDatabaseOptions*)pOptions)->pTtl = pAlterOption->pVal;
+      break;
+    case DB_OPTION_WAL:
+      ((SDatabaseOptions*)pOptions)->pWalLevel = pAlterOption->pVal;
+      break;
+    case DB_OPTION_VGROUPS:
+      ((SDatabaseOptions*)pOptions)->pNumOfVgroups = pAlterOption->pVal;
+      break;
+    case DB_OPTION_SINGLE_STABLE:
+      ((SDatabaseOptions*)pOptions)->pSingleStable = pAlterOption->pVal;
+      break;
+    case DB_OPTION_STREAM_MODE:
+      ((SDatabaseOptions*)pOptions)->pStreamMode = pAlterOption->pVal;
+      break;
+    case DB_OPTION_RETENTIONS:
+      ((SDatabaseOptions*)pOptions)->pRetentions = pAlterOption->pList;
+      break;
+    default:
+      break;
   }
+  return pOptions;
 }
 
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions) {
@@ -985,61 +686,36 @@ SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* 
   return (SNode*)pStmt;
 }
 
-SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
+SNode* createTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->keep0 = TSDB_DEFAULT_KEEP;
-  pOptions->keep1 = TSDB_DEFAULT_KEEP;
-  pOptions->keep2 = TSDB_DEFAULT_KEEP;
-  pOptions->ttl = TSDB_DEFAULT_DB_TTL_OPTION;
-  pOptions->filesFactor = TSDB_DEFAULT_DB_FILE_FACTOR;
-  pOptions->delay = TSDB_DEFAULT_DB_DELAY;
   return (SNode*)pOptions;
-}
-
-SNode* createDefaultAlterTableOptions(SAstCreateContext* pCxt) {
-  STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
-  CHECK_OUT_OF_MEM(pOptions);
-  pOptions->keep0 = -1;
-  pOptions->keep1 = -1;
-  pOptions->keep2 = -1;
-  pOptions->ttl = -1;
-  pOptions->filesFactor = -1;
-  pOptions->delay = -1;
-  return (SNode*)pOptions;
-}
-
-SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, const SToken* pVal) {
-  return (SNode*)setTableOptionFuncs[type](pCxt, (STableOptions*)pOptions, pVal);
-}
-
-SNode* setTableSmaOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pSma) {
-  ((STableOptions*)pOptions)->pSma = pSma;
-  return pOptions;
-}
-
-SNode* setTableRollupOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pFuncs) {
-  if (1 != LIST_LENGTH(pFuncs)) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table option rollup: only one function is allowed");
-    pCxt->valid = false;
-    return pOptions;
-  }
-  ((STableOptions*)pOptions)->pFuncs = pFuncs;
-  return pOptions;
-}
-
-SNode* setTableKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep) {
-  STableOptions* pOp = (STableOptions*)pOptions;
-  pCxt->valid = checkAndSetKeepOption(pCxt, pKeep, &pOp->keep0, &pOp->keep1, &pOp->keep2);
-  return pOptions;
 }
 
 SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
-  if (TABLE_OPTION_KEEP == pAlterOption->type) {
-    return setTableKeepOption(pCxt, pOptions, pAlterOption->pKeep);
-  } else {
-    return setTableOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
+  switch (pAlterOption->type) {
+    case TABLE_OPTION_KEEP:
+      ((STableOptions*)pOptions)->pKeep = pAlterOption->pList;
+      break;
+    case TABLE_OPTION_TTL:
+      ((STableOptions*)pOptions)->pTtl = pAlterOption->pVal;
+      break;
+    case TABLE_OPTION_COMMENT:
+      ((STableOptions*)pOptions)->pComments = pAlterOption->pVal;
+      break;
+    case TABLE_OPTION_SMA:
+      ((STableOptions*)pOptions)->pSma = pAlterOption->pList;
+      break;
+    case TABLE_OPTION_FILE_FACTOR:
+      ((STableOptions*)pOptions)->pFilesFactor = pAlterOption->pVal;
+      break;
+    case TABLE_OPTION_DELAY:
+      ((STableOptions*)pOptions)->pDelay = pAlterOption->pVal;
+      break;
+    default:
+      break;
   }
+  return pOptions;
 }
 
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment) {
@@ -1050,6 +726,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDat
   if (NULL != pComment) {
     trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
   }
+  pCol->sma = true;
   return (SNode*)pCol;
 }
 

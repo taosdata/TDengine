@@ -118,7 +118,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 
-static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dndReleaseWrapper(pWrapper);
@@ -146,7 +146,7 @@ static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg 
   return code;
 }
 
-static int32_t dmProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessDropNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;

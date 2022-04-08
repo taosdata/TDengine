@@ -323,7 +323,12 @@ int taos_affected_rows(TAOS_RES *res) {
 }
 
 int taos_result_precision(TAOS_RES *res) {
-  return TSDB_TIME_PRECISION_MILLI;
+  SRequestObj* pRequest = (SRequestObj*) res;
+  if (pRequest == NULL) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+
+  return pRequest->body.resInfo.precision;
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
@@ -380,11 +385,20 @@ bool taos_is_update_query(TAOS_RES *res) {
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
-  if (res == NULL) {
+  int32_t numOfRows = 0;
+  /*int32_t code = */taos_fetch_block_s(res, &numOfRows, rows);
+  return numOfRows;
+}
+
+int taos_fetch_block_s(TAOS_RES *res, int* numOfRows, TAOS_ROW *rows) {
+  SRequestObj *pRequest = (SRequestObj *)res;
+  if (pRequest == NULL) {
     return 0;
   }
 
-  SRequestObj *pRequest = (SRequestObj *)res;
+  (*rows)      = NULL;
+  (*numOfRows) = 0;
+
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
       pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
     return 0;
@@ -395,9 +409,51 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   // TODO refactor
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
   pResultInfo->current = pResultInfo->numOfRows;
-  *rows = pResultInfo->row;
 
-  return pResultInfo->numOfRows;
+  (*rows)      = pResultInfo->row;
+  (*numOfRows) = pResultInfo->numOfRows;
+  return pRequest->code;
+}
+
+int taos_fetch_raw_block(TAOS_RES *res, int* numOfRows, void** pData) {
+  SRequestObj *pRequest = (SRequestObj *)res;
+  if (pRequest == NULL) {
+    return 0;
+  }
+
+  if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+    return 0;
+  }
+
+  doFetchRow(pRequest, false);
+
+  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  pResultInfo->current = pResultInfo->numOfRows;
+  (*numOfRows) = pResultInfo->numOfRows;
+  (*pData) = (void*) pResultInfo->pData;
+
+  return 0;
+}
+
+int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
+  SRequestObj *pRequest = (SRequestObj *)res;
+  if (pRequest == NULL) {
+    return 0;
+  }
+
+  int32_t numOfFields = taos_num_fields(pRequest);
+  if (columnIndex < 0 || columnIndex >= numOfFields || numOfFields == 0) {
+    return 0;
+  }
+
+  TAOS_FIELD* pField = &pRequest->body.resInfo.userFields[columnIndex];
+  if (!IS_VAR_DATA_TYPE(pField->type)) {
+    return 0;
+  }
+
+  return pRequest->body.resInfo.pCol[columnIndex].offset;
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }

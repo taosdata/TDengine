@@ -413,6 +413,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;  // -1 for unassigned
   int32_t status;
+  int32_t epoch;
   SEpSet  epSet;
   int64_t oldConsumerId;
   int64_t consumerId;  // -1 for unassigned
@@ -423,6 +424,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pConsumerEp->vgId);
   tlen += taosEncodeFixedI32(buf, pConsumerEp->status);
+  tlen += taosEncodeFixedI32(buf, pConsumerEp->epoch);
   tlen += taosEncodeSEpSet(buf, &pConsumerEp->epSet);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
@@ -433,6 +435,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp
 static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsumerEp) {
   buf = taosDecodeFixedI32(buf, &pConsumerEp->vgId);
   buf = taosDecodeFixedI32(buf, &pConsumerEp->status);
+  buf = taosDecodeFixedI32(buf, &pConsumerEp->epoch);
   buf = taosDecodeSEpSet(buf, &pConsumerEp->epSet);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);

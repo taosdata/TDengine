@@ -912,7 +912,7 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   pCur->uid = uid;
   // TODO: lock?
   ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &(pCur->pCur), 0);
-  if (ret != 0) {
+  if ((ret != 0) || (pCur->pCur == NULL)) {
     taosMemoryFree(pCur);
     return NULL;
   }
@@ -996,32 +996,31 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
 }
 
 SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
-  SArray * pUids = NULL;
+  SArray  *pUids = NULL;
   SMetaDB *pDB = pMeta->pDB;
-  DBC *    pCur = NULL;
+  DBC     *pCur = NULL;
   DBT      pkey = {0}, pval = {0};
   uint32_t mode = isDup ? DB_NEXT_DUP : DB_NEXT_NODUP;
   int      ret;
 
-  pUids = taosArrayInit(16, sizeof(tb_uid_t));
-
-  if (!pUids) {
-    return NULL;
-  }
-
   // TODO: lock?
   ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &pCur, 0);
   if (ret != 0) {
-    taosArrayDestroy(pUids);
     return NULL;
   }
-
-  void *pBuf = NULL;
-
   // TODO: lock?
+
   while ((ret = pCur->get(pCur, &pkey, &pval, mode)) == 0) {
-      taosArrayPush(pUids, pkey.data);
+    if (!pUids) {
+      pUids = taosArrayInit(16, sizeof(tb_uid_t));
+      if (!pUids) {
+        return NULL;
+      }
+    }
+
+    taosArrayPush(pUids, pkey.data);
   }
+  // TODO: lock?
 
   if (pCur) {
     pCur->close(pCur);

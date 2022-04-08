@@ -472,9 +472,6 @@ typedef struct {
 
 #define TMQ_SEPARATOR ':'
 
-#define SND_UNIQUE_THREAD_NUM 2
-#define SND_SHARED_THREAD_NUM 2
-
 enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
