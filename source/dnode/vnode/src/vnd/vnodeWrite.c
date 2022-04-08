@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
+#include "vnodeInt.h"
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO

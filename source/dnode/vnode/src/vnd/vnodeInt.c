@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sync.h"
-#include "vnd.h"
+#include "vnodeInt.h"
 // #include "vnodeInt.h"
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }

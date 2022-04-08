@@ -19,7 +19,7 @@
 #include "meta.h"
 #include "tlog.h"
 #include "tqPush.h"
-#include "vnd.h"
+#include "vnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {

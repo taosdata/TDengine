@@ -15,7 +15,7 @@
 
 #include "vnodeQuery.h"
 #include "executor.h"
-#include "vnd.h"
+#include "vnodeInt.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
