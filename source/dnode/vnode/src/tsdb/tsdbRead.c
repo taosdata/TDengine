@@ -2828,6 +2828,11 @@ static bool loadDataBlockFromTableSeq(STsdbReadHandle* pTsdbReadHandle) {
 bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
 
+  for(int32_t i = 0; i < taosArrayGetSize(pTsdbReadHandle->pColumns); ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
+    colInfoDataCleanup(pColInfo, pTsdbReadHandle->outputCapacity);
+  }
+
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
     tsdbDebug("%p query window not overlaps with the data set, no result returned, %s", pTsdbReadHandle, pTsdbReadHandle->idStr);
     return false;
@@ -3253,12 +3258,6 @@ SArray* tsdbRetrieveDataBlock(tsdbReaderT* pTsdbReadHandle, SArray* pIdList) {
    * 1. data is from cache, 2. data block is not completed qualified to query time range
    */
   STsdbReadHandle* pHandle = (STsdbReadHandle*)pTsdbReadHandle;
-
-  for(int32_t i = 0; i < taosArrayGetSize(pHandle->pColumns); ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pHandle->pColumns, i);
-    colInfoDataCleanup(pColInfo, pHandle->outputCapacity);
-  }
-
   if (pHandle->cur.fid == INT32_MIN) {
     return pHandle->pColumns;
   } else {
