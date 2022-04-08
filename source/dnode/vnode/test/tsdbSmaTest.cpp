@@ -14,7 +14,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tsdbDef.h>
+#include <vnodeInt.h>
 
 #include <taoserror.h>
 #include <tglobal.h>

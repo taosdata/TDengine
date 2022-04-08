@@ -17,7 +17,6 @@
 #define _TD_VNODE_DEF_H_
 
 #include "tmallocator.h"
-// #include "sync.h"
 #include "tcoding.h"
 #include "tdatablock.h"
 #include "tfs.h"
@@ -27,6 +26,11 @@
 #include "vnode.h"
 #include "vnodeQuery.h"
 #include "wal.h"
+#include "tskiplist.h"
+#include "tchecksum.h"
+#include "tglobal.h"
+#include "ttime.h"
+#include "tcompression.h"
 
 #ifdef __cplusplus
 extern "C" {

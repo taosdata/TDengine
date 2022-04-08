@@ -29,7 +29,7 @@ target_sources(
     "src/meta/metaTDBImpl.c"
 
     # tsdb
-    "src/tsdb/tsdbBDBImpl.c"
+    # "src/tsdb/tsdbBDBImpl.c"
     "src/tsdb/tsdbCommit.c"
     "src/tsdb/tsdbCompact.c"
     "src/tsdb/tsdbFile.c"
@@ -40,7 +40,7 @@ target_sources(
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbScan.c"
-    "src/tsdb/tsdbSma.c"
+    # "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
 
     # tq

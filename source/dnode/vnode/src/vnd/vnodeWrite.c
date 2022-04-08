@@ -18,8 +18,8 @@
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
-  blockDebugShowData(data);
-  tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
+  // blockDebugShowData(data);
+  // tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
 }
 
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
@@ -232,16 +232,16 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       tdDestroyTSma(&vCreateSmaReq.tSma);
       // TODO: return directly or go on follow steps?
 #endif
-      if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
-        // TODO
-      }
-    } break;
-    case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
-    } break;
-    case TDMT_VND_DROP_SMA: {  // timeRangeSMA
-      if (tsdbDropTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
-        // TODO
-      }
+    //   if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
+    //     // TODO
+    //   }
+    // } break;
+    // case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
+    // } break;
+    // case TDMT_VND_DROP_SMA: {  // timeRangeSMA
+    //   if (tsdbDropTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
+    //     // TODO
+    //   }
 #if 0    
       tsdbTSmaSub(pVnode->pTsdb, 1);
       SVDropTSmaReq vDropSmaReq = {0};

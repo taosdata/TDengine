@@ -13,25 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 #include "tdatablock.h"
 #include "os.h"
 #include "talgo.h"
 #include "tcompare.h"
 #include "tdataformat.h"
 #include "texception.h"
-#include "vnode.h"
-#include "tsdbFS.h"
-#include "tsdbLog.h"
-#include "tsdbReadImpl.h"
-#include "tskiplist.h"
-#include "ttime.h"
 
 #include "taosdef.h"
 #include "tlosertree.h"
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 #include "tmsg.h"
-#include "tsdbCommit.h"
 
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
