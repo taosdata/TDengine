@@ -265,7 +265,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch, pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
+  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, offset %ld %ld, reqId %lu", consumerId, pReq->epoch, pTq->pVnode->vgId, pReq->currentOffset, fetchOffset, pReq->reqId);
 
   SMqPollRsp rsp = {
       /*.consumerId = consumerId,*/
@@ -308,7 +308,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     return 0;
   }
 
-  vDebug("poll topic %s from consumer %ld (epoch %d)", pTopic->topicName, consumerId, pReq->epoch);
+  vDebug("poll topic %s from consumer %ld (epoch %d) %s", pTopic->topicName, consumerId, pReq->epoch, pTopic->topicName);
 
   rsp.reqOffset = pReq->currentOffset;
   rsp.skipLogNum = 0;
