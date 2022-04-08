@@ -425,9 +425,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   qDebug("%s %d rounds mergesort required to complete the sort, first-round sorted data size:%"PRIzu", sort:%"PRId64", total elapsed:%"PRId64,
          pHandle->idStr, (int32_t) (sortPass + 1), getTotalBufSize(pHandle->pBuf), pHandle->sortElapsed, pHandle->totalElapsed);
 
-  size_t pgSize = pHandle->pageSize;
-  int32_t numOfRows = (pgSize - blockDataGetSerialMetaSize(pHandle->pDataBlock))/ blockDataGetSerialRowSize(pHandle->pDataBlock);
-
+  int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize);
   blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);
 
   size_t numOfSorted = taosArrayGetSize(pHandle->pOrderedSource);
