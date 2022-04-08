@@ -4953,7 +4953,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator, bool* newgroup) {
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, NULL, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->binfo.pRes, "GET_TASKID(pTaskInfo)");
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
@@ -5100,7 +5100,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize, numOfBufPage,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->inputSlotMap, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pDataBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
@@ -5119,7 +5119,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
   return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
 }
 
-SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pIndexMap, SExecTaskInfo* pTaskInfo) {
   SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   int32_t rowSize = pResBlock->info.rowSize;
@@ -5137,6 +5137,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
   pInfo->numOfRowsInRes = 1024;
   pInfo->pDataBlock = pResBlock;
   pInfo->pSortInfo = pSortInfo;
+  pInfo->inputSlotMap = pIndexMap;
 
   pOperator->name         = "SortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
@@ -6265,6 +6266,7 @@ static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
 
   taosArrayDestroy(pInfo->pSortInfo);
+  taosArrayDestroy(pInfo->inputSlotMap);
 }
 
 void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
@@ -7065,6 +7067,7 @@ static SArray* extractScanColumnId(SNodeList* pNodeList);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols);
 static SArray* createSortInfo(SNodeList* pNodeList);
+static SArray* createIndexMap(SNodeList* pNodeList);
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                         uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
@@ -7183,7 +7186,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
     SArray*      info = createSortInfo(pSortPhyNode->pSortKeys);
-    return createSortOperatorInfo(op, pResBlock, info, pTaskInfo);
+    SArray*      slotMap = createIndexMap(pSortPhyNode->pTargets);
+    return createSortOperatorInfo(op, pResBlock, info, slotMap, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == nodeType(pPhyNode)) {
     size_t size = LIST_LENGTH(pPhyNode->pChildren);
     assert(size == 1);
@@ -7303,8 +7307,7 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode*      pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    SOrderByExprNode* pSortKey = (SOrderByExprNode*)pNode->pExpr;
+    SOrderByExprNode* pSortKey = (SOrderByExprNode*)nodesListGetNode(pNodeList, i);
     SBlockOrderInfo   bi = {0};
     bi.order = (pSortKey->order == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     bi.nullFirst = (pSortKey->nullOrder == NULL_ORDER_FIRST);
@@ -7321,6 +7324,24 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     //    c.scale  = pColNode->node.resType.scale;
 
     taosArrayPush(pList, &bi);
+  }
+
+  return pList;
+}
+
+SArray* createIndexMap(SNodeList* pNodeList) {
+  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  SArray* pList = taosArrayInit(numOfCols, sizeof(int32_t));
+  if (pList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return pList;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pTarget = (STargetNode*)nodesListGetNode(pNodeList, i);
+
+    SColumnNode* pColNode = (SColumnNode*)pTarget->pExpr;
+    taosArrayPush(pList, &pColNode->slotId);
   }
 
   return pList;

@@ -1437,6 +1437,7 @@ int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg) {
 
   tdDestroyTSma(&vCreateSmaReq.tSma);
   // TODO: return directly or go on follow steps?
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
@@ -1466,6 +1467,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
   tsdbTSmaSub(pTsdb, 1);  
 
   // TODO: return directly or go on follow steps?
+  return TSDB_CODE_SUCCESS;
 }
 
 #if 0

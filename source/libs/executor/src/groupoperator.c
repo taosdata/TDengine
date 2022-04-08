@@ -365,12 +365,12 @@ static SSDataBlock* doPartitionData(SOperatorInfo* pOperator, bool* newgroup) {
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize, numOfBufPage,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->inputSlotMap, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pDataBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
 
-  SGenericSource* ps = taosMemoryCalloc(1, sizeof(SGenericSource));
+  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = pOperator->pDownstream[0];
   tsortAddSource(pInfo->pSortHandle, ps);
 

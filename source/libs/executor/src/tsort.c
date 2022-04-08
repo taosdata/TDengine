@@ -32,6 +32,7 @@ struct SSortHandle {
   SDiskbasedBuf    *pBuf;
 
   SArray           *pSortInfo;
+  SArray           *pIndexMap;
   SArray           *pOrderedSource;
 
   _sort_fetch_block_fn_t  fetchfp;
@@ -85,13 +86,14 @@ static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
+SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, SArray* pIndexMap, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
 
   pSortHandle->type       = type;
   pSortHandle->pageSize   = pageSize;
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo  = pSortInfo;
+  pSortHandle->pIndexMap  = pIndexMap;
   pSortHandle->pDataBlock = createOneDataBlock(pBlock);
 
   pSortHandle->pOrderedSource     = taosArrayInit(4, POINTER_BYTES);
@@ -529,7 +531,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
         pHandle->pDataBlock = createOneDataBlock(pBlock);
       }
 
-      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
+      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock, pHandle->pIndexMap);
       if (code != 0) {
         return code;
       }

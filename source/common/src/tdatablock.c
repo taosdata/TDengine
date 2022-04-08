@@ -315,13 +315,17 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
   return 0;
 }
 
-int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
+int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pIndexMap) {
   assert(pSrc != NULL && pDest != NULL);
 
   int32_t numOfCols = pDest->info.numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
+    int32_t mapIndex = i;
+    if(pIndexMap) {
+      mapIndex = *(int32_t*)taosArrayGet(pIndexMap, i);
+    }
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
-    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
+    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, mapIndex);
 
     uint32_t oldLen = colDataGetLength(pCol2, pDest->info.rows);
     uint32_t newLen = colDataGetLength(pCol1, pSrc->info.rows);
