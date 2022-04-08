@@ -33,6 +33,15 @@ settings:
         taosConfigDir: /data/var/taosadaper/config
         log:
           path: /data/var/taosadaper/log
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+          ports: [6046, 6047, 6048, 6049]
+          user: "root"
+          password: "taosdata"
+          worker: 200000
       taos_config:
         firstEP: vm85:6030
         logDir: /data/var/taosadaper/log
@@ -70,7 +79,8 @@ settings:
         fqdn: [vm85,vm83]
         run_dir: /opt/process_exporter
         config:
-          common_process: [taosd, taosBenchmark]
+          common_process: [taosd, taosBenchmark,taosadapter]
           custom_process:
-            vm85: [taosd]
+            vm85: [taosd,taosadapter]
             vm83: [taosBenchmark]
+

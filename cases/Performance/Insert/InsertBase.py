@@ -31,21 +31,16 @@ class InsertTest(TDCase):
 
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger,self.run_log_dir)
-        col = jfile.schemacfg(intcount=4, binarycount=(2, 16), doublecount=4, tscount=1)
-
+        col = jfile.schemacfg(intcount=4, binarycount=(2, 16), doublecount=4)
         tag = jfile.schemacfg(intcount=1, binarycount=(1, 16))
         # set json_files for taosBenchmark
         for i in range(len(taosBenchmark_iplist)):
-            if i == 0:
-                db = jfile.setDBinfo(name="db1", drop="yes")
-            else:
-                db = jfile.setDBinfo(name="db1", drop="no")
-
+            db = jfile.setDBinfo(name=self.get_default_database(), drop="no")
             stb = jfile.setStbinfo(name="stb", childtable_prefix="stb_" + str(i), childtable_count=100,
-                                   insert_rows=10000, columns=col, tags=tag)
+                                   insert_rows=2000000, columns=col, tags=tag,timestamp_step=1000,start_timestamp="2020-01-01 00:00:00")
 
             database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
-            json_info = jfile.setJsoninfo(host=taosd_list[0], databases=[database1])
+            json_info = jfile.setJsoninfo(host=taosd_list[0], databases=[database1],thread_count=16)
             json_info.update({"test_log": "/root/testlog/"})
             json_data.append({})
             json_data[i] = json_info
