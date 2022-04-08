@@ -134,12 +134,12 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
   tsdbStartDeleteTrans(pRepo);
 
   if (tsdbDeleteMeta(pRepo) < 0) {
-    tsdbError("vgId:%d failed to truncate META data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbError("vgId:%d failed to delete META data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
   if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates, affectedTables) < 0) {
-    tsdbError("vgId:%d failed to truncate TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbError("vgId:%d failed to delete TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
@@ -167,7 +167,7 @@ _err:
 
 static void tsdbStartDeleteTrans(STsdbRepo *pRepo) {
   assert(pRepo->deleteState != TSDB_IN_DELETE);
-  tsdbInfo("vgId:%d start to truncate!", REPO_ID(pRepo));
+  tsdbInfo("vgId:%d start to delete!", REPO_ID(pRepo));
   tsdbStartFSTxn(pRepo, 0, 0);
   pRepo->code = TSDB_CODE_SUCCESS;
   pRepo->deleteState = TSDB_IN_DELETE;
@@ -180,7 +180,7 @@ static void tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno) {
     tsdbEndFSTxn(pRepo);
   }
   pRepo->deleteState = TSDB_NO_DELETE;
-  tsdbInfo("vgId:%d truncate over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
+  tsdbInfo("vgId:%d delete over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
   tsem_post(&(pRepo->readyToCommit));
 }
 
@@ -189,7 +189,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
   SDeleteH         deleteH = {0};
   SDFileSet *      pSet = NULL;
 
-  tsdbDebug("vgId:%d start to truncate TS data for %d", REPO_ID(pRepo), pCtlInfo->tids[0]);
+  tsdbDebug("vgId:%d start to delete TS data for %d", REPO_ID(pRepo), pCtlInfo->tids[0]);
 
   if (tsdbInitDeleteH(&deleteH, pRepo) < 0) {
     return -1;
@@ -213,7 +213,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
     }
 
     if ((pSet->fid < sFid) || (pSet->fid > eFid)) {
-      tsdbDebug("vgId:%d no need to truncate FSET %d, sFid %d, eFid %d", REPO_ID(pRepo), pSet->fid, sFid, eFid);
+      tsdbDebug("vgId:%d no need to delete FSET %d, sFid %d, eFid %d", REPO_ID(pRepo), pSet->fid, sFid, eFid);
       if (tsdbApplyRtnOnFSet(pRepo, pSet, &(deleteH.rtn)) < 0) {
         return -1;
       }
@@ -222,7 +222,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
 
 #if 0  // TODO: How to make the decision? The test case should cover this scenario.
     if (TSDB_FSET_LEVEL(pSet) == TFS_MAX_LEVEL) {
-      tsdbDebug("vgId:%d FSET %d on level %d, should not truncate", REPO_ID(pRepo), pSet->fid, TFS_MAX_LEVEL);
+      tsdbDebug("vgId:%d FSET %d on level %d, should not delete", REPO_ID(pRepo), pSet->fid, TFS_MAX_LEVEL);
       tsdbUpdateDFileSet(REPO_FS(pRepo), pSet);
       continue;
     }
@@ -231,7 +231,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
     if (pCtlInfo->command & CMD_DELETE_DATA) {
       if (tsdbFSetDelete(&deleteH, pSet) < 0) {
         tsdbDestroyDeleteH(&deleteH);
-        tsdbError("vgId:%d failed to truncate data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+        tsdbError("vgId:%d failed to delete data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
         return -1;
       }
     } else {
@@ -241,7 +241,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
   }
 
   tsdbDestroyDeleteH(&deleteH);
-  tsdbDebug("vgId:%d truncate TS data over", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d delete TS data over", REPO_ID(pRepo));
   return 0;
 }
 
@@ -250,18 +250,20 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
   SDiskID    did = {0};
   SDFileSet *pWSet = TSDB_DELETE_WSET(pdh);
 
-  tsdbDebug("vgId:%d start to truncate data in FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
+  tsdbDebug("vgId:%d start to delete data in FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
 
   if (tsdbFSetInit(pdh, pSet) < 0) {
+    tsdbError("vgId:%d fset init failed. FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
+            TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
     return -1;
   }
 
-  // Create new fset as truncated fset
+  // Create new fset as deleted fset
   tfsAllocDisk(tsdbGetFidLevel(pSet->fid, &(pdh->rtn)), &(did.level), &(did.id));
   if (did.level == TFS_UNDECIDED_LEVEL) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
-    tsdbError("vgId:%d failed to truncate table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
     tsdbDeleteFSetEnd(pdh);
     return -1;
   }
@@ -273,7 +275,7 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
   tsdbInitDFile(pHeadFile, did, REPO_ID(pRepo), TSDB_FSET_FID(pSet), FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
 
   if (tsdbCreateDFile(pHeadFile, true, TSDB_FILE_HEAD) < 0) {
-    tsdbError("vgId:%d failed to truncate table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
     tsdbCloseDFile(pHeadFile);
     tsdbRemoveDFile(pHeadFile);
     return -1;
@@ -295,7 +297,7 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
 
   tsdbCloseDFileSet(TSDB_DELETE_WSET(pdh));
   tsdbUpdateDFileSet(REPO_FS(pRepo), TSDB_DELETE_WSET(pdh));
-  tsdbDebug("vgId:%d FSET %d truncate data over", REPO_ID(pRepo), pSet->fid);
+  tsdbDebug("vgId:%d FSET %d delete data over", REPO_ID(pRepo), pSet->fid);
 
   tsdbDeleteFSetEnd(pdh);
   return 0;
@@ -650,7 +652,7 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
 
   int32_t affectedRows = 0;
 
-  // Loop to truncate each block data
+  // Loop to delete each block data
   for (int i = 0; i < pItem->pBlkIdx->numOfBlocks; ++i) {
     SBlock *pBlock = pItem->pInfo->blocks + i;
     int32_t solve = tsdbBlockSolve(pdh, pBlock);

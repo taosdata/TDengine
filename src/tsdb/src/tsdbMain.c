@@ -1029,6 +1029,13 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool lastKey) {
     }
   }
 
+  if ( cacheLastRowTableNum > 0 && readh.pBlkIdx == NULL) {
+    // table no data, so reset lastKey
+    TSDB_WLOCK_TABLE(pTable);
+    pTable->lastKey = TSKEY_INITIAL_VAL;
+    TSDB_WUNLOCK_TABLE(pTable);
+  }
+
   tsdbUnLockFS(REPO_FS(pRepo));
   tsdbDestroyReadH(&readh);
 
