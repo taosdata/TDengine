@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 int metaOpenUidGnrt(SMeta *pMeta) {
   // Init a generator
