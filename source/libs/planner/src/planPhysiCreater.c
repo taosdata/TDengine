@@ -928,8 +928,12 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pSortKeys, &pSort->pSortKeys);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pSortLogicNode->node.pTargets, &pSort->pTargets);
     if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pSort->pSortKeys, pSort->node.pOutputDataBlockDesc);
+      code = addDataBlockSlots(pCxt, pSort->pTargets, pSort->node.pOutputDataBlockDesc);
     }
   }
 
@@ -963,8 +967,12 @@ static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPartitionKeys, &pPart->pPartitionKeys);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPartLogicNode->node.pTargets, &pPart->pTargets);
     if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pPart->pPartitionKeys, pPart->node.pOutputDataBlockDesc);
+      code = addDataBlockSlots(pCxt, pPart->pTargets, pPart->node.pOutputDataBlockDesc);
     }
   }
 

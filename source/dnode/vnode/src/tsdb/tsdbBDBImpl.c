@@ -19,8 +19,6 @@
 #include "taoserror.h"
 #include "tcoding.h"
 #include "thash.h"
-#include "tsdbDBDef.h"
-#include "tsdbLog.h"
 
 #define IMPL_WITH_LOCK 1
 

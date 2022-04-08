@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
+#include "vnodeInt.h"
 
 /* ------------------------ STRUCTURES ------------------------ */
 #define VNODE_BUF_POOL_SHARDS 3

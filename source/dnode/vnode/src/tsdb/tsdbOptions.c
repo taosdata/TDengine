@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 
 const STsdbCfg defautlTsdbOptions = {.precision = 0,
                                      .lruCacheSize = 0,
