@@ -512,6 +512,7 @@ typedef struct {
   int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;  // time resolution
   int8_t  compression;
@@ -521,6 +522,7 @@ typedef struct {
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
   int8_t  streamMode;
+  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
 } SCreateDbReq;
@@ -585,6 +587,41 @@ int32_t tDeserializeSUseDbRsp(void* buf, int32_t bufLen, SUseDbRsp* pRsp);
 int32_t tSerializeSUseDbRspImp(SCoder* pEncoder, const SUseDbRsp* pRsp);
 int32_t tDeserializeSUseDbRspImp(SCoder* pDecoder, SUseDbRsp* pRsp);
 void    tFreeSUsedbRsp(SUseDbRsp* pRsp);
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+} SDbCfgReq;
+
+int32_t tSerializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
+int32_t tDeserializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
+
+typedef struct {
+  int32_t numOfVgroups;
+  int32_t cacheBlockSize;
+  int32_t totalBlocks;
+  int32_t daysPerFile;
+  int32_t daysToKeep0;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
+  int32_t minRows;
+  int32_t maxRows;
+  int32_t commitTime;
+  int32_t fsyncPeriod;
+  int32_t ttl;
+  int8_t  walLevel;
+  int8_t  precision;
+  int8_t  compression;
+  int8_t  replications;
+  int8_t  quorum;
+  int8_t  update;
+  int8_t  cacheLastRow;
+  int8_t  streamMode;
+  int8_t  singleSTable;
+} SDbCfgRsp;
+
+int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
+int32_t tDeserializeSDbCfgRsp(void* buf, int32_t bufLen, SDbCfgRsp* pRsp);
+
 
 typedef struct {
   int32_t rowNum;
