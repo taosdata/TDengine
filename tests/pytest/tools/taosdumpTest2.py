@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+from logging.config import dictConfig
 import sys
 import os
 from util.log import *
@@ -22,6 +23,7 @@ import random
 
 
 class TDTestCase:
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
@@ -29,9 +31,8 @@ class TDTestCase:
         self.ts = 1601481600000
         self.numberOfTables = 1
         self.numberOfRecords = 15000
-        self.tmpdir = "tmp"
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -39,13 +40,16 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def generateString(self, length):
         chars = string.ascii_uppercase + string.ascii_lowercase
@@ -75,19 +79,11 @@ class TDTestCase:
                     break
             tdSql.execute(sql)
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-            print("directory exists")
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
+            tdLog.info("taosdump found in %s" % binPath)
 
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
@@ -112,7 +108,6 @@ class TDTestCase:
 
         tdSql.query("select count(*) from t1")
         tdSql.checkData(0, 0, self.numberOfRecords)
-        os.system("rm -rf %s" % self.tmpdir)
 
         # test case for TS-1225
         tdSql.execute("create database test")
