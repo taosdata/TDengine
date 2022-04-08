@@ -25,6 +25,8 @@
 #include "thash.h"
 #include "ttypes.h"
 
+static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
+
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
@@ -357,15 +359,13 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   int32_t numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
 
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    int32_t numOfRows = blockDataGetCapacityInRow(pInfo->binfo.pRes, 4096);
 
     SDataGroupInfo* p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
-    void* pPage = NULL;
 
+    void* pPage = NULL;
     if (p == NULL) { // it is a new group
       SDataGroupInfo gi = {0};
       gi.pPageList = taosArrayInit(100, sizeof(int32_t));
@@ -383,7 +383,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       pPage = getBufPage(pInfo->pBuf, *curId);
 
       int32_t *rows = (int32_t*) pPage;
-      if (*rows >= numOfRows) {
+      if (*rows >= pInfo->rowCapacity) {
         // add a new page for current group
         int32_t pageId = 0;
         pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
@@ -393,48 +393,83 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
     }
 
+    // add one for this group
+    p->numOfRows += 1;
+
     int32_t* rows = (int32_t*) pPage;
-    (*rows) += 1;
 
-    int32_t* offset = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(int32_t));
-    offset[0] = sizeof(int32_t);
-
-    int32_t numOfCols = pInfo->binfo.pRes->info.numOfCols;
-    for(int32_t i = 0; i < numOfCols - 1; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-
-      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        offset[i + 1] = pColInfoData->info.bytes * numOfRows + numOfRows * sizeof(int32_t) + sizeof(int32_t) + offset[i];
-      } else {
-        offset[i + 1] = pColInfoData->info.bytes * numOfRows + BitmapLen(numOfRows) + sizeof(int32_t) + offset[i];
-      }
-    }
-
+    size_t numOfCols = pInfo->binfo.pRes->info.numOfCols;
     for(int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        // todo
-      } else {
-        char* bitmap = pPage + offset[i];
-        int32_t* lenx = pPage + offset[i] + BitmapLen(numOfRows);
-        char* data = (char*) lenx + sizeof(int32_t);
+      int32_t bytes = pColInfoData->info.bytes;
+      int32_t startOffset = pInfo->columnOffset[i];
 
-        (*lenx )+= pColInfoData->info.bytes;
+      char* columnLen    = NULL;
+      int32_t contentLen = 0;
+
+      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        int32_t* offset = pPage + startOffset;
+        columnLen       = pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
+        char*    data   = (char*)(columnLen + sizeof(int32_t));
+
+        if (colDataIsNull_s(pColInfoData, j)) {
+          offset[(*rows)] = -1;
+          contentLen = 0;
+        } else {
+          offset[*rows] = (*columnLen);
+          char* src = colDataGetData(pColInfoData, j);
+          memcpy(data + (*columnLen), src, varDataTLen(src));
+          contentLen = varDataTLen(src);
+        }
+      } else {
+        char* bitmap = pPage + startOffset;
+        columnLen    = pPage + startOffset + BitmapLen(pInfo->rowCapacity);
+        char* data   = (char*) columnLen + sizeof(int32_t);
+
         bool isNull = colDataIsNull_f(pColInfoData->nullbitmap, j);
         if (isNull) {
-          colDataSetNull_f(bitmap, (*rows) - 1);
+          colDataSetNull_f(bitmap, (*rows));
         } else {
-          memcpy(data + ((*rows) - 1)* pColInfoData->info.bytes, colDataGetData(pColInfoData, j), pColInfoData->info.bytes);
+          memcpy(data + (*columnLen), colDataGetData(pColInfoData, j), bytes);
         }
+        contentLen = bytes;
       }
+
+      (*columnLen) += contentLen;
     }
+
+    (*rows) += 1;
 
     setBufPageDirty(pPage, true);
     releaseBufPage(pInfo->pBuf, pPage);
   }
 
   // todo set the consistent group id according to the group keys
+}
+
+int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
+  size_t numOfCols = pBlock->info.numOfCols;
+  int32_t* offset = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(int32_t));
+
+  offset[0] = sizeof(int32_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
+
+  for(int32_t i = 0; i < numOfCols - 1; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+
+    int32_t bytes = pColInfoData->info.bytes;
+    int32_t payloadLen = bytes * rowCapacity;
+    
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      // offset segment + content length + payload
+      offset[i + 1] = rowCapacity * sizeof(int32_t) + sizeof(int32_t) + payloadLen + offset[i];
+    } else {
+      // bitmap + content length + payload
+      offset[i + 1] = BitmapLen(rowCapacity) + sizeof(int32_t) + payloadLen + offset[i];
+    }
+  }
+
+  return offset;
 }
 
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
@@ -445,6 +480,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     // try next group data
     pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
     if (pInfo->pGroupIter == NULL) {
+      pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
 
@@ -455,8 +491,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   int32_t* pageId = taosArrayGet(pGroupInfo->pPageList, pInfo->pageIndex);
   void* page = getBufPage(pInfo->pBuf, *pageId);
 
-  int32_t numOfRows = blockDataGetCapacityInRow(pInfo->binfo.pRes, 4096);
-  blockDataFromBuf1(pInfo->binfo.pRes, page, numOfRows);
+  blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 
   pInfo->pageIndex += 1;
   return pInfo->binfo.pRes;
@@ -495,11 +530,12 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator, bool* newgroup) {
 }
 
 static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
-  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
+  SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
-  taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroy(pInfo->pGroupColVals);
+  taosMemoryFree(pInfo->keyBuf);
+  taosMemoryFree(pInfo->columnOffset);
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResultBlock, SArray* pGroupColList,
@@ -522,6 +558,9 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBloc
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+
+  pInfo->rowCapacity = blockDataGetCapacityInRow(pResultBlock, getBufPageSize(pInfo->pBuf));
+  pInfo->columnOffset = setupColumnOffset(pResultBlock, pInfo->rowCapacity);
 
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {

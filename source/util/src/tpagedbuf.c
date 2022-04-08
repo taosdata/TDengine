@@ -48,10 +48,8 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  // pBuf->file = fopen(pBuf->path, "wb+");
-  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   if (pBuf->pFile == NULL) {
-    //    qError("failed to create tmp file: %s on disk. %s", pBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 

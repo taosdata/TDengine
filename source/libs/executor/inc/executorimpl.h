@@ -574,11 +574,13 @@ typedef struct SPartitionOperatorInfo {
   SOptrBasicInfo binfo;
   SArray*        pGroupCols;
   SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
-  bool           isInit;        // denote if current val is initialized or not
   char*          keyBuf;        // group by keys for hash
   int32_t        groupKeyLen;   // total group by column width
   SHashObj*      pGroupSet;     // quick locate the window object for each result
+
   SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
+  int32_t        rowCapacity;   // maximum number of rows for each buffer page
+  int32_t*       columnOffset;  // start position for each column data
 
   void*          pGroupIter;    // group iterator
   int32_t        pageIndex;     // page index of current group
