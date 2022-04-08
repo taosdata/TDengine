@@ -295,11 +295,11 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *in = pInputData->pData;
+  char *in = pInputData->pData + pInputData->varmeta.offset[0];
   int16_t *out = (int16_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_f(pInputData->nullbitmap, i)) {
+    if (colDataIsNull_s(pInputData, i)) {
       colDataSetNull_f(pOutputData->nullbitmap, i);
       continue;
     }
