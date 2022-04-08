@@ -119,9 +119,9 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return -1;
   }
 
-  SSingleWorkerCfg scfg = {.min = 1, .max = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
-  if (tSingleWorkerInit(&pMgmt->statusWorker, &scfg) != 0) {
-    dError("failed to start dnode status worker since %s", terrstr());
+  SSingleWorkerCfg scfg = {.min = 1, .max = 1, .name = "dnode-monitor", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &scfg) != 0) {
+    dError("failed to start dnode monitor worker since %s", terrstr());
     return -1;
   }
 
@@ -131,7 +131,7 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
-  tSingleWorkerCleanup(&pMgmt->statusWorker);
+  tSingleWorkerCleanup(&pMgmt->monitorWorker);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
@@ -151,7 +151,7 @@ int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 
 int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
-  SSingleWorker *pWorker = &pMgmt->statusWorker;
+  SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);

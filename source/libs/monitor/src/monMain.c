@@ -124,7 +124,7 @@ void monCleanup() {
 
 static void monCleanupMonitorInfo(SMonInfo *pMonitor) {
   tsMonitor.lastTime = pMonitor->curTime;
-  taosArrayDestroy(pMonitor->logs.logs);
+  taosArrayDestroy(pMonitor->log.logs);
   tFreeSMonMmInfo(&pMonitor->mmInfo);
   tFreeSMonVmInfo(&pMonitor->vmInfo);
   tFreeSMonSmInfo(&pMonitor->smInfo);
@@ -141,7 +141,7 @@ static SMonInfo *monCreateMonitorInfo() {
     return NULL;
   }
 
-  monGetLogs(&pMonitor->logs);
+  monGetLogs(&pMonitor->log);
 
   taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&pMonitor->dmInfo, &tsMonitor.dmInfo, sizeof(SMonDmInfo));
@@ -159,7 +159,7 @@ static SMonInfo *monCreateMonitorInfo() {
   taosThreadMutexUnlock(&tsMonitor.lock);
 
   pMonitor->pJson = tjsonCreateObject();
-  if (pMonitor->pJson == NULL || pMonitor->logs.logs == NULL) {
+  if (pMonitor->pJson == NULL || pMonitor->log.logs == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     monCleanupMonitorInfo(pMonitor);
     return NULL;
@@ -447,12 +447,12 @@ static void monGenLogJson(SMonInfo *pMonitor) {
   if (pLogsJson == NULL) return;
 
   SMonLogs *logs[6];
-  logs[0] = &pMonitor->logs;
-  logs[1] = &pMonitor->mmInfo.logs;
-  logs[2] = &pMonitor->vmInfo.logs;
-  logs[3] = &pMonitor->smInfo.logs;
-  logs[4] = &pMonitor->qmInfo.logs;
-  logs[5] = &pMonitor->bmInfo.logs;
+  logs[0] = &pMonitor->log;
+  logs[1] = &pMonitor->mmInfo.log;
+  logs[2] = &pMonitor->vmInfo.log;
+  logs[3] = &pMonitor->smInfo.log;
+  logs[4] = &pMonitor->qmInfo.log;
+  logs[5] = &pMonitor->bmInfo.log;
 
   int32_t numOfErrorLogs = 0;
   int32_t numOfInfoLogs = 0;
@@ -460,17 +460,17 @@ static void monGenLogJson(SMonInfo *pMonitor) {
   int32_t numOfTraceLogs = 0;
 
   for (int32_t j = 0; j < 6; j++) {
-    SMonLogs *pLogs = logs[j];
-    numOfErrorLogs += pLogs->numOfErrorLogs;
-    numOfInfoLogs += pLogs->numOfInfoLogs;
-    numOfDebugLogs += pLogs->numOfDebugLogs;
-    numOfTraceLogs += pLogs->numOfTraceLogs;
+    SMonLogs *pLog = logs[j];
+    numOfErrorLogs += pLog->numOfErrorLogs;
+    numOfInfoLogs += pLog->numOfInfoLogs;
+    numOfDebugLogs += pLog->numOfDebugLogs;
+    numOfTraceLogs += pLog->numOfTraceLogs;
 
-    for (int32_t i = 0; i < taosArrayGetSize(pLogs->logs); ++i) {
+    for (int32_t i = 0; i < taosArrayGetSize(pLog->logs); ++i) {
       SJson *pLogJson = tjsonCreateObject();
       if (pLogJson == NULL) continue;
 
-      SMonLogItem *pLogItem = taosArrayGet(pLogs->logs, i);
+      SMonLogItem *pLogItem = taosArrayGet(pLog->logs, i);
 
       char buf[40] = {0};
       taosFormatUtcTime(buf, sizeof(buf), pLogItem->ts, TSDB_TIME_PRECISION_MILLI);

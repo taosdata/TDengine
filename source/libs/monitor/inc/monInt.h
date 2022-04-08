@@ -24,7 +24,7 @@ typedef struct {
   int64_t    curTime;
   int64_t    lastTime;
   SJson     *pJson;
-  SMonLogs   logs;
+  SMonLogs   log;
   SMonDmInfo dmInfo;
   SMonMmInfo mmInfo;
   SMonVmInfo vmInfo;

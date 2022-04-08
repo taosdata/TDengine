@@ -34,7 +34,7 @@ void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
 
   if (pWrapper->procType == PROC_CHILD) {
     dmGetMonitorSysInfo(&vmInfo->sys);
-    monGetLogs(&vmInfo->logs);
+    monGetLogs(&vmInfo->log);
   }
 }
 

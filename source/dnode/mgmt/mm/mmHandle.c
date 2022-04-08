@@ -21,7 +21,7 @@ void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo) {
   mndGetMonitorInfo(pMgmt->pMnode, &mmInfo->cluster, &mmInfo->vgroup, &mmInfo->grant);
   if (pWrapper->procType == PROC_CHILD) {
     dmGetMonitorSysInfo(&mmInfo->sys);
-    monGetLogs(&mmInfo->logs);
+    monGetLogs(&mmInfo->log);
   }
 }
 

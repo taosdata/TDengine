@@ -248,25 +248,25 @@ TEST_F(MonitorTest, 01_Full) {
   GetVgroupInfo(&mmInfo.vgroup);
   GetGrantInfo(&mmInfo.grant);
   GetSysInfo(&mmInfo.sys);
-  GetLogInfo(&mmInfo.logs);
+  GetLogInfo(&mmInfo.log);
 
   SMonVmInfo vmInfo = {0};
   GetDiskInfo(&vmInfo.tfs);
   GetVnodeStat(&vmInfo.vstat);
   GetSysInfo(&vmInfo.sys);
-  GetLogInfo(&vmInfo.logs);
+  GetLogInfo(&vmInfo.log);
 
   SMonQmInfo qmInfo = {0};
   GetSysInfo(&qmInfo.sys);
-  GetLogInfo(&qmInfo.logs);
+  GetLogInfo(&qmInfo.log);
 
   SMonSmInfo smInfo = {0};
   GetSysInfo(&smInfo.sys);
-  GetLogInfo(&smInfo.logs);
+  GetLogInfo(&smInfo.log);
 
   SMonBmInfo bmInfo = {0};
   GetSysInfo(&bmInfo.sys);
-  GetLogInfo(&bmInfo.logs);
+  GetLogInfo(&bmInfo.log);
 
   monSetDmInfo(&dmInfo);
   monSetMmInfo(&mmInfo);

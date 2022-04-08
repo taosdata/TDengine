@@ -19,7 +19,7 @@
 void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {
   if (pWrapper->procType == PROC_CHILD) {
     dmGetMonitorSysInfo(&smInfo->sys);
-    monGetLogs(&smInfo->logs);
+    monGetLogs(&smInfo->log);
   }
 }
 

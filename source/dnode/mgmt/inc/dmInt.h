@@ -32,7 +32,7 @@ typedef struct SDnodeMgmt {
   TdThread     *threadId;
   SRWLatch      latch;
   SSingleWorker mgmtWorker;
-  SSingleWorker statusWorker;
+  SSingleWorker monitorWorker;
   SMsgCb        msgCb;
   const char   *path;
   SDnode       *pDnode;

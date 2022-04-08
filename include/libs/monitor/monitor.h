@@ -143,7 +143,7 @@ typedef struct {
   SMonVgroupInfo  vgroup;
   SMonGrantInfo   grant;
   SMonSysInfo     sys;
-  SMonLogs        logs;
+  SMonLogs        log;
 } SMonMmInfo;
 
 int32_t tSerializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo);
@@ -158,7 +158,7 @@ typedef struct {
   SMonDiskInfo tfs;
   SVnodesStat  vstat;
   SMonSysInfo  sys;
-  SMonLogs     logs;
+  SMonLogs     log;
 } SMonVmInfo;
 
 int32_t tSerializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
@@ -167,7 +167,7 @@ void    tFreeSMonVmInfo(SMonVmInfo *pInfo);
 
 typedef struct {
   SMonSysInfo sys;
-  SMonLogs    logs;
+  SMonLogs    log;
 } SMonQmInfo;
 
 int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
@@ -176,7 +176,7 @@ void    tFreeSMonQmInfo(SMonQmInfo *pInfo);
 
 typedef struct {
   SMonSysInfo sys;
-  SMonLogs    logs;
+  SMonLogs    log;
 } SMonSmInfo;
 
 int32_t tSerializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo);
@@ -184,7 +184,7 @@ int32_t tDeserializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo);
 void    tFreeSMonSmInfo(SMonSmInfo *pInfo);
 typedef struct {
   SMonSysInfo sys;
-  SMonLogs    logs;
+  SMonLogs    log;
 } SMonBmInfo;
 
 int32_t tSerializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);

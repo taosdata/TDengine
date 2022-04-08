@@ -19,7 +19,7 @@
 void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo) {
   if (pWrapper->procType == PROC_CHILD) {
     dmGetMonitorSysInfo(&qmInfo->sys);
-    monGetLogs(&qmInfo->logs);
+    monGetLogs(&qmInfo->log);
   }
 }
 

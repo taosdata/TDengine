@@ -226,7 +226,7 @@ int32_t tSerializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo) {
   if (tEncodeSMonVgroupInfo(&encoder, &pInfo->vgroup) < 0) return -1;
   if (tEncodeSMonGrantInfo(&encoder, &pInfo->grant) < 0) return -1;
   if (tEncodeSMonSysInfo(&encoder, &pInfo->sys) < 0) return -1;
-  if (tEncodeSMonLogs(&encoder, &pInfo->logs) < 0) return -1;
+  if (tEncodeSMonLogs(&encoder, &pInfo->log) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -243,7 +243,7 @@ int32_t tDeserializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo) {
   if (tDecodeSMonVgroupInfo(&decoder, &pInfo->vgroup) < 0) return -1;
   if (tDecodeSMonGrantInfo(&decoder, &pInfo->grant) < 0) return -1;
   if (tDecodeSMonSysInfo(&decoder, &pInfo->sys) < 0) return -1;
-  if (tDecodeSMonLogs(&decoder, &pInfo->logs) < 0) return -1;
+  if (tDecodeSMonLogs(&decoder, &pInfo->log) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -251,8 +251,14 @@ int32_t tDeserializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo) {
 }
 
 void tFreeSMonMmInfo(SMonMmInfo *pInfo) {
-  taosArrayDestroy(pInfo->logs.logs);
-  pInfo->logs.logs = NULL;
+  taosArrayDestroy(pInfo->log.logs);
+  taosArrayDestroy(pInfo->cluster.mnodes);
+  taosArrayDestroy(pInfo->cluster.dnodes);
+  taosArrayDestroy(pInfo->vgroup.vgroups);
+  pInfo->cluster.mnodes = NULL;
+  pInfo->cluster.dnodes = NULL;
+  pInfo->vgroup.vgroups = NULL;
+  pInfo->log.logs = NULL;
 }
 
 int32_t tEncodeSMonDiskDesc(SCoder *encoder, const SMonDiskDesc *pDesc) {
@@ -331,7 +337,7 @@ int32_t tSerializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo) {
   if (tEncodeSMonDiskInfo(&encoder, &pInfo->tfs) < 0) return -1;
   if (tEncodeSVnodesStat(&encoder, &pInfo->vstat) < 0) return -1;
   if (tEncodeSMonSysInfo(&encoder, &pInfo->sys) < 0) return -1;
-  if (tEncodeSMonLogs(&encoder, &pInfo->logs) < 0) return -1;
+  if (tEncodeSMonLogs(&encoder, &pInfo->log) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -347,7 +353,7 @@ int32_t tDeserializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo) {
   if (tDecodeSMonDiskInfo(&decoder, &pInfo->tfs) < 0) return -1;
   if (tDecodeSVnodesStat(&decoder, &pInfo->vstat) < 0) return -1;
   if (tDecodeSMonSysInfo(&decoder, &pInfo->sys) < 0) return -1;
-  if (tDecodeSMonLogs(&decoder, &pInfo->logs) < 0) return -1;
+  if (tDecodeSMonLogs(&decoder, &pInfo->log) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -355,8 +361,10 @@ int32_t tDeserializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo) {
 }
 
 void tFreeSMonVmInfo(SMonVmInfo *pInfo) {
-  taosArrayDestroy(pInfo->logs.logs);
-  pInfo->logs.logs = NULL;
+  taosArrayDestroy(pInfo->log.logs);
+  taosArrayDestroy(pInfo->tfs.datadirs);
+  pInfo->log.logs = NULL;
+  pInfo->tfs.datadirs = NULL;
 }
 
 int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo) {
@@ -365,7 +373,7 @@ int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo) {
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeSMonSysInfo(&encoder, &pInfo->sys) < 0) return -1;
-  if (tEncodeSMonLogs(&encoder, &pInfo->logs) < 0) return -1;
+  if (tEncodeSMonLogs(&encoder, &pInfo->log) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -379,7 +387,7 @@ int32_t tDeserializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeSMonSysInfo(&decoder, &pInfo->sys) < 0) return -1;
-  if (tDecodeSMonLogs(&decoder, &pInfo->logs) < 0) return -1;
+  if (tDecodeSMonLogs(&decoder, &pInfo->log) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -387,8 +395,8 @@ int32_t tDeserializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo) {
 }
 
 void tFreeSMonQmInfo(SMonQmInfo *pInfo) {
-  taosArrayDestroy(pInfo->logs.logs);
-  pInfo->logs.logs = NULL;
+  taosArrayDestroy(pInfo->log.logs);
+  pInfo->log.logs = NULL;
 }
 
 int32_t tSerializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo) {
@@ -397,7 +405,7 @@ int32_t tSerializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo) {
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeSMonSysInfo(&encoder, &pInfo->sys) < 0) return -1;
-  if (tEncodeSMonLogs(&encoder, &pInfo->logs) < 0) return -1;
+  if (tEncodeSMonLogs(&encoder, &pInfo->log) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -411,7 +419,7 @@ int32_t tDeserializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeSMonSysInfo(&decoder, &pInfo->sys) < 0) return -1;
-  if (tDecodeSMonLogs(&decoder, &pInfo->logs) < 0) return -1;
+  if (tDecodeSMonLogs(&decoder, &pInfo->log) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -419,8 +427,8 @@ int32_t tDeserializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo) {
 }
 
 void tFreeSMonSmInfo(SMonSmInfo *pInfo) {
-  taosArrayDestroy(pInfo->logs.logs);
-  pInfo->logs.logs = NULL;
+  taosArrayDestroy(pInfo->log.logs);
+  pInfo->log.logs = NULL;
 }
 
 int32_t tSerializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo) {
@@ -429,7 +437,7 @@ int32_t tSerializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo) {
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeSMonSysInfo(&encoder, &pInfo->sys) < 0) return -1;
-  if (tEncodeSMonLogs(&encoder, &pInfo->logs) < 0) return -1;
+  if (tEncodeSMonLogs(&encoder, &pInfo->log) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -443,7 +451,7 @@ int32_t tDeserializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeSMonSysInfo(&decoder, &pInfo->sys) < 0) return -1;
-  if (tDecodeSMonLogs(&decoder, &pInfo->logs) < 0) return -1;
+  if (tDecodeSMonLogs(&decoder, &pInfo->log) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -451,8 +459,8 @@ int32_t tDeserializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo) {
 }
 
 void tFreeSMonBmInfo(SMonBmInfo *pInfo) {
-  taosArrayDestroy(pInfo->logs.logs);
-  pInfo->logs.logs = NULL;
+  taosArrayDestroy(pInfo->log.logs);
+  pInfo->log.logs = NULL;
 }
 
 int32_t tSerializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo) {

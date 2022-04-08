@@ -623,7 +623,7 @@ void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, i
   static int64_t cur_wchars = 0;
   static int64_t cur_read_bytes = 0;
   static int64_t cur_write_bytes = 0;
-  if (taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes) != 0) {
+  if (taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes) == 0) {
     *rchars = cur_rchars - last_rchars;
     *wchars = cur_wchars - last_wchars;
     *read_bytes = cur_read_bytes - last_read_bytes;
@@ -696,7 +696,7 @@ void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
 
   static int64_t cur_receive_bytes = 0;
   static int64_t cur_transmit_bytes = 0;
-  if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) != 0) {
+  if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
     *receive_bytes = cur_receive_bytes - last_receive_bytes;
     *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
     last_receive_bytes = cur_receive_bytes;
