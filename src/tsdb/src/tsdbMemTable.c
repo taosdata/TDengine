@@ -1146,15 +1146,6 @@ int32_t tsdbTableGroupInfo(STableGroupInfo* pTableGroup, int32_t * ptids) {
 int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SControlData* pCtlData = (SControlData* )pBlock->data;
-  
-  // INIT SEM FOR ASYNC WAIT COMMIT RESULT
-  if (ppSem) {
-    *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
-    ret = tsem_init(*ppSem, 0, 0);
-    if(ret != 0) {
-      return TAOS_SYSTEM_ERROR(ret);
-    }
-  }
 
   // anti-serialize
   pCtlData->command  = htonl(pCtlData->command);
@@ -1186,7 +1177,16 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     // single table
     tnum = 1;
   }
-  
+
+  // INIT SEM FOR ASYNC WAIT COMMIT RESULT
+  if (ppSem) {
+    *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
+    ret = tsem_init(*ppSem, 0, 0);
+    if(ret != 0) {
+      return TAOS_SYSTEM_ERROR(ret);
+    }
+  }
+
   // server data set 
   size_t nsize = sizeof(SControlDataInfo) + tnum * sizeof(int32_t);
   SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(nsize);
