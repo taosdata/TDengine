@@ -24,6 +24,11 @@
 #include "tutil.h"
 #include "tcompare.h"
 
+struct STupleHandle {
+  SSDataBlock* pBlock;
+  int32_t      rowIndex;
+};
+
 struct SSortHandle {
   int32_t           type;
 
@@ -678,7 +683,8 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
 }
 
 bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
-  return false;
+  SColumnInfoData* pColInfoSrc = taosArrayGet(pVHandle->pBlock->pDataBlock, colIndex);
+  return colDataIsNull(pColInfoSrc, 0, pVHandle->rowIndex, NULL);
 }
 
 void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {

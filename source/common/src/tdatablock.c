@@ -315,6 +315,7 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
   return 0;
 }
 
+// if pIndexMap = NULL, merger one column by on column
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pIndexMap) {
   assert(pSrc != NULL && pDest != NULL);
 
@@ -380,17 +381,18 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   size_t payloadSize = pageSize - (headerSize + colHeaderSize);
 
   // TODO speedup by checking if the whole page can fit in firstly.
-  /*if (!hasVarCol) {
+  if (!hasVarCol) {
     size_t  rowSize = blockDataGetRowSize(pBlock);
-    int32_t capacity = (payloadSize / (rowSize * 8 + bitmapChar * numOfCols)) * 8; //if pageSize = 128, rowSize = 2, it will core in doAddToBuf:assert(size <= getBufPageSize(pHandle->pBuf));
+    int32_t capacity = payloadSize / (rowSize + numOfCols * bitmapChar / 8.0);
+    ASSERT(capacity > 0);
 
-    *stopIndex = startIndex + capacity;
+    *stopIndex = startIndex + capacity - 1;
     if (*stopIndex >= numOfRows) {
       *stopIndex = numOfRows - 1;
     }
 
     return TSDB_CODE_SUCCESS;
-  }*/
+  }
   // iterate the rows that can be fit in this buffer page
   int32_t size = (headerSize + colHeaderSize);
 
@@ -532,7 +534,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 
     size_t metaSize = pBlock->info.rows * sizeof(int32_t);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      char* tmp = taosMemoryRealloc(pCol->varmeta.offset, metaSize);
+      char* tmp = taosMemoryRealloc(pCol->varmeta.offset, metaSize);    // preview calloc is too small
       if (tmp == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }

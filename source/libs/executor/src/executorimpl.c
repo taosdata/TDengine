@@ -4734,8 +4734,7 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHan
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
 
-    SColumnInfoData* pColInfoSrc = taosArrayGet(pTupleHandle->pBlock->pDataBlock, i);
-    bool isNull = colDataIsNull(pColInfoSrc, 0, pTupleHandle->rowIndex, NULL);
+    bool isNull = tsortIsNullVal(pTupleHandle, i);
     if (isNull) {
       colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
     } else {
