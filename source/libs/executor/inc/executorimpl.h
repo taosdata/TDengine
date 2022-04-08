@@ -563,6 +563,27 @@ typedef struct SGroupbyOperatorInfo {
   SAggSupporter  aggSup;
 } SGroupbyOperatorInfo;
 
+typedef struct SDataGroupInfo {
+  uint64_t groupId;
+  int64_t  numOfRows;
+  SArray  *pPageList;
+} SDataGroupInfo;
+
+// The sort in partition may be needed later.
+typedef struct SPartitionOperatorInfo {
+  SOptrBasicInfo binfo;
+  SArray*        pGroupCols;
+  SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
+  bool           isInit;        // denote if current val is initialized or not
+  char*          keyBuf;        // group by keys for hash
+  int32_t        groupKeyLen;   // total group by column width
+  SHashObj*      pGroupSet;     // quick locate the window object for each result
+  SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
+
+  void*          pGroupIter;    // group iterator
+  int32_t        pageIndex;     // page index of current group
+} SPartitionOperatorInfo;
+
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo   binfo;
   SAggSupporter    aggSup;
