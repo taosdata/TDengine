@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 #include "tdbInt.h"
 typedef struct SPoolMem {

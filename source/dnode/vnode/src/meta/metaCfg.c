@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 const SMetaCfg defaultMetaOptions = {.lruSize = 0};
 

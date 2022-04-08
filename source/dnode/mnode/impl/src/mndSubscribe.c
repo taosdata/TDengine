@@ -60,7 +60,7 @@ static int32_t mndProcessResetOffsetReq(SNodeMsg *pMsg);
 static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqTopicObj *pTopic, const char *cgroup,
                                       const SMqConsumerEp *pConsumerEp);
 
-static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp);
+static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp, const char* topicName);
 static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp, const char* oldTopicName);
 
 int32_t mndInitSubscribe(SMnode *pMnode) {
@@ -102,12 +102,13 @@ static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj 
   return pSub;
 }
 
-static int32_t mndBuildRebalanceMsg(void **pBuf, int32_t *pLen, const SMqConsumerEp *pConsumerEp) {
+static int32_t mndBuildRebalanceMsg(void **pBuf, int32_t *pLen, const SMqConsumerEp *pConsumerEp, const char* topicName) {
   SMqMVRebReq req = {
       .vgId = pConsumerEp->vgId,
       .oldConsumerId = pConsumerEp->oldConsumerId,
       .newConsumerId = pConsumerEp->consumerId,
   };
+  req.topic = strdup(topicName);
 
   int32_t tlen = tEncodeSMqMVRebReq(NULL, &req);
   void   *buf = taosMemoryMalloc(sizeof(SMsgHead) + tlen);
@@ -122,6 +123,7 @@ static int32_t mndBuildRebalanceMsg(void **pBuf, int32_t *pLen, const SMqConsume
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tEncodeSMqMVRebReq(&abuf, &req);
+  taosMemoryFree(req.topic);
 
   *pBuf = buf;
   *pLen = tlen;
@@ -129,12 +131,12 @@ static int32_t mndBuildRebalanceMsg(void **pBuf, int32_t *pLen, const SMqConsume
   return 0;
 }
 
-static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp) {
+static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp, const char* topicName) {
   ASSERT(pConsumerEp->oldConsumerId != -1);
 
   void   *buf;
   int32_t tlen;
-  if (mndBuildRebalanceMsg(&buf, &tlen, pConsumerEp) < 0) {
+  if (mndBuildRebalanceMsg(&buf, &tlen, pConsumerEp, topicName) < 0) {
     return -1;
   }
 
@@ -502,10 +504,10 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
             pConsumerEp->epoch = 0;
             taosArrayPush(pSubConsumer->vgInfo, pConsumerEp);
 
+            char topic[TSDB_TOPIC_FNAME_LEN];
+            char cgroup[TSDB_CGROUP_LEN];
+            mndSplitSubscribeKey(pSub->key, topic, cgroup);
             if (pConsumerEp->oldConsumerId == -1) {
-              char topic[TSDB_TOPIC_FNAME_LEN];
-              char cgroup[TSDB_CGROUP_LEN];
-              mndSplitSubscribeKey(pSub->key, topic, cgroup);
               SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
 
               mInfo("mq set conn: assign vgroup %d of topic %s to consumer %" PRId64 " cgroup: %s", pConsumerEp->vgId,
@@ -517,7 +519,7 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
               mInfo("mq rebalance: assign vgroup %d, from consumer %" PRId64 " to consumer %" PRId64 "",
                     pConsumerEp->vgId, pConsumerEp->oldConsumerId, pConsumerEp->consumerId);
 
-              mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp);
+              mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp, topic);
             }
           }
         }
@@ -849,7 +851,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
                 pConsumerEp->consumerId);
           mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
         } else {
-          mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp);
+          mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp, newTopicName);
         }
         // to trigger rebalance at once, do not set status active
         /*atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);*/

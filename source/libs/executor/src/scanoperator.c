@@ -28,7 +28,7 @@
 #include "query.h"
 #include "tcompare.h"
 #include "thash.h"
-#include "tsdb.h"
+#include "vnode.h"
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
@@ -254,6 +254,11 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pOperator->numOfOutput  = numOfOutput;
   pOperator->getNextFn    = doTableScan;
   pOperator->pTaskInfo    = pTaskInfo;
+
+  static int32_t cost = 0;
+  pOperator->cost.openCost = ++cost;
+  pOperator->cost.totalCost = ++cost;
+  pOperator->resultInfo.totalRows = ++cost;
 
   return pOperator;
 }
