@@ -689,6 +689,40 @@ _OVER:
   return code;
 }
 
+static int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
+  int32_t      code = -1;
+  SSmaObj     *pSma = NULL;
+
+  pSma = mndAcquireSma(pMnode, indexReq.indexFName);
+  if (pSma == NULL) {
+    //TODO TRY TO GET INDEX FROM FULLTEXT
+    *exist = false;
+    return 0;
+  }
+
+  memcpy(rsp->dbFName, pSma->db, sizeof(pSma->db));
+  memcpy(rsp->tblFName, pSma->stb, sizeof(pSma->stb));
+  strcpy(rsp->indexType, TSDB_INDEX_TYPE_SMA);
+
+  SNodeList *pList = NULL;
+  int32_t extOffset = 0;
+  code = nodesStringToList(pSma->expr, &pList);
+  if (0 == code) {
+    SNode *node = NULL;
+    FOREACH(node, pList) {
+      SFunctionNode *pFunc = (SFunctionNode *)node;
+      extOffset += snprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s", (extOffset ? ",":""), pFunc->functionName);
+    }
+
+    *exist = true;
+  }
+
+  mndReleaseSma(pMnode, pSma);
+
+  return code;
+}
+
+
 static int32_t mndProcessVDropSmaRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;

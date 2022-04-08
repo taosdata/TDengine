@@ -109,6 +109,9 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
 
+#define TSDB_INDEX_TYPE_SMA      "SMA"
+#define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
+
 #define TSDB_INS_USER_STABLES_DBNAME_COLID    2
 
 #define TSDB_TICK_PER_SECOND(precision)                      \
@@ -213,6 +216,9 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
 #define TSDB_INDEX_NAME_LEN      65  // 64 + 1 '\0'
+#define TSDB_INDEX_TYPE_LEN      10
+#define TSDB_INDEX_EXTS_LEN      256
+#define TSDB_INDEX_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_INDEX_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN

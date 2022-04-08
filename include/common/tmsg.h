@@ -2294,6 +2294,24 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
 }
 
 typedef struct {
+  char indexFName[TSDB_INDEX_FNAME_LEN];
+} SUserIndexReq;
+
+int32_t tSerializeSUserIndexReq(void* buf, int32_t bufLen, SUserIndexReq* pReq);
+int32_t tDeserializeSUserIndexReq(void* buf, int32_t bufLen, SUserIndexReq* pReq);
+
+typedef struct {
+  char dbFName[TSDB_DB_FNAME_LEN];
+  char tblFName[TSDB_TABLE_FNAME_LEN];
+  char colName[TSDB_COL_NAME_LEN];
+  char indexType[TSDB_INDEX_TYPE_LEN];
+  char indexExts[TSDB_INDEX_EXTS_LEN];
+} SUserIndexRsp;
+
+int32_t tSerializeSUserIndexRsp(void* buf, int32_t bufLen, const SUserIndexRsp* pRsp);
+int32_t tDeserializeSUserIndexRsp(void* buf, int32_t bufLen, SUserIndexRsp* pRsp);
+
+typedef struct {
   int8_t  mqMsgType;
   int32_t code;
   int32_t epoch;
