@@ -260,6 +260,7 @@ typedef struct {
   int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -268,6 +269,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
+  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;
 } SDbCfg;
