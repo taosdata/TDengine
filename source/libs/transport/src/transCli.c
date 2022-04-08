@@ -944,8 +944,8 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
 
-  tDebug("send request at thread:%d %p, dst: %s:%d", index, pMsg, ip, port);
-  transSendAsync(thrd->asyncPool, &(cliMsg->q));
+  tDebug("send request at thread:%d %p, dst: %s:%d, app:%p", index, pMsg, ip, port, pMsg->ahandle);
+  ASSERT(transSendAsync(thrd->asyncPool, &(cliMsg->q)) == 0);
 }
 
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pReq, STransMsg* pRsp) {

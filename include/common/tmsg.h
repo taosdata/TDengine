@@ -2310,6 +2310,7 @@ typedef struct {
   char    cgroup[TSDB_CGROUP_LEN];
 
   int64_t currentOffset;
+  uint64_t reqId;
   char    topic[TSDB_TOPIC_FNAME_LEN];
 } SMqPollReq;
 
