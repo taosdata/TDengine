@@ -416,8 +416,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
   streamObj.createdBy = STREAM_CREATED_BY__SMA;
-  // TODO
-  streamObj.fixedSinkVgId = 0;
+  streamObj.fixedSinkVgId = smaObj.dstVgId;
   streamObj.smaId = smaObj.uid;
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
