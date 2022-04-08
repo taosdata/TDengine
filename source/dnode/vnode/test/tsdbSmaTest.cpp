@@ -20,7 +20,7 @@
 #include <tglobal.h>
 #include <iostream>
 
-#include <metaDef.h>
+#include <vnodeInt.h>
 #include <tmsg.h>
 
 #pragma GCC diagnostic push

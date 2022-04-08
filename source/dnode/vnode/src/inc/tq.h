@@ -13,18 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#ifndef _TD_VNODE_TQ_H_
+#define _TD_VNODE_TQ_H_
 
-int metaOpenUidGnrt(SMeta *pMeta) {
-  // Init a generator
-  pMeta->uidGnrt.nextUid = IVLD_TB_UID;
-  return 0;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
+#ifdef __cplusplus
 }
+#endif
 
-tb_uid_t metaGenerateUid(SMeta *pMeta) {
-  // Generate a new table UID
-  return tGenIdPI64();
-}
+#endif /*_TD_VNODE_TQ_H_*/

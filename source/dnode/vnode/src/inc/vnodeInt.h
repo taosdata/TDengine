@@ -205,6 +205,12 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t wo
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
+#include "meta.h"
+
+#include "tsdb.h"
+
+#include "tq.h"
+
 #ifdef __cplusplus
 }
 #endif
