@@ -191,6 +191,10 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
+    case TDMT_VND_MQ_CANCEL_CONN: {
+      if (tqProcessCancelConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
+      }
+    } break;
     case TDMT_VND_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
@@ -202,17 +206,17 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-#if 1
+#if 0
 
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        vWarn("vgId%d: TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId,
+        vWarn("vgId:%d TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId,
               terrstr(terrno));
         return -1;
       }
-      vWarn("vgId%d: TDMT_VND_CREATE_SMA received for %s:%" PRIi64, pVnode->config.vgId, vCreateSmaReq.tSma.indexName,
-            vCreateSmaReq.tSma.indexUid);
+      vDebug("vgId:%d TDMT_VND_CREATE_SMA msg received for %s:%" PRIi64, pVnode->config.vgId,
+             vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid);
 
       // record current timezone of server side
       vCreateSmaReq.tSma.timezoneInt = tsTimezone;
@@ -222,19 +226,24 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         tdDestroyTSma(&vCreateSmaReq.tSma);
         return -1;
       }
-      // TODO: send msg to stream computing to create tSma
-      // if ((send msg to stream computing) < 0) {
-      //   tdDestroyTSma(&vCreateSmaReq);
-      //   return -1;
-      // }
+
+      tsdbTSmaAdd(pVnode->pTsdb, 1);
+
       tdDestroyTSma(&vCreateSmaReq.tSma);
       // TODO: return directly or go on follow steps?
 #endif
+      if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
+        // TODO
+      }
     } break;
     case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
     } break;
     case TDMT_VND_DROP_SMA: {  // timeRangeSMA
+      if (tsdbDropTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
+        // TODO
+      }
 #if 0    
+      tsdbTSmaSub(pVnode->pTsdb, 1);
       SVDropTSmaReq vDropSmaReq = {0};
       if (tDeserializeSVDropTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vDropSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;

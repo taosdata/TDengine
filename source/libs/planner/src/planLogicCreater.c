@@ -701,7 +701,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExpr(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_SELECT);
+    code = rewriteExpr(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_DISTINCT);
   }
 
   // set the output

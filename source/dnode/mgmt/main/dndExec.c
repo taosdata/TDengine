@@ -66,7 +66,7 @@ void dndCloseNode(SMgmtWrapper *pWrapper) {
 }
 
 
-static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
+static int32_t dndNewProc(SMgmtWrapper *pWrapper, EDndType n) {
   char  tstr[8] = {0};
   char *args[6] = {0};
   snprintf(tstr, sizeof(tstr), "%d", n);
@@ -89,6 +89,7 @@ static int32_t dndNewProc(SMgmtWrapper *pWrapper, ENodeType n) {
 }
 
 static void dndProcessProcHandle(void *handle) {
+  dWarn("handle:%p, the child process dies and send an offline rsp", handle);
   SRpcMsg rpcMsg = {.handle = handle, .code = TSDB_CODE_DND_OFFLINE};
   rpcSendResponse(&rpcMsg);
 }
@@ -96,7 +97,7 @@ static void dndProcessProcHandle(void *handle) {
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process");
 
-  for (ENodeType n = DNODE; n < NODE_MAX; ++n) {
+  for (EDndType n = DNODE; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
@@ -109,7 +110,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
   dndSetStatus(pDnode, DND_STAT_RUNNING);
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+  for (EDndType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
     if (pWrapper->fp.startFp == NULL) continue;
@@ -141,12 +142,25 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     return -1;
   }
 
-  for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+  for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
-    int32_t shmsize = 1024 * 1024 * 2;  // size will be a configuration item
+    int32_t shmsize = tsMnodeShmSize;
+    if (n == VNODES) {
+      shmsize = tsVnodeShmSize;
+    } else if (n == QNODE) {
+      shmsize = tsQnodeShmSize;
+    } else if (n == SNODE) {
+      shmsize = tsSnodeShmSize;
+    } else if (n == MNODE) {
+      shmsize = tsMnodeShmSize;
+    } else if (n == BNODE) {
+      shmsize = tsBnodeShmSize;
+    } else {
+    }
+
     if (taosCreateShm(&pWrapper->shm, n, shmsize) != 0) {
       terrno = TAOS_SYSTEM_ERROR(terrno);
       dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());
@@ -169,7 +183,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     return -1;
   }
 
-  for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+  for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
 
@@ -202,7 +216,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       dInfo("dnode is about to stop");
       dndSetStatus(pDnode, DND_STAT_STOPPED);
 
-      for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+      for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
         if (pDnode->ntype == NODE_MAX) continue;
@@ -217,13 +231,13 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       }
       break;
     } else {
-      for (ENodeType n = DNODE + 1; n < NODE_MAX; ++n) {
+      for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
         if (pDnode->ntype == NODE_MAX) continue;
 
         if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
-          dInfo("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
+          dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
           taosProcCloseHandles(pWrapper->pProc, dndProcessProcHandle);
           dndNewProc(pWrapper, n);
         }

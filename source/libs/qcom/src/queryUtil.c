@@ -97,18 +97,14 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 static void* pTaskQueue = NULL;
 
 int32_t initTaskQueue() {
-  double factor = 4.0;
-
-  int32_t numOfThreads = TMAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
-
   int32_t queueSize = tsMaxConnections * 2;
-  pTaskQueue = taosInitScheduler(queueSize, numOfThreads, "tsc");
+  pTaskQueue = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc");
   if (NULL == pTaskQueue) {
     qError("failed to init task queue");
     return -1;
   }
 
-  qDebug("task queue is initialized, numOfThreads: %d", numOfThreads);
+  qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 

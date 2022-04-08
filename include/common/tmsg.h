@@ -273,11 +273,11 @@ typedef struct {
   char     name[TSDB_COL_NAME_LEN];
 } SSchemaEx;
 
-#define SSCHMEA_TYPE(s) ((s)->type)
-#define SSCHMEA_SMA(s) ((s)->sma)
+#define SSCHMEA_TYPE(s)  ((s)->type)
+#define SSCHMEA_SMA(s)   ((s)->sma)
 #define SSCHMEA_COLID(s) ((s)->colId)
 #define SSCHMEA_BYTES(s) ((s)->bytes)
-#define SSCHMEA_NAME(s) ((s)->name)
+#define SSCHMEA_NAME(s)  ((s)->name)
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -483,7 +483,8 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char    offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -934,12 +935,12 @@ typedef struct SExplainExecInfo {
   uint64_t startupCost;
   uint64_t totalCost;
   uint64_t numOfRows;
-  void    *verboseInfo;
+  void*    verboseInfo;
 } SExplainExecInfo;
 
 typedef struct {
   int32_t           numOfPlans;
-  SExplainExecInfo *subplanInfo;
+  SExplainExecInfo* subplanInfo;
 } SExplainRsp;
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
@@ -1432,12 +1433,12 @@ typedef struct SVCreateTbReq {
   };
   union {
     struct {
-      tb_uid_t   suid;
-      col_id_t   nCols;
-      col_id_t   nBSmaCols;
-      SSchemaEx* pSchema;
-      col_id_t   nTagCols;
-      SSchema*   pTagSchema;
+      tb_uid_t    suid;
+      col_id_t    nCols;
+      col_id_t    nBSmaCols;
+      SSchemaEx*  pSchema;
+      col_id_t    nTagCols;
+      SSchema*    pTagSchema;
       SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
@@ -1445,9 +1446,9 @@ typedef struct SVCreateTbReq {
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      col_id_t   nCols;
-      col_id_t   nBSmaCols;
-      SSchemaEx* pSchema;
+      col_id_t    nCols;
+      col_id_t    nBSmaCols;
+      SSchemaEx*  pSchema;
       SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
@@ -1827,6 +1828,7 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
 typedef struct {
   int64_t leftForVer;
   int32_t vgId;
+  int32_t epoch;
   int64_t consumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CGROUP_LEN];
@@ -1840,6 +1842,7 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pReq->leftForVer);
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
+  tlen += taosEncodeFixedI32(buf, pReq->epoch);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->topicName);
   tlen += taosEncodeString(buf, pReq->cgroup);
@@ -1853,6 +1856,7 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
 static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeFixedI64(buf, &pReq->leftForVer);
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
+  buf = taosDecodeFixedI32(buf, &pReq->epoch);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->topicName);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
@@ -1866,8 +1870,40 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
 typedef struct {
   int64_t leftForVer;
   int32_t vgId;
+  int32_t epoch;
+  int64_t consumerId;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+} SMqCancelConnReq;
+
+static FORCE_INLINE int32_t tEncodeSMqCancelConnReq(void** buf, const SMqCancelConnReq* pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pReq->leftForVer);
+  tlen += taosEncodeFixedI32(buf, pReq->vgId);
+  tlen += taosEncodeFixedI32(buf, pReq->epoch);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  tlen += taosEncodeString(buf, pReq->topicName);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqCancelConnReq(void* buf, SMqCancelConnReq* pReq) {
+  buf = taosDecodeFixedI64(buf, &pReq->leftForVer);
+  buf = taosDecodeFixedI32(buf, &pReq->vgId);
+  buf = taosDecodeFixedI32(buf, &pReq->epoch);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  buf = taosDecodeStringTo(buf, pReq->topicName);
+  return buf;
+}
+
+typedef struct {
+  int8_t reserved;
+} SMqCancelConnRsp;
+
+typedef struct {
+  int64_t leftForVer;
+  int32_t vgId;
   int64_t oldConsumerId;
   int64_t newConsumerId;
+  char*   topic;
 } SMqMVRebReq;
 
 static FORCE_INLINE int32_t tEncodeSMqMVRebReq(void** buf, const SMqMVRebReq* pReq) {
@@ -1876,6 +1912,7 @@ static FORCE_INLINE int32_t tEncodeSMqMVRebReq(void** buf, const SMqMVRebReq* pR
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
   tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
+  tlen += taosEncodeString(buf, pReq->topic);
   return tlen;
 }
 
@@ -1884,6 +1921,7 @@ static FORCE_INLINE void* tDecodeSMqMVRebReq(void* buf, SMqMVRebReq* pReq) {
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
   buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
+  buf = taosDecodeString(buf, &pReq->topic);
   return buf;
 }
 

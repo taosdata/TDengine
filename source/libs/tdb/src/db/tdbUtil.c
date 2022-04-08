@@ -32,3 +32,16 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
 
   return 0;
 }
+
+int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size) {
+  int     ret;
+  int64_t szBytes;
+
+  ret = tdbOsFileSize(fd, &szBytes);
+  if (ret < 0) {
+    return -1;
+  }
+
+  *size = szBytes / szPage;
+  return 0;
+}

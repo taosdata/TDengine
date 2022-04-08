@@ -226,7 +226,7 @@ void loop_consume(tmq_t* tmq) {
   int32_t totalRows = 0;
   int32_t skipLogNum = 0;
   while (running) {
-    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, 3000);
+    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, 4000);
     if (tmqMsg) {
 	  totalMsgs++;
 
@@ -273,6 +273,10 @@ int main(int32_t argc, char *argv[]) {
   }
   
   loop_consume(tmq);
+
+  err = tmq_unsubscribe(tmq);
+  ASSERT(err == TMQ_RESP_ERR__SUCCESS);
+
 
   #if 0
   err = tmq_unsubscribe(tmq);
