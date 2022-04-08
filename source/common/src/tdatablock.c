@@ -615,7 +615,7 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
     }
 
     memcpy(pCol->pData, pStart, colLength);
-    pStart += colLength;
+    pStart += pCol->info.bytes * capacity;
   }
 
   return TSDB_CODE_SUCCESS;

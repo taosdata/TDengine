@@ -360,7 +360,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
-
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
     SDataGroupInfo* p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
@@ -398,9 +397,12 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     int32_t* rows = (int32_t*) pPage;
 
-    size_t numOfCols = pInfo->binfo.pRes->info.numOfCols;
+    size_t numOfCols = pOperator->numOfOutput;
     for(int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      SExprInfo* pExpr = &pOperator->pExpr[i];
+      int32_t slotId = pExpr->base.pParam[0].pCol->slotId;
+
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
 
       int32_t bytes = pColInfoData->info.bytes;
       int32_t startOffset = pInfo->columnOffset[i];
@@ -538,7 +540,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pInfo->columnOffset);
 }
 
-SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResultBlock, SArray* pGroupColList,
+SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
   SPartitionOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SPartitionOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -561,7 +563,6 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBloc
 
   pInfo->rowCapacity = blockDataGetCapacityInRow(pResultBlock, getBufPageSize(pInfo->pBuf));
   pInfo->columnOffset = setupColumnOffset(pResultBlock, pInfo->rowCapacity);
-
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -573,7 +574,8 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBloc
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
 
   pInfo->binfo.pRes       = pResultBlock;
-  pOperator->numOfOutput  = pResultBlock->info.numOfCols;
+  pOperator->numOfOutput  = numOfCols;
+  pOperator->pExpr        = pExprInfo;
   pOperator->info         = pInfo;
   pOperator->_openFn      = operatorDummyOpenFn;
   pOperator->getNextFn    = hashPartition;

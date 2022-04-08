@@ -7056,6 +7056,7 @@ static SArray* extractScanColumnId(SNodeList* pNodeList);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols);
 static SArray* createSortInfo(SNodeList* pNodeList);
+static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                         uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
@@ -7165,9 +7166,13 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     return createSessionAggOperatorInfo(op, pExprInfo, num, pResBlock, pSessionNode->gap, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     SPartitionPhysiNode* pPartNode = (SPartitionPhysiNode*) pPhyNode;
-    SArray* pColList = extractColumnInfo(pPartNode->pPartitionKeys);
+    SArray* pColList = extractPartitionColInfo(pPartNode->pPartitionKeys);
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
-    return createPartitionOperatorInfo(op, pResBlock, pColList, pTaskInfo, NULL);
+
+    int32_t num = 0;
+    SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &num);
+
+    return createPartitionOperatorInfo(op, pExprInfo, num, pResBlock, pColList, pTaskInfo, NULL);
   } else {
     ASSERT(0);
   } /*else if (pPhyNode->info.type == OP_MultiTableAggregate) {
@@ -7249,6 +7254,32 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+
+    // todo extract method
+    SColumn c = {0};
+    c.slotId = pColNode->slotId;
+    c.colId  = pColNode->colId;
+    c.type   = pColNode->node.resType.type;
+    c.bytes  = pColNode->node.resType.bytes;
+    c.precision = pColNode->node.resType.precision;
+    c.scale = pColNode->node.resType.scale;
+
+    taosArrayPush(pList, &c);
+  }
+
+  return pList;
+}
+
+SArray* extractPartitionColInfo(SNodeList* pNodeList) {
+  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
+  if (pList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
 
     // todo extract method
     SColumn c = {0};
