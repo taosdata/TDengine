@@ -1,8 +1,7 @@
 ---
 sidebar_label: collectd
+title: collectd 写入
 ---
-
-# collectd 写入
 
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 

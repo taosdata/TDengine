@@ -1,8 +1,8 @@
 ---
 sidebar_label: JSON 类型使用说明
+title: JSON 类型使用说明
 ---
 
-# JSON 类型使用说明
 
 ## 语法说明
 
