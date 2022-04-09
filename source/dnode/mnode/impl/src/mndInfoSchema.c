@@ -44,7 +44,7 @@ static const SInfosTableSchema modulesSchema[] = {
 };
 static const SInfosTableSchema qnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = 134, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema userDBSchema[] = {

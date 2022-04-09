@@ -2042,7 +2042,7 @@ static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_DND_CREATE_QNODE;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_QNODE;
   pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
@@ -2061,7 +2061,7 @@ static int32_t translateDropQnode(STranslateContext* pCxt, SDropQnodeStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_DND_DROP_QNODE;
+  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_QNODE;
   pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
