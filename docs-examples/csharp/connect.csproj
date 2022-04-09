@@ -1,6 +1,3 @@
-首先添加 [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/) 的引用：
-
-```xml title=csharp.csproj
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -16,8 +13,3 @@
   </ItemGroup>
 
 </Project>
-```
-
-```csharp
-{{#include docs-examples/csharp/ConnectExample.cs}}
-```
