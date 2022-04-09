@@ -52,16 +52,14 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
     void *pIter = taosHashIterate(pCtx->groupHash, NULL);
     while (pIter) {
       SExplainGroup *group = (SExplainGroup *)pIter;
-      if (NULL == group->nodeExecInfo) {
-        continue;
+      if (group->nodeExecInfo) {
+        int32_t num = taosArrayGetSize(group->nodeExecInfo);
+        for (int32_t i = 0; i < num; ++i) {
+          SExplainRsp *rsp = taosArrayGet(group->nodeExecInfo, i);
+          taosMemoryFreeClear(rsp->subplanInfo);
+        }
       }
       
-      int32_t num = taosArrayGetSize(group->nodeExecInfo);
-      for (int32_t i = 0; i < num; ++i) {
-        SExplainRsp *rsp = taosArrayGet(group->nodeExecInfo, i);
-        taosMemoryFreeClear(rsp->subplanInfo);
-      }
-    
       pIter = taosHashIterate(pCtx->groupHash, pIter);
     }
   }

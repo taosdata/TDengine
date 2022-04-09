@@ -79,6 +79,7 @@ typedef struct SQWConnInfo {
 
 typedef struct SQWMsg {
   void        *node;
+  int32_t      code;
   char        *msg;
   int32_t      msgLen;
   SQWConnInfo  connInfo;
