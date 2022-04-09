@@ -10124,8 +10124,8 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
+      tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
 
-      tVariant value = pSqlExpr->value;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx)->pTableMeta;
       if (pCols != NULL) {
         size_t colSize = taosArrayGetSize(pCols);
@@ -10134,14 +10134,12 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
           SColIndex* idx = taosArrayGet(pCols, colSize - 1);
 
           SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
-          value.nType = pSchema->type;
           // convert time by precision
           if (pSchema != NULL && TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && TSDB_DATA_TYPE_BINARY == (*pExpr)->pVal->nType) {
             ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
           }
         }
       }
-      tVariantAssign((*pExpr)->pVal, &value);
       return ret;
     } else if (pSqlExpr->type == SQL_NODE_TABLE_COLUMN) {  // column name, normal column arithmetic expression
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
