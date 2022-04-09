@@ -184,8 +184,6 @@ static void getNextTimeWindow(SInterval* pInterval, int32_t precision, int32_t o
 }
 
 static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
-void        setResultRowOutputBufInitCtx(STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResult, SqlFunctionCtx* pCtx,
-                                         int32_t numOfOutput, int32_t* rowCellInfoOffset);
 static bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 
 static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SSDataBlock* pSDataBlock, SColumn* pColumn);
@@ -672,36 +670,6 @@ static bool chkWindowOutputBufByKey(STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo
                                     int32_t numOfOutput, int32_t* rowCellInfoOffset) {
   assert(win->skey <= win->ekey);
   return chkResultRowFromKey(pRuntimeEnv, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE, masterscan, groupId);
-}
-
-static int32_t setResultOutputBufByKey(STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo, int64_t tid,
-                                       STimeWindow* win, bool masterscan, SResultRow** pResult, int64_t tableGroupId,
-                                       SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset) {
-  assert(win->skey <= win->ekey);
-  SDiskbasedBuf* pResultBuf = pRuntimeEnv->pResultBuf;
-
-  SResultRow* pResultRow = NULL;//doSetResultOutBufByKey(pRuntimeEnv, pResultRowInfo, tid, (char*)&win->skey, TSDB_KEYSIZE,
-//                                                  masterscan, tableGroupId);
-  if (pResultRow == NULL) {
-    *pResult = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  // not assign result buffer yet, add new result buffer
-  if (pResultRow->pageId == -1) {
-    int32_t ret = addNewWindowResultBuf(pResultRow, pResultBuf, (int32_t)tableGroupId,
-                                        pRuntimeEnv->pQueryAttr->intermediateResultRowSize);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return -1;
-    }
-  }
-
-  // set time window for current result
-  pResultRow->win = (*win);
-  *pResult = pResultRow;
-  setResultRowOutputBufInitCtx(pRuntimeEnv, pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
-
-  return TSDB_CODE_SUCCESS;
 }
 
 static void setResultRowOutputBufInitCtx_rv(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
@@ -1588,8 +1556,8 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
 
   while (1) {
     // null data, failed to allocate more memory buffer
-    ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult,
-                                  tableGroupId, pInfo->binfo.pCtx, numOfOutput, pInfo->binfo.rowCellInfoOffset);
+//    ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult,
+//                                  tableGroupId, pInfo->binfo.pCtx, numOfOutput, pInfo->binfo.rowCellInfoOffset);
     if (ret != TSDB_CODE_SUCCESS) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
@@ -2779,14 +2747,10 @@ static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t num
 }
 
 void setTagValue(SOperatorInfo* pOperatorInfo, void* pTable, SqlFunctionCtx* pCtx, int32_t numOfOutput) {
-  STaskRuntimeEnv* pRuntimeEnv = pOperatorInfo->pRuntimeEnv;
-
   SExprInfo* pExpr = pOperatorInfo->pExpr;
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-
   SExprInfo* pExprInfo = &pExpr[0];
   int32_t    functionId = getExprFunctionId(pExprInfo);
-
+#if 0
   if (pQueryAttr->numOfOutput == 1 && functionId == FUNCTION_TS_COMP && pQueryAttr->stableQuery) {
     assert(pExprInfo->base.numOfParams == 1);
 
@@ -2831,6 +2795,8 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void* pTable, SqlFunctionCtx* pCt
   if (pRuntimeEnv->pTsBuf != NULL) {
     setCtxTagForJoin(pRuntimeEnv, &pCtx[0], pExprInfo, pTable);
   }
+#endif
+
 }
 
 void copyToSDataBlock(SSDataBlock* pBlock, int32_t* offset, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pResBuf) {
@@ -3129,39 +3095,6 @@ void destroyTableQueryInfoImpl(STableQueryInfo* pTableQueryInfo) {
 
   //  taosVariantDestroy(&pTableQueryInfo->tag);
   cleanupResultRowInfo(&pTableQueryInfo->resInfo);
-}
-
-void setResultRowOutputBufInitCtx(STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResult, SqlFunctionCtx* pCtx,
-                                  int32_t numOfOutput, int32_t* rowCellInfoOffset) {
-  // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group
-  SFilePage* bufPage = getBufPage(pRuntimeEnv->pResultBuf, pResult->pageId);
-
-  int32_t offset = 0;
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
-
-    struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
-    if (isRowEntryCompleted(pResInfo) && isRowEntryInitialized(pResInfo)) {
-      offset += pCtx[i].resDataInfo.bytes;
-      continue;
-    }
-
-    pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, bufPage, pResult->offset, offset);
-    offset += pCtx[i].resDataInfo.bytes;
-
-    int32_t functionId = pCtx[i].functionId;
-    if (functionId < 0) {
-      continue;
-    }
-
-    if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
-//      if (i > 0) pCtx[i].pTsOutput = pCtx[i - 1].pOutput;
-    }
-
-    //    if (!pResInfo->initialized) {
-    //      aAggs[functionId].init(&pCtx[i], pResInfo);
-    //    }
-  }
 }
 
 void setResultRowOutputBufInitCtx_rv(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset) {
