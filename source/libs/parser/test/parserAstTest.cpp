@@ -648,6 +648,48 @@ TEST_F(ParserTest, dropQnode) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, createBnode) {
+  setDatabase("root", "test");
+
+  bind("create bnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropBnode) {
+  setDatabase("root", "test");
+
+  bind("drop bnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createSnode) {
+  setDatabase("root", "test");
+
+  bind("create snode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropSnode) {
+  setDatabase("root", "test");
+
+  bind("drop snode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createMnode) {
+  setDatabase("root", "test");
+
+  bind("create mnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropMnode) {
+  setDatabase("root", "test");
+
+  bind("drop mnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, createTopic) {
   setDatabase("root", "test");
 

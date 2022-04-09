@@ -2034,7 +2034,23 @@ static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* pStmt) {
+static int16_t getCreateComponentNodeMsgType(ENodeType type) {
+  switch (type) {
+    case QUERY_NODE_CREATE_QNODE_STMT:
+      return TDMT_MND_CREATE_QNODE;
+    case QUERY_NODE_CREATE_BNODE_STMT:
+      return TDMT_MND_CREATE_BNODE;
+    case QUERY_NODE_CREATE_SNODE_STMT:
+      return TDMT_MND_CREATE_SNODE;
+    case QUERY_NODE_CREATE_MNODE_STMT:
+      return TDMT_MND_CREATE_MNODE;
+    default:
+      break;
+  }
+  return -1;
+}
+
+static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = { .dnodeId = pStmt->dnodeId };
 
   pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
@@ -2042,8 +2058,8 @@ static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_QNODE;
-  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->msgType = getCreateComponentNodeMsgType(nodeType(pStmt));
+  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2053,7 +2069,23 @@ static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateDropQnode(STranslateContext* pCxt, SDropQnodeStmt* pStmt) {
+static int16_t getDropComponentNodeMsgType(ENodeType type) {
+  switch (type) {
+    case QUERY_NODE_DROP_QNODE_STMT:
+      return TDMT_MND_DROP_QNODE;
+    case QUERY_NODE_DROP_BNODE_STMT:
+      return TDMT_MND_DROP_BNODE;
+    case QUERY_NODE_DROP_SNODE_STMT:
+      return TDMT_MND_DROP_SNODE;
+    case QUERY_NODE_DROP_MNODE_STMT:
+      return TDMT_MND_DROP_MNODE;
+    default:
+      break;
+  }
+  return -1;
+}
+
+static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = { .dnodeId = pStmt->dnodeId };
 
   pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
@@ -2061,8 +2093,8 @@ static int32_t translateDropQnode(STranslateContext* pCxt, SDropQnodeStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_QNODE;
-  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+  pCxt->pCmdMsg->msgType = getDropComponentNodeMsgType(nodeType(pStmt));
+  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2226,10 +2258,16 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDropIndex(pCxt, (SDropIndexStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_QNODE_STMT:
-      code = translateCreateQnode(pCxt, (SCreateQnodeStmt*)pNode);
+    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_SNODE_STMT:
+    case QUERY_NODE_CREATE_MNODE_STMT:
+      code = translateCreateComponentNode(pCxt, (SCreateComponentNodeStmt*)pNode);
       break;
     case QUERY_NODE_DROP_QNODE_STMT:
-      code = translateDropQnode(pCxt, (SDropQnodeStmt*)pNode);
+    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_SNODE_STMT:
+    case QUERY_NODE_DROP_MNODE_STMT:
+      code = translateDropComponentNode(pCxt, (SDropComponentNodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TOPIC_STMT:
       code = translateCreateTopic(pCxt, (SCreateTopicStmt*)pNode);
@@ -2385,6 +2423,10 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_USER_INDEXES;
     case QUERY_NODE_SHOW_STREAMS_STMT:
       return TSDB_INS_TABLE_USER_STREAMS;
+    case QUERY_NODE_SHOW_BNODES_STMT:
+      return TSDB_INS_TABLE_BNODES;
+    case QUERY_NODE_SHOW_SNODES_STMT:
+      return TSDB_INS_TABLE_SNODES;
     default:
       break;
   }
@@ -2898,6 +2940,8 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
