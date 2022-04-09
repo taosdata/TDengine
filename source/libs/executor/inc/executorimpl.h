@@ -550,21 +550,21 @@ typedef struct SFillOperatorInfo {
   int32_t           capacity;
 } SFillOperatorInfo;
 
-typedef struct SGroupKeys {
+typedef struct {
   char   *pData;
   bool    isNull;
   int16_t type;
   int32_t bytes;
-}SGroupKeys;
+} SGroupKeys, SStateKeys;
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   SArray*        pGroupCols;
   SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
   SNode*         pCondition;
-  bool           isInit;       // denote if current val is initialized or not
-  char*          keyBuf;       // group by keys for hash
-  int32_t        groupKeyLen;  // total group by column width
+  bool           isInit;        // denote if current val is initialized or not
+  char*          keyBuf;        // group by keys for hash
+  int32_t        groupKeyLen;   // total group by column width
   SGroupResInfo  groupResInfo;
   SAggSupporter  aggSup;
 } SGroupbyOperatorInfo;
@@ -592,27 +592,33 @@ typedef struct SPartitionOperatorInfo {
   int32_t        pageIndex;     // page index of current group
 } SPartitionOperatorInfo;
 
+typedef struct SWindowRowsSup {
+  STimeWindow      win;
+  TSKEY            prevTs;
+  int32_t          startRowIndex;
+  int32_t          numOfRows;
+} SWindowRowsSup;
+
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo   binfo;
   SAggSupporter    aggSup;
   SGroupResInfo    groupResInfo;
-  STimeWindow      curWindow;        // current time window
-  TSKEY            prevTs;           // previous timestamp
-  int32_t          numOfRows;        // number of rows
-  int32_t          start;            // start row index
+  SWindowRowsSup   winSup;
   bool             reptScan;         // next round scan
   int64_t          gap;              // session window gap
   SColumnInfoData  timeWindowData;   // query time window info for scalar function execution.
 } SSessionAggOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
-  SOptrBasicInfo binfo;
-  STimeWindow    curWindow;  // current time window
-  int32_t        numOfRows;  // number of rows
-  int32_t        colIndex;   // start row index
-  int32_t        start;
-  char*          prevData;  // previous data
-  bool           reptScan;
+  SOptrBasicInfo   binfo;
+  SAggSupporter    aggSup;
+  SGroupResInfo    groupResInfo;
+  SWindowRowsSup   winSup;
+  int32_t          colIndex;   // start row index
+  bool             hasKey;
+  SStateKeys       stateKey;
+  SColumnInfoData  timeWindowData;   // query time window info for scalar function execution.
+//  bool             reptScan;
 } SStateWindowOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
@@ -711,15 +717,6 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntim
 SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                            SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
-
-SOperatorInfo* createMultiwaySortOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
-                                              int32_t numOfRows, void* merger);
-SOperatorInfo* createGlobalAggregateOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                                 SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo,
-                                                 bool groupResultMixedUp);
-
-SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                        int32_t numOfOutput, void* merger, bool multigroupResult);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
