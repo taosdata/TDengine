@@ -41,7 +41,6 @@ pub mod stream;
 
 mod result;
 
-#[cfg(feature = "tmq")]
 pub mod tmq;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -170,8 +169,8 @@ mod tests {
 #[should_panic]
 fn async_query_callback_test() {
     let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-    let callback = |res: TaosResult, code| {
-        println!("callback in rust with code: {code}");
+    let callback = |res: Result<TaosResult>| {
+        let res = res.unwrap();
         println!("ptr: {:p}", res.as_raw());
         let rows = res.affected_rows();
         println!("rows: {rows}");

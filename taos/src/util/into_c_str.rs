@@ -101,6 +101,13 @@ where
     }
 }
 
+impl<'a> IntoNullableCStr<'a> for ()
+{
+    fn into_nullable_c_str(self) -> NullableCStr<'a> {
+        NullableCStr(None)
+    }
+}
+
 impl<'a, T> From<T> for NullableCStr<'a>
 where
     T: IntoNullableCStr<'a>,

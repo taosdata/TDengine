@@ -9,7 +9,7 @@ use serde::{
     de::{VariantAccess, Visitor},
     Deserialize,
 };
-use taos_sys::TaosDataType;
+use taos_sys::{TaosDataType, TSDB_DATA_TYPE_BINARY};
 
 use crate::{timestamp::TimestampValue, Error};
 
@@ -59,7 +59,7 @@ impl<'block> BorrowedValue<'block> {
             UBigInt(_) => TaosDataType::UBigInt,
             Float(_) => TaosDataType::Float,
             Double(_) => TaosDataType::Double,
-            Binary(_) => TaosDataType::Binary,
+            Binary(_) => TSDB_DATA_TYPE_BINARY,
             Timestamp(_) => TaosDataType::Timestamp,
             Json(_) => TaosDataType::Json,
             NChar(_) => TaosDataType::NChar,
@@ -198,7 +198,7 @@ impl Value {
             UBigInt(_) => TaosDataType::UBigInt,
             Float(_) => TaosDataType::Float,
             Double(_) => TaosDataType::Double,
-            Binary(_) => TaosDataType::Binary,
+            Binary(_) => TSDB_DATA_TYPE_BINARY,
             Timestamp(_) => TaosDataType::Timestamp,
             Json(_) => TaosDataType::Json,
             _ => err!("un supported type as borrowed str"),
