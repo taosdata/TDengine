@@ -2061,7 +2061,7 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
     if (!hasNullInputs) {
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOG: {
-          double base = M_E;
+          double base = 2.7182818284590452354; //const M_E
           if (numInputs == 2) {
             GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
           }
