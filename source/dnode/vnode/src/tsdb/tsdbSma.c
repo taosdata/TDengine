@@ -465,14 +465,14 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
  * @return int32_t
  */
 int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg) {
+  if (atomic_load_16(&REPO_TSMA_NUM(pTsdb)) <= 0) {
+    tsdbTrace("vgId:%d not update expire window since no tSma", REPO_ID(pTsdb));
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!pTsdb->pMeta) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
-  }
-
-  if (atomic_load_16(&REPO_TSMA_NUM(pTsdb)) <= 0) {
-    tsdbWarn("vgId:%d not update expire window since no tSma", REPO_ID(pTsdb));
-    return TSDB_CODE_SUCCESS;
   }
 
   if (tdScanAndConvertSubmitMsg(pMsg) != TSDB_CODE_SUCCESS) {
