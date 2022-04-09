@@ -1,0 +1,75 @@
+testcases:
+  # case1:
+  #   - fqdn: [k8smaster, k8sslave]
+  #     config_dir: /etc/taos
+  #     db_name: db
+  #     stb_name: stb
+  #     thread_count: 1
+  #     table_count: 10000
+  #     start_offset: 0
+  #     vgroup_count: 2
+  #     create_table: 1
+  #     insert_data: 0
+  #     batch_of_tbl: 100
+  #     show_tables_flag: 0
+  #     query_flag: 0
+  #     batch_of_row: 1
+  #     total_rows_of_per_tbl: 1
+  #     taos_config:
+  #       firstEP: cs219:6030
+  #       dataDir: /var/lib/taos
+  #       logDir: /var/log/taos
+  #       debugFlag: 135
+  #   - fqdn: [node223]
+  #     config_dir: /etc/taos
+  #     thread_count: 1
+  #     table_count: 10000
+  #     vgroup_count: 2
+  #     batch_of_tbl: 100
+  #     taos_config:
+  #       firstEP: cs219:6030
+  #       dataDir: /var/lib/taos
+  #       logDir: /var/log/taos
+  #       debugFlag: 135
+  # case2:
+  #   - fqdn: [k8sslave]
+  #     config_dir: /etc/taos
+  #     db_name: db
+  #     stb_name: stb
+  #     thread_count: 1
+  #     table_count: 10000
+  #   - fqdn: [node223]
+  #     config_dir: /etc/taos
+  #     thread_count: 1
+  #     table_count: 10000
+  #     vgroup_count: 2
+  #     batch_of_tbl: 100
+  #     taos_config:
+  #       firstEP: cs219:6030
+  #       dataDir: /var/lib/taos
+  #       logDir: /var/log/taos
+  #       debugFlag: 135
+  case3:
+    - fqdn: [cs219]
+      config_dir: /etc/taos/create_table1
+      thread_count: 1
+      table_count: 10000
+      vgroup_count: 2
+      batch_of_tbl: 100
+      taos_config:
+        firstEP: cs219:6030
+        dataDir: /var/lib/taos/create_table1
+        logDir: /var/log/taos/create_table1
+        debugFlag: 135
+    - fqdn: [cs219]
+      config_dir: /etc/taos/create_table2
+      thread_count: 1
+      db_name: db2
+      table_count: 10000
+      vgroup_count: 2
+      batch_of_tbl: 100
+      taos_config:
+        firstEP: cs219:6030
+        dataDir: /var/lib/taos/create_table2
+        logDir: /var/log/taos/create_table2
+        debugFlag: 135
