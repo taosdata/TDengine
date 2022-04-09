@@ -172,7 +172,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           }
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          if (sVal < -65536 || sVal > 65535) {
+          if (sVal < -32768 || sVal > 32767) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
           break;
@@ -187,12 +187,12 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           }
           break;
         case TSDB_DATA_TYPE_UTINYINT:
-          if (uVal > 128) {
+          if (uVal > 255) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
           break;
         case TSDB_DATA_TYPE_USMALLINT:
-          if (uVal > 65536) {
+          if (uVal > 65535) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
           break;
@@ -239,7 +239,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           pExpr->_node.pLeft->pVal->nLen = 1;
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          if (sVal < -65536 || sVal > 65535) {
+          if (sVal < -32768 || sVal > 32767) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
           pExpr->_node.pLeft->pVal->nLen = 2;
@@ -257,13 +257,13 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           pExpr->_node.pLeft->pVal->nLen = 8;
           break;
         case TSDB_DATA_TYPE_UTINYINT:
-          if (uVal > 128) {
+          if (uVal > 255) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
           pExpr->_node.pLeft->pVal->nLen = 1;
           break;
         case TSDB_DATA_TYPE_USMALLINT:
-          if (uVal > 65536) {
+          if (uVal > 65535) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
           pExpr->_node.pLeft->pVal->nLen = 2;
