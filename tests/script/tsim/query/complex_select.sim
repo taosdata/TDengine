@@ -444,9 +444,103 @@ if $rows != 8 then
 endi
 
 print ================ query 4 scalar function + where + group by + limit/offset
+sql select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
 
+sql select abs(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select abs(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
 
+sql select acos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select acos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
 
+sql select asin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select asin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select atan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select atan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select ceil(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select ceil(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select cos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select cos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select floor(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select floor(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select log(c1,10) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select log(c1,10) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select pow(c1,3) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select pow(c1,3) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select round(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select round(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select sqrt(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select sqrt(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select sin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select sin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select tan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+print ====> sql : select tan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
 
 print =================== count all rows
 sql select count(c1) from stb1
