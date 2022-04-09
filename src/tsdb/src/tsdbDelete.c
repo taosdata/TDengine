@@ -144,7 +144,7 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     goto _err;
   }
 
-  tsdbInfo("SDEL: vgId:%d Deleted %d row(s) from %d table(s)", REPO_ID(pRepo), pCtlInfo->affectedRows, pCtlInfo->numOfTables);
+  tsdbInfo("SDEL: vgId:%d Deleted %d row(s) from %d table(s)", REPO_ID(pRepo), pCtlInfo->affectedRows, (int32_t)taosArrayGetSize(affectedTables));
 
   // end transaction
   tsdbEndDeleteTrans(pRepo, TSDB_CODE_SUCCESS);
