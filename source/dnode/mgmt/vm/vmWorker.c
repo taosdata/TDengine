@@ -16,8 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-static void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+static inline void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
+                 .ahandle = pMsg->rpcMsg.ahandle,
+                 .code = code,
+                 .pCont = pMsg->pRsp,
+                 .contLen = pMsg->rspLen};
   tmsgSendRsp(&rsp);
 }
 
@@ -26,7 +30,7 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   int32_t code = -1;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  dTrace("msg:%p, will be processed in vnode-mgmt queue", pMsg);
+  dTrace("msg:%p, will be processed in vnode-m queue", pMsg);
 
   switch (msgType) {
     case TDMT_MON_VM_INFO:
@@ -428,9 +432,9 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   }
 
   if (tsMultiProcess) {
-    SSingleWorkerCfg sCfg = {
+    SSingleWorkerCfg mCfg = {
         .min = 1, .max = 1, .name = "vnode-monitor", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start mnode vnode-monitor worker since %s", terrstr());
       return -1;
     }

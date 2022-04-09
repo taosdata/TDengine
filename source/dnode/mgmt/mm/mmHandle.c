@@ -19,15 +19,13 @@
 void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   mndGetMonitorInfo(pMgmt->pMnode, &mmInfo->cluster, &mmInfo->vgroup, &mmInfo->grant);
-  if (pWrapper->procType == PROC_CHILD) {
-    dmGetMonitorSysInfo(&mmInfo->sys);
-    monGetLogs(&mmInfo->log);
-  }
 }
 
 int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonMmInfo mmInfo = {0};
   mmGetMonitorInfo(pWrapper, &mmInfo);
+  dmGetMonitorSysInfo(&mmInfo.sys);
+  monGetLogs(&mmInfo.log);
 
   int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);
   if (rspLen < 0) {

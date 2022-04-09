@@ -33,6 +33,15 @@ static void bmSendErrorRsps(SMgmtWrapper *pWrapper, STaosQall *qall, int32_t num
   }
 }
 
+static inline void bmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
+                 .ahandle = pMsg->rpcMsg.ahandle,
+                 .code = code,
+                 .pCont = pMsg->pRsp,
+                 .contLen = pMsg->rspLen};
+  tmsgSendRsp(&rsp);
+}
+
 static void bmProcessMonQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SBnodeMgmt *pMgmt = pInfo->ahandle;
 
@@ -45,14 +54,8 @@ static void bmProcessMonQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   }
 
   if (pRpc->msgType & 1U) {
-    if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-      if (code != 0) {
-        code = terrno;
-        dError("msg:%p, failed to process since %s", pMsg, terrstr());
-      }
-      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
-      tmsgSendRsp(&rsp);
-    }
+    if (code != 0 && terrno != 0) code = terrno;
+    bmSendRsp(pMgmt->pWrapper, pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -116,13 +119,13 @@ int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
   }
 
   if (tsMultiProcess) {
-    SSingleWorkerCfg sCfg = {
+    SSingleWorkerCfg mCfg = {
         .min = 1, .max = 1, .name = "bnode-monitor", .fp = (FItem)bmProcessMonQueue, .param = pMgmt};
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start bnode-monitor worker since %s", terrstr());
       return -1;
     }
-  }
+   }
 
   dDebug("bnode workers are initialized");
   return 0;

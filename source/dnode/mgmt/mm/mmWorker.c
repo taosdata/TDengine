@@ -34,10 +34,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   if (pRpc->msgType & 1U) {
     if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-      if (code != 0) {
-        code = terrno;
-        dError("msg:%p, failed to process since %s", pMsg, terrstr());
-      }
+      if (code != 0 && terrno != 0) code = terrno;
       SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
       tmsgSendRsp(&rsp);
     }
@@ -173,8 +170,8 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   }
 
   if (tsMultiProcess) {
-    SSingleWorkerCfg sCfg = {.min = 1, .max = 1, .name = "mnode-monitor", .fp = (FItem)mmProcessQueue, .param = pMgmt};
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+    SSingleWorkerCfg mCfg = {.min = 1, .max = 1, .name = "mnode-monitor", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start mnode mnode-monitor worker since %s", terrstr());
       return -1;
     }

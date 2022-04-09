@@ -62,8 +62,9 @@ void dmSendMonitorReport(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = NULL;
   dmGetMonitorInfo(pDnode, &dmInfo);
 
+  bool getFromAPI = !tsMultiProcess;
   pWrapper = &pDnode->wrappers[MNODE];
-  if (!tsMultiProcess) {
+  if (getFromAPI) {
     if (dndMarkWrapper(pWrapper) != 0) {
       mmGetMonitorInfo(pWrapper, &mmInfo);
       dndReleaseWrapper(pWrapper);
@@ -72,7 +73,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
     if (pWrapper->required) {
       req.msgType = TDMT_MON_MM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      if (rsp.code == 0) {
+      if (rsp.code == 0 && rsp.contLen > 0) {
         tDeserializeSMonMmInfo(rsp.pCont, rsp.contLen, &mmInfo);
       }
       rpcFreeCont(rsp.pCont);
@@ -80,7 +81,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
   }
 
   pWrapper = &pDnode->wrappers[VNODES];
-  if (!tsMultiProcess) {
+  if (getFromAPI) {
     if (dndMarkWrapper(pWrapper) != 0) {
       vmGetMonitorInfo(pWrapper, &vmInfo);
       dndReleaseWrapper(pWrapper);
@@ -89,7 +90,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
     if (pWrapper->required) {
       req.msgType = TDMT_MON_VM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      if (rsp.code == 0) {
+      if (rsp.code == 0 && rsp.contLen > 0) {
         tDeserializeSMonVmInfo(rsp.pCont, rsp.contLen, &vmInfo);
       }
       rpcFreeCont(rsp.pCont);
@@ -97,7 +98,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
   }
 
   pWrapper = &pDnode->wrappers[QNODE];
-  if (!tsMultiProcess) {
+  if (getFromAPI) {
     if (dndMarkWrapper(pWrapper) != 0) {
       qmGetMonitorInfo(pWrapper, &qmInfo);
       dndReleaseWrapper(pWrapper);
@@ -106,7 +107,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
     if (pWrapper->required) {
       req.msgType = TDMT_MON_QM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      if (rsp.code == 0) {
+      if (rsp.code == 0 && rsp.contLen > 0) {
         tDeserializeSMonQmInfo(rsp.pCont, rsp.contLen, &qmInfo);
       }
       rpcFreeCont(rsp.pCont);
@@ -114,7 +115,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
   }
 
   pWrapper = &pDnode->wrappers[SNODE];
-  if (!tsMultiProcess) {
+  if (getFromAPI) {
     if (dndMarkWrapper(pWrapper) != 0) {
       smGetMonitorInfo(pWrapper, &smInfo);
       dndReleaseWrapper(pWrapper);
@@ -123,7 +124,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
     if (pWrapper->required) {
       req.msgType = TDMT_MON_SM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      if (rsp.code == 0) {
+      if (rsp.code == 0 && rsp.contLen > 0) {
         tDeserializeSMonSmInfo(rsp.pCont, rsp.contLen, &smInfo);
       }
       rpcFreeCont(rsp.pCont);
@@ -131,7 +132,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
   }
 
   pWrapper = &pDnode->wrappers[BNODE];
-  if (!tsMultiProcess) {
+  if (getFromAPI) {
     if (dndMarkWrapper(pWrapper) != 0) {
       bmGetMonitorInfo(pWrapper, &bmInfo);
       dndReleaseWrapper(pWrapper);
@@ -140,7 +141,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
     if (pWrapper->required) {
       req.msgType = TDMT_MON_BM_INFO;
       dndSendRecv(pDnode, &epset, &req, &rsp);
-      if (rsp.code == 0) {
+      if (rsp.code == 0 && rsp.contLen > 0) {
         tDeserializeSMonBmInfo(rsp.pCont, rsp.contLen, &bmInfo);
       }
       rpcFreeCont(rsp.pCont);
@@ -162,7 +163,8 @@ void dmSendMonitorReport(SDnode *pDnode) {
 }
 
 void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo) {
-  if (!tsMultiProcess) {
+  bool getFromAPI = !tsMultiProcess;
+  if (getFromAPI) {
     vmGetVnodeLoads(pWrapper, pInfo);
   } else {
     SRpcMsg req = {.msgType = TDMT_MON_VM_LOAD};
@@ -172,7 +174,7 @@ void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo) {
     epset.eps[0].port = tsServerPort;
 
     dndSendRecv(pWrapper->pDnode, &epset, &req, &rsp);
-    if (rsp.code == 0) {
+    if (rsp.code == 0 && rsp.contLen > 0) {
       tDeserializeSMonVloadInfo(rsp.pCont, rsp.contLen, pInfo);
     }
     rpcFreeCont(rsp.pCont);

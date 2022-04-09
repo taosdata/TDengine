@@ -31,16 +31,13 @@ void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
       pMgmt->state.numOfBatchInsertSuccessReqs - pMgmt->lastState.numOfBatchInsertSuccessReqs;
   pMgmt->lastState = pMgmt->state;
   taosWUnLockLatch(&pMgmt->latch);
-
-  if (pWrapper->procType == PROC_CHILD) {
-    dmGetMonitorSysInfo(&vmInfo->sys);
-    monGetLogs(&vmInfo->log);
-  }
 }
 
 int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonVmInfo vmInfo = {0};
   vmGetMonitorInfo(pWrapper, &vmInfo);
+  dmGetMonitorSysInfo(&vmInfo.sys);
+  monGetLogs(&vmInfo.log);
 
   int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);
   if (rspLen < 0) {

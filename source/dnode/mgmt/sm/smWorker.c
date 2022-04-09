@@ -16,6 +16,15 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
+static inline void smSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
+                 .ahandle = pMsg->rpcMsg.ahandle,
+                 .code = code,
+                 .pCont = pMsg->pRsp,
+                 .contLen = pMsg->rspLen};
+  tmsgSendRsp(&rsp);
+}
+
 static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
@@ -28,14 +37,8 @@ static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   }
 
   if (pRpc->msgType & 1U) {
-    if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-      if (code != 0) {
-        code = terrno;
-        dError("msg:%p, failed to process since %s", pMsg, terrstr());
-      }
-      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
-      tmsgSendRsp(&rsp);
-    }
+    if (code != 0 && terrno != 0) code = terrno;
+    smSendRsp(pMgmt->pWrapper, pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -108,9 +111,9 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   }
 
   if (tsMultiProcess) {
-    SSingleWorkerCfg sCfg = {
+    SSingleWorkerCfg mCfg = {
         .min = 1, .max = 1, .name = "snode-monitor", .fp = (FItem)smProcessMonitorQueue, .param = pMgmt};
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &sCfg) != 0) {
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start snode-monitor worker since %s", terrstr());
       return -1;
     }

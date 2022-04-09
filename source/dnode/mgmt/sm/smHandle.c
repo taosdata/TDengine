@@ -16,17 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {
-  if (pWrapper->procType == PROC_CHILD) {
-    dmGetMonitorSysInfo(&smInfo->sys);
-    monGetLogs(&smInfo->log);
-  }
-}
+void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {}
 
 int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonSmInfo smInfo = {0};
   smGetMonitorInfo(pWrapper, &smInfo);
-  
+  dmGetMonitorSysInfo(&smInfo.sys);
+  monGetLogs(&smInfo.log);
+
   int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
   if (rspLen < 0) {
     terrno = TSDB_CODE_INVALID_MSG;

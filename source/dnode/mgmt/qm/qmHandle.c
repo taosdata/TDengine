@@ -17,15 +17,13 @@
 #include "qmInt.h"
 
 void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo) {
-  if (pWrapper->procType == PROC_CHILD) {
-    dmGetMonitorSysInfo(&qmInfo->sys);
-    monGetLogs(&qmInfo->log);
-  }
 }
 
 int32_t qmProcessGetMonQmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonQmInfo qmInfo = {0};
   qmGetMonitorInfo(pWrapper, &qmInfo);
+  dmGetMonitorSysInfo(&qmInfo.sys);
+  monGetLogs(&qmInfo.log);
 
   int32_t rspLen = tSerializeSMonQmInfo(NULL, 0, &qmInfo);
   if (rspLen < 0) {

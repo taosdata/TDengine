@@ -17,15 +17,13 @@
 #include "bmInt.h"
 
 void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {
-  if (pWrapper->procType == PROC_CHILD) {
-    dmGetMonitorSysInfo(&bmInfo->sys);
-    monGetLogs(&bmInfo->log);
-  }
 }
 
 int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonBmInfo bmInfo = {0};
   bmGetMonitorInfo(pWrapper, &bmInfo);
+  dmGetMonitorSysInfo(&bmInfo.sys);
+  monGetLogs(&bmInfo.log);
 
   int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
   if (rspLen < 0) {
