@@ -728,10 +728,7 @@ select_list(A) ::= select_sublist(B).                                           
 select_sublist(A) ::= select_item(B).                                             { A = createNodeList(pCxt, B); }
 select_sublist(A) ::= select_sublist(B) NK_COMMA select_item(C).                  { A = addNodeToList(pCxt, B, C); }
 
-select_item(A) ::= common_expression(B).                                          {
-                                                                                    SToken t = getTokenFromRawExprNode(pCxt, B);
-                                                                                    A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &t);
-                                                                                  }
+select_item(A) ::= common_expression(B).                                          { A = releaseRawExprNode(pCxt, B); }
 select_item(A) ::= common_expression(B) column_alias(C).                          { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 select_item(A) ::= common_expression(B) AS column_alias(C).                       { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 select_item(A) ::= table_name(B) NK_DOT NK_STAR(C).                               { A = createColumnNode(pCxt, &B, &C); }

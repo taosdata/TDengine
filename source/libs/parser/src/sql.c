@@ -3415,6 +3415,7 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[-1].minor.yy564 = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &yymsp[0].minor.yy0); }
         break;
       case 260: /* signed_literal ::= duration_literal */
+      case 354: /* select_item ::= common_expression */ yytestcase(yyruleno==354);
       case 398: /* search_condition ::= common_expression */ yytestcase(yyruleno==398);
 { yylhsminor.yy564 = releaseRawExprNode(pCxt, yymsp[0].minor.yy564); }
   yymsp[0].minor.yy564 = yylhsminor.yy564;
@@ -3678,13 +3679,6 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 350: /* select_list ::= NK_STAR */
 { yymsp[0].minor.yy476 = NULL; }
-        break;
-      case 354: /* select_item ::= common_expression */
-{
-                                                                                    SToken t = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy564);
-                                                                                    yylhsminor.yy564 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[0].minor.yy564), &t);
-                                                                                  }
-  yymsp[0].minor.yy564 = yylhsminor.yy564;
         break;
       case 355: /* select_item ::= common_expression column_alias */
 { yylhsminor.yy564 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy564), &yymsp[0].minor.yy21); }

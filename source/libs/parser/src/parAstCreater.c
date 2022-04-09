@@ -205,9 +205,11 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
 
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
-  SNode* tmp = ((SRawExprNode*)pNode)->pNode;
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode* pExpr = pRawExpr->pNode;
+  strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
   taosMemoryFreeClear(pNode);
-  return tmp;
+  return pExpr;
 }
 
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
