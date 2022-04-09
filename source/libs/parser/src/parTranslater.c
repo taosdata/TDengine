@@ -2059,7 +2059,7 @@ static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComp
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = getCreateComponentNodeMsgType(nodeType(pStmt));
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2094,7 +2094,7 @@ static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponen
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = getDropComponentNodeMsgType(nodeType(pStmt));
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
