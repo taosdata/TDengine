@@ -199,13 +199,13 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   SDCreateSnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -226,13 +226,13 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   SDDropSnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
+  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -284,7 +284,7 @@ static int32_t mndProcessCreateSnodeReq(SNodeMsg *pReq) {
   SUserObj        *pUser = NULL;
   SMCreateSnodeReq createReq = {0};
 
-  if (tDeserializeSMCreateDropQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto CREATE_SNODE_OVER;
   }
@@ -351,13 +351,13 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   SDDropSnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
+  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -401,7 +401,7 @@ static int32_t mndProcessDropSnodeReq(SNodeMsg *pReq) {
   SSnodeObj     *pObj = NULL;
   SMDropSnodeReq dropReq = {0};
 
-  if (tDeserializeSMCreateDropQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto DROP_SNODE_OVER;
   }
