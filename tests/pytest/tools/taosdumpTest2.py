@@ -30,7 +30,7 @@ class TDTestCase:
 
         self.ts = 1601481600000
         self.numberOfTables = 1
-        self.numberOfRecords = 15000
+        self.numberOfRecords = 150
 
     def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
