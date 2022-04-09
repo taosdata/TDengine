@@ -395,21 +395,17 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   }
   // iterate the rows that can be fit in this buffer page
   int32_t size = (headerSize + colHeaderSize);
-
   for (int32_t j = startIndex; j < numOfRows; ++j) {
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, i);
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        bool isNull = colDataIsNull(pColInfoData, numOfRows, j, NULL);
-        if (isNull) {
-          // do nothing
-        } else {
+        if (pColInfoData->varmeta.offset[j] != -1) {
           char* p = colDataGetData(pColInfoData, j);
           size += varDataTLen(p);
         }
 
         size += sizeof(pColInfoData->varmeta.offset[0]);
-      } else {    // this block is unreached, because hasVarCol = true
+      } else {
         size += pColInfoData->info.bytes;
 
         if (((j - startIndex) & 0x07) == 0) {
@@ -532,8 +528,8 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
 
-    size_t metaSize = pBlock->info.rows * sizeof(int32_t);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      size_t metaSize = pBlock->info.rows * sizeof(int32_t);
       char* tmp = taosMemoryRealloc(pCol->varmeta.offset, metaSize);    // preview calloc is too small
       if (tmp == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -566,6 +562,49 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 
     memcpy(pCol->pData, pStart, colLength);
     pStart += colLength;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
+  pBlock->info.rows = *(int32_t*)buf;
+
+  int32_t     numOfCols = pBlock->info.numOfCols;
+  const char* pStart = buf + sizeof(uint32_t);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      size_t metaSize = capacity * sizeof(int32_t);
+      memcpy(pCol->varmeta.offset, pStart, metaSize);
+      pStart += metaSize;
+    } else {
+      memcpy(pCol->nullbitmap, pStart, BitmapLen(capacity));
+      pStart += BitmapLen(capacity);
+    }
+
+    int32_t colLength = *(int32_t*)pStart;
+    pStart += sizeof(int32_t);
+
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      if (pCol->varmeta.allocLen < colLength) {
+        char* tmp = taosMemoryRealloc(pCol->pData, colLength);
+        if (tmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+
+        pCol->pData = tmp;
+        pCol->varmeta.allocLen = colLength;
+      }
+
+      pCol->varmeta.length = colLength;
+      ASSERT(pCol->varmeta.length <= pCol->varmeta.allocLen);
+    }
+
+    memcpy(pCol->pData, pStart, colLength);
+    pStart += pCol->info.bytes * capacity;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -615,6 +654,10 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
   }
 
   return rowSize;
+}
+
+int32_t getAllowedRowsForPage(const SSDataBlock* pBlock, size_t pgSize) {
+  return (int32_t) ((pgSize - blockDataGetSerialMetaSize(pBlock))/ blockDataGetSerialRowSize(pBlock));
 }
 
 typedef struct SSDataBlockSortHelper {
@@ -1079,6 +1122,9 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
+  if (numOfRows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
@@ -1124,7 +1170,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
 }
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
-  return pageSize / (blockDataGetSerialRowSize(pBlock) + blockDataGetSerialMetaSize(pBlock));
+  return (int32_t) ((pageSize - blockDataGetSerialMetaSize(pBlock))/ blockDataGetSerialRowSize(pBlock));
 }
 
 void colDataDestroy(SColumnInfoData* pColData) {

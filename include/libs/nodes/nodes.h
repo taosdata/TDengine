@@ -30,10 +30,18 @@ extern "C" {
 #define FOREACH(node, list)	\
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
 
-// only be use in FOREACH
-#define ERASE_NODE(list) cell = nodesListErase(list, cell);
-
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
+
+#define INSERT_LIST(target, src) nodesListInsertList((target), cell, src)
+
+#define WHERE_EACH(node, list) \
+  SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
+  while (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false))
+
+#define WHERE_NEXT cell = cell->pNext
+
+// only be use in WHERE_EACH
+#define ERASE_NODE(list) cell = nodesListErase((list), cell)
 
 #define FORBOTH(node1, list1, node2, list2) \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL), *cell2 = (NULL != (list2) ? (list2)->pHead : NULL); \
@@ -202,7 +210,9 @@ int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t nodesListPushFront(SNodeList* pList, SNodeptr pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
+void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
