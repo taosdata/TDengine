@@ -81,7 +81,7 @@ static int32_t tDecodeSMonLogs(SCoder *decoder, SMonLogs *pInfo) {
   if (tDecodeI32(decoder, &arraySize) < 0) return -1;
 
   pInfo->logs = taosArrayInit(arraySize, sizeof(SMonLogItem));
-  if (pInfo->logs != NULL) return -1;
+  if (pInfo->logs == NULL) return -1;
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SMonLogItem desc = {0};
@@ -143,7 +143,7 @@ int32_t tDecodeSMonClusterInfo(SCoder *decoder, SMonClusterInfo *pInfo) {
 
   pInfo->dnodes = taosArrayInit(dnodesSize, sizeof(SMonDnodeDesc));
   pInfo->mnodes = taosArrayInit(mnodesSize, sizeof(SMonMnodeDesc));
-  if (pInfo->dnodes != NULL || pInfo->mnodes != NULL) return -1;
+  if (pInfo->dnodes == NULL || pInfo->mnodes == NULL) return -1;
 
   for (int32_t i = 0; i < dnodesSize; ++i) {
     SMonDnodeDesc desc = {0};
@@ -185,7 +185,7 @@ int32_t tDecodeSMonVgroupInfo(SCoder *decoder, SMonVgroupInfo *pInfo) {
   if (tDecodeI32(decoder, &arraySize) < 0) return -1;
 
   pInfo->vgroups = taosArrayInit(arraySize, sizeof(SMonVgroupDesc));
-  if (pInfo->vgroups != NULL) return -1;
+  if (pInfo->vgroups == NULL) return -1;
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SMonVgroupDesc desc = {0};
@@ -292,7 +292,7 @@ static int32_t tDecodeSMonDiskInfo(SCoder *decoder, SMonDiskInfo *pInfo) {
   if (tDecodeI32(decoder, &arraySize) < 0) return -1;
 
   pInfo->datadirs = taosArrayInit(arraySize, sizeof(SMonDiskDesc));
-  if (pInfo->datadirs != NULL) return -1;
+  if (pInfo->datadirs == NULL) return -1;
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SMonDiskDesc desc = {0};
@@ -501,7 +501,7 @@ int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInf
   if (tDecodeI32(&decoder, &arraySize) < 0) return -1;
 
   pInfo->pVloads = taosArrayInit(arraySize, sizeof(SVnodeLoad));
-  if (pInfo->pVloads != NULL) return -1;
+  if (pInfo->pVloads == NULL) return -1;
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SVnodeLoad load = {0};
