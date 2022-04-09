@@ -197,7 +197,7 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
-int32_t colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 
 size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);

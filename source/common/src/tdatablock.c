@@ -1214,7 +1214,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
   } else {
