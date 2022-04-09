@@ -286,25 +286,25 @@ endi
 #sql_error select c1, ltrim(t1), c2, ltrim(t2) from ctb3
 
 
-#print ====> rtrim
-#sql select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ntb3
-#print ====> select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ctb3
-#sql select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ctb3
-#print ====> rows: $rows
-#print ====> [ $data00 ] [ $data01 ] [ $data02 ] [ $data03 ] [ $data04 ] [ $data05 ] [ $data06 ]
-#print ====> $data10 $data11 $data12 $data13 $data14 $data15
-#if $rows != 1 then
-#  return -1
-#endi
-#if $data01 != @  abcd  1234@ then
-#  return -1
-#endi
-#if $data03 != @  abcd  1234@ then
-#  return -1
-#endi
-#if $data04 != @  abcdEFGH  =-*&%@ then
-#  return -1
-#endi
+print ====> rtrim
+sql select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ntb3
+print ====> select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ctb3
+sql select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ctb3
+print ====> rows: $rows
+print ====> [ $data00 ] [ $data01 ] [ $data02 ] [ $data03 ] [ $data04 ] [ $data05 ] [ $data06 ]
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @  abcd  1234@ then
+  return -1
+endi
+if $data03 != @  abcd  1234@ then
+  return -1
+endi
+if $data04 != @  abcdEFGH  =-*&%@ then
+  return -1
+endi
 
 #sql_error select c1, rtrim(t1), c2, rtrim(t2) from ctb3
 
