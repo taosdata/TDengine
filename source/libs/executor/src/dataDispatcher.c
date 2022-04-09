@@ -209,6 +209,8 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     assert(pDispatcher->queryEnd);
     pOutput->useconds = pDispatcher->useconds;
     pOutput->precision = pDispatcher->pSchema->precision;
+    pOutput->bufStatus = DS_BUF_EMPTY;
+    pOutput->queryEnd = pDispatcher->queryEnd;
     return TSDB_CODE_SUCCESS;
   }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);

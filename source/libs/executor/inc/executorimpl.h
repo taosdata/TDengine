@@ -511,6 +511,12 @@ typedef struct SProjectOperatorInfo {
   SSDataBlock   *existDataBlock;
   SArray        *pPseudoColInfo;
   SLimit         limit;
+  SLimit         slimit;
+
+  uint64_t       groupId;
+  int64_t        curSOffset;
+  int64_t        curGroupOutput;
+
   int64_t        curOffset;
   int64_t        curOutput;
 } SProjectOperatorInfo;
@@ -562,6 +568,29 @@ typedef struct SGroupbyOperatorInfo {
   SGroupResInfo  groupResInfo;
   SAggSupporter  aggSup;
 } SGroupbyOperatorInfo;
+
+typedef struct SDataGroupInfo {
+  uint64_t groupId;
+  int64_t  numOfRows;
+  SArray  *pPageList;
+} SDataGroupInfo;
+
+// The sort in partition may be needed later.
+typedef struct SPartitionOperatorInfo {
+  SOptrBasicInfo binfo;
+  SArray*        pGroupCols;
+  SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
+  char*          keyBuf;        // group by keys for hash
+  int32_t        groupKeyLen;   // total group by column width
+  SHashObj*      pGroupSet;     // quick locate the window object for each result
+
+  SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
+  int32_t        rowCapacity;   // maximum number of rows for each buffer page
+  int32_t*       columnOffset;  // start position for each column data
+
+  void*          pGroupIter;    // group iterator
+  int32_t        pageIndex;     // page index of current group
+} SPartitionOperatorInfo;
 
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo   binfo;
@@ -650,7 +679,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SExecTaskInfo* pTaskInfo);
 SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
@@ -667,8 +696,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExp
                                       int32_t fillType, char* fillVal, bool multigroupResult, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResultBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-
+SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
+                                           SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,

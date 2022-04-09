@@ -644,7 +644,7 @@ SNodeList* nodesMakeList() {
 
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL == pList || NULL == pNode) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
   SListCell* p = taosMemoryCalloc(1, sizeof(SListCell));
   if (NULL == p) {
@@ -688,7 +688,7 @@ int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode) {
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   if (NULL == pTarget || NULL == pSrc) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   if (NULL == pTarget->pHead) {
@@ -717,11 +717,34 @@ int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   return code;
 }
 
+int32_t nodesListPushFront(SNodeList* pList, SNodeptr pNode) {
+  if (NULL == pList || NULL == pNode) {
+    return TSDB_CODE_FAILED;
+  }
+  SListCell* p = taosMemoryCalloc(1, sizeof(SListCell));
+  if (NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  p->pNode = pNode;
+  if (NULL != pList->pHead) {
+    pList->pHead->pPrev = p;
+    p->pNext = pList->pHead;
+  }
+  pList->pHead = p;
+  ++(pList->length);
+  return TSDB_CODE_SUCCESS;
+}
+
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;
   } else {
     pCell->pPrev->pNext = pCell->pNext;
+  }
+  if (NULL == pCell->pNext) {
+    pList->pTail = pCell->pPrev;
+  } else {
     pCell->pNext->pPrev = pCell->pPrev;
   }
   SListCell* pNext = pCell->pNext;
@@ -729,6 +752,24 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   taosMemoryFreeClear(pCell);
   --(pList->length);
   return pNext;
+}
+
+void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc) {
+    return;
+  }
+
+  if (NULL == pPos->pPrev) {
+    pTarget->pHead = pSrc->pHead;
+  } else {
+    pPos->pPrev->pNext = pSrc->pHead;
+  }
+  pSrc->pHead->pPrev = pPos->pPrev;
+  pSrc->pTail->pNext = pPos;
+  pPos->pPrev = pSrc->pTail;
+
+  pTarget->length += pSrc->length;
+  taosMemoryFreeClear(pSrc);
 }
 
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index) {

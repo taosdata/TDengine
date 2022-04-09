@@ -394,7 +394,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeQueryThreads = tsNumOfCores / 2;
-  tsNumOfVnodeQueryThreads = TMIN(tsNumOfVnodeQueryThreads, 1);
+  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeFetchThreads = tsNumOfCores / 2;
@@ -402,11 +402,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeWriteThreads = tsNumOfCores;
-  tsNumOfVnodeWriteThreads = TMIN(tsNumOfVnodeWriteThreads, 1);
+  tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeSyncThreads = tsNumOfCores / 2;
-  tsNumOfVnodeSyncThreads = TMIN(tsNumOfVnodeSyncThreads, 1);
+  tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeMergeThreads = tsNumOfCores / 8;
@@ -414,7 +414,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfVnodeMergeThreads", tsNumOfVnodeMergeThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores / 2;
-  tsNumOfQnodeQueryThreads = TMIN(tsNumOfQnodeQueryThreads, 1);
+  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 1);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
