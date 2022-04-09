@@ -41,8 +41,8 @@ static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
 static int32_t  mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
-static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq);
-static int32_t mndProcessGetIndexReq(SNodeMsg *pReq);
+static int32_t  mndProcessGetDbCfgReq(SNodeMsg *pReq);
+static int32_t  mndProcessGetIndexReq(SNodeMsg *pReq);
 
 int32_t mndInitDb(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_DB,
@@ -1684,6 +1684,8 @@ static int32_t mndProcessGetIndexReq(SNodeMsg *pReq) {
 
   if (!exist) {
     //TODO GET INDEX FROM FULLTEXT
+    code = -1;
+    terrno = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
   } else {
     int32_t contLen = tSerializeSUserIndexRsp(NULL, 0, &rsp);
     void   *pRsp = rpcMallocCont(contLen);
@@ -1702,7 +1704,7 @@ static int32_t mndProcessGetIndexReq(SNodeMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0) {
     mError("failed to get index %s since %s", indexReq.indexFName, terrstr());
   }
 
