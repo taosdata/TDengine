@@ -849,17 +849,16 @@ int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockI
     pTable->lastKey = lastKey;
   } else {
     // set
-    if (pTable->lastRow == NULL) {
-      pTable->lastKey = lastKey;
+    if (pTable->lastRow) {
+      SMemRow* p = pTable->lastRow;
       pTable->lastRow = lastRow;
-      lastRow = NULL;
+      taosTZfree(p);
+    } else {
+      pTable->lastRow = lastRow;
     }
   }
  
   TSDB_WUNLOCK_TABLE(pTable);
-  if (lastRow) {
-    taosTZfree(lastRow);
-  }
 
   return 0;
 }
@@ -1007,7 +1006,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool lastKey) {
 
     SBlockIdx *pIdx = readh.pBlkIdx;
 
-    if (pIdx && (cacheLastRowTableNum > 0) && (pTable->lastRow == NULL)) {
+    if (pIdx && cacheLastRowTableNum > 0) {
       if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, onlyKey) != 0) {
         tsdbUnLockFS(REPO_FS(pRepo));
         tsdbDestroyReadH(&readh);
