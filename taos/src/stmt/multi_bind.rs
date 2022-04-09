@@ -2,7 +2,7 @@ use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use bitvec_simd::BitVec;
 
-use taos_sys::{TaosDataType, TAOS_MULTI_BIND};
+use taos_sys::{TaosDataType, TAOS_MULTI_BIND, TSDB_DATA_TYPE_BINARY};
 
 #[derive(Debug)]
 pub struct MultiBind<'a>(TAOS_MULTI_BIND, PhantomData<&'a u8>);
@@ -112,7 +112,7 @@ impl<'a> MultiBind<'a> {
         }
         Self(
             TAOS_MULTI_BIND {
-                buffer_type: TaosDataType::Binary as _,
+                buffer_type: TSDB_DATA_TYPE_BINARY as _,
                 buffer: buffer.as_ptr() as _,
                 buffer_length,
                 length: length.as_ptr() as _,
@@ -139,7 +139,7 @@ impl<'a> MultiBind<'a> {
 impl<'a> Drop for MultiBind<'a> {
     fn drop(&mut self) {
         let ty = TaosDataType::from(self.0.buffer_type as u8);
-        if ty == TaosDataType::Binary || ty == TaosDataType::NChar {
+        if ty == TSDB_DATA_TYPE_BINARY || ty == TaosDataType::NChar {
             let len = self.0.buffer_length * self.0.num as usize;
             unsafe { Vec::from_raw_parts(self.0.buffer as *mut u8, len, len as _) };
             unsafe {
