@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace TDengineExample
 {
-    public class AsyncQuerySample
+    public class AsyncQueryExample
     {
         static void Main() { 
             IntPtr conn = GetConnection();
