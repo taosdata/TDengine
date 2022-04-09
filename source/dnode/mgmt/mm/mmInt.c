@@ -241,8 +241,3 @@ void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->fp = mgmtFp;
 }
 
-int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                           SMonGrantInfo *pGrantInfo) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return mndGetMonitorInfo(pMgmt->pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
-}

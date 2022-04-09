@@ -19,6 +19,7 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,11 +31,62 @@ extern "C" {
 #define MON_LOG_LEN    1024
 
 typedef struct {
+  int64_t   ts;
+  ELogLevel level;
+  char      content[MON_LOG_LEN];
+} SMonLogItem;
+
+typedef struct {
+  SArray *logs;  // array of SMonLogItem
+  int32_t numOfErrorLogs;
+  int32_t numOfInfoLogs;
+  int32_t numOfDebugLogs;
+  int32_t numOfTraceLogs;
+} SMonLogs;
+
+typedef struct {
+  char      name[TSDB_FILENAME_LEN];
+  int8_t    level;
+  SDiskSize size;
+} SMonDiskDesc;
+
+typedef struct {
+  double  cpu_engine;
+  double  cpu_system;
+  float   cpu_cores;
+  int64_t mem_engine;     // KB
+  int64_t mem_system;     // KB
+  int64_t mem_total;      // KB
+  int64_t disk_engine;    // Byte
+  int64_t disk_used;      // Byte
+  int64_t disk_total;     // Byte
+  int64_t net_in;         // bytes
+  int64_t net_out;        // bytes
+  int64_t io_read;        // bytes
+  int64_t io_write;       // bytes
+  int64_t io_read_disk;   // bytes
+  int64_t io_write_disk;  // bytes
+} SMonSysInfo;
+
+typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
   int64_t cluster_id;
   int32_t protocol;
 } SMonBasicInfo;
+
+typedef struct {
+  float        uptime;  // day
+  int8_t       has_mnode;
+  SMonDiskDesc logdir;
+  SMonDiskDesc tempdir;
+} SMonDnodeInfo;
+
+typedef struct {
+  SMonBasicInfo basic;
+  SMonDnodeInfo dnode;
+  SMonSysInfo   sys;
+} SMonDmInfo;
 
 typedef struct {
   int32_t dnode_id;
@@ -87,46 +139,65 @@ typedef struct {
 } SMonGrantInfo;
 
 typedef struct {
-  float   uptime;  // day
-  double  cpu_engine;
-  double  cpu_system;
-  float   cpu_cores;
-  int64_t mem_engine;   // KB
-  int64_t mem_system;   // KB
-  int64_t mem_total;    // KB
-  int64_t disk_engine;  // Byte
-  int64_t disk_used;    // Byte
-  int64_t disk_total;   // Byte
-  int64_t net_in;       // bytes
-  int64_t net_out;      // bytes
-  int64_t io_read;      // bytes
-  int64_t io_write;     // bytes
-  int64_t io_read_disk;   // bytes
-  int64_t io_write_disk;  // bytes
-  int64_t req_select;
-  int64_t req_insert;
-  int64_t req_insert_success;
-  int64_t req_insert_batch;
-  int64_t req_insert_batch_success;
-  int32_t errors;
-  int32_t vnodes_num;
-  int32_t masters;
-  int8_t  has_mnode;
-} SMonDnodeInfo;
+  SMonClusterInfo cluster;
+  SMonVgroupInfo  vgroup;
+  SMonGrantInfo   grant;
+  SMonSysInfo     sys;
+  SMonLogs        log;
+} SMonMmInfo;
+
+int32_t tSerializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo);
+int32_t tDeserializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo);
+void    tFreeSMonMmInfo(SMonMmInfo *pInfo);
 
 typedef struct {
-  char      name[TSDB_FILENAME_LEN];
-  int8_t    level;
-  SDiskSize size;
-} SMonDiskDesc;
-
-typedef struct {
-  SArray      *datadirs;  // array of SMonDiskDesc
-  SMonDiskDesc logdir;
-  SMonDiskDesc tempdir;
+  SArray *datadirs;  // array of SMonDiskDesc
 } SMonDiskInfo;
 
-typedef struct SMonInfo SMonInfo;
+typedef struct {
+  SMonDiskInfo tfs;
+  SVnodesStat  vstat;
+  SMonSysInfo  sys;
+  SMonLogs     log;
+} SMonVmInfo;
+
+int32_t tSerializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
+int32_t tDeserializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
+void    tFreeSMonVmInfo(SMonVmInfo *pInfo);
+
+typedef struct {
+  SMonSysInfo sys;
+  SMonLogs    log;
+} SMonQmInfo;
+
+int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
+int32_t tDeserializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
+void    tFreeSMonQmInfo(SMonQmInfo *pInfo);
+
+typedef struct {
+  SMonSysInfo sys;
+  SMonLogs    log;
+} SMonSmInfo;
+
+int32_t tSerializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo);
+int32_t tDeserializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo);
+void    tFreeSMonSmInfo(SMonSmInfo *pInfo);
+typedef struct {
+  SMonSysInfo sys;
+  SMonLogs    log;
+} SMonBmInfo;
+
+int32_t tSerializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);
+int32_t tDeserializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);
+void    tFreeSMonBmInfo(SMonBmInfo *pInfo);
+
+typedef struct {
+  SArray *pVloads;  // SVnodeLoad
+} SMonVloadInfo;
+
+int32_t tSerializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo);
+int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo);
+void    tFreeSMonVloadInfo(SMonVloadInfo *pInfo);
 
 typedef struct {
   const char *server;
@@ -138,16 +209,14 @@ typedef struct {
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();
 void    monRecordLog(int64_t ts, ELogLevel level, const char *content);
-
-SMonInfo *monCreateMonitorInfo();
-void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);
-void      monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
-void      monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
-void      monSetGrantInfo(SMonInfo *pMonitor, SMonGrantInfo *pInfo);
-void      monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo);
-void      monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo);
-void      monSendReport(SMonInfo *pMonitor);
-void      monCleanupMonitorInfo(SMonInfo *pMonitor);
+int32_t monGetLogs(SMonLogs *logs);
+void    monSetDmInfo(SMonDmInfo *pInfo);
+void    monSetMmInfo(SMonMmInfo *pInfo);
+void    monSetVmInfo(SMonVmInfo *pInfo);
+void    monSetQmInfo(SMonQmInfo *pInfo);
+void    monSetSmInfo(SMonSmInfo *pInfo);
+void    monSetBmInfo(SMonBmInfo *pInfo);
+void    monSendReport();
 
 #ifdef __cplusplus
 }
