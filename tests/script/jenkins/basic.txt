@@ -42,6 +42,9 @@
 # ---- bnode
 ./test.sh -f tsim/bnode/basic1.sim
 
+# ---- mnode
+./test.sh -f tsim/bnode/basic1.sim
+
 # ---- show
 ./test.sh -f tsim/show/basic.sim
 
