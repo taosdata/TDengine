@@ -552,6 +552,7 @@ static int32_t mndProcessDropDnodeReq(SNodeMsg *pReq) {
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
   SDnodeObj     *pDnode = NULL;
+  SMnodeObj     *pMObj = NULL;
   SMDropMnodeReq dropReq = {0};
 
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
@@ -569,6 +570,12 @@ static int32_t mndProcessDropDnodeReq(SNodeMsg *pReq) {
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto DROP_DNODE_OVER;
+  }
+
+  pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
+  if (pMObj != NULL) {
+    terrno = TSDB_CODE_MND_MNODE_DEPLOYED;
     goto DROP_DNODE_OVER;
   }
 
@@ -592,6 +599,7 @@ DROP_DNODE_OVER:
 
   mndReleaseDnode(pMnode, pDnode);
   mndReleaseUser(pMnode, pUser);
+  mndReleaseMnode(pMnode, pMObj);
 
   return code;
 }

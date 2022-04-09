@@ -1040,7 +1040,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   SSdb   *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
-  while (true) {
+  while (1) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;

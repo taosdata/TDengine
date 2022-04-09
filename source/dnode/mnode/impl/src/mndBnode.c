@@ -396,7 +396,7 @@ static int32_t mndProcessDropBnodeReq(SNodeMsg *pReq) {
   mDebug("bnode:%d, start to drop", dropReq.dnodeId);
 
   if (dropReq.dnodeId <= 0) {
-    terrno = TSDB_CODE_SDB_APP_ERROR;
+    terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 

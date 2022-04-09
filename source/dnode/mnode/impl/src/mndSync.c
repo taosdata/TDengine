@@ -105,7 +105,6 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
     if (walEndSnapshot(pWal) < 0) {
       goto WAL_RESTORE_OVER;
     }
-
   }
 
   code = 0;
@@ -129,7 +128,9 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  pMgmt->state = TAOS_SYNC_STATE_LEADER;
+  if (pMnode->selfId == 1) {
+    pMgmt->state = TAOS_SYNC_STATE_LEADER;
+  }
   pMgmt->pSyncNode = NULL;
   return 0;
 }
