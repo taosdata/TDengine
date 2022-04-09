@@ -195,6 +195,7 @@ static void *tsdbLoopCommit(void *arg) {
     } else if (req == COMMIT_BOTH_REQ) {
       SControlDataInfo* pCtlDataInfo = (SControlDataInfo* )param;
       if(!pCtlDataInfo->memNull) {
+        tsdbInfo(":SDEL vgId=%d  commit mem before delete data. mem=%p imem=%p \n", REPO_ID(pRepo), pRepo->mem, pRepo->imem);
         tsdbCommitData(pRepo, false);
       }
       tsdbCommitControl(pRepo, param);

@@ -185,7 +185,6 @@ static void tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno) {
   }
   pRepo->deleteState = TSDB_NO_DELETE;
   tsdbInfo(":SDEL vgId:%d end delete transaction, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
-  tsem_post(&(pRepo->readyToCommit));
 }
 
 static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray, SArray* pAffectTables) {
