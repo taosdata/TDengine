@@ -2,12 +2,18 @@
 
 set -e
 
-taosd >> /dev/null 2>&1 &
-taosadapter >> /dev/null 2>&1 &
+pgrep taosd || taosd >> /dev/null 2>&1 &
+pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
+
 cd ../../docs-examples/node
+
+npm install
+
+cd nativeexample
 
 node connect.js
 
+taos -s "drop database if exists power"
 node insert_example.js
 
 node query_example.js 
@@ -18,6 +24,7 @@ node param_bind_example.js
 taos -s "drop database if exists power"
 node multi_bind_example.js
 
+taos -s "drop database if exists test"
 node influxdb_line_example.js
 
 taos -s "drop database if exists test"
@@ -25,9 +32,3 @@ node opentsdb_telnet_example.js
 
 taos -s "drop database if exists test"
 node opentsdb_json_example.js
-
-
-
-
-
-
