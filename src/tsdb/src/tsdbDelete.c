@@ -123,7 +123,7 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
   if ((REPO_FS(pRepo)->cstatus->pmf == NULL) || (taosArrayGetSize(REPO_FS(pRepo)->cstatus->df) <= 0)) {
     pRepo->deleteState = TSDB_NO_DELETE;
     tsem_post(&(pRepo->readyToCommit));
-    tsdbInfo(":SDEL vgId:%d delete over, no meta or data file", REPO_ID(pRepo));
+    tsdbInfo("vgId:%d :SDEL delete over, no meta or data file", REPO_ID(pRepo));
     return -1;
   }
 
@@ -134,17 +134,17 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
   tsdbStartDeleteTrans(pRepo);
 
   if (tsdbDeleteMeta(pRepo) < 0) {
-    tsdbError(":SDEL vgId:%d failed to delete META data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbError("vgId:%d :SDEL failed to delete META data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
-  tsdbError(":SDEL vgId:%d delete meta ok", REPO_ID(pRepo));
+  tsdbError("vgId:%d :SDEL delete meta ok", REPO_ID(pRepo));
 
   if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates, affectedTables) < 0) {
-    tsdbError(":SDEL vgId:%d failed to delete TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbError("vgId:%d :SDEL failed to delete TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
-  tsdbInfo("SDEL: vgId:%d Deleted %d row(s) from %d table(s)", REPO_ID(pRepo), pCtlInfo->affectedRows, (int32_t)taosArrayGetSize(affectedTables));
+  tsdbInfo("vgId:%d :SDEL Deleted %d row(s) from %d table(s)", REPO_ID(pRepo), pCtlInfo->affectedRows, (int32_t)taosArrayGetSize(affectedTables));
 
   // end transaction
   tsdbEndDeleteTrans(pRepo, TSDB_CODE_SUCCESS);
@@ -171,7 +171,7 @@ _err:
 
 static void tsdbStartDeleteTrans(STsdbRepo *pRepo) {
   assert(pRepo->deleteState != TSDB_IN_DELETE);
-  tsdbInfo(":SDEL vgId:%d start delete transaction!", REPO_ID(pRepo));
+  tsdbInfo("vgId:%d :SDEL start delete transaction!", REPO_ID(pRepo));
   tsdbStartFSTxn(pRepo, 0, 0);
   pRepo->code = TSDB_CODE_SUCCESS;
   pRepo->deleteState = TSDB_IN_DELETE;
@@ -184,7 +184,7 @@ static void tsdbEndDeleteTrans(STsdbRepo *pRepo, int eno) {
     tsdbEndFSTxn(pRepo);
   }
   pRepo->deleteState = TSDB_NO_DELETE;
-  tsdbInfo(":SDEL vgId:%d end delete transaction, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
+  tsdbInfo("vgId:%d :SDEL end delete transaction, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 }
 
 static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray* pArray, SArray* pAffectTables) {
@@ -208,13 +208,13 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
   while ((pSet = tsdbFSIterNext(&(deleteH.fsIter)))) {
     // remove expired files
     if (pSet->fid < deleteH.rtn.minFid) {
-      tsdbInfo(":SDEL vgId:%d FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
+      tsdbInfo("vgId:%d :SDEL FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
       continue;
     }
 
     if ((pSet->fid < sFid) || (pSet->fid > eFid)) {
-      tsdbDebug(":SDEL vgId:%d no need to delete FSET %d, sFid %d, eFid %d", REPO_ID(pRepo), pSet->fid, sFid, eFid);
+      tsdbDebug("vgId:%d :SDEL no need to delete FSET %d, sFid %d, eFid %d", REPO_ID(pRepo), pSet->fid, sFid, eFid);
       if (tsdbApplyRtnOnFSet(pRepo, pSet, &(deleteH.rtn)) < 0) {
         return -1;
       }
@@ -232,7 +232,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
     if (pCtlInfo->command & CMD_DELETE_DATA) {
       if (tsdbFSetDelete(&deleteH, pSet) < 0) {
         tsdbDestroyDeleteH(&deleteH);
-        tsdbError(":SDEL vgId:%d failed to delete data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+        tsdbError("vgId:%d :SDEL failed to delete data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
         return -1;
       }
     } else {
@@ -242,7 +242,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
   }
 
   tsdbDestroyDeleteH(&deleteH);
-  tsdbDebug(":SDEL vgId:%d delete TS data over", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d :SDEL delete TS data over", REPO_ID(pRepo));
   return 0;
 }
 
@@ -252,12 +252,12 @@ static int tsdbSDFileCreate(STsdbRepo* pRepo, SDFileSet *pWSet, SDFileSet *pSet,
 
   struct stat st;
   if (stat(pSDFile->f.aname, &st) == 0) {
-    tsdbError(":SDEL vgId:%d file exist no need create fid=%d name=%s", REPO_ID(pRepo), pSet->fid, pSDFile->f.aname);
+    tsdbError("vgId:%d :SDEL file exist no need create fid=%d name=%s", REPO_ID(pRepo), pSet->fid, pSDFile->f.aname);
     return 0;
   }
 
   if (tsdbCreateDFile(pSDFile, true, ftype) < 0) {
-    tsdbError(":SDEL vgId:%d failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d :SDEL failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
     tsdbCloseDFile(pSDFile);
     tsdbRemoveDFile(pSDFile);
     return -1;
@@ -271,11 +271,11 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
   SDiskID    did = {0};
   SDFileSet *pWSet = TSDB_DELETE_WSET(pdh);
 
-  tsdbDebug(":SDEL vgId:%d start to delete data in FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
+  tsdbDebug("vgId:%d :SDEL start to delete data in FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
 
   if (tsdbFSetInit(pdh, pSet) < 0) {
-    tsdbError(":SDEL vgId:%d fset init failed. FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
+    tsdbError("vgId:%d :SDEL fset init failed. FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
     return -1;
   }
@@ -284,7 +284,7 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
   tfsAllocDisk(tsdbGetFidLevel(pSet->fid, &(pdh->rtn)), &(did.level), &(did.id));
   if (did.level == TFS_UNDECIDED_LEVEL) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
-    tsdbError(":SDEL vgId:%d failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d :SDEL failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
     tsdbDeleteFSetEnd(pdh);
     return -1;
   }
@@ -295,13 +295,13 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
 
   // old pset
   if(pWSet->ver == TSDB_FSET_VER_0) {
-    tsdbDebug(":SDEL vgId:%d pWSet is ver0. fid=%d", REPO_ID(pRepo), pSet->fid);
+    tsdbDebug("vgId:%d :SDEL pWSet is ver0. fid=%d", REPO_ID(pRepo), pSet->fid);
     if(tsdbSDFileCreate(pRepo, pWSet, pSet, did, TSDB_FILE_SMAD) < 0 ) {
-      tsdbError(":SDEL vgId:%d failed to create sma files. fid=%d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+      tsdbError("vgId:%d :SDEL failed to create sma files. fid=%d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
       return -1;
     }
     if(tsdbSDFileCreate(pRepo, pWSet, pSet, did, TSDB_FILE_SMAL) < 0 ) {
-      tsdbError(":SDEL vgId:%d failed to create sma files. fid=%d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+      tsdbError("vgId:%d :SDEL failed to create sma files. fid=%d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
       return -1;
     }
     pWSet->ver = TSDB_FS_VER_1;
@@ -311,18 +311,15 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
   SDFile *pHeadFile = TSDB_DFILE_IN_SET(pWSet, TSDB_FILE_HEAD);
   tsdbInitDFile(pHeadFile, did, REPO_ID(pRepo), TSDB_FSET_FID(pSet), FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
   if (tsdbCreateDFile(pHeadFile, true, TSDB_FILE_HEAD) < 0) {
-    tsdbError(":SDEL vgId:%d failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d :SDEL failed to delete table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
     tsdbCloseDFile(pHeadFile);
     tsdbRemoveDFile(pHeadFile);
     return -1;
   }
   tsdbCloseDFile(pHeadFile);
 
-
-
-
   if (tsdbOpenDFileSet(pWSet, O_RDWR) < 0) {
-    tsdbError(":SDEL vgId:%d failed to open file set %d since %s", REPO_ID(pRepo), TSDB_FSET_FID(pWSet), tstrerror(terrno));
+    tsdbError("vgId:%d :SDEL failed to open file set %d since %s", REPO_ID(pRepo), TSDB_FSET_FID(pWSet), tstrerror(terrno));
     return -1;
   }
 
@@ -335,7 +332,7 @@ static int tsdbFSetDelete(SDeleteH *pdh, SDFileSet *pSet) {
 
   tsdbCloseDFileSet(TSDB_DELETE_WSET(pdh));
   tsdbUpdateDFileSet(REPO_FS(pRepo), TSDB_DELETE_WSET(pdh));
-  tsdbDebug(":SDEL vgId:%d FSET %d delete data over", REPO_ID(pRepo), pSet->fid);
+  tsdbDebug("vgId:%d :SDEL FSET %d delete data over", REPO_ID(pRepo), pSet->fid);
 
   tsdbDeleteFSetEnd(pdh);
   return 0;
