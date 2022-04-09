@@ -142,15 +142,6 @@ extern int8_t   tsTelegrafUseFieldNum;
 extern int8_t   tsHttpDbNameMandatory;
 extern int32_t  tsHttpKeepAlive;
 
-// mqtt
-extern int8_t tsEnableMqttModule;
-extern char   tsMqttHostName[];
-extern char   tsMqttPort[];
-extern char   tsMqttUser[];
-extern char   tsMqttPass[];
-extern char   tsMqttClientId[];
-extern char   tsMqttTopic[];
-
 // monitor
 extern int8_t  tsEnableMonitorModule;
 extern int8_t  tsMonitorReplica;
@@ -216,7 +207,6 @@ extern int32_t  jniDebugFlag;
 extern int32_t  tmrDebugFlag;
 extern int32_t  sdbDebugFlag;
 extern int32_t  httpDebugFlag;
-extern int32_t  mqttDebugFlag;
 extern int32_t  monDebugFlag;
 extern int32_t  uDebugFlag;
 extern int32_t  rpcDebugFlag;
