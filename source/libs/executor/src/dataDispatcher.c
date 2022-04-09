@@ -94,8 +94,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
   // NOTE: there are four bytes of an integer more than the required buffer space.
   // struct size + data payload + length for each column + bitmap length
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) +
-                    ceil(blockDataGetSerialRowSize(pInput->pData) * pInput->pData->info.rows);
+  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) + blockDataGetSize(pInput->pData);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
