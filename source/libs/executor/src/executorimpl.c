@@ -1270,7 +1270,7 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
       colDataAssign(pColInfoData, pCtx[k].input.pData[0], pCtx[k].input.numOfRows);
 
-      pResult->info.rows = pCtx[0].input.numOfRows;
+      pResult->info.rows = pSrcBlock->info.rows;
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
       for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
