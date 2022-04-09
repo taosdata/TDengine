@@ -30,7 +30,7 @@ class TDTestCase:
 
         self.ts = 1601481600000
         self.numberOfTables = 1
-        self.numberOfRecords = 15000
+        self.numberOfRecords = 150
 
     def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -66,7 +66,6 @@ class TDTestCase:
 
         tdSql.prepare()
 
-        print("DEBUG LN69: %s" % tdSql.getResult("show databases"))
         tdSql.execute("create table st(ts timestamp, c1 timestamp, c2 int, c3 bigint, c4 float, c5 double, c6 binary(8), c7 smallint, c8 tinyint, c9 bool, c10 nchar(8)) tags(t1 int)")
         tdSql.execute("create table t1 using st tags(0)")
         currts = self.ts
@@ -80,7 +79,6 @@ class TDTestCase:
                     break
             tdSql.execute(sql)
 
-        print("DEBUG LN83: %s" % tdSql.getResult("show databases"))
         binPath = self.getPath()
         if (binPath == ""):
             tdLog.exit("taosdump not found!")
@@ -93,15 +91,12 @@ class TDTestCase:
             "%s --databases db -o ./taosdumptest/tmp " %
             binPath)
 
-        print("DEBUG LN96: %s" % tdSql.getResult("show databases"))
         tdSql.execute("drop database db")
-        print("DEBUG LN98: %s" % tdSql.getResult("show databases"))
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
-        print("DEBUG LN104: %s" % tdSql.getResult("show databases"))
         tdSql.query("show databases")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'db')
@@ -116,7 +111,6 @@ class TDTestCase:
 
         # test case for TS-1225
         tdSql.execute("create database test")
-        print("DEBUG LN119: %s" % tdSql.getResult("show databases"))
         tdSql.execute("use test")
         tdSql.execute(
             "create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
@@ -131,13 +125,11 @@ class TDTestCase:
         os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("drop database test")
-        print("DEBUG LN134: %s" % tdSql.getResult("show databases"))
         tdSql.query("show databases")
         tdSql.checkRows(1)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
-        print("DEBUG LN140: %s" % tdSql.getResult("show databases"))
         tdSql.execute("use test")
         tdSql.error("show vnodes '' ")
         tdSql.query("show stables")
