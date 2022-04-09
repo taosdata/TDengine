@@ -502,7 +502,11 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
     SMonVgroupDesc desc = {0};
     desc.vgroup_id = pVgroup->vgId;
-    strncpy(desc.database_name, pVgroup->dbName, sizeof(desc.database_name));
+
+    SName name = {0};
+    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tNameGetDbName(&name, desc.database_name);
+
     desc.tables_num = pVgroup->numOfTables;
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));

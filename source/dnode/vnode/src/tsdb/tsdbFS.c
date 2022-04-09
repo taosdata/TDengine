@@ -14,7 +14,7 @@
  */
 
 #include <regex.h>
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 #include "os.h"
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;

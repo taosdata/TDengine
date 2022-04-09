@@ -120,9 +120,10 @@ static FORCE_INLINE SResultRow *getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
 static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFilePage* page, int32_t rowOffset,
                                              int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
-  ASSERT(0);
-//  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-//  return ((char *)page->data) + rowOffset + offset * numOfRows;
+
+  // int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
+  return ((char *)page->data);  
+
 }
 
 static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffset, int32_t offset) {

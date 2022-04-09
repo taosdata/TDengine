@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
+#include "vnodeInt.h"
 
 static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg);
 static void    vnodeFree(SVnode *pVnode);

@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-  
+
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
@@ -482,4 +482,8 @@ SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper) {
                   .parent = pWrapper,
                   .name = pWrapper->name};
   return cfg;
+}
+
+void dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
+  rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
 }

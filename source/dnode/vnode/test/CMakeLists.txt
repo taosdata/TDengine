@@ -25,15 +25,15 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 #     COMMAND tqTest
 # )
 
-ADD_EXECUTABLE(tsdbSmaTest tsdbSmaTest.cpp)
-TARGET_LINK_LIBRARIES(
-        tsdbSmaTest
-        PUBLIC os util common vnode gtest_main
-)
+# ADD_EXECUTABLE(tsdbSmaTest tsdbSmaTest.cpp)
+# TARGET_LINK_LIBRARIES(
+#         tsdbSmaTest
+#         PUBLIC os util common vnode gtest_main
+# )
 
-TARGET_INCLUDE_DIRECTORIES(
-        tsdbSmaTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/common"
-        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
-        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
+# TARGET_INCLUDE_DIRECTORIES(
+#         tsdbSmaTest
+#         PUBLIC "${CMAKE_SOURCE_DIR}/include/common"
+#         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+#         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+# )

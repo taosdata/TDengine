@@ -977,10 +977,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  QW_ERR_JRET(qwBuildAndSendQueryRsp(&qwMsg->connInfo, code));
-  QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
+  //QW_ERR_JRET(qwBuildAndSendQueryRsp(&qwMsg->connInfo, code));
+  //QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
 
-  queryRsped = true;
+  //queryRsped = true;
 
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
@@ -994,10 +994,10 @@ _return:
   input.code = code;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
 
-  if (!queryRsped) {
-    qwBuildAndSendQueryRsp(&qwMsg->connInfo, code);
-    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
-  }
+  //if (!queryRsped) {
+  //  qwBuildAndSendQueryRsp(&qwMsg->connInfo, code);
+  //  QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
+  //}
 
   QW_RET(TSDB_CODE_SUCCESS);
 }

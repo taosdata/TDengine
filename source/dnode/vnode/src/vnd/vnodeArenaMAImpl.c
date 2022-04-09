@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
+#include "vnodeInt.h"
 
 static SVArenaNode *vArenaNodeNew(uint64_t capacity);
 static void         vArenaNodeFree(SVArenaNode *pNode);

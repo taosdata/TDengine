@@ -17,6 +17,7 @@
 #define _TD_DND_BNODE_INT_H_
 
 #include "dndInt.h"
+
 #include "bnode.h"
 
 #ifdef __cplusplus
@@ -29,6 +30,7 @@ typedef struct SBnodeMgmt {
   SMgmtWrapper *pWrapper;
   const char   *path;
   SMultiWorker  writeWorker;
+  SSingleWorker monitorWorker;
 } SBnodeMgmt;
 
 // bmInt.c
@@ -39,11 +41,13 @@ int32_t bmDrop(SMgmtWrapper *pWrapper);
 void    bmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 
 // bmWorker.c
 int32_t bmStartWorker(SBnodeMgmt *pMgmt);
 void    bmStopWorker(SBnodeMgmt *pMgmt);
 int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

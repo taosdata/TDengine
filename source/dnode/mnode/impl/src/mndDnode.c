@@ -237,7 +237,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 3500 * tsStatusInterval) {
+  if (interval > 30000 * tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -630,6 +630,7 @@ static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq) {
 
 static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp) {
   mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndGetConfigMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {

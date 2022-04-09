@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 
 static int      tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 static int      tsdbMemTableInsertTbData(STsdb *pRepo, SSubmitBlk *pBlock, int32_t *pAffectedRows);

@@ -1578,7 +1578,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_NULL:
       break;
     case TSDB_DATA_TYPE_BOOL:
-      code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.b);
+      code = tjsonAddBoolToObject(pJson, jkValueDatum, pNode->datum.b);
       break;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:

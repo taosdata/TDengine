@@ -343,6 +343,7 @@ _return:
 
   SCH_JOB_ELOG("invalid job status update, from %s to %s", jobTaskStatusStr(oriStatus), jobTaskStatusStr(newStatus));
   SCH_ERR_RET(code);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
@@ -877,7 +878,7 @@ _return:
   SCH_RET(schProcessOnJobFailure(pJob, code));
 }
 
-int32_t schProcessOnDataFetched(SSchJob *job) {
+void schProcessOnDataFetched(SSchJob *job) {
   atomic_val_compare_exchange_32(&job->remoteFetch, 1, 0);
   tsem_post(&job->rspSem);
 }
@@ -1235,6 +1236,34 @@ _return:
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
+int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
+   int32_t s = taosHashGetSize(pTaskList);
+   if (s <= 0) {
+     return TSDB_CODE_SUCCESS;
+   }
+   
+   SSchTask **task = taosHashGet(pTaskList, &taskId, sizeof(taskId));
+   if (NULL == task || NULL == (*task)) {
+     return TSDB_CODE_SUCCESS;
+   }
+
+   *pTask = *task;
+
+   return TSDB_CODE_SUCCESS;
+}
+
+int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCode) {
+  if (rspCode || NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 || taosArrayGetSize(pTask->execNodes) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSchNodeInfo *nodeInfo = taosArrayGet(pTask->execNodes, 0);
+  nodeInfo->handle = handle;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, int32_t rspCode) {
   int32_t                code = 0;
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
@@ -1247,22 +1276,25 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
     SCH_ERR_JRET(TSDB_CODE_QRY_JOB_FREED);
   }
 
-  int32_t s = taosHashGetSize(pJob->execTasks);
-  if (s <= 0) {
-    SCH_JOB_ELOG("empty execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId, pParam->taskId);
+  schGetTaskFromTaskList(pJob->execTasks, pParam->taskId, &pTask);
+  if (NULL == pTask) {
+    if (TDMT_VND_EXPLAIN_RSP == msgType) {
+      schGetTaskFromTaskList(pJob->succTasks, pParam->taskId, &pTask);
+    } else {
+      SCH_JOB_ELOG("task not found in execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId, pParam->taskId);
+      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+  }
+  
+  if (NULL == pTask) {
+    SCH_JOB_ELOG("task not found in execList & succList, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId, pParam->taskId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  SSchTask **task = taosHashGet(pJob->execTasks, &pParam->taskId, sizeof(pParam->taskId));
-  if (NULL == task || NULL == (*task)) {
-    SCH_JOB_ELOG("task not found in execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId, pParam->taskId);
-    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-  }
-
-  pTask = *task;
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
   SCH_SET_TASK_HANDLE(pTask, pMsg->handle);
+  schUpdateTaskExecNodeHandle(pTask, pMsg->handle, rspCode);
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
@@ -1302,6 +1334,7 @@ int32_t schHandleExplainCallback(void *param, const SDataBuf *pMsg, int32_t code
 int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:%" PRIx64 ",TID:%" PRIx64 " drop task rsp received, code:%x", pParam->queryId, pParam->taskId, code);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
@@ -2201,7 +2234,7 @@ void schDropJobAllTasks(SSchJob *pJob) {
 
 int32_t schCancelJob(SSchJob *pJob) {
   // TODO
-
+  return TSDB_CODE_SUCCESS;
   // TODO MOVE ALL TASKS FROM EXEC LIST TO FAIL LIST
 }
 

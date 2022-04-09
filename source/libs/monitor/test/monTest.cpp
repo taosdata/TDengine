@@ -22,7 +22,7 @@ class MonitorTest : public ::testing::Test {
     cfg.maxLogs = 2;
     cfg.port = 80;
     cfg.server = "localhost";
-    cfg.comp = 0;
+    cfg.comp = 1;
     monInit(&cfg);
   }
 
@@ -32,24 +32,64 @@ class MonitorTest : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  void GetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);
-  void GetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
-  void GetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
-  void GetGrantInfo(SMonInfo *pMonitor, SMonGrantInfo *pInfo);
-  void GetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo);
-  void GetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo);
+  void GetBasicInfo(SMonBasicInfo *pInfo);
+  void GetDnodeInfo(SMonDnodeInfo *pInfo);
+  void GetSysInfo(SMonSysInfo *pInfo);
+
+  void GetClusterInfo(SMonClusterInfo *pInfo);
+  void GetVgroupInfo(SMonVgroupInfo *pInfo);
+  void GetGrantInfo(SMonGrantInfo *pInfo);
+
+  void GetVnodeStat(SVnodesStat *pStat);
+  void GetDiskInfo(SMonDiskInfo *pInfo);
+
+  void GetLogInfo(SMonLogs *logs);
+
   void AddLogInfo1();
   void AddLogInfo2();
 };
 
-void MonitorTest::GetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
+void MonitorTest::GetBasicInfo(SMonBasicInfo *pInfo) {
   pInfo->dnode_id = 1;
   strcpy(pInfo->dnode_ep, "localhost");
   pInfo->cluster_id = 6980428120398645172;
   pInfo->protocol = 1;
 }
 
-void MonitorTest::GetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
+void MonitorTest::GetDnodeInfo(SMonDnodeInfo *pInfo) {
+  pInfo->uptime = 1.2;
+  pInfo->has_mnode = 1;
+
+  strcpy(pInfo->logdir.name, "/log/dir/d");
+  pInfo->logdir.size.avail = 41;
+  pInfo->logdir.size.total = 42;
+  pInfo->logdir.size.used = 43;
+
+  strcpy(pInfo->tempdir.name, "/data/dir/d");
+  pInfo->tempdir.size.avail = 51;
+  pInfo->tempdir.size.total = 52;
+  pInfo->tempdir.size.used = 53;
+}
+
+void MonitorTest::GetSysInfo(SMonSysInfo *pInfo) {
+  pInfo->cpu_engine = 2.1;
+  pInfo->cpu_system = 2.1;
+  pInfo->cpu_cores = 2;
+  pInfo->mem_engine = 3.1;
+  pInfo->mem_system = 3.2;
+  pInfo->mem_total = 3.3;
+  pInfo->disk_engine = 4.1;
+  pInfo->disk_used = 4.2;
+  pInfo->disk_total = 4.3;
+  pInfo->net_in = 5.1;
+  pInfo->net_out = 5.2;
+  pInfo->io_read = 6.1;
+  pInfo->io_write = 6.2;
+  pInfo->io_read_disk = 7.1;
+  pInfo->io_write_disk = 7.2;
+}
+
+void MonitorTest::GetClusterInfo(SMonClusterInfo *pInfo) {
   strcpy(pInfo->first_ep, "localhost:6030");
   pInfo->first_ep_dnode_id = 1;
   strcpy(pInfo->version, "3.0.0.0");
@@ -86,7 +126,7 @@ void MonitorTest::GetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
   taosArrayPush(pInfo->mnodes, &m2);
 }
 
-void MonitorTest::GetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo) {
+void MonitorTest::GetVgroupInfo(SMonVgroupInfo *pInfo) {
   pInfo->vgroups = taosArrayInit(4, sizeof(SMonVgroupDesc));
 
   SMonVgroupDesc vg1 = {0};
@@ -121,41 +161,24 @@ void MonitorTest::GetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo) {
   taosArrayPush(pInfo->vgroups, &vg3);
 }
 
-void MonitorTest::GetGrantInfo(SMonInfo *pMonitor, SMonGrantInfo *pInfo) {
+void MonitorTest::GetGrantInfo(SMonGrantInfo *pInfo) {
   pInfo->expire_time = 1234567;
   pInfo->timeseries_total = 234567;
   pInfo->timeseries_used = 34567;
 }
 
-void MonitorTest::GetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
-  pInfo->uptime = 1.2;
-  pInfo->cpu_engine = 2.1;
-  pInfo->cpu_system = 2.1;
-  pInfo->cpu_cores = 2;
-  pInfo->mem_engine = 3.1;
-  pInfo->mem_system = 3.2;
-  pInfo->mem_total = 3.3;
-  pInfo->disk_engine = 4.1;
-  pInfo->disk_used = 4.2;
-  pInfo->disk_total = 4.3;
-  pInfo->net_in = 5.1;
-  pInfo->net_out = 5.2;
-  pInfo->io_read = 6.1;
-  pInfo->io_write = 6.2;
-  pInfo->io_read_disk = 7.1;
-  pInfo->io_write_disk = 7.2;
-  pInfo->req_select = 8;
-  pInfo->req_insert = 9;
-  pInfo->req_insert_success = 10;
-  pInfo->req_insert_batch = 11;
-  pInfo->req_insert_batch_success = 12;
+void MonitorTest::GetVnodeStat(SVnodesStat *pInfo) {
+  pInfo->numOfSelectReqs = 8;
+  pInfo->numOfInsertReqs = 9;
+  pInfo->numOfInsertSuccessReqs = 10;
+  pInfo->numOfBatchInsertReqs = 11;
+  pInfo->numOfBatchInsertSuccessReqs = 12;
   pInfo->errors = 4;
-  pInfo->vnodes_num = 5;
-  pInfo->masters = 6;
-  pInfo->has_mnode = 1;
+  pInfo->totalVnodes = 5;
+  pInfo->masterNum = 6;
 }
 
-void MonitorTest::GetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
+void MonitorTest::GetDiskInfo(SMonDiskInfo *pInfo) {
   pInfo->datadirs = taosArrayInit(2, sizeof(SMonDiskDesc));
   SMonDiskDesc d1 = {0};
   strcpy(d1.name, "/t1/d1/d");
@@ -180,16 +203,25 @@ void MonitorTest::GetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   d3.size.total = 32;
   d3.size.used = 33;
   taosArrayPush(pInfo->datadirs, &d3);
+}
 
-  strcpy(pInfo->logdir.name, "/log/dir/d");
-  pInfo->logdir.size.avail = 41;
-  pInfo->logdir.size.total = 42;
-  pInfo->logdir.size.used = 43;
+void MonitorTest::GetLogInfo(SMonLogs *logs) {
+  logs->logs = taosArrayInit(4, sizeof(SMonLogItem));
 
-  strcpy(pInfo->tempdir.name, "/data/dir/d");
-  pInfo->tempdir.size.avail = 51;
-  pInfo->tempdir.size.total = 52;
-  pInfo->tempdir.size.used = 53;
+  SMonLogItem item1 = {.level = DEBUG_INFO};
+  item1.ts = taosGetTimestampMs();
+  strcpy(item1.content, "log test1");
+  taosArrayPush(logs->logs, &item1);
+
+  SMonLogItem item2 = {.level = DEBUG_ERROR};
+  item2.ts = taosGetTimestampMs();
+  strcpy(item2.content, "log test2");
+  taosArrayPush(logs->logs, &item2);
+
+  logs->numOfErrorLogs = 1;
+  logs->numOfInfoLogs = 2;
+  logs->numOfDebugLogs = 3;
+  logs->numOfTraceLogs = 4;
 }
 
 void MonitorTest::AddLogInfo1() {
@@ -206,46 +238,52 @@ void MonitorTest::AddLogInfo2() {
 TEST_F(MonitorTest, 01_Full) {
   AddLogInfo1();
 
-  SMonInfo *pMonitor = monCreateMonitorInfo();
-  if (pMonitor == NULL) return;
+  SMonDmInfo dmInfo = {0};
+  GetBasicInfo(&dmInfo.basic);
+  GetDnodeInfo(&dmInfo.dnode);
+  GetSysInfo(&dmInfo.sys);
 
-  SMonBasicInfo basicInfo = {0};
-  GetBasicInfo(pMonitor, &basicInfo);
-  monSetBasicInfo(pMonitor, &basicInfo);
+  SMonMmInfo mmInfo = {0};
+  GetClusterInfo(&mmInfo.cluster);
+  GetVgroupInfo(&mmInfo.vgroup);
+  GetGrantInfo(&mmInfo.grant);
+  GetSysInfo(&mmInfo.sys);
+  GetLogInfo(&mmInfo.log);
 
-  SMonClusterInfo clusterInfo = {0};
-  SMonVgroupInfo  vgroupInfo = {0};
-  SMonGrantInfo   grantInfo = {0};
-  GetClusterInfo(pMonitor, &clusterInfo);
-  GetVgroupInfo(pMonitor, &vgroupInfo);
-  GetGrantInfo(pMonitor, &grantInfo);
-  monSetClusterInfo(pMonitor, &clusterInfo);
-  monSetVgroupInfo(pMonitor, &vgroupInfo);
-  monSetGrantInfo(pMonitor, &grantInfo);
+  SMonVmInfo vmInfo = {0};
+  GetDiskInfo(&vmInfo.tfs);
+  GetVnodeStat(&vmInfo.vstat);
+  GetSysInfo(&vmInfo.sys);
+  GetLogInfo(&vmInfo.log);
 
-  SMonDnodeInfo dnodeInfo = {0};
-  GetDnodeInfo(pMonitor, &dnodeInfo);
-  monSetDnodeInfo(pMonitor, &dnodeInfo);
+  SMonQmInfo qmInfo = {0};
+  GetSysInfo(&qmInfo.sys);
+  GetLogInfo(&qmInfo.log);
 
-  SMonDiskInfo diskInfo = {0};
-  GetDiskInfo(pMonitor, &diskInfo);
-  monSetDiskInfo(pMonitor, &diskInfo);
+  SMonSmInfo smInfo = {0};
+  GetSysInfo(&smInfo.sys);
+  GetLogInfo(&smInfo.log);
 
-  monSendReport(pMonitor);
-  monCleanupMonitorInfo(pMonitor);
+  SMonBmInfo bmInfo = {0};
+  GetSysInfo(&bmInfo.sys);
+  GetLogInfo(&bmInfo.log);
 
-  taosArrayDestroy(clusterInfo.dnodes);
-  taosArrayDestroy(clusterInfo.mnodes);
-  taosArrayDestroy(vgroupInfo.vgroups);
-  taosArrayDestroy(diskInfo.datadirs);
+  monSetDmInfo(&dmInfo);
+  monSetMmInfo(&mmInfo);
+  monSetVmInfo(&vmInfo);
+  monSetQmInfo(&qmInfo);
+  monSetSmInfo(&smInfo);
+  monSetBmInfo(&bmInfo);
+
+  tFreeSMonMmInfo(&mmInfo);
+  tFreeSMonVmInfo(&vmInfo);
+  tFreeSMonSmInfo(&smInfo);
+  tFreeSMonQmInfo(&qmInfo);
+  tFreeSMonBmInfo(&bmInfo);
+  monSendReport();
 }
 
 TEST_F(MonitorTest, 02_Log) {
   AddLogInfo2();
-
-  SMonInfo *pMonitor = monCreateMonitorInfo();
-  if (pMonitor == NULL) return;
-
-  monSendReport(pMonitor);
-  monCleanupMonitorInfo(pMonitor);
+  monSendReport();
 }
