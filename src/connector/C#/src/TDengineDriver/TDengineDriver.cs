@@ -280,7 +280,7 @@ namespace TDengineDriver
         static extern public IntPtr FreeResult(IntPtr res);
 
         [DllImport("taos", EntryPoint = "taos_close", CallingConvention = CallingConvention.Cdecl)]
-        static extern public int Close(IntPtr taos);
+        static extern public void Close(IntPtr taos);
 
         //get precision of restultset
         [DllImport("taos", EntryPoint = "taos_result_precision", CallingConvention = CallingConvention.Cdecl)]
