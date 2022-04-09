@@ -1,0 +1,48 @@
+settings:
+  - name: taosd
+    fqdn: [guoxy_03]
+    spec:
+      version: 2.4.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: guoxy_03:6030
+      dnodes:
+        - endpoint: guoxy_03:6030
+          config_dir: /etc/taos/
+          config: # will write into taos.cfg
+            dataDir: /var/dnode1/data
+            logDir: /var/log/taos
+            debugFlag: 135
+  - name: taospy
+    fqdn: [guoxy_03]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.0
+      config:
+        firstEP: guoxy_03:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+  - name: taosAdapter
+    fqdn: [guoxy_03]
+    spec:
+      version: 2.4.0.0
+      config_file: /var/taosadaper/config/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+      taos_config:
+        firstEP: guoxy_03:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+  - name: taosBenchmark
+    fqdn: [guoxy_03]
+    spec:
+      version: 1.0.0
+      taos_version: 2.4.0.0
+      config_dir: /etc/taos/
+      taos_config:
+        firstEP: guoxy_03:6030
+        logDir: /var/log/taos
+        debugFlag: 135
