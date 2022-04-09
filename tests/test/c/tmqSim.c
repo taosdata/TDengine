@@ -226,7 +226,7 @@ void loop_consume(tmq_t* tmq) {
   int32_t totalRows = 0;
   int32_t skipLogNum = 0;
   while (running) {
-    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, 4000);
+    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, 8000);
     if (tmqMsg) {
 	  totalMsgs++;
 
