@@ -18,6 +18,7 @@
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_COL_NAME_LEN    ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 //!!!! Note: only APPEND columns in below tables, NO insert !!!!
 static const SInfosTableSchema dnodesSchema[] = {
@@ -79,11 +80,11 @@ static const SInfosTableSchema userFuncSchema[] = {
     {.name = "status", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
 };
 static const SInfosTableSchema userIdxSchema[] = {
-    {.name = "db_name", .bytes = 32, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "table_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_database", .bytes = 32, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "column_name", .bytes = 64, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "index_database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "index_type", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "index_extensions", .bytes = 256, .type = TSDB_DATA_TYPE_BINARY},
 };

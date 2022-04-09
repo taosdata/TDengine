@@ -78,6 +78,7 @@ typedef struct SDbVgVersion {
 } SDbVgVersion;
 
 typedef SDbCfgRsp SDbCfgInfo;
+typedef SUserIndexRsp SIndexInfo;
 
 int32_t catalogInit(SCatalogCfg *cfg);
 
@@ -220,6 +221,8 @@ int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stable
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 
 int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg);
+
+int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
 
 
 /**
