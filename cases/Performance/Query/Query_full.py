@@ -25,43 +25,44 @@ class QueryTest(TDCase):
         file_name = []
         json_data = []
 
-
         test_root = os.environ['TEST_ROOT']
-        sql_file = read_yaml(test_root + "/cases/Performance/Query/query_sql.yaml")
-        sqls_list = sql_file["sql"]
+        cfg = read_yaml(test_root + "/cases/Performance/Query/query_sql.yaml")
+        sqls_list = cfg["sql"]
         print(sqls_list)
-        concurrents = [1, 8, 16, 32]
+
         for sqls in sqls_list:
-            for k in range(len(concurrents)):
-                result_file_name = self.run_log_dir + '/perf_report.txt'
-                f = open(result_file_name, 'a')
-                f.write("********sql:\t" + sqls + "\twith\t" + str(concurrents[k]) + "\tthreads********\n")
-                f.close()
-                for i in range(len(taosBenchmark_iplist)):
-                    json_data.append({})
-                    sql_info = jfile.setSqlInfo(sql=sqls)
-                    specify_query = jfile.setSpecifyQuery(concurrent=concurrents[k], sqls=[sql_info])
-                    json_info = jfile.setJsoninfo(host=taosd_iplist[0], query_times=100, confirm_parameter_prompt="no",
-                                                  specified_table_query=specify_query,
-                                                  databases="performance_insert_insertbase", reset_query_cache="yes")
-                    json_info.update({"query_mode": "taosc", "test_log": "/root/testlog/"})
-                    json_data[i] = json_info
-                    file_name.append("query" + str(i) + "_" + str(concurrents[k]) + ".json")
-                    jfile.genBenchmarkJson(self.run_log_dir, file_name[i], json_info)
 
-                # put the file to target
-                Query_file.put_file(taosBenchmark_iplist, json_data, file_name)
+            result_file_name = self.run_log_dir + '/perf_report.txt'
+            f = open(result_file_name, 'a')
+            f.write("********sql:\t" + sqls + "\twith\t" + str(cfg["specify_query"]["concurrent"]) + "\tthreads********\n")
+            f.close()
+            for i in range(len(taosBenchmark_iplist)):
+                json_data.append({})
+                sql_info = jfile.setSqlInfo(sql=sqls)
+                specify_query = jfile.setSpecifyQuery(concurrent=cfg["specify_query"]["concurrent"], sqls=[sql_info])
+                json_info = jfile.setJsoninfo(host=cfg["json_info"]["host"],
+                                              query_times=cfg["json_info"]["query_times"],
+                                              confirm_parameter_prompt=cfg["json_info"]["confirm_parameter_prompt"],
+                                              specified_table_query=specify_query,
+                                              databases="performance_insert_insertbase", reset_query_cache=cfg["json_info"]["reset_query_cache"])
+                json_info.update({"query_mode": cfg["json_info"]["query_mode"], "test_log": "/root/testlog/"})
+                json_data[i] = json_info
+                file_name.append("query" + str(i) + "_" + str(cfg["specify_query"]["concurrent"]) + ".json")
+                jfile.genBenchmarkJson(self.run_log_dir, file_name[i], json_info)
 
-                # run taosBenchmark and get result file
-                timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                result_filename = Query_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name)
-                timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            # put the file to target
+            Query_file.put_file(taosBenchmark_iplist, json_data, file_name)
 
-                # get query result
-                Query_file.get_summary_query_result(result_filename)
-                Query_file.get_taosBenchmark_query_process_info(result_filename)
+            # run taosBenchmark and get result file
+            timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            result_filename = Query_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name)
+            timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
-                # get node_exporter and process_exporter info
-                env_setting = self.get_component_by_name("prometheus")
-                Query_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-                Query_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            # get query result
+            Query_file.get_summary_query_result(result_filename)
+            Query_file.get_taosBenchmark_query_process_info(result_filename)
+
+            # get node_exporter and process_exporter info
+            env_setting = self.get_component_by_name("prometheus")
+            Query_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            Query_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
