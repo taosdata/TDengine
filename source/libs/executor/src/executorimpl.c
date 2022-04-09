@@ -3166,6 +3166,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   }
 
   pBlock->info.rows = numOfRow;
+  blockDataUpdateTsWindow(pBlock);
 }
 
 void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, int32_t tableGroupId, SExecTaskInfo* pTaskInfo) {
