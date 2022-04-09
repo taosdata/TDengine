@@ -3715,7 +3715,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
     taosArrayDestroy(pList);
-    return true;
+    return false;
   }
 
   return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);
