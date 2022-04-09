@@ -64,7 +64,6 @@ class TDTestCase:
         else:
             print("directory exists")
 
-        print("DEBUG LN67: %s" % tdSql.getResult("show databases"))
         tdSql.prepare()
 
         tdSql.execute("create table st(ts timestamp, c1 timestamp, c2 int, c3 bigint, c4 float, c5 double, c6 binary(8), c7 smallint, c8 tinyint, c9 bool, c10 nchar(8)) tags(t1 int)")
