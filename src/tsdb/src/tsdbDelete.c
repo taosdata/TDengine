@@ -137,7 +137,6 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     tsdbError("vgId:%d :SDEL failed to delete META data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
-  tsdbError("vgId:%d :SDEL delete meta ok", REPO_ID(pRepo));
 
   if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates, affectedTables) < 0) {
     tsdbError("vgId:%d :SDEL failed to delete TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
