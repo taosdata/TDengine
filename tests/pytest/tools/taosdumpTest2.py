@@ -64,6 +64,7 @@ class TDTestCase:
         else:
             print("directory exists")
 
+        print("DEBUG LN67: %s" % tdSql.getResult("show databases"))
         tdSql.prepare()
 
         print("DEBUG LN69: %s" % tdSql.getResult("show databases"))
