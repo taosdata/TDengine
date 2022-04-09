@@ -16,8 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {
-}
+void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {}
 
 int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonBmInfo bmInfo = {0};

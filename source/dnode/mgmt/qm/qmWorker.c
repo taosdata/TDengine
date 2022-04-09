@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-static inline void qmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+static inline void qmSendRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
                  .ahandle = pMsg->rpcMsg.ahandle,
                  .code = code,
@@ -40,7 +40,7 @@ static void qmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   if (pRpc->msgType & 1U) {
     if (code != 0 && terrno != 0) code = terrno;
-    qmSendRsp(pMgmt->pWrapper, pMsg, code);
+    qmSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -56,7 +56,7 @@ static void qmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   int32_t  code = qndProcessQueryMsg(pMgmt->pQnode, pRpc);
 
   if (pRpc->msgType & 1U && code != 0) {
-    qmSendRsp(pMgmt->pWrapper, pMsg, code);
+    qmSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -72,7 +72,7 @@ static void qmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   int32_t  code = qndProcessFetchMsg(pMgmt->pQnode, pRpc);
 
   if (pRpc->msgType & 1U && code != 0) {
-    qmSendRsp(pMgmt->pWrapper, pMsg, code);
+    qmSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
