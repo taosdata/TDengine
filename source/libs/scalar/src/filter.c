@@ -1797,6 +1797,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       } else {
         SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
+        out.columnData->info.bytes = tDataTypes[type].bytes;
 
         // todo refactor the convert
         int32_t code = doConvertDataType(var, &out);
@@ -1804,6 +1805,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
           qError("convert value to type[%d] failed", type);
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
+
+        memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
       }
     }
 
@@ -3638,6 +3641,10 @@ int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
 
 
 int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
+  if (NULL == info) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  
   return fltSetColFieldDataImpl(info, param, fltGetDataFromSlotId, false);
 }
 
@@ -3691,6 +3698,10 @@ _return:
 }
 
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
+  if (NULL == info) {
+    return false;
+  }
+
   if (info->scalarMode) {
     SScalarParam output = {0};
 
