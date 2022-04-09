@@ -247,14 +247,50 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
         }
 
         bool value = 0;
-        GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
-        colDataAppendInt8(pOutputCol, i, (int8_t*) &value);
+        GET_TYPED_DATA(value, bool, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
       }
       break;
     }
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_TINYINT: {
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        int8_t value = 0;
+        GET_TYPED_DATA(value, int8_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        int16_t value = 0;
+        GET_TYPED_DATA(value, int16_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt16(pOutputCol, i, (int16_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        int32_t value = 0;
+        GET_TYPED_DATA(value, int32_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt32(pOutputCol, i, (int32_t *)&value);
+      }
+      break;
+    }
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
@@ -265,14 +301,50 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
 
         int64_t value = 0;
         GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
-        colDataAppendInt64(pOutputCol, i, &value);
+        colDataAppendInt64(pOutputCol, i, (int64_t *)&value);
       }
       break;
     }
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_UTINYINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+        
+        uint8_t value = 0;
+        GET_TYPED_DATA(value, uint8_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+        
+        uint16_t value = 0;
+        GET_TYPED_DATA(value, uint16_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt16(pOutputCol, i, (int16_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+        
+        uint32_t value = 0;
+        GET_TYPED_DATA(value, uint32_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt32(pOutputCol, i, (int32_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           colDataAppendNULL(pOutputCol, i);
@@ -284,8 +356,21 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
         colDataAppendInt64(pOutputCol, i, (int64_t*)&value);
       }
       break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
+    }
+    case TSDB_DATA_TYPE_FLOAT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+        
+        float value = 0;
+        GET_TYPED_DATA(value, float, inType, colDataGetData(pInputCol, i));
+        colDataAppendFloat(pOutputCol, i, (float*)&value);
+      }
+      break;  
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           colDataAppendNULL(pOutputCol, i);
@@ -294,9 +379,10 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
         
         double value = 0;
         GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, i));
-        colDataAppendDouble(pOutputCol, i, &value);
+        colDataAppendDouble(pOutputCol, i, (double*)&value);
       }
-      break;      
+      break;  
+    }
     default:
       sclError("invalid convert output type:%d", outType);
       return TSDB_CODE_QRY_APP_ERROR;

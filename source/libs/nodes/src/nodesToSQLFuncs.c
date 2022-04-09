@@ -39,8 +39,12 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       } else if (colNode->tableName[0]) {
         *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
       }
-
-      *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
+      
+      if (colNode->tableAlias[0]) {
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
+      } else {
+        *len += snprintf(buf + *len, bufSize - *len, "%s", colNode->colName);
+      }
       
       return TSDB_CODE_SUCCESS;
     }
