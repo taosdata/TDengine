@@ -2923,21 +2923,23 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_EXPLAIN_STMT:
+      pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->haveResultSet = true;
       pQuery->msgType = TDMT_VND_QUERY;
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
+      pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->msgType = TDMT_VND_CREATE_TABLE;
       break;
     case QUERY_NODE_DESCRIBE_STMT:
-      pQuery->localCmd = true;
+      pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       pQuery->haveResultSet = true;
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
-      pQuery->localCmd = true;
+      pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
     default:
-      pQuery->directRpc = true;
+      pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {
         TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg, SCmdMsgInfo*);
         pQuery->msgType = pQuery->pCmdMsg->msgType;

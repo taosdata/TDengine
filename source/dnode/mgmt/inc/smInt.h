@@ -32,6 +32,7 @@ typedef struct SSnodeMgmt {
   int8_t        uniqueWorkerInUse;
   SArray       *uniqueWorkers;  // SArray<SMultiWorker*>
   SSingleWorker sharedWorker;
+  SSingleWorker monitorWorker;
 } SSnodeMgmt;
 
 // smInt.c
@@ -42,6 +43,7 @@ int32_t smDrop(SMgmtWrapper *pWrapper);
 void    smInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
@@ -50,6 +52,7 @@ int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t smProcessExecMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

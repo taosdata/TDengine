@@ -581,6 +581,7 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
   }
 
   tsem_post(&pScanResInfo->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
@@ -596,6 +597,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
 
   int8_t* rowRes = NULL;
   bool    keep = filterExecute(filter, pInfo->pRes, &rowRes, NULL, param1.numOfCols);
+  filterFreeInfo(filter);
 
   SSDataBlock* px = createOneDataBlock(pInfo->pRes);
   blockDataEnsureCapacity(px, pInfo->pRes->info.rows);
@@ -606,14 +608,21 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
     SColumnInfoData* pDest = taosArrayGet(px->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(pInfo->pRes->pDataBlock, i);
 
-    numOfRow = 0;
-    for (int32_t j = 0; j < pInfo->pRes->info.rows; ++j) {
-      if (rowRes[j] == 0) {
-        continue;
+    if (keep) {
+      colDataAssign(pDest, pSrc, pInfo->pRes->info.rows);
+      numOfRow = pInfo->pRes->info.rows;
+    } else if (NULL != rowRes) {
+      numOfRow = 0;
+      for (int32_t j = 0; j < pInfo->pRes->info.rows; ++j) {
+        if (rowRes[j] == 0) {
+          continue;
+        }
+      
+        colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
+        numOfRow += 1;
       }
-
-      colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
-      numOfRow += 1;
+    } else {
+      numOfRow = 0;
     }
   }
 

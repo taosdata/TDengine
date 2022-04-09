@@ -437,7 +437,6 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
 int32_t compareWStrPatternNotMatch(const void *pLeft, const void *pRight) {
   return compareWStrPatternMatch(pLeft, pRight) ? 0 : 1;
 }
-
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
@@ -569,53 +568,36 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
 }
 
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
-  __compar_fn_t comparFn = NULL;
-
   switch (keyType) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_BOOL:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt8Val : compareInt8ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt8Val : compareInt8ValDesc;
     case TSDB_DATA_TYPE_SMALLINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt16Val : compareInt16ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt16Val : compareInt16ValDesc;
     case TSDB_DATA_TYPE_INT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
     case TSDB_DATA_TYPE_FLOAT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareFloatVal : compareFloatValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareFloatVal : compareFloatValDesc;
     case TSDB_DATA_TYPE_DOUBLE:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareDoubleVal : compareDoubleValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareDoubleVal : compareDoubleValDesc;
     case TSDB_DATA_TYPE_UTINYINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint8Val : compareUint8ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint8Val : compareUint8ValDesc;
     case TSDB_DATA_TYPE_USMALLINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint16Val : compareUint16ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint16Val : compareUint16ValDesc;
     case TSDB_DATA_TYPE_UINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
     case TSDB_DATA_TYPE_UBIGINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
     case TSDB_DATA_TYPE_BINARY:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
     default:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
   }
-
-  return comparFn;
 }
 
 int32_t doCompare(const char *f1, const char *f2, int32_t type, size_t size) {

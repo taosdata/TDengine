@@ -16,8 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-static void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+static inline void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
+                 .ahandle = pMsg->rpcMsg.ahandle,
+                 .code = code,
+                 .pCont = pMsg->pRsp,
+                 .contLen = pMsg->rspLen};
   tmsgSendRsp(&rsp);
 }
 
@@ -26,9 +30,15 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   int32_t code = -1;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  dTrace("msg:%p, will be processed in vnode-mgmt queue", pMsg);
+  dTrace("msg:%p, will be processed in vnode-m queue", pMsg);
 
   switch (msgType) {
+    case TDMT_MON_VM_INFO:
+      code = vmProcessGetMonVmInfoReq(pMgmt->pWrapper, pMsg);
+      break;
+    case TDMT_MON_VM_LOAD:
+      code = vmProcessGetVnodeLoadsReq(pMgmt->pWrapper, pMsg);
+      break;
     case TDMT_DND_CREATE_VNODE:
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
@@ -255,6 +265,15 @@ int32_t vmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
+int32_t vmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SVnodesMgmt   *pMgmt = pWrapper->pMgmt;
+  SSingleWorker *pWorker = &pMgmt->monitorWorker;
+
+  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
+}
+
 static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueType qtype) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   SMsgHead    *pHead = pRpc->pCont;
@@ -412,11 +431,21 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
     return -1;
   }
 
+  if (tsMultiProcess) {
+    SSingleWorkerCfg mCfg = {
+        .min = 1, .max = 1, .name = "vnode-monitor", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+      dError("failed to start mnode vnode-monitor worker since %s", terrstr());
+      return -1;
+    }
+  }
+
   dDebug("vnode workers are initialized");
   return 0;
 }
 
 void vmStopWorker(SVnodesMgmt *pMgmt) {
+  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   tQWorkerCleanup(&pMgmt->fetchPool);
   tQWorkerCleanup(&pMgmt->queryPool);

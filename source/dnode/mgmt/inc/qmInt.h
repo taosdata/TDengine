@@ -30,6 +30,7 @@ typedef struct SQnodeMgmt {
   const char   *path;
   SSingleWorker queryWorker;
   SSingleWorker fetchWorker;
+  SSingleWorker monitorWorker;
 } SQnodeMgmt;
 
 // qmInt.c
@@ -40,6 +41,7 @@ int32_t qmDrop(SMgmtWrapper *pWrapper);
 void    qmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t qmProcessGetMonQmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 
 // qmWorker.c
 int32_t qmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
@@ -50,6 +52,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt);
 void    qmStopWorker(SQnodeMgmt *pMgmt);
 int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t qmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }
