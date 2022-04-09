@@ -182,6 +182,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
+int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity);
 
 SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
 

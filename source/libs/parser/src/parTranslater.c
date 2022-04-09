@@ -743,24 +743,99 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   return code;
 }
 
-static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool* pIsSelectStar) {
+static int32_t createAllColumns(STranslateContext* pCxt, SNodeList** pCols) {
+  *pCols = nodesMakeList();
+  if (NULL == *pCols) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
+  }
+  SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
+  size_t nums = taosArrayGetSize(pTables);
+  for (size_t i = 0; i < nums; ++i) {
+    STableNode* pTable = taosArrayGetP(pTables, i);
+    int32_t code = createColumnNodeByTable(pCxt, pTable, *pCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isFirstLastFunc(SFunctionNode* pFunc) {
+  return (FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType);
+}
+
+static bool isFirstLastStar(SNode* pNode) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode) || !isFirstLastFunc((SFunctionNode*)pNode)) {
+    return false;
+  }
+  SNodeList* pParameterList = ((SFunctionNode*)pNode)->pParameterList;
+  if (LIST_LENGTH(pParameterList) != 1) {
+    return false;
+  }
+  SNode* pParam = nodesListGetNode(pParameterList, 0);
+  return (QUERY_NODE_COLUMN == nodeType(pParam) ? 0 == strcmp(((SColumnNode*)pParam)->colName, "*") : false);
+}
+
+static SNode* createFirstLastFunc(SFunctionNode* pSrcFunc, SColumnNode* pCol) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return NULL;
+  }
+  pFunc->pParameterList = nodesMakeList();
+  if (NULL == pFunc->pParameterList || TSDB_CODE_SUCCESS != nodesListAppend(pFunc->pParameterList, pCol)) {
+    nodesDestroyNode(pFunc);
+    return NULL;
+  }
+
+  pFunc->node.resType = pCol->node.resType;
+  pFunc->funcId = pSrcFunc->funcId;
+  pFunc->funcType = pSrcFunc->funcType;
+  strcpy(pFunc->functionName, pSrcFunc->functionName);
+  snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), (FUNCTION_TYPE_FIRST == pSrcFunc->funcType ? "first(%s)" : "last(%s)"), pCol->colName);
+
+  return (SNode*)pFunc;
+}
+
+static int32_t createFirstLastAllCols(STranslateContext* pCxt, SFunctionNode* pSrcFunc, SNodeList** pOutput) {
+  SNodeList* pCols = NULL;
+  if (TSDB_CODE_SUCCESS != createAllColumns(pCxt, &pCols)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNodeList* pFuncs = nodesMakeList();
+  if (NULL == pFuncs) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SNode* pCol = NULL;
+  FOREACH(pCol, pCols) {
+    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pFuncs, createFirstLastFunc(pSrcFunc, (SColumnNode*)pCol))) {
+      nodesDestroyNode(pFuncs);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  *pOutput = pFuncs;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pProjectionList) { // select * ...
-    SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
-    size_t nums = taosArrayGetSize(pTables);
-    pSelect->pProjectionList = nodesMakeList();
-    if (NULL == pSelect->pProjectionList) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
-    }
-    for (size_t i = 0; i < nums; ++i) {
-      STableNode* pTable = taosArrayGetP(pTables, i);
-      int32_t code = createColumnNodeByTable(pCxt, pTable, pSelect->pProjectionList);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-    *pIsSelectStar = true;
+    return createAllColumns(pCxt, &pSelect->pProjectionList);
   } else {
     // todo : t.*
+    SNode* pNode = NULL;
+    WHERE_EACH(pNode, pSelect->pProjectionList) {
+      if (isFirstLastStar(pNode)) {
+        SNodeList* pFuncs = NULL;
+        if (TSDB_CODE_SUCCESS != createFirstLastAllCols(pCxt, (SFunctionNode*)pNode, &pFuncs)) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        INSERT_LIST(pSelect->pProjectionList, pFuncs);
+        ERASE_NODE(pSelect->pProjectionList);
+        continue;
+      }
+      WHERE_NEXT;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -797,8 +872,8 @@ static int32_t getPositionValue(const SValueNode* pVal) {
 
 static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList, bool* pOther) {
   *pOther = false;
-  SNode* pNode;
-  FOREACH(pNode, pOrderByList) {
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, pOrderByList) {
     SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
     if (QUERY_NODE_VALUE == nodeType(pExpr)) {
       SValueNode* pVal = (SValueNode*)pExpr;
@@ -823,6 +898,7 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
     } else {
       *pOther = true;
     }
+    WHERE_NEXT;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -845,11 +921,10 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  bool isSelectStar = false;
-  int32_t code = translateStar(pCxt, pSelect, &isSelectStar);
-  if (TSDB_CODE_SUCCESS == code && !isSelectStar) {
-    pCxt->currClause = SQL_CLAUSE_SELECT;
-    code = translateExprList(pCxt, pSelect->pProjectionList);
+  pCxt->currClause = SQL_CLAUSE_SELECT;
+  int32_t code = translateExprList(pCxt, pSelect->pProjectionList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateStar(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect->pProjectionList);
@@ -1831,10 +1906,13 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
   pSelect->pFromTable = (SNode*)pTable;
 
   pSelect->pProjectionList = nodesCloneList(pStmt->pOptions->pFuncs);
-  if (NULL == pTable) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pSelect->pProjectionList || NULL == pFunc) {
     nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  strcpy(pFunc->functionName, "_wstartts");
+  nodesListPushFront(pSelect->pProjectionList, pFunc);
   SNode* pProject = NULL;
   FOREACH(pProject, pSelect->pProjectionList) {
     sprintf(((SExprNode*)pProject)->aliasName, "#sma_%p", pProject);
