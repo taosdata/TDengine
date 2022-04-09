@@ -624,9 +624,7 @@ int tsdbRemoveDelBlocks(SDeleteH *pdh, STableDeleteH * pItem) {
 
   if(delRows > 0) {
     // affected Rows
-    if(pdh->pCtlInfo->pRsp) {
-      pdh->pCtlInfo->pRsp->affectedRows += delRows;
-    }
+    pdh->pCtlInfo->affectedRows += delRows;
     // affected Tables
     tsdbAddAffectTables(pdh->aAffectTables, pItem->pTable->tableId.tid);
   }  
@@ -734,9 +732,7 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
   // update new last row in last row was deleted
   if (affectedRows > 0) {
     // affectedRows
-    if (pdh->pCtlInfo->pRsp) {
-      pdh->pCtlInfo->pRsp->affectedRows += affectedRows;
-    }
+    pdh->pCtlInfo->affectedRows += affectedRows;
     // affectTables
     tsdbAddAffectTables(pdh->aAffectTables, pItem->pTable->tableId.tid);
   }
