@@ -1,0 +1,49 @@
+case1:
+  sql:
+    - "select first (*) from stb"
+    - "select last (*) from stb"
+    - "select * from stb limit 10000"
+    - "select avg(c4),max(c0),min(c5) from stb interval (1d)"
+    - "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00' interval(10s)"
+    - "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00' interval(10s)"
+    - "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00' interval(10s)"
+    - "select * from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00'"
+    - "select * from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00'"
+    - "select * from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00'"
+  json_info:
+    filetype: "query"
+    cfgdir: "/etc/taos"
+    host: "vm85"
+    port": 6030
+    user: "root"
+    password: "taosdata"
+    confirm_parameter_prompt: "no"
+    databases: "performance_insert_insertbase"
+    query_times: 100,
+    query_mode: "taosc"
+    reset_query_cache: "yes"
+    connection_pool_size: 100
+  specify_query:
+    query_interval: 1
+    concurrent: 32
+
+case2:
+  sql:
+    - "select first (*) from stb"
+
+  json_info:
+    filetype: "query"
+    cfgdir: "/etc/taos"
+    host: "vm85"
+    port": 6030
+    user: "root"
+    password: "taosdata"
+    confirm_parameter_prompt: "no"
+    databases: "performance_insert_insertbase"
+    query_times: 100,
+    query_mode: "taosc"
+    reset_query_cache: "yes"
+    connection_pool_size: 100
+  specify_query:
+    query_interval: 1
+    concurrent: 32
