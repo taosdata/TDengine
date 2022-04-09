@@ -230,15 +230,15 @@ typedef struct SDropIndexStmt {
   char tableName[TSDB_TABLE_NAME_LEN];
 } SDropIndexStmt;
 
-typedef struct SCreateQnodeStmt {
+typedef struct SCreateComponentNodeStmt {
   ENodeType type;
   int32_t dnodeId;
-} SCreateQnodeStmt;
+} SCreateComponentNodeStmt;
 
-typedef struct SDropQnodeStmt {
+typedef struct SDropComponentNodeStmt {
   ENodeType type;
   int32_t dnodeId;
-} SDropQnodeStmt;
+} SDropComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
   ENodeType type;
