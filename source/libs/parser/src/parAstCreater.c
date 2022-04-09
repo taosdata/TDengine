@@ -1034,15 +1034,15 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   return (SNode*)pStmt;
 }
 
-SNode* createCreateQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
-  SCreateQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_QNODE_STMT);
+SNode* createCreateComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  SCreateComponentNodeStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
   return (SNode*)pStmt;
 }
 
-SNode* createDropQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
-  SDropQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_QNODE_STMT);
+SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  SDropComponentNodeStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
   return (SNode*)pStmt;

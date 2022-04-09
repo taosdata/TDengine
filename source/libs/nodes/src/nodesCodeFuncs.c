@@ -170,6 +170,10 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicExchange";
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return "LogicWindow";
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return "LogicSort";
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return "LogicPartition";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -525,6 +529,30 @@ static int32_t jsonToLogicProjectNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkScanLogicPlanTableMetaSize, &pNode->soffset);
+  }
+
+  return code;
+}
+
+static const char* jkSortLogicPlanSortKeys = "SortKeys";
+
+static int32_t logicSortNodeToJson(const void* pObj, SJson* pJson) {
+  const SSortLogicNode* pNode = (const SSortLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSortLogicPlanSortKeys, pNode->pSortKeys);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicSortNode(const SJson* pJson, void* pObj) {
+  SSortLogicNode* pNode = (SSortLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSortLogicPlanSortKeys, &pNode->pSortKeys);
   }
 
   return code;
@@ -2468,6 +2496,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return logicProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
+      break;
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return logicSortNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_SUBPLAN:
     case QUERY_NODE_LOGIC_PLAN:
       break;
@@ -2527,16 +2558,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToFunctionNode(pJson, pObj);
     case QUERY_NODE_REAL_TABLE:
       return jsonToRealTableNode(pJson, pObj);
-    // case QUERY_NODE_TEMP_TABLE:
-    // case QUERY_NODE_JOIN_TABLE:
-    //   break;
-    // case QUERY_NODE_GROUPING_SET:
-    //   return jsonToGroupingSetNode(pJson, pObj);
     case QUERY_NODE_ORDER_BY_EXPR:
       return jsonToOrderByExprNode(pJson, pObj);
-    // case QUERY_NODE_LIMIT:
-    // case QUERY_NODE_STATE_WINDOW:
-    // case QUERY_NODE_SESSION_WINDOW:
     case QUERY_NODE_INTERVAL_WINDOW:
       return jsonToIntervalWindowNode(pJson, pObj);
     case QUERY_NODE_NODE_LIST:
@@ -2545,28 +2568,22 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToFillNode(pJson, pObj);
     case QUERY_NODE_TARGET:
       return jsonToTargetNode(pJson, pObj);
-    // case QUERY_NODE_RAW_EXPR:
-    //   break;
     case QUERY_NODE_DATABLOCK_DESC:
       return jsonToDataBlockDescNode(pJson, pObj);
     case QUERY_NODE_SLOT_DESC:
       return jsonToSlotDescNode(pJson, pObj);
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return jsonToDownstreamSourceNode(pJson, pObj);
-    // case QUERY_NODE_SET_OPERATOR:
-    //   break;
     case QUERY_NODE_SELECT_STMT:
       return jsonToSelectStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return jsonToCreateTopicStmt(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return jsonToLogicScanNode(pJson, pObj);
-    // case QUERY_NODE_LOGIC_PLAN_JOIN:
-    //   return jsonToLogicJoinNode(pJson, pObj);
-    // case QUERY_NODE_LOGIC_PLAN_AGG:
-    //   return jsonToLogicAggNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return jsonToLogicProjectNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return jsonToLogicSortNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
