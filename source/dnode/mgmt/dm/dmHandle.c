@@ -97,6 +97,7 @@ int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   }
 
   pMgmt->statusSent = 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {

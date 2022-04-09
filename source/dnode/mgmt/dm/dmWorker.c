@@ -44,6 +44,7 @@ static void *dmThreadRoutine(void *param) {
       lastMonitorTime = curTime;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dmStartThread(SDnodeMgmt *pMgmt) {

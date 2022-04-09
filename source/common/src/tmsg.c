@@ -2645,6 +2645,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq *pReq) {
   taosArrayDestroy(pReq->pRetensions);
   pReq->pRetensions = NULL;
+  return 0;
 }
 
 int32_t tSerializeSDropVnodeReq(void *buf, int32_t bufLen, SDropVnodeReq *pReq) {
