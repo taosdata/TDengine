@@ -39,7 +39,7 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_INVALID_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
 
   {
@@ -94,7 +94,7 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_INVALID_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
 
   {

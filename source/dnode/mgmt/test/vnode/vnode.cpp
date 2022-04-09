@@ -67,7 +67,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, 0);
       test.Restart();
     } else {
-      ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
+      ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
     }
   }
 }
@@ -301,7 +301,7 @@ TEST_F(DndTestVnode, 06_Drop_Vnode) {
       ASSERT_EQ(pRsp->code, 0);
       test.Restart();
     } else {
-      ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_NOT_DEPLOYED);
+      ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
     }
   }
 }

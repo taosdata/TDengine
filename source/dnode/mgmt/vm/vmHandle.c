@@ -139,7 +139,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     tFreeSCreateVnodeReq(&createReq);
     dDebug("vgId:%d, already exist", createReq.vgId);
     vmReleaseVnode(pMgmt, pVnode);
-    terrno = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     return -1;
   }
 
@@ -238,7 +238,7 @@ int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    terrno = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     return -1;
   }
 

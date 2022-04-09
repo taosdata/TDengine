@@ -54,7 +54,7 @@ int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 
   if (createReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
     return -1;
   } else {
@@ -73,7 +73,7 @@ int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 
   if (dropReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;
   } else {
