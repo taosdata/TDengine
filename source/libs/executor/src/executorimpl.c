@@ -4759,6 +4759,7 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHan
 
 SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity) {
   blockDataCleanup(pDataBlock);
+  blockDataEnsureCapacity(pDataBlock, capacity);
 
   while (1) {
     STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
