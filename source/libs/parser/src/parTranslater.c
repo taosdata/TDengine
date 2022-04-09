@@ -2037,13 +2037,13 @@ static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt
 static int16_t getCreateComponentNodeMsgType(ENodeType type) {
   switch (type) {
     case QUERY_NODE_CREATE_QNODE_STMT:
-      return TDMT_DND_CREATE_QNODE;
+      return TDMT_MND_CREATE_QNODE;
     case QUERY_NODE_CREATE_BNODE_STMT:
-      return TDMT_DND_CREATE_BNODE;
+      return TDMT_MND_CREATE_BNODE;
     case QUERY_NODE_CREATE_SNODE_STMT:
-      return TDMT_DND_CREATE_SNODE;
+      return TDMT_MND_CREATE_SNODE;
     case QUERY_NODE_CREATE_MNODE_STMT:
-      return TDMT_DND_CREATE_MNODE;
+      return TDMT_MND_CREATE_MNODE;
     default:
       break;
   }
@@ -2059,12 +2059,12 @@ static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComp
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = getCreateComponentNodeMsgType(nodeType(pStmt));
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSerializeSMCreateDropQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+  tSerializeSCreateDropMQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2072,13 +2072,13 @@ static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComp
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
   switch (type) {
     case QUERY_NODE_DROP_QNODE_STMT:
-      return TDMT_DND_DROP_QNODE;
+      return TDMT_MND_DROP_QNODE;
     case QUERY_NODE_DROP_BNODE_STMT:
-      return TDMT_DND_DROP_BNODE;
+      return TDMT_MND_DROP_BNODE;
     case QUERY_NODE_DROP_SNODE_STMT:
-      return TDMT_DND_DROP_SNODE;
+      return TDMT_MND_DROP_SNODE;
     case QUERY_NODE_DROP_MNODE_STMT:
-      return TDMT_DND_DROP_MNODE;
+      return TDMT_MND_DROP_MNODE;
     default:
       break;
   }
@@ -2094,12 +2094,12 @@ static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponen
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = getDropComponentNodeMsgType(nodeType(pStmt));
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSerializeSMCreateDropQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
+  tSerializeSCreateDropMQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
 
   return TSDB_CODE_SUCCESS;
 }

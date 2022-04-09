@@ -388,7 +388,7 @@ static int32_t mndProcessCreateMnodeReq(SNodeMsg *pReq) {
   SUserObj        *pUser = NULL;
   SMCreateMnodeReq createReq = {0};
 
-  if (tDeserializeSMCreateDropMnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto CREATE_MNODE_OVER;
   }
@@ -509,9 +509,9 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
     SDDropMnodeReq dropReq = {0};
     dropReq.dnodeId = pObj->id;
-    int32_t contLen = tSerializeSMCreateDropMnodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
     void   *pReq = taosMemoryMalloc(contLen);
-    tSerializeSMCreateDropMnodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pReq;
@@ -554,7 +554,7 @@ static int32_t mndProcessDropMnodeReq(SNodeMsg *pReq) {
   SMnodeObj     *pObj = NULL;
   SMDropMnodeReq dropReq = {0};
 
-  if (tDeserializeSMCreateDropMnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto DROP_MNODE_OVER;
   }

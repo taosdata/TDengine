@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-static void bmSendErrorRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+static void bmSendErrorRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
   tmsgSendRsp(&rpcRsp);
 
@@ -25,15 +25,17 @@ static void bmSendErrorRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code)
   taosFreeQitem(pMsg);
 }
 
-static void bmSendErrorRsps(SMgmtWrapper *pWrapper, STaosQall *qall, int32_t numOfMsgs, int32_t code) {
+static void bmSendErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
-    bmSendErrorRsp(pWrapper, pMsg, code);
+    if (pMsg != NULL) {
+      bmSendErrorRsp(pMsg, code);
+    }
   }
 }
 
-static inline void bmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+static inline void bmSendRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
                  .ahandle = pMsg->rpcMsg.ahandle,
                  .code = code,
@@ -42,20 +44,22 @@ static inline void bmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t cod
   tmsgSendRsp(&rsp);
 }
 
-static void bmProcessMonQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void bmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SBnodeMgmt *pMgmt = pInfo->ahandle;
 
-  dTrace("msg:%p, get from bnode monitor queue", pMsg);
+  dTrace("msg:%p, get from bnode-monitor queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
 
   if (pMsg->rpcMsg.msgType == TDMT_MON_BM_INFO) {
     code = bmProcessGetMonBmInfoReq(pMgmt->pWrapper, pMsg);
+  } else {
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
   if (pRpc->msgType & 1U) {
     if (code != 0 && terrno != 0) code = terrno;
-    bmSendRsp(pMgmt->pWrapper, pMsg, code);
+    bmSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -64,21 +68,22 @@ static void bmProcessMonQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 }
 
 static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SBnodeMgmt   *pMgmt = pInfo->ahandle;
-  SMgmtWrapper *pWrapper = pMgmt->pWrapper;
+  SBnodeMgmt *pMgmt = pInfo->ahandle;
 
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
   if (pArray == NULL) {
-    bmSendErrorRsps(pWrapper, qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
+    bmSendErrorRsps(qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
     return;
   }
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
-    dTrace("msg:%p, will be processed in bnode queue", pMsg);
-    if (taosArrayPush(pArray, &pMsg) == NULL) {
-      bmSendErrorRsp(pWrapper, pMsg, TSDB_CODE_OUT_OF_MEMORY);
+    if (pMsg != NULL) {
+      dTrace("msg:%p, get from bnode-write queue", pMsg);
+      if (taosArrayPush(pArray, &pMsg) == NULL) {
+        bmSendErrorRsp(pMsg, TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
 
@@ -86,9 +91,11 @@ static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
   for (size_t i = 0; i < numOfMsgs; i++) {
     SNodeMsg *pMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
-    dTrace("msg:%p, is freed", pMsg);
-    rpcFreeCont(pMsg->rpcMsg.pCont);
-    taosFreeQitem(pMsg);
+    if (pMsg != NULL) {
+      dTrace("msg:%p, is freed", pMsg);
+      rpcFreeCont(pMsg->rpcMsg.pCont);
+      taosFreeQitem(pMsg);
+    }
   }
   taosArrayDestroy(pArray);
 }
@@ -120,12 +127,12 @@ int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
 
   if (tsMultiProcess) {
     SSingleWorkerCfg mCfg = {
-        .min = 1, .max = 1, .name = "bnode-monitor", .fp = (FItem)bmProcessMonQueue, .param = pMgmt};
+        .min = 1, .max = 1, .name = "bnode-monitor", .fp = (FItem)bmProcessMonitorQueue, .param = pMgmt};
     if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start bnode-monitor worker since %s", terrstr());
       return -1;
     }
-   }
+  }
 
   dDebug("bnode workers are initialized");
   return 0;

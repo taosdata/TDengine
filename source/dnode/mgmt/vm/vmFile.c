@@ -45,7 +45,7 @@ SVnodeObj **vmGetVnodesFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
 }
 
 int32_t vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
-  int32_t      code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
+  int32_t      code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t      len = 0;
   int32_t      maxLen = 30000;
   char        *content = taosMemoryCalloc(1, maxLen + 1);
