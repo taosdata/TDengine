@@ -1280,7 +1280,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   uint32_t tsizeAggr = (uint32_t)tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
   int32_t  keyLen = 0;
   int32_t  nBitmaps = (int32_t)TD_BITMAP_BYTES(rowsToWrite);
-  // int32_t  tBitmaps = 0;
+  int32_t  sBitmaps = isSuper ? (int32_t)TD_BITMAP_BYTES_I(rowsToWrite) : nBitmaps;
 
   for (int ncol = 0; ncol < pDataCols->numOfCols; ++ncol) {
     // All not NULL columns finish
@@ -1292,25 +1292,13 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     if (ncol != 0 && (pDataCol->colId != pBlockCol->colId)) continue;
 
     int32_t flen;  // final length
-    int32_t tlen = dataColGetNEleLen(pDataCol, rowsToWrite);
+    int32_t tlen = dataColGetNEleLen(pDataCol, rowsToWrite, pDataCols->bitmapMode);
 
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
     int32_t tBitmapsLen = 0;
     if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
-      tBitmaps = nBitmaps;
-#if 0
-      if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-        tBitmaps = nBitmaps;
-        tlen += tBitmaps;
-      } else {
-        tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-        tlen += tBitmaps * TYPE_BYTES[pDataCol->type];
-      }
-#endif
-      // move bitmap parts ahead
-      // TODO: put bitmap part to the 1st location(pBitmap points to pData) to avoid the memmove
-      // memcpy(POINTER_SHIFT(pDataCol->pData, pDataCol->len), pDataCol->pBitmap, nBitmaps);
+      tBitmaps = sBitmaps;
     }
 #endif
 
@@ -1340,6 +1328,9 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
                                                       tlen + COMP_OVERFLOW_BYTES);
       if (tBitmaps > 0) {
         bptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        if (isSuper && !tdDataColsIsBitmapI(pDataCols)) {
+          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, nBitmaps, (uint8_t *)pDataCol->pBitmap);
+        }
         tBitmapsLen =
             tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, tBitmaps, bptr, tBitmaps + COMP_OVERFLOW_BYTES,
                               pCfg->compression, *ppCBuf, tBitmaps + COMP_OVERFLOW_BYTES);
@@ -1506,7 +1497,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
   }
 
   SSkipListIterator titer = *(pIter->pIter);
-  if (tsdbLoadBlockDataCols(&(pCommith->readh), pBlock, NULL, &colId, 1) < 0) return -1;
+  if (tsdbLoadBlockDataCols(&(pCommith->readh), pBlock, NULL, &colId, 1, false) < 0) return -1;
 
   tsdbLoadDataFromCache(pIter->pTable, &titer, keyLimit, INT32_MAX, NULL, pCommith->readh.pDCols[0]->cols[0].pData,
                         pCommith->readh.pDCols[0]->numOfRows, pCfg->update, &mInfo);
@@ -1656,6 +1647,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
   ASSERT(maxRows > 0 && dataColsKeyLast(pDataCols) <= maxKey);
   tdResetDataCols(pTarget);
 
+  pTarget->bitmapMode = pDataCols->bitmapMode;
+
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
     STSRow *row = tsdbNextIterRow(pCommitIter->pIter);
@@ -1668,17 +1661,17 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
 
     if (key1 < key2) {
-      for (int i = 0; i < pDataCols->numOfCols; i++) {
+      for (int i = 0; i < pDataCols->numOfCols; ++i) {
         // TODO: dataColAppendVal may fail
         SCellVal sVal = {0};
-        if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter) < 0) {
+        if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
           TASSERT(0);
         }
-        tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints);
+        tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints, pTarget->bitmapMode);
       }
 
-      pTarget->numOfRows++;
-      (*iter)++;
+      ++pTarget->numOfRows;
+      ++(*iter);
     } else if (key1 > key2) {
       if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
         pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, TD_ROW_SVER(row));
@@ -1691,13 +1684,13 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
     } else {
       if (update != TD_ROW_OVERWRITE_UPDATE) {
         // copy disk data
-        for (int i = 0; i < pDataCols->numOfCols; i++) {
+        for (int i = 0; i < pDataCols->numOfCols; ++i) {
           // TODO: dataColAppendVal may fail
           SCellVal sVal = {0};
-          if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter) < 0) {
+          if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
             TASSERT(0);
           }
-          tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints);
+          tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints, pTarget->bitmapMode);
         }
 
         if (update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
@@ -1711,7 +1704,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
         tdAppendSTSRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
       }
-      (*iter)++;
+      ++(*iter);
       tSkipListIterNext(pCommitIter->pIter);
     }
 
