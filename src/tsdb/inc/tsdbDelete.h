@@ -25,6 +25,7 @@ typedef struct {
   // addition info
   tsem_t*      pSem;
   bool         memNull; // pRepo->mem is NULL, this is true
+  int32_t      affectedRows;
   SShellSubmitRspMsg *pRsp;
   
   // base ControlData
