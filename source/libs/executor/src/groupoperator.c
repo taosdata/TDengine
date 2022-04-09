@@ -48,7 +48,7 @@ static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char**
     SColumn* pCol = taosArrayGet(pGroupColList, i);
     (*keyLen) += pCol->bytes;
 
-    struct SGroupKeys key = {0};
+    SGroupKeys key = {0};
     key.bytes  = pCol->bytes;
     key.type   = pCol->type;
     key.isNull = false;
