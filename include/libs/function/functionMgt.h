@@ -72,10 +72,15 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ATAN,
 
   // string function
-  FUNCTION_TYPE_CHAR_LENGTH = 1500,
+  FUNCTION_TYPE_LENGTH = 1500,
+  FUNCTION_TYPE_CHAR_LENGTH,
   FUNCTION_TYPE_CONCAT,
   FUNCTION_TYPE_CONCAT_WS,
-  FUNCTION_TYPE_LENGTH,
+  FUNCTION_TYPE_LOWER,
+  FUNCTION_TYPE_UPPER,
+  FUNCTION_TYPE_LTRIM,
+  FUNCTION_TYPE_RTRIM,
+  FUNCTION_TYPE_SUBSTR,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -127,6 +132,7 @@ bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
+bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
 

@@ -26,6 +26,7 @@ extern "C" {
 #include "scheduler.h"
 #include "thash.h"
 #include "trpc.h"
+#include "command.h"
 
 #define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
@@ -142,10 +143,10 @@ typedef struct SSchTask {
 } SSchTask;
 
 typedef struct SSchJobAttr {
-  bool needFetch;
-  bool syncSchedule;
-  bool queryJob;
-  bool needFlowCtrl;
+  EExplainMode explainMode;
+  bool         syncSchedule;
+  bool         queryJob;
+  bool         needFlowCtrl;
 } SSchJobAttr;
 
 typedef struct SSchJob {
@@ -165,6 +166,7 @@ typedef struct SSchJob {
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
+  SExplainCtx     *explainCtx;
   int8_t           status;  
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
@@ -211,6 +213,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_NEED_FETCH(_job) SCH_IS_QUERY_JOB(_job)
 #define SCH_IS_WAIT_ALL_JOB(_job) (!SCH_IS_QUERY_JOB(_job))
 #define SCH_IS_NEED_DROP_JOB(_job) (SCH_IS_QUERY_JOB(_job))
+#define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr) (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
@@ -251,6 +254,8 @@ int32_t schFetchFromRemote(SSchJob *pJob);
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId);
 int32_t schCloneSMsgSendInfo(void *src, void **dst);
+int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob);
+void schFreeJobImpl(void *job);
 
 
 #ifdef __cplusplus

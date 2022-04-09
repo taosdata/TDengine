@@ -31,6 +31,7 @@ typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
 typedef int32_t  col_bytes_t;
 typedef uint16_t schema_ver_t;
+typedef int32_t  func_id_t;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -145,6 +146,7 @@ typedef struct {
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
+#define IS_MATHABLE_TYPE(_t) (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
 #define IS_VALID_TINYINT(_t)   ((_t) > INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) > INT16_MIN && (_t) <= INT16_MAX)

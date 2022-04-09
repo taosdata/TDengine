@@ -62,7 +62,7 @@ protected:
   void dumpReslut() {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
     size_t num = taosArrayGetSize(pStmt->pDataBlocks);
-    cout << "schemaAttache:" << (int32_t)pStmt->schemaAttache << ", payloadType:" << (int32_t)pStmt->payloadType << ", insertType:" << pStmt->insertType << ", numOfVgs:" << num << endl;    
+    cout << "payloadType:" << (int32_t)pStmt->payloadType << ", insertType:" << pStmt->insertType << ", numOfVgs:" << num << endl;    
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, i);
       cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
@@ -81,7 +81,6 @@ protected:
 
   void checkReslut(int32_t numOfTables, int16_t numOfRows1, int16_t numOfRows2 = -1) {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
-    ASSERT_EQ(pStmt->schemaAttache, 0);
     ASSERT_EQ(pStmt->payloadType, PAYLOAD_TYPE_KV);
     ASSERT_EQ(pStmt->insertType, TSDB_QUERY_TYPE_INSERT);
     size_t num = taosArrayGetSize(pStmt->pDataBlocks);
@@ -166,6 +165,18 @@ TEST_F(InsertTest, multiTableMultiRowTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(2, 3, 2);
+}
+
+// INSERT INTO 
+//    tb1_name USING st1_name [(tag1_name, ...)] TAGS (tag1_value, ...) VALUES (field1_value, ...)
+//    tb2_name USING st2_name [(tag1_name, ...)] TAGS (tag1_value, ...) VALUES (field1_value, ...)
+TEST_F(InsertTest, autoCreateTableTest) {
+  setDatabase("root", "test");
+
+  bind("insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+  dumpReslut();
+  checkReslut(1, 3);
 }
 
 TEST_F(InsertTest, toleranceTest) {

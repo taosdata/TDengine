@@ -157,6 +157,13 @@ TEST_F(PlannerTest, simple) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, selectConstant) {
+  setDatabase("root", "test");
+
+  bind("SELECT 2-1 FROM t1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, stSimple) {
   setDatabase("root", "test");
 
@@ -195,12 +202,44 @@ TEST_F(PlannerTest, interval) {
 
   bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
   ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 interval(10s) fill(linear)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*), sum(c1) FROM t1 interval(10s) fill(value, 10, 20)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, sessionWindow) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1 session(ts, 10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, stateWindow) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 state_window(c1)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 state_window(c1 + 10)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, partitionBy) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 partition by c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 partition by c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 partition by c1 group by c2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM st1 partition by tag1, tag2 interval(10s)");
   ASSERT_TRUE(run());
 }
 
@@ -214,6 +253,22 @@ TEST_F(PlannerTest, orderBy) {
   ASSERT_TRUE(run());
 
   bind("SELECT * FROM t1 order by c1 + 10, c2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 order by c1 desc nulls first");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, distinct) {
+  setDatabase("root", "test");
+
+  bind("SELECT distinct c1 FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT distinct c1, c2 + 10 FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT distinct c1 + 10 a FROM t1 order by a");
   ASSERT_TRUE(run());
 }
 

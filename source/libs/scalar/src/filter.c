@@ -687,11 +687,15 @@ int32_t filterGetRangeRes(void* h, SFilterRange *ra) {
   SFilterRangeNode* r = ctx->rs;
   
   while (r) {
-    FILTER_COPY_RA(ra, &r->ra);
+    if (num) {
+      ra->e = r->ra.e;
+      ra->eflag = r->ra.eflag;
+    } else {
+      FILTER_COPY_RA(ra, &r->ra);
+    }
 
     ++num;
     r = r->next;
-    ++ra;
   }
 
   if (num == 0) {
@@ -1297,7 +1301,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
         resGroup = taosArrayInit(4, sizeof(SFilterGroup));
         
         SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup};
-        nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)&tctx);
+        nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)&tctx);
         FLT_ERR_JRET(tctx.code);
         
         FLT_ERR_JRET(filterDetachCnfGroups(resGroup, preGroup, newGroup));
@@ -1322,7 +1326,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
     if (LOGIC_COND_TYPE_OR == node->condType) {
       SListCell *cell = node->pParameterList->pHead;
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
-        nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)pContext);
+        nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)pContext);
         FLT_ERR_JRET(ctx->code);
         
         cell = cell->pNext;
@@ -1793,6 +1797,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       } else {
         SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
+        out.columnData->info.bytes = tDataTypes[type].bytes;
 
         // todo refactor the convert
         int32_t code = doConvertDataType(var, &out);
@@ -1800,6 +1805,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
           qError("convert value to type[%d] failed", type);
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
+
+        memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
       }
     }
 
@@ -3190,7 +3197,7 @@ int32_t fltInitFromNode(SNode* tree, SFilterInfo *info, uint32_t options) {
   filterInitUnitsFields(info);
 
   SFltBuildGroupCtx tctx = {.info = info, .group = group};
-  nodesWalkNode(tree, fltTreeToGroup, (void *)&tctx);
+  nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
   FLT_ERR_JRET(tctx.code);
 
   filterConvertGroupFromArray(info, group);
@@ -3314,7 +3321,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
 
 
 
-int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
+int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow       *win, bool *isStrict) {
   SFilterRange ra = {0};
   SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
   SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
@@ -3368,13 +3375,14 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
     *win = TSWINDOW_INITIALIZER;
   } else {
     filterGetRangeNum(prev, &num);
-    if (num > 1) {
-      qError("only one time range accepted, num:%d", num);
-      FLT_ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
-    }
 
     FLT_CHK_JMP(num < 1);
 
+    if (num > 1) {
+      *isStrict = false;
+      qDebug("more than one time range, num:%d", num);
+    }
+    
     SFilterRange tra;
     filterGetRangeRes(prev, &tra);
     win->skey = tra.s; 
@@ -3397,6 +3405,30 @@ _return:
   qDebug("qFilter time range:[%"PRId64 "]-[%"PRId64 "]", win->skey, win->ekey);
 
   return code;
+}
+
+
+int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
+  SFilterInfo *info = NULL;
+  int32_t code = 0;
+  
+  *isStrict = true;
+
+  FLT_ERR_RET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP));
+
+  if (info->scalarMode) {
+    *win = TSWINDOW_INITIALIZER;
+    *isStrict = false;
+    goto _return;
+  }
+
+  FLT_ERR_JRET(filterGetTimeRangeImpl(info, win, isStrict));
+
+_return:
+
+  filterFreeInfo(info);
+
+  FLT_RET(code);
 }
 
 
@@ -3566,7 +3598,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 }
 
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
-  nodesRewriteNodePostOrder(pNode, fltReviseRewriter, (void *)pStat);
+  nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
   FLT_RET(pStat->code);
 }
@@ -3609,6 +3641,10 @@ int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
 
 
 int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
+  if (NULL == info) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  
   return fltSetColFieldDataImpl(info, param, fltGetDataFromSlotId, false);
 }
 
@@ -3638,16 +3674,16 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   info = *pInfo;
   info->options = options;
 
-  SFltTreeStat stat = {0};
-  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
+  SFltTreeStat stat1 = {0};
+  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat1));
 
-  info->scalarMode = stat.scalarMode;
+  info->scalarMode = stat1.scalarMode;
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
+    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat1));
   }
   
   return code;
@@ -3662,27 +3698,22 @@ _return:
 }
 
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
+  if (NULL == info) {
+    return false;
+  }
+
   if (info->scalarMode) {
     SScalarParam output = {0};
+
+    SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+    output.columnData = createColumnInfoData(&type, pSrc->info.rows);
+
+    *p = (int8_t *)output.columnData->pData;
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
-    
-    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
 
+    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
     taosArrayDestroy(pList);
-    // TODO Fix it
-//    *p = output.orig.data;
-//    output.orig.data = NULL;
-//
-//    sclFreeParam(&output);
-//
-//    int8_t *r = output.data;
-//    for (int32_t i = 0; i < output.num; ++i) {
-//      if (0 == *(r+i)) {
-//        return false;
-//      }
-//    }
-    
     return true;
   }
 

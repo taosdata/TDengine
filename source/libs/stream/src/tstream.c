@@ -38,7 +38,7 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
     req.taskId = pTask->fixedEpDispatcher.taskId;
 
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    // TODO fix tbname issue
+    // TODO use general name rule of schemaless
     char ctbName[TSDB_TABLE_FNAME_LEN + 22];
     // all groupId must be the same in an array
     SSDataBlock* pBlock = taosArrayGet(data, 0);
@@ -152,6 +152,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   // sink
   if (pTask->sinkType == TASK_SINK__TABLE) {
     //
+    blockDebugShowData(pRes);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaHandle(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //

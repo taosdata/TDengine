@@ -35,7 +35,7 @@ typedef struct SAstCreateContext {
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {
-  DB_OPTION_BLOCKS = 0,
+  DB_OPTION_BLOCKS = 1,
   DB_OPTION_CACHE,
   DB_OPTION_CACHELAST,
   DB_OPTION_COMP,
@@ -52,25 +52,22 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_VGROUPS,
   DB_OPTION_SINGLE_STABLE,
   DB_OPTION_STREAM_MODE,
-  DB_OPTION_RETENTIONS,
-
-  DB_OPTION_MAX
+  DB_OPTION_RETENTIONS
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
-  TABLE_OPTION_KEEP = 0,
+  TABLE_OPTION_KEEP = 1,
   TABLE_OPTION_TTL,
   TABLE_OPTION_COMMENT,
   TABLE_OPTION_SMA,
   TABLE_OPTION_FILE_FACTOR,
-  TABLE_OPTION_DELAY,
-
-  TABLE_OPTION_MAX
+  TABLE_OPTION_DELAY
 } ETableOptionType;
 
 typedef struct SAlterOption {
   int32_t type;
-  SToken val;
+  SValueNode* pVal;
+  SNodeList* pList;
 } SAlterOption;
 
 extern SToken nil_token;
@@ -96,13 +93,14 @@ SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNo
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
 SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
+SNode* createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2);
 SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pTableAlias);
 SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const SToken* pTableAlias);
 SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft, SNode* pRight, SNode* pJoinCond);
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset);
 SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol);
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr);
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding, SNode* pFill);
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
@@ -118,17 +116,13 @@ SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
-SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
-SNode* createDefaultAlterDatabaseOptions(SAstCreateContext* pCxt);
-SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, const SToken* pVal);
+SNode* createDatabaseOptions(SAstCreateContext* pCxt);
+SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions);
 SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
-SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
-SNode* createDefaultAlterTableOptions(SAstCreateContext* pCxt);
-SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, const SToken* pVal);
-SNode* setTableSmaOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pSma);
-SNode* setTableRollupOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pFuncs);
+SNode* createTableOptions(SAstCreateContext* pCxt);
+SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment);
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
@@ -145,6 +139,8 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
+SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
+SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
@@ -163,6 +159,18 @@ SNode* createDefaultExplainOptions(SAstCreateContext* pCxt);
 SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
+SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
+SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups);
+SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize);
+SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName);
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName, const SToken* pTableName, SNode* pQuery);
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName);
+SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
+SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
+SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
+SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);
+SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 
 #ifdef __cplusplus
 }

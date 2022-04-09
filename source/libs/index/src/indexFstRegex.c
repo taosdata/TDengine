@@ -14,6 +14,7 @@
  */
 
 #include "indexFstRegex.h"
+#include "indexFstDfa.h"
 #include "indexFstSparse.h"
 
 FstRegex *regexCreate(const char *str) {
@@ -26,9 +27,35 @@ FstRegex *regexCreate(const char *str) {
   memcpy(orig, str, sz);
 
   regex->orig = orig;
+
+  // construct insts based on str
+  SArray *insts = NULL;
+
+  FstDfaBuilder *builder = dfaBuilderCreate(insts);
+  regex->dfa = dfaBuilderBuild(builder);
+  return regex;
 }
 
-void regexSetup(FstRegex *regex, uint32_t size, const char *str) {
-  // return
-  // return;
+uint32_t regexAutomStart(FstRegex *regex) {
+  ///// no nothing
+  return 0;
+}
+bool regexAutomIsMatch(FstRegex *regex, uint32_t state) {
+  if (regex->dfa != NULL && dfaIsMatch(regex->dfa, state)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool regexAutomCanMatch(FstRegex *regex, uint32_t state, bool null) {
+  // make frame happy
+  return null;
+}
+
+bool regexAutomAccept(FstRegex *regex, uint32_t state, uint8_t byte, uint32_t *result) {
+  if (regex->dfa == NULL) {
+    return false;
+  }
+  return dfaAccept(regex->dfa, state, byte, result);
 }

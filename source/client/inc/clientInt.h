@@ -136,7 +136,7 @@ typedef struct STscObj {
   uint32_t        connId;
   int32_t         connType;
   uint64_t        id;         // ref ID returned by taosAddRef
-  TdThreadMutex mutex;      // used to protect the operation on db
+  TdThreadMutex   mutex;      // used to protect the operation on db
   int32_t         numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo*   pAppInfo;
 } STscObj;
@@ -152,7 +152,8 @@ typedef struct SResultColumn {
 typedef struct SReqResultInfo {
   const char*    pRspMsg;
   const char*    pData;
-  TAOS_FIELD*    fields;
+  TAOS_FIELD*    fields;     // todo, column names are not needed.
+  TAOS_FIELD*    userFields; // the fields info that return to user
   uint32_t       numOfCols;
   int32_t*       length;
   char**         convertBuf;
@@ -162,6 +163,7 @@ typedef struct SReqResultInfo {
   uint64_t       totalRows;
   uint32_t       current;
   bool           completed;
+  int32_t        precision;
   int32_t        payloadLen;
 } SReqResultInfo;
 
@@ -221,6 +223,7 @@ void  destroyRequest(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
+void  resetConnectDB(STscObj* pTscObj);
 
 void taos_init_imp(void);
 int  taos_options_imp(TSDB_OPTION option, const char* str);

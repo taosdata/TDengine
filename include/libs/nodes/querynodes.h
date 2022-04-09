@@ -22,6 +22,7 @@ extern "C" {
 
 #include "nodes.h"
 #include "tmsg.h"
+#include "tvariant.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
@@ -79,6 +80,7 @@ typedef struct SValueNode {
   char* literal;
   bool isDuration;
   bool translate;
+  bool genByCalc;
   union {
     bool b;
     int64_t i;
@@ -122,6 +124,7 @@ typedef struct STableNode {
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
   char tableAlias[TSDB_TABLE_NAME_LEN];
+  uint8_t precision;
 } STableNode;
 
 struct STableMeta;
@@ -187,7 +190,7 @@ typedef struct SLimitNode {
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
-  SNode* pCol;
+  SNode* pExpr;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -234,6 +237,8 @@ typedef struct SSelectStmt {
   SNode* pLimit;
   SNode* pSlimit;
   char stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t precision;
+  bool isEmptyResult;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
@@ -256,6 +261,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_GROUP_BY,
   SQL_CLAUSE_HAVING,
+  SQL_CLAUSE_DISTINCT,
   SQL_CLAUSE_SELECT,
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
@@ -277,7 +283,6 @@ typedef struct SVnodeModifOpStmt {
   ENodeType   nodeType;
   ENodeType   sqlNodeType;
   SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  int8_t      schemaAttache;       // denote if submit block is built with table schema or not
   uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
   const char* sql;                 // current sql statement position
@@ -306,6 +311,7 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
 
 bool nodesIsExprNode(const SNode* pNode);
 
+bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
@@ -314,6 +320,9 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
+char* nodesGetStrValueFromNode(SValueNode *pNode);
+char *getFillModeString(EFillMode mode);
+void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 #ifdef __cplusplus
 }

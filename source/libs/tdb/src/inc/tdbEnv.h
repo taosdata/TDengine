@@ -25,11 +25,20 @@ typedef struct STEnv {
   char    *jfname;
   int      jfd;
   SPCache *pCache;
+  SPager  *pgrList;
+  int      nPager;
+  int      nPgrHash;
+  SPager **pgrHash;
 } TENV;
 
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
+int tdbBegin(TENV *pEnv, TXN *pTxn);
+int tdbCommit(TENV *pEnv, TXN *pTxn);
+int tdbRollback(TENV *pEnv, TXN *pTxn);
 
+void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
+void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
 SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
 
 #ifdef __cplusplus

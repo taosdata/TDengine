@@ -30,10 +30,18 @@ extern "C" {
 #define FOREACH(node, list)	\
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
 
-// only be use in FOREACH
-#define ERASE_NODE(list) cell = nodesListErase(list, cell);
-
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
+
+#define INSERT_LIST(target, src) nodesListInsertList((target), cell, src)
+
+#define WHERE_EACH(node, list) \
+  SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
+  while (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false))
+
+#define WHERE_NEXT cell = cell->pNext
+
+// only be use in WHERE_EACH
+#define ERASE_NODE(list) cell = nodesListErase((list), cell)
 
 #define FORBOTH(node1, list1, node2, list2) \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL), *cell2 = (NULL != (list2) ? (list2)->pHead : NULL); \
@@ -101,6 +109,17 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TOPIC_STMT,
   QUERY_NODE_ALTER_LOCAL_STMT,
   QUERY_NODE_EXPLAIN_STMT,
+  QUERY_NODE_DESCRIBE_STMT,
+  QUERY_NODE_RESET_QUERY_CACHE_STMT,
+  QUERY_NODE_COMPACT_STMT,
+  QUERY_NODE_CREATE_FUNCTION_STMT,
+  QUERY_NODE_DROP_FUNCTION_STMT,
+  QUERY_NODE_CREATE_STREAM_STMT,
+  QUERY_NODE_DROP_STREAM_STMT,
+  QUERY_NODE_MERGE_VGROUP_STMT,
+  QUERY_NODE_REDISTRIBUTE_VGROUP_STMT,
+  QUERY_NODE_SPLIT_VGROUP_STMT,
+  QUERY_NODE_SYNCDB_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_STABLES_STMT,
@@ -113,6 +132,18 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_FUNCTIONS_STMT,
   QUERY_NODE_SHOW_INDEXES_STMT,
   QUERY_NODE_SHOW_STREAMS_STMT,
+  QUERY_NODE_SHOW_APPS_STMT,
+  QUERY_NODE_SHOW_CONNECTIONS_STMT,
+  QUERY_NODE_SHOW_LICENCE_STMT,
+  QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
+  QUERY_NODE_SHOW_CREATE_TABLE_STMT,
+  QUERY_NODE_SHOW_CREATE_STABLE_STMT, 
+  QUERY_NODE_SHOW_QUERIES_STMT,
+  QUERY_NODE_SHOW_SCORES_STMT,
+  QUERY_NODE_SHOW_TOPICS_STMT,
+  QUERY_NODE_SHOW_VARIABLE_STMT,
+  QUERY_NODE_KILL_CONNECTION_STMT,
+  QUERY_NODE_KILL_QUERY_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
@@ -140,6 +171,8 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW,
+  QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW,
+  QUERY_NODE_PHYSICAL_PLAN_PARTITION,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
   QUERY_NODE_PHYSICAL_PLAN_INSERT,
   QUERY_NODE_PHYSICAL_SUBPLAN,
@@ -178,7 +211,9 @@ int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t nodesListPushFront(SNodeList* pList, SNodeptr pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
+void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
@@ -191,16 +226,16 @@ typedef enum EDealRes {
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkList(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
-void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprs(SNodeList* pList, FNodeWalker walker, void* pContext);
+void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
-void nodesRewriteNode(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
-void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExpr(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
+void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 
@@ -213,6 +248,10 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
+
+int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len);
+char *nodesGetNameFromColumnNode(SNode *pNode);
+int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 
 #ifdef __cplusplus
 }

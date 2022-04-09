@@ -19,7 +19,7 @@ static SPoolMem *openPool() {
   return pPool;
 }
 
-static void closePool(SPoolMem *pPool) {
+static void clearPool(SPoolMem *pPool) {
   SPoolMem *pMem;
 
   do {
@@ -35,13 +35,14 @@ static void closePool(SPoolMem *pPool) {
   } while (1);
 
   assert(pPool->size == 0);
+}
 
+static void closePool(SPoolMem *pPool) {
+  clearPool(pPool);
   tdbOsFree(pPool);
 }
 
-#define clearPool closePool
-
-static void *poolMalloc(void *arg, int size) {
+static void *poolMalloc(void *arg, size_t size) {
   void     *ptr = NULL;
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
@@ -118,10 +119,11 @@ TEST(tdb_test, simple_test) {
   TENV          *pEnv;
   TDB           *pDb;
   FKeyComparator compFunc;
-  int            nData = 1000000;
+  int            nData = 10000000;
+  TXN            txn;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
+  ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -130,39 +132,43 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 
   {
-    char key[64];
-    char val[64];
+    char      key[64];
+    char      val[64];
+    int64_t   poolLimit = 4096;  // 1M pool limit
+    int64_t   txnid = 0;
+    SPoolMem *pPool;
 
-    {  // Insert some data
-      int       i = 1;
-      SPoolMem *pPool;
-      int       memPoolCapacity = 16 * 1024;
+    // open the pool
+    pPool = openPool();
 
-      pPool = openPool();
+    // start a transaction
+    txnid++;
+    tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    tdbBegin(pEnv, &txn);
 
-      tdbTxnBegin(pEnv);
+    for (int iData = 1; iData <= nData; iData++) {
+      sprintf(key, "key%d", iData);
+      sprintf(val, "value%d", iData);
+      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      GTEST_ASSERT_EQ(ret, 0);
 
-      for (;;) {
-        if (i > nData) break;
+      // if pool is full, commit the transaction and start a new one
+      if (pPool->size >= poolLimit) {
+        // commit current transaction
+        tdbCommit(pEnv, &txn);
+        tdbTxnClose(&txn);
 
-        sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
-        ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
-        GTEST_ASSERT_EQ(ret, 0);
-
-        if (pPool->size >= memPoolCapacity) {
-          tdbTxnCommit(pEnv);
-
-          clearPool(pPool);
-
-          tdbTxnBegin(pEnv);
-        }
-
-        i++;
+        // start a new transaction
+        clearPool(pPool);
+        txnid++;
+        tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+        tdbBegin(pEnv, &txn);
       }
-
-      closePool(pPool);
     }
+
+    // commit the transaction
+    tdbCommit(pEnv, &txn);
+    tdbTxnClose(&txn);
 
     {  // Query the data
       void *pVal = NULL;
@@ -173,6 +179,7 @@ TEST(tdb_test, simple_test) {
         sprintf(val, "value%d", i);
 
         ret = tdbDbGet(pDb, key, strlen(key), &pVal, &vLen);
+        ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, strlen(val));

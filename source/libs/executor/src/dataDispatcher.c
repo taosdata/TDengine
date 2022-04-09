@@ -208,6 +208,8 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     assert(pDispatcher->queryEnd);
     pOutput->useconds = pDispatcher->useconds;
     pOutput->precision = pDispatcher->pSchema->precision;
+    pOutput->bufStatus = DS_BUF_EMPTY;
+    pOutput->queryEnd = pDispatcher->queryEnd;
     return TSDB_CODE_SUCCESS;
   }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
@@ -235,6 +237,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
   taosThreadMutexDestroy(&pDispatcher->mutex);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {

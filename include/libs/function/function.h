@@ -36,7 +36,7 @@ typedef struct SFuncExecEnv {
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
-typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -52,7 +52,12 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
+typedef struct SFileBlockInfo {
+  int32_t numBlocksOfStep;
+} SFileBlockInfo;
+
+#define TSDB_BLOCK_DIST_STEP_ROWS 8
+#define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define FUNCTION_TYPE_SCALAR       1
 #define FUNCTION_TYPE_AGG          2
@@ -101,18 +106,15 @@ typedef struct SFuncExecFuncs {
 #define FUNCTION_DERIVATIVE   32
 #define FUNCTION_BLKINFO      33
 
-#define FUNCTION_HISTOGRAM    34
-#define FUNCTION_HLL          35
-#define FUNCTION_MODE         36
-#define FUNCTION_SAMPLE       37
 
 #define FUNCTION_COV          38
 
 typedef struct SResultRowEntryInfo {
-  int8_t   hasResult;       // result generated, not NULL value
-  bool     initialized;     // output buffer has been initialized
-  bool     complete;        // query has completed
-  uint32_t numOfRes;        // num of output result in current buffer
+//  int8_t   hasResult:6;       // result generated, not NULL value
+  bool     initialized:1;     // output buffer has been initialized
+  bool     complete:1;        // query has completed
+  uint8_t  isNullRes:6;       // the result is null
+  uint8_t  numOfRes;        // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -153,7 +155,8 @@ typedef struct SResultDataInfo {
   int32_t interBufSize;
 } SResultDataInfo;
 
-#define GET_RES_INFO(ctx) ((ctx)->resultInfo)
+#define GET_RES_INFO(ctx)        ((ctx)->resultInfo)
+#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowEntryInfo)))
 
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;      // total rows in current columnar data
@@ -183,15 +186,16 @@ typedef struct SqlFunctionCtx {
   int32_t          columnIndex;  // TODO remove it
   uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
+  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
   /////////////////////////////////////////////////////////////////
   bool             stableQuery;
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
-  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block
   int32_t          numOfParams;
   SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
-  void            *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  int32_t          offset;
   SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo     subsidiaryRes;

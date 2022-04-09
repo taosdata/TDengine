@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tsdb.h>
+#include <vnode.h>
 #include "dataSinkMgt.h"
 #include "texception.h"
 #include "os.h"
@@ -229,3 +229,12 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   queryCostStatis(pTaskInfo);   // print the query cost summary
   doDestroyTask(pTaskInfo);
 }
+
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t *resNum, SExplainExecInfo **pRes) {
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)tinfo;
+  int32_t capacity = 0;
+
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);  
+}
+
+

@@ -160,9 +160,8 @@ static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer) {
 
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer) {
   mTrace("consumer:%" PRId64 ", perform update action", pOldConsumer->consumerId);
-
-  // TODO handle update
   /*taosWLockLatch(&pOldConsumer->lock);*/
+  atomic_add_fetch_32(&pOldConsumer->epoch, 1);
   /*taosWUnLockLatch(&pOldConsumer->lock);*/
 
   return 0;

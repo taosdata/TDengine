@@ -20,17 +20,9 @@
 extern "C" {
 #endif
 
-typedef struct STxn TXN;
-
-struct STxn {
-  u64 txnId;
-  void *(*xMalloc)(void *, int);
-  void *xArg;
-};
-
-int tdbTxnBegin(TENV *pEnv);
-int tdbTxnCommit(TENV *pEnv);
-int tdbTxnRollback(TENV *pEnv);
+int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
+               int flags);
+int tdbTxnClose(TXN *pTxn);
 
 #ifdef __cplusplus
 }

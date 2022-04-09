@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
+# Generate the tar.gz package for linux os
 
 set -e
 #set -x
@@ -17,9 +17,12 @@ echo "=======================new version number: ${verNumber}===================
 
 build_time=$(date +"%F %R")
 
+echo "script_dir: ${script_dir}"
 echo "top_dir: ${top_dir}"
 
 cd ${top_dir}
+git checkout -- .
+git checkout 3.0
 git pull || :
 
 echo "curr_dir: ${curr_dir}"
@@ -49,28 +52,38 @@ cd ${release_dir}
 
 install_dir="${release_dir}/TDengine-server-${version}"
 mkdir -p ${install_dir}
+mkdir -p ${install_dir}/bin
 mkdir -p ${install_dir}/lib
+mkdir -p ${install_dir}/inc
 
-bin_files="${compile_dir}/source/dnode/mgmt/daemon/taosd ${compile_dir}/tools/shell/taos  ${compile_dir}/tests/test/c/create_table"
-cp ${bin_files} ${install_dir}/ && chmod a+x ${install_dir}/* || :
+install_files="${script_dir}/install.sh"
+chmod a+x ${script_dir}/install.sh || :
+cp ${install_files} ${install_dir} 
 
+header_files="${top_dir}/include/client/taos.h ${top_dir}/include/util/taoserror.h"
+cp ${header_files} ${install_dir}/inc
+ 
+bin_files="${compile_dir}/source/dnode/mgmt/taosd ${compile_dir}/tools/shell/taos  ${compile_dir}/tests/test/c/create_table ${compile_dir}/tests/test/c/tmq_sim ${script_dir}/remove.sh"
+cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 
-cp ${compile_dir}/source/client/libtaos.so ${install_dir}/lib/
-cp ${compile_dir}/source/dnode/mnode/impl/libmnode.so ${install_dir}/lib/
-cp ${compile_dir}/source/dnode/qnode/libqnode.so ${install_dir}/lib/
-cp ${compile_dir}/source/dnode/snode/libsnode.so ${install_dir}/lib/
-cp ${compile_dir}/source/dnode/bnode/libbnode.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/wal/libwal.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/scheduler/libscheduler.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/planner/libplanner.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/parser/libparser.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/qcom/libqcom.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/transport/libtransport.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/function/libfunction.so ${install_dir}/lib/
-cp ${compile_dir}/source/common/libcommon.so ${install_dir}/lib/
-cp ${compile_dir}/source/os/libos.so ${install_dir}/lib/
-cp ${compile_dir}/source/dnode/mnode/sdb/libsdb.so ${install_dir}/lib/
-cp ${compile_dir}/source/libs/catalog/libcatalog.so ${install_dir}/lib/
+cp ${compile_dir}/source/client/libtaos.so  ${install_dir}/lib/
+cp ${compile_dir}/source/libs/tdb/libtdb.so ${install_dir}/lib/
+
+#cp ${compile_dir}/source/dnode/mnode/impl/libmnode.so ${install_dir}/lib/
+#cp ${compile_dir}/source/dnode/qnode/libqnode.so ${install_dir}/lib/
+#cp ${compile_dir}/source/dnode/snode/libsnode.so ${install_dir}/lib/
+#cp ${compile_dir}/source/dnode/bnode/libbnode.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/wal/libwal.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/scheduler/libscheduler.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/planner/libplanner.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/parser/libparser.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/qcom/libqcom.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/transport/libtransport.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/function/libfunction.so ${install_dir}/lib/
+#cp ${compile_dir}/source/common/libcommon.so ${install_dir}/lib/
+#cp ${compile_dir}/source/os/libos.so ${install_dir}/lib/
+#cp ${compile_dir}/source/dnode/mnode/sdb/libsdb.so ${install_dir}/lib/
+#cp ${compile_dir}/source/libs/catalog/libcatalog.so ${install_dir}/lib/
 
 pkg_name=${install_dir}-Linux-x64
 

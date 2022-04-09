@@ -16,8 +16,6 @@
 #ifndef _TD_TDB_INTERNAL_H_
 #define _TD_TDB_INTERNAL_H_
 
-#include "os.h"
-
 #include "tdb.h"
 
 #ifdef __cplusplus
@@ -91,23 +89,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 // dbname
 #define TDB_MAX_DBNAME_LEN 24
 
-// tdb_log
-#define tdbError(var)
-
-#define TERR_A(val, op, flag)  \
-  do {                         \
-    if (((val) = (op)) != 0) { \
-      goto flag;               \
-    }                          \
-  } while (0)
-
-#define TERR_B(val, op, flag)     \
-  do {                            \
-    if (((val) = (op)) == NULL) { \
-      goto flag;                  \
-    }                             \
-  } while (0)
-
 #define TDB_VARIANT_LEN ((int)-1)
 
 typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -129,6 +110,21 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 typedef struct SPager  SPager;
 typedef struct SPCache SPCache;
 typedef struct SPage   SPage;
+
+// transaction
+#define TDB_TXN_WRITE            0x1
+#define TDB_TXN_READ_UNCOMMITTED 0x2
+typedef struct STxn {
+  int flags;
+  i64 txnId;
+  void *(*xMalloc)(void *, size_t);
+  void (*xFree)(void *, void *);
+  void *xArg;
+} TXN;
+
+#define TDB_TXN_IS_WRITE(PTXN)            ((PTXN)->flags & TDB_TXN_WRITE)
+#define TDB_TXN_IS_READ(PTXN)             (!TDB_TXN_IS_WRITE(PTXN))
+#define TDB_TXN_IS_READ_UNCOMMITTED(PTXN) ((PTXN)->flags & TDB_TXN_READ_UNCOMMITTED)
 
 #include "tdbOs.h"
 

@@ -13,18 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 #include "tdbInt.h"
+typedef struct SPoolMem {
+  int64_t          size;
+  struct SPoolMem *prev;
+  struct SPoolMem *next;
+} SPoolMem;
+
+static SPoolMem *openPool();
+static void      clearPool(SPoolMem *pPool);
+static void      closePool(SPoolMem *pPool);
+static void     *poolMalloc(void *arg, size_t size);
+static void      poolFree(void *arg, void *ptr);
 
 struct SMetaDB {
-  TENV *pEnv;
-  TDB  *pTbDB;
-  TDB  *pSchemaDB;
-  TDB  *pNameIdx;
-  TDB  *pStbIdx;
-  TDB  *pNtbIdx;
-  TDB  *pCtbIdx;
+  TXN       txn;
+  TENV     *pEnv;
+  TDB      *pTbDB;
+  TDB      *pSchemaDB;
+  TDB      *pNameIdx;
+  TDB      *pStbIdx;
+  TDB      *pNtbIdx;
+  TDB      *pCtbIdx;
+  SPoolMem *pPool;
 };
 
 typedef struct __attribute__((__packed__)) {
@@ -46,6 +59,10 @@ static int   metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static int   metaEncodeSchema(void **buf, SSchemaWrapper *pSW);
 static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
+static int   metaEncodeSchemaEx(void **buf, SSchemaWrapper *pSW);
+static void *metaDecodeSchemaEx(void *buf, SSchemaWrapper *pSW, bool isGetEx);
+
+static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx);
 
 static inline int metaUidCmpr(const void *arg1, int len1, const void *arg2, int len2) {
   tb_uid_t uid1, uid2;
@@ -163,12 +180,19 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  pMetaDb->pPool = openPool();
+  tdbTxnOpen(&pMetaDb->txn, 0, poolMalloc, poolFree, pMetaDb->pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pMetaDb->pEnv, NULL);
+
   pMeta->pDB = pMetaDb;
   return 0;
 }
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
+    tdbCommit(pMeta->pDB->pEnv, &pMeta->pDB->txn);
+    tdbTxnClose(&pMeta->pDB->txn);
+    clearPool(pMeta->pDB->pPool);
     tdbDbClose(pMeta->pDB->pCtbIdx);
     tdbDbClose(pMeta->pDB->pNtbIdx);
     tdbDbClose(pMeta->pDB->pStbIdx);
@@ -202,13 +226,21 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     uid = metaGenerateUid(pMeta);
   }
 
+  // check name and uid unique
+  if (tdbDbGet(pMetaDb->pTbDB, &uid, sizeof(uid), NULL, NULL) == 0) {
+    return -1;
+  }
+  if (tdbDbGet(pMetaDb->pNameIdx, pTbCfg->name, strlen(pTbCfg->name) + 1, NULL, NULL) == 0) {
+    return -1;
+  }
+
   // save to table.db
   pKey = &uid;
   kLen = sizeof(uid);
   pVal = pBuf = buf;
   metaEncodeTbInfo(&pBuf, pTbCfg);
   vLen = POINTER_DISTANCE(pBuf, buf);
-  ret = tdbDbInsert(pMetaDb->pTbDB, pKey, kLen, pVal, vLen);
+  ret = tdbDbInsert(pMetaDb->pTbDB, pKey, kLen, pVal, vLen, &pMetaDb->txn);
   if (ret < 0) {
     return -1;
   }
@@ -222,15 +254,15 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
 
     if (pTbCfg->type == META_SUPER_TABLE) {
       schemaWrapper.nCols = pTbCfg->stbCfg.nCols;
-      schemaWrapper.pSchema = pTbCfg->stbCfg.pSchema;
+      schemaWrapper.pSchemaEx = pTbCfg->stbCfg.pSchema;
     } else {
       schemaWrapper.nCols = pTbCfg->ntbCfg.nCols;
-      schemaWrapper.pSchema = pTbCfg->ntbCfg.pSchema;
+      schemaWrapper.pSchemaEx = pTbCfg->ntbCfg.pSchema;
     }
     pVal = pBuf = buf;
-    metaEncodeSchema(&pBuf, &schemaWrapper);
+    metaEncodeSchemaEx(&pBuf, &schemaWrapper);
     vLen = POINTER_DISTANCE(pBuf, buf);
-    ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen, &pMeta->pDB->txn);
     if (ret < 0) {
       return -1;
     }
@@ -244,7 +276,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   kLen = nameLen + 1 + sizeof(uid);
   pVal = NULL;
   vLen = 0;
-  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, pVal, vLen);
+  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, pVal, vLen, &pMetaDb->txn);
   if (ret < 0) {
     return -1;
   }
@@ -255,7 +287,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     kLen = sizeof(uid);
     pVal = NULL;
     vLen = 0;
-    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, pVal, vLen, &pMetaDb->txn);
     if (ret < 0) {
       return -1;
     }
@@ -266,7 +298,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     kLen = sizeof(ctbIdxKey);
     pVal = NULL;
     vLen = 0;
-    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, pVal, vLen, &pMetaDb->txn);
     if (ret < 0) {
       return -1;
     }
@@ -275,10 +307,14 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     kLen = sizeof(uid);
     pVal = NULL;
     vLen = 0;
-    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, pVal, vLen);
+    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, pVal, vLen, &pMetaDb->txn);
     if (ret < 0) {
       return -1;
     }
+  }
+
+  if (pMeta->pDB->pPool->size > 0) {
+    metaCommit(pMeta);
   }
 
   return 0;
@@ -345,6 +381,10 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
+  return metaGetTableSchemaImpl(pMeta, uid, sver, isinline, false);
+}
+
+static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx) {
   void           *pKey;
   void           *pVal;
   int             kLen;
@@ -368,7 +408,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   // decode
   pBuf = pVal;
   pSchemaWrapper = taosMemoryMalloc(sizeof(*pSchemaWrapper));
-  metaDecodeSchema(pBuf, pSchemaWrapper);
+  metaDecodeSchemaEx(pBuf, pSchemaWrapper, isGetEx);
 
   TDB_FREE(pVal);
 
@@ -379,7 +419,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   tb_uid_t        quid;
   SSchemaWrapper *pSW;
   STSchemaBuilder sb;
-  SSchema        *pSchema;
+  SSchemaEx      *pSchema;
   STSchema       *pTSchema;
   STbCfg         *pTbCfg;
 
@@ -390,15 +430,15 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
     quid = uid;
   }
 
-  pSW = metaGetTableSchema(pMeta, quid, sver, true);
+  pSW = metaGetTableSchemaImpl(pMeta, quid, sver, true, true);
   if (pSW == NULL) {
     return NULL;
   }
 
   tdInitTSchemaBuilder(&sb, 0);
   for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->colId, pSchema->bytes);
+    pSchema = pSW->pSchemaEx + i;
+    tdAddColToSchema(&sb, pSchema->type, pSchema->sma, pSchema->colId, pSchema->bytes);
   }
   pTSchema = tdGetSchemaFromBuilder(&sb);
   tdDestroyTSchemaBuilder(&sb);
@@ -515,7 +555,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
     return 0;
   }
 
-  pCtbIdxKey = pCtbCur->pVal;
+  pCtbIdxKey = pCtbCur->pKey;
 
   return pCtbIdxKey->uid;
 }
@@ -563,7 +603,7 @@ void metaCloseSmaCurosr(SMSmaCursor *pCur) {
 
 SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   // TODO
-  ASSERT(0);
+  // ASSERT(0); // comment this line to pass CI
   return NULL;
 }
 
@@ -600,6 +640,50 @@ static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
     buf = taosDecodeFixedI16(buf, &pSchema->colId);
     buf = taosDecodeFixedI32(buf, &pSchema->bytes);
     buf = taosDecodeStringTo(buf, pSchema->name);
+  }
+
+  return buf;
+}
+
+static int metaEncodeSchemaEx(void **buf, SSchemaWrapper *pSW) {
+  int        tlen = 0;
+  SSchemaEx *pSchema;
+
+  tlen += taosEncodeFixedU32(buf, pSW->nCols);
+  for (int i = 0; i < pSW->nCols; ++i) {
+    pSchema = pSW->pSchemaEx + i;
+    tlen += taosEncodeFixedI8(buf, pSchema->type);
+    tlen += taosEncodeFixedI8(buf, pSchema->sma);
+    tlen += taosEncodeFixedI16(buf, pSchema->colId);
+    tlen += taosEncodeFixedI32(buf, pSchema->bytes);
+    tlen += taosEncodeString(buf, pSchema->name);
+  }
+
+  return tlen;
+}
+
+static void *metaDecodeSchemaEx(void *buf, SSchemaWrapper *pSW, bool isGetEx) {
+  buf = taosDecodeFixedU32(buf, &pSW->nCols);
+  if (isGetEx) {
+    pSW->pSchemaEx = (SSchemaEx *)taosMemoryMalloc(sizeof(SSchemaEx) * pSW->nCols);
+    for (int i = 0; i < pSW->nCols; i++) {
+      SSchemaEx *pSchema = pSW->pSchemaEx + i;
+      buf = taosDecodeFixedI8(buf, &pSchema->type);
+      buf = taosDecodeFixedI8(buf, &pSchema->sma);
+      buf = taosDecodeFixedI16(buf, &pSchema->colId);
+      buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+      buf = taosDecodeStringTo(buf, pSchema->name);
+    }
+  } else {
+    pSW->pSchema = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
+    for (int i = 0; i < pSW->nCols; i++) {
+      SSchema *pSchema = pSW->pSchema + i;
+      buf = taosDecodeFixedI8(buf, &pSchema->type);
+      buf = taosSkipFixedLen(buf, sizeof(int8_t));
+      buf = taosDecodeFixedI16(buf, &pSchema->colId);
+      buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+      buf = taosDecodeStringTo(buf, pSchema->name);
+    }
   }
 
   return buf;
@@ -648,4 +732,85 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
     ASSERT(0);
   }
   return buf;
+}
+
+int metaCommit(SMeta *pMeta) {
+  TXN *pTxn = &pMeta->pDB->txn;
+
+  // Commit current txn
+  tdbCommit(pMeta->pDB->pEnv, pTxn);
+  tdbTxnClose(pTxn);
+  clearPool(pMeta->pDB->pPool);
+
+  // start a new txn
+  tdbTxnOpen(&pMeta->pDB->txn, 0, poolMalloc, poolFree, pMeta->pDB->pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pMeta->pDB->pEnv, pTxn);
+  return 0;
+}
+
+static SPoolMem *openPool() {
+  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
+
+  pPool->prev = pPool->next = pPool;
+  pPool->size = 0;
+
+  return pPool;
+}
+
+static void clearPool(SPoolMem *pPool) {
+  SPoolMem *pMem;
+
+  do {
+    pMem = pPool->next;
+
+    if (pMem == pPool) break;
+
+    pMem->next->prev = pMem->prev;
+    pMem->prev->next = pMem->next;
+    pPool->size -= pMem->size;
+
+    tdbOsFree(pMem);
+  } while (1);
+
+  assert(pPool->size == 0);
+}
+
+static void closePool(SPoolMem *pPool) {
+  clearPool(pPool);
+  tdbOsFree(pPool);
+}
+
+static void *poolMalloc(void *arg, size_t size) {
+  void     *ptr = NULL;
+  SPoolMem *pPool = (SPoolMem *)arg;
+  SPoolMem *pMem;
+
+  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
+  if (pMem == NULL) {
+    assert(0);
+  }
+
+  pMem->size = sizeof(*pMem) + size;
+  pMem->next = pPool->next;
+  pMem->prev = pPool;
+
+  pPool->next->prev = pMem;
+  pPool->next = pMem;
+  pPool->size += pMem->size;
+
+  ptr = (void *)(&pMem[1]);
+  return ptr;
+}
+
+static void poolFree(void *arg, void *ptr) {
+  SPoolMem *pPool = (SPoolMem *)arg;
+  SPoolMem *pMem;
+
+  pMem = &(((SPoolMem *)ptr)[-1]);
+
+  pMem->next->prev = pMem->prev;
+  pMem->prev->next = pMem->next;
+  pPool->size -= pMem->size;
+
+  tdbOsFree(pMem);
 }

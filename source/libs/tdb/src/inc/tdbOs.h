@@ -24,6 +24,8 @@ extern "C" {
 #define TDB_FOR_TDENGINE
 
 #ifdef TDB_FOR_TDENGINE
+#include "os.h"
+#include "thash.h"
 
 // For memory -----------------
 #define tdbOsMalloc  taosMemoryMalloc
@@ -44,13 +46,14 @@ typedef TdFilePtr tdb_fd_t;
 
 #define tdbOsOpen(PATH, OPTION, MODE) taosOpenFile((PATH), (OPTION))
 
-#define tdbOsClose(FD) taosCloseFile(&(FD))
-#define tdbOsRead      taosReadFile
-#define tdbOsPRead     taosPReadFile
-#define tdbOsWrite     taosWriteFile
-#define tdbOsFSync     taosFsyncFile
-#define tdbOsLSeek     taosLSeekFile
-#define tdbOsRemove    remove
+#define tdbOsClose(FD)           taosCloseFile(&(FD))
+#define tdbOsRead                taosReadFile
+#define tdbOsPRead               taosPReadFile
+#define tdbOsWrite               taosWriteFile
+#define tdbOsFSync               taosFsyncFile
+#define tdbOsLSeek               taosLSeekFile
+#define tdbOsRemove              remove
+#define tdbOsFileSize(FD, PSIZE) taosFStatFile(FD, PSIZE, NULL)
 
 /* directory */
 #define tdbOsMkdir taosMkDir
@@ -95,7 +98,11 @@ typedef int tdb_fd_t;
 
 #define tdbOsOpen(PATH, OPTION, MODE) open((PATH), (OPTION), (MODE))
 
-#define tdbOsClose close
+#define tdbOsClose(FD) \
+  do {                 \
+    close(FD);         \
+    (FD) = -1;         \
+  } while (0)
 
 i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
 i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset);
@@ -104,10 +111,11 @@ i64 tdbOsWrite(tdb_fd_t fd, const void *pData, i64 nBytes);
 #define tdbOsFSync  fsync
 #define tdbOsLSeek  lseek
 #define tdbOsRemove remove
+#define tdbOsFileSize(FD, PSIZE)
 
 /* directory */
-#define tdbOsMkdir  mkdir
-#define tdbOsRmdir  rmdir
+#define tdbOsMkdir mkdir
+#define tdbOsRmdir rmdir
 
 // For threads and lock -----------------
 /* spin lock */

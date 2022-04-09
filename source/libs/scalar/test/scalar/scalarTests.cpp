@@ -99,7 +99,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
     SColumnInfoData idata = {0};
     idata.info  = *colInfo;
 
-    blockDataEnsureColumnCapacity(&idata, rows);
+    colInfoDataEnsureCapacity(&idata, rows);
 
     taosArrayPush(res->pDataBlock, &idata);
     
@@ -186,7 +186,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     
-    blockDataEnsureColumnCapacity(pColumn, rowNum);
+    colInfoDataEnsureCapacity(pColumn, rowNum);
 
     for (int32_t i = 0; i < rowNum; ++i) {
       colDataAppend(pColumn, i, (const char *)value, false);
@@ -1467,7 +1467,7 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
   input->numOfRows = num;
 
   input->columnData->info = createColumnInfo(0, type, bytes);
-  blockDataEnsureColumnCapacity(input->columnData, num);
+  colInfoDataEnsureCapacity(input->columnData, num);
 
   if (setVal) {
     for (int32_t i = 0; i < num; ++i) {

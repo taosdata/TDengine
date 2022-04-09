@@ -104,6 +104,10 @@ bool fmIsScalarFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC);
 }
 
+bool fmIsPseudoColumnFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC);
+}
+
 bool fmIsWindowPseudoColumnFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC);
 }
@@ -111,6 +115,11 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId) {
 bool fmIsWindowClauseFunc(int32_t funcId) {
   return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId);
 }
+
+bool fmIsNonstandardSQLFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_NONSTANDARD_SQL_FUNC);
+}
+
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;

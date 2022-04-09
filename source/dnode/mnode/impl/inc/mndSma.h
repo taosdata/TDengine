@@ -26,6 +26,7 @@ int32_t  mndInitSma(SMnode *pMnode);
 void     mndCleanupSma(SMnode *pMnode);
 SSmaObj *mndAcquireSma(SMnode *pMnode, char *smaName);
 void     mndReleaseSma(SMnode *pMnode, SSmaObj *pSma);
+int32_t mndProcessGetSmaReq(SMnode       *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist);
 
 #ifdef __cplusplus
 }

@@ -260,6 +260,7 @@ typedef struct {
   int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -268,6 +269,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
+  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;
 } SDbCfg;
@@ -413,6 +415,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;  // -1 for unassigned
   int32_t status;
+  int32_t epoch;
   SEpSet  epSet;
   int64_t oldConsumerId;
   int64_t consumerId;  // -1 for unassigned
@@ -423,6 +426,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pConsumerEp->vgId);
   tlen += taosEncodeFixedI32(buf, pConsumerEp->status);
+  tlen += taosEncodeFixedI32(buf, pConsumerEp->epoch);
   tlen += taosEncodeSEpSet(buf, &pConsumerEp->epSet);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
@@ -433,6 +437,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp
 static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsumerEp) {
   buf = taosDecodeFixedI32(buf, &pConsumerEp->vgId);
   buf = taosDecodeFixedI32(buf, &pConsumerEp->status);
+  buf = taosDecodeFixedI32(buf, &pConsumerEp->epoch);
   buf = taosDecodeSEpSet(buf, &pConsumerEp->epSet);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
@@ -620,13 +625,13 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
-    taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
+    //taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
     // taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
-    taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
     // taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
@@ -735,6 +740,9 @@ typedef struct {
   int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
   int32_t        fixedSinkVgId;  // 0 for shuffle
   int64_t        smaId;          // 0 for unused
+  int8_t         trigger;
+  int32_t        triggerParam;
+  int64_t        waterMark;
   char*          sql;
   char*          logicalPlan;
   char*          physicalPlan;

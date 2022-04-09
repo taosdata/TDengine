@@ -136,6 +136,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_EXPLAIN_STMT:
       return makeNode(type, sizeof(SExplainStmt));
+    case QUERY_NODE_DESCRIBE_STMT:
+      return makeNode(type, sizeof(SDescribeStmt));
+    case QUERY_NODE_RESET_QUERY_CACHE_STMT:
+      return makeNode(type, sizeof(SNode));
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
@@ -165,6 +169,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SWindowLogicNode));
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return makeNode(type, sizeof(SSortLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return makeNode(type, sizeof(SPartitionLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -193,6 +199,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+      return makeNode(type, sizeof(SStateWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -298,7 +308,7 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_LIMIT: // no pointer field
       break;
     case QUERY_NODE_STATE_WINDOW:
-      nodesDestroyNode(((SStateWindowNode*)pNode)->pCol);
+      nodesDestroyNode(((SStateWindowNode*)pNode)->pExpr);
       break;
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
@@ -634,7 +644,7 @@ SNodeList* nodesMakeList() {
 
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL == pList || NULL == pNode) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
   SListCell* p = taosMemoryCalloc(1, sizeof(SListCell));
   if (NULL == p) {
@@ -678,7 +688,7 @@ int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode) {
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   if (NULL == pTarget || NULL == pSrc) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   if (NULL == pTarget->pHead) {
@@ -707,11 +717,34 @@ int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   return code;
 }
 
+int32_t nodesListPushFront(SNodeList* pList, SNodeptr pNode) {
+  if (NULL == pList || NULL == pNode) {
+    return TSDB_CODE_FAILED;
+  }
+  SListCell* p = taosMemoryCalloc(1, sizeof(SListCell));
+  if (NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  p->pNode = pNode;
+  if (NULL != pList->pHead) {
+    pList->pHead->pPrev = p;
+    p->pNext = pList->pHead;
+  }
+  pList->pHead = p;
+  ++(pList->length);
+  return TSDB_CODE_SUCCESS;
+}
+
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;
   } else {
     pCell->pPrev->pNext = pCell->pNext;
+  }
+  if (NULL == pCell->pNext) {
+    pList->pTail = pCell->pPrev;
+  } else {
     pCell->pNext->pPrev = pCell->pPrev;
   }
   SListCell* pNext = pCell->pNext;
@@ -719,6 +752,24 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   taosMemoryFreeClear(pCell);
   --(pList->length);
   return pNext;
+}
+
+void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc) {
+    return;
+  }
+
+  if (NULL == pPos->pPrev) {
+    pTarget->pHead = pSrc->pHead;
+  } else {
+    pPos->pPrev->pNext = pSrc->pHead;
+  }
+  pSrc->pHead->pPrev = pPos->pPrev;
+  pSrc->pTail->pNext = pPos;
+  pPos->pPrev = pSrc->pTail;
+
+  pTarget->length += pSrc->length;
+  taosMemoryFreeClear(pSrc);
 }
 
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index) {
@@ -773,12 +824,77 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_UBIGINT:
       return (void*)&pNode->datum.u;
     case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE: 
+    case TSDB_DATA_TYPE_DOUBLE:
       return (void*)&pNode->datum.d;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: 
+    case TSDB_DATA_TYPE_VARBINARY:
       return (void*)pNode->datum.p;
+    default:
+      break;
+  }
+
+  return NULL;
+}
+
+char* nodesGetStrValueFromNode(SValueNode *pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+
+      sprintf(buf, "%s", pNode->datum.b ? "true" : "false");
+      return buf;
+    }
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+
+      sprintf(buf, "%" PRId64, pNode->datum.i);
+      return buf;
+    }
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+
+      sprintf(buf, "%" PRIu64, pNode->datum.u);
+      return buf;
+    }
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE: {
+      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      if (NULL == buf) {
+        return NULL;
+      }
+
+      sprintf(buf, "%e", pNode->datum.d);
+      return buf;
+    }
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: {
+      int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
+      void *buf = taosMemoryMalloc(bufSize);
+      if (NULL == buf) {
+        return NULL;
+      }
+
+      snprintf(buf, bufSize, "'%s'", varDataVal(pNode->datum.p));
+      return buf;
+    }
     default:
       break;
   }
@@ -789,6 +905,24 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type || QUERY_NODE_FUNCTION == type);
+}
+
+bool nodesIsUnaryOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_MINUS:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    case OP_TYPE_IS_TRUE:
+    case OP_TYPE_IS_FALSE:
+    case OP_TYPE_IS_UNKNOWN:
+    case OP_TYPE_IS_NOT_TRUE:
+    case OP_TYPE_IS_NOT_FALSE:
+    case OP_TYPE_IS_NOT_UNKNOWN:
+      return true;
+    default:
+      break;
+  }
+  return false;
 }
 
 bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
@@ -954,3 +1088,96 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
   
   return TSDB_CODE_SUCCESS;
 }
+
+
+char *getFillModeString(EFillMode mode) {
+  switch (mode) {
+    case FILL_MODE_NONE:
+      return "none";
+    case FILL_MODE_VALUE:
+      return "value";
+    case FILL_MODE_PREV:
+      return "prev";
+    case FILL_MODE_NULL:
+      return "null";
+    case FILL_MODE_LINEAR:
+      return "linear";
+    case FILL_MODE_NEXT:
+      return "next";
+    default:
+      return "unknown";
+  }
+}
+
+char *nodesGetNameFromColumnNode(SNode *pNode) {
+  if (NULL == pNode || QUERY_NODE_COLUMN != pNode->type) {
+    return "NULL";
+  }
+  
+  return ((SColumnNode *)pNode)->colName;
+}
+
+int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
+  if (NULL == pSlots || pSlots->length <= 0) {
+    return 0;
+  }
+
+  SNode* pNode = NULL;
+  int32_t num = 0;
+  FOREACH(pNode, pSlots) {
+    if (QUERY_NODE_SLOT_DESC != pNode->type) {
+      continue;
+    }
+
+    SSlotDescNode *descNode = (SSlotDescNode *)pNode;
+    if (descNode->output) {
+      ++num;
+    }
+  }
+
+  return num;
+}
+
+
+void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  pVal->nType = pNode->node.resType.type;
+  pVal->nLen = pNode->node.resType.bytes;
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+        break;
+    case TSDB_DATA_TYPE_BOOL:
+      pVal->i = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pVal->i = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      pVal->u = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      pVal->d = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      pVal->pz = pNode->datum.p;
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      // todo
+    default:
+      break;
+  }
+}
+
+
+

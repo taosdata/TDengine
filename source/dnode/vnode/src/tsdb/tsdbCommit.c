@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 
 #define TSDB_MAX_SUBBLOCKS 8
 
@@ -701,7 +701,6 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   // Set pIdx
   pBlock = taosArrayGetLast(pSupA);
 
-  pIdx->tid = TABLE_TID(pTable);
   pIdx->uid = TABLE_UID(pTable);
   pIdx->hasLast = pBlock->last ? 1 : 0;
   pIdx->maxKey = pBlock->keyLast;
@@ -1281,7 +1280,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   uint32_t tsizeAggr = (uint32_t)tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
   int32_t  keyLen = 0;
   int32_t  nBitmaps = (int32_t)TD_BITMAP_BYTES(rowsToWrite);
-  int32_t  tBitmaps = 0;
+  // int32_t  tBitmaps = 0;
 
   for (int ncol = 0; ncol < pDataCols->numOfCols; ++ncol) {
     // All not NULL columns finish
@@ -1297,7 +1296,10 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
+    int32_t tBitmapsLen = 0;
     if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+      tBitmaps = nBitmaps;
+#if 0
       if (IS_VAR_DATA_TYPE(pDataCol->type)) {
         tBitmaps = nBitmaps;
         tlen += tBitmaps;
@@ -1305,16 +1307,17 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
         tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
         tlen += tBitmaps * TYPE_BYTES[pDataCol->type];
       }
+#endif
       // move bitmap parts ahead
       // TODO: put bitmap part to the 1st location(pBitmap points to pData) to avoid the memmove
-      memcpy(POINTER_SHIFT(pDataCol->pData, pDataCol->len), pDataCol->pBitmap, nBitmaps);
+      // memcpy(POINTER_SHIFT(pDataCol->pData, pDataCol->len), pDataCol->pBitmap, nBitmaps);
     }
 #endif
 
-    void *tptr;
+    void *tptr, *bptr;
 
     // Make room
-    if (tsdbMakeRoom(ppBuf, lsize + tlen + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
+    if (tsdbMakeRoom(ppBuf, lsize + tlen + tBitmaps + 2 * COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
       return -1;
     }
     pBlockData = (SBlockData *)(*ppBuf);
@@ -1327,23 +1330,44 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 
     // Compress or just copy
     if (pCfg->compression) {
+#if 0
       flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite + tBitmaps, tptr,
                                                       tlen + COMP_OVERFLOW_BYTES, pCfg->compression, *ppCBuf,
                                                       tlen + COMP_OVERFLOW_BYTES);
+#endif
+      flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
+                                                      tlen + COMP_OVERFLOW_BYTES, pCfg->compression, *ppCBuf,
+                                                      tlen + COMP_OVERFLOW_BYTES);
+      if (tBitmaps > 0) {
+        bptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        tBitmapsLen =
+            tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, tBitmaps, bptr, tBitmaps + COMP_OVERFLOW_BYTES,
+                              pCfg->compression, *ppCBuf, tBitmaps + COMP_OVERFLOW_BYTES);
+        TASSERT((tBitmapsLen > 0) && (tBitmapsLen <= (tBitmaps + COMP_OVERFLOW_BYTES)));
+        flen += tBitmapsLen;
+      }
     } else {
       flen = tlen;
       memcpy(tptr, pDataCol->pData, flen);
+      if (tBitmaps > 0) {
+        bptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        memcpy(bptr, pDataCol->pBitmap, tBitmaps);
+        tBitmapsLen = tBitmaps;
+        flen += tBitmapsLen;
+      }
     }
 
     // Add checksum
     ASSERT(flen > 0);
+    ASSERT(tBitmapsLen <= 1024);
     flen += sizeof(TSCKSUM);
     taosCalcChecksumAppend(0, (uint8_t *)tptr, flen);
     tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)));
 
     if (ncol != 0) {
       tsdbSetBlockColOffset(pBlockCol, toffset);
-      pBlockCol->len = flen;
+      pBlockCol->len = flen;  // data + bitmaps
+      pBlockCol->blen = tBitmapsLen;
       ++tcol;
     } else {
       keyLen = flen;
@@ -1394,7 +1418,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 
   tsdbDebug("vgId:%d uid:%" PRId64 " a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
-            REPO_ID(pRepo), TABLE_TID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
+            REPO_ID(pRepo), TABLE_UID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
             pBlock->numOfCols, pBlock->keyFirst, pBlock->keyLast);
 
   return 0;

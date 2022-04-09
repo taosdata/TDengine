@@ -14,7 +14,7 @@
  */
 #define _DEFAULT_SOURCE
 
-#include "tqOffset.h"
+#include "vnodeInt.h"
 
 enum ETqOffsetPersist {
   TQ_OFFSET_PERSIST__LAZY = 1,
@@ -39,4 +39,3 @@ STqOffsetStore* STqOffsetOpen(STqOffsetCfg* pCfg) {
   pStore->pHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
   return pStore;
 }
-

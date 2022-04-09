@@ -49,6 +49,8 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
     if (ret < 0) {
       return -1;
     }
+
+    tdbEnvAddPager(pEnv, pPager);
   }
 
   ASSERT(pPager != NULL);
@@ -73,23 +75,8 @@ int tdbDbDrop(TDB *pDb) {
   return 0;
 }
 
-int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBTC  btc;
-  SBTC *pCur;
-  int   ret;
-
-  pCur = &btc;
-  ret = tdbBtcOpen(pCur, pDb->pBt);
-  if (ret < 0) {
-    return -1;
-  }
-
-  ret = tdbBtCursorInsert(pCur, pKey, keyLen, pVal, valLen);
-  if (ret < 0) {
-    return -1;
-  }
-
-  return 0;
+int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
+  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
 }
 
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
@@ -110,7 +97,7 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
     return -1;
   }
 
-  tdbBtcOpen(&pDbc->btc, pDb->pBt);
+  tdbBtcOpen(&pDbc->btc, pDb->pBt, NULL);
 
   // TODO: move to first now, we can move to any key-value
   // and in any direction, design new APIs.
