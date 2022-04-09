@@ -16,30 +16,30 @@ import time
 
 from taostest import ClusterCase
 
-class Case2(ClusterCase):
+class Case4(ClusterCase):
 
     def init(self):
         super().init()
         self.db_name = "testdb"
         self.replicas = 3
-        self.thread_num = 10
+        self.thread_num = 2
         self.stable_name = "stb"
         self.table_name = "tb"
         self.table_num = 10
         self.row_num = 500000  # row number per table
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
-        self.master_nodes = self.get_masters()
-        i = random.randint(0, len(self.master_nodes) - 1)
-        self.master_node = self.master_nodes[i]
-        self.logger.info("master: %s", self.master_node)
         self.slave_nodes = self.get_slaves()
         i = random.randint(0, len(self.slave_nodes) - 1)
         self.slave_node = self.slave_nodes[i]
         self.logger.info("slave: %s", self.slave_node)
+        self.master_nodes = self.get_masters()
+        i = random.randint(0, len(self.master_nodes) - 1)
+        self.master_node = self.master_nodes[i]
+        self.logger.info("master: %s", self.master_node)
 
     def check_result_db(self, db, stb):
-        client_0 = self.get_spec_conn(self.slave_node)
+        client_0 = self.get_spec_conn(self.master_node)
         # use database
         sql = "use %s" % (db)
         self.logger.info(sql)
@@ -97,12 +97,12 @@ class Case2(ClusterCase):
             db = f"{self.db_name}_{i}"
             stb = f"{self.stable_name}_{i}"
             tb = f"{self.table_name}_{i}"
-            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas, self.master_node))
+            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas, self.slave_node))
             mthreads.append(mthread)
             mthread.start()
             i = i + 1
-        # restart slave dnode thread
-        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.slave_node, self.max_restart_interval, self.restart_times, self.master_node))
+        # restart master dnode thread
+        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.master_node, self.max_restart_interval, self.restart_times, self.slave_node))
         # start thread
         dthread.start()
         # wait thread
