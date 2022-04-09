@@ -59,7 +59,7 @@ TDengineCursor.prototype.close = function close() {
   }
   // this._connection._clearResultSet();
   this._reset_result();
-  // this._connection = null;
+  this._connection = null;
   return true;
 }
 /**
