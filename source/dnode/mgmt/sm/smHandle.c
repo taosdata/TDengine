@@ -16,6 +16,33 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
+void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {}
+
+int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonSmInfo smInfo = {0};
+  smGetMonitorInfo(pWrapper, &smInfo);
+  dmGetMonitorSysInfo(&smInfo.sys);
+  monGetLogs(&smInfo.log);
+
+  int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonSmInfo(pRsp, rspLen, &smInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonSmInfo(&smInfo);
+  return 0;
+}
+
 int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
@@ -55,6 +82,8 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 void smInitMsgHandle(SMgmtWrapper *pWrapper) {
+  dndSetMsgHandle(pWrapper, TDMT_MON_SM_INFO, smProcessMonitorMsg, DEFAULT_HANDLE);
+
   // Requests handled by SNODE
   dndSetMsgHandle(pWrapper, TDMT_SND_TASK_DEPLOY, smProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_SND_TASK_EXEC, smProcessExecMsg, DEFAULT_HANDLE);

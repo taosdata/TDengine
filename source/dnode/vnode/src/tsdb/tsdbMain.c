@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 
 static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
                       SMeta *pMeta, STfs *pTfs);
@@ -80,9 +80,6 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
   pTsdb->pmaf = pMAF;
   pTsdb->pMeta = pMeta;
   pTsdb->pTfs = pTfs;
-  pTsdb->pTSmaEnv = NULL;
-  pTsdb->pRSmaEnv = NULL;
-
   pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
   return pTsdb;
@@ -90,8 +87,8 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
-    tsdbFreeSmaEnv(pTsdb->pRSmaEnv);
-    tsdbFreeSmaEnv(pTsdb->pTSmaEnv);
+    // tsdbFreeSmaEnv(REPO_TSMA_ENV(pTsdb));
+    // tsdbFreeSmaEnv(REPO_RSMA_ENV(pTsdb));
     tsdbFreeFS(pTsdb->fs);
     taosMemoryFreeClear(pTsdb->path);
     taosMemoryFree(pTsdb);
@@ -100,7 +97,10 @@ static void tsdbFree(STsdb *pTsdb) {
 
 static int tsdbOpenImpl(STsdb *pTsdb) {
   tsdbOpenFS(pTsdb);
+
+  // tsdbInitSma(pTsdb);
   // TODO
+
   return 0;
 }
 

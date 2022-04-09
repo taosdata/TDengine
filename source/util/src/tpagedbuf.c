@@ -48,10 +48,8 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  // pBuf->file = fopen(pBuf->path, "wb+");
-  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   if (pBuf->pFile == NULL) {
-    //    qError("failed to create tmp file: %s on disk. %s", pBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 
@@ -138,7 +136,7 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
       pBuf->nextPos += size;
 
       int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-      if (ret != 0) {
+      if (ret == -1) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return NULL;
       }
@@ -169,7 +167,7 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
       // 3. write to disk.
       int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-      if (ret != 0) {
+      if (ret == -1) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return NULL;
       }
@@ -224,7 +222,7 @@ static char* flushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 // load file block data in disk
 static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-  if (ret != 0) {
+  if (ret == -1) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
   }
@@ -350,8 +348,7 @@ static void lruListMoveToFront(SList* pList, SPageInfo* pi) {
 }
 
 static SPageInfo* getPageInfoFromPayload(void* page) {
-  int32_t offset = offsetof(SPageInfo, pData);
-  char*   p = (char *)page - offset;
+  char*   p = (char *)page - POINTER_BYTES;
 
   SPageInfo* ppi = ((SPageInfo**)p)[0];
   return ppi;
@@ -371,7 +368,6 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->totalBufSize = 0;
   pPBuf->inMemPages = inMemBufSize / pagesize;  // maximum allowed pages, it is a soft limit.
   pPBuf->allocateId = -1;
-  pPBuf->comp     = true;
   pPBuf->pFile    = NULL;
   pPBuf->id       = strdup(id);
   pPBuf->fileSize = 0;

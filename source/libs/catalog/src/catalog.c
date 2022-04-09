@@ -569,6 +569,81 @@ int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtE
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *dbFName, SDbCfgInfo *out) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+
+  ctgDebug("try to get db cfg from mnode, dbFName:%s", dbFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]((void *)dbFName, &msg, 0, &msgLen);
+  if (code) {
+    ctgError("Build get db cfg msg failed, code:%x, db:%s", code, dbFName);
+    CTG_ERR_RET(code);
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_GET_DB_CFG,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    ctgError("error rsp for get db cfg, error:%s, db:%s", tstrerror(rpcRsp.code), dbFName);
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)](out, rpcRsp.pCont, rpcRsp.contLen);
+  if (code) {
+    ctgError("Process get db cfg rsp failed, code:%x, db:%s", code, dbFName);
+    CTG_ERR_RET(code);
+  }
+
+  ctgDebug("Got db cfg from mnode, dbFName:%s", dbFName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *indexName, SIndexInfo *out) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+
+  ctgDebug("try to get index from mnode, indexName:%s", indexName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]((void *)indexName, &msg, 0, &msgLen);
+  if (code) {
+    ctgError("Build get index msg failed, code:%x, db:%s", code, indexName);
+    CTG_ERR_RET(code);
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_GET_INDEX,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    ctgError("error rsp for get index, error:%s, indexName:%s", tstrerror(rpcRsp.code), indexName);
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)](out, rpcRsp.pCont, rpcRsp.contLen);
+  if (code) {
+    ctgError("Process get index rsp failed, code:%x, indexName:%s", code, indexName);
+    CTG_ERR_RET(code);
+  }
+
+  ctgDebug("Got index from mnode, indexName:%s", indexName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t ctgIsTableMetaExistInCache(SCatalog* pCtg, char *dbFName, char* tbName, int32_t *exist) {
   if (NULL == pCtg->dbCache) {
     *exist = 0;
@@ -1738,7 +1813,7 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
   if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == pTableMeta) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
-  
+
   bool inCache = false;
   int32_t code = 0;
   uint64_t dbId = 0;
@@ -2137,7 +2212,6 @@ _return:
   CTG_RET(code);
 }
 
-
 int32_t catalogInit(SCatalogCfg *cfg) {
   if (gCtgMgmt.pCluster) {
     qError("catalog already initialized");
@@ -2408,7 +2482,7 @@ _return:
 }
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet) {
-
+  return 0;
 }
 
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, const SName* pTableName) {
@@ -2475,7 +2549,7 @@ _return:
 }
 
 int32_t catalogGetIndexMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, const char *pIndexName, SIndexMeta** pIndexMeta) {
-
+  return 0;
 }
 
 int32_t catalogGetTableMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
@@ -2715,6 +2789,26 @@ int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbVgVersion **dbs, uint32_t *num) 
   }
 
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->dbRent, (void **)dbs, num, sizeof(SDbVgVersion)));
+}
+
+int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == dbFName || NULL == pDbCfg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_API_LEAVE(ctgGetDBCfgFromMnode(pCtg, pRpc, pMgmtEps, dbFName, pDbCfg));
+}
+
+int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == indexName || NULL == pInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_API_LEAVE(ctgGetIndexInfoFromMnode(pCtg, pRpc, pMgmtEps, indexName, pInfo));
 }
 
 

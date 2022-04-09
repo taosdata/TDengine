@@ -15,9 +15,8 @@
 
 #include "tcompare.h"
 #include "tdatablock.h"
-#include "tqInt.h"
-#include "tqMetaStore.h"
 #include "tstream.h"
+#include "vnodeInt.h"
 
 int32_t tqInit() { return tqPushMgrInit(); }
 
@@ -81,6 +80,13 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
     return -1;
   }
   memcpy(data, msg, msgLen);
+
+  if (msgType == TDMT_VND_SUBMIT) {
+    // if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg) != 0) {
+    //   return -1;
+    // }
+  }
+
   SRpcMsg req = {
       .msgType = TDMT_VND_STREAM_TRIGGER,
       .pCont = data,
@@ -265,7 +271,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch, pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
+  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+         pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
 
   SMqPollRsp rsp = {
       /*.consumerId = consumerId,*/
@@ -289,10 +296,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   }
 
   STqTopic* pTopic = NULL;
-  int sz = taosArrayGetSize(pConsumer->topics);
+  int       sz = taosArrayGetSize(pConsumer->topics);
   for (int32_t i = 0; i < sz; i++) {
     STqTopic* topic = taosArrayGet(pConsumer->topics, i);
-    //TODO race condition
+    // TODO race condition
     ASSERT(pConsumer->consumerId == consumerId);
     if (strcmp(topic->topicName, pReq->topic) == 0) {
       pTopic = topic;
@@ -300,7 +307,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     }
   }
   if (pTopic == NULL) {
-    vWarn("tmq poll: consumer %ld (epoch %d) topic %s not found in vg %d", consumerId, pReq->epoch, pReq->topic, pTq->pVnode->vgId);
+    vWarn("tmq poll: consumer %ld (epoch %d) topic %s not found in vg %d", consumerId, pReq->epoch, pReq->topic,
+          pTq->pVnode->vgId);
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = -1;
@@ -308,17 +316,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     return 0;
   }
 
-  vDebug("poll topic %s from consumer %ld (epoch %d)", pTopic->topicName, consumerId, pReq->epoch);
+  vDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch, pTq->pVnode->vgId);
 
   rsp.reqOffset = pReq->currentOffset;
   rsp.skipLogNum = 0;
 
   while (1) {
     /*if (fetchOffset > walGetLastVer(pTq->pWal) || walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {*/
-    //TODO
+    // TODO
     consumerEpoch = atomic_load_32(&pConsumer->epoch);
-    if (consumerEpoch > pReq->epoch) {
-      //TODO: return
+    if (consumerEpoch > reqEpoch) {
+      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d", consumerId, pReq->epoch, pTq->pVnode->vgId, fetchOffset, consumerEpoch, reqEpoch);
       break;
     }
     SWalReadHead* pHead;
@@ -421,22 +429,62 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
 int32_t tqProcessRebReq(STQ* pTq, char* msg) {
   SMqMVRebReq req = {0};
+  terrno = TSDB_CODE_SUCCESS;
   tDecodeSMqMVRebReq(msg, &req);
 
   vDebug("vg %d set from consumer %ld to consumer %ld", req.vgId, req.oldConsumerId ,req.newConsumerId);
   STqConsumer* pConsumer = tqHandleGet(pTq->tqMeta, req.oldConsumerId);
   ASSERT(pConsumer);
-  pConsumer->consumerId = req.newConsumerId;
-  tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
-  tqHandleCommit(pTq->tqMeta, req.newConsumerId);
-  tqHandlePurge(pTq->tqMeta, req.oldConsumerId);
-  terrno = TSDB_CODE_SUCCESS;
+  ASSERT(pConsumer->consumerId == req.oldConsumerId);
+  int32_t numOfTopics = taosArrayGetSize(pConsumer->topics);
+  if (numOfTopics == 1) {
+    STqTopic* pTopic = taosArrayGet(pConsumer->topics, 0);
+    ASSERT(strcmp(pTopic->topicName, req.topic) == 0);
+    STqConsumer* pNewConsumer = tqHandleGet(pTq->tqMeta, req.newConsumerId);
+    if (pNewConsumer == NULL) {
+      pConsumer->consumerId = req.newConsumerId;
+      tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
+      tqHandleCommit(pTq->tqMeta, req.newConsumerId);
+      tqHandlePurge(pTq->tqMeta, req.oldConsumerId);
+      return 0;
+    } else {
+      taosArrayPush(pNewConsumer->topics, pTopic);
+    }
+  } else {
+    for (int32_t i = 0; i < numOfTopics; i++) {
+      STqTopic* pTopic = taosArrayGet(pConsumer->topics, i);
+      if (strcmp(pTopic->topicName, req.topic) == 0) {
+        STqConsumer* pNewConsumer = tqHandleGet(pTq->tqMeta, req.newConsumerId);
+        if (pNewConsumer == NULL) {
+          pNewConsumer = taosMemoryCalloc(1, sizeof(STqConsumer));
+          if (pNewConsumer == NULL) {
+            terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+            return -1;
+          }
+          strcpy(pNewConsumer->cgroup, pConsumer->cgroup);
+          pNewConsumer->topics = taosArrayInit(0, sizeof(STqTopic));
+          pNewConsumer->consumerId = req.newConsumerId;
+          pNewConsumer->epoch = 0;
+
+          taosArrayPush(pNewConsumer->topics, pTopic);
+          tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
+          tqHandleCommit(pTq->tqMeta, req.newConsumerId);
+          return 0;
+        }
+        ASSERT(pNewConsumer->consumerId == req.newConsumerId);
+        taosArrayPush(pNewConsumer->topics, pTopic);
+        break;
+      }
+    }
+    //
+  }
   return 0;
 }
 
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   SMqSetCVgReq req = {0};
   tDecodeSMqSetCVgReq(msg, &req);
+  bool create = false;
 
   vDebug("vg %d set to consumer %ld", req.vgId, req.consumerId);
   STqConsumer* pConsumer = tqHandleGet(pTq->tqMeta, req.consumerId);
@@ -450,6 +498,7 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
     pConsumer->topics = taosArrayInit(0, sizeof(STqTopic));
     pConsumer->consumerId = req.consumerId;
     pConsumer->epoch = 0;
+    create = true;
   }
 
   STqTopic* pTopic = taosMemoryCalloc(1, sizeof(STqTopic));
@@ -483,10 +532,17 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
     pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, &handle);
     ASSERT(pTopic->buffer.output[i].task);
   }
-  /*printf("set topic %s to consumer %ld on vg %d\n", pTopic->topicName, req.consumerId, pTq->pVnode->vgId);*/
+  vDebug("set topic %s to consumer %ld on vg %d", pTopic->topicName, req.consumerId, pTq->pVnode->vgId);
   taosArrayPush(pConsumer->topics, pTopic);
-  tqHandleMovePut(pTq->tqMeta, req.consumerId, pConsumer);
-  tqHandleCommit(pTq->tqMeta, req.consumerId);
+  if (create) {
+    tqHandleMovePut(pTq->tqMeta, req.consumerId, pConsumer);
+    tqHandleCommit(pTq->tqMeta, req.consumerId);
+  }
+  terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
+int32_t tqProcessCancelConnReq(STQ* pTq, char* msg) {
   terrno = TSDB_CODE_SUCCESS;
   return 0;
 }

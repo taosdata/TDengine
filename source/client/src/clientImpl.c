@@ -281,22 +281,35 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
   SQuery* pQuery = NULL;
-  int32_t code = 0;
   SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
-  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
-
-  if (pQuery->localCmd) {
-    CHECK_CODE_GOTO(execLocalCmd(pRequest, pQuery), _return);
-  } else if (pQuery->directRpc) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
-  } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
+  int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseSql(pRequest, false, &pQuery);
   }
 
-_return:
+  if (TSDB_CODE_SUCCESS == code) {
+    switch (pQuery->execMode) {
+      case QUERY_EXEC_MODE_LOCAL:
+        code = execLocalCmd(pRequest, pQuery);
+        break;
+      case QUERY_EXEC_MODE_RPC:
+        code = execDdlQuery(pRequest, pQuery);
+        break;
+      case QUERY_EXEC_MODE_SCHEDULE:
+        code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
+        }
+        break;
+      case QUERY_EXEC_MODE_EMPTY_RESULT:
+        pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+        break;
+      default:
+        break;
+    }
+  }
+
   taosArrayDestroy(pNodeList);
   qDestroyQuery(pQuery);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {

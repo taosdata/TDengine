@@ -267,7 +267,7 @@ static void trtrim(char *input, char *output, int32_t type, int32_t charLen) {
       numOfSpaces++;
     }
   } else { //NCHAR
-    for (int32_t i = charLen - 1; i < charLen; ++i) {
+    for (int32_t i = charLen - 1; i >= 0; --i) {
       if (!iswspace(*((uint32_t *)varDataVal(input) + i))) {
         break;
       }
@@ -295,11 +295,11 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *in = pInputData->pData;
+  char *in = pInputData->pData + pInputData->varmeta.offset[0];
   int16_t *out = (int16_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_f(pInputData->nullbitmap, i)) {
+    if (colDataIsNull_s(pInputData, i)) {
       colDataSetNull_f(pOutputData->nullbitmap, i);
       continue;
     }
@@ -357,7 +357,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   }
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    input[i] = pInputData[i]->pData;
+    input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[0];
     int32_t factor = 1;
     if (hasNcharCol && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
@@ -438,7 +438,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   }
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    input[i] = pInputData[i]->pData;
+    input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[0];
     int32_t factor = 1;
     if (hasNcharCol && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
@@ -509,7 +509,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input  = pInputData->pData;
+  char *input  = pInputData->pData + pInputData->varmeta.offset[0];
   char *output = NULL;
 
   int32_t outputLen = pInputData->varmeta.length;
@@ -554,7 +554,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input  = pInputData->pData;
+  char *input  = pInputData->pData + pInputData->varmeta.offset[0];
   char *output = NULL;
 
   int32_t outputLen = pInputData->varmeta.length;
@@ -606,7 +606,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input  = pInputData->pData;
+  char *input  = pInputData->pData + pInputData->varmeta.offset[0];
   char *output = NULL;
 
   int32_t outputLen = pInputData->varmeta.length * pInput->numOfRows;
@@ -795,16 +795,19 @@ bool getTimePseudoFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 1));
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   ASSERT(inputNum == 1);
   colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 2));
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

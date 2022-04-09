@@ -32,6 +32,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker readWorker;
   SSingleWorker writeWorker;
   SSingleWorker syncWorker;
+  SSingleWorker monitorWorker;
   SReplica      replicas[TSDB_MAX_REPLICA];
   int8_t        replica;
   int8_t        selfIndex;
@@ -51,6 +52,7 @@ void    mmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 
 // mmWorker.c
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
@@ -59,6 +61,7 @@ int32_t mmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t mmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
 int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
 int32_t mmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);

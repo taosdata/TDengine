@@ -34,22 +34,22 @@ typedef struct SMultiMergeSource {
   SSDataBlock *pBlock;
 } SMultiMergeSource;
 
-typedef struct SExternalMemSource {
+typedef struct SSortSource {
   SMultiMergeSource src;
-  SArray*           pageIdList;
-  int32_t           pageIndex;
-} SExternalMemSource;
+  union{
+    struct{
+      SArray*           pageIdList;
+      int32_t           pageIndex;
+    };
+    void             *param;
+  };
 
-typedef struct SGenericSource {
-  SMultiMergeSource src;
-  void             *param;
-} SGenericSource;
+} SSortSource;
 
 typedef struct SMsortComparParam {
   void        **pSources;
   int32_t       numOfSources;
   SArray       *orderInfo;   // SArray<SBlockOrderInfo>
-  bool          nullFirst;
 } SMsortComparParam;
 
 typedef struct SSortHandle SSortHandle;
@@ -63,7 +63,7 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
+SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, SArray* pIndexMap, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
 
 /**
  *

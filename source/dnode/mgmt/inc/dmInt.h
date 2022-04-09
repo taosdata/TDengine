@@ -32,7 +32,7 @@ typedef struct SDnodeMgmt {
   TdThread     *threadId;
   SRWLatch      latch;
   SSingleWorker mgmtWorker;
-  SSingleWorker statusWorker;
+  SSingleWorker monitorWorker;
   SMsgCb        msgCb;
   const char   *path;
   SDnode       *pDnode;
@@ -54,6 +54,7 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dmMonitor.c
+void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
@@ -61,7 +62,7 @@ int32_t dmStartThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }
