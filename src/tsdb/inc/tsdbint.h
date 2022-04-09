@@ -116,7 +116,7 @@ STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
 UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
-int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable, bool lastKey);
+int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable, bool force);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx, bool onlyKey);

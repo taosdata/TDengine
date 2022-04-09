@@ -937,16 +937,16 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool lastKey) {
+int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool force) {
   SFSIter    fsiter;
   SReadH     readh;
   SDFileSet *pSet;
-  bool       onlyKey = false;
   int cacheLastRowTableNum = 0;
   int cacheLastColTableNum = 0;
 
   bool cacheLastRow = CACHE_LAST_ROW(&(pRepo->config));
   bool cacheLastCol = CACHE_LAST_NULL_COLUMN(&(pRepo->config));
+  bool onlyKey = !cacheLastRow;
 
   tsdbDebug("tsdbLoadLastCache for %s, cacheLastRow:%d, cacheLastCol:%d", pTable->name->data, cacheLastRow, cacheLastCol);
 
@@ -960,20 +960,20 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool lastKey) {
     tsdbFreeLastColumns(pTable);
   }
 
-  if (!cacheLastRow && !cacheLastCol) {
-    if(!lastKey)
+  if (!cacheLastRow && !cacheLastCol && !force) {
       return 0;
-    onlyKey = true;
   }
 
   cacheLastRowTableNum = (cacheLastRow && pTable->lastRow  == NULL) ? 1 : 0;
   cacheLastColTableNum = (cacheLastCol && pTable->lastCols == NULL) ? 1 : 0;
 
-  if (cacheLastRowTableNum == 0 && cacheLastColTableNum == 0) {
-    if (!lastKey)
-      return 0;
-    onlyKey = true;
+  if(force && cacheLastRowTableNum == 0) {
+    // if force update , must set 1
     cacheLastRowTableNum = 1;
+  }
+
+  if (cacheLastRowTableNum == 0 && cacheLastColTableNum == 0 && !force) {
+      return 0;
   }
 
   if (tsdbInitReadH(&readh, pRepo) < 0) {
@@ -1006,7 +1006,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool lastKey) {
 
     SBlockIdx *pIdx = readh.pBlkIdx;
 
-    if (pIdx && cacheLastRowTableNum > 0) {
+    if (pIdx && (cacheLastRowTableNum > 0) && (pTable->lastRow == NULL || force)) {
       if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, onlyKey) != 0) {
         tsdbUnLockFS(REPO_FS(pRepo));
         tsdbDestroyReadH(&readh);
