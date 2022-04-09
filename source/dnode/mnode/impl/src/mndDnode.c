@@ -551,7 +551,7 @@ static int32_t mndProcessDropDnodeReq(SNodeMsg *pReq) {
   SDnodeObj     *pDnode = NULL;
   SMDropMnodeReq dropReq = {0};
 
-  if (tDeserializeSMCreateDropMnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto DROP_DNODE_OVER;
   }

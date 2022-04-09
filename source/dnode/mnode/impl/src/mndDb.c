@@ -379,7 +379,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_CREATE_VNODE;
-      action.acceptableCode = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         return -1;
@@ -410,7 +410,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_DROP_VNODE;
-      action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         return -1;
@@ -878,7 +878,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_DND_DROP_VNODE;
-    action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+    action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
       return -1;
