@@ -267,6 +267,7 @@ int32_t tEncodeSMonDiskDesc(SCoder *encoder, const SMonDiskDesc *pDesc) {
   if (tEncodeI64(encoder, pDesc->size.total) < 0) return -1;
   if (tEncodeI64(encoder, pDesc->size.used) < 0) return -1;
   if (tEncodeI64(encoder, pDesc->size.avail) < 0) return -1;
+  return 0;
 }
 
 static int32_t tDecodeSMonDiskDesc(SCoder *decoder, SMonDiskDesc *pDesc) {
