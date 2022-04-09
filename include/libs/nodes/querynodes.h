@@ -238,6 +238,7 @@ typedef struct SSelectStmt {
   SNode* pSlimit;
   char stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t precision;
+  bool isEmptyResult;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {

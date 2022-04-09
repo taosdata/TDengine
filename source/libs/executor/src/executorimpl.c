@@ -3131,6 +3131,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
 
   int8_t* rowRes = NULL;
   bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+  filterFreeInfo(filter);
 
   SSDataBlock* px = createOneDataBlock(pBlock);
   blockDataEnsureCapacity(px, pBlock->info.rows);
@@ -3140,19 +3141,25 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+    if (keep) {
+      colDataAssign(pDst, pSrc, pBlock->info.rows);
+      numOfRow = pBlock->info.rows;
+    } else if (NULL != rowRes) {
+      numOfRow = 0;
+      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+        if (rowRes[j] == 0) {
+          continue;
+        }
 
-    numOfRow = 0;
-    for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      if (rowRes[j] == 0) {
-        continue;
+        if (colDataIsNull_s(pSrc, j)) {
+          colDataAppendNULL(pDst, numOfRow);
+        } else {
+          colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+        }
+        numOfRow += 1;
       }
-
-      if (colDataIsNull_s(pSrc, j)) {
-        colDataAppendNULL(pDst, numOfRow);
-      } else {
-        colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
-      }
-      numOfRow += 1;
+    } else {
+      numOfRow = 0;
     }
 
     *pSrc = *pDst;
