@@ -82,7 +82,7 @@
 60,,script,./test.sh -f general/parser/first_last.sim 
 60,,script,./test.sh -f general/db/delete_reuse1.sim 
 60,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py 
-#60,,pytest,python3 test.py -f stream/sys.py 
+60,,pytest,python3 test.py -f stream/sys.py 
 59,,script,./test.sh -f unique/import/replica2.sim 
 59,,script,./test.sh -f unique/dnode/balance2.sim 
 59,,script,./test.sh -f general/parser/projection_limit_offset.sim 
