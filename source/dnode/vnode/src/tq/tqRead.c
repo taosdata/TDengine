@@ -88,7 +88,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
 
   pBlockInfo->numOfCols = taosArrayGetSize(pHandle->pColIdList);
   pBlockInfo->rows = pHandle->pBlock->numOfRows;
-  pBlockInfo->uid = pHandle->pBlock->uid;
+//  pBlockInfo->uid = pHandle->pBlock->uid; // the uid can not be assigned to pBlockData.
   return 0;
 }
 
