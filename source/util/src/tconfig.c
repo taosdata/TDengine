@@ -348,7 +348,7 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
     }
   }
 
-  uError("name:%s, cfg not found", name);
+  // uError("name:%s, cfg not found", name);
   terrno = TSDB_CODE_CFG_NOT_FOUND;
   return NULL;
 }

@@ -1791,12 +1791,14 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
-    if(type != TSDB_DATA_TYPE_JSON){
+    if(type != TSDB_DATA_TYPE_JSON) {
       if (dType->type == type) {
         assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
       } else {
         SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
+        out.columnData->info.bytes = tDataTypes[type].bytes;
+        ASSERT(!IS_VAR_DATA_TYPE(type));
 
         // todo refactor the convert
         int32_t code = doConvertDataType(var, &out);
@@ -1804,6 +1806,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
           qError("convert value to type[%d] failed", type);
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
+
+        memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
       }
     }
 
@@ -2950,8 +2954,8 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   
   for (int32_t i = 0; i < numOfRows; ++i) {    
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
-
-    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[0].colData, 0, i, NULL)) {
+    SColumnInfoData* pData = info->cunits[0].colData;
+    if (colData == NULL || colDataIsNull_s(pData, i)) {
       all = false;
       continue;
     }
@@ -3638,6 +3642,10 @@ int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
 
 
 int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
+  if (NULL == info) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
   return fltSetColFieldDataImpl(info, param, fltGetDataFromSlotId, false);
 }
 
@@ -3691,6 +3699,10 @@ _return:
 }
 
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
+  if (NULL == info) {
+    return false;
+  }
+
   if (info->scalarMode) {
     SScalarParam output = {0};
 
@@ -3703,7 +3715,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
     taosArrayDestroy(pList);
-    return true;
+    return false;
   }
 
   return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);

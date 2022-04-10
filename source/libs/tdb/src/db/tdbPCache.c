@@ -298,4 +298,5 @@ static int tdbPCacheCloseImpl(SPCache *pCache) {
   }
 
   tdbPCacheDestroyLock(pCache);
+  return 0;
 }

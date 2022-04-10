@@ -16,6 +16,71 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
+void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  tfsGetMonitorInfo(pMgmt->pTfs, &vmInfo->tfs);
+
+  taosWLockLatch(&pMgmt->latch);
+  vmInfo->vstat.totalVnodes = pMgmt->state.totalVnodes;
+  vmInfo->vstat.masterNum = pMgmt->state.masterNum;
+  vmInfo->vstat.numOfSelectReqs = pMgmt->state.numOfSelectReqs - pMgmt->lastState.numOfSelectReqs;
+  vmInfo->vstat.numOfInsertReqs = pMgmt->state.numOfInsertReqs - pMgmt->lastState.numOfInsertReqs;
+  vmInfo->vstat.numOfInsertSuccessReqs = pMgmt->state.numOfInsertSuccessReqs - pMgmt->lastState.numOfInsertSuccessReqs;
+  vmInfo->vstat.numOfBatchInsertReqs = pMgmt->state.numOfBatchInsertReqs - pMgmt->lastState.numOfBatchInsertReqs;
+  vmInfo->vstat.numOfBatchInsertSuccessReqs =
+      pMgmt->state.numOfBatchInsertSuccessReqs - pMgmt->lastState.numOfBatchInsertSuccessReqs;
+  pMgmt->lastState = pMgmt->state;
+  taosWUnLockLatch(&pMgmt->latch);
+}
+
+int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonVmInfo vmInfo = {0};
+  vmGetMonitorInfo(pWrapper, &vmInfo);
+  dmGetMonitorSysInfo(&vmInfo.sys);
+  monGetLogs(&vmInfo.log);
+
+  int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonVmInfo(pRsp, rspLen, &vmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonVmInfo(&vmInfo);
+  return 0;
+}
+
+int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonVloadInfo vloads = {0};
+  vmGetVnodeLoads(pWrapper, &vloads);
+
+  int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonVloadInfo(pRsp, rspLen, &vloads);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonVloadInfo(&vloads);
+  return 0;
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
@@ -74,7 +139,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     tFreeSCreateVnodeReq(&createReq);
     dDebug("vgId:%d, already exist", createReq.vgId);
     vmReleaseVnode(pMgmt, pVnode);
-    terrno = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     return -1;
   }
 
@@ -173,7 +238,7 @@ int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    terrno = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     return -1;
   }
 
@@ -239,6 +304,9 @@ int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
+  dndSetMsgHandle(pWrapper, TDMT_MON_VM_INFO, vmProcessMonitorMsg, DEFAULT_HANDLE);
+  dndSetMsgHandle(pWrapper, TDMT_MON_VM_LOAD, vmProcessMonitorMsg, DEFAULT_HANDLE);
+
   // Requests handled by VNODE
   dndSetMsgHandle(pWrapper, TDMT_VND_SUBMIT, (NodeMsgFp)vmProcessWriteMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY, (NodeMsgFp)vmProcessQueryMsg, DEFAULT_HANDLE);

@@ -69,7 +69,6 @@ typedef struct {
 
 typedef struct {
   int64_t        showId;
-  ShowMetaFp     metaFps[TSDB_MGMT_TABLE_MAX];
   ShowRetrieveFp retrieveFps[TSDB_MGMT_TABLE_MAX];
   ShowFreeIterFp freeIterFps[TSDB_MGMT_TABLE_MAX];
   SCacheObj     *cache;
@@ -100,6 +99,7 @@ typedef struct {
 } SGrantInfo;
 
 typedef struct SMnode {
+  int32_t           selfId;
   int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
@@ -121,7 +121,7 @@ typedef struct SMnode {
   SHashObj         *infosMeta;
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SMsgCb            msgCb;  
+  SMsgCb            msgCb;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);

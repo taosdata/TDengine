@@ -215,7 +215,6 @@ static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   } else {
     if (mndAllocStep(pMnode, "mnode-sdb-read", mndReadSdb, NULL) != 0) return -1;
   }
-  // if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery) != 0) return -1;
@@ -272,6 +271,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
+  pMnode->selfId = pOption->replicas[pOption->selfIndex].id;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
@@ -502,7 +502,11 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
     SMonVgroupDesc desc = {0};
     desc.vgroup_id = pVgroup->vgId;
-    strncpy(desc.database_name, pVgroup->dbName, sizeof(desc.database_name));
+
+    SName name = {0};
+    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tNameGetDbName(&name, desc.database_name);
+
     desc.tables_num = pVgroup->numOfTables;
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));

@@ -264,6 +264,9 @@ typedef struct {
 
 #define SBlock SBlockV0  // latest SBlock definition
 
+static FORCE_INLINE bool tsdbIsSupBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 1; }
+static FORCE_INLINE bool tsdbIsSubBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 0; }
+
 #endif
 
 typedef struct {
@@ -276,7 +279,7 @@ typedef struct {
 #ifdef TD_REFACTOR_3
 typedef struct {
   int16_t  colId;
-  uint16_t bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
+  uint16_t bitmap : 1;  // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
   uint16_t reserve : 15;
   int32_t  len;
   uint32_t type : 8;
@@ -295,7 +298,7 @@ typedef struct {
   int16_t  colId;
   uint16_t type : 6;
   uint16_t blen : 10;   // bitmap length(TODO: full UT for the bitmap compress of various data input)
-  uint32_t bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
+  uint32_t bitmap : 1;  // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
   uint32_t len : 31;    // data length + bitmap length
   uint32_t offset;
 } SBlockColV0;
@@ -404,7 +407,7 @@ int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
 int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds,
-                            int numOfColsIds);
+                            int numOfColsIds, bool mergeBitmap);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);

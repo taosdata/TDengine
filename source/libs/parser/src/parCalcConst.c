@@ -149,22 +149,37 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
   return pCxt->code;
 }
 
+static void rewriteConstCondition(SSelectStmt* pSelect, SNode** pCond) {
+  if (QUERY_NODE_VALUE != nodeType(*pCond)) {
+    return;
+  }
+  if (((SValueNode*)*pCond)->datum.b) {
+    nodesDestroyNode(*pCond);
+    *pCond = NULL;
+  } else {
+    pSelect->isEmptyResult = true;
+  }
+}
+
 static int32_t calcConstFromTable(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
-  nodesRewriteExprPostOrder(&pSelect->pFromTable, calcConst, pCxt);
+  pCxt->code = rewriteConditionForFromTable(pCxt, pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == pCxt->code) {
-    pCxt->code = rewriteConditionForFromTable(pCxt, pSelect->pFromTable);
+    nodesRewriteExprPostOrder(&pSelect->pFromTable, calcConst, pCxt);
   }
   return pCxt->code;
 }
 
-static int32_t calcConstCondition(SCalcConstContext* pCxt, SNode** pCond) {
+static int32_t calcConstCondition(SCalcConstContext* pCxt, SSelectStmt* pSelect, SNode** pCond) {
   if (NULL == *pCond) {
     return TSDB_CODE_SUCCESS;
   }
 
-  nodesRewriteExprPostOrder(pCond, calcConst, pCxt);
+  pCxt->code = rewriteCondition(pCxt, pCond);
   if (TSDB_CODE_SUCCESS == pCxt->code) {
-    pCxt->code = rewriteCondition(pCxt, pCond);
+    nodesRewriteExprPostOrder(pCond, calcConst, pCxt);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    rewriteConstCondition(pSelect, pCond);
   }
   return pCxt->code;
 }
@@ -176,7 +191,7 @@ static int32_t calcConstSelect(SSelectStmt* pSelect) {
     cxt.code = calcConstFromTable(&cxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstCondition(&cxt, &pSelect->pWhere);
+    cxt.code = calcConstCondition(&cxt, pSelect, &pSelect->pWhere);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
     nodesRewriteExprsPostOrder(pSelect->pPartitionByList, calcConst, &cxt);
@@ -188,7 +203,7 @@ static int32_t calcConstSelect(SSelectStmt* pSelect) {
     nodesRewriteExprsPostOrder(pSelect->pGroupByList, calcConst, &cxt);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstCondition(&cxt, &pSelect->pHaving);
+    cxt.code = calcConstCondition(&cxt, pSelect, &pSelect->pHaving);
   }
   if (TSDB_CODE_SUCCESS == cxt.code) {
     nodesRewriteExprsPostOrder(pSelect->pOrderByList, calcConst, &cxt);
@@ -208,6 +223,22 @@ static int32_t calcConstQuery(SNode* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isEmptyResultQuery(SNode* pStmt) {
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      return ((SSelectStmt*)pStmt)->isEmptyResult;    
+    case QUERY_NODE_EXPLAIN_STMT:
+      return isEmptyResultQuery(((SExplainStmt*)pStmt)->pQuery);
+    default:
+      break;
+  }
+  return false;
+}
+
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
-  return calcConstQuery(pQuery->pRoot);
+  int32_t code = calcConstQuery(pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    pQuery->execMode = isEmptyResultQuery(pQuery->pRoot) ? QUERY_EXEC_MODE_EMPTY_RESULT : pQuery->execMode;
+  }
+  return code;
 }

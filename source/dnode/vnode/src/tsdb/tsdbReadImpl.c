@@ -276,7 +276,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
 }
 
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds,
-                          int numOfColsIds) {
+                          int numOfColsIds, bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   int8_t update = pReadh->pRepo->config.update;
 
@@ -296,6 +296,16 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
                         update != TD_ROW_PARTIAL_UPDATE) < 0)
       return -1;
+  }
+
+  if (mergeBitmap && !tdDataColsIsBitmapI(pReadh->pDCols[0])) {
+    for (int i = 0; i < numOfColsIds; ++i) {
+      SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
+      if (pDataCol->bitmap) {
+        ASSERT(pDataCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID);
+        tdMergeBitmap(pDataCol->pBitmap, TD_BITMAP_BYTES(pReadh->pDCols[0]->numOfRows), pDataCol->pBitmap);
+      }
+    }
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -499,6 +509,11 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
 
   tdResetDataCols(pDataCols);
+
+  if(tsdbIsSupBlock(pBlock)) {
+    tdDataColsSetBitmapI(pDataCols);
+  }
+
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlock->len) < 0) return -1;
 
   SBlockData *pBlockData = (SBlockData *)TSDB_READ_BUF(pReadh);
@@ -691,6 +706,10 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   SBlockCol blockCol = {0};
 
   tdResetDataCols(pDataCols);
+
+  if(tsdbIsSupBlock(pBlock)) {
+    tdDataColsSetBitmapI(pDataCols);
+  }
 
   // If only load timestamp column, no need to load SBlockData part
   if (numOfColIds > 1 && tsdbLoadBlockOffset(pReadh, pBlock) < 0) return -1;

@@ -48,7 +48,7 @@ static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char**
     SColumn* pCol = taosArrayGet(pGroupColList, i);
     (*keyLen) += pCol->bytes;
 
-    struct SGroupKeys key = {0};
+    SGroupKeys key = {0};
     key.bytes  = pCol->bytes;
     key.type   = pCol->type;
     key.isNull = false;
@@ -124,6 +124,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       pkey->isNull = true;
     } else {
+      pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataTLen(val));
@@ -340,6 +341,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pOperator->pExpr        = pExprInfo;
   pOperator->numOfOutput  = numOfCols;
   pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
   pOperator->_openFn      = operatorDummyOpenFn;
   pOperator->getNextFn    = hashGroupbyAggregate;
   pOperator->closeFn      = destroyGroupOperatorInfo;

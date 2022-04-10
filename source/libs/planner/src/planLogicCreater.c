@@ -72,7 +72,9 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
-      sprintf(((SExprNode*)pNode)->aliasName, "#expr_%p", pNode);
+      if ('\0' == ((SExprNode*)pNode)->aliasName[0]) {
+        sprintf(((SExprNode*)pNode)->aliasName, "#expr_%p", pNode);
+      }
       return DEAL_RES_IGNORE_CHILD;
     }
     default:
