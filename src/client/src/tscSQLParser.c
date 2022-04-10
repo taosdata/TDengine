@@ -6493,7 +6493,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   const char* msg1 = "invalid expression";
-  const char* msg2 = "the timestamp column condition must be in an interval";
+  //const char* msg2 = "the timestamp column condition must be in an interval";
 
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -6545,9 +6545,9 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   // check timestamp range
-  if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
-  }
+  //if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {
+  //  return invalidOperationMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
+  //}
 
   // get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {

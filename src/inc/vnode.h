@@ -62,7 +62,7 @@ typedef struct {
 typedef struct {
   int32_t     startTime;
   pthread_t*  pthread;
-  sem_t*      psem;
+  tsem_t*      psem;
   void*       param;
 } SWaitThread;
 
