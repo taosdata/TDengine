@@ -5429,58 +5429,48 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo *pOperator, bool* newgroup) {
     return NULL;
   }
 
-  STableIntervalOperatorInfo* pIntervalInfo = pOperator->info;
-
-  STaskRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
+  STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
     //    toSDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-
-    if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
+    if (pSliceInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pSliceInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
-    return pIntervalInfo->binfo.pRes;
+    return pSliceInfo->binfo.pRes;
   }
 
-  STaskAttr*  pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t     order = pQueryAttr->order.order;
-  STimeWindow win = pQueryAttr->window;
-
+  int32_t     order = TSDB_ORDER_ASC;
+//  STimeWindow win = pQueryAttr->window;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (pBlock == NULL) {
       break;
     }
 
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
-
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pIntervalInfo->binfo.pCtx, pBlock, pQueryAttr->order.order);
-    hashAllIntervalAgg(pOperator, &pIntervalInfo->binfo.resultRowInfo, pBlock, 0);
+    setInputDataBlock(pOperator, pSliceInfo->binfo.pCtx, pBlock, order);
+    hashAllIntervalAgg(pOperator, &pSliceInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
   // restore the value
-  pQueryAttr->order.order = order;
-  pQueryAttr->window = win;
-
   pOperator->status = OP_RES_TO_RETURN;
-  closeAllResultRows(&pIntervalInfo->binfo.resultRowInfo);
+  closeAllResultRows(&pSliceInfo->binfo.resultRowInfo);
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-  finalizeQueryResult(pIntervalInfo->binfo.pCtx, pOperator->numOfOutput);
+  finalizeQueryResult(pSliceInfo->binfo.pCtx, pOperator->numOfOutput);
 
-  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pIntervalInfo->binfo.resultRowInfo);
-  //  toSDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
+  initGroupResInfo(&pSliceInfo->groupResInfo, &pSliceInfo->binfo.resultRowInfo);
+  //  toSDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pSliceInfo->pRes);
 
-  if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
+  if (pSliceInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pSliceInfo->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
 
-  return pIntervalInfo->binfo.pRes->info.rows == 0 ? NULL : pIntervalInfo->binfo.pRes;
+  return pSliceInfo->binfo.pRes->info.rows == 0 ? NULL : pSliceInfo->binfo.pRes;
 }
 
 static SSDataBlock* doSTableIntervalAgg(SOperatorInfo* pOperator, bool* newgroup) {
@@ -6238,28 +6228,34 @@ _error:
   return NULL;
 }
 
-SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                                 SExprInfo* pExpr, int32_t numOfOutput) {
-  STableIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STableIntervalOperatorInfo));
+SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo) {
+  STimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pOperator == NULL || pInfo == NULL) {
+    goto _error;
+  }
 
-  //  pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
-  //  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pResultInfo->capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
-  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
-  pOperator->name = "AllTimeIntervalAggOperator";
+  pOperator->name         = "TimeSliceOperator";
   //  pOperator->operatorType = OP_AllTimeWindow;
   pOperator->blockingOptr = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExpr;
-  pOperator->numOfOutput = numOfOutput;
-  pOperator->info = pInfo;
-  pOperator->getNextFn = doAllIntervalAgg;
-  pOperator->closeFn = destroyBasicOperatorInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->pExpr        = pExprInfo;
+  pOperator->numOfOutput  = numOfCols;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->getNextFn    = doAllIntervalAgg;
+  pOperator->closeFn      = destroyBasicOperatorInfo;
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
+
+  _error:
+  taosMemoryFree(pInfo);
+  taosMemoryFree(pOperator);
+  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  return NULL;
 }
 
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo) {
