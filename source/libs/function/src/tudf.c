@@ -290,6 +290,7 @@ int32_t encodeRequest(char **pBuf, int32_t *pBufLen, SUdfRequest *request) {
   *(int32_t *) bufBegin = request->msgLen;
   *pBuf = bufBegin;
   *pBufLen = request->msgLen;
+  debugPrint("\tLen: estimate: %d, actual:%d", len, *pBufLen);
   return 0;
 }
 
@@ -932,9 +933,9 @@ int32_t stopUdfService() {
     uv_process_kill(&gUdfdProcess, SIGINT);
   }
   uv_async_send(&gUdfLoopStopAsync);
-  uv_mutex_destroy(&gUdfTaskQueueMutex);
   uv_thread_join(&gUdfLoopThread);
-  return 0;  gUdfcState = UDFC_STATUS_FINAL;
+  uv_mutex_destroy(&gUdfTaskQueueMutex);
+  gUdfcState = UDFC_STATUS_FINAL;
   return 0;
 }
 

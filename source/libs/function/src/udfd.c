@@ -181,7 +181,7 @@ void udfdProcessRequest(uv_work_t *req) {
 }
 
 void udfdOnWrite(uv_write_t *req, int status) {
-    debugPrint("%s", "after writing to pipe");
+    debugPrint("%s", "server after writing to pipe");
     if (status < 0) {
         debugPrint("Write error %s", uv_err_name(status));
     }
@@ -205,7 +205,7 @@ void udfdSendResponse(uv_work_t *work, int status) {
 }
 
 void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
-    debugPrint("%s", "allocate buffer for read");
+    debugPrint("%s", "server allocate buffer for read");
     SUdfdUvConn *ctx = handle->data;
     int32_t msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
     if (ctx->inputCap == 0) {
