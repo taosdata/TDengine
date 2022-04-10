@@ -251,6 +251,26 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   return (SNode*)col;
 }
 
+SNodeList* addValueNodeFromTypeToList(SAstCreateContext* pCxt, SDataType dataType, SNodeList* pList) {
+  char buf[64] = {0};
+  //add value node for type
+  snprintf(buf, sizeof(buf), "%u", dataType.type);
+  SToken token = {.type = TSDB_DATA_TYPE_TINYINT, .n = strlen(buf), .z = buf};
+  SNode* pNode = createValueNode(pCxt, token.type, &token);
+  addNodeToList(pCxt, pList, pNode);
+
+  //add value node for bytes
+  memset(buf, 0, sizeof(buf));
+  snprintf(buf, sizeof(buf), "%u", dataType.bytes);
+  token.type = TSDB_DATA_TYPE_BIGINT;
+  token.n = strlen(buf);
+  token.z = buf;
+  pNode = createValueNode(pCxt, token.type, &token);
+  addNodeToList(pCxt, pList, pNode);
+
+  return pList;
+}
+
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
