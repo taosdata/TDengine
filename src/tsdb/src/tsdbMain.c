@@ -845,9 +845,8 @@ int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockI
   // during the load data in file, new data would be inserted and last row has been updated
   TSDB_WLOCK_TABLE(pTable);
 
-  if (onlyKey) {
-    pTable->lastKey = lastKey;
-  } else {
+  pTable->lastKey = lastKey;
+  if (!onlyKey) {
     // set
     if (pTable->lastRow) {
       SMemRow* p = pTable->lastRow;
@@ -956,7 +955,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool force) {
     taosTZfree(pTable->lastRow);
     pTable->lastRow = NULL;
   }
-  if (!cacheLastCol && pTable->lastCols != NULL) {
+  if ((!cacheLastCol && pTable->lastCols != NULL) || force) {
     tsdbFreeLastColumns(pTable);
   }
 
