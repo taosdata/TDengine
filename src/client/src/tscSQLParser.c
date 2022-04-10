@@ -5235,8 +5235,6 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
     return code;
   }
 
-  SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
-
   if (pSchema->type == TSDB_DATA_TYPE_NCHAR){
     convertWhereStringCharset(pRight);
   }
@@ -8903,7 +8901,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   bool dbIncluded1 = false;
 
   if (tscValidateName(pName, true, &dbIncluded1) != TSDB_CODE_SUCCESS) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
   }
 
   SRelationInfo* pFromInfo = pInfo->pCreateTableInfo->pSelect->from;
