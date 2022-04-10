@@ -169,7 +169,7 @@ void* waitingResultThread(void* param) {
     // success
 
   }
-  sem_destroy(pWrite->rspRet.psem);
+  tsem_destroy(pWrite->rspRet.psem);
   tfree(pWrite->rspRet.psem);
 
   // wait ok
