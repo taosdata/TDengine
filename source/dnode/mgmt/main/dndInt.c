@@ -158,7 +158,7 @@ SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndType ntype) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     dTrace("node:%s, is acquired, refCount:%d", pWrapper->name, refCount);
   } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_NODE_REDIRECT;
     pRetWrapper = NULL;
   }
   taosRUnLockLatch(&pWrapper->latch);
@@ -174,7 +174,7 @@ int32_t dndMarkWrapper(SMgmtWrapper *pWrapper) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
   } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_NODE_REDIRECT;
     code = -1;
   }
   taosRUnLockLatch(&pWrapper->latch);
