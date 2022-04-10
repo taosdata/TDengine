@@ -488,11 +488,6 @@ typedef struct STableIdInfo {
   TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
 
-typedef struct STimeWindow {
-  TSKEY skey;
-  TSKEY ekey;
-} STimeWindow;
-
 typedef struct {
   int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;            // total length of ts comp block

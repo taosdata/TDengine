@@ -30,7 +30,6 @@ static void       tsdbFreeRepo(STsdbRepo *pRepo);
 static void       tsdbStartStream(STsdbRepo *pRepo);
 static void       tsdbStopStream(STsdbRepo *pRepo);
 static int        tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh);
-static int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx);
 
 // Function declaration
 int32_t tsdbCreateRepo(int repoid) {
