@@ -48,9 +48,9 @@ class TDTestCase:
     # run case  
     def run(self):
         # insert data
-        for i in range(100)
+        for i in range(10):
           tbname = "t%d"%i
-          self.insert_data("t1", self.ts, (i+1)*10000, 20000);
+          self.insert_data(tbname, self.ts, (i+1)*10000, 20000);
 
         tdLog.debug(" INSERT data 100 tables ....... [OK]")  
 
@@ -76,7 +76,7 @@ class TDTestCase:
         # super table
         tdSql.execute("create table st(ts timestamp, i1 int) tags(area int)");
         # child table
-        for i in rang(100)
+        for i in range(10):
           sql = "create table t%d using st tags(%d)"%(i, i)
           tdSql.execute(sql)
         
@@ -96,7 +96,6 @@ class TDTestCase:
         if sql != pre_insert:
             tdSql.execute(sql)
 
-        tdLog.debug("INSERT TABLE DATA ............ [OK]")
         return
 
     # test case1 base 
@@ -105,10 +104,22 @@ class TDTestCase:
         # delete base function
         #
 
-        # single table
+        # single table delete
+        sql = "select count(*) from t0 where ts < 1500000120000"
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 0, 120)
+        
+        sql = "delete from t0 where ts < 1500000120000"
+        tdSql.waitedQuery(sql, 1, WAITS)
+
         sql = "select count(*) from t0"
         tdSql.waitedQuery(sql, 1, WAITS)
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 10000-120)
+
+        sql = "select * from t0 limit 1"
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 1, 120)
+
         return 
 
     # test advance 
