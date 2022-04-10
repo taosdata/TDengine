@@ -13,6 +13,6 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         qworkerTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/qworker/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/qworker/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/qworker/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/qworker/inc"
 )

@@ -9,8 +9,8 @@ ADD_EXECUTABLE(parserTest ${SOURCE_LIST})
 
 TARGET_INCLUDE_DIRECTORIES(
         parserTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/parser/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/parser/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/parser/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/parser/inc"
 )
 
 TARGET_LINK_LIBRARIES(

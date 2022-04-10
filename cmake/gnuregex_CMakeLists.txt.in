@@ -3,7 +3,7 @@
 ExternalProject_Add(gnuregex
         URL https://launchpad.net/gnuregex/trunk/2.9/+download/libgnurx-src-2.9.zip
         DOWNLOAD_NAME libgnurx-src.zip
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/gnuregex"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/gnuregex"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""

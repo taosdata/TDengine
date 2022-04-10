@@ -3,8 +3,8 @@
 ExternalProject_Add(bdb
         GIT_REPOSITORY https://github.com/berkeleydb/libdb.git
         GIT_TAG v5.3.28
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/bdb"
-        BINARY_DIR "${CMAKE_CONTRIB_DIR}/bdb"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/bdb"
+        BINARY_DIR "${TD_CONTRIB_DIR}/bdb"
         #BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND COMMAND ./dist/configure --enable-debug
         BUILD_COMMAND "$(MAKE)"
