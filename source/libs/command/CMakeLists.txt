@@ -2,7 +2,7 @@ aux_source_directory(src COMMAND_SRC)
 add_library(command STATIC ${COMMAND_SRC})
 target_include_directories(
         command
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/command"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/command"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

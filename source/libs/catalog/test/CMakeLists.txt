@@ -13,8 +13,8 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         catalogTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/catalog/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/catalog/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/catalog/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/catalog/inc"
 )
 
 # add_test(

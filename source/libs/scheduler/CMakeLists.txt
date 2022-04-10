@@ -3,7 +3,7 @@ add_library(scheduler STATIC ${SCHEDULER_SRC})
 
 target_include_directories(
         scheduler
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/scheduler"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scheduler"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
