@@ -164,7 +164,7 @@ void dnodeFreeVWriteQueue(void *pWqueue) {
 
 void* waitingResultThread(void* param) {
   SVWriteMsg* pWrite = (SVWriteMsg* )param;
-  int32_t ret = sem_wait(pWrite->rspRet.psem);
+  int32_t ret = tsem_wait(pWrite->rspRet.psem);
   if(ret == 0) {
     // success
 
