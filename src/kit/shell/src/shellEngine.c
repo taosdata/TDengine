@@ -291,7 +291,20 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     return;
   }
 
-  if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
+  if (tscIsDeleteQuery(pSql)) {
+    // delete
+    int numOfRows   = taos_affected_rows(pSql);
+    int numOfTables = taos_affected_tables(pSql);
+    int error_no    = taos_errno(pSql);
+
+    et = taosGetTimestampUs();
+    if (error_no == TSDB_CODE_SUCCESS) {
+      printf("Deleted %d row(s) from %d table(s) (%.6fs)\n", numOfRows, numOfTables, (et - st) / 1E6);
+    } else {
+      printf("Deleted interrupted (%s), %d row(s) from %d tables (%.6fs)\n", taos_errstr(pSql), numOfRows, numOfTables, (et - st) / 1E6);
+    }
+  }
+  else if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
     int error_no = 0;
 
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);

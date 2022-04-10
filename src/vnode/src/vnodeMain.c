@@ -29,6 +29,9 @@
 #include "vnodeWorker.h"
 #include "vnodeBackup.h"
 #include "vnodeMain.h"
+#include "tqueue.h"
+#include "tthread.h"
+#include "tcrc32c.h"
 
 static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
 
@@ -418,6 +421,42 @@ int32_t vnodeOpen(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+#define LOOP_CNT 10
+void freeWaitThread(SVnodeObj* pVnode) {
+ // check wait thread empty
+  int type = 0;
+  SWaitThread* pWaitThread = NULL;
+  while(taosReadQitem(pVnode->tqueue, &type, (void** )&pWaitThread) > 0) {
+    // thread is running    
+    int32_t loop = LOOP_CNT;
+    while (taosThreadRunning(pWaitThread->pthread)) {
+      // only post once
+      if(loop == LOOP_CNT) 
+        tsem_post(pWaitThread->psem);
+      taosMsleep(50);
+      loop -= 1; 
+      if(loop == 0 )
+        break;
+    }
+
+    // free all
+    if(loop == 0) {
+      // thread not stop , so need kill
+      taosDestoryThread(pWaitThread->pthread);
+      // write msg need remove from queue
+      SVWriteMsg* pWrite = (SVWriteMsg* )pWaitThread->param;
+      if (pWrite)
+        vnodeFreeFromWQueue(pWrite->pVnode, pWrite);
+    } else {
+      free(pWaitThread->pthread);
+    }
+    tsem_destroy(pWaitThread->psem);
+    taosFreeQitem(pWaitThread);
+  }
+
+  taosCloseQueue(pVnode->tqueue);
+}
+
 int32_t vnodeClose(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) return 0;
@@ -427,6 +466,10 @@ int32_t vnodeClose(int32_t vgId) {
   }
 
   pVnode->preClose = 1;
+
+  // wait result threads need deal
+  if(pVnode->tqueue)
+    freeWaitThread(pVnode);
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
   vnodeRelease(pVnode);
@@ -566,4 +609,38 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   }
 
   return 0;
+}
+
+// wait thread
+void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
+  SVnodeObj* pVnode = (SVnodeObj* )vparam;
+  if(pVnode->tqueue == NULL) {
+    pVnode->tqueue = taosOpenQueue();
+  }
+
+  SWaitThread* pWaitThread = (SWaitThread* )taosAllocateQitem(sizeof(SWaitThread));
+  pWaitThread->pthread     = pthread;
+  pWaitThread->startTime   = taosGetTimestampSec();
+  pWaitThread->psem        = psem;
+  pWaitThread->param       = param;
+
+  int32_t crc = crc32c_sf(0, (crc_stream)param, sizeof(void* ));
+  taosWriteQitem(pVnode->tqueue, crc, pWaitThread);
+}
+
+// called in wait thread
+void vnodeRemoveWait(void* vparam, void* param) {
+    SVnodeObj* pVnode = (SVnodeObj* )vparam;
+    int32_t crc = crc32c_sf(0, (crc_stream)param, sizeof(void* ));
+
+    SWaitThread* pWaitThread = NULL;
+    taosSearchQitem(pVnode->tqueue, crc, (void** )&pWaitThread);
+    if (pWaitThread == NULL) {
+      // not found
+      return ;
+    }
+
+    // free thread
+    free(pWaitThread->pthread);
+    taosFreeQitem(pWaitThread);
 }

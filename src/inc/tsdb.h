@@ -96,6 +96,7 @@ int        tsdbCloseRepo(STsdbRepo *repo, int toCommit);
 int32_t    tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg);
 int        tsdbGetState(STsdbRepo *repo);
 int8_t     tsdbGetCompactState(STsdbRepo *repo);
+int8_t     tsdbGetDeleteState(STsdbRepo *repo);
 // --------- TSDB TABLE DEFINITION
 typedef struct {
   uint64_t uid;  // the unique table ID
@@ -159,7 +160,7 @@ typedef struct {
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp);
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, tsem_t** ppSem);
 
 // -- FOR QUERY TIME SERIES DATA
 
@@ -420,6 +421,9 @@ int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 // For TSDB Compact
 int tsdbCompact(STsdbRepo *pRepo);
 
+// For TSDB delete data
+int tsdbDeleteData(STsdbRepo *pRepo, void *param);
+
 // For TSDB Health Monitor
 
 // no problem return true
@@ -441,6 +445,8 @@ char* parseTagDatatoJson(void *p);
 #define READ_QUERY    2
 typedef bool (*readover_callback)(void* param, int8_t type, int32_t tid);
 void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callback, void* param);
+
+int32_t tsdbTableTid(void* pTable);
 
 #ifdef __cplusplus
 }

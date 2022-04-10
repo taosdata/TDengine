@@ -36,6 +36,7 @@ enum {
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_FETCH, "fetch" )
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_INSERT, "insert" )
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_UPDATE_TAGS_VAL, "update-tag-val" )
+  TSDB_DEFINE_SQL_TYPE( TSDB_SQL_DELETE_DATA, "delete-data" )
 
   // the SQL below is for mgmt node
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_MGMT, "mgmt" )

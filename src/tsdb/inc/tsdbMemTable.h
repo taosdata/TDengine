@@ -16,6 +16,7 @@
 #ifndef _TD_TSDB_MEMTABLE_H_
 #define _TD_TSDB_MEMTABLE_H_
 
+#include "tsdbDelete.h"
 typedef struct {
   int   rowsInserted;
   int   rowsUpdated;
@@ -65,11 +66,12 @@ int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot, SArray* pATable);
 void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
-int   tsdbAsyncCommit(STsdbRepo* pRepo);
+// if pCtrlData is NULL, force must be true
+int   tsdbAsyncCommit(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo);
 int   tsdbSyncCommitConfig(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
-void* tsdbCommitData(STsdbRepo* pRepo);
+void* tsdbCommitData(STsdbRepo* pRepo, bool end);
 
 static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;

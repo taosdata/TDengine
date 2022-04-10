@@ -100,7 +100,7 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
 
 static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery);
 
-static int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery);
+static int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery, bool delData);
 static int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
 static int32_t validateRangeNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
 static int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, SSchema* pSchema);
@@ -759,8 +759,6 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_DESCRIBE_TABLE: {
-      const char* msg1 = "invalid table name";
-
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       bool dbIncluded = false;
       char      buf[TSDB_TABLE_FNAME_LEN];
@@ -768,7 +766,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       sTblToken.z = buf;
 
       if (validateTableName(pToken->z, pToken->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
       }
 
       // additional msg has been attached already
@@ -781,8 +779,6 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     case TSDB_SQL_SHOW_CREATE_STABLE:
     case TSDB_SQL_SHOW_CREATE_TABLE: {
-      const char* msg1 = "invalid table name";
-
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
       bool dbIncluded = false;
@@ -791,7 +787,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       sTblToken.z = buf;
 
       if (validateTableName(pToken->z, pToken->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
       }
 
       code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded);
@@ -1047,6 +1043,47 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg = "invalid compact";
       if (setCompactVnodeInfo(pSql, pInfo) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+      }
+      break;
+    }
+    case TSDB_SQL_DELETE_DATA: {
+      // CHECK AND SET TABLE NAME
+      SStrToken* tbName = &pInfo->pDelData->tableName;
+      bool dbIncluded = false;
+      char      buf[TSDB_TABLE_FNAME_LEN];
+      SStrToken sTblToken;
+      sTblToken.z = buf;
+      // check
+      if (validateTableName(tbName->z, tbName->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
+      }
+      // set
+      code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      // get table meta
+      code = tscGetTableMeta(pSql, pTableMetaInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code ; // async load table meta
+      }
+      
+      // vgroupInfo if super
+      if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
+      }
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        return code;
+      }
+
+      // CHECK AND SET WHERE
+      if (pInfo->pDelData->pWhere) {
+        // origin check
+        pQueryInfo = tscGetQueryInfo(pCmd);
+        if (validateWhereNode(pQueryInfo, &pInfo->pDelData->pWhere, pSql, false, true) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
       break;
     }
@@ -5137,12 +5174,13 @@ void convertWhereStringCharset(tSqlExpr* pRight){
 
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
                                      int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr,
-                                     tSqlExpr** tsExpr, bool joinQuery) {
+                                     tSqlExpr** tsExpr, bool joinQuery, bool delData) {
   const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
   const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
   const char* msg6 = "illegal condition expression";
+  const char* msg7 = "only allow first timestamp column and tag column";
 
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
@@ -5166,6 +5204,16 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
+  SSchema*        pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
+
+  // delete where condition check , column must ts or tag
+  if (delData) {
+    if (!((pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX && pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) ||
+           index.columnIndex >= tscGetNumOfColumns(pTableMeta) ||
+           index.columnIndex == TSDB_TBNAME_COLUMN_INDEX)) {
+             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
+  }
 
   // validate the null expression
   int32_t code = validateNullExpr(*pExpr, pTableMeta, index.columnIndex, tscGetErrorMsgPayload(pCmd));
@@ -5335,7 +5383,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
 int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
                         int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr,
-                        tSqlExpr** tsExpr, bool joinQuery) {
+                        tSqlExpr** tsExpr, bool joinQuery, bool delData) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5367,12 +5415,12 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   int32_t rightTbIdx = 0;
 
   if (!tSqlExprIsParentOfLeaf(*pExpr)) {
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, type ? &leftType : NULL, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft, joinQuery);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, type ? &leftType : NULL, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft, joinQuery, delData);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
 
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, type ? &rightType : NULL, &rightTbIdx, (*pExpr)->tokenId, &columnRight, &tsRight, joinQuery);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, type ? &rightType : NULL, &rightTbIdx, (*pExpr)->tokenId, &columnRight, &tsRight, joinQuery, delData);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
@@ -5427,7 +5475,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
     goto err_ret;
   }
 
-  ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, tbIdx, parentOptr, columnExpr, tsExpr, joinQuery);
+  ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, tbIdx, parentOptr, columnExpr, tsExpr, joinQuery, delData);
   if (ret) {
     goto err_ret;
   }
@@ -5974,13 +6022,13 @@ _ret:
 
 
 
-int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery) {
+int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery, bool delData) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   const char* msg1 = "invalid expression";
-//  const char* msg2 = "invalid filter expression";
+  //const char* msg2 = "the timestamp column condition must be in an interval";
 
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -6002,7 +6050,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 #endif
 
-  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, etype, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow, joinQuery)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, etype, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow, joinQuery, delData)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
 
@@ -6030,6 +6078,11 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if ((ret = getQueryTimeRange(&pSql->cmd, pQueryInfo, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
+
+  // check timestamp range
+  //if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {
+  //  return invalidOperationMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
+  //}  
 
   // get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
@@ -8598,7 +8651,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
     int32_t code = validateTableName(pToken->z, pToken->n, &sTblToken, &dbIncluded);
     if (code != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
     }
 
     code = tscSetTableFullName(&pStableMetaInfo->name, &sTblToken, pSql, dbIncluded);
@@ -8825,7 +8878,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 }
 
 int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
-  const char* msg1 = "invalid table name";
   const char* msg2 = "functions not allowed in CQ";
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
@@ -8871,7 +8923,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
 
   int32_t code = validateTableName(srcToken.z, srcToken.n, &sTblToken, &dbIncluded2);
   if (code != TSDB_CODE_SUCCESS) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
   }
 
   code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded2);
@@ -8891,7 +8943,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
 
   if (pSqlNode->pWhere != NULL) {  // query condition in stream computing
-    if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery) != TSDB_CODE_SUCCESS) {
+    if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery, false) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
@@ -9297,8 +9349,6 @@ int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* p
 }
 
 static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char* msgBuf, SSqlObj* pSql) {
-  const char* msg1 = "invalid table name";
-
   int32_t numOfTables = (int32_t) taosArrayGetSize(pSqlNode->from->list);
   assert(pSqlNode->from->type == SQL_NODE_FROM_TABLELIST);
 
@@ -9307,7 +9357,7 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
 
     SStrToken* t = &item->tableName;
     if (t->type == TK_INTEGER || t->type == TK_FLOAT) {
-      return invalidOperationMsg(msgBuf, msg1);
+      return invalidOperationMsg(msgBuf, STR_INVALID_TABLE_NAME);
     }
     
     bool dbIncluded = false;
@@ -9316,7 +9366,7 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
     sTblToken.z = buf;
     
     if (validateTableName(t->z, t->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(msgBuf, msg1);
+      return invalidOperationMsg(msgBuf, STR_INVALID_TABLE_NAME);
     }
 
     SName name = {0};
@@ -9575,7 +9625,6 @@ _end:
 }
 
 static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, int32_t numOfTables) {
-  const char* msg1 = "invalid table name";
   const char* msg2 = "invalid table alias name";
   const char* msg3 = "alias name too long";
   const char* msg4 = "self join not allowed";
@@ -9596,7 +9645,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     SStrToken       *oriName = &item->tableName;
 
     if (oriName->type == TK_INTEGER || oriName->type == TK_FLOAT) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
     }
 
     bool dbIncluded = false;
@@ -9605,7 +9654,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     sTblToken.z = buf;
 
     if (validateTableName(oriName->z, oriName->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
@@ -9876,7 +9925,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     // validate the query filter condition info
     if (pSqlNode->pWhere != NULL) {
-      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery) != TSDB_CODE_SUCCESS) {
+      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery, false) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     } else {
@@ -9981,7 +10030,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->onlyHasTagCond = true;
     // set where info
     if (pSqlNode->pWhere != NULL) {
-      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery) != TSDB_CODE_SUCCESS) {
+      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery, false) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 

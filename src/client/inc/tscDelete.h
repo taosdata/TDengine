@@ -13,17 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_COMMIT_QUEUE_H_
-#define _TD_TSDB_COMMIT_QUEUE_H_
+#ifndef TDENGINE_TSCDELETE_H
+#define TDENGINE_TSCDELETE_H
 
-typedef enum {
-  COMMIT_REQ,
-  COMMIT_BOTH_REQ,
-  COMPACT_REQ,
-  CONTROL_REQ,
-  COMMIT_CONFIG_REQ,
-} TSDB_REQ_T;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int tsdbScheduleCommit(STsdbRepo *pRepo, void* param, TSDB_REQ_T req);
+#include "qTableMeta.h"
 
-#endif /* _TD_TSDB_COMMIT_QUEUE_H_ */
+int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo);
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // TDENGINE_TSCDELETE_H
