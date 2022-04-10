@@ -396,7 +396,7 @@ static int32_t mndProcessDropQnodeReq(SNodeMsg *pReq) {
   mDebug("qnode:%d, start to drop", dropReq.dnodeId);
 
   if (dropReq.dnodeId <= 0) {
-    terrno = TSDB_CODE_SDB_APP_ERROR;
+    terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
@@ -451,7 +451,7 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  while (true) {
+  while (1) {
     void *pIter = sdbFetch(pSdb, SDB_QNODE, NULL, (void **)&pObj);
     if (pIter == NULL) break;
 

@@ -48,15 +48,13 @@ static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
 }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SDnode *pDnode = pMgmt->pDnode;
-
   mmInitOption(pMgmt, pOption);
   pOption->replica = 1;
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pDnode->serverPort;
-  tstrncpy(pReplica->fqdn, pDnode->localFqdn, TSDB_FQDN_LEN);
+  pReplica->port = pMgmt->pDnode->serverPort;
+  tstrncpy(pReplica->fqdn, pMgmt->pDnode->localFqdn, TSDB_FQDN_LEN);
   pOption->deploy = true;
 
   pMgmt->selfIndex = pOption->selfIndex;
@@ -151,12 +149,9 @@ static void mmCloseImp(SMnodeMgmt *pMgmt) {
 
 int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
   SMnodeOpt option = {0};
-  if (pReq != NULL) {
-    if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
-      return -1;
-    }
+  if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
+    return -1;
   }
-
   return mndAlter(pMgmt->pMnode, &option);
 }
 
@@ -240,4 +235,3 @@ void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->name = "mnode";
   pWrapper->fp = mgmtFp;
 }
-
