@@ -3316,11 +3316,6 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   return code;
 }
 
-// Super Table
-int buildSTableDelDataMsg(SSqlObj *pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SSqlInfo *pInfo) {
-  return 0;
-}
-
 int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd        *pCmd           = &pSql->cmd;
   SQueryInfo     *pQueryInfo     = tscGetQueryInfo(pCmd);

@@ -420,7 +420,6 @@ typedef struct {
   int32_t vgId;
 } SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
-// N.B. JUST Utility for DEMO Implementation(not formal definition)
 typedef struct {
   int32_t     contLen;
   int32_t     vgId;
@@ -437,7 +436,7 @@ typedef struct {
   char        tableFname[TSDB_TABLE_FNAME_LEN];
   STimeWindow span[];
 } SDeleteDataMsg;
-// N.B. JUST Utility for DEMO Implementation(not formal definition)
+
 typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
