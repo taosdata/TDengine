@@ -687,11 +687,15 @@ int32_t filterGetRangeRes(void* h, SFilterRange *ra) {
   SFilterRangeNode* r = ctx->rs;
   
   while (r) {
-    FILTER_COPY_RA(ra, &r->ra);
+    if (num) {
+      ra->e = r->ra.e;
+      ra->eflag = r->ra.eflag;
+    } else {
+      FILTER_COPY_RA(ra, &r->ra);
+    }
 
     ++num;
     r = r->next;
-    ++ra;
   }
 
   if (num == 0) {
@@ -1787,12 +1791,14 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
-    if(type != TSDB_DATA_TYPE_JSON){
+    if(type != TSDB_DATA_TYPE_JSON) {
       if (dType->type == type) {
         assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
       } else {
         SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
+        out.columnData->info.bytes = tDataTypes[type].bytes;
+        ASSERT(!IS_VAR_DATA_TYPE(type));
 
         // todo refactor the convert
         int32_t code = doConvertDataType(var, &out);
@@ -1800,6 +1806,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
           qError("convert value to type[%d] failed", type);
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
+
+        memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
       }
     }
 
@@ -2946,8 +2954,8 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   
   for (int32_t i = 0; i < numOfRows; ++i) {    
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
-
-    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[0].colData, 0, i, NULL)) {
+    SColumnInfoData* pData = info->cunits[0].colData;
+    if (colData == NULL || colDataIsNull_s(pData, i)) {
       all = false;
       continue;
     }
@@ -3314,8 +3322,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
 
 
 
-int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
-  SFilterInfo *info = NULL;
+int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow       *win, bool *isStrict) {
   SFilterRange ra = {0};
   SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
   SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
@@ -3369,13 +3376,14 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
     *win = TSWINDOW_INITIALIZER;
   } else {
     filterGetRangeNum(prev, &num);
-    if (num > 1) {
-      qError("only one time range accepted, num:%d", num);
-      FLT_ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
-    }
 
     FLT_CHK_JMP(num < 1);
 
+    if (num > 1) {
+      *isStrict = false;
+      qDebug("more than one time range, num:%d", num);
+    }
+    
     SFilterRange tra;
     filterGetRangeRes(prev, &tra);
     win->skey = tra.s; 
@@ -3398,6 +3406,30 @@ _return:
   qDebug("qFilter time range:[%"PRId64 "]-[%"PRId64 "]", win->skey, win->ekey);
 
   return code;
+}
+
+
+int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
+  SFilterInfo *info = NULL;
+  int32_t code = 0;
+  
+  *isStrict = true;
+
+  FLT_ERR_RET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP));
+
+  if (info->scalarMode) {
+    *win = TSWINDOW_INITIALIZER;
+    *isStrict = false;
+    goto _return;
+  }
+
+  FLT_ERR_JRET(filterGetTimeRangeImpl(info, win, isStrict));
+
+_return:
+
+  filterFreeInfo(info);
+
+  FLT_RET(code);
 }
 
 
@@ -3610,6 +3642,10 @@ int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
 
 
 int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
+  if (NULL == info) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
   return fltSetColFieldDataImpl(info, param, fltGetDataFromSlotId, false);
 }
 
@@ -3663,6 +3699,10 @@ _return:
 }
 
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
+  if (NULL == info) {
+    return false;
+  }
+
   if (info->scalarMode) {
     SScalarParam output = {0};
 
@@ -3675,7 +3715,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
     taosArrayDestroy(pList);
-    return true;
+    return false;
   }
 
   return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);

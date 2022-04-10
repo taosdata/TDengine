@@ -54,7 +54,6 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_USER, mndGetUserMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
   return sdbSetTable(pMnode->pSdb, table);

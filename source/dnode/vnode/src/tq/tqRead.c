@@ -88,7 +88,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
 
   pBlockInfo->numOfCols = taosArrayGetSize(pHandle->pColIdList);
   pBlockInfo->rows = pHandle->pBlock->numOfRows;
-  pBlockInfo->uid = pHandle->pBlock->uid;
+//  pBlockInfo->uid = pHandle->pBlock->uid; // the uid can not be assigned to pBlockData.
   return 0;
 }
 
@@ -167,8 +167,8 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, false) < 0) {
-        /*if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {*/
+      /*if (colDataAppend(pColData, curRow, sVal.val, false) < 0) {*/
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
         taosArrayDestroyEx(pArray, (void (*)(void*))tDeleteSSDataBlock);
         return NULL;
       }

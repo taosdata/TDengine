@@ -28,7 +28,7 @@
 #include "query.h"
 #include "tcompare.h"
 #include "thash.h"
-#include "tsdb.h"
+#include "vnode.h"
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
@@ -254,6 +254,11 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pOperator->numOfOutput  = numOfOutput;
   pOperator->getNextFn    = doTableScan;
   pOperator->pTaskInfo    = pTaskInfo;
+
+  static int32_t cost = 0;
+  pOperator->cost.openCost = ++cost;
+  pOperator->cost.totalCost = ++cost;
+  pOperator->resultInfo.totalRows = ++cost;
 
   return pOperator;
 }
@@ -576,6 +581,7 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
   }
 
   tsem_post(&pScanResInfo->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
@@ -591,6 +597,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
 
   int8_t* rowRes = NULL;
   bool    keep = filterExecute(filter, pInfo->pRes, &rowRes, NULL, param1.numOfCols);
+  filterFreeInfo(filter);
 
   SSDataBlock* px = createOneDataBlock(pInfo->pRes);
   blockDataEnsureCapacity(px, pInfo->pRes->info.rows);
@@ -601,14 +608,21 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
     SColumnInfoData* pDest = taosArrayGet(px->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(pInfo->pRes->pDataBlock, i);
 
-    numOfRow = 0;
-    for (int32_t j = 0; j < pInfo->pRes->info.rows; ++j) {
-      if (rowRes[j] == 0) {
-        continue;
+    if (keep) {
+      colDataAssign(pDest, pSrc, pInfo->pRes->info.rows);
+      numOfRow = pInfo->pRes->info.rows;
+    } else if (NULL != rowRes) {
+      numOfRow = 0;
+      for (int32_t j = 0; j < pInfo->pRes->info.rows; ++j) {
+        if (rowRes[j] == 0) {
+          continue;
+        }
+      
+        colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
+        numOfRow += 1;
       }
-
-      colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
-      numOfRow += 1;
+    } else {
+      numOfRow = 0;
     }
   }
 
@@ -769,6 +783,10 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_QNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_BNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_FUNC;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, tListLen(pName->tname)) == 0) {

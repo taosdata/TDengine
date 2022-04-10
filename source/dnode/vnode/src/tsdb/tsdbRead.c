@@ -13,25 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 #include "tdatablock.h"
 #include "os.h"
 #include "talgo.h"
 #include "tcompare.h"
 #include "tdataformat.h"
 #include "texception.h"
-#include "tsdb.h"
-#include "tsdbFS.h"
-#include "tsdbLog.h"
-#include "tsdbReadImpl.h"
-#include "tskiplist.h"
-#include "ttime.h"
 
 #include "taosdef.h"
 #include "tlosertree.h"
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 #include "tmsg.h"
-#include "tsdbCommit.h"
 
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
@@ -1119,7 +1112,7 @@ static int32_t doLoadFileDataBlock(STsdbReadHandle* pTsdbReadHandle, SBlock* pBl
 
   int16_t* colIds = pTsdbReadHandle->defaultLoadColumn->pData;
 
-  int32_t ret = tsdbLoadBlockDataCols(&(pTsdbReadHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, (int)(QH_GET_NUM_OF_COLS(pTsdbReadHandle)));
+  int32_t ret = tsdbLoadBlockDataCols(&(pTsdbReadHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, (int)(QH_GET_NUM_OF_COLS(pTsdbReadHandle)), true);
   if (ret != TSDB_CODE_SUCCESS) {
     int32_t c = terrno;
     assert(c != TSDB_CODE_SUCCESS);
@@ -1408,7 +1401,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 //        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
         for(int32_t k = start; k < num + start; ++k) {
           SCellVal sVal = {0};
-          if (tdGetColDataOfRow(&sVal, src, k) < 0) {
+          if (tdGetColDataOfRow(&sVal, src, k, pCols->bitmapMode) < 0) {
             TASSERT(0);
           }
 
@@ -1422,7 +1415,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
         // todo refactor, only copy one-by-one
         for (int32_t k = start; k < num + start; ++k) {
           SCellVal sVal = {0};
-          if(tdGetColDataOfRow(&sVal, src, k) < 0){
+          if(tdGetColDataOfRow(&sVal, src, k, pCols->bitmapMode) < 0){
             TASSERT(0);
           }
 
@@ -2828,6 +2821,11 @@ static bool loadDataBlockFromTableSeq(STsdbReadHandle* pTsdbReadHandle) {
 bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
 
+  for(int32_t i = 0; i < taosArrayGetSize(pTsdbReadHandle->pColumns); ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
+    colInfoDataCleanup(pColInfo, pTsdbReadHandle->outputCapacity);
+  }
+
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
     tsdbDebug("%p query window not overlaps with the data set, no result returned, %s", pTsdbReadHandle, pTsdbReadHandle->idStr);
     return false;
@@ -3179,7 +3177,10 @@ void tsdbRetrieveDataBlockInfo(tsdbReaderT* pTsdbReadHandle, SDataBlockInfo* pDa
     uid = pCheckInfo->tableId;
   }
 
-  pDataBlockInfo->uid    = uid;
+  tsdbDebug("data block generated, uid:%"PRIu64" numOfRows:%d, tsrange:%"PRId64" - %"PRId64" %s", uid, cur->rows, cur->win.skey,
+      cur->win.ekey, pHandle->idStr);
+
+//  pDataBlockInfo->uid    = uid; // block Id may be over write by assigning uid fro this data block. Do NOT assign the table uid
   pDataBlockInfo->rows   = cur->rows;
   pDataBlockInfo->window = cur->win;
   pDataBlockInfo->numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pHandle));
@@ -3253,7 +3254,6 @@ SArray* tsdbRetrieveDataBlock(tsdbReaderT* pTsdbReadHandle, SArray* pIdList) {
    * 1. data is from cache, 2. data block is not completed qualified to query time range
    */
   STsdbReadHandle* pHandle = (STsdbReadHandle*)pTsdbReadHandle;
-
   if (pHandle->cur.fid == INT32_MIN) {
     return pHandle->pColumns;
   } else {

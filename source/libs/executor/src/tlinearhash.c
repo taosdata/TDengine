@@ -409,6 +409,7 @@ char* tHashGet(SLHashObj* pHashObj, const void *key, size_t keyLen) {
 
 int32_t tHashRemove(SLHashObj* pHashObj, const void *key, size_t keyLen) {
   // todo
+  return TSDB_CODE_SUCCESS;
 }
 
 void tHashPrint(const SLHashObj* pHashObj, int32_t type) {

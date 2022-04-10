@@ -31,6 +31,19 @@
 ./test.sh -f tsim/query/interval.sim
 ./test.sh -f tsim/query/interval-offset.sim
 ./test.sh -f tsim/query/scalarFunction.sim
+./test.sh -f tsim/query/charScalarFunction.sim
+
+# ---- qnode
+./test.sh -f tsim/qnode/basic1.sim
+
+# ---- snode
+./test.sh -f tsim/snode/basic1.sim
+
+# ---- bnode
+./test.sh -f tsim/bnode/basic1.sim
+
+# ---- mnode
+./test.sh -f tsim/bnode/basic1.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -42,7 +55,7 @@
 ./test.sh -f tsim/tmq/basic.sim
 ./test.sh -f tsim/tmq/basic1.sim
 ./test.sh -f tsim/tmq/oneTopic.sim
-#./test.sh -f tsim/tmq/multiTopic.sim
+./test.sh -f tsim/tmq/multiTopic.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim

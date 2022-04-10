@@ -18,7 +18,7 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         plannerTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/planner/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/planner/inc"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/parser/test"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/planner/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/planner/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/parser/test"
 )

@@ -344,38 +344,21 @@ void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->fp = mgmtFp;
 }
 
-int32_t vmMonitorTfsInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
-  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return -1;
-
-  return tfsGetMonitorInfo(pMgmt->pTfs, pInfo);
-}
-
-void vmMonitorVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
-  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
-
-  SVnodesStat *pStat = &pMgmt->state;
-  pInfo->req_select = pStat->numOfSelectReqs;
-  pInfo->req_insert = pStat->numOfInsertReqs;
-  pInfo->req_insert_success = pStat->numOfInsertSuccessReqs;
-  pInfo->req_insert_batch = pStat->numOfBatchInsertReqs;
-  pInfo->req_insert_batch_success = pStat->numOfBatchInsertSuccessReqs;
-  pInfo->errors = tsNumOfErrorLogs;
-  pInfo->vnodes_num = pStat->totalVnodes;
-  pInfo->masters = pStat->masterNum;
-}
-
-void vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads) {
+void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   SVnodesStat *pStat = &pMgmt->state;
-  int32_t      totalVnodes = 0;
-  int32_t      masterNum = 0;
-  int64_t      numOfSelectReqs = 0;
-  int64_t      numOfInsertReqs = 0;
-  int64_t      numOfInsertSuccessReqs = 0;
-  int64_t      numOfBatchInsertReqs = 0;
-  int64_t      numOfBatchInsertSuccessReqs = 0;
+  SArray      *pLoads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
+
+  int32_t totalVnodes = 0;
+  int32_t masterNum = 0;
+  int64_t numOfSelectReqs = 0;
+  int64_t numOfInsertReqs = 0;
+  int64_t numOfInsertSuccessReqs = 0;
+  int64_t numOfBatchInsertReqs = 0;
+  int64_t numOfBatchInsertSuccessReqs = 0;
+
+  pInfo->pVloads = pLoads;
+  if (pLoads == NULL) return;
 
   taosRLockLatch(&pMgmt->latch);
 
@@ -402,6 +385,7 @@ void vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads) {
 
   taosRUnLockLatch(&pMgmt->latch);
 
+  taosWLockLatch(&pMgmt->latch);
   pStat->totalVnodes = totalVnodes;
   pStat->masterNum = masterNum;
   pStat->numOfSelectReqs = numOfSelectReqs;
@@ -409,4 +393,5 @@ void vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads) {
   pStat->numOfInsertSuccessReqs = numOfInsertSuccessReqs;
   pStat->numOfBatchInsertReqs = numOfBatchInsertReqs;
   pStat->numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
+  taosWUnLockLatch(&pMgmt->latch);
 }

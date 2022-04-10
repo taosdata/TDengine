@@ -19,7 +19,7 @@
 #define MAXLEN 1024
 
 int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
-  int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
+  int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
   int64_t   len = 0;
   char      content[MAXLEN + 1] = {0};
   cJSON    *root = NULL;
@@ -159,7 +159,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
   if (taosReadFile(pFile, content, MAXLEN) > 0) {
     root = cJSON_Parse(content);
     if (root == NULL) {
-      terrno = TSDB_CODE_NODE_PARSE_FILE_ERROR;
+      terrno = TSDB_CODE_INVALID_JSON_FORMAT;
       dError("failed to read %s since invalid json format", file);
       goto _OVER;
     }

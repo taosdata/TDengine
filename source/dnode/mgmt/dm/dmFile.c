@@ -21,7 +21,7 @@ static bool dmIsEpChanged(SDnodeMgmt *pMgmt, int32_t dnodeId, const char *ep);
 static void dmResetDnodes(SDnodeMgmt *pMgmt, SArray *dnodeEps);
 
 int32_t dmReadFile(SDnodeMgmt *pMgmt) {
-  int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
+  int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t   len = 0;
   int32_t   maxLen = 256 * 1024;
   char     *content = taosMemoryCalloc(1, maxLen + 1);

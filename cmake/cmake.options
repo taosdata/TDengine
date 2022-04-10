@@ -55,17 +55,6 @@ option(
     OFF
 )
 
-IF(${TD_WINDOWS})
-    MESSAGE("Not build BDB on Windows")
-ELSE ()
-    option(
-            BUILD_WITH_BDB
-            "If build with BerkleyDB"
-            ON
-          )
-
-ENDIF ()
-
 option(
     BUILD_WITH_LUCENE 
     "If build with lucene" 

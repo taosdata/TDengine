@@ -254,6 +254,19 @@ TEST_F(PlannerTest, orderBy) {
 
   bind("SELECT * FROM t1 order by c1 + 10, c2");
   ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 order by c1 desc nulls first");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, groupByOrderBy) {
+  setDatabase("root", "test");
+
+  bind("select count(*), sum(c1) from t1 order by sum(c1)");
+  ASSERT_TRUE(run());
+
+  bind("select count(*), sum(c1) a from t1 order by a");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, distinct) {

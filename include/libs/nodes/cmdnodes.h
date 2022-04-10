@@ -30,25 +30,23 @@ extern "C" {
 
 typedef struct SDatabaseOptions {
   ENodeType type;
-  int32_t numOfBlocks;
-  int32_t cacheBlockSize;
-  int8_t cachelast;
-  int32_t compressionLevel;
-  int32_t daysPerFile;
-  int32_t fsyncPeriod;
-  int32_t maxRowsPerBlock;
-  int32_t minRowsPerBlock;
-  int32_t keep0;
-  int32_t keep1;
-  int32_t keep2;
-  int32_t precision;
-  int32_t quorum;
-  int32_t replica;
-  int32_t ttl;
-  int32_t walLevel;
-  int32_t numOfVgroups;
-  int8_t singleStable;
-  int8_t streamMode;
+  SValueNode* pNumOfBlocks;
+  SValueNode* pCacheBlockSize;
+  SValueNode* pCachelast;
+  SValueNode* pCompressionLevel;
+  SValueNode* pDaysPerFile;
+  SValueNode* pFsyncPeriod;
+  SValueNode* pMaxRowsPerBlock;
+  SValueNode* pMinRowsPerBlock;
+  SNodeList* pKeep;
+  SValueNode* pPrecision;
+  SValueNode* pQuorum;
+  SValueNode* pReplica;
+  SValueNode* pTtl;
+  SValueNode* pWalLevel;
+  SValueNode* pNumOfVgroups;
+  SValueNode* pSingleStable;
+  SValueNode* pStreamMode;
   SNodeList* pRetentions;
 } SDatabaseOptions;
 
@@ -78,15 +76,13 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType type;
-  int32_t keep0;
-  int32_t keep1;
-  int32_t keep2;
-  int32_t ttl;
-  char comments[TSDB_STB_COMMENT_LEN];
+  SNodeList* pKeep;
+  SValueNode* pTtl;
+  SValueNode* pComments;
   SNodeList* pSma;
   SNodeList* pFuncs;
-  float filesFactor;
-  int32_t delay;
+  SValueNode* pFilesFactor;
+  SValueNode* pDelay;
 } STableOptions;
 
 typedef struct SColumnDefNode {
@@ -234,15 +230,15 @@ typedef struct SDropIndexStmt {
   char tableName[TSDB_TABLE_NAME_LEN];
 } SDropIndexStmt;
 
-typedef struct SCreateQnodeStmt {
+typedef struct SCreateComponentNodeStmt {
   ENodeType type;
   int32_t dnodeId;
-} SCreateQnodeStmt;
+} SCreateComponentNodeStmt;
 
-typedef struct SDropQnodeStmt {
+typedef struct SDropComponentNodeStmt {
   ENodeType type;
   int32_t dnodeId;
-} SDropQnodeStmt;
+} SDropComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
   ENodeType type;

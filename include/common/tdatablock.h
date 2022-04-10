@@ -17,6 +17,7 @@
 #define _TD_COMMON_EP_H_
 
 #include "tcommon.h"
+#include "tcompression.h"
 #include "tmsg.h"
 
 #ifdef __cplusplus
@@ -115,11 +116,11 @@ static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uin
 
 static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    for(int32_t i = start; i < start + nRows; ++i) {
+    for (int32_t i = start; i < start + nRows; ++i) {
       pColumnInfoData->varmeta.offset[i] = -1;  // it is a null value of VAR type.
     }
   } else {
-    for(int32_t i = start; i < start + nRows; ++i) {
+    for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
   }
@@ -127,39 +128,39 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
   pColumnInfoData->hasNull = true;
 }
 
-static FORCE_INLINE int32_t colDataAppendInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
+static FORCE_INLINE void colDataAppendInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int8_t*)p = *(int8_t*)v;
 }
 
-static FORCE_INLINE int32_t colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
+static FORCE_INLINE void colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int16_t*)p = *(int16_t*)v;
 }
 
-static FORCE_INLINE int32_t colDataAppendInt32(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int32_t* v) {
+static FORCE_INLINE void colDataAppendInt32(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int32_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int32_t*)p = *(int32_t*)v;
 }
 
-static FORCE_INLINE int32_t colDataAppendInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
+static FORCE_INLINE void colDataAppendInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
   ASSERT(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int64_t*)p = *(int64_t*)v;
 }
 
-static FORCE_INLINE int32_t colDataAppendFloat(SColumnInfoData* pColumnInfoData, uint32_t currentRow, float* v) {
+static FORCE_INLINE void colDataAppendFloat(SColumnInfoData* pColumnInfoData, uint32_t currentRow, float* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(float*)p = *(float*)v;
 }
 
-static FORCE_INLINE int32_t colDataAppendDouble(SColumnInfoData* pColumnInfoData, uint32_t currentRow, double* v) {
+static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, uint32_t currentRow, double* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(double*)p = *(double*)v;
@@ -177,11 +178,12 @@ void    colDataTrim(SColumnInfoData* pColumnInfoData);
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
-int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
+int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pIndexMap);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
+int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity);
 
 SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
 
@@ -195,15 +197,64 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
+
+void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
+
 size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*   blockDataDestroy(SSDataBlock* pBlock);
 
-int32_t blockDataTrimFirstNRows(SSDataBlock *pBlock, size_t n);
+int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 
 void blockDebugShowData(const SArray* dataBlocks);
+
+static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data,
+                                            int8_t compressed) {
+  int32_t colSize = colDataGetLength(pColRes, numOfRows);
+  return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
+                                                      colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
+}
+
+static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
+                                       int8_t needCompress) {
+  int32_t* colSizes = (int32_t*)data;
+
+  data += numOfCols * sizeof(int32_t);
+  *dataLen = (numOfCols * sizeof(int32_t));
+
+  int32_t numOfRows = pBlock->info.rows;
+  for (int32_t col = 0; col < numOfCols; ++col) {
+    SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
+
+    // copy the null bitmap
+    if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
+      size_t metaSize = numOfRows * sizeof(int32_t);
+      memcpy(data, pColRes->varmeta.offset, metaSize);
+      data += metaSize;
+      (*dataLen) += metaSize;
+    } else {
+      int32_t len = BitmapLen(numOfRows);
+      memcpy(data, pColRes->nullbitmap, len);
+      data += len;
+      (*dataLen) += len;
+    }
+
+    if (needCompress) {
+      colSizes[col] = blockCompressColData(pColRes, numOfRows, data, needCompress);
+      data += colSizes[col];
+      (*dataLen) += colSizes[col];
+    } else {
+      colSizes[col] = colDataGetLength(pColRes, numOfRows);
+      (*dataLen) += colSizes[col];
+      memmove(data, pColRes->pData, colSizes[col]);
+      data += colSizes[col];
+    }
+
+    colSizes[col] = htonl(colSizes[col]);
+  }
+}
 
 #ifdef __cplusplus
 }

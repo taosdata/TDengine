@@ -446,6 +446,12 @@ TEST_F(ParserTest, createDatabase) {
        "RETENTIONS '15s:7d,1m:21d,15m:5y'"
       );
   ASSERT_TRUE(run());
+
+  bind("create database if not exists wxy_db "
+       "DAYS 100m "
+       "KEEP 200m,300h,400d "
+      );
+  ASSERT_TRUE(run());
 }
 
 TEST_F(ParserTest, alterDatabase) {
@@ -639,6 +645,48 @@ TEST_F(ParserTest, dropQnode) {
   setDatabase("root", "test");
 
   bind("drop qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createBnode) {
+  setDatabase("root", "test");
+
+  bind("create bnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropBnode) {
+  setDatabase("root", "test");
+
+  bind("drop bnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createSnode) {
+  setDatabase("root", "test");
+
+  bind("create snode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropSnode) {
+  setDatabase("root", "test");
+
+  bind("drop snode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createMnode) {
+  setDatabase("root", "test");
+
+  bind("create mnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropMnode) {
+  setDatabase("root", "test");
+
+  bind("drop mnode on dnode 1");
   ASSERT_TRUE(run());
 }
 

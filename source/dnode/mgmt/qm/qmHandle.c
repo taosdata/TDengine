@@ -16,19 +16,46 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
+void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo) {}
+
+int32_t qmProcessGetMonQmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonQmInfo qmInfo = {0};
+  qmGetMonitorInfo(pWrapper, &qmInfo);
+  dmGetMonitorSysInfo(&qmInfo.sys);
+  monGetLogs(&qmInfo.log);
+
+  int32_t rspLen = tSerializeSMonQmInfo(NULL, 0, &qmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonQmInfo(pRsp, rspLen, &qmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonQmInfo(&qmInfo);
+  return 0;
+}
+
 int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDCreateQnodeReq createReq = {0};
-  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   if (createReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
-    dError("failed to create qnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->dnodeId);
+    terrno = TSDB_CODE_INVALID_OPTION;
+    dError("failed to create qnode since %s", terrstr());
     return -1;
   } else {
     return qmOpen(pWrapper);
@@ -40,13 +67,13 @@ int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDDropQnodeReq dropReq = {0};
-  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   if (dropReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;
   } else {
@@ -55,6 +82,8 @@ int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 void qmInitMsgHandle(SMgmtWrapper *pWrapper) {
+  dndSetMsgHandle(pWrapper, TDMT_MON_QM_INFO, qmProcessMonitorMsg, DEFAULT_HANDLE);
+
   // Requests handled by VNODE
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY, qmProcessQueryMsg, QNODE_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_CONTINUE, qmProcessQueryMsg, QNODE_HANDLE);

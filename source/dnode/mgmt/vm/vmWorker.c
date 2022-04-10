@@ -16,8 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-static void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+static inline void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
+                 .ahandle = pMsg->rpcMsg.ahandle,
+                 .code = code,
+                 .pCont = pMsg->pRsp,
+                 .contLen = pMsg->rspLen};
   tmsgSendRsp(&rsp);
 }
 
@@ -26,9 +30,15 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   int32_t code = -1;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  dTrace("msg:%p, will be processed in vnode-mgmt queue", pMsg);
+  dTrace("msg:%p, will be processed in vnode-m queue", pMsg);
 
   switch (msgType) {
+    case TDMT_MON_VM_INFO:
+      code = vmProcessGetMonVmInfoReq(pMgmt->pWrapper, pMsg);
+      break;
+    case TDMT_MON_VM_LOAD:
+      code = vmProcessGetVnodeLoadsReq(pMgmt->pWrapper, pMsg);
+      break;
     case TDMT_DND_CREATE_VNODE:
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
@@ -255,6 +265,15 @@ int32_t vmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
+int32_t vmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SVnodesMgmt   *pMgmt = pWrapper->pMgmt;
+  SSingleWorker *pWorker = &pMgmt->monitorWorker;
+
+  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
+}
+
 static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueType qtype) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   SMsgHead    *pHead = pRpc->pCont;
@@ -379,39 +398,31 @@ void vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
 }
 
 int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
-  int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);
-  int32_t minQueryThreads = TMAX((int32_t)(tsNumOfCores * tsRatioOfQueryCores), 1);
-  int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = TMAX(tsNumOfCores, 1);
-  int32_t maxSyncThreads = TMAX(tsNumOfCores / 2, 1);
-  int32_t maxMergeThreads = 1;
-
   SQWorkerPool *pQPool = &pMgmt->queryPool;
   pQPool->name = "vnode-query";
-  pQPool->min = minQueryThreads;
-  pQPool->max = maxQueryThreads;
+  pQPool->min = tsNumOfVnodeQueryThreads;
+  pQPool->max = tsNumOfVnodeQueryThreads;
   if (tQWorkerInit(pQPool) != 0) return -1;
 
   SQWorkerPool *pFPool = &pMgmt->fetchPool;
   pFPool->name = "vnode-fetch";
-  pFPool->min = minFetchThreads;
-  pFPool->max = maxFetchThreads;
+  pFPool->min = tsNumOfVnodeFetchThreads;
+  pFPool->max = tsNumOfVnodeFetchThreads;
   if (tQWorkerInit(pFPool) != 0) return -1;
 
   SWWorkerPool *pWPool = &pMgmt->writePool;
   pWPool->name = "vnode-write";
-  pWPool->max = maxWriteThreads;
+  pWPool->max = tsNumOfVnodeWriteThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   pWPool = &pMgmt->syncPool;
   pWPool->name = "vnode-sync";
-  pWPool->max = maxSyncThreads;
+  pWPool->max = tsNumOfVnodeSyncThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   pWPool = &pMgmt->mergePool;
   pWPool->name = "vnode-merge";
-  pWPool->max = maxMergeThreads;
+  pWPool->max = tsNumOfVnodeMergeThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   SSingleWorkerCfg cfg = {.min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
@@ -420,11 +431,21 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
     return -1;
   }
 
+  if (tsMultiProcess) {
+    SSingleWorkerCfg mCfg = {
+        .min = 1, .max = 1, .name = "vnode-monitor", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+      dError("failed to start mnode vnode-monitor worker since %s", terrstr());
+      return -1;
+    }
+  }
+
   dDebug("vnode workers are initialized");
   return 0;
 }
 
 void vmStopWorker(SVnodesMgmt *pMgmt) {
+  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   tQWorkerCleanup(&pMgmt->fetchPool);
   tQWorkerCleanup(&pMgmt->queryPool);
