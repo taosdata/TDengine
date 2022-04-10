@@ -1164,13 +1164,13 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     // super table
     ret = tsdbQuerySTableByTagCond(pRepo, pBlock->uid, pCtlData->win.skey, pCtlData->tagCond, pCtlData->tagCondLen, &tableGroupInfo, NULL, 0);
     if (ret != TSDB_CODE_SUCCESS) {
-      tsdbError(":SDEL vgId:%d failed to get child tables id from stable with tag condition. uid=%ld", REPO_ID(pRepo), pBlock->uid);
+      tsdbError(":SDEL vgId:%d failed to get child tables id from stable with tag condition. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
       return ret;
     }
 
     tnum = tsdbTableGroupInfo(&tableGroupInfo, NULL);
     if (tnum == 0) {
-      tsdbWarn(":SDEL vgId:%d super table no child tables after filter by tag. uid=%ld", REPO_ID(pRepo), pBlock->uid);
+      tsdbWarn(":SDEL vgId:%d super table no child tables after filter by tag. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
       return TSDB_CODE_SUCCESS;
     }
   } else {
