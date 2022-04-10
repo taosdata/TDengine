@@ -28,30 +28,30 @@ target_sources(jsonUT
 )
 target_include_directories ( indexTest
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 target_include_directories ( fstTest 
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
 target_include_directories ( fstUT 
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
 target_include_directories ( UtilUT 
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
 target_include_directories (jsonUT
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 target_link_libraries (indexTest

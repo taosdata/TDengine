@@ -3,8 +3,8 @@
 ExternalProject_Add(craft
         GIT_REPOSITORY https://github.com/canonical/raft.git
         GIT_TAG v0.11.2
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/craft"
-        BINARY_DIR "${CMAKE_CONTRIB_DIR}/craft"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/craft"
+        BINARY_DIR "${TD_CONTRIB_DIR}/craft"
         #BUILD_IN_SOURCE TRUE
         # https://answers.ros.org/question/333125/how-to-include-external-automakeautoconf-projects-into-ament_cmake/
         CONFIGURE_COMMAND COMMAND autoreconf -i COMMAND ./configure --enable-example
