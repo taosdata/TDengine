@@ -18,6 +18,7 @@
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_COL_NAME_LEN    ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 //!!!! Note: only APPEND columns in below tables, NO insert !!!!
 static const SInfosTableSchema dnodesSchema[] = {
@@ -43,7 +44,22 @@ static const SInfosTableSchema modulesSchema[] = {
 };
 static const SInfosTableSchema qnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = 134, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+};
+static const SInfosTableSchema snodesSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+};
+static const SInfosTableSchema bnodesSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+};
+static const SInfosTableSchema clusterSchema[] = {
+    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema userDBSchema[] = {
@@ -79,11 +95,11 @@ static const SInfosTableSchema userFuncSchema[] = {
     {.name = "status", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
 };
 static const SInfosTableSchema userIdxSchema[] = {
-    {.name = "db_name", .bytes = 32, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "table_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_database", .bytes = 32, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "column_name", .bytes = 64, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "index_database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "index_type", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "index_extensions", .bytes = 256, .type = TSDB_DATA_TYPE_BINARY},
 };
@@ -183,6 +199,9 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
     {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema)},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema)},
+    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
+    {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema)},
+    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
     {TSDB_INS_TABLE_USER_DATABASES, userDBSchema, tListLen(userDBSchema)},
     {TSDB_INS_TABLE_USER_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
     {TSDB_INS_TABLE_USER_INDEXES, userIdxSchema, tListLen(userIdxSchema)},

@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-  
+
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
@@ -121,7 +121,7 @@ static void dndProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (isReq && pMsg->pCont == NULL) {
     dError("req:%s not processed since its empty, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN, .ahandle = pMsg->ahandle};
+    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_INVALID_MSG_LEN, .ahandle = pMsg->ahandle};
     rpcSendResponse(&rspMsg);
     return;
   }
@@ -338,7 +338,7 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
 
 static int32_t dndSendRpcReq(STransMgmt *pMgmt, const SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pMgmt->clientRpc == NULL) {
-    terrno = TSDB_CODE_DND_OFFLINE;
+    terrno = TSDB_CODE_NODE_OFFLINE;
     return -1;
   }
 
@@ -359,7 +359,7 @@ static void dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
 
 static int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
   if (dndGetStatus(pWrapper->pDnode) != DND_STAT_RUNNING) {
-    terrno = TSDB_CODE_DND_OFFLINE;
+    terrno = TSDB_CODE_NODE_OFFLINE;
     dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
     return -1;
   }
@@ -482,4 +482,8 @@ SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper) {
                   .parent = pWrapper,
                   .name = pWrapper->name};
   return cfg;
+}
+
+void dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
+  rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
 }

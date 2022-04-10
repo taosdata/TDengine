@@ -406,7 +406,7 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   }
 
   void *ptr = buf;
-  taosEncodeFixedU32(&ptr, 0);
+  // taosEncodeFixedU32(&ptr, 0); // fver moved to SDFInfo and saved to current
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
@@ -437,7 +437,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = taosDecodeFixedU32(pBuf, &_version);
+  // pBuf = taosDecodeFixedU32(pBuf, &_version);
   pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
   return 0;
 }

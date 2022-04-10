@@ -296,7 +296,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   }
 
   STqTopic* pTopic = NULL;
-  int       sz = taosArrayGetSize(pConsumer->topics);
+  int32_t   sz = taosArrayGetSize(pConsumer->topics);
   for (int32_t i = 0; i < sz; i++) {
     STqTopic* topic = taosArrayGet(pConsumer->topics, i);
     // TODO race condition
@@ -316,7 +316,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     return 0;
   }
 
-  vDebug("poll topic %s from consumer %ld (epoch %d)", pTopic->topicName, consumerId, pReq->epoch);
+  vDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch,
+         pTq->pVnode->vgId);
 
   rsp.reqOffset = pReq->currentOffset;
   rsp.skipLogNum = 0;
@@ -325,8 +326,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     /*if (fetchOffset > walGetLastVer(pTq->pWal) || walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {*/
     // TODO
     consumerEpoch = atomic_load_32(&pConsumer->epoch);
-    if (consumerEpoch > pReq->epoch) {
-      // TODO: return
+    if (consumerEpoch > reqEpoch) {
+      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
+             consumerId, pReq->epoch, pTq->pVnode->vgId, fetchOffset, consumerEpoch, reqEpoch);
       break;
     }
     SWalReadHead* pHead;

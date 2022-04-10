@@ -1254,7 +1254,7 @@ int32_t tDeserializeSGetUserAuthRsp(void *buf, int32_t bufLen, SGetUserAuthRsp *
   return 0;
 }
 
-int32_t tSerializeSMCreateDropQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
+int32_t tSerializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
@@ -1267,7 +1267,7 @@ int32_t tSerializeSMCreateDropQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnod
   return tlen;
 }
 
-int32_t tDeserializeSMCreateDropQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
+int32_t tDeserializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
@@ -1306,14 +1306,6 @@ int32_t tDeserializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq
 
   tCoderClear(&decoder);
   return 0;
-}
-
-int32_t tSerializeSMCreateDropMnodeReq(void *buf, int32_t bufLen, SMCreateMnodeReq *pReq) {
-  return tSerializeSMCreateDropQSBNodeReq(buf, bufLen, (SMCreateQnodeReq *)pReq);
-}
-
-int32_t tDeserializeSMCreateDropMnodeReq(void *buf, int32_t bufLen, SMCreateMnodeReq *pReq) {
-  return tDeserializeSMCreateDropQSBNodeReq(buf, bufLen, (SMCreateQnodeReq *)pReq);
 }
 
 int32_t tSerializeSMCfgDnodeReq(void *buf, int32_t bufLen, SMCfgDnodeReq *pReq) {
@@ -2084,6 +2076,64 @@ int32_t tDeserializeSDbCfgRsp(void* buf, int32_t bufLen, SDbCfgRsp* pRsp) {
   return 0;
 }
 
+int32_t tSerializeSUserIndexReq(void* buf, int32_t bufLen, SUserIndexReq* pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->indexFName) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSUserIndexReq(void* buf, int32_t bufLen, SUserIndexReq* pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->indexFName) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSUserIndexRsp(void* buf, int32_t bufLen, const SUserIndexRsp* pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->tblFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->colName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->indexType) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->indexExts) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSUserIndexRsp(void* buf, int32_t bufLen, SUserIndexRsp* pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->dbFName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->tblFName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->colName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->indexType) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->indexExts) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
 
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SCoder encoder = {0};
@@ -2696,6 +2746,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq *pReq) {
   taosArrayDestroy(pReq->pRetensions);
   pReq->pRetensions = NULL;
+  return 0;
 }
 
 int32_t tSerializeSDropVnodeReq(void *buf, int32_t bufLen, SDropVnodeReq *pReq) {

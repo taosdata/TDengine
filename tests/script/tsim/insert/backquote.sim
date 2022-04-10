@@ -83,7 +83,7 @@ while $dbCnt < 2
 
     print =============== query data
     sql select * from `table`
-    print rows: $rows 
+    print rows: $rows
     print $data00 $data01 $data02 $data03
     print $data10 $data11 $data12 $data13
     if $rows != 2 then 
@@ -99,7 +99,9 @@ while $dbCnt < 2
       print expect table, actual $data03
       return -1
     endi
-    
+
+
+    print =================> 1
     sql select * from `Table`
     print rows: $rows 
     print $data00 $data01 $data02 $data03
@@ -116,7 +118,8 @@ while $dbCnt < 2
     if $data03 != Table then 
       return -1
     endi
-    
+
+    print ================>2
     sql select * from `TAble`
     print rows: $rows 
     print $data00 $data01 $data02 $data03

@@ -117,7 +117,7 @@ _OVER:
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
-    uError("Connection error %s\n", uv_strerror(status));
+    uError("connection error %s", uv_strerror(status));
     uv_close((uv_handle_t*)req->handle, NULL);
     return;
   }

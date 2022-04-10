@@ -69,7 +69,6 @@ typedef struct {
 
 typedef struct {
   int64_t        showId;
-  ShowMetaFp     metaFps[TSDB_MGMT_TABLE_MAX];
   ShowRetrieveFp retrieveFps[TSDB_MGMT_TABLE_MAX];
   ShowFreeIterFp freeIterFps[TSDB_MGMT_TABLE_MAX];
   SCacheObj     *cache;

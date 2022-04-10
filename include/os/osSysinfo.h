@@ -44,8 +44,8 @@ int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
 int32_t taosGetSysMemory(int64_t *usedKB);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
-int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
-int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
+void    taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+void    taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 
 void    taosKillSystem();
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen);

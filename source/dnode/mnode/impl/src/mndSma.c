@@ -58,7 +58,6 @@ int32_t mndInitSma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndProcessVCreateSmaRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndProcessVDropSmaRsp);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndGetSmaMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveSma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextSma);
   return sdbSetTable(pMnode->pSdb, table);
@@ -687,6 +686,39 @@ _OVER:
 
   return code;
 }
+
+int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
+  int32_t      code = -1;
+  SSmaObj     *pSma = NULL;
+
+  pSma = mndAcquireSma(pMnode, indexReq->indexFName);
+  if (pSma == NULL) {
+    *exist = false;
+    return 0;
+  }
+
+  memcpy(rsp->dbFName, pSma->db, sizeof(pSma->db));
+  memcpy(rsp->tblFName, pSma->stb, sizeof(pSma->stb));
+  strcpy(rsp->indexType, TSDB_INDEX_TYPE_SMA);
+
+  SNodeList *pList = NULL;
+  int32_t extOffset = 0;
+  code = nodesStringToList(pSma->expr, &pList);
+  if (0 == code) {
+    SNode *node = NULL;
+    FOREACH(node, pList) {
+      SFunctionNode *pFunc = (SFunctionNode *)node;
+      extOffset += snprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s", (extOffset ? ",":""), pFunc->functionName);
+    }
+
+    *exist = true;
+  }
+
+  mndReleaseSma(pMnode, pSma);
+
+  return code;
+}
+
 
 static int32_t mndProcessVDropSmaRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
