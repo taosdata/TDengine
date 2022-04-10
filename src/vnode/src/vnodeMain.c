@@ -612,7 +612,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
 }
 
 // wait thread
-void vnodeAddWait(void* vparam, pthread_t* pthread, sem_t* psem, void* param) {
+void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
   SVnodeObj* pVnode = (SVnodeObj* )vparam;
   if(pVnode->tqueue == NULL) {
     pVnode->tqueue = taosOpenQueue();

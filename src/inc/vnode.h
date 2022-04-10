@@ -105,7 +105,7 @@ void    vnodeFreeFromRQueue(void *pVnode, SVReadMsg *pRead);
 int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
 
 // wait thread
-void vnodeAddWait(void* pVnode, pthread_t* pthread, sem_t* psem, void* param);
+void vnodeAddWait(void* pVnode, pthread_t* pthread, tsem_t* psem, void* param);
 void vnodeRemoveWait(void* pVnode, void* param); 
 
 #ifdef __cplusplus
