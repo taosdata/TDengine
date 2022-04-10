@@ -77,8 +77,6 @@ int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeSync(int32_t vgId);
 int32_t vnodeClose(int32_t vgId);
 int32_t vnodeCompact(int32_t vgId);
-int32_t vnodeTruncateTbl(STruncateTblMsg *pMsg);
-int32_t vnodeDeleteData(SDeleteDataMsg *pMsg);
 
 // vnodeMgmt
 int32_t vnodeInitMgmt();

@@ -352,8 +352,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
            pVgroup->pDb->dbCfgVersion, pVgroup->vgCfgVersion, pVgroup->numOfVnodes);
     mnodeSendAlterVgroupMsg(pVgroup,NULL);
   }
-  pVgroup->compact = (int8_t)pVload->compact;
-  pVgroup->truncate = (int8_t)pVload->truncate;
+  pVgroup->compact = pVload->compact;
 }
 
 static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
@@ -849,11 +848,6 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int8_t *)pWrite = pVgroup->compact; 
     cols++;
-
-    // pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // *(int8_t *)pWrite = pVgroup->truncate;
-    // cols++;
-
     mnodeDecVgroupRef(pVgroup);
     numOfRows++;
   }

@@ -1310,22 +1310,6 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrTo
   pInfo->pMiscInfo->tableType = tableType;
 }
 
-void setTruncateTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t dbType, int16_t tableType) {
-  pInfo->type = type;
-
-  if (pInfo->pMiscInfo == NULL) {
-    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
-    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
-  }
-
-  taosArrayPush(pInfo->pMiscInfo->a, pToken);
-
-  pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
-  pInfo->pMiscInfo->dbType = dbType;
-  pInfo->pMiscInfo->tableType = tableType;
-}
-
-
 void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken) {
   pInfo->type = type;
 

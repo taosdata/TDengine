@@ -214,7 +214,7 @@ int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
 int8_t tsdbGetCompactState(STsdbRepo *repo) { return (int8_t)(repo->compactState); }
 
-int8_t tsdbGetTruncateState(STsdbRepo *repo) { return (int8_t)(repo->deleteState); }
+int8_t tsdbGetDeleteState(STsdbRepo *repo) { return (int8_t)(repo->deleteState); }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);

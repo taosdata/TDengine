@@ -560,7 +560,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {  
+int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo == NULL || pSql == NULL) {
     return TSDB_CODE_TSC_APP_ERROR;
   }

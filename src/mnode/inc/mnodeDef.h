@@ -146,8 +146,7 @@ typedef struct SVgObj {
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
   int32_t        vgCfgVersion;
   int8_t         compact;
-  int8_t         truncate;
-  int8_t         reserved1[6];
+  int8_t         reserved1[8];
   int8_t         updateEnd[4];
   int32_t        refCount;
   int32_t        numOfTables;

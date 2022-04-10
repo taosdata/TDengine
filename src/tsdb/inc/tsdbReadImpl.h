@@ -153,7 +153,7 @@ static FORCE_INLINE uint32_t tsdbGetBlockColOffset(SBlockCol *pBlockCol) {
 }
 
 typedef struct {
-  int32_t   delimiter;  // For recovery usage(not included when calculating checksum)
+  int32_t   delimiter;  // For recovery usage
   int32_t   numOfCols;  // For recovery usage
   uint64_t  uid;        // For recovery usage
   SBlockCol cols[];

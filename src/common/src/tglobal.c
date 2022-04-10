@@ -161,7 +161,6 @@ int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 // For backward compatibility
 bool    tsdbForceKeepFile = false;
 bool    tsdbForceCompactFile = false;                    // compact TSDB fileset forcibly
-bool    tsdbForceTruncateFile = false;
 int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance

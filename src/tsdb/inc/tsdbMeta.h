@@ -48,9 +48,9 @@ typedef struct STable {
   SDataCol      *lastCols;
   int16_t        maxColNum;
   int16_t        restoreColumnNum;
-  int16_t        cacheLastConfigVersion;
   bool           hasRestoreLastColumn;
   int            lastColSVersion;
+  int16_t        cacheLastConfigVersion;
   T_REF_DECLARE()  // int32_t
 } STable;
 

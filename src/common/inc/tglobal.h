@@ -22,9 +22,6 @@
 extern "C" {
 #endif
 
-// global definition
-extern bool isBigEndian;
-
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -118,7 +115,6 @@ extern int8_t  tsCacheLastRow;
 
 // tsdb
 extern bool    tsdbForceKeepFile;
-extern bool    tsdbForceTruncateFile;
 extern bool    tsdbForceCompactFile;
 extern int32_t tsdbWalFlushSize;
 

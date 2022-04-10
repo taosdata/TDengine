@@ -440,7 +440,6 @@ int taos_affected_tables(TAOS_RES *tres) {
   return pSql->res.numOfTables;
 }
 
-
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlRes *pRes = &pSql->res;

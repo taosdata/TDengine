@@ -449,8 +449,6 @@ static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
     return -1;
   }
 
-  pReadh->pBlkData->delimiter = TSDB_FILE_DELIMITER;  // reset in case of TSDB_FILE_DELIMITER_DELETE
-
   if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkData), (uint32_t)size)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
@@ -652,8 +650,6 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, pBlock->len, nread);
     return -1;
   }
-
-  pBlockData->delimiter = TSDB_FILE_DELIMITER;  // reset in case of TSDB_FILE_DELIMITER_DELETE
 
   int32_t tsize = (int32_t)tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
