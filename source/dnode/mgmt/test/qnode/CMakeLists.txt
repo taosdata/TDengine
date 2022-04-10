@@ -1,11 +1,11 @@
 aux_source_directory(. DQTEST_SRC)
-add_executable(dnode_test_qnode ${DQTEST_SRC})
+add_executable(dqnodeTest ${DQTEST_SRC})
 target_link_libraries(
-    dnode_test_qnode
+    dqnodeTest
     PUBLIC sut
 )
 
 add_test(
-    NAME dnode_test_qnode
-    COMMAND dnode_test_qnode
+    NAME dqnodeTest
+    COMMAND dqnodeTest
 )

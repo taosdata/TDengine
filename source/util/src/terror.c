@@ -283,6 +283,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "SMA does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma option")
 
 // dnode
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_REDIRECT,                "Node need redirect")
 TAOS_DEFINE_ERROR(TSDB_CODE_NODE_OFFLINE,                 "Node is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_NODE_ALREADY_DEPLOYED,        "Node already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_NODE_NOT_DEPLOYED,            "Node not deployed")

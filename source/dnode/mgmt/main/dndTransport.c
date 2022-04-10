@@ -85,6 +85,7 @@ _OVER:
   } else {
     dError("msg:%p, failed to process since 0x%04x:%s", pMsg, code & 0XFFFF, terrstr());
     if (pRpc->msgType & 1U) {
+      if (terrno != 0) code = terrno;
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       tmsgSendRsp(&rsp);
     }
@@ -347,14 +348,12 @@ static int32_t dndSendRpcReq(STransMgmt *pMgmt, const SEpSet *pEpSet, SRpcMsg *p
 }
 
 static void dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
-  if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
-    if (pWrapper->ntype == MNODE) {
-      dmSendRedirectRsp(pWrapper->pMgmt, pRsp);
-      return;
-    }
+  if (pRsp->code == TSDB_CODE_APP_NOT_READY || pRsp->code == TSDB_CODE_NODE_REDIRECT ||
+      pRsp->code == TSDB_CODE_NODE_OFFLINE) {
+    dmSendRedirectRsp(pWrapper->pMgmt, pRsp);
+  } else {
+    rpcSendResponse(pRsp);
   }
-
-  rpcSendResponse(pRsp);
 }
 
 static int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
