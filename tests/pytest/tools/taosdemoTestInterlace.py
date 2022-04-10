@@ -25,7 +25,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -33,24 +33,25 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
-        buildPath = ""
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def run(self):
         tdSql.prepare()
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
-        taosdemoCmd = "%staosBenchmark -f tools/insert-interlace.json -G 2>&1 | grep sleep | wc -l" % binPath
+            tdLog.info("taosBenchmark found in %s" % binPath)
+        taosdemoCmd = "%s -f tools/insert-interlace.json -G 2>&1 | grep sleep | wc -l" % binPath
         sleepTimes = subprocess.check_output(
             taosdemoCmd, shell=True).decode("utf-8")
         print("sleep times: %d" % int(sleepTimes))

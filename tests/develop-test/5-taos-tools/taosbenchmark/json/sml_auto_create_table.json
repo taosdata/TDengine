@@ -6,7 +6,7 @@
   "user": "root",
   "password": "taosdata",
   "thread_count": 4,
-  "thread_pool_size": 10,
+  "connection_pool_size": 10,
   "result_file": "./insert_res.txt",
   "confirm_parameter_prompt": "no",
   "prepared_rand": 100,

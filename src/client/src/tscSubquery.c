@@ -662,6 +662,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       } else {
         filterVgroupTables(pQueryInfo, pTableMetaInfo->pVgroupTables);
       }
+      pQueryInfo->stableQuery = true;
     }
 
     subquerySetState(pNew, &pSql->subState, i, 0);
@@ -935,6 +936,96 @@ static void setTidTagType(SJoinSupporter* p, uint8_t type) {
   }
 }
 
+static int32_t tidTagsMerge(SArray *arr, int32_t start, int32_t mid, int32_t end, const int32_t tagSize)
+{
+  char     *pTmp, *pRes = NULL;
+  char     *result = NULL;
+  STidTags *pi, *pj, *p;
+
+  int32_t k = 0;
+  int32_t i = start;
+  int32_t j = mid + 1;
+
+  if (end - start > 0) {
+    result = calloc(1, (end - start + 1) * tagSize);
+    if (result == NULL) {
+      tscError("failed to allocate memory for tidTagsMerge");
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+
+  pRes = result;
+
+  while (i <= mid && j <= end) {
+    pi = taosArrayGet(arr, i);
+    pj = taosArrayGet(arr, j);
+
+    if (pi->vgId <= pj->vgId) {
+      p = taosArrayGet(arr, i++);
+      memcpy(pRes, p, tagSize);
+    } else {
+      p = taosArrayGet(arr, j++);
+      memcpy(pRes, p, tagSize);
+    }
+
+    k++;
+    pRes += tagSize;
+  }
+
+  if (i == mid + 1) {
+    while(j <= end) {
+      p = taosArrayGet(arr, j++);
+      memcpy(pRes, p, tagSize);
+      k++;
+      pRes += tagSize;
+    }
+  }
+
+  if (j == end + 1) {
+    while (i <= mid) {
+      p = taosArrayGet(arr, i++);
+      memcpy(pRes, p, tagSize);
+      k++;
+      pRes += tagSize;
+    }
+  }
+
+  for (i = start, j = 0, pTmp = result; j < k; i++, j++, pTmp += tagSize) {
+    p = (STidTags *) taosArrayGet(arr, i);
+    memcpy(p, pTmp, tagSize);
+  }
+
+  if (result) {
+    tfree(result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tidTagsMergeSort(SArray *arr, int32_t start, int32_t end, const int32_t tagSize)
+{
+  int32_t ret;
+  int32_t mid;
+
+  if (start >= end) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  mid = (start + end) / 2;
+
+  ret = tidTagsMergeSort(arr, start, mid, tagSize);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
+  ret = tidTagsMergeSort(arr, mid + 1, end, tagSize);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
+  return tidTagsMerge(arr, start, mid, end, tagSize);
+}
+
 static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray* resList) {
   int16_t joinNum = pParentSql->subState.numOfSub;
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -1122,13 +1213,16 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   for (int32_t i = 0; i < joinNum; ++i) {
     // reorganize the tid-tag value according to both the vgroup id and tag values
     // sort according to the tag value
-    size_t num = taosArrayGetSize(ctxlist[i].res);
+    int32_t num = (int32_t) taosArrayGetSize(ctxlist[i].res);
 
-    qsort((ctxlist[i].res)->pData, num, size, tidTagsCompar);
+    int32_t ret = tidTagsMergeSort(ctxlist[i].res, 0, num - 1, size);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
 
     taosArrayPush(resList, &ctxlist[i].res);
 
-    tscDebug("0x%"PRIx64" tags match complete, result num: %"PRIzu, pParentSql->self, num);
+    tscDebug("0x%"PRIx64" tags match complete, result num: %d", pParentSql->self, num);
   }
 
   return TSDB_CODE_SUCCESS;

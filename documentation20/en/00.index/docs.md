@@ -98,6 +98,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html): use TDengine visually through IDEA Database Management Tool
 - [TDengineGUI](https://github.com/skye0207/TDengineGUI): a TDengine management tool with Graphical User Interface
 - [DataX](https://github.com/taosdata/datax): a data immigration tool with TDengine supported
+- [Awesome TDengine](https://github.com/taosdata/awesome-tdengine)：A curated list of awesome things related to TDengine
 
 ## [Installation and Management of TDengine Cluster](/cluster)
 

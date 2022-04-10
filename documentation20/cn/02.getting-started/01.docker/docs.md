@@ -121,7 +121,7 @@ TDengine RESTful 接口详情请参考[官方文档](https://www.taosdata.com/cn
 
 ### 使用 Docker 容器运行 TDengine server 和 taosAdapter
 
-在 TDegnine 2.4.0.0 之后版本的 Docker 容器，开始提供一个独立运行的组件 taosAdapter，代替之前版本 TDengine 中 taosd 进程中内置的 http server。taosAdapter 支持通过 RESTful 接口对 TDengine server 的数据写入和查询能力，并提供和 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。在新版本 Docker 镜像中，默认启用了 taosAdapter，也可以使用 docker run 命令中设置 TAOS_DISABLE_ADAPTER=true 来禁用 taosAdapter；也可以在 docker run 命令中单独使用taosAdapter，而不运行 taosd 。
+在 TDengine 2.4.0.0 之后版本的 Docker 容器，开始提供一个独立运行的组件 taosAdapter，代替之前版本 TDengine 中 taosd 进程中内置的 http server。taosAdapter 支持通过 RESTful 接口对 TDengine server 的数据写入和查询能力，并提供和 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。在新版本 Docker 镜像中，默认启用了 taosAdapter，也可以使用 docker run 命令中设置 TAOS_DISABLE_ADAPTER=true 来禁用 taosAdapter；也可以在 docker run 命令中单独使用taosAdapter，而不运行 taosd 。
 
 注意：如果容器中运行 taosAdapter，需要根据需要映射其他端口，具体端口默认配置和修改方法请参考[taosAdapter文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。
 
@@ -227,7 +227,7 @@ taos>
 - **查看数据库。**
 
 ```bash
-$ taos> show databases;
+$ taos> SHOW DATABASES;
   name        |      created_time       |   ntables   |   vgroups   |    ···
   test        | 2021-08-18 06:01:11.021 |       10000 |           6 |    ···
   log         | 2021-08-18 05:51:51.065 |           4 |           1 |    ···
@@ -240,7 +240,7 @@ $ taos> show databases;
 $ taos> use test;
 Database changed.
 
-$ taos> show stables;
+$ taos> SHOW STABLES;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters                         | 2021-08-18 06:01:11.116 |       4 |      2 |       10000 |
@@ -251,10 +251,7 @@ Query OK, 1 row(s) in set (0.003259s)
 - **查看表，限制输出十条。**
 
 ```bash
-$ taos> select * from test.t0 limit 10;
-
-DB error: Table does not exist (0.002857s)
-taos> select * from test.d0 limit 10;
+taos> SELECT * FROM test.d0 LIMIT 10;
            ts            |       current        |   voltage   |        phase         |
 ======================================================================================
  2017-07-14 10:40:00.000 |             10.12072 |         223 |              0.34167 |
@@ -274,7 +271,7 @@ Query OK, 10 row(s) in set (0.016791s)
 - **查看 d0 表的标签值。**
 
 ```bash
-$ taos> select groupid, location from test.d0;
+$ taos> SELECT groupid, location FROM test.d0;
    groupid   |     location     |
 =================================
            0 | shanghai         |
@@ -292,7 +289,7 @@ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
 然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
 
 ```
-taos> show databases;
+taos> SHOW DATABASES;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
 ====================================================================================================================================================================================================================================================================================
  log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
@@ -302,13 +299,13 @@ Query OK, 2 row(s) in set (0.002112s)
 taos> use statsd;
 Database changed.
 
-taos> show stables;
+taos> SHOW STABLES;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
 Query OK, 1 row(s) in set (0.001160s)
 
-taos> select * from foo;
+taos> SELECT * FROM foo;
               ts               |         value         |         metric_type          |
 =======================================================================================
  2021-12-28 09:21:48.840820836 |                     1 | counter                      |

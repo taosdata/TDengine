@@ -241,7 +241,8 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       return;
     }
     case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
@@ -438,7 +439,7 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
       }
       pInputs[i].numOfRows = (int16_t)numOfRows;
     } else if (pChild->nodeType == TSQL_NODE_VALUE) {
-      pChildrenOutput[i] = malloc(pChild->resultBytes);
+      pChildrenOutput[i] = malloc((pChild->resultBytes+1)*TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
       tVariantDump(pChild->pVal, pChildrenOutput[i], pChild->resultType, true);
       pInputs[i].data = pChildrenOutput[i];
       pInputs[i].numOfRows = 1;
@@ -955,7 +956,7 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -1027,7 +1028,7 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -1181,8 +1182,7 @@ int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr) {
 
 int32_t exprValidateMathNode(tExprNode *pExpr) {
   switch (pExpr->_func.functionId) {
-    case TSDB_FUNC_SCALAR_POW:
-    case TSDB_FUNC_SCALAR_LOG: {
+    case TSDB_FUNC_SCALAR_POW: {
       if (pExpr->_func.numChildren != 2) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -1190,6 +1190,27 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
       tExprNode *child2 = pExpr->_func.pChildren[1];
       if (!IS_NUMERIC_TYPE(child1->resultType) || !IS_NUMERIC_TYPE(child2->resultType)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case TSDB_FUNC_SCALAR_LOG: {
+      if (pExpr->_func.numChildren != 1 && pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (pExpr->_func.numChildren == 2) {
+        tExprNode *child2 = pExpr->_func.pChildren[1];
+        if (!IS_NUMERIC_TYPE(child2->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
 
       pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
@@ -2040,13 +2061,19 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
     if (!hasNullInputs) {
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOG: {
-          assert(numInputs == 2);
-          double base = 0;
-          GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          double base = 2.7182818284590452354; //const M_E
+          if (numInputs == 2) {
+            GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          }
           double v1 = 0;
           GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
-          double result = log(v1) / log(base);
-          SET_TYPED_DATA(outputData, pOutput->type, result);
+          if (numInputs == 2) {
+            double result = log(v1) / log(base);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          } else {
+            double result = log(v1);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          }
           break;
         }
 
@@ -2230,14 +2257,12 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
 void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
   int32_t charLen = varDataLen(inputData);
-  char *newColData;
+  char *newColData = calloc(1, charLen + 1);
   if (type == TSDB_DATA_TYPE_BINARY) {
-    newColData = calloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
     taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
     tfree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
     int len = taosUcs4ToMbs(varDataVal(inputData), charLen, newColData);
     if (len < 0){
       uError("convertStringToTimestamp taosUcs4ToMbs error");

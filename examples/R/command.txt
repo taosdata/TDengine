@@ -1,5 +1,5 @@
 # Linux Platform
-install.packages('rJDBC', repos='http://cran.us.r-project.org')
+install.packages('RJDBC', repos='http://cran.us.r-project.org')
 
 # Loading RJDBC packages
 library('RJDBC')

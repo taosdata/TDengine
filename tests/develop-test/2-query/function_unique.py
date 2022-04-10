@@ -83,8 +83,8 @@ class TDTestCase:
         tdSql.checkData(3, 0, "2021-12-24 01:31:31")
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 2)
-        tdSql.checkData(2, 1, 19)
-        tdSql.checkData(3, 1, 9)
+        tdSql.checkData(2, 1, 9)
+        tdSql.checkData(3, 1, 19)
 
         tdSql.query('select ts,unique(voltage),ts,groupid,location,tbname from unique')
         tdSql.checkRows(4)
@@ -106,19 +106,19 @@ class TDTestCase:
 
         tdSql.checkData(2, 0, "2021-12-24 01:31:31")
         tdSql.checkData(2, 1, "2021-12-24 01:31:31")
-        tdSql.checkData(2, 2, 19)
+        tdSql.checkData(2, 2, 9)
         tdSql.checkData(2, 3, "2021-12-24 01:31:31")
-        tdSql.checkData(2, 4, 2)
-        tdSql.checkData(2, 5, "Beijing.haidian")
-        tdSql.checkData(2, 6, "d002")
+        tdSql.checkData(2, 4, 3)
+        tdSql.checkData(2, 5, "Beijing.Tongzhou")
+        tdSql.checkData(2, 6, "d003")
 
         tdSql.checkData(3, 0, "2021-12-24 01:31:31")
         tdSql.checkData(3, 1, "2021-12-24 01:31:31")
-        tdSql.checkData(3, 2, 9)
+        tdSql.checkData(3, 2, 19)
         tdSql.checkData(3, 3, "2021-12-24 01:31:31")
-        tdSql.checkData(3, 4, 3)
-        tdSql.checkData(3, 5, "Beijing.Tongzhou")
-        tdSql.checkData(3, 6, "d003")
+        tdSql.checkData(3, 4, 2)
+        tdSql.checkData(3, 5, "Beijing.haidian")
+        tdSql.checkData(3, 6, "d002")
 
         tdSql.execute('insert into D004 values("2021-10-15 00:00:01", 10, 2) ("2021-12-24 00:21:31", 5, 2) ("2021-12-25 01:31:31", 9, 4)')
 
@@ -151,9 +151,9 @@ class TDTestCase:
         tdSql.query('select ts,unique(voltage) from unique group by ts')
         tdSql.checkRows(9)
         tdSql.checkData(1, 2, 1)
-        tdSql.checkData(4, 2, 1)
+        tdSql.checkData(4, 2, 2)
         tdSql.checkData(8, 2, 1)
-        tdSql.checkData(6, 2, 9)
+        tdSql.checkData(6, 2, 19)
         tdSql.checkData(7, 2, 9)
         #group by tag,column
         tdSql.query('select ts,unique(voltage) from unique group by location,num')
@@ -165,13 +165,13 @@ class TDTestCase:
         tdSql.query('select unique(voltage) from unique order by ts desc')
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, "2021-12-24 01:31:31")
-        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(0, 1, 19)
         tdSql.checkData(5, 0, "2021-10-15 00:00:01")
         tdSql.checkData(5, 1, 10)
         tdSql.query('select unique(voltage) from unique order by ts')
         tdSql.checkRows(6)
         tdSql.checkData(5, 0, "2021-12-24 01:31:31")
-        tdSql.checkData(5, 1, 9)
+        tdSql.checkData(5, 1, 19)
         tdSql.checkData(0, 0, "2021-10-15 00:00:01")
         tdSql.checkData(0, 1, 10)
         #order by column [desc]
@@ -216,7 +216,7 @@ class TDTestCase:
         tdSql.checkData(6, 0, "2021-12-25 01:31:31")
         tdSql.checkData(6, 1, 9)
         tdSql.checkData(0, 0, "2021-12-24 01:31:31")
-        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(0, 1, 19)
 
         # error
         tdSql.error("select unique(ts) from unique")
@@ -246,7 +246,7 @@ class TDTestCase:
         tdSql.query('select unique(voltage) from unique where voltage > 2 limit 2 offset 1')
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 5)
-        tdSql.checkData(1, 1, 19)
+        tdSql.checkData(1, 1, 9)
 
         #having
         tdSql.query('select unique(voltage) from unique group by num having unique(voltage)>5')
@@ -276,7 +276,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(3, 1, 1)
 
-        tdSql.execute('create table unique1 (ts timestamp, voltage bigint,num smallint, dbool bool, dtiny tinyint unsigned, dfloat float, ddouble double, dchar nchar(4093), dbinary binary(64), dtime timestamp) tags (jtag json)')
+        tdSql.execute('create table unique1 (ts timestamp, voltage bigint,num smallint, dbool bool, dtiny tinyint unsigned, dfloat float, ddouble double, dchar nchar(64), dbinary binary(64), dtime timestamp) tags (jtag json)')
         tdSql.execute('create table D011 using unique1 tags (\'{"k1":"v1"}\')')
         tdSql.execute('create table D012 using unique1 tags (\'{"k1":"v1","k2":7}\')')
         tdSql.execute('create table D013 using unique1 tags (\'{"k3":"v3"}\')')
@@ -324,6 +324,14 @@ class TDTestCase:
         tdSql.execute('insert into D021 values("2021-10-17 00:31:31", 1, 2) ("2022-01-24 00:31:31", 1, 2)')
         tdSql.query('select unique(unique.voltage) from unique, unique2 where unique.ts=unique2.ts and unique.groupid=unique2.groupid')
         tdSql.checkRows(1)
+
+        #TD-14104
+        ts = 1642592221000
+        sql = "insert into D004 values"
+        for i in range(3000):
+            sql += " (%d,%d,%d)"%(ts + i*1000, i, i)
+        tdSql.execute(sql)
+        tdSql.query("select unique(num) from (select * from unique)")
 
     def stop(self):
         tdSql.close()

@@ -36,7 +36,6 @@ sql alter dnode 1 tsdbDebugFlag 135
 sql alter dnode 1 sDebugflag 135
 sql alter dnode 1 rpcDebugFlag 135
 sql alter dnode 1 dDebugFlag 135
-sql alter dnode 1 mqttDebugFlag 135
 sql alter dnode 1 wDebugFlag 135
 sql alter dnode 1 tmrDebugFlag 135
 sql_error alter dnode 2 wDebugFlag 135
