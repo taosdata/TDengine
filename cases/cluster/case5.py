@@ -71,7 +71,7 @@ class Case5(ClusterCase):
         '''
         abstract about author
         '''
-        return "fztang"
+        return "wenzhouwww"
 
     def tags(self):
         '''
@@ -81,6 +81,6 @@ class Case5(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<fztang> test case for ... ;
+            [test]<wenzhouwww> test case for restart master and alter schema  ;
         '''
         return case_description
