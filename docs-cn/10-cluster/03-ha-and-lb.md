@@ -2,17 +2,17 @@
 title: 高可用与负载均衡
 ---
 
-## vnode 的高可用性
+## Vnode 的高可用性
 
 TDengine 通过多副本的机制来提供系统的高可用性，包括 vnode 和 mnode 的高可用性。
 
-vnode 的副本数是与 DB 关联的，一个集群里可以有多个 DB，根据运营的需求，每个 DB 可以配置不同的副本数。创建数据库时，通过参数 replica 指定副本数（缺省为 1）。如果副本数为 1，系统的可靠性无法保证，只要数据所在的节点宕机，就将无法提供服务。集群的节点数必须大于等于副本数，否则创建表时将返回错误"more dnodes are needed"。比如下面的命令将创建副本数为 3 的数据库 demo：
+vnode 的副本数是与 DB 关联的，一个集群里可以有多个 DB，根据运营的需求，每个 DB 可以配置不同的副本数。创建数据库时，通过参数 replica 指定副本数（缺省为 1）。如果副本数为 1，系统的可靠性无法保证，只要数据所在的节点宕机，就将无法提供服务。集群的节点数必须大于等于副本数，否则创建表时将返回错误“more dnodes are needed”。比如下面的命令将创建副本数为 3 的数据库 demo：
 
 ```sql
 CREATE DATABASE demo replica 3;
 ```
 
-一个 DB 里的数据会被切片分到多个 vnode group，vnode group 里的 vnode 数目就是 DB 的副本数，同一个 vnode group 里各 vnode 的数据是完全一致的。为保证高可用性，vnode group 里的 vnode 一定要分布在不同的数据节点 dnode 里（实际部署时，需要在不同的物理机上），只要一个 vgroup 里超过半数的 vnode 处于工作状态，这个 vgroup 就能正常的对外服务。
+一个 DB 里的数据会被切片分到多个 vnode group，vnode group 里的 vnode 数目就是 DB 的副本数，同一个 vnode group 里各 vnode 的数据是完全一致的。为保证高可用性，vnode group 里的 vnode 一定要分布在不同的数据节点 dnode 里（实际部署时，需要在不同的物理机上），只要一个 vnode group 里超过半数的 vnode 处于工作状态，这个 vnode group 就能正常的对外服务。
 
 一个数据节点 dnode 里可能有多个 DB 的数据，因此一个 dnode 离线时，可能会影响到多个 DB。如果一个 vnode group 里的一半或一半以上的 vnode 不工作，那么该 vnode group 就无法对外服务，无法插入或读取数据，这样会影响到它所属的 DB 的一部分表的读写操作。
 
@@ -20,7 +20,7 @@ CREATE DATABASE demo replica 3;
 
 ## Mnode 的高可用性
 
-TDengine 集群是由 mnode (taosd 的一个模块，管理节点) 负责管理的，为保证 mnode 的高可用，可以配置多个 mnode 副本，副本数由系统配置参数 numOfMnodes 决定，有效范围为 1-3。为保证元数据的强一致性，mnode 副本之间是通过同步的方式进行数据复制的。
+TDengine 集群是由 mnode（taosd 的一个模块，管理节点）负责管理的，为保证 mnode 的高可用，可以配置多个 mnode 副本，副本数由系统配置参数 numOfMnodes 决定，有效范围为 1-3。为保证元数据的强一致性，mnode 副本之间是通过同步的方式进行数据复制的。
 
 一个集群有多个数据节点 dnode，但一个 dnode 至多运行一个 mnode 实例。多个 dnode 情况下，哪个 dnode 可以作为 mnode 呢？这是完全由系统根据整个系统资源情况，自动指定的。用户可通过 CLI 程序 taos，在 TDengine 的 console 里，执行如下命令：
 
@@ -28,12 +28,12 @@ TDengine 集群是由 mnode (taosd 的一个模块，管理节点) 负责管理�
 SHOW MNODES;
 ```
 
-来查看 mnode 列表，该列表将列出 mnode 所处的 dnode 的 End Point 和角色(master, slave, unsynced 或 offline)。当集群中第一个数据节点启动时，该数据节点一定会运行一个 mnode 实例，否则该数据节点 dnode 无法正常工作，因为一个系统是必须有至少一个 mnode 的。如果 numOfMnodes 配置为 2，启动第二个 dnode 时，该 dnode 也将运行一个 mnode 实例。
+来查看 mnode 列表，该列表将列出 mnode 所处的 dnode 的 End Point 和角色（master，slave，unsynced 或 offline）。当集群中第一个数据节点启动时，该数据节点一定会运行一个 mnode 实例，否则该数据节点 dnode 无法正常工作，因为一个系统是必须有至少一个 mnode 的。如果 numOfMnodes 配置为 2，启动第二个 dnode 时，该 dnode 也将运行一个 mnode 实例。
 
 为保证 mnode 服务的高可用性，numOfMnodes 必须设置为 2 或更大。因为 mnode 保存的元数据必须是强一致的，如果 numOfMnodes 大于 2，复制参数 quorum 自动设为 2，也就是说，至少要保证有两个副本写入数据成功，才通知客户端应用写入成功。
 
 :::note
-一个 TDengine 高可用系统，无论是 vnode 还是 mnode, 都必须配置多个副本。
+一个 TDengine 高可用系统，无论是 vnode 还是 mnode，都必须配置多个副本。
 
 :::
 
@@ -47,7 +47,7 @@ SHOW MNODES;
 当上述三种情况发生时，系统将启动各个数据节点的负载计算，从而决定如何挪动。
 
 :::tip
-负载均衡由参数 balance 控制，它决定是否启动自动负载均衡， 0 表示禁用， 1 表示启用自动负载均衡。\*\*
+负载均衡由参数 balance 控制，它决定是否启动自动负载均衡，0 表示禁用，1 表示启用自动负载均衡。
 
 :::
 
@@ -55,7 +55,7 @@ SHOW MNODES;
 
 如果一个数据节点离线，TDengine 集群将自动检测到。有如下两种情况：
 
-该数据节点离线超过一定时间（taos.cfg 里配置参数 offlineThreshold 控制时长)，系统将自动把该数据节点删除，产生系统报警信息，触发负载均衡流程。如果该被删除的数据节点重新上线时，它将无法加入集群，需要系统管理员重新将其添加进集群才会开始工作。
+该数据节点离线超过一定时间（taos.cfg 里配置参数 offlineThreshold 控制时长），系统将自动把该数据节点删除，产生系统报警信息，触发负载均衡流程。如果该被删除的数据节点重新上线时，它将无法加入集群，需要系统管理员重新将其添加进集群才会开始工作。
 
 离线后，在 offlineThreshold 的时长内重新上线，系统将自动启动数据恢复流程，等数据完全恢复后，该节点将开始正常工作。
 
@@ -79,7 +79,7 @@ Arbitrator 的执行程序名为 tarbitrator。该程序对系统资源几乎没
 
 修改每个 taosd 实例的配置文件，在 taos.cfg 里将参数 arbitrator 设置为 tarbitrator 程序所对应的 End Point。（如果该参数配置了，当副本数为偶数时，系统将自动连接配置的 Arbitrator。如果副本数为奇数，即使配置了 Arbitrator，系统也不会去建立连接。）
 
-在配置文件中配置了的 Arbitrator，会出现在 SHOW DNODES; 指令的返回结果中，对应的 role 列的值会是“arb”。
+在配置文件中配置了的 Arbitrator，会出现在 SHOW DNODES 指令的返回结果中，对应的 role 列的值会是“arb”。
 查看集群 Arbitrator 的状态【2.0.14.0 以后支持】
 
 ```sql
