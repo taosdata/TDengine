@@ -75,7 +75,6 @@ if $data02 != master then
   return -1
 endi
 
-return
 print =============== create drop mnode 1
 sql_error create mnode on dnode 1
 sql_error drop mnode on dnode 1
