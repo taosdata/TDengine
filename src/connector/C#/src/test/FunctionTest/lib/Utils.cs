@@ -158,14 +158,12 @@ namespace Test.UtilsTools
             ExecuteUpdate(conn, "drop database if  exists csharp");
             if (conn != IntPtr.Zero)
             {
-                if (TDengine.Close(conn) == 0)
-                {
-                    Console.WriteLine("close connection success");
-                }
-                else
-                {
-                    Console.WriteLine("close Connection failed");
-                }
+                TDengine.Close(conn);
+                Console.WriteLine("close connection success");
+            }
+            else
+            {
+                 throw new Exception("connection if already null");
             }
         }
         public static List<TDengineMeta> GetResField(IntPtr res)

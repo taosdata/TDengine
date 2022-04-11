@@ -30,7 +30,7 @@ class TDTestCase:
 
         self.ts = 1601481600000
         self.numberOfTables = 1
-        self.numberOfRecords = 15000
+        self.numberOfRecords = 150
 
     def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -47,6 +47,8 @@ class TDTestCase:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
+        if (len(paths) == 0):
+            return ""
         return paths[0]
 
     def generateString(self, length):
@@ -57,6 +59,11 @@ class TDTestCase:
         return v
 
     def run(self):
+        if not os.path.exists("./taosdumptest/tmp"):
+            os.makedirs("./taosdumptest/tmp")
+        else:
+            print("directory exists")
+
         tdSql.prepare()
 
         tdSql.execute("create table st(ts timestamp, c1 timestamp, c2 int, c3 bigint, c4 float, c5 double, c6 binary(8), c7 smallint, c8 tinyint, c9 bool, c10 nchar(8)) tags(t1 int)")
@@ -78,17 +85,17 @@ class TDTestCase:
         else:
             tdLog.info("taosdump found in %s" % binPath)
 
-        os.system("rm /tmp/*.sql")
-        os.system("rm /tmp/*.avro*")
+        os.system("rm ./taosdumptest/tmp/*.sql")
+        os.system("rm ./taosdumptest/tmp/*.avro*")
         os.system(
-            "%s --databases db -o /tmp " %
+            "%s --databases db -o ./taosdumptest/tmp " %
             binPath)
 
         tdSql.execute("drop database db")
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%s -i /tmp -y" % binPath)
+        os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -113,15 +120,15 @@ class TDTestCase:
              self.generateString(16374),
              self.generateString(16374)))
 
-        os.system("rm /tmp/*.sql")
-        os.system("rm /tmp/*.avro*")
-        os.system("%s -D test -o /tmp -y" % binPath)
+        os.system("rm ./taosdumptest/tmp/*.sql")
+        os.system("rm ./taosdumptest/tmp/*.avro*")
+        os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("drop database test")
         tdSql.query("show databases")
         tdSql.checkRows(1)
 
-        os.system("%s -i /tmp -y" % binPath)
+        os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("use test")
         tdSql.error("show vnodes '' ")

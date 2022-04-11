@@ -1,8 +1,7 @@
 ---
 sidebar_label: TDengine + collectd/StatsD + Grafana
+title: 使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统
 ---
-
-# 使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统
 
 ## 背景介绍
 

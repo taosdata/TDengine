@@ -10,7 +10,7 @@ async fn main() -> Result<(), Error> {
     let mut stmt = taos.stmt("INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)")?;
     // bind table name and tags
     stmt.set_tbname_tags(
-        "tb0",
+        "d1001",
         [
             Field::Binary(BString::from("Beijing.Chaoyang")),
             Field::Int(2),

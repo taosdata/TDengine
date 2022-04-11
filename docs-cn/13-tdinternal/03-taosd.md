@@ -1,8 +1,8 @@
 ---
 sidebar_label: taosd 的设计
+title: taosd的设计
 ---
 
-# taosd的设计
 
 逻辑上，TDengine系统包含dnode, taosc和App，dnode是服务器侧执行代码taosd的一个运行实例，因此taosd是TDengine的核心，本文对taosd的设计做一简单的介绍，模块内的实现细节请见其他文档。
 

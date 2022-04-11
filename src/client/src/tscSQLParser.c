@@ -3589,7 +3589,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       pVariant = &pParamElem[2].pNode->value;
-      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+      if (pVariant == NULL || pVariant->nType != TSDB_DATA_TYPE_BINARY) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -4827,7 +4827,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
     };
 
     if (pQueryInfo->colCond == NULL) {
-      pQueryInfo->colCond = taosArrayInit(2, sizeof(SCond));
+      pQueryInfo->colCond = taosArrayInit(2, sizeof(STblCond));
     }
     
     taosArrayPush(pQueryInfo->colCond, &cond);  
@@ -7713,15 +7713,15 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
   const int tokenBalance = 2;
   const int tokenMonitor = 3;
   const int tokenDebugFlag = 4;
-  const int tokenDebugFlagEnd = 20;
-  const int tokenOfflineInterval = 21;
-  const int tokenKeepTimeOffset = 22;
+  const int tokenDebugFlagEnd = 19;
+  const int tokenOfflineInterval = 20;
+  const int tokenKeepTimeOffset = 21;
   const SDNodeDynConfOption cfgOptions[] = {
       {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
       {"debugFlag", 9},   {"monDebugFlag", 12},     {"vDebugFlag", 10}, {"mDebugFlag", 10},
       {"cDebugFlag", 10}, {"httpDebugFlag", 13},    {"qDebugflag", 10}, {"sdbDebugFlag", 12},
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
-      {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
+      {"dDebugFlag", 10}, {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
       {"cqDebugFlag", 11},
       {"offlineInterval", 15},
       {"keepTimeOffset", 14},
