@@ -77,6 +77,8 @@ sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.51', 7)
 $loop_test = 0  
 loop_test_pos:
 
+sql use $dbNamme
+
 # session(ts,5a)
 print ====> select count(*) from dev_001 session(ts,5a)
 sql select _wstartts, count(*) from dev_001 session(ts,5a)
@@ -301,12 +303,17 @@ sql create table dev_001 (ts timestamp ,i timestamp ,j int)
 sql insert into dev_001 values(1623046993681000,now,1)(1623046993681001,now+1s,2)(1623046993681002,now+2s,3)(1623046993681004,now+5s,4)
 print ====> select count(*) from dev_001 session(ts,1u)
 sql select _wstartts, count(*) from dev_001 session(ts,1u)
-if $rows != 2 then
+print rows: $rows
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+if $rows != 4 then
   print expect 2, actual: $rows
   return -1
 endi
 
-if $data01 != 3 then
+if $data01 != 1 then
   return -1
 endi
 
