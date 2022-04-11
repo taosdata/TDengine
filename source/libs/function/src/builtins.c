@@ -383,6 +383,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "cast",
+    .type = FUNCTION_TYPE_CAST,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -586,6 +596,10 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       int32_t paraType  = pParam->node.resType.type;
       int32_t paraBytes = pParam->node.resType.bytes;
       pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
+      break;
+    }
+    case FUNCTION_TYPE_CAST: {
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
       break;
     }
 

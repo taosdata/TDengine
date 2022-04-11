@@ -266,6 +266,8 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
 
   pDataCol->len = 0;
 }
+
+#if 0
 // value from timestamp should be TKEY here instead of TSKEY
 int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL && value != NULL);
@@ -297,7 +299,7 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
   }
   return 0;
 }
-
+#endif
 static FORCE_INLINE const void *tdGetColDataOfRowUnsafe(SDataCol *pCol, int row) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
@@ -314,6 +316,7 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
   return true;
 }
 
+#if 0
 static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->dataOff[index] = pCol->len;
@@ -326,7 +329,7 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   }
 }
 
-static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
+static void dataColSetNEleNull(SDataCol *pCol, int nEle, int8_t bitmapMode) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->len = 0;
     for (int i = 0; i < nEle; ++i) {
@@ -337,7 +340,7 @@ static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
     pCol->len = TYPE_BYTES[pCol->type] * nEle;
   }
 }
-
+#endif
 void *dataColSetOffset(SDataCol *pCol, int nEle) {
   ASSERT(((pCol->type == TSDB_DATA_TYPE_BINARY) || (pCol->type == TSDB_DATA_TYPE_NCHAR)));
 
@@ -364,6 +367,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
   pCols->maxCols = maxCols;
   pCols->numOfRows = 0;
   pCols->numOfCols = 0;
+  // pCols->bitmapMode = 0; // calloc already set 0
 
   if (maxCols > 0) {
     pCols->cols = (SDataCol *)taosMemoryCalloc(maxCols, sizeof(SDataCol));
@@ -472,6 +476,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 void tdResetDataCols(SDataCols *pCols) {
   if (pCols != NULL) {
     pCols->numOfRows = 0;
+    pCols->bitmapMode = 0;
     for (int i = 0; i < pCols->maxCols; ++i) {
       dataColReset(pCols->cols + i);
     }

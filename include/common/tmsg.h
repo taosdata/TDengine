@@ -484,7 +484,7 @@ typedef struct {
   char    intervalUnit;
   char    slidingUnit;
   char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+          offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -589,7 +589,7 @@ int32_t tDeserializeSUseDbRspImp(SCoder* pDecoder, SUseDbRsp* pRsp);
 void    tFreeSUsedbRsp(SUseDbRsp* pRsp);
 
 typedef struct {
-  char    db[TSDB_DB_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
 } SDbCfgReq;
 
 int32_t tSerializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
@@ -621,7 +621,6 @@ typedef struct {
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
 int32_t tDeserializeSDbCfgRsp(void* buf, int32_t bufLen, SDbCfgRsp* pRsp);
-
 
 typedef struct {
   int32_t rowNum;
@@ -1023,10 +1022,12 @@ int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq;
+} SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq, SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq,
+    SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq, SMCreateBnodeReq, SMDropBnodeReq,
+    SDCreateBnodeReq, SDDropBnodeReq;
 
-int32_t tSerializeSMCreateDropMnodeReq(void* buf, int32_t bufLen, SMCreateMnodeReq* pReq);
-int32_t tDeserializeSMCreateDropMnodeReq(void* buf, int32_t bufLen, SMCreateMnodeReq* pReq);
+int32_t tSerializeSCreateDropMQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
+int32_t tDeserializeSCreateDropMQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
   int32_t  dnodeId;
@@ -1036,14 +1037,6 @@ typedef struct {
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
-
-typedef struct {
-  int32_t dnodeId;
-} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq, SMCreateSnodeReq, SMDropSnodeReq,
-    SDCreateSnodeReq, SDDropSnodeReq, SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
-
-int32_t tSerializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
-int32_t tDeserializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
   char    sql[TSDB_SHOW_SQL_LEN];
@@ -2306,6 +2299,22 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
 }
 
 typedef struct {
+  int idx;
+} SMCreateFullTextReq;
+
+int32_t tSerializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
+int32_t tDeserializeSMCreateFullTextReq(void* buf, int32_t bufLen, SMCreateFullTextReq* pReq);
+void    tFreeSMCreateFullTextReq(SMCreateFullTextReq* pReq);
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SMDropFullTextReq;
+
+int32_t tSerializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+int32_t tDeserializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+
+typedef struct {
   char indexFName[TSDB_INDEX_FNAME_LEN];
 } SUserIndexReq;
 
@@ -2339,9 +2348,9 @@ typedef struct {
   int8_t  withSchema;
   char    cgroup[TSDB_CGROUP_LEN];
 
-  int64_t currentOffset;
+  int64_t  currentOffset;
   uint64_t reqId;
-  char    topic[TSDB_TOPIC_FNAME_LEN];
+  char     topic[TSDB_TOPIC_FNAME_LEN];
 } SMqPollReq;
 
 typedef struct {

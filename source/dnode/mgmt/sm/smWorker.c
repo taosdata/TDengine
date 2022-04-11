@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static inline void smSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+static inline void smSendRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
                  .ahandle = pMsg->rpcMsg.ahandle,
                  .code = code,
@@ -28,17 +28,19 @@ static inline void smSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t cod
 static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
-  dTrace("msg:%p, get from snode monitor queue", pMsg);
+  dTrace("msg:%p, get from snode-monitor queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
 
   if (pMsg->rpcMsg.msgType == TDMT_MON_SM_INFO) {
     code = smProcessGetMonSmInfoReq(pMgmt->pWrapper, pMsg);
+  } else {
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
   if (pRpc->msgType & 1U) {
     if (code != 0 && terrno != 0) code = terrno;
-    smSendRsp(pMgmt->pWrapper, pMsg, code);
+    smSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -53,7 +55,7 @@ static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t num
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
 
-    dTrace("msg:%p, will be processed in snode unique queue", pMsg);
+    dTrace("msg:%p, get from snode-unique queue", pMsg);
     sndProcessUMsg(pMgmt->pSnode, &pMsg->rpcMsg);
 
     dTrace("msg:%p, is freed", pMsg);
@@ -65,7 +67,7 @@ static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t num
 static void smProcessSharedQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
-  dTrace("msg:%p, will be processed in snode shared queue", pMsg);
+  dTrace("msg:%p, get from snode-shared queue", pMsg);
   sndProcessSMsg(pMgmt->pSnode, &pMsg->rpcMsg);
 
   dTrace("msg:%p, is freed", pMsg);
@@ -88,7 +90,6 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     }
 
     SMultiWorkerCfg cfg = {.max = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
-
     if (tMultiWorkerInit(pUniqueWorker, &cfg) != 0) {
       dError("failed to start snode-unique worker since %s", terrstr());
       return -1;
@@ -193,7 +194,7 @@ int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessExecMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  int32_t     workerType = smGetSWTypeFromMsg(&pMsg->rpcMsg);
+  int32_t workerType = smGetSWTypeFromMsg(&pMsg->rpcMsg);
   if (workerType == SND_WORKER_TYPE__SHARED) {
     return smProcessSharedMsg(pWrapper, pMsg);
   } else {

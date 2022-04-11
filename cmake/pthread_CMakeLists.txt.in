@@ -3,7 +3,7 @@
 ExternalProject_Add(pthread
         GIT_REPOSITORY https://github.com/GerHobbelt/pthread-win32
         GIT_TAG v3.0.3.1
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/pthread-win32"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/pthread-win32"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""

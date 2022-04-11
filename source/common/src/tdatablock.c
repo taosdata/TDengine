@@ -84,6 +84,14 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
   }
 }
 
+int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return pColumnInfoData->varmeta.length + sizeof(int32_t) * numOfRows;
+  } else {
+    return pColumnInfoData->info.bytes * numOfRows + BitmapLen(numOfRows);
+  }
+}
+
 void colDataTrim(SColumnInfoData* pColumnInfoData) {
   // TODO
 }
@@ -353,13 +361,7 @@ size_t blockDataGetSize(const SSDataBlock* pBlock) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-    total += colDataGetLength(pColInfoData, pBlock->info.rows);
-
-    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      total += sizeof(int32_t) * pBlock->info.rows;
-    } else {
-      total += BitmapLen(pBlock->info.rows);
-    }
+    total += colDataGetFullLength(pColInfoData, pBlock->info.rows);
   }
 
   return total;
@@ -654,10 +656,6 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
   }
 
   return rowSize;
-}
-
-int32_t getAllowedRowsForPage(const SSDataBlock* pBlock, size_t pgSize) {
-  return (int32_t) ((pgSize - blockDataGetSerialMetaSize(pBlock))/ blockDataGetSerialRowSize(pBlock));
 }
 
 typedef struct SSDataBlockSortHelper {
@@ -1071,15 +1069,9 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
-
-  if (pDataBlock->info.hasVarCol) {
-    for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-
-      if (IS_VAR_DATA_TYPE(p->info.type)) {
-        p->varmeta.length = 0;
-      }
-    }
+  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    colInfoDataCleanup(p, pDataBlock->info.capacity);
   }
 }
 
@@ -1120,11 +1112,21 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
   return TSDB_CODE_SUCCESS;
 }
 
+void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+  if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+    pColumn->varmeta.length = 0;
+  } else {
+    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+  }
+}
+
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }
+
+  pDataBlock->info.capacity = numOfRows;
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);

@@ -38,7 +38,6 @@ static int32_t  mndProcessDropDbReq(SNodeMsg *pReq);
 static int32_t  mndProcessUseDbReq(SNodeMsg *pReq);
 static int32_t  mndProcessSyncDbReq(SNodeMsg *pReq);
 static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
-static int32_t  mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetDbCfgReq(SNodeMsg *pReq);
@@ -62,7 +61,6 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetIndexReq);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_DB, mndGetDbMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DB, mndCancelGetNextDb);
 
@@ -381,7 +379,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_CREATE_VNODE;
-      action.acceptableCode = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         return -1;
@@ -412,7 +410,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_DROP_VNODE;
-      action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         return -1;
@@ -880,7 +878,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_DND_DROP_VNODE;
-    action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+    action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
       return -1;
@@ -1040,7 +1038,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   SSdb   *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
-  while (true) {
+  while (1) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
@@ -1340,136 +1338,6 @@ SYNC_DB_OVER:
   mndReleaseUser(pMnode, pUser);
 
   return code;
-}
-
-static int32_t mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pNode;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
-
-  pShow->bytes[cols] = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "vgroups");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "ntables");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "replica");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "quorum");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "days");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "keep0,keep1,keep2");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "cache");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "blocks");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "minrows");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "maxrows");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 1;
-  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  strcpy(pSchema[cols].name, "wallevel");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "fsync");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 1;
-  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  strcpy(pSchema[cols].name, "comp");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 1;
-  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  strcpy(pSchema[cols].name, "cachelast");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 3 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "precision");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  //  pShow->bytes[cols] = 1;
-  //  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  //  strcpy(pSchema[cols].name, "update");
-  //  pSchema[cols].bytes = pShow->bytes[cols];
-  //  cols++;
-
-  pMeta->numOfColumns = cols;
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = sdbGetSize(pSdb, SDB_DB);
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
-  return 0;
 }
 
 char *mnGetDbStr(char *src) {

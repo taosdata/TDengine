@@ -131,12 +131,17 @@ typedef struct {
   STColumn    *columns;
 } STSchemaBuilder;
 
-#define TD_VTYPE_BITS  2  // val type
-#define TD_VTYPE_PARTS 4  // 8 bits / TD_VTYPE_BITS = 4
-#define TD_VTYPE_OPTR  3  // TD_VTYPE_PARTS - 1, utilize to get remainder
+// use 2 bits for bitmap(default: STSRow/sub block)
+#define TD_VTYPE_BITS        2
+#define TD_VTYPE_PARTS       4  // PARTITIONS: 1 byte / 2 bits
+#define TD_VTYPE_OPTR        3  // OPERATOR: 4 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES(cnt) (((cnt) + TD_VTYPE_OPTR) >> 2)
 
-#define TD_BITMAP_BYTES(cnt) (ceil((double)(cnt) / TD_VTYPE_PARTS))
-#define TD_BIT_TO_BYTES(cnt) (ceil((double)(cnt) / 8))
+// use 1 bit for bitmap(super block)
+#define TD_VTYPE_BITS_I        1
+#define TD_VTYPE_PARTS_I       8  // PARTITIONS: 1 byte / 1 bit
+#define TD_VTYPE_OPTR_I        7  // OPERATOR: 8 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES_I(cnt) (((cnt) + TD_VTYPE_OPTR_I) >> 3)
 
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
@@ -367,9 +372,10 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
 // ----------------- Data column structure
 // SDataCol arrangement: data => bitmap => dataOffset
 typedef struct SDataCol {
-  int8_t          type;        // column type
-  uint8_t         bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
-  uint8_t         reserve : 7;
+  int8_t          type;            // column type
+  uint8_t         bitmap : 1;      // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
+  uint8_t         bitmapMode : 1;  // default is 0(2 bits), otherwise 1(1 bit)
+  uint8_t         reserve : 6;
   int16_t         colId;      // column ID
   int32_t         bytes;      // column data bytes defined
   int32_t         offset;     // data offset in a SDataRow (including the header size)
@@ -380,6 +386,8 @@ typedef struct SDataCol {
   void           *pBitmap;    // Bitmap pointer
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
+
+
 
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 #define isAllRowsNone(pCol) ((pCol)->len == 0)
@@ -421,9 +429,13 @@ typedef struct {
   col_id_t  numOfCols;  // Total number of cols
   int32_t   maxPoints;  // max number of points
   int32_t   numOfRows;
-  int32_t   sversion;  // TODO: set sversion
+  int32_t   bitmapMode : 1;  // default is 0(2 bits), otherwise 1(1 bit)
+  int32_t   sversion : 31;   // TODO: set sversion(not used yet)
   SDataCol *cols;
 } SDataCols;
+
+static FORCE_INLINE bool tdDataColsIsBitmapI(SDataCols *pCols) { return pCols->bitmapMode != 0; }
+static FORCE_INLINE void tdDataColsSetBitmapI(SDataCols *pCols) { pCols->bitmapMode = 1; }
 
 #define keyCol(pCols)              (&((pCols)->cols[0]))                    // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]  // the idx row of column-wised data

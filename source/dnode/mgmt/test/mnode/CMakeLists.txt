@@ -1,11 +1,11 @@
 aux_source_directory(. DMTEST_SRC)
-add_executable(dnode_test_mnode ${DMTEST_SRC})
+add_executable(dmnodeTest ${DMTEST_SRC})
 target_link_libraries(
-    dnode_test_mnode
+    dmnodeTest
     PUBLIC sut
 )
 
 add_test(
-    NAME dnode_test_mnode
-    COMMAND dnode_test_mnode
+    NAME dmnodeTest
+    COMMAND dmnodeTest
 )

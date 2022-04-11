@@ -208,12 +208,15 @@ void MonitorTest::GetDiskInfo(SMonDiskInfo *pInfo) {
 void MonitorTest::GetLogInfo(SMonLogs *logs) {
   logs->logs = taosArrayInit(4, sizeof(SMonLogItem));
 
-  SMonLogItem item1 = {.level = DEBUG_INFO};
+  SMonLogItem item1 = {0};
+  item1.level = DEBUG_INFO;
+
   item1.ts = taosGetTimestampMs();
   strcpy(item1.content, "log test1");
   taosArrayPush(logs->logs, &item1);
 
-  SMonLogItem item2 = {.level = DEBUG_ERROR};
+  SMonLogItem item2 = {0};
+  item2.level = DEBUG_ERROR;
   item2.ts = taosGetTimestampMs();
   strcpy(item2.content, "log test2");
   taosArrayPush(logs->logs, &item2);

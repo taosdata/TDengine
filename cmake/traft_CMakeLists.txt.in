@@ -3,8 +3,8 @@
 ExternalProject_Add(traft
         GIT_REPOSITORY https://github.com/taosdata/traft.git
         GIT_TAG for_3.0
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/traft"
-        BINARY_DIR "${CMAKE_CONTRIB_DIR}/traft"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/traft"
+        BINARY_DIR "${TD_CONTRIB_DIR}/traft"
         #BUILD_IN_SOURCE TRUE
         # https://answers.ros.org/question/333125/how-to-include-external-automakeautoconf-projects-into-ament_cmake/
         CONFIGURE_COMMAND COMMAND autoreconf -i COMMAND ./configure

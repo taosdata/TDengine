@@ -8,8 +8,8 @@ ADD_EXECUTABLE(commandTest ${SOURCE_LIST})
 
 TARGET_INCLUDE_DIRECTORIES(
         commandTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/command/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/command/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/command/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/command/inc"
 )
 
 TARGET_LINK_LIBRARIES(
