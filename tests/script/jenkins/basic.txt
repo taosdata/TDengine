@@ -33,6 +33,18 @@
 ./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/charScalarFunction.sim
 
+# ---- qnode
+./test.sh -f tsim/qnode/basic1.sim
+
+# ---- snode
+./test.sh -f tsim/snode/basic1.sim
+
+# ---- bnode
+./test.sh -f tsim/bnode/basic1.sim
+
+# ---- mnode
+./test.sh -f tsim/mnode/basic1.sim
+
 # ---- show
 ./test.sh -f tsim/show/basic.sim
 
@@ -57,7 +69,13 @@
 
 # --- for multi process mode
 ./test.sh -f tsim/user/basic1.sim -m
-./test.sh -f tsim/stable/vnode3.sim -m
+./test.sh -f tsim/db/basic3.sim -m
+./test.sh -f tsim/insert/backquote.sim
+./test.sh -f tsim/parser/fourArithmetic-basic.sim -m
+./test.sh -f tsim/query/interval-offset.sim -m
 ./test.sh -f tsim/tmq/basic.sim -m
+./test.sh -f tsim/stable/vnode3.sim -m
+./test.sh -f tsim/qnode/basic1.sim -m
+./test.sh -f tsim/mnode/basic1.sim -m
 
 #======================b1-end===============

@@ -126,6 +126,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, SArray *pArgs, bool tsc);
 void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
+void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);
 
 struct SConfig *taosGetCfg();
 

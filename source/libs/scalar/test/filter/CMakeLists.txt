@@ -13,6 +13,6 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         filterTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/scalar/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/scalar/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/scalar/inc"
 )

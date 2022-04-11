@@ -98,15 +98,15 @@ if $data01 != 2 then
   return -1
 endi
 
-
-print ====> select count(*) from (select * from dev_001) session(ts,5a)
-sql select _wstartts, count(*) from (select * from dev_001) session(ts,5a)
-if $rows != 15 then
-  return -1
-endi
-if $data01 != 2 then
-  return -1
-endi
+#
+#print ====> select count(*) from (select * from dev_001) session(ts,5a)
+#sql select _wstartts, count(*) from (select * from dev_001) session(ts,5a)
+#if $rows != 15 then
+#  return -1
+#endi
+#if $data01 != 2 then
+#  return -1
+#endi
 
 print ====> select count(*) from dev_001 session(ts,1s)
 sql select _wstartts, count(*) from dev_001 session(ts,1s)
@@ -117,14 +117,14 @@ if $data01 != 5 then
   return -1
 endi
 
-print ====> select count(*) from (select * from dev_001) session(ts,1s)
-sql select _wstartts, count(*) from (select * from dev_001) session(ts,1s)
-if $rows != 12 then
-  return -1
-endi
-if $data01 != 5 then
-  return -1
-endi
+#print ====> select count(*) from (select * from dev_001) session(ts,1s)
+#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1s)
+#if $rows != 12 then
+#  return -1
+#endi
+#if $data01 != 5 then
+#  return -1
+#endi
 
 print ====> select count(*) from dev_001 session(ts,1000a)
 sql select _wstartts, count(*) from dev_001 session(ts,1000a)
@@ -135,14 +135,14 @@ if $data01 != 5 then
   return -1
 endi
 
-print ====> select count(*) from  (select * from dev_001) session(ts,1000a)
-sql select _wstartts, count(*) from  (select * from dev_001) session(ts,1000a)
-if $rows != 12 then
-  return -1
-endi
-if $data01 != 5 then
-  return -1
-endi
+#print ====> select count(*) from  (select * from dev_001) session(ts,1000a)
+#sql select _wstartts, count(*) from  (select * from dev_001) session(ts,1000a)
+#if $rows != 12 then
+#  return -1
+#endi
+#if $data01 != 5 then
+#  return -1
+#endi
 
 print ====> select count(*) from dev_001 session(ts,1m)
 sql select _wstartts, count(*) from dev_001 session(ts,1m)
@@ -153,14 +153,14 @@ if $data01 != 8 then
   return -1
 endi
 
-print ====> select count(*) from (select * from dev_001) session(ts,1m)
-sql select _wstartts, count(*) from (select * from dev_001) session(ts,1m)
-if $rows != 9 then
-  return -1
-endi
-if $data01 != 8 then
-  return -1
-endi
+#print ====> select count(*) from (select * from dev_001) session(ts,1m)
+#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1m)
+#if $rows != 9 then
+#  return -1
+#endi
+#if $data01 != 8 then
+#  return -1
+#endi
 
 print ====> select count(*) from dev_001 session(ts,1h)
 sql select _wstartts, count(*) from dev_001 session(ts,1h)
@@ -171,14 +171,14 @@ if $data01 != 11 then
   return -1
 endi
 
-print ====> select count(*) from (select * from dev_001) session(ts,1h)
-sql select _wstartts, count(*) from (select * from dev_001) session(ts,1h)
-if $rows != 6 then
-  return -1
-endi
-if $data01 != 11 then
-  return -1
-endi
+#print ====> select count(*) from (select * from dev_001) session(ts,1h)
+#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1h)
+#if $rows != 6 then
+#  return -1
+#endi
+#if $data01 != 11 then
+#  return -1
+#endi
 
 print ====> select count(*) from dev_001 session(ts,1d)
 sql select _wstartts, count(*) from dev_001 session(ts,1d)
@@ -189,14 +189,14 @@ if $data01 != 13 then
   return -1
 endi
 
-print ====> select count(*) from (select * from dev_001) session(ts,1d)
-sql select _wstartts, count(*) from (select * from dev_001) session(ts,1d)
-if $rows != 4 then
-  return -1
-endi
-if $data01 != 13 then
-  return -1
-endi
+#print ====> select count(*) from (select * from dev_001) session(ts,1d)
+#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1d)
+#if $rows != 4 then
+#  return -1
+#endi
+#if $data01 != 13 then
+#  return -1
+#endi
 
 print ====> select count(*) from dev_001 session(ts,1w)
 sql select _wstartts, count(*) from dev_001 session(ts,1w)
@@ -207,14 +207,14 @@ if $data01 != 15 then
   return -1
 endi
 
-print ====> select count(*) from (select * from dev_001) session(ts,1w)
-sql select _wstartts, count(*) from (select * from dev_001) session(ts,1w)
-if $rows != 2 then
-  return -1
-endi
-if $data01 != 15 then
-  return -1
-endi
+#print ====> select count(*) from (select * from dev_001) session(ts,1w)
+#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1w)
+#if $rows != 2 then
+#  return -1
+#endi
+#if $data01 != 15 then
+#  return -1
+#endi
 
 
 print ====> leastsquares not supported yet.

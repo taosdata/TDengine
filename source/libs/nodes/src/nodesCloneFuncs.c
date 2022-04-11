@@ -106,7 +106,6 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tableName);
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_CHAR_ARRAY_FIELD(colName);
-  // CLONE_NODE_FIELD(pProjectRef);
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
   return (SNode*)pDst;

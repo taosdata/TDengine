@@ -262,8 +262,9 @@ void cliHandleResp(SCliConn* conn) {
     CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
     if (pMsg == NULL) {
       transMsg.ahandle = transCtxDumpVal(&conn->ctx, transMsg.msgType);
-      tDebug("cli conn %p construct ahandle %p by %d, persist: 1", conn, transMsg.ahandle, transMsg.msgType);
+      tDebug("cli conn %p construct ahandle %p by %s, persist: 1", conn, transMsg.ahandle, TMSG_INFO(transMsg.msgType));
       if (!CONN_RELEASE_BY_SERVER(conn) && transMsg.ahandle == NULL) {
+        transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         transMsg.ahandle = transCtxDumpBrokenlinkVal(&conn->ctx, (int32_t*)&(transMsg.msgType));
         tDebug("cli conn %p construct ahandle %p due brokenlink, persist: 1", conn, transMsg.ahandle);
       }

@@ -127,9 +127,15 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_DROP_INDEX_STMT:
       return makeNode(type, sizeof(SDropIndexStmt));
     case QUERY_NODE_CREATE_QNODE_STMT:
-      return makeNode(type, sizeof(SCreateQnodeStmt));
+    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_SNODE_STMT:
+    case QUERY_NODE_CREATE_MNODE_STMT:
+      return makeNode(type, sizeof(SCreateComponentNodeStmt));
     case QUERY_NODE_DROP_QNODE_STMT:
-      return makeNode(type, sizeof(SDropQnodeStmt));
+    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_SNODE_STMT:
+    case QUERY_NODE_DROP_MNODE_STMT:
+      return makeNode(type, sizeof(SDropComponentNodeStmt));
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return makeNode(type, sizeof(SCreateTopicStmt));
     case QUERY_NODE_DROP_TOPIC_STMT:
@@ -152,6 +158,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
@@ -991,12 +999,18 @@ typedef struct SCollectColumnsCxt {
   int32_t errCode;
   const char* pTableAlias;
   SNodeList* pCols;
-  SHashObj* pColIdHash;
+  SHashObj* pColHash;
 } SCollectColumnsCxt;
 
-static EDealRes doCollect(SCollectColumnsCxt* pCxt, int32_t id, SNode* pNode) {
-  if (NULL == taosHashGet(pCxt->pColIdHash, &id, sizeof(id))) {
-    pCxt->errCode = taosHashPut(pCxt->pColIdHash, &id, sizeof(id), NULL, 0);
+static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pNode) {
+  char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+  int32_t len = 0;
+  if ('\0' == pCol->tableAlias[0]) {
+    len = sprintf(name, "%s", pCol->colName);
+  }
+  len = sprintf(name, "%s.%s", pCol->tableAlias, pCol->colName);
+  if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
+    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       pCxt->errCode = nodesListAppend(pCxt->pCols, pNode);
     }
@@ -1009,9 +1023,8 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
   SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t colId = pCol->colId;
     if (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
-      return doCollect(pCxt, colId, pNode);
+      return doCollect(pCxt, pCol, pNode);
     }
   }
   return DEAL_RES_CONTINUE;
@@ -1026,14 +1039,14 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
     .errCode = TSDB_CODE_SUCCESS,
     .pTableAlias = pTableAlias,
     .pCols = nodesMakeList(),
-    .pColIdHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK)
+    .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)
   };
-  if (NULL == cxt.pCols || NULL == cxt.pColIdHash) {
+  if (NULL == cxt.pCols || NULL == cxt.pColHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
-  taosHashCleanup(cxt.pColIdHash);
+  taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesClearList(cxt.pCols);
     return cxt.errCode;

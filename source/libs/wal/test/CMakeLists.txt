@@ -5,7 +5,7 @@ target_sources(walTest
 )
 target_include_directories(walTest
     PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/libs/wal"
+    "${TD_SOURCE_DIR}/include/libs/wal"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 

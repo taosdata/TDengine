@@ -18,14 +18,14 @@
 #include "executorimpl.h"
 #include "planner.h"
 #include "tcompression.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tqueue.h"
-#include "tdatablock.h"
 
 typedef struct SDataDispatchBuf {
   int32_t useSize;
   int32_t allocSize;
-  char* pData;
+  char*   pData;
 } SDataDispatchBuf;
 
 typedef struct SDataCacheEntry {
@@ -36,77 +36,31 @@ typedef struct SDataCacheEntry {
 } SDataCacheEntry;
 
 typedef struct SDataDispatchHandle {
-  SDataSinkHandle sink;
-  SDataSinkManager* pManager;
+  SDataSinkHandle     sink;
+  SDataSinkManager*   pManager;
   SDataBlockDescNode* pSchema;
-  STaosQueue* pDataBlocks;
-  SDataDispatchBuf nextOutput;
-  int32_t status;
-  bool queryEnd;
-  uint64_t useconds;
-  TdThreadMutex mutex;
+  STaosQueue*         pDataBlocks;
+  SDataDispatchBuf    nextOutput;
+  int32_t             status;
+  bool                queryEnd;
+  uint64_t            useconds;
+  TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
-static bool needCompress(const SSDataBlock* pData, const SDataBlockDescNode* pSchema) {
+static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
   if (tsCompressColData < 0 || 0 == pData->info.rows) {
     return false;
   }
 
-  int32_t numOfCols = LIST_LENGTH(pSchema->pSlots);
   for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = taosArrayGet(pData->pDataBlock, col);
-    int32_t colSize = pColRes->info.bytes * pData->info.rows;
+    int32_t          colSize = pColRes->info.bytes * pData->info.rows;
     if (NEEDTO_COMPRESS_QUERY(colSize)) {
       return true;
     }
   }
 
   return false;
-}
-
-static int32_t compressColData(SColumnInfoData *pColRes, int32_t numOfRows, char *data, int8_t compressed) {
-  int32_t colSize = colDataGetLength(pColRes, numOfRows);
-  return (*(tDataTypes[pColRes->info.type].compFunc))(
-      pColRes->pData, colSize, numOfRows, data, colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
-}
-
-static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema, char* data, int8_t compressed, int32_t * dataLen) {
-  int32_t numOfCols = LIST_LENGTH(pSchema->pSlots);
-  int32_t * colSizes = (int32_t*)data;
-
-  data += numOfCols * sizeof(int32_t);
-  *dataLen = (numOfCols * sizeof(int32_t));
-
-  int32_t numOfRows = pInput->pData->info.rows;
-  for (int32_t col = 0; col < numOfCols; ++col) {
-    SColumnInfoData* pColRes = taosArrayGet(pInput->pData->pDataBlock, col);
-
-    // copy the null bitmap
-    if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
-      size_t metaSize = numOfRows * sizeof(int32_t);
-      memcpy(data, pColRes->varmeta.offset, metaSize);
-      data += metaSize;
-      (*dataLen) += metaSize;
-    } else {
-      int32_t len = BitmapLen(numOfRows);
-      memcpy(data, pColRes->nullbitmap, len);
-      data += len;
-      (*dataLen) += len;
-    }
-
-    if (compressed) {
-      colSizes[col] = compressColData(pColRes, numOfRows, data, compressed);
-      data += colSizes[col];
-      (*dataLen) += colSizes[col];
-    } else {
-      colSizes[col] = colDataGetLength(pColRes, numOfRows);
-      (*dataLen) += colSizes[col];
-      memmove(data, pColRes->pData, colSizes[col]);
-      data += colSizes[col];
-    }
-
-    colSizes[col] = htonl(colSizes[col]);
-  }
 }
 
 // data format:
@@ -117,16 +71,17 @@ static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
+  int32_t numOfCols = LIST_LENGTH(pHandle->pSchema->pSlots);
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
-  pEntry->compressed = (int8_t)needCompress(pInput->pData, pHandle->pSchema);
-  pEntry->numOfRows  = pInput->pData->info.rows;
-  pEntry->dataLen    = 0;
+  pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
+  pEntry->numOfRows = pInput->pData->info.rows;
+  pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SRetrieveTableRsp);
-  copyData(pInput, pHandle->pSchema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
+  blockCompressEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
 
-  pEntry->dataLen = pEntry->dataLen;
-  pBuf->useSize  += pEntry->dataLen;
+  pBuf->useSize += pEntry->dataLen;
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -139,8 +94,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
   // NOTE: there are four bytes of an integer more than the required buffer space.
   // struct size + data payload + length for each column + bitmap length
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) +
-      ceil(blockDataGetSerialRowSize(pInput->pData) * pInput->pData->info.rows);
+  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) + blockDataGetSize(pInput->pData);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -153,8 +107,9 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
   taosThreadMutexLock(&pDispatcher->mutex);
   int32_t blockNums = taosQueueSize(pDispatcher->pDataBlocks);
-  int32_t status = (0 == blockNums ? DS_BUF_EMPTY :
-      (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
+  int32_t status =
+      (0 == blockNums ? DS_BUF_EMPTY
+                      : (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
   pDispatcher->status = status;
   taosThreadMutexUnlock(&pDispatcher->mutex);
   return status;
@@ -169,7 +124,7 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  SDataDispatchBuf* pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf));
+  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf));
   if (NULL == pBuf || !allocBuf(pDispatcher, pInput, pBuf)) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -200,7 +155,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
   memcpy(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
   taosFreeQitem(pBuf);
   *pLen = ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->dataLen;
-  *pQueryEnd = pDispatcher->queryEnd;    
+  *pQueryEnd = pDispatcher->queryEnd;
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {

@@ -99,6 +99,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
 #define TSDB_INS_TABLE_QNODES                 "qnodes"
+#define TSDB_INS_TABLE_BNODES                 "bnodes"
+#define TSDB_INS_TABLE_CLUSTER                "cluster"
 #define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
 #define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
@@ -108,6 +110,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
+#define TSDB_INS_TABLE_BNODES                 "bnodes"
+#define TSDB_INS_TABLE_SNODES                 "snodes"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"

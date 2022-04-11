@@ -151,6 +151,7 @@ print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/
 system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2"
 print cmd result----> $system_content
 if $system_content != @{consume success: 20, 0}@ then
+  print expect @{consume success: 20, 0}@, actual: $system_content
   return -1
 endi
 

@@ -205,9 +205,11 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
 
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
-  SNode* tmp = ((SRawExprNode*)pNode)->pNode;
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode* pExpr = pRawExpr->pNode;
+  strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
   taosMemoryFreeClear(pNode);
-  return tmp;
+  return pExpr;
 }
 
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
@@ -247,6 +249,26 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   }
   strncpy(col->colName, pColumnName->z, pColumnName->n);
   return (SNode*)col;
+}
+
+SNodeList* addValueNodeFromTypeToList(SAstCreateContext* pCxt, SDataType dataType, SNodeList* pList) {
+  char buf[64] = {0};
+  //add value node for type
+  snprintf(buf, sizeof(buf), "%u", dataType.type);
+  SToken token = {.type = TSDB_DATA_TYPE_TINYINT, .n = strlen(buf), .z = buf};
+  SNode* pNode = createValueNode(pCxt, token.type, &token);
+  addNodeToList(pCxt, pList, pNode);
+
+  //add value node for bytes
+  memset(buf, 0, sizeof(buf));
+  snprintf(buf, sizeof(buf), "%u", dataType.bytes);
+  token.type = TSDB_DATA_TYPE_BIGINT;
+  token.n = strlen(buf);
+  token.z = buf;
+  pNode = createValueNode(pCxt, token.type, &token);
+  addNodeToList(pCxt, pList, pNode);
+
+  return pList;
 }
 
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
@@ -1034,15 +1056,15 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   return (SNode*)pStmt;
 }
 
-SNode* createCreateQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
-  SCreateQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_QNODE_STMT);
+SNode* createCreateComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  SCreateComponentNodeStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
   return (SNode*)pStmt;
 }
 
-SNode* createDropQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
-  SDropQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_QNODE_STMT);
+SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  SDropComponentNodeStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
   return (SNode*)pStmt;

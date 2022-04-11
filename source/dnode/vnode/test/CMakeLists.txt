@@ -11,7 +11,7 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 # )
 # target_include_directories(tqTest
 #     PUBLIC
-#     "${CMAKE_SOURCE_DIR}/include/server/vnode/tq"
+#     "${TD_SOURCE_DIR}/include/server/vnode/tq"
 #     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
 
@@ -33,7 +33,7 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 # TARGET_INCLUDE_DIRECTORIES(
 #         tsdbSmaTest
-#         PUBLIC "${CMAKE_SOURCE_DIR}/include/common"
+#         PUBLIC "${TD_SOURCE_DIR}/include/common"
 #         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
 #         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )

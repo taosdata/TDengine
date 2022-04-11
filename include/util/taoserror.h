@@ -64,31 +64,35 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RPC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0016)
 
 //common & util
-#define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
-#define TSDB_CODE_OUT_OF_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0101)
-#define TSDB_CODE_OUT_OF_RANGE                  TAOS_DEF_ERROR_CODE(0, 0x0102)
-#define TSDB_CODE_INVALID_PTR                   TAOS_DEF_ERROR_CODE(0, 0x0103)
-#define TSDB_CODE_MEMORY_CORRUPTED              TAOS_DEF_ERROR_CODE(0, 0x0104)
-#define TSDB_CODE_FILE_CORRUPTED                TAOS_DEF_ERROR_CODE(0, 0x0106)
-#define TSDB_CODE_CHECKSUM_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0107)
-#define TSDB_CODE_INVALID_MSG                   TAOS_DEF_ERROR_CODE(0, 0x0108)
-#define TSDB_CODE_MSG_NOT_PROCESSED             TAOS_DEF_ERROR_CODE(0, 0x0109)
-#define TSDB_CODE_INVALID_PARA                  TAOS_DEF_ERROR_CODE(0, 0x010A)
-#define TSDB_CODE_REPEAT_INIT                   TAOS_DEF_ERROR_CODE(0, 0x010B)
-#define TSDB_CODE_CFG_NOT_FOUND                 TAOS_DEF_ERROR_CODE(0, 0x010C)
-#define TSDB_CODE_INVALID_CFG                   TAOS_DEF_ERROR_CODE(0, 0x010D)
-#define TSDB_CODE_OUT_OF_SHM_MEM                TAOS_DEF_ERROR_CODE(0, 0x010E)
-#define TSDB_CODE_INVALID_SHM_ID                TAOS_DEF_ERROR_CODE(0, 0x010F)
-#define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0110)
-#define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0111)
-#define TSDB_CODE_REF_ID_REMOVED                TAOS_DEF_ERROR_CODE(0, 0x0112)
-#define TSDB_CODE_REF_INVALID_ID                TAOS_DEF_ERROR_CODE(0, 0x0113)
-#define TSDB_CODE_REF_ALREADY_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0114)
-#define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x0115)
-#define TSDB_CODE_INVALID_VERSION_NUMBER        TAOS_DEF_ERROR_CODE(0, 0x0120)
-#define TSDB_CODE_INVALID_VERSION_STRING        TAOS_DEF_ERROR_CODE(0, 0x0121)
-#define TSDB_CODE_VERSION_NOT_COMPATIBLE        TAOS_DEF_ERROR_CODE(0, 0x0122)
-#define TSDB_CODE_COMPRESS_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0123)
+#define TSDB_CODE_OUT_OF_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0100)
+#define TSDB_CODE_OUT_OF_RANGE                  TAOS_DEF_ERROR_CODE(0, 0x0101)
+#define TSDB_CODE_OUT_OF_SHM_MEM                TAOS_DEF_ERROR_CODE(0, 0x0102)
+#define TSDB_CODE_INVALID_SHM_ID                TAOS_DEF_ERROR_CODE(0, 0x0103)
+#define TSDB_CODE_INVALID_PTR                   TAOS_DEF_ERROR_CODE(0, 0x0104)
+#define TSDB_CODE_INVALID_MSG                   TAOS_DEF_ERROR_CODE(0, 0x0105)
+#define TSDB_CODE_INVALID_MSG_LEN               TAOS_DEF_ERROR_CODE(0, 0x0106)
+#define TSDB_CODE_INVALID_PARA                  TAOS_DEF_ERROR_CODE(0, 0x0107)
+#define TSDB_CODE_INVALID_CFG                   TAOS_DEF_ERROR_CODE(0, 0x0108)
+#define TSDB_CODE_INVALID_OPTION                TAOS_DEF_ERROR_CODE(0, 0x0109)
+#define TSDB_CODE_INVALID_JSON_FORMAT           TAOS_DEF_ERROR_CODE(0, 0x010A)
+#define TSDB_CODE_INVALID_VERSION_NUMBER        TAOS_DEF_ERROR_CODE(0, 0x010B)
+#define TSDB_CODE_INVALID_VERSION_STRING        TAOS_DEF_ERROR_CODE(0, 0x010C)
+#define TSDB_CODE_VERSION_NOT_COMPATIBLE        TAOS_DEF_ERROR_CODE(0, 0x010D)
+#define TSDB_CODE_MEMORY_CORRUPTED              TAOS_DEF_ERROR_CODE(0, 0x010E)
+#define TSDB_CODE_FILE_CORRUPTED                TAOS_DEF_ERROR_CODE(0, 0x010F)
+#define TSDB_CODE_CHECKSUM_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0110)
+#define TSDB_CODE_COMPRESS_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0111)
+#define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0112)
+#define TSDB_CODE_MSG_NOT_PROCESSED             TAOS_DEF_ERROR_CODE(0, 0x0113)
+#define TSDB_CODE_CFG_NOT_FOUND                 TAOS_DEF_ERROR_CODE(0, 0x0114)
+#define TSDB_CODE_REPEAT_INIT                   TAOS_DEF_ERROR_CODE(0, 0x0115)
+
+#define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0140)
+#define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0141)
+#define TSDB_CODE_REF_ID_REMOVED                TAOS_DEF_ERROR_CODE(0, 0x0152)
+#define TSDB_CODE_REF_INVALID_ID                TAOS_DEF_ERROR_CODE(0, 0x0153)
+#define TSDB_CODE_REF_ALREADY_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0154)
+#define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x0155)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
@@ -191,6 +195,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_SNODE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x0355)
 #define TSDB_CODE_MND_BNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0356)
 #define TSDB_CODE_MND_BNODE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x0357)
+#define TSDB_CODE_MND_TOO_FEW_MNODES            TAOS_DEF_ERROR_CODE(0, 0x0358)
+#define TSDB_CODE_MND_MNODE_DEPLOYED            TAOS_DEF_ERROR_CODE(0, 0x0359)
+#define TSDB_CODE_MND_CANT_DROP_MASTER          TAOS_DEF_ERROR_CODE(0, 0x035A)
 
 // mnode-acct
 #define TSDB_CODE_MND_ACCT_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0360)
@@ -279,22 +286,15 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_STREAM_OPTION     TAOS_DEF_ERROR_CODE(0, 0x03F2)
 
 // mnode-sma
-#define TSDB_CODE_MND_SMA_ALREADY_EXIST         TAOS_DEF_ERROR_CODE(0, 0x0400)
-#define TSDB_CODE_MND_SMA_NOT_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0401)
-#define TSDB_CODE_MND_INVALID_SMA_OPTION        TAOS_DEF_ERROR_CODE(0, 0x0402)
+#define TSDB_CODE_MND_SMA_ALREADY_EXIST         TAOS_DEF_ERROR_CODE(0, 0x0480)
+#define TSDB_CODE_MND_SMA_NOT_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0481)
+#define TSDB_CODE_MND_INVALID_SMA_OPTION        TAOS_DEF_ERROR_CODE(0, 0x0482)
 
 // dnode
-#define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x04A0)
-#define TSDB_CODE_DND_OFFLINE                   TAOS_DEF_ERROR_CODE(0, 0x04A1)
-#define TSDB_CODE_DND_INVALID_MSG_LEN           TAOS_DEF_ERROR_CODE(0, 0x04A2)
-#define TSDB_CODE_NODE_ALREADY_DEPLOYED         TAOS_DEF_ERROR_CODE(0, 0x04A3)
-#define TSDB_CODE_NODE_NOT_DEPLOYED             TAOS_DEF_ERROR_CODE(0, 0x04A4)
-#define TSDB_CODE_NODE_PARSE_FILE_ERROR         TAOS_DEF_ERROR_CODE(0, 0x04A5)
-#define TSDB_CODE_NODE_INVALID_OPTION           TAOS_DEF_ERROR_CODE(0, 0x04A6)
-#define TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED    TAOS_DEF_ERROR_CODE(0, 0x04A7)
-#define TSDB_CODE_DND_VNODE_NOT_DEPLOYED        TAOS_DEF_ERROR_CODE(0, 0x04A8)
-#define TSDB_CODE_DND_VNODE_INVALID_OPTION      TAOS_DEF_ERROR_CODE(0, 0x04A9)
-#define TSDB_CODE_DND_VNODE_TOO_MANY_VNODES     TAOS_DEF_ERROR_CODE(0, 0x04AA)
+#define TSDB_CODE_NODE_REDIRECT                 TAOS_DEF_ERROR_CODE(0, 0x0400)
+#define TSDB_CODE_NODE_OFFLINE                  TAOS_DEF_ERROR_CODE(0, 0x0401)
+#define TSDB_CODE_NODE_ALREADY_DEPLOYED         TAOS_DEF_ERROR_CODE(0, 0x0403)
+#define TSDB_CODE_NODE_NOT_DEPLOYED             TAOS_DEF_ERROR_CODE(0, 0x0404)
 
 // vnode
 #define TSDB_CODE_VND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0500)
@@ -427,6 +427,108 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_WAL_SIZE_LIMIT                TAOS_DEF_ERROR_CODE(0, 0x1002)
 #define TSDB_CODE_WAL_INVALID_VER               TAOS_DEF_ERROR_CODE(0, 0x1003)
 #define TSDB_CODE_WAL_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x1004)
+
+// http
+#define TSDB_CODE_HTTP_SERVER_OFFLINE           TAOS_DEF_ERROR_CODE(0, 0x1100)  //"http server is not online"
+#define TSDB_CODE_HTTP_UNSUPPORT_URL            TAOS_DEF_ERROR_CODE(0, 0x1101)  //"url is not support"
+#define TSDB_CODE_HTTP_INVALID_URL              TAOS_DEF_ERROR_CODE(0, 0x1102)  //invalid url format"
+#define TSDB_CODE_HTTP_NO_ENOUGH_MEMORY         TAOS_DEF_ERROR_CODE(0, 0x1103)  //"no enough memory"
+#define TSDB_CODE_HTTP_REQUSET_TOO_BIG          TAOS_DEF_ERROR_CODE(0, 0x1104)  //"request size is too big"
+#define TSDB_CODE_HTTP_NO_AUTH_INFO             TAOS_DEF_ERROR_CODE(0, 0x1105)  //"no auth info input"
+#define TSDB_CODE_HTTP_NO_MSG_INPUT             TAOS_DEF_ERROR_CODE(0, 0x1106)  //"request is empty"
+#define TSDB_CODE_HTTP_NO_SQL_INPUT             TAOS_DEF_ERROR_CODE(0, 0x1107)  //"no sql input"
+#define TSDB_CODE_HTTP_NO_EXEC_USEDB            TAOS_DEF_ERROR_CODE(0, 0x1108)  //"no need to execute use db cmd"
+#define TSDB_CODE_HTTP_SESSION_FULL             TAOS_DEF_ERROR_CODE(0, 0x1109)  //"session list was full"
+#define TSDB_CODE_HTTP_GEN_TAOSD_TOKEN_ERR      TAOS_DEF_ERROR_CODE(0, 0x110A)  //"generate taosd token error"
+#define TSDB_CODE_HTTP_INVALID_MULTI_REQUEST    TAOS_DEF_ERROR_CODE(0, 0x110B)  //"size of multi request is 0"
+#define TSDB_CODE_HTTP_CREATE_GZIP_FAILED       TAOS_DEF_ERROR_CODE(0, 0x110C)  //"failed to create gzip"
+#define TSDB_CODE_HTTP_FINISH_GZIP_FAILED       TAOS_DEF_ERROR_CODE(0, 0x110D)  //"failed to finish gzip"
+#define TSDB_CODE_HTTP_LOGIN_FAILED             TAOS_DEF_ERROR_CODE(0, 0x110E)  //"failed to login"
+
+#define TSDB_CODE_HTTP_INVALID_VERSION          TAOS_DEF_ERROR_CODE(0, 0x1120)  //"invalid http version"
+#define TSDB_CODE_HTTP_INVALID_CONTENT_LENGTH   TAOS_DEF_ERROR_CODE(0, 0x1121)  //"invalid content length"
+#define TSDB_CODE_HTTP_INVALID_AUTH_TYPE        TAOS_DEF_ERROR_CODE(0, 0x1122)  //"invalid type of Authorization"
+#define TSDB_CODE_HTTP_INVALID_AUTH_FORMAT      TAOS_DEF_ERROR_CODE(0, 0x1123)  //"invalid format of Authorization"
+#define TSDB_CODE_HTTP_INVALID_BASIC_AUTH       TAOS_DEF_ERROR_CODE(0, 0x1124)  //"invalid basic Authorization"
+#define TSDB_CODE_HTTP_INVALID_TAOSD_AUTH       TAOS_DEF_ERROR_CODE(0, 0x1125)  //"invalid taosd Authorization"
+#define TSDB_CODE_HTTP_PARSE_METHOD_FAILED      TAOS_DEF_ERROR_CODE(0, 0x1126)  //"failed to parse method"
+#define TSDB_CODE_HTTP_PARSE_TARGET_FAILED      TAOS_DEF_ERROR_CODE(0, 0x1127)  //"failed to parse target"
+#define TSDB_CODE_HTTP_PARSE_VERSION_FAILED     TAOS_DEF_ERROR_CODE(0, 0x1128)  //"failed to parse http version"
+#define TSDB_CODE_HTTP_PARSE_SP_FAILED          TAOS_DEF_ERROR_CODE(0, 0x1129)  //"failed to parse sp"
+#define TSDB_CODE_HTTP_PARSE_STATUS_FAILED      TAOS_DEF_ERROR_CODE(0, 0x112A)  //"failed to parse status"
+#define TSDB_CODE_HTTP_PARSE_PHRASE_FAILED      TAOS_DEF_ERROR_CODE(0, 0x112B)  //"failed to parse phrase"
+#define TSDB_CODE_HTTP_PARSE_CRLF_FAILED        TAOS_DEF_ERROR_CODE(0, 0x112C)  //"failed to parse crlf"
+#define TSDB_CODE_HTTP_PARSE_HEADER_FAILED      TAOS_DEF_ERROR_CODE(0, 0x112D)  //"failed to parse header"
+#define TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED  TAOS_DEF_ERROR_CODE(0, 0x112E)  //"failed to parse header key"
+#define TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED  TAOS_DEF_ERROR_CODE(0, 0x112F)  //"failed to parse header val"
+#define TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED  TAOS_DEF_ERROR_CODE(0, 0x1130)  //"failed to parse chunk size"
+#define TSDB_CODE_HTTP_PARSE_CHUNK_FAILED       TAOS_DEF_ERROR_CODE(0, 0x1131)  //"failed to parse chunk"
+#define TSDB_CODE_HTTP_PARSE_END_FAILED         TAOS_DEF_ERROR_CODE(0, 0x1132)  //"failed to parse end section"
+#define TSDB_CODE_HTTP_PARSE_INVALID_STATE      TAOS_DEF_ERROR_CODE(0, 0x1134)  //"invalid parse state"
+#define TSDB_CODE_HTTP_PARSE_ERROR_STATE        TAOS_DEF_ERROR_CODE(0, 0x1135)  //"failed to parse error section"
+
+#define TSDB_CODE_HTTP_GC_QUERY_NULL            TAOS_DEF_ERROR_CODE(0, 0x1150)  //"query size is 0"
+#define TSDB_CODE_HTTP_GC_QUERY_SIZE            TAOS_DEF_ERROR_CODE(0, 0x1151)  //"query size can not more than 100"
+#define TSDB_CODE_HTTP_GC_REQ_PARSE_ERROR       TAOS_DEF_ERROR_CODE(0, 0x1152)  //"parse grafana json error"
+
+#define TSDB_CODE_HTTP_TG_DB_NOT_INPUT          TAOS_DEF_ERROR_CODE(0, 0x1160)  //"database name can not be null"
+#define TSDB_CODE_HTTP_TG_DB_TOO_LONG           TAOS_DEF_ERROR_CODE(0, 0x1161)  //"database name too long"
+#define TSDB_CODE_HTTP_TG_INVALID_JSON          TAOS_DEF_ERROR_CODE(0, 0x1162)  //"invalid telegraf json fromat"
+#define TSDB_CODE_HTTP_TG_METRICS_NULL          TAOS_DEF_ERROR_CODE(0, 0x1163)  //"metrics size is 0"
+#define TSDB_CODE_HTTP_TG_METRICS_SIZE          TAOS_DEF_ERROR_CODE(0, 0x1164)  //"metrics size can not more than 1K"
+#define TSDB_CODE_HTTP_TG_METRIC_NULL           TAOS_DEF_ERROR_CODE(0, 0x1165)  //"metric name not find"
+#define TSDB_CODE_HTTP_TG_METRIC_TYPE           TAOS_DEF_ERROR_CODE(0, 0x1166)  //"metric name type should be string"
+#define TSDB_CODE_HTTP_TG_METRIC_NAME_NULL      TAOS_DEF_ERROR_CODE(0, 0x1167)  //"metric name length is 0"
+#define TSDB_CODE_HTTP_TG_METRIC_NAME_LONG      TAOS_DEF_ERROR_CODE(0, 0x1168)  //"metric name length too long"
+#define TSDB_CODE_HTTP_TG_TIMESTAMP_NULL        TAOS_DEF_ERROR_CODE(0, 0x1169)  //"timestamp not find"
+#define TSDB_CODE_HTTP_TG_TIMESTAMP_TYPE        TAOS_DEF_ERROR_CODE(0, 0x116A)  //"timestamp type should be integer"
+#define TSDB_CODE_HTTP_TG_TIMESTAMP_VAL_NULL    TAOS_DEF_ERROR_CODE(0, 0x116B)  //"timestamp value smaller than 0"
+#define TSDB_CODE_HTTP_TG_TAGS_NULL             TAOS_DEF_ERROR_CODE(0, 0x116C)  //"tags not find"
+#define TSDB_CODE_HTTP_TG_TAGS_SIZE_0           TAOS_DEF_ERROR_CODE(0, 0x116D)  //"tags size is 0"
+#define TSDB_CODE_HTTP_TG_TAGS_SIZE_LONG        TAOS_DEF_ERROR_CODE(0, 0x116E)  //"tags size too long"
+#define TSDB_CODE_HTTP_TG_TAG_NULL              TAOS_DEF_ERROR_CODE(0, 0x116F)  //"tag is null"
+#define TSDB_CODE_HTTP_TG_TAG_NAME_NULL         TAOS_DEF_ERROR_CODE(0, 0x1170)  //"tag name is null"
+#define TSDB_CODE_HTTP_TG_TAG_NAME_SIZE         TAOS_DEF_ERROR_CODE(0, 0x1171)  //"tag name length too long"
+#define TSDB_CODE_HTTP_TG_TAG_VALUE_TYPE        TAOS_DEF_ERROR_CODE(0, 0x1172)  //"tag value type should be number or string"
+#define TSDB_CODE_HTTP_TG_TAG_VALUE_NULL        TAOS_DEF_ERROR_CODE(0, 0x1173)  //"tag value is null"
+#define TSDB_CODE_HTTP_TG_TABLE_NULL            TAOS_DEF_ERROR_CODE(0, 0x1174)  //"table is null"
+#define TSDB_CODE_HTTP_TG_TABLE_SIZE            TAOS_DEF_ERROR_CODE(0, 0x1175)  //"table name length too long"
+#define TSDB_CODE_HTTP_TG_FIELDS_NULL           TAOS_DEF_ERROR_CODE(0, 0x1176)  //"fields not find"
+#define TSDB_CODE_HTTP_TG_FIELDS_SIZE_0         TAOS_DEF_ERROR_CODE(0, 0x1177)  //"fields size is 0"
+#define TSDB_CODE_HTTP_TG_FIELDS_SIZE_LONG      TAOS_DEF_ERROR_CODE(0, 0x1178)  //"fields size too long"
+#define TSDB_CODE_HTTP_TG_FIELD_NULL            TAOS_DEF_ERROR_CODE(0, 0x1179)  //"field is null"
+#define TSDB_CODE_HTTP_TG_FIELD_NAME_NULL       TAOS_DEF_ERROR_CODE(0, 0x117A)  //"field name is null"
+#define TSDB_CODE_HTTP_TG_FIELD_NAME_SIZE       TAOS_DEF_ERROR_CODE(0, 0x117B)  //"field name length too long"
+#define TSDB_CODE_HTTP_TG_FIELD_VALUE_TYPE      TAOS_DEF_ERROR_CODE(0, 0x117C)  //"field value type should be number or string"
+#define TSDB_CODE_HTTP_TG_FIELD_VALUE_NULL      TAOS_DEF_ERROR_CODE(0, 0x117D)  //"field value is null"
+#define TSDB_CODE_HTTP_TG_HOST_NOT_STRING       TAOS_DEF_ERROR_CODE(0, 0x117E)  //"host type should be string"
+#define TSDB_CODE_HTTP_TG_STABLE_NOT_EXIST      TAOS_DEF_ERROR_CODE(0, 0x117F)  //"stable not exist"
+
+#define TSDB_CODE_HTTP_OP_DB_NOT_INPUT          TAOS_DEF_ERROR_CODE(0, 0x1190)  //"database name can not be null"
+#define TSDB_CODE_HTTP_OP_DB_TOO_LONG           TAOS_DEF_ERROR_CODE(0, 0x1191)  //"database name too long"
+#define TSDB_CODE_HTTP_OP_INVALID_JSON          TAOS_DEF_ERROR_CODE(0, 0x1192)  //"invalid opentsdb json fromat"
+#define TSDB_CODE_HTTP_OP_METRICS_NULL          TAOS_DEF_ERROR_CODE(0, 0x1193)  //"metrics size is 0"
+#define TSDB_CODE_HTTP_OP_METRICS_SIZE          TAOS_DEF_ERROR_CODE(0, 0x1194)  //"metrics size can not more than 10K"
+#define TSDB_CODE_HTTP_OP_METRIC_NULL           TAOS_DEF_ERROR_CODE(0, 0x1195)  //"metric name not find"
+#define TSDB_CODE_HTTP_OP_METRIC_TYPE           TAOS_DEF_ERROR_CODE(0, 0x1196)  //"metric name type should be string"
+#define TSDB_CODE_HTTP_OP_METRIC_NAME_NULL      TAOS_DEF_ERROR_CODE(0, 0x1197)  //"metric name length is 0"
+#define TSDB_CODE_HTTP_OP_METRIC_NAME_LONG      TAOS_DEF_ERROR_CODE(0, 0x1198)  //"metric name length can not more than 22"
+#define TSDB_CODE_HTTP_OP_TIMESTAMP_NULL        TAOS_DEF_ERROR_CODE(0, 0x1199)  //"timestamp not find"
+#define TSDB_CODE_HTTP_OP_TIMESTAMP_TYPE        TAOS_DEF_ERROR_CODE(0, 0x119A)  //"timestamp type should be integer"
+#define TSDB_CODE_HTTP_OP_TIMESTAMP_VAL_NULL    TAOS_DEF_ERROR_CODE(0, 0x119B)  //"timestamp value smaller than 0"
+#define TSDB_CODE_HTTP_OP_TAGS_NULL             TAOS_DEF_ERROR_CODE(0, 0x119C)  //"tags not find"
+#define TSDB_CODE_HTTP_OP_TAGS_SIZE_0           TAOS_DEF_ERROR_CODE(0, 0x119D)  //"tags size is 0"
+#define TSDB_CODE_HTTP_OP_TAGS_SIZE_LONG        TAOS_DEF_ERROR_CODE(0, 0x119E)  //"tags size too long"
+#define TSDB_CODE_HTTP_OP_TAG_NULL              TAOS_DEF_ERROR_CODE(0, 0x119F)  //"tag is null"
+#define TSDB_CODE_HTTP_OP_TAG_NAME_NULL         TAOS_DEF_ERROR_CODE(0, 0x11A0)  //"tag name is null"
+#define TSDB_CODE_HTTP_OP_TAG_NAME_SIZE         TAOS_DEF_ERROR_CODE(0, 0x11A1)  //"tag name length too long"
+#define TSDB_CODE_HTTP_OP_TAG_VALUE_TYPE        TAOS_DEF_ERROR_CODE(0, 0x11A2)  //"tag value type should be boolean number or string"
+#define TSDB_CODE_HTTP_OP_TAG_VALUE_NULL        TAOS_DEF_ERROR_CODE(0, 0x11A3)  //"tag value is null"
+#define TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG    TAOS_DEF_ERROR_CODE(0, 0x11A4)  //"tag value can not more than 64"
+#define TSDB_CODE_HTTP_OP_VALUE_NULL            TAOS_DEF_ERROR_CODE(0, 0x11A5)  //"value not find"
+#define TSDB_CODE_HTTP_OP_VALUE_TYPE            TAOS_DEF_ERROR_CODE(0, 0x11A6)  //"value type should be boolean number or string"
+
+#define TSDB_CODE_HTTP_REQUEST_JSON_ERROR       TAOS_DEF_ERROR_CODE(0, 0x1F00)  //"http request json error"
 
 // tfs
 #define TSDB_CODE_FS_APP_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x2200)
