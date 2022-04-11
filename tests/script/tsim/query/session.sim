@@ -219,8 +219,8 @@ endi
 #endi
 
 
-print ====> leastsquares not supported yet.
-print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
+#print ====> leastsquares not supported yet.
+#print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
 #sql select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)
 #if $rows != 2 then
 #  return -1
@@ -287,14 +287,14 @@ print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtyp
 #endi
 
 print ================> syntax error check not active ================> reactive
-#sql_error select * from dev_001 session(ts,1w)
-#sql_error select count(*) from st session(ts,1w)
-#sql_error select count(*) from dev_001 group by tagtype session(ts,1w)
-#sql_error select count(*) from dev_001 session(ts,1n)
-#sql_error select count(*) from dev_001 session(ts,1y)
-#sql_error select count(*) from dev_001 session(ts,0s)
-#sql_error select count(*) from dev_001 session(i,1y)
-#sql_error select count(*) from dev_001 session(ts,1d) where ts <'2020-05-20 0:0:0'
+sql_error select * from dev_001 session(ts,1w)
+sql select count(*) from st session(ts,1w)
+sql_error select count(*) from dev_001 group by tagtype session(ts,1w)
+sql select count(*) from dev_001 session(ts,1n)
+sql select count(*) from dev_001 session(ts,1y)
+sql select count(*) from dev_001 session(ts,0s)
+sql_error select count(*) from dev_001 session(i,1y)
+sql_error select count(*) from dev_001 session(ts,1d) where ts <'2020-05-20 0:0:0'
 
 print ====> create database d1 precision 'us' 
 sql create database d1 precision 'us'
@@ -318,7 +318,7 @@ if $data01 != 1 then
 endi
 
 #sql_error select count(*) from dev_001 session(i,1s)
-#sql create table secondts(ts timestamp,t2 timestamp,i int)
+sql create table secondts(ts timestamp,t2 timestamp,i int)
 #sql_error select count(*) from secondts session(t2,2s)
 
 if $loop_test == 0 then
