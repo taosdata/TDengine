@@ -55,12 +55,12 @@ class Case5(ClusterCase):
         taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params ))
         taskthread.start()
 
-        # # restart master dnode thread
-        # dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.master_node, self.max_restart_interval, self.restart_times, self.slave_node))
-        # # start thread
-        # dthread.start()
-        # # wait thread
-        # dthread.join()
+        # restart master dnode thread
+        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.master_node, self.max_restart_interval, self.restart_times, self.slave_node))
+        # start thread
+        dthread.start()
+        # wait thread
+        dthread.join()
         taskthread.join()
        
 
