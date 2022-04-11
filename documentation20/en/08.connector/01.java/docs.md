@@ -56,7 +56,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 | taos-jdbcdriver version | TDengine 2.0.x.x version | TDengine 2.2.x.x version | TDengine 2.4.x.x version | JDK version |
 | ----------------------- | ------------------------ | ------------------------ | ------------------------ | ----------- |
-| 2.0.38                  | X                        | X                        | 2.4.0.12 or later        | 1.8.x       |
+| 2.0.38                  | X                        | X                        | 2.4.0.14 or later        | 1.8.x       |
 | 2.0.37                  | X                        | X                        | 2.4.0.6 or later         | 1.8.x       |
 | 2.0.36                  | X                        | 2.2.2.11 or later        | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
 | 2.0.35                  | X                        | 2.2.2.11 or later        | 2.3.0.0 - 2.4.0.5        | 1.8.x       |
