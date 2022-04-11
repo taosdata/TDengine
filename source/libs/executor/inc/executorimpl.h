@@ -609,6 +609,12 @@ typedef struct SSessionAggOperatorInfo {
   SColumnInfoData  timeWindowData;   // query time window info for scalar function execution.
 } SSessionAggOperatorInfo;
 
+typedef struct STimeSliceOperatorInfo {
+  SOptrBasicInfo   binfo;
+  SInterval        interval;
+  SGroupResInfo    groupResInfo;         // multiple results build supporter
+} STimeSliceOperatorInfo;
+
 typedef struct SStateWindowOperatorInfo {
   SOptrBasicInfo   binfo;
   SAggSupporter    aggSup;
@@ -707,16 +713,15 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo);
+
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
-SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                                 SExprInfo* pExpr, int32_t numOfOutput);
-
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                         SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                            SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createTagScanOperatorInfo(SReaderHandle* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
