@@ -133,13 +133,15 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
   // start transaction
   tsdbStartDeleteTrans(pRepo);
 
-  if (tsdbDeleteMeta(pRepo) < 0) {
-    tsdbError("vgId:%d :SDEL failed to delete META data since %s", REPO_ID(pRepo), tstrerror(terrno));
+  int32_t ret = tsdbDeleteMeta(pRepo);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d :SDEL failed errcode=%d to delete META data since %s", REPO_ID(pRepo), ret, tstrerror(terrno));
     goto _err;
   }
 
-  if (tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates, affectedTables) < 0) {
-    tsdbError("vgId:%d :SDEL failed to delete TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
+  ret = tsdbDeleteTSData(pRepo, pCtlInfo, aUpdates, affectedTables);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d :SDEL failed to delete TS data errcode=%d since %s", REPO_ID(pRepo), ret, tstrerror(terrno));
     goto _err;
   }
 
@@ -161,11 +163,12 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
   return TSDB_CODE_SUCCESS;
 
 _err:
-  pRepo->code = terrno;
-  tsdbEndDeleteTrans(pRepo, terrno);
+  pRepo->code = ret;
+  tsdbEndDeleteTrans(pRepo, ret);
   tsdbClearUpdates(aUpdates);
   taosArrayDestroy(&affectedTables);
-  return -1;
+  return TSDB_CODE_SUCCESS; // other error needn't call appH.notifyStatus to notify error 
+  //return ret;
 }
 
 static void tsdbStartDeleteTrans(STsdbRepo *pRepo) {
@@ -202,7 +205,10 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
 
   int sFid = TSDB_KEY_FID(win.skey, pCfg->daysPerFile, pCfg->precision);
   int eFid = TSDB_KEY_FID(win.ekey, pCfg->daysPerFile, pCfg->precision);
-  ASSERT(sFid <= eFid);
+  if(sFid > eFid) {
+    tsdbDestroyDeleteH(&deleteH);
+    return -1;
+  }
 
   while ((pSet = tsdbFSIterNext(&(deleteH.fsIter)))) {
     // remove expired files
@@ -219,14 +225,6 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
       }
       continue;
     }
-
-#if 0  // TODO: How to make the decision? The test case should cover this scenario.
-    if (TSDB_FSET_LEVEL(pSet) == TFS_MAX_LEVEL) {
-      tsdbDebug("vgId:%d FSET %d on level %d, should not delete", REPO_ID(pRepo), pSet->fid, TFS_MAX_LEVEL);
-      tsdbUpdateDFileSet(REPO_FS(pRepo), pSet);
-      continue;
-    }
-#endif
     
     if (pCtlInfo->command & CMD_DELETE_DATA) {
       if (tsdbFSetDelete(&deleteH, pSet) < 0) {
@@ -532,9 +530,6 @@ static int32_t tsdbFilterDataCols(SDeleteH *pdh, SDataCols *pSrcDCols) {
   int32_t delRows = 0;
 
   tdResetDataCols(pDstDCols);
-  pDstDCols->maxCols = pSrcDCols->maxCols;
-  pDstDCols->maxPoints = pSrcDCols->maxPoints;
-  pDstDCols->numOfCols = pSrcDCols->numOfCols;
   pDstDCols->sversion = pSrcDCols->sversion;
 
   for (int i = 0; i < pSrcDCols->numOfRows; ++i) {
