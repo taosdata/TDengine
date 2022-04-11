@@ -5360,8 +5360,8 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
         taosMemoryFree(result);
       }
     }
-  }
 #endif
+  }
 
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
   finalizeMultiTupleQueryResult(pInfo->binfo.pCtx, pOperator->numOfOutput, pInfo->aggSup.pResultBuf,
