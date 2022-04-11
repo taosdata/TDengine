@@ -46,7 +46,7 @@ static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char**
   int32_t numOfGroupCols = taosArrayGetSize(pGroupColList);
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
     SColumn* pCol = taosArrayGet(pGroupColList, i);
-    (*keyLen) += pCol->bytes;
+    (*keyLen) += pCol->bytes; // actual data + null_flag
 
     SGroupKeys key = {0};
     key.bytes  = pCol->bytes;
@@ -61,8 +61,9 @@ static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char**
   }
 
   int32_t nullFlagSize = sizeof(int8_t) * numOfGroupCols;
+  (*keyLen) += nullFlagSize;
 
-  (*keyBuf) = taosMemoryCalloc(1, (*keyLen) + nullFlagSize);
+  (*keyBuf) = taosMemoryCalloc(1, (*keyLen));
   if ((*keyBuf) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -169,11 +170,16 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[i]);
 
       SColumnInfoData* pColInfoData = pCtx[i].input.pData[0];
+      // todo OPT all/all not NULL
       if (!colDataIsNull(pColInfoData, totalRows, rowIndex, NULL)) {
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        memcpy(dest, data, pColInfoData->info.bytes);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          varDataCopy(dest, data);
+        } else {
+          memcpy(dest, data, pColInfoData->info.bytes);
+        }
       } else { // it is a NULL value
         pEntryInfo->isNullRes = 1;
       }
@@ -326,13 +332,14 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 
   pInfo->pGroupCols = pGroupColList;
   pInfo->pCondition = pCondition;
-  initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, 4096, pResultBlock, pTaskInfo->id.str);
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   int32_t code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+
+  initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, 4096, pResultBlock, pInfo->groupKeyLen, pTaskInfo->id.str);
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   pOperator->name         = "GroupbyAggOperator";
   pOperator->blockingOptr = true;

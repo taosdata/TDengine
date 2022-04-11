@@ -671,7 +671,7 @@ int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
-                    int32_t numOfRows, SSDataBlock* pResultBlock, const char* pkey);
+                    int32_t numOfRows, SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
 void toSDatablock(SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf, SSDataBlock* pBlock, int32_t rowCapacity, int32_t* rowCellOffset);
 void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
