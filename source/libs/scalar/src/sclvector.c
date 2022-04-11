@@ -177,9 +177,24 @@ static FORCE_INLINE void varToBool(char *buf, SScalarParam* pOut, int32_t rowInd
   colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*) &v);
 }
 
+static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIndex) {
+  int32_t len = 0;
+  int32_t inputLen = varDataLen(buf);
+
+  char* t = taosMemoryCalloc(1,(inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+  /*int32_t resLen = */taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4*) varDataVal(t), pOut->columnData->info.bytes, &len);
+  varDataSetLen(t, len);
+
+  colDataAppend(pOut->columnData, rowIndex, t, false);
+  taosMemoryFree(t);
+}
+
+//TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   int32_t bufSize = pIn->columnData->info.bytes;
-  char *tmp = taosMemoryMalloc(bufSize);
+  char *tmp = taosMemoryMalloc(bufSize + VARSTR_HEADER_SIZE);
+
+  bool vton = false;
 
   _bufConverteFunc func = NULL;
   if (TSDB_DATA_TYPE_BOOL == outType) {
@@ -190,6 +205,9 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     func = varToUnsigned;
   } else if (IS_FLOAT_TYPE(outType)) {
     func = varToFloat;
+  } else if (outType == TSDB_DATA_TYPE_NCHAR) {
+    func = varToNchar;
+    vton = true;
   } else {
     sclError("invalid convert outType:%d", outType);
     return TSDB_CODE_QRY_APP_ERROR;
@@ -197,26 +215,30 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
 
   pOut->numOfRows = pIn->numOfRows;
   for (int32_t i = 0; i < pIn->numOfRows; ++i) {
-    if (colDataIsNull(pIn->columnData, pIn->numOfRows, i, NULL)) {
+    if (colDataIsNull_s(pIn->columnData, i)) {
       colDataAppendNULL(pOut->columnData, i);
       continue;
     }
 
     char* data = colDataGetData(pIn->columnData, i);
-    if (TSDB_DATA_TYPE_BINARY == inType) {
-      memcpy(tmp, varDataVal(data), varDataLen(data));
-      tmp[varDataLen(data)] = 0;
+    if (vton) {
+      memcpy(tmp, data, varDataTLen(data));
     } else {
-      ASSERT (varDataLen(data) <= bufSize);
-      
-      int len = taosUcs4ToMbs((TdUcs4*)varDataVal(data), varDataLen(data), tmp);
-      if (len < 0){
-        sclError("castConvert taosUcs4ToMbs error 1");
-        taosMemoryFreeClear(tmp);
-        return TSDB_CODE_QRY_APP_ERROR;
+      if (TSDB_DATA_TYPE_VARCHAR == inType) {
+        memcpy(tmp, varDataVal(data), varDataLen(data));
+        tmp[varDataLen(data)] = 0;
+      } else {
+        ASSERT(varDataLen(data) <= bufSize);
+
+        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
+        if (len < 0) {
+          sclError("castConvert taosUcs4ToMbs error 1");
+          taosMemoryFreeClear(tmp);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+
+        tmp[len] = 0;
       }
-      
-      tmp[len] = 0;
     }
     
     (*func)(tmp, pOut, i);

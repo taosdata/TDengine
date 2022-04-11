@@ -168,7 +168,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return NULL;
   }
 
-  return doFetchRow(pRequest, true);
+  return doFetchRow(pRequest, true, true);
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -404,7 +404,7 @@ int taos_fetch_block_s(TAOS_RES *res, int* numOfRows, TAOS_ROW *rows) {
     return 0;
   }
 
-  doFetchRow(pRequest, false);
+  doFetchRow(pRequest, false, true);
 
   // TODO refactor
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -426,7 +426,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int* numOfRows, void** pData) {
     return 0;
   }
 
-  doFetchRow(pRequest, false);
+  doFetchRow(pRequest, false, false);
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
