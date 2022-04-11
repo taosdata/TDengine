@@ -189,10 +189,10 @@ static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
-//TODO opt performance
+//TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   int32_t bufSize = pIn->columnData->info.bytes;
-  char *tmp = taosMemoryMalloc(bufSize);
+  char *tmp = taosMemoryMalloc(bufSize + VARSTR_HEADER_SIZE);
 
   bool vton = false;
 
