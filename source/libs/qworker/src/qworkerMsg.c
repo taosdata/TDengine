@@ -549,7 +549,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code};
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 

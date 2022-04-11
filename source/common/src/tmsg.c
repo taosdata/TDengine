@@ -1960,7 +1960,7 @@ int32_t tDeserializeSUseDbBatchRsp(void *buf, int32_t bufLen, SUseDbBatchRsp *pR
   int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
   if (tDecodeI32(&decoder, &numOfBatch) < 0) return -1;
 
-  pRsp->pArray = taosArrayInit(numOfBatch, sizeof(SUseDbBatchRsp));
+  pRsp->pArray = taosArrayInit(numOfBatch, sizeof(SUseDbRsp));
   if (pRsp->pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
