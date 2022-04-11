@@ -489,7 +489,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       int32_t paraType = pParam->node.resType.type;
 
       int32_t resType  = 0;
-      if (IS_SIGNED_NUMERIC_TYPE(paraType)) {
+      if (IS_SIGNED_NUMERIC_TYPE(paraType) || paraType == TSDB_DATA_TYPE_BOOL) {
         resType = TSDB_DATA_TYPE_BIGINT;
       } else if (IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
         resType = TSDB_DATA_TYPE_UBIGINT;
