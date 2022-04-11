@@ -1238,6 +1238,7 @@ static void setExplainInfo(SPlanContext* pCxt, SQueryPlan* pPlan) {
     SExplainStmt* pStmt = (SExplainStmt*)pCxt->pAstRoot;
     pPlan->explainInfo.mode = pStmt->analyze ? EXPLAIN_MODE_ANALYZE : EXPLAIN_MODE_STATIC;
     pPlan->explainInfo.verbose = pStmt->pOptions->verbose;
+    pPlan->explainInfo.ratio = pStmt->pOptions->ratio;
   } else {
     pPlan->explainInfo.mode = EXPLAIN_MODE_DISABLE;
   }
