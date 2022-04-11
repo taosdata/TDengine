@@ -605,6 +605,12 @@ typedef struct SMemParam {
 static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param) {
   SMemParam*   pa = (SMemParam*)param;
   SRowBuilder* rb = pa->rb;
+
+  if (value == NULL) {  // it is a null data
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset, pa->colIdx);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSDB_DATA_TYPE_BINARY == pa->schema->type) {
     const char* rowEnd = tdRowEnd(rb->pBuf);
     STR_WITH_SIZE_TO_VARSTR(rowEnd, value, len);
@@ -621,14 +627,9 @@ static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, in
     varDataSetLen(rowEnd, output);
     tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
   } else {
-    if (value == NULL) {  // it is a null data
-      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset,
-                          pa->colIdx);
-    } else {
-      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset,
-                          pa->colIdx);
-    }
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset, pa->colIdx);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
