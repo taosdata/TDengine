@@ -1298,7 +1298,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     int32_t tBitmaps = 0;
     int32_t tBitmapsLen = 0;
     if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
-      tBitmaps = sBitmaps;
+      tBitmaps = isSuper ? sBitmaps : nBitmaps;
     }
 #endif
 
