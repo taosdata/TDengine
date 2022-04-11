@@ -761,6 +761,7 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
   TSKEY r2 = TD_ROW_KEY(rimem);
 
   if (r1 == r2) {
+#if 0
     if(update == TD_ROW_DISCARD_UPDATE){
       pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
       tSkipListIterNext(pCheckInfo->iter);
@@ -770,6 +771,13 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
       tSkipListIterNext(pCheckInfo->iiter);
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
+    }
+#endif
+    if (TD_SUPPORT_UPDATE(update)) {
+      pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
+    } else {
+      pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+      tSkipListIterNext(pCheckInfo->iter);
     }
     return r1;
   } else if (r1 < r2 && ASCENDING_TRAVERSE(order)) {
