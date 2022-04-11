@@ -330,11 +330,9 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
 
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
     if (pVgroup != NULL) {
-      mInfo("------>0 vgId:%d, numOfTimeSeries:%" PRId64, pVgroup->vgId, pVload->numOfTimeSeries);
       if (pVload->role == TAOS_SYNC_STATE_LEADER) {
         pVgroup->numOfTables = pVload->numOfTables;
         pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
-        mInfo("------>1 vgId:%d, numOfTimeSeries:%" PRId64, pVgroup->vgId, pVgroup->numOfTimeSeries);
         pVgroup->totalStorage = pVload->totalStorage;
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;

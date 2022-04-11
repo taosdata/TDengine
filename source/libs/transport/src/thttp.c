@@ -164,8 +164,8 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   wb[1] = uv_buf_init((char*)pCont, contLen);
 
   connect->data = wb;
-  uv_tcp_connect(connect, &socket_tcp, (const struct sockaddr*)&dest, clientConnCb);
   terrno = 0;
+  uv_tcp_connect(connect, &socket_tcp, (const struct sockaddr*)&dest, clientConnCb);
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
   taosMemoryFree(connect);
