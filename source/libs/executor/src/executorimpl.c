@@ -302,10 +302,6 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
     }
 
     taosArrayPush(pBlock->pDataBlock, &idata);
-
-    if (IS_VAR_DATA_TYPE(idata.info.type)) {
-      pBlock->info.hasVarCol = true;
-    }
   }
 
   return pBlock;
@@ -365,7 +361,7 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, jmp_buf env)
   pResultRowInfo->pPosition = taosMemoryRealloc(pResultRowInfo->pPosition, newCapacity * sizeof(SResultRowPosition));
 
   int32_t inc = (int32_t)newCapacity - pResultRowInfo->capacity;
-  memset(&pResultRowInfo->pPosition[pResultRowInfo->capacity], 0, sizeof(SResultRowPosition));
+  memset(&pResultRowInfo->pPosition[pResultRowInfo->capacity], 0, sizeof(SResultRowPosition) * inc);
   pResultRowInfo->capacity = (int32_t)newCapacity;
 }
 
@@ -500,7 +496,7 @@ SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, 
     pData = getBufPage(pResultBuf, getPageId(pi));
     pageId = getPageId(pi);
 
-    if (pData->num + interBufSize + sizeof(SResultRow) > getBufPageSize(pResultBuf)) {
+    if (pData->num + interBufSize > getBufPageSize(pResultBuf)) {
       // release current page first, and prepare the next one
       releaseBufPageInfo(pResultBuf, pi);
 
@@ -520,7 +516,7 @@ SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, 
   pResultRow->pageId = pageId;
   pResultRow->offset = (int32_t)pData->num;
 
-  pData->num += interBufSize + sizeof(SResultRow);
+  pData->num += interBufSize;
 
   return pResultRow;
 }
@@ -588,7 +584,7 @@ static SResultRow* doSetResultOutBufByKey_rv(SDiskbasedBuf* pResultBuf, SResultR
 
       // add a new result set for a new group
       SResultRowPosition pos = {.pageId = pResult->pageId, .offset = pResult->offset};
-      taosHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos, POINTER_BYTES);
+      taosHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos, sizeof(SResultRowPosition));
       SResultRowCell cell = {.groupId = tableGroupId, .pos = pos};
       taosArrayPush(pSup->pResultRowArrayList, &cell);
     } else {
