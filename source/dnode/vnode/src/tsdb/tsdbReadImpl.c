@@ -263,8 +263,9 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
+    // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE) < 0)
+                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
       return -1;
   }
 
@@ -293,8 +294,9 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
+    // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE) < 0)
+                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
       return -1;
   }
 
@@ -304,6 +306,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
       if (pDataCol->bitmap) {
         ASSERT(pDataCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID);
         tdMergeBitmap(pDataCol->pBitmap, TD_BITMAP_BYTES(pReadh->pDCols[0]->numOfRows), pDataCol->pBitmap);
+        tdDataColsSetBitmapI(pReadh->pDCols[0]);
       }
     }
   }

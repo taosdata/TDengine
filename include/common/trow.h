@@ -230,7 +230,7 @@ static FORCE_INLINE int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowVa
 static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
                                                   bool isCopyVarData, int8_t colType, int16_t colIdx, int32_t offset,
                                                   col_id_t colId);
-int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull);
+int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols);
 
 /**
  * @brief
