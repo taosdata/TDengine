@@ -1,11 +1,7 @@
 case1:
   json_info:
-    filetype: "insert"
-    cfgdir: "/etc/taos"
     host: "vm85"
     port: 6030
-    user: "root"
-    password: "taosdata"
     thread_count: 16
     thread_count_create_tbl: 8
     result_file: ""
@@ -14,7 +10,7 @@ case1:
     num_of_records_per_req: 100
     max_sql_len: 1024000
   db_info:
-    db_name: "db"
+    db_name: "db1"
     drop: "yes"
     replica: 1
     days: 10
@@ -62,7 +58,7 @@ case1:
     col_nchar_count: 0
     col_nchar_length: 16
     col_tinyint_count: 0
-    col_small_int: 0
+    col_smallint_count: 0
     col_bigint_count: 0
     col_timestamp_count: 0
     tag_float_count: 0
@@ -73,18 +69,14 @@ case1:
     tag_nchar_count: 0
     tag_nchar_length: 16
     tag_tinyint_count: 0
-    tag_small_int: 0
+    tag_smallint_count: 0
     tag_bigint_count: 0
     tag_timestamp_count: 0
 
 case2:
   json_info:
-    filetype: "insert"
-    cfgdir: "/etc/taos"
     host: "vm85"
     port: 6030
-    user: "root"
-    password: "taosdata"
     thread_count: 16
     thread_count_create_tbl: 8
     result_file: ""
@@ -112,16 +104,16 @@ case2:
   stb_info:
     stb_name: "stb"
     child_table_exists: "no"
-    childtable_count: 100
+    childtable_count: 10000
     childtable_prefix: "stb_0"
     escape_character: "no"
     auto_create_table: "no"
     batch_create_tbl_num: 10
     data_source: "rand"
-    insert_mode: "taosc"
+    insert_mode: "rest"
     line_protocol: null
     tcp_transfer: no
-    insert_rows: 2000000
+    insert_rows: 2000
     childtable_limit: 0
     childtable_offset: 0
     rows_per_tbl: 0
@@ -141,7 +133,7 @@ case2:
     col_nchar_count: 0
     col_nchar_length: 16
     col_tinyint_count: 0
-    col_small_int: 0
+    col_smallint_count: 0
     col_bigint_count: 0
     col_timestamp_count: 0
     tag_float_count: 0
@@ -152,6 +144,6 @@ case2:
     tag_nchar_count: 0
     tag_nchar_length: 16
     tag_tinyint_count: 0
-    tag_small_int: 0
+    tag_smallint_count: 0
     tag_bigint_count: 0
     tag_timestamp_count: 0
