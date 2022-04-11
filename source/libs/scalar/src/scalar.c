@@ -46,7 +46,6 @@ int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
   colInfoDataEnsureCapacity(out->columnData, 1);
-
   int32_t code = vectorConvertImpl(&in, out);
   sclFreeParam(&in);
 
