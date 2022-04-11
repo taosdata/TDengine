@@ -103,6 +103,7 @@ static int32_t stsCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pExchange->srcGroupId = pCxt->groupId;
+  pExchange->precision = pScan->pMeta->tableInfo.precision;
   pExchange->node.pTargets = nodesCloneList(pScan->node.pTargets);
   if (NULL == pExchange->node.pTargets) {
     return TSDB_CODE_OUT_OF_MEMORY;
