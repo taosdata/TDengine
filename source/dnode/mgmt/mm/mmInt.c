@@ -112,6 +112,9 @@ static int32_t mmOpenImp(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq) {
 
     if (!deployed) {
       dInfo("mnode start to deploy");
+      if (pMgmt->pWrapper->procType == PROC_CHILD) {
+        pMgmt->pDnode->dnodeId = 1;
+      }
       mmBuildOptionForDeploy(pMgmt, &option);
     } else {
       dInfo("mnode start to open");

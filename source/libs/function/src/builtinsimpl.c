@@ -138,8 +138,8 @@ int32_t sumFunction(SqlFunctionCtx *pCtx) {
     int32_t start     = pInput->startRowIndex;
     int32_t numOfRows = pInput->numOfRows;
 
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      if (type == TSDB_DATA_TYPE_TINYINT) {
+    if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+      if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
         LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_SMALLINT) {
         LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int16_t, numOfElem);
