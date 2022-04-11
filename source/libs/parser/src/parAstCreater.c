@@ -207,7 +207,9 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
   SNode* pExpr = pRawExpr->pNode;
-  strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
+  if (nodesIsExprNode(pExpr)) {
+    strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
+  }
   taosMemoryFreeClear(pNode);
   return pExpr;
 }
@@ -498,8 +500,9 @@ SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* p
   if (NULL == pNode || !pCxt->valid) {
     return pNode;
   }
-  uint32_t maxLen = sizeof(((SExprNode*)pNode)->aliasName);
-  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n > maxLen ? maxLen : pAlias->n);
+  int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
+  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
+  ((SExprNode*)pNode)->aliasName[len] = '\0';
   return pNode;
 }
 

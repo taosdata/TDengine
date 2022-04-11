@@ -894,9 +894,33 @@ _return:
   QRY_RET(code);
 }
 
+int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
+  if (EXPLAIN_MODE_ANALYZE != pCtx->mode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t tlen = 0;
+  char *tbuf = pCtx->tbuf;
+
+  EXPLAIN_SUM_ROW_NEW(EXPLAIN_RATIO_TIME_FORMAT, pCtx->ratio);
+  EXPLAIN_SUM_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
+
+  EXPLAIN_SUM_ROW_NEW(EXPLAIN_PLANNING_TIME_FORMAT, (double)(pCtx->jobStartTs - pCtx->reqStartTs) / 1000.0);
+  EXPLAIN_SUM_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
+
+  EXPLAIN_SUM_ROW_NEW(EXPLAIN_EXEC_TIME_FORMAT, (double)(pCtx->jobDoneTs - pCtx->jobStartTs) / 1000.0);
+  EXPLAIN_SUM_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
   QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->rootGroupId, 0));
+
+  QRY_ERR_RET(qExplainAppendPlanRows(pCtx));
   
   QRY_ERR_RET(qExplainGetRspFromCtx(pCtx, pRsp));
 
@@ -977,18 +1001,18 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int32_t startTs) {
+int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs) {
   QRY_ERR_RET(qExplainPrepareCtx(pDag, pCtx));
   
   (*pCtx)->reqStartTs = startTs;
-  (*pCtx)->jobStartTs = taosGetTimestampMs();
+  (*pCtx)->jobStartTs = taosGetTimestampUs();
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
   int32_t code = 0;
-  pCtx->jobDoneTs = taosGetTimestampMs();
+  pCtx->jobDoneTs = taosGetTimestampUs();
   
   atomic_store_8((int8_t *)&pCtx->execDone, true);
 
