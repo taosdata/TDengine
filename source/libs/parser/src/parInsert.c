@@ -1084,7 +1084,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   if (NULL == *pQuery) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  (*pQuery)->directRpc = false;
+  (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
   (*pQuery)->haveResultSet = false;
   (*pQuery)->msgType = TDMT_VND_SUBMIT;
   (*pQuery)->pRoot = (SNode*)context.pOutput;

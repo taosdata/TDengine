@@ -6,13 +6,17 @@ project(
     DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
-set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/cmake")
-set(CMAKE_CONTRIB_DIR "${CMAKE_SOURCE_DIR}/contrib")
+if (NOT DEFINED TD_SOURCE_DIR)
+  set( TD_SOURCE_DIR ${CMAKE_SOURCE_DIR} )
+endif()
 
-include(${CMAKE_SUPPORT_DIR}/cmake.platform)
-include(${CMAKE_SUPPORT_DIR}/cmake.define)
-include(${CMAKE_SUPPORT_DIR}/cmake.options)
-include(${CMAKE_SUPPORT_DIR}/cmake.version)
+set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
+set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
+
+include(${TD_SUPPORT_DIR}/cmake.platform)
+include(${TD_SUPPORT_DIR}/cmake.define)
+include(${TD_SUPPORT_DIR}/cmake.options)
+include(${TD_SUPPORT_DIR}/cmake.version)
 
 # contrib
 add_subdirectory(contrib)

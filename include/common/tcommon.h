@@ -65,13 +65,14 @@ typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
   int32_t     rowSize;
-  int16_t     numOfCols;
-  int16_t     hasVarCol;
   union {
-    int64_t uid;
+    int64_t uid;        // from which table of uid, comes from this data block
     int64_t blockId;
   };
   uint64_t    groupId;  // no need to serialize
+  int16_t     numOfCols;
+  int16_t     hasVarCol;
+  int16_t     capacity;
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

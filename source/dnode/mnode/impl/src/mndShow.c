@@ -22,8 +22,6 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
-static int32_t   mndProcessShowReq(SNodeMsg *pReq);
-static int32_t   mndProcessRetrieveReq(SNodeMsg *pReq);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 static int32_t   mndProcessRetrieveSysTableReq(SNodeMsg *pReq);
 
@@ -37,8 +35,6 @@ int32_t mndInitShow(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TDMT_MND_SHOW, mndProcessShowReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_RETRIEVE, mndProcessRetrieveReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveSysTableReq);
   return 0;
 }
@@ -115,67 +111,6 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
-}
-
-static int32_t mndProcessShowReq(SNodeMsg *pReq) {
-  SMnode    *pMnode = pReq->pNode;
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  int32_t    code = -1;
-  SShowReq   showReq = {0};
-  SShowRsp   showRsp = {0};
-
-  if (tDeserializeSShowReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &showReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto SHOW_OVER;
-  }
-
-  if (showReq.type <= TSDB_MGMT_TABLE_START || showReq.type >= TSDB_MGMT_TABLE_MAX) {
-    terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    goto SHOW_OVER;
-  }
-
-  ShowMetaFp metaFp = pMgmt->metaFps[showReq.type];
-  if (metaFp == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    goto SHOW_OVER;
-  }
-
-  SShowObj *pShow = mndCreateShowObj(pMnode, &showReq);
-  if (pShow == NULL) {
-    goto SHOW_OVER;
-  }
-
-  showRsp.showId = pShow->id;
-  showRsp.tableMeta.pSchemas = taosMemoryCalloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
-  if (showRsp.tableMeta.pSchemas == NULL) {
-    mndReleaseShowObj(pShow, true);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto SHOW_OVER;
-  }
-
-  code = (*metaFp)(pReq, pShow, &showRsp.tableMeta);
-  mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d showReq.type:%s, result:%s", pShow->id,
-         pShow->numOfRows, pShow->numOfColumns, mndShowStr(showReq.type), tstrerror(code));
-
-  if (code == 0) {
-    int32_t bufLen = tSerializeSShowRsp(NULL, 0, &showRsp);
-    void   *pBuf = rpcMallocCont(bufLen);
-    tSerializeSShowRsp(pBuf, bufLen, &showRsp);
-    pReq->rspLen = bufLen;
-    pReq->pRsp = pBuf;
-    mndReleaseShowObj(pShow, false);
-  } else {
-    mndReleaseShowObj(pShow, true);
-  }
-
-SHOW_OVER:
-  if (code != 0) {
-    mError("failed to process show-meta req since %s", terrstr());
-  }
-
-  tFreeSShowReq(&showReq);
-  tFreeSShowRsp(&showRsp);
-  return code;
 }
 
 static int32_t mndProcessRetrieveReq(SNodeMsg *pReq) {
@@ -456,11 +391,6 @@ void mndVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capaci
       memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
     }
   }
-}
-
-void mndAddShowMetaHandle(SMnode *pMnode, EShowType showType, ShowMetaFp fp) {
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  pMgmt->metaFps[showType] = fp;
 }
 
 void mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp) {

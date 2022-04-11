@@ -28,6 +28,7 @@ typedef struct SVnodesMgmt {
   SHashObj     *hash;
   SRWLatch      latch;
   SVnodesStat   state;
+  SVnodesStat   lastState;
   STfs         *pTfs;
   SQWorkerPool  queryPool;
   SQWorkerPool  fetchPool;
@@ -38,6 +39,7 @@ typedef struct SVnodesMgmt {
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   SSingleWorker mgmtWorker;
+  SSingleWorker monitorWorker;
 } SVnodesMgmt;
 
 typedef struct {
@@ -91,6 +93,8 @@ int32_t vmProcessAlterVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessSyncVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
+int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
+int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 
 // vmFile.c
 int32_t     vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
@@ -114,6 +118,7 @@ int32_t vmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t vmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t vmProcessMergeMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t vmProcessMgmtMsg(SMgmtWrapper *pWrappert, SNodeMsg *pMsg);
+int32_t vmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

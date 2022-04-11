@@ -581,6 +581,7 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
   }
 
   tsem_post(&pScanResInfo->ready);
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
@@ -782,6 +783,10 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_QNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_BNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_FUNC;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, tListLen(pName->tname)) == 0) {

@@ -16,6 +16,36 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  mndGetMonitorInfo(pMgmt->pMnode, &mmInfo->cluster, &mmInfo->vgroup, &mmInfo->grant);
+}
+
+int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonMmInfo mmInfo = {0};
+  mmGetMonitorInfo(pWrapper, &mmInfo);
+  dmGetMonitorSysInfo(&mmInfo.sys);
+  monGetLogs(&mmInfo.log);
+
+  int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonMmInfo(pRsp, rspLen, &mmInfo);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  tFreeSMonMmInfo(&mmInfo);
+  return 0;
+}
+
 int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
@@ -27,7 +57,7 @@ int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 
   if (createReq.replica <= 1 || createReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
   } else {
@@ -40,13 +70,13 @@ int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDDropMnodeReq dropReq = {0};
-  if (tDeserializeSMCreateDropMnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   if (dropReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop mnode since %s", terrstr());
     return -1;
   } else {
@@ -65,7 +95,7 @@ int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   }
 
   if (alterReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to alter mnode since %s", terrstr());
     return -1;
   } else {
@@ -74,6 +104,8 @@ int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 void mmInitMsgHandle(SMgmtWrapper *pWrapper) {
+  dndSetMsgHandle(pWrapper, TDMT_MON_MM_INFO, mmProcessMonitorMsg, DEFAULT_HANDLE);
+
   // Requests handled by DNODE
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE_RSP, mmProcessWriteMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE_RSP, mmProcessWriteMsg, DEFAULT_HANDLE);
@@ -164,5 +196,4 @@ void mmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_VND_FETCH, mmProcessQueryMsg, MNODE_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_DROP_TASK, mmProcessQueryMsg, MNODE_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, mmProcessQueryMsg, MNODE_HANDLE);
-
 }
