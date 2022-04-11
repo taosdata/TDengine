@@ -84,6 +84,7 @@ typedef struct SVnodeModifLogicNode {
 typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t srcGroupId;
+  uint8_t precision;
 } SExchangeLogicNode;
 
 typedef enum EWindowType {
@@ -163,7 +164,7 @@ typedef struct SDataBlockDescNode {
   SNodeList* pSlots;
   int32_t totalRowSize;
   int32_t outputRowSize;
-  int16_t precision;
+  uint8_t precision;
 } SDataBlockDescNode;
 
 typedef struct SPhysiNode {
@@ -253,11 +254,11 @@ typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
+  SNode* pTspk; // timestamp primary key
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
   SWinodwPhysiNode window;
-  SNode* pTspk; // timestamp primary key
   int64_t    interval;
   int64_t    offset;
   int64_t    sliding;
@@ -274,7 +275,7 @@ typedef struct SMultiTableIntervalPhysiNode {
 
 typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
-  int64_t    gap;
+  int64_t gap;
 } SSessionWinodwPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {
