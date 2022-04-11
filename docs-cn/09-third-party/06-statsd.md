@@ -8,7 +8,7 @@ title: StatsD 直接写入
 
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
 
-在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+在 `config.js` 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 
 ```
 backends 部分添加 "./backends/repeater"
@@ -25,6 +25,5 @@ port: 8125
 }
 ```
 
-taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 `taosadapter --help` 命令输出以及相关文档。
 
-icinga2 可以收集监控和性能数据并写入 OpenTSDB，taosAdapter 可以支持接收 icinga2 的数据并写入到 TDengine 中。

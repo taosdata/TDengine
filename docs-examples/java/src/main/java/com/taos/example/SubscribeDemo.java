@@ -53,8 +53,8 @@ public class SubscribeDemo {
                     subscribe.close(true); // 关闭订阅
                 if (connection != null)
                     connection.close();
-            } catch (SQLException throwables) {
-                throwables.printStackTrace();
+            } catch (SQLException throwable) {
+                throwable.printStackTrace();
             }
         }
     }

@@ -6,11 +6,11 @@ title: 集群部署
 
 ### 第零步
 
-规划集群所有物理节点的 FQDN，将规划好的 FQDN 分别添加到每个物理节点的/etc/hostname；修改每个物理节点的/etc/hosts，将所有集群物理节点的 IP 与 FQDN 的对应添加好。【如部署了 DNS，请联系网络管理员在 DNS 上做好相关配置】
+规划集群所有物理节点的 FQDN，将规划好的 FQDN 分别添加到每个物理节点的 /etc/hostname；修改每个物理节点的 /etc/hosts，将所有集群物理节点的 IP 与 FQDN 的对应添加好。【如部署了 DNS，请联系网络管理员在 DNS 上做好相关配置】
 
 ### 第一步
 
-如果搭建集群的物理节点中，存有之前的测试数据、装过 1.X 的版本，或者装过其他版本的 TDengine，请先将其删除，并清空所有数据（如果需要保留原有数据，请联系涛思交付团队进行旧版本升级、数据迁移），具体步骤请参考博客《TDengine 多种安装包的安装和卸载》。
+如果搭建集群的物理节点中，存有之前的测试数据、装过 1.X 的版本，或者装过其他版本的 TDengine，请先将其删除，并清空所有数据（如果需要保留原有数据，请联系涛思交付团队进行旧版本升级、数据迁移），具体步骤请参考博客[《TDengine 多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html)。
 
 :::note
 因为 FQDN 的信息会写进文件，如果之前没有配置或者更改 FQDN，且启动了 TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/\*）；
@@ -26,15 +26,15 @@ title: 集群部署
 
 ### 第三步
 
-在所有物理节点安装 TDengine，且版本必须是一致的，但不要启动 taosd。安装时，提示输入是否要加入一个已经存在的 TDengine 集群时，第一个物理节点直接回车创建新集群，后续物理节点则输入该集群任何一个在线的物理节点的 FQDN:端口号(默认 6030)；
+在所有物理节点安装 TDengine，且版本必须是一致的，但不要启动 taosd。安装时，提示输入是否要加入一个已经存在的 TDengine 集群时，第一个物理节点直接回车创建新集群，后续物理节点则输入该集群任何一个在线的物理节点的 FQDN:端口号（默认 6030）；
 
 ### 第四步
 
 检查所有数据节点，以及应用程序所在物理节点的网络设置：
 
-每个物理节点上执行命令 `hostname -f`，查看和确认所有节点的 hostname 是不相同的(应用驱动所在节点无需做此项检查)；
+每个物理节点上执行命令 `hostname -f`，查看和确认所有节点的 hostname 是不相同的（应用驱动所在节点无需做此项检查）；
 
-每个物理节点上执行 ping host，其中 host 是其他物理节点的 hostname，看能否 ping 通其它物理节点；如果不能 ping 通，需要检查网络设置，或/etc/hosts 文件(Windows 系统默认路径为 C:\Windows\system32\drivers\etc\hosts)，或 DNS 的配置。如果无法 ping 通，是无法组成集群的；
+每个物理节点上执行 ping host，其中 host 是其他物理节点的 hostname，看能否 ping 通其它物理节点；如果不能 ping 通，需要检查网络设置，或 /etc/hosts 文件（Windows 系统默认路径为 C:\Windows\system32\drivers\etc\hosts），或 DNS 的配置。如果无法 ping 通，是无法组成集群的；
 
 从应用运行的物理节点，ping taosd 运行的数据节点，如果无法 ping 通，应用是无法连接 taosd 的，请检查应用所在物理节点的 DNS 设置或 hosts 文件；
 
@@ -42,19 +42,19 @@ title: 集群部署
 
 ### 第五步
 
-修改 TDengine 的配置文件（所有节点的文件/etc/taos/taos.cfg 都需要修改）。假设准备启动的第一个数据节点 End Point 为 h1.taosdata.com:6030，其与集群配置相关参数如下：
+修改 TDengine 的配置文件（所有节点的文件 /etc/taos/taos.cfg 都需要修改）。假设准备启动的第一个数据节点 End Point 为 h1.taosdata.com:6030，其与集群配置相关参数如下：
 
 ```c
 // firstEp 是每个数据节点首次启动后连接的第一个数据节点
 firstEp               h1.taosdata.com:6030
 
-// 必须配置为本数据节点的FQDN，如果本机只有一个hostname, 可注释掉本项
+// 必须配置为本数据节点的 FQDN，如果本机只有一个 hostname，可注释掉本项
 fqdn                  h1.taosdata.com
 
-// 配置本数据节点的端口号，缺省是6030
+// 配置本数据节点的端口号，缺省是 6030
 serverPort            6030
 
-// 副本数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
+// 副本数为偶数的时候，需要配置，请参考《Arbitrator 的使用》的部分
 arbitrator            ha.taosdata.com:6042
 ```
 
@@ -83,7 +83,7 @@ arbitrator            ha.taosdata.com:6042
 
 ### 启动第一个数据节点
 
-按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos, 启动 taos shell，从 shell 里执行命令"SHOW dnodes;"，如下所示：
+按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 taos shell，从 shell 里执行命令“SHOW DNODES”，如下所示：
 
 ```
 Welcome to the TDengine shell from Linux, Client Version:2.0.0.0
@@ -100,7 +100,7 @@ Query OK, 1 row(s) in set (0.006385s)
 taos>
 ```
 
-上述命令里，可以看到这个刚启动的这个数据节点的 End Point 是：h1.taos.com:6030，就是这个新集群的 firstEp。
+上述命令里，可以看到刚启动的数据节点的 End Point 是：h1.taos.com:6030，就是这个新集群的 firstEp。
 
 ### 启动后续数据节点
 
@@ -114,7 +114,7 @@ taos>
 CREATE DNODE "h2.taos.com:6030";
 ```
 
-将新数据节点的 End Point (准备工作中第四步获知的) 添加进集群的 EP 列表。"fqdn:port"需要用双引号引起来，否则出错。请注意将示例的“h2.taos.com:6030" 替换为这个新数据节点的 End Point。
+将新数据节点的 End Point（准备工作中第四步获知的）添加进集群的 EP 列表。“fqdn:port”需要用双引号引起来，否则出错。请注意将示例的“h2.taos.com:6030” 替换为这个新数据节点的 End Point。
 
 然后执行命令
 
@@ -124,8 +124,8 @@ SHOW DNODES;
 
 查看新节点是否被成功加入。如果该被加入的数据节点处于离线状态，请做两个检查：
 
-查看该数据节点的 taosd 是否正常工作，如果没有正常运行，需要先检查为什么
-查看该数据节点 taosd 日志文件 taosdlog.0 里前面几行日志(一般在/var/log/taos 目录)，看日志里输出的该数据节点 fqdn 以及端口号是否为刚添加的 End Point。如果不一致，需要将正确的 End Point 添加进去。
+查看该数据节点的 taosd 是否正常工作，如果没有正常运行，需要先检查为什么?
+查看该数据节点 taosd 日志文件 taosdlog.0 里前面几行日志（一般在 /var/log/taos 目录），看日志里输出的该数据节点 fqdn 以及端口号是否为刚添加的 End Point。如果不一致，需要将正确的 End Point 添加进去。
 按照上述步骤可以源源不断的将新的数据节点加入到集群。
 
 :::tip

@@ -2,14 +2,14 @@
 title: 安装、卸载、启动和停止
 ---
 
-TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 等系统，rpm 支持 CentOS/RHEL/SUSE 等系统。同时我们也为企业用户提供 tar.gz 格式安装包。
+TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包。
 
 ## deb 包的安装和卸载
 
 ### 安装 deb
 
-1、从官网下载获得 deb 安装包，比如 TDengine-server-2.0.0.0-Linux-x64.deb；
-2、进入到 TDengine-server-2.0.0.0-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
+1、从官网下载获得 deb 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.deb；
+2、进入到 TDengine-server-2.4.0.7-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
 
 ```
 $ sudo dpkg -i TDengine-server-2.4.0.7-Linux-x64.deb
@@ -20,7 +20,7 @@ Unpacking tdengine (2.4.0.7) over (2.4.0.7) ...
 Setting up tdengine (2.4.0.7) ...
 Start to install TDengine...
 
-System hostname is: shuduo-1804
+System hostname is: ubuntu-1804
 
 Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
 OR leave it blank to build one:
@@ -30,7 +30,7 @@ Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /e
 
 To configure TDengine : edit /etc/taos/taos.cfg
 To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h shuduo-1804 to login into TDengine server
+To access TDengine    : taos -h ubuntu-1804 to login into TDengine server
 
 
 TDengine is installed successfully!
@@ -55,8 +55,8 @@ TDengine is removed successfully!
 
 ### 安装 rpm
 
-1、从官网下载获得 rpm 安装包，比如 TDengine-server-2.0.0.0-Linux-x64.rpm；
-2、进入到 TDengine-server-2.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
+1、从官网下载获得 rpm 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.rpm；
+2、进入到 TDengine-server-2.4.0.7-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
 
 ```
 $ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
@@ -95,7 +95,7 @@ TDengine is removed successfully!
 
 ### 安装 tar.gz 安装包
 
-1、从官网下载获得 tar.gz 安装包，比如 TDengine-server-2.4.0.7-Linux-x64.tar.gz；
+1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.tar.gz；
 2、进入到 TDengine-server-2.4.0.7-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
 ```
@@ -135,7 +135,7 @@ Nginx for TDengine is updated successfully!
 To configure TDengine : edit /etc/taos/taos.cfg
 To configure Taos Adapter (if has) : edit /etc/taos/taosadapter.toml
 To start TDengine     : sudo systemctl start taosd
-To access TDengine    : use taos -h shuduo-1804 in shell OR from http://127.0.0.1:6060
+To access TDengine    : use taos -h ubuntu-1804 in shell OR from http://127.0.0.1:6060
 
 TDengine is updated successfully!
 Install taoskeeper as a standalone service

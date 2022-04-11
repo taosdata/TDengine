@@ -282,6 +282,8 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_BINARY_OP_DIVIDE;
     case TK_REM:
       return TSDB_BINARY_OP_REMAINDER;
+    case TK_BITAND:
+      return TSDB_BINARY_OP_BITAND;
     case TK_LIKE:
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
@@ -4827,7 +4829,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
     };
 
     if (pQueryInfo->colCond == NULL) {
-      pQueryInfo->colCond = taosArrayInit(2, sizeof(SCond));
+      pQueryInfo->colCond = taosArrayInit(2, sizeof(STblCond));
     }
     
     taosArrayPush(pQueryInfo->colCond, &cond);  
@@ -7713,15 +7715,15 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
   const int tokenBalance = 2;
   const int tokenMonitor = 3;
   const int tokenDebugFlag = 4;
-  const int tokenDebugFlagEnd = 20;
-  const int tokenOfflineInterval = 21;
-  const int tokenKeepTimeOffset = 22;
+  const int tokenDebugFlagEnd = 19;
+  const int tokenOfflineInterval = 20;
+  const int tokenKeepTimeOffset = 21;
   const SDNodeDynConfOption cfgOptions[] = {
       {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
       {"debugFlag", 9},   {"monDebugFlag", 12},     {"vDebugFlag", 10}, {"mDebugFlag", 10},
       {"cDebugFlag", 10}, {"httpDebugFlag", 13},    {"qDebugflag", 10}, {"sdbDebugFlag", 12},
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
-      {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
+      {"dDebugFlag", 10}, {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
       {"cqDebugFlag", 11},
       {"offlineInterval", 15},
       {"keepTimeOffset", 14},
@@ -10673,6 +10675,23 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       }
     }
 
+    if (pSqlExpr->tokenId == TK_BITAND && pSqlExpr->pLeft != NULL && pSqlExpr->pRight != NULL) {
+      // for example: col type is "bool" but expr "col & 1" received
+      uint8_t colType = pLeft->pSchema->type;
+      SStrToken *exprToken = &pSqlExpr->pRight->exprToken;
+      if (pSqlExpr->pLeft->type == SQL_NODE_TABLE_COLUMN && pSqlExpr->pRight->type == SQL_NODE_VALUE) {
+        if (colType == TSDB_DATA_TYPE_BOOL) {
+          if ((exprToken->n != 4 || strncasecmp(exprToken->z, "true", 4)) && (exprToken->n != 5 || strncasecmp(exprToken->z, "false", 5))) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        } else if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+          if ((exprToken->n == 4 && strncasecmp(exprToken->z, "true", 4) == 0) || (exprToken->n == 5 || strncasecmp(exprToken->z, "false", 5) == 0)) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        }
+      }
+    }
+
     if (pSqlExpr->pRight != NULL) {
       int32_t ret = exprTreeFromSqlExpr(pCmd, &pRight, pSqlExpr->pRight, pQueryInfo, pCols, uid);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -10710,9 +10729,11 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         if (pLeft->_node.optr == TSDB_RELATION_ARROW){
           pLeft = pLeft->_node.pLeft;
         }
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL &&
-           (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL) {
+          if (((*pExpr)->_node.optr != TSDB_BINARY_OP_BITAND && pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) ||
+              pLeft->pSchema->type == TSDB_DATA_TYPE_JSON) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
         }
       }
     }
