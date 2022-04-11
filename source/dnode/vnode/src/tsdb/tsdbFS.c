@@ -416,7 +416,7 @@ static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
   tsdbGetTxnFname(pRepo, TSDB_TXN_TEMP_FILE, tfname);
   tsdbGetTxnFname(pRepo, TSDB_TXN_CURR_FILE, cfname);
 
-  TdFilePtr pFile = taosOpenFile(tfname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(tfname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
