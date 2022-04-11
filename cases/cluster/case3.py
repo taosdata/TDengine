@@ -22,7 +22,7 @@ class Case3(ClusterCase):
         super().init()
        
         self.max_restart_interval = [5, 10]
-        self.restart_times = 50
+        self.restart_times = 5
         self.master_nodes = self.get_masters()
         i = random.randint(0, len(self.master_nodes) - 1)
         self.master_node = self.master_nodes[i]
