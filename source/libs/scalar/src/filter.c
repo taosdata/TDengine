@@ -1748,7 +1748,6 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     SFilterField* fi = right;
     
     SValueNode* var = (SValueNode *)fi->desc;
-
     if (var == NULL) {
       assert(fi->data != NULL);
       continue;
@@ -1767,13 +1766,18 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     SDataType *dType = &var->node.resType;
+    size_t bytes = 0;
 
     if (type == TSDB_DATA_TYPE_BINARY) {
       size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;
-      fi->data = taosMemoryCalloc(1, len + 1 + VARSTR_HEADER_SIZE);
+      bytes = len + 1 + VARSTR_HEADER_SIZE;
+
+      fi->data = taosMemoryCalloc(1, bytes);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;    
-      fi->data = taosMemoryCalloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+      size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;
+      bytes = (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+
+      fi->data = taosMemoryCalloc(1, bytes);
     } else if (type != TSDB_DATA_TYPE_JSON){
       if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
 /*      
@@ -1797,8 +1801,11 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       } else {
         SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
-        out.columnData->info.bytes = tDataTypes[type].bytes;
-        ASSERT(!IS_VAR_DATA_TYPE(type));
+        if (IS_VAR_DATA_TYPE(type)) {
+          out.columnData->info.bytes = bytes;
+        } else {
+          out.columnData->info.bytes = tDataTypes[type].bytes;
+        }
 
         // todo refactor the convert
         int32_t code = doConvertDataType(var, &out);
@@ -2985,13 +2992,13 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
-    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL)) {
+    if (colData == NULL || colDataIsNull_s((SColumnInfoData *)info->cunits[uidx].colData, i)) {
       (*p)[i] = 0;
       all = false;
       continue;
     }
-    // match/nmatch for nchar type need convert from ucs4 to mbs
 
+    // match/nmatch for nchar type need convert from ucs4 to mbs
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)){
       char *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
       int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
@@ -3222,18 +3229,12 @@ int32_t fltInitFromNode(SNode* tree, SFilterInfo *info, uint32_t options) {
   info->unitFlags = taosMemoryMalloc(info->unitNum * sizeof(*info->unitFlags));
 
   filterDumpInfoToString(info, "Final", 0);
-
   return code;
 
 _return:
-
   qInfo("init from node failed, code:%d", code);
-  
   return code;
 }
-
-
-
 
 bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
   if (FILTER_EMPTY_RES(info)) {
