@@ -369,53 +369,33 @@ int32_t taosGetCpuCores(float *numOfCores) {
 #endif
 }
 
-int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
+  static int64_t lastSysUsed = 0;
+  static int64_t lastSysTotal = 0;
+  static int64_t lastProcTotal = 0;
+  static int64_t curSysUsed = 0;
+  static int64_t curSysTotal = 0;
+  static int64_t curProcTotal = 0;
+
   *cpu_system = 0;
   *cpu_engine = 0;
-  return 0;
-#elif defined(_TD_DARWIN_64)
-  *cpu_system = 0;
-  *cpu_engine = 0;
-  return 0;
-#else
-  static uint64_t lastSysUsed = 0;
-  static uint64_t lastSysTotal = 0;
-  static uint64_t lastProcTotal = 0;
 
-  SysCpuInfo  sysCpu;
-  ProcCpuInfo procCpu;
-  if (taosGetSysCpuInfo(&sysCpu) != 0) {
-    return -1;
+  SysCpuInfo  sysCpu = {0};
+  ProcCpuInfo procCpu = {0};
+  if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
+    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
+    curSysTotal = curSysUsed + sysCpu.idle;
+    curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
+
+    if (curSysTotal > lastSysTotal && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
+      *cpu_engine = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
+      *cpu_system = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+    }
+
+    lastSysUsed = curSysUsed;
+    lastSysTotal = curSysTotal;
+    lastProcTotal = curProcTotal;
   }
-  if (taosGetProcCpuInfo(&procCpu) != 0) {
-    return -1;
-  }
-
-  uint64_t curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
-  uint64_t curSysTotal = curSysUsed + sysCpu.idle;
-  uint64_t curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
-
-  if (lastSysUsed == 0 || lastSysTotal == 0 || lastProcTotal == 0) {
-    lastSysUsed = curSysUsed > 1 ? curSysUsed : 1;
-    lastSysTotal = curSysTotal > 1 ? curSysTotal : 1;
-    lastProcTotal = curProcTotal > 1 ? curProcTotal : 1;
-    return -1;
-  }
-
-  if (curSysTotal == lastSysTotal) {
-    return -1;
-  }
-
-  *cpu_engine = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
-  *cpu_system = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
-
-  lastSysUsed = curSysUsed;
-  lastSysTotal = curSysTotal;
-  lastProcTotal = curProcTotal;
-
-  return 0;
-#endif
 }
 
 int32_t taosGetTotalMemory(int64_t *totalKB) {
@@ -618,7 +598,6 @@ void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, i
   static int64_t last_wchars = 0;
   static int64_t last_read_bytes = 0;
   static int64_t last_write_bytes = 0;
-
   static int64_t cur_rchars = 0;
   static int64_t cur_wchars = 0;
   static int64_t cur_read_bytes = 0;
@@ -632,6 +611,11 @@ void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, i
     last_wchars = cur_wchars;
     last_read_bytes = cur_read_bytes;
     last_write_bytes = cur_write_bytes;
+  } else {
+    *rchars = 0;
+    *wchars = 0;
+    *read_bytes = 0;
+    *write_bytes = 0;
   }
 }
 
@@ -693,7 +677,6 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
   static int64_t last_receive_bytes = 0;
   static int64_t last_transmit_bytes = 0;
-
   static int64_t cur_receive_bytes = 0;
   static int64_t cur_transmit_bytes = 0;
   if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
@@ -701,6 +684,9 @@ void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
     *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
     last_receive_bytes = cur_receive_bytes;
     last_transmit_bytes = cur_transmit_bytes;
+  } else {
+    *receive_bytes = 0;
+    *transmit_bytes = 0;
   }
 }
 
