@@ -13,6 +13,6 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         schedulerTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/scheduler/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/scheduler/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scheduler/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/scheduler/inc"
 )

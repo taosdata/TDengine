@@ -1298,7 +1298,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     int32_t tBitmaps = 0;
     int32_t tBitmapsLen = 0;
     if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
-      tBitmaps = sBitmaps;
+      tBitmaps = isSuper ? sBitmaps : nBitmaps;
     }
 #endif
 
@@ -1678,10 +1678,11 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
+      tdAppendSTSRowToDataCol(row, pSchema, pTarget);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
+#if 0
       if (update != TD_ROW_OVERWRITE_UPDATE) {
         // copy disk data
         for (int i = 0; i < pDataCols->numOfCols; ++i) {
@@ -1706,6 +1707,43 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       }
       ++(*iter);
       tSkipListIterNext(pCommitIter->pIter);
+#endif
+      // copy disk data
+      for (int i = 0; i < pDataCols->numOfCols; ++i) {
+        SCellVal sVal = {0};
+        if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
+          TASSERT(0);
+        }
+        // TODO: tdAppendValToDataCol may fail
+        tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
+                             pTarget->bitmapMode);
+      }
+
+      if (TD_SUPPORT_UPDATE(update)) {
+        // copy mem data(Multi-Version)
+        if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
+          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, TD_ROW_SVER(row));
+          ASSERT(pSchema != NULL);
+        }
+
+        // TODO: merge with Multi-Version
+        STSRow *curRow = row;
+
+        ++(*iter);
+        tSkipListIterNext(pCommitIter->pIter);
+        STSRow *nextRow = tsdbNextIterRow(pCommitIter->pIter);
+
+        if (key2 < TD_ROW_KEY(nextRow)) {
+          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+        } else {
+          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+        }
+        // TODO: merge with Multi-Version
+      } else {
+        ++pTarget->numOfRows;
+        ++(*iter);
+        tSkipListIterNext(pCommitIter->pIter);
+      }
     }
 
     if (pTarget->numOfRows >= maxRows) break;

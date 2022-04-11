@@ -16,6 +16,15 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+static inline void mmSendRsp(SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
+                 .ahandle = pMsg->rpcMsg.ahandle,
+                 .code = code,
+                 .pCont = pMsg->pRsp,
+                 .contLen = pMsg->rspLen};
+  tmsgSendRsp(&rsp);
+}
+
 static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
 
@@ -35,8 +44,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   if (pRpc->msgType & 1U) {
     if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       if (code != 0 && terrno != 0) code = terrno;
-      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
-      tmsgSendRsp(&rsp);
+      mmSendRsp(pMsg, code);
     }
   }
 
@@ -48,7 +56,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 static void mmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
 
-  dTrace("msg:%p, get from mnode query queue", pMsg);
+  dTrace("msg:%p, get from mnode-query queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
 
@@ -58,8 +66,7 @@ static void mmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   if (pRpc->msgType & 1U) {
     if (pRpc->handle != NULL && code != 0) {
       dError("msg:%p, failed to process since %s", pMsg, terrstr());
-      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .ahandle = pRpc->ahandle};
-      tmsgSendRsp(&rsp);
+      mmSendRsp(pMsg, code);
     }
   }
 
@@ -98,11 +105,8 @@ int32_t mmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t mmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SMnodeMgmt    *pMgmt = pWrapper->pMgmt;
-  SSingleWorker *pWorker = &pMgmt->monitorWorker;
-
-  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  taosWriteQitem(pWorker->queue, pMsg);
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  mmPutMsgToWorker(&pMgmt->monitorWorker, pMsg);
   return 0;
 }
 

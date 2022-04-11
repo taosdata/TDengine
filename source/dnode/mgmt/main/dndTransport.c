@@ -53,8 +53,9 @@ static void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpS
   int32_t   code = -1;
   SNodeMsg *pMsg = NULL;
   NodeMsgFp msgFp = NULL;
+  uint16_t msgType = pRpc->msgType;
 
-  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
+  if (pEpSet && pEpSet->numOfEps > 0 && msgType == TDMT_MND_STATUS_RSP) {
     dndUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
   }
 
@@ -84,8 +85,15 @@ _OVER:
     }
   } else {
     dError("msg:%p, failed to process since 0x%04x:%s", pMsg, code & 0XFFFF, terrstr());
-    if (pRpc->msgType & 1U) {
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+    if (msgType & 1U) {
+      if (terrno != 0) code = terrno;
+      if (code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_NODE_OFFLINE) {
+        if (msgType > TDMT_MND_MSG && msgType < TDMT_VND_MSG) {
+          code = TSDB_CODE_NODE_REDIRECT;
+        }
+      }
+
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
       tmsgSendRsp(&rsp);
     }
     dTrace("msg:%p, is freed", pMsg);
@@ -347,14 +355,11 @@ static int32_t dndSendRpcReq(STransMgmt *pMgmt, const SEpSet *pEpSet, SRpcMsg *p
 }
 
 static void dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
-  if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
-    if (pWrapper->ntype == MNODE) {
-      dmSendRedirectRsp(pWrapper->pMgmt, pRsp);
-      return;
-    }
+  if (pRsp->code == TSDB_CODE_NODE_REDIRECT) {
+    dmSendRedirectRsp(pWrapper->pMgmt, pRsp);
+  } else {
+    rpcSendResponse(pRsp);
   }
-
-  rpcSendResponse(pRsp);
 }
 
 static int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
@@ -443,7 +448,8 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
                                   ProcFuncType ftype) {
   pMsg->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, ftype:%d handle:%p, app:%p", pMsg, ftype, pMsg->handle, pMsg->ahandle);
+  dTrace("msg:%p, get from parent queue, ftype:%d handle:%p code:0x%04x mtype:%d, app:%p", pMsg, ftype, pMsg->handle,
+         pMsg->code & 0xFFFF, pMsg->msgType, pMsg->ahandle);
 
   switch (ftype) {
     case PROC_REGIST:
