@@ -2,9 +2,9 @@
 title: 连接器
 ---
 
-TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
+TDengine 提供了丰富的应用程序开发接口，其中包括支持使用 C/C++、Java、Python、Go、Node.js、C# 等多种语言的连接器，包括使用 taos 客户端驱动接口和 RESTful 接口，便于用户快速开发应用。
 
-![image-connecotr](/img/connector.png)
+![image-connector](/img/connector.png)
 
 ## 支持的系统
 
@@ -38,7 +38,7 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 | **错误信息**       | 支持      | 支持       | 支持     | 支持     | 支持        | 支持     |
 | **订阅功能**       | 支持      | 支持       | 支持     | 支持     | 支持        | 暂不支持 |
 | **Schemaless**     | 支持      | 支持       | 支持     | 支持     | 支持        | 支持     |
-| **RESTful 连接**   | 支持      | 支持       | 支持     | 暂不支持 | 支持        | 支持     |
+| **RESTful 连接**   | 支持      | 暂不支持   | 支持     | 暂不支持 | 支持        | 支持     |
 | **批量拉取（WS）** | 支持      | 暂不支持   | 暂不支持 | 暂不支持 | 暂不支持    | 暂不支持 |
 
 备注：
@@ -66,7 +66,7 @@ import VarifyLinux from "./_varify_windows.mdx";
 ## 安装客户端驱动
 
 :::info
-只有在没有安装 TDengine 服务端软件的系统上使用非 RESTFful 连接器才需要安装客户端驱动。
+只有在没有安装 TDengine 服务端软件的系统上使用非 RESTful 连接器才需要安装客户端驱动。
 
 :::
 
