@@ -750,7 +750,7 @@ static int tsdbKeepIntactBlocks(SDeleteH *pdh, STableDeleteH * pItem) {
     return ret;
   }
 
-  // each table's blkIdx 
+  // each table's blkIdx
   if (blkIdx.numOfBlocks > 0 && taosArrayPush(pdh->aBlkIdx, (const void *)&blkIdx) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
