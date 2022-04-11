@@ -85,12 +85,16 @@ void tscSubDeleteCallback(void *param, TAOS_RES *tres, int code) {
     return;
   }
 
-  tscDebug("0x%"PRIx64":CDEL sub:0x%"PRIx64" query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql->self,
-      pSql->self, pVgroup->epAddr[pSql->epSet.inUse].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
+  tscInfo("0x%"PRIx64":CDEL sub:0x%"PRIx64" query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve row(s)=%d tables(s)=%d", trsupport->pParentSql->self,
+      pSql->self, pVgroup->epAddr[pSql->epSet.inUse].fqdn, pVgroup->vgId, trsupport->subqueryIndex, pSql->res.numOfRows, pSql->res.numOfTables);
 
   // success do total count
+  SSubqueryState *subState = &pParentSql->subState;
+  pthread_mutex_lock(&subState->mutex);
   pParentSql->res.numOfRows   += pSql->res.numOfRows;
   pParentSql->res.numOfTables += pSql->res.numOfTables;
+  pthread_mutex_unlock(&subState->mutex);
+
   if (subAndCheckDone(pSql, pParentSql, trsupport->subqueryIndex)) {
     // all sub done, call parentSQL callback to finish
     (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
