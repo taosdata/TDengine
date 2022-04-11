@@ -4974,6 +4974,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     doAggregateImpl(pOperator, 0, pInfo->pCtx);
 
+#if 0   // test for encode/decode result info
     if(pOperator->encodeResultRow){
       char *result = NULL;
       int32_t length = 0;
@@ -4986,7 +4987,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
         taosMemoryFree(result);
       }
     }
-
+#endif
   }
 
   finalizeQueryResult(pInfo->pCtx, pOperator->numOfOutput);
@@ -5036,10 +5037,10 @@ void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter *pSup, SOptrBasi
   void*   pIter = taosHashIterate(pSup->pResultRowHashTable, NULL);
   while (pIter) {
     void*        key = taosHashGetKey(pIter, &keyLen);
-    SResultRowPosition** p1 = (SResultRowPosition**)pIter;
+    SResultRowPosition* p1 = (SResultRowPosition*)pIter;
 
-    pPage = (SFilePage*) getBufPage(pSup->pResultBuf, (*p1)->pageId);
-    pRow = (SResultRow*)((char*)pPage + (*p1)->offset);
+    pPage = (SFilePage*) getBufPage(pSup->pResultBuf, p1->pageId);
+    pRow = (SResultRow*)((char*)pPage + p1->offset);
     setBufPageDirty(pPage, true);
     releaseBufPage(pSup->pResultBuf, pPage);
 
@@ -5346,7 +5347,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order);
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
 
-#if 0
+#if 0   // test for encode/decode result info
     if(pOperator->encodeResultRow){
       char *result = NULL;
       int32_t length = 0;
