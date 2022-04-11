@@ -91,80 +91,109 @@ sql insert into ct4 values ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8
 sql insert into ct4 values ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
 
 print ================ start query ======================
+print ================ query 1 limit/offset
+sql select * from ct1 limit 1
+print ====> sql : select * from ct1 limit 1
+print ====> rows: $rows
+print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06, $data07, $data08, $data09
+if $rows != 1 then
+    return -1
+endi
 
-
-print ================ query 1 group by  filter
-sql select count(*) from ct3 group by c1
-print ====> sql : select count(*) from ct3 group by c1
+sql select * from ct1 limit 9
+print ====> sql : select * from ct1 limit 9
 print ====> rows: $rows
 if $rows != 8 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c2
-print ====> sql : select count(*) from ct3 group by c2
+sql select * from ct1 limit 1 offset 2
+print ====> sql : select * from ct1 limit 1 offset 2
 print ====> rows: $rows
-if $rows != 8 then
+print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06, $data07, $data08, $data09
+if $rows != 1 then
+    return -1
+endi
+if $data01 != 2 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c3
-print ====> sql : select count(*) from ct3 group by c3
+sql select * from ct1 limit 2 offset 1
+print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 2 then
+    return -1
+endi
+if $data01 != 8 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c4
-print ====> sql : select count(*) from ct3 group by c4
+sql select * from ct1 limit 2 offset 7
+print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 8 then
+print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06, $data07, $data08, $data09
+if $rows != 1 then
+    return -1
+endi
+if $data01 != 2 then
+    return -1
+endi
+if $data11 != 3 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c5
-print ====> sql : select count(*) from ct3 group by c5
+sql select * from ct1 limit 2 offset 10
+print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 0 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c6
-print ====> sql : select count(*) from ct3 group by c6
+sql select c1 from stb1 limit 1
+print ====> sql : select c1 from stb1 limit 1
 print ====> rows: $rows
-if $rows != 8 then
+print ====> rows0: $data00
+if $rows != 1 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c7
-print ====> sql : select count(*) from ct3 group by c7
+sql select c1 from stb1 limit 50
+print ====> sql : select c1 from stb1 limit 50
+print ====> rows: $rows
+if $rows != 33 then
+    return -1
+endi
+
+sql select c1 from stb1 limit 1 offset 2
+print ====> sql : select c1 from stb1 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select c1 from stb1 limit 2 offset 1
+print ====> sql : select c1 from stb1 limit 2 offset 1
 print ====> rows: $rows
 if $rows != 2 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c8
-print ====> sql : select count(*) from ct3 group by c8
+sql select c1 from stb1 limit 2 offset 32
+print ====> sql : select c1 from stb1 limit 2 offset 32
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 1 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c9
-print ====> sql : select count(*) from ct3 group by c9
+sql select c1 from stb1 limit 2 offset 40
+print ====> sql : select c1 from stb1 limit 2 offset 40
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 0 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c10
-print ====> sql : select count(*) from ct3 group by c10
-print ====> rows: $rows
-if $rows != 8 then
-    return -1
-endi
 
-print ================ query 2 complex with group by
+print ================ query 2 complex with limit
 sql select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
 print ====> sql : select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
@@ -263,7 +292,6 @@ if $rows != 1 then
     return -1
 endi
 
-
 print =================== count all rows
 sql select count(c1) from stb1
 print ====> sql : select count(c1) from stb1
@@ -303,78 +331,109 @@ if $data00 != 33 then
   return -1
 endi
 
-print ================ query 1 group by  filter
-sql select count(*) from ct3 group by c1
-print ====> sql : select count(*) from ct3 group by c1
+print ================ query 1 limit/offset
+sql select * from ct1 limit 1
+print ====> sql : select * from ct1 limit 1
+print ====> rows: $rows
+print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06, $data07, $data08, $data09
+if $rows != 1 then
+    return -1
+endi
+
+sql select * from ct1 limit 9
+print ====> sql : select * from ct1 limit 9
 print ====> rows: $rows
 if $rows != 8 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c2
-print ====> sql : select count(*) from ct3 group by c2
+sql select * from ct1 limit 1 offset 2
+print ====> sql : select * from ct1 limit 1 offset 2
 print ====> rows: $rows
-if $rows != 8 then
+print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06, $data07, $data08, $data09
+if $rows != 1 then
+    return -1
+endi
+if $data01 != 2 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c3
-print ====> sql : select count(*) from ct3 group by c3
+sql select * from ct1 limit 2 offset 1
+print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 2 then
+    return -1
+endi
+if $data01 != 8 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c4
-print ====> sql : select count(*) from ct3 group by c4
+sql select * from ct1 limit 2 offset 7
+print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 8 then
+print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06, $data07, $data08, $data09
+if $rows != 1 then
+    return -1
+endi
+if $data01 != 2 then
+    return -1
+endi
+if $data11 != 3 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c5
-print ====> sql : select count(*) from ct3 group by c5
+sql select * from ct1 limit 2 offset 10
+print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 0 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c6
-print ====> sql : select count(*) from ct3 group by c6
+sql select c1 from stb1 limit 1
+print ====> sql : select c1 from stb1 limit 1
 print ====> rows: $rows
-if $rows != 8 then
+print ====> rows0: $data00
+if $rows != 1 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c7
-print ====> sql : select count(*) from ct3 group by c7
+sql select c1 from stb1 limit 50
+print ====> sql : select c1 from stb1 limit 50
+print ====> rows: $rows
+if $rows != 33 then
+    return -1
+endi
+
+sql select c1 from stb1 limit 1 offset 2
+print ====> sql : select c1 from stb1 limit 1 offset 2
+print ====> rows: $rows
+if $rows != 1 then
+    return -1
+endi
+
+sql select c1 from stb1 limit 2 offset 1
+print ====> sql : select c1 from stb1 limit 2 offset 1
 print ====> rows: $rows
 if $rows != 2 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c8
-print ====> sql : select count(*) from ct3 group by c8
+sql select c1 from stb1 limit 2 offset 32
+print ====> sql : select c1 from stb1 limit 2 offset 32
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 1 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c9
-print ====> sql : select count(*) from ct3 group by c9
+sql select c1 from stb1 limit 2 offset 40
+print ====> sql : select c1 from stb1 limit 2 offset 40
 print ====> rows: $rows
-if $rows != 8 then
+if $rows != 0 then
     return -1
 endi
 
-sql select count(*) from ct3 group by c10
-print ====> sql : select count(*) from ct3 group by c10
-print ====> rows: $rows
-if $rows != 8 then
-    return -1
-endi
 
-print ================ query 2 complex with group by
+print ================ query 2 complex with limit
 sql select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
 print ====> sql : select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
