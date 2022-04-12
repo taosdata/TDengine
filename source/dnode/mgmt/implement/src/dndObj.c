@@ -14,7 +14,104 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndNode.h"
+#include "dndImp.h"
+
+
+static int32_t dmStart(SMgmtWrapper *pWrapper) {
+  dDebug("dnode-mgmt start to run");
+  return dmStartThread(pWrapper->pMgmt);
+}
+
+static int32_t dmInit(SMgmtWrapper *pWrapper) {
+  SDnode     *pDnode = pWrapper->pDnode;
+  SDnodeData *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeData));
+  dInfo("dnode-mgmt start to init");
+
+  pDnode->data.dnodeId = 0;
+  pDnode->data.dropped = 0;
+  pDnode->data.clusterId = 0;
+  pMgmt->path = pWrapper->path;
+  pMgmt->pDnode = pDnode;
+  taosInitRWLatch(&pMgmt->latch);
+
+  pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pMgmt->dnodeHash == NULL) {
+    dError("failed to init dnode hash");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (dmReadFile(pMgmt) != 0) {
+    dError("failed to read file since %s", terrstr());
+    return -1;
+  }
+
+  if (pDnode->data.dropped) {
+    dError("dnode will not start since its already dropped");
+    return -1;
+  }
+
+  if (dmStartWorker(pMgmt) != 0) {
+    return -1;
+  }
+
+  if (dndInitTrans(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
+    return -1;
+  }
+
+  pWrapper->pMgmt = pMgmt;
+  pMgmt->msgCb = dndCreateMsgcb(pWrapper);
+
+  dInfo("dnode-mgmt is initialized");
+  return 0;
+}
+
+static void dmCleanup(SMgmtWrapper *pWrapper) {
+  SDnodeData *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return;
+
+  dInfo("dnode-mgmt start to clean up");
+  SDnode *pDnode = pMgmt->pDnode;
+  dmStopWorker(pMgmt);
+
+  taosWLockLatch(&pMgmt->latch);
+
+  if (pMgmt->dnodeEps != NULL) {
+    taosArrayDestroy(pMgmt->dnodeEps);
+    pMgmt->dnodeEps = NULL;
+  }
+
+  if (pMgmt->dnodeHash != NULL) {
+    taosHashCleanup(pMgmt->dnodeHash);
+    pMgmt->dnodeHash = NULL;
+  }
+
+  taosWUnLockLatch(&pMgmt->latch);
+
+  taosMemoryFree(pMgmt);
+  pWrapper->pMgmt = NULL;
+  dndCleanupTrans(pDnode);
+
+  dInfo("dnode-mgmt is cleaned up");
+}
+
+static int32_t dmRequire(SMgmtWrapper *pWrapper, bool *required) {
+  *required = true;
+  return 0;
+}
+
+void dmSetMgmtFp(SMgmtWrapper *pWrapper) {
+  SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = dmInit;
+  mgmtFp.closeFp = dmCleanup;
+  mgmtFp.startFp = dmStart;
+  mgmtFp.requiredFp = dmRequire;
+
+  dmInitMsgHandle(pWrapper);
+  pWrapper->name = "dnode";
+  pWrapper->fp = mgmtFp;
+}
 
 static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->data.supportVnodes = pOption->numOfSupportVnodes;

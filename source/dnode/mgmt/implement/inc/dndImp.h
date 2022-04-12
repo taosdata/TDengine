@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_NODE_H_
-#define _TD_DND_NODE_H_
+#ifndef _TD_DND_IMP_H_
+#define _TD_DND_IMP_H_
 
 #include "dndInt.h"
 
@@ -30,6 +30,7 @@ int32_t  dndInitTrans(SDnode *pDnode);
 void     dndCleanupTrans(SDnode *pDnode);
 SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
 int32_t  dndInitMsgHandle(SDnode *pDnode);
+void     dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pReq);
 void     dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 
 // mgmt
@@ -40,19 +41,40 @@ void smSetMgmtFp(SMgmtWrapper *pWrapper);
 void vmSetMgmtFp(SMgmtWrapper *pWrapper);
 void mmSetMgmtFp(SMgmtWrapper *pMgmt);
 
-void dmGetMnodeEpSet(SDnodeData *pMgmt, SEpSet *pEpSet);
-void dmUpdateMnodeEpSet(SDnodeData *pMgmt, SEpSet *pEpSet);
-void dmSendRedirectRsp(SDnodeData *pMgmt, const SRpcMsg *pMsg);
-
-void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
+void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo);
 void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo);
 void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo);
 void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo);
 void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo);
 
+// dmFile.c
+int32_t dmReadFile(SDnodeData *pMgmt);
+int32_t dmWriteFile(SDnodeData *pMgmt);
+void    dmUpdateDnodeEps(SDnodeData *pMgmt, SArray *pDnodeEps);
+
+// dmHandle.c
+void    dmInitMsgHandle(SMgmtWrapper *pWrapper);
+void    dmSendStatusReq(SDnodeData *pMgmt);
+int32_t dmProcessConfigReq(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessStatusRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessAuthRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessGrantRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
+
+// dmMonitor.c
+void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
+void dmSendMonitorReport(SDnode *pDnode);
+
+// dmWorker.c
+int32_t dmStartThread(SDnodeData *pMgmt);
+int32_t dmStartWorker(SDnodeData *pMgmt);
+void    dmStopWorker(SDnodeData *pMgmt);
+int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_NODE_H_*/
+#endif /*_TD_DND_IMP_H_*/

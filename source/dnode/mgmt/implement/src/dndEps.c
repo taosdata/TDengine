@@ -14,11 +14,31 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dndImp.h"
 
 static void dmPrintDnodes(SDnodeData *pMgmt);
 static bool dmIsEpChanged(SDnodeData *pMgmt, int32_t dnodeId, const char *ep);
 static void dmResetDnodes(SDnodeData *pMgmt, SArray *dnodeEps);
+
+void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
+  SDnodeData *pMgmt = pWrapper->pMgmt;
+  taosRLockLatch(&pMgmt->latch);
+
+  SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
+  if (pDnodeEp != NULL) {
+    if (pPort != NULL) {
+      *pPort = pDnodeEp->ep.port;
+    }
+    if (pFqdn != NULL) {
+      tstrncpy(pFqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
+    }
+    if (pEp != NULL) {
+      snprintf(pEp, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
+    }
+  }
+
+  taosRUnLockLatch(&pMgmt->latch);
+}
 
 int32_t dmReadFile(SDnodeData *pMgmt) {
   int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;

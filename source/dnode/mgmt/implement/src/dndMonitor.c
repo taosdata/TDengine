@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dndImp.h"
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;

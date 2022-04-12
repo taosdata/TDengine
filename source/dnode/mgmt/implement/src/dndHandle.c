@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dndImp.h"
 
 void dmSendStatusReq(SDnodeData *pMgmt) {
   SDnode    *pDnode = pMgmt->pDnode;
@@ -57,9 +57,7 @@ void dmSendStatusReq(SDnodeData *pMgmt) {
   pMgmt->statusSent = 1;
 
   dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
-  SEpSet epSet = {0};
-  dmGetMnodeEpSet(pMgmt, &epSet);
-  tmsgSendReq(&pMgmt->msgCb, &epSet, &rpcMsg);
+  dndSendMsgToMnode(pDnode, &rpcMsg);
 }
 
 static void dmUpdateDnodeCfg(SDnodeData *pMgmt, SDnodeCfg *pCfg) {

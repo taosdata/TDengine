@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndNode.h"
+#include "dndImp.h"
 #include "tconfig.h"
 
 static struct {
