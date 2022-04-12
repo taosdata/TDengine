@@ -42,6 +42,8 @@ typedef struct {
     char    topicString[256];
 	char    keyString[1024];
 	int32_t showMsgFlag;
+	int32_t consumeDelay;    // unit s
+	int32_t consumeMsgCnt;
 
     // save result after parse agrvs	
 	int32_t numOfTopic;
@@ -71,12 +73,19 @@ static void printHelp() {
   printf("%s%s%s\n", indent, indent, "The key-value string for cosumer, no default ");
   printf("%s%s\n", indent, "-g");
   printf("%s%s%s%d\n", indent, indent, "showMsgFlag, default is ", g_stConfInfo.showMsgFlag);
+  printf("%s%s\n", indent, "-y");
+  printf("%s%s%s%d\n", indent, indent, "consume delay, default is s", g_stConfInfo.consumeDelay);
+  printf("%s%s\n", indent, "-m");
+  printf("%s%s%s%d\n", indent, indent, "consume msg count, default is s", g_stConfInfo.consumeMsgCnt);
   exit(EXIT_SUCCESS);
 }
 
 void parseArgument(int32_t argc, char *argv[]) {
 
   memset(&g_stConfInfo, 0, sizeof(SConfInfo));
+  g_stConfInfo.showMsgFlag   = 0;
+  g_stConfInfo.consumeDelay  = 8000;
+  g_stConfInfo.consumeMsgCnt = 0;
   
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -92,6 +101,10 @@ void parseArgument(int32_t argc, char *argv[]) {
       strcpy(g_stConfInfo.keyString, argv[++i]);
     } else if (strcmp(argv[i], "-g") == 0) {
       g_stConfInfo.showMsgFlag = atol(argv[++i]);
+    } else if (strcmp(argv[i], "-y") == 0) {
+      g_stConfInfo.consumeDelay = atol(argv[++i]);
+    } else if (strcmp(argv[i], "-m") == 0) {
+      g_stConfInfo.consumeMsgCnt = atol(argv[++i]);
     } else {
       printf("%s unknow para: %s %s", GREEN, argv[++i], NC);
 	  exit(-1);
@@ -256,6 +269,48 @@ void loop_consume(tmq_t* tmq) {
   printf("{consume success: %d, %d}", totalMsgs, totalRows);
 }
 
+
+void parallel_consume(tmq_t* tmq) {
+  tmq_resp_err_t err;
+
+  int32_t totalMsgs = 0;
+  int32_t totalRows = 0;
+  int32_t skipLogNum = 0;
+  while (running) {
+    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, g_stConfInfo.consumeDelay * 1000);
+    if (tmqMsg) {
+	  totalMsgs++;
+
+	  #if 0
+	  TAOS_ROW row;
+	  while (NULL != (row = tmq_get_row(tmqMsg))) {
+        totalRows++;
+	  }
+	  #endif
+	  
+      skipLogNum += tmqGetSkipLogNum(tmqMsg);
+	  if (0 != g_stConfInfo.showMsgFlag) {
+        msg_process(tmqMsg);
+	  }
+      tmq_message_destroy(tmqMsg);
+
+	  if (totalMsgs >= g_stConfInfo.consumeMsgCnt) {
+        break;
+	  }
+    } else {
+      break;
+    }
+  }
+
+  err = tmq_consumer_close(tmq);
+  if (err) {
+    printf("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
+	exit(-1);
+  }
+  
+  printf("%d", totalMsgs); // output to sim for check result
+}
+
 int main(int32_t argc, char *argv[]) {
   parseArgument(argc, argv);
   parseInputString();
@@ -271,8 +326,12 @@ int main(int32_t argc, char *argv[]) {
     printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
-  
-  loop_consume(tmq);
+
+  if (0 == g_stConfInfo.consumeMsgCnt) {
+    loop_consume(tmq);
+  } else {
+    parallel_consume(tmq);
+  }
 
   err = tmq_unsubscribe(tmq);
   if (err) {
