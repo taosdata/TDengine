@@ -21,7 +21,7 @@ from util.sql import *
 import numpy as np
 
 # constant define
-WAITS = 5 # wait seconds
+WAITS = 10 # wait seconds
 
 class TDTestCase:
     #
@@ -52,7 +52,7 @@ class TDTestCase:
           tbname = "t%d"%i
           self.insert_data(tbname, self.ts, (i+1)*10000, 20000);
 
-        tdLog.debug(" INSERT data 100 tables ....... [OK]")  
+        tdLog.debug(" INSERT data 10 tables ....... [OK]")  
 
         # test base case
         self.test_case1()
@@ -74,7 +74,7 @@ class TDTestCase:
     # create table
     def create_tables(self):
         # super table
-        tdSql.execute("create table st(ts timestamp, i1 int) tags(area int)");
+        tdSql.execute("create table st(ts timestamp, i1 int) tags(area int)")
         # child table
         for i in range(10):
           sql = "create table t%d using st tags(%d)"%(i, i)
@@ -101,35 +101,182 @@ class TDTestCase:
     # test case1 base 
     def test_case1(self):
         # 
-        # delete base function
+        # delete from single table
         #
-
-        # single table delete
+        
+        # where <
         sql = "select count(*) from t0 where ts < 1500000120000"
-        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.query(sql)
         tdSql.checkData(0, 0, 120)
         
         sql = "delete from t0 where ts < 1500000120000"
-        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(120)
 
         sql = "select count(*) from t0"
-        tdSql.waitedQuery(sql, 1, WAITS)
-        tdSql.checkData(0, 0, 10000-120)
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 10000 - 120 )
 
         sql = "select * from t0 limit 1"
-        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.query(sql)
         tdSql.checkData(0, 1, 120)
 
+        # where > and <
+        sql = "delete from t0 where ts > 1500000240000 and ts <= 1500000300000"
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(60)
+        sql = "select count(*) from t0"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 10000 - 120 - 60)
+
+        sql = "select * from t0 limit 2 offset 120"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 240)
+        tdSql.checkData(1, 1, 301)
+
+        
+        # where >  delete 1000 rows from end
+        sql = "delete from t0 where ts >= 1500009000000; "
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(1000)
+        sql = "select count(*) from t0"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 10000 - 120 - 60 - 1000)
+        
+        sql = "select last_row(*) from t0; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 8999)
+
+        sql = "select last(*) from t0"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 8999)
+
+        # insert last_row
+        sql = "insert into t0 values(1500009999000,9999); "
+        tdSql.execute(sql)
+
+        sql = "select last_row(*) from t0; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 9999)
+
+        sql = "select last(*) from t0"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 9999)
+
+        # insert last 
+        sql = "insert into t0 values(1500010000000,10000); "
+        tdSql.execute(sql)
+        sql = "insert into t0 values(1500010002000,NULL); "
+        tdSql.execute(sql)
+        sql = "insert into t0 values(1500010001000,10001); "
+        tdSql.execute(sql)
+        sql = "delete from t0 where ts = 1500010001000;  "
+        tdSql.execute(sql)
+
+        sql = "select last_row(i1) from t0; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, None)
+
+        sql = "select last(i1) from t0; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 10000)
+
+        # delete whole
+        sql = "delete from t0;"
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(8823)
+        
         return 
 
     # test advance 
     def test_case2(self):
         # 
-        # delete other special case
+        # delete from super table
         #
         
-        # offset
-        sql = "select * from t1 limit 10 offset 72000"
+        # where <
+        sql = "select count(*) from st where ts < 1500000120000;"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 9*120) #1080
+        
+        sql = "delete from st where ts < 1500000120000;"
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(9*120) #1080
+
+        sql = "select count(*) from st;"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 540000 - 9*120 )
+
+        sql = "select * from st limit 1;"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 120)
+
+        # where > and <
+        sql = "delete from st where ts > 1500000240000 and ts <= 1500000300000;"
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(9*60)
+        sql = "select count(*) from st;"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 540000 - 9*120 - 9*60)
+
+        sql = "select * from st limit 2 offset 120"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 240)
+        tdSql.checkData(1, 1, 301)
+
+        
+        # where >  delete 1000 rows from end
+        sql = "delete from st where ts >= 1500009000000; "
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(459000)
+        sql = "select count(*) from st;"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 79380)
+        
+        sql = "select last_row(*) from st; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 8999)
+
+        sql = "select last(*) from st"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 8999)
+
+        # insert last_row
+        sql = "insert into t0 values(1500009999000,9999); "
+        tdSql.execute(sql)
+
+        sql = "select last_row(*) from st; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 9999)
+
+        sql = "select last(*) from st"
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, 9999)
+
+        # insert last 
+        sql = "insert into t0 values(1500010000000,10000); "
+        tdSql.execute(sql)
+        sql = "insert into t0 values(1500010002000,NULL); "
+        tdSql.execute(sql)
+        sql = "insert into t0 values(1500010001000,10001); "
+        tdSql.execute(sql)
+        sql = "delete from t0 where ts = 1500010001000;  "
+        tdSql.execute(sql)
+
+        sql = "select last_row(i1) from st; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, None)
+
+        sql = "select last(i1) from st; "
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 10000)
+
+        # delete whole
+        sql = "delete from st;"
+        tdSql.execute(sql)
+        tdSql.checkAffectedRows(79383)
+        
+        return 
 
 #
 # add case with filename
