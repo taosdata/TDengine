@@ -4,13 +4,18 @@ sql connect
 print ================ insert data
 $dbNamme  = d1
 $tbPrefix = ct
-$tbNum    = 2
+$tbNum    = 10
 $rowNum   = 100
 $tstart   = 1640966400000  # 2022-01-01 00:00:00.000
 
 sql use $dbNamme
 
+$loop_cnt = 0
+
 loop_insert:
+print ====> loop $loop_cnt insert
+$loop_cnt = $loop_cnt + 1
+
 $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
@@ -32,9 +37,11 @@ while $i < $tbNum
     $tstart = $tstart + 1
     $x = $x + 1
   endw
+  
+  #print ====> insert rows: $rowNum into $tb and ntb
 
   $i = $i + 1
-  $tstart = 1640966400000
+#  $tstart = 1640966400000
 endw
 goto loop_insert
 
