@@ -3265,7 +3265,7 @@ int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     tagCondLen = pCond->len;
   }
 
-  size_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData) + tagCondLen;
+  int32_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData) + tagCondLen;
     
   int32_t ret = tscAllocPayload(pCmd, payloadLen);
   if (ret != TSDB_CODE_SUCCESS) {
