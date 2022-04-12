@@ -6682,38 +6682,6 @@ bool validateExprColumnInfo(SQueriedTableInfo* pTableInfo, SExprBasicInfo* pExpr
   return j != INT32_MIN;
 }
 
-static int32_t deserializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t numOfFilters, char** pMsg) {
-  for (int32_t f = 0; f < numOfFilters; ++f) {
-    SColumnFilterInfo* pFilterMsg = (SColumnFilterInfo*)(*pMsg);
-
-    SColumnFilterInfo* pColFilter = &pColFilters[f];
-    pColFilter->filterstr = htons(pFilterMsg->filterstr);
-
-    (*pMsg) += sizeof(SColumnFilterInfo);
-
-    if (pColFilter->filterstr) {
-      pColFilter->len = htobe64(pFilterMsg->len);
-
-      pColFilter->pz =
-          (int64_t)taosMemoryCalloc(1, (size_t)(pColFilter->len + 1 * TSDB_NCHAR_SIZE));  // note: null-terminator
-      if (pColFilter->pz == 0) {
-        return TSDB_CODE_QRY_OUT_OF_MEMORY;
-      }
-
-      memcpy((void*)pColFilter->pz, (*pMsg), (size_t)pColFilter->len);
-      (*pMsg) += (pColFilter->len + 1);
-    } else {
-      pColFilter->lowerBndi = htobe64(pFilterMsg->lowerBndi);
-      pColFilter->upperBndi = htobe64(pFilterMsg->upperBndi);
-    }
-
-    pColFilter->lowerRelOptr = htons(pFilterMsg->lowerRelOptr);
-    pColFilter->upperRelOptr = htons(pFilterMsg->upperRelOptr);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static SResSchema createResSchema(int32_t type, int32_t bytes, int32_t slotId, int32_t scale, int32_t precision,
                                   const char* name) {
   SResSchema s = {0};
