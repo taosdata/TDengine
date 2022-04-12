@@ -85,7 +85,7 @@ def random_args(args_list):
 
     args_list["--max-steps"]=random.randint(300,500)
     
-    threads = [32,64,128,256]
+    threads = [32,64,128]
     args_list["--num-threads"]=random.sample(threads,1)[0] #$ debug
     args_list["--ignore-errors"]=[]   ## can add error codes for detail
 
@@ -205,15 +205,20 @@ def check_memory(run_dir):
     for stderr_file in stderr_list:
         print(stderr_file)
         grep_res = subprocess.Popen("grep -i 'Invalid read' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        dnode_name = stderr_file.split("/")[-3]
+        back_path = os.path.join(core_path,"reporter",dnode_name)
+        if not os.path.exists(back_path):
+            os.mkdir(back_path)
+
         if grep_res:
-            os.system("cp %s %s"%(stderr_file , mem_report_path))
+            os.system("cp %s %s"%(stderr_file , back_path))
             status = 4
             break
         
         grep_res = subprocess.Popen("grep -i 'Invalid write' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         if grep_res:
             status = 4
-            os.system("cp %s %s"%(stderr_file , mem_report_path))
+            os.system("cp %s %s"%(stderr_file , back_path))
             break
     return status
 
