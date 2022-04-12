@@ -25,8 +25,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .checkFunc    = checkAndGetResultType,
+    .dataRequiredFunc = countDataRequired,
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
@@ -389,7 +390,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .checkFunc    = checkAndGetResultType,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = castFunction,
     .finalizeFunc = NULL
   },
   {
@@ -599,7 +600,13 @@ int32_t checkAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
     case FUNCTION_TYPE_CAST: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+      //type
+      SValueNode* pParam = nodesListGetNode(pFunc->pParameterList, 1);
+      int32_t paraType = pParam->datum.i;
+      //bytes
+      pParam = nodesListGetNode(pFunc->pParameterList, 2);
+      int32_t paraBytes = pParam->datum.i;
+      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType};
       break;
     }
 

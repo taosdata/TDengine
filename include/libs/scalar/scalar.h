@@ -70,6 +70,9 @@ int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t rtrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
+/* Conversion functions */
+int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
 bool getTimePseudoFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

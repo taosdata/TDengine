@@ -58,7 +58,7 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
-    return smOpen(pWrapper);
+    return dndOpenNode(pWrapper);
   }
 }
 
@@ -78,6 +78,7 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   } else {
     return smDrop(pWrapper);
+    // return dndCloseNode(pWrapper);
   }
 }
 

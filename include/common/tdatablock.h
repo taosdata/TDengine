@@ -136,7 +136,8 @@ static FORCE_INLINE void colDataAppendInt8(SColumnInfoData* pColumnInfoData, uin
 }
 
 static FORCE_INLINE void colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
+         pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int16_t*)p = *(int16_t*)v;
 }
@@ -210,15 +211,19 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 
 void blockDebugShowData(const SArray* dataBlocks);
 
+static FORCE_INLINE int32_t blockEstimateEncodeSize(const SSDataBlock* pBlock) {
+  return blockDataGetSerialMetaSize(pBlock) + (int32_t)ceil(blockDataGetSerialRowSize(pBlock) * pBlock->info.rows);
+}
+
 static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data,
-                                            int8_t compressed) {
+                                                 int8_t compressed) {
   int32_t colSize = colDataGetLength(pColRes, numOfRows);
   return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
                                                       colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
 static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
-                                       int8_t needCompress) {
+                                             int8_t needCompress) {
   int32_t* colSizes = (int32_t*)data;
 
   data += numOfCols * sizeof(int32_t);
