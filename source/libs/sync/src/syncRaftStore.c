@@ -57,7 +57,7 @@ SRaftStore *raftStoreOpen(const char *path) {
 static int32_t raftStoreInit(SRaftStore *pRaftStore) {
   assert(pRaftStore != NULL);
 
-  pRaftStore->pFile = taosOpenFile(pRaftStore->path, TD_FILE_CTEATE | TD_FILE_WRITE);
+  pRaftStore->pFile = taosOpenFile(pRaftStore->path, TD_FILE_CREATE | TD_FILE_WRITE);
   assert(pRaftStore->pFile != NULL);
 
   pRaftStore->currentTerm = 0;
