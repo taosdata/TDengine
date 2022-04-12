@@ -80,6 +80,7 @@ int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to drop mnode since %s", terrstr());
     return -1;
   } else {
+    // dndCloseNode(pWrapper);
     return mmDrop(pWrapper);
   }
 }

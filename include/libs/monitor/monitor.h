@@ -78,6 +78,9 @@ typedef struct {
 typedef struct {
   float        uptime;  // day
   int8_t       has_mnode;
+  int8_t       has_qnode;
+  int8_t       has_snode;
+  int8_t       has_bnode;
   SMonDiskDesc logdir;
   SMonDiskDesc tempdir;
 } SMonDnodeInfo;
@@ -134,8 +137,8 @@ typedef struct {
 
 typedef struct {
   int32_t expire_time;
-  int32_t timeseries_used;
-  int32_t timeseries_total;
+  int64_t timeseries_used;
+  int64_t timeseries_total;
 } SMonGrantInfo;
 
 typedef struct {
