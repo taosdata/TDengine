@@ -55,6 +55,14 @@ void functionFinalize(SqlFunctionCtx *pCtx) {
   pResInfo->isNullRes = (pResInfo->numOfRes == 0)? 1:0;
 }
 
+EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
+    return FUNC_DATA_REQUIRED_NO_NEEDED;
+  }
+  return FUNC_DATA_REQUIRED_STATIS_NEEDED;
+}
+
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(int64_t);
   return true;

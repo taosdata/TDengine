@@ -135,8 +135,17 @@ bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsSpecialDataRequiredFunc(int32_t funcId);
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 
-int32_t fmFuncScanType(int32_t funcId);
+typedef enum EFuncDataRequired {
+  FUNC_DATA_REQUIRED_ALL_NEEDED = 1,
+  FUNC_DATA_REQUIRED_STATIS_NEEDED,
+  FUNC_DATA_REQUIRED_NO_NEEDED,
+  FUNC_DATA_REQUIRED_DISCARD
+} EFuncDataRequired;
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);

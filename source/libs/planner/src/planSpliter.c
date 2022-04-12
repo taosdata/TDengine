@@ -23,18 +23,14 @@
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SSplitContext {
-  int32_t errCode;
   int32_t groupId;
-  bool match;
-  void* pInfo;
+  bool split;
 } SSplitContext;
 
-typedef int32_t (*FMatch)(SSplitContext* pCxt, SLogicSubplan* pSubplan);
-typedef int32_t (*FSplit)(SSplitContext* pCxt);
+typedef int32_t (*FSplit)(SSplitContext* pCxt, SLogicSubplan* pSubplan);
 
 typedef struct SSplitRule {
   char* pName;
-  FMatch matchFunc;
   FSplit splitFunc;
 } SSplitRule;
 
@@ -58,30 +54,25 @@ static SLogicNode* stsMatchByNode(SLogicNode* pNode) {
   return NULL;
 }
 
-static int32_t stsMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
-  if (SPLIT_FLAG_TEST_MASK(pSubplan->splitFlag, SPLIT_FLAG_STS)) {
-    return TSDB_CODE_SUCCESS;
-  }
+static void stsFindSplitNode(SLogicSubplan* pSubplan, SStsInfo* pInfo) {
   SLogicNode* pSplitNode = stsMatchByNode(pSubplan->pNode);
   if (NULL != pSplitNode) {
-    SStsInfo* pInfo = taosMemoryCalloc(1, sizeof(SStsInfo));
-    if (NULL == pInfo) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
     pInfo->pScan = (SScanLogicNode*)pSplitNode;
     pInfo->pSubplan = pSubplan;
-    pCxt->pInfo = pInfo;
-    pCxt->match = true;
-    return TSDB_CODE_SUCCESS;
+  }
+}
+static void stsMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan, SStsInfo* pInfo) {
+  if (!SPLIT_FLAG_TEST_MASK(pSubplan->splitFlag, SPLIT_FLAG_STS)) {
+    stsFindSplitNode(pSubplan, pInfo);
   }
   SNode* pChild;
   FOREACH(pChild, pSubplan->pChildren) {
-    int32_t code = stsMatch(pCxt, (SLogicSubplan*)pChild);
-    if (TSDB_CODE_SUCCESS != code || pCxt->match) {
-      return code;
+    stsMatch(pCxt, (SLogicSubplan*)pChild, pInfo);
+    if (NULL != pInfo->pScan) {
+      break;
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return;
 }
 
 static SLogicSubplan* stsCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* pScan) {
@@ -128,46 +119,44 @@ static int32_t stsCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   return TSDB_CODE_FAILED;
 }
 
-static int32_t stsSplit(SSplitContext* pCxt) {
-  SStsInfo* pInfo = pCxt->pInfo;
-  if (NULL == pInfo->pSubplan->pChildren) {
-    pInfo->pSubplan->pChildren = nodesMakeList();
-    if (NULL == pInfo->pSubplan->pChildren) {
+static int32_t stsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  SStsInfo info = {0};
+  stsMatch(pCxt, pSubplan, &info);
+  if (NULL == info.pScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == info.pSubplan->pChildren) {
+    info.pSubplan->pChildren = nodesMakeList();
+    if (NULL == info.pSubplan->pChildren) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  int32_t code = nodesListStrictAppend(pInfo->pSubplan->pChildren, stsCreateScanSubplan(pCxt, pInfo->pScan));
+  int32_t code = nodesListStrictAppend(info.pSubplan->pChildren, stsCreateScanSubplan(pCxt, info.pScan));
   if (TSDB_CODE_SUCCESS == code) {
-    code = stsCreateExchangeNode(pCxt, pInfo->pSubplan, pInfo->pScan);
+    code = stsCreateExchangeNode(pCxt, info.pSubplan, info.pScan);
   }
   ++(pCxt->groupId);
-  taosMemoryFreeClear(pCxt->pInfo);
+  pCxt->split = true;
   return code;
 }
 
 static const SSplitRule splitRuleSet[] = {
-  { .pName = "SuperTableScan", .matchFunc = stsMatch, .splitFunc = stsSplit }
+  { .pName = "SuperTableScan", .splitFunc = stsSplit }
 };
 
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
 static int32_t applySplitRule(SLogicSubplan* pSubplan) {
-  SSplitContext cxt = { .errCode = TSDB_CODE_SUCCESS, .groupId = pSubplan->id.groupId + 1, .match = false, .pInfo = NULL };
-  bool split = false;
+  SSplitContext cxt = { .groupId = pSubplan->id.groupId + 1, .split = false };
   do {
-    split = false;
+    cxt.split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {
-      cxt.match = false;
-      int32_t code = splitRuleSet[i].matchFunc(&cxt, pSubplan);
-      if (TSDB_CODE_SUCCESS == code && cxt.match) {
-        code = splitRuleSet[i].splitFunc(&cxt);
-        split = true;
-      }
+      int32_t code = splitRuleSet[i].splitFunc(&cxt, pSubplan);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
     }
-  } while (split);
+  } while (cxt.split);
   return TSDB_CODE_SUCCESS;
 }
 
