@@ -137,7 +137,7 @@ impl<'a> Block<'a> {
         let field = self.result.get_field_unchecked(col);
         use TaosDataType::*;
         let ty = field.type_();
-        if !matches!(field.type_(), NChar | Binary | Json) {
+        if !matches!(field.type_(), NChar | TSDB_DATA_TYPE_BINARY | Json) {
             return Err(Error::from_string("unmatched data type pattern for string"));
         }
         let slice = self.inner.get_unchecked(col);
@@ -146,7 +146,7 @@ impl<'a> Block<'a> {
             Ok(None)
         } else {
             match ty {
-                TaosDataType::Binary | TaosDataType::NChar | TaosDataType::Json => {
+                TSDB_DATA_TYPE_BINARY | TaosDataType::NChar | TaosDataType::Json => {
                     let length = self.lengths.get_unchecked(col);
 
                     let ptr = (*slice as *const u8).offset(row as isize * *length as isize);
@@ -208,7 +208,7 @@ impl<'a> Block<'a> {
                 let raw = (*inner as *const i64).add(row).read();
                 BorrowedValue::Timestamp(TimestampValue::new(raw, self.precision()))
             }
-            TaosDataType::Binary => {
+            TSDB_DATA_TYPE_BINARY => {
                 let length = self.get_length_unchecked(col);
                 let ptr = (*inner as *const u8).add(row * length as usize);
                 let len = ptr.cast::<i16>().read();
@@ -272,7 +272,7 @@ impl<'a> Block<'a> {
                 let raw = std::slice::from_raw_parts(*inner as *const i64, num_of_rows);
                 BorrowedColumn::Timestamp(is_nulls, raw)
             }
-            TaosDataType::Binary => {
+            TSDB_DATA_TYPE_BINARY => {
                 let length = self.lengths.get_unchecked(col);
                 let item = (0..num_of_rows)
                     .map(|n| {

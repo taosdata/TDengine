@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use crate::{Result, Taos, TaosCode, TaosError, TaosResult, ToCString};
+use crate::{Code, Error, Result, Taos, TaosResult};
 use taos_sys::*;
 
 use super::{Message, Offset, Offsets, TmqList};
@@ -8,6 +8,9 @@ use super::{Message, Offset, Offsets, TmqList};
 pub struct Consumer(*mut tmq_t);
 
 impl Consumer {
+    pub(crate) fn as_raw(&self) -> *mut tmq_t {
+        self.0
+    }
     pub(crate) fn new(ptr: *mut tmq_t) -> Self {
         Self(ptr)
     }
@@ -17,7 +20,7 @@ impl Consumer {
 
         match err {
             tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(TaosError::new(TaosCode::Unknown, "subscribe failed")),
+            tmq_resp_err_t::Fail => Err(Error::from_string("subscribe failed")),
         }
     }
     pub fn unsubscribe(&self) -> Result<()> {
@@ -25,7 +28,7 @@ impl Consumer {
 
         match err {
             tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(TaosError::new(TaosCode::Unknown, "unsubscribe failed")),
+            tmq_resp_err_t::Fail => Err(Error::from_string("unsubscribe failed")),
         }
     }
 
@@ -36,14 +39,14 @@ impl Consumer {
         let err = unsafe { tmq_subscription(self.0, raw) };
         match err {
             tmq_resp_err_t::Success => Ok(TmqList(unsafe { raw.read() })),
-            tmq_resp_err_t::Fail => Err(TaosError::new(TaosCode::Unknown, "unsubscribe failed")),
+            tmq_resp_err_t::Fail => Err(Error::from_string("unsubscribe failed")),
         }
     }
     pub fn seek(&self, offset: Offset) -> Result<()> {
         let err = unsafe { tmq_seek(self.0, offset.0) };
         match err {
             tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(TaosError::new(TaosCode::Unknown, "commit failed")),
+            tmq_resp_err_t::Fail => Err(Error::from_string("commit failed")),
         }
     }
     // todo: is_async better to rename to is_non_blocking
@@ -52,7 +55,7 @@ impl Consumer {
         let err = unsafe { tmq_commit(self.0, offsets, is_async) };
         match err {
             tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(TaosError::new(TaosCode::Unknown, "commit failed")),
+            tmq_resp_err_t::Fail => Err(Error::from_string("commit failed")),
         }
     }
 
@@ -61,7 +64,7 @@ impl Consumer {
         if message.is_null() {
             None
         } else {
-            Some(Message(message))
+            Some(Message::new(self, message))
         }
     }
 }
@@ -69,7 +72,9 @@ impl Consumer {
 impl Drop for Consumer {
     fn drop(&mut self) {
         unsafe {
+            dbg!("close consumer");
             tmq_consumer_close(self.0);
+            dbg!("consumer closed safely");
         }
     }
 }

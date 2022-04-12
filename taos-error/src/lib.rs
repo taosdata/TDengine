@@ -58,12 +58,14 @@ impl FromStr for Error {
 }
 
 impl Display for Error {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{:#06X}] {}", self.code, self.err)
     }
 }
 
 impl de::Error for Error {
+    #[inline]
     fn custom<T: fmt::Display>(msg: T) -> Error {
         Error::from_string(format!("{}", msg))
     }

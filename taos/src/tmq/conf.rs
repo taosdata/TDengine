@@ -1,6 +1,4 @@
-use std::ffi::CStr;
-
-use crate::{Result, Taos, TaosCode, TaosError, TaosResult, ToCString};
+use crate::{Error, IntoCStr, Result};
 use taos_sys::*;
 /* tmq conf */
 pub struct TmqConf(*mut tmq_conf_t);
@@ -17,20 +15,14 @@ impl TmqConf {
         let ret = unsafe {
             tmq_conf_set(
                 self.0,
-                key.to_c_string().as_ptr(),
-                value.to_c_string().as_ptr(),
+                key.into_c_str().as_ptr(),
+                value.into_c_str().as_ptr(),
             )
         };
         match ret {
             tmq_conf_res_t::Ok => Ok(self),
-            tmq_conf_res_t::Invalid => Err(TaosError::new(
-                TaosCode::Unknown,
-                "invalid key value set for tmq",
-            )),
-            tmq_conf_res_t::Unknown => Err(TaosError::new(
-                TaosCode::Unknown,
-                "unknown key for tmq conf",
-            )),
+            tmq_conf_res_t::Invalid => Err(Error::from_string("invalid key value set for tmq")),
+            tmq_conf_res_t::Unknown => Err(Error::from_string("unknown key for tmq conf")),
         }
     }
 

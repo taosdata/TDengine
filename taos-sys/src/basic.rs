@@ -22,8 +22,6 @@ pub const TSDB_DATA_TYPE_UINT: TaosDataType = TaosDataType::UInt; // 4 bytes
 pub const TSDB_DATA_TYPE_UBIGINT: TaosDataType = TaosDataType::UBigInt; // 8 bytes
 pub const TSDB_DATA_TYPE_JSON: TaosDataType = TaosDataType::Json; // json
 #[cfg(taos_v3)]
-pub const TSDB_DATA_TYPE_JSON: TaosDataType = TaosDataType::Json; // json
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_VARCHAR: TaosDataType = TaosDataType::VarChar; // string
 #[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_VARBINARY: TaosDataType = TaosDataType::VarBinary; // binary
@@ -34,7 +32,7 @@ pub const TSDB_DATA_TYPE_BLOB: TaosDataType = TaosDataType::Blob; // binary
 #[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_MEDIUMBLOB: TaosDataType = TaosDataType::MediumBlob; // binary
 
-#[derive(Debug, Clone, Copy, PartialEq, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 #[cfg_attr(
     feature = "serde",
     derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)
@@ -88,7 +86,7 @@ impl FromStr for TaosDataType {
             "bigint unsigned" => Ok(TaosDataType::UBigInt),
             "float" => Ok(TaosDataType::Float),
             "double" => Ok(TaosDataType::Double),
-            "binary" => Ok(TaosDataType::Binary),
+            "binary" | "varchar" => Ok(TSDB_DATA_TYPE_BINARY),
             "nchar" => Ok(TaosDataType::NChar),
             "json" => Ok(TaosDataType::Json),
             _ => Err("not a valid data type string"),
