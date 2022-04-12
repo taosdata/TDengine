@@ -206,10 +206,6 @@ DLL_EXPORT TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, 
 DLL_EXPORT TAOS_RES *taos_consume(TAOS_SUB *tsub);
 DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
 
-DLL_EXPORT TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                              int64_t stime, void *param, void (*callback)(void *));
-DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
-
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
