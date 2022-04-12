@@ -21,7 +21,7 @@ void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo) {}
 int32_t qmProcessGetMonQmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonQmInfo qmInfo = {0};
   qmGetMonitorInfo(pWrapper, &qmInfo);
-  dmGetMonitorSysInfo(&qmInfo.sys);
+  dndGetMonitorSysInfo(&qmInfo.sys);
   monGetLogs(&qmInfo.log);
 
   int32_t rspLen = tSerializeSMonQmInfo(NULL, 0, &qmInfo);
@@ -58,7 +58,8 @@ int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create qnode since %s", terrstr());
     return -1;
   } else {
-    return dndOpenNode(pWrapper);
+    // return dndOpenNode(pWrapper);
+    return 0;
   }
 }
 

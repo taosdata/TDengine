@@ -16,7 +16,8 @@
 #ifndef _TD_DND_SNODE_INT_H_
 #define _TD_DND_SNODE_INT_H_
 
-#include "dndNode.h"
+#include "dndInt.h"
+
 #include "snode.h"
 
 #ifdef __cplusplus

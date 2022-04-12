@@ -36,7 +36,7 @@ void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
 int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonVmInfo vmInfo = {0};
   vmGetMonitorInfo(pWrapper, &vmInfo);
-  dmGetMonitorSysInfo(&vmInfo.sys);
+  dndGetMonitorSysInfo(&vmInfo.sys);
   monGetLogs(&vmInfo.log);
 
   int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);

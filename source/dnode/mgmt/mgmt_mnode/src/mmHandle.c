@@ -24,7 +24,7 @@ void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo) {
 int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonMmInfo mmInfo = {0};
   mmGetMonitorInfo(pWrapper, &mmInfo);
-  dmGetMonitorSysInfo(&mmInfo.sys);
+  dndGetMonitorSysInfo(&mmInfo.sys);
   monGetLogs(&mmInfo.log);
 
   int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);

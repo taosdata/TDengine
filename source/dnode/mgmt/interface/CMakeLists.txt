@@ -6,5 +6,5 @@ target_include_directories(
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    dnode_interface cjson mnode vnode qnode snode bnode wal sync taos tfs monitor util
+    dnode_interface cjson mnode vnode qnode snode bnode wal sync taos tfs monitor
 )

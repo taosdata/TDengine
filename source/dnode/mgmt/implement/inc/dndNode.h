@@ -28,7 +28,6 @@ void    dndCloseNode(SMgmtWrapper *pWrapper);
 // dndTransport.c
 int32_t  dndInitTrans(SDnode *pDnode);
 void     dndCleanupTrans(SDnode *pDnode);
-SMsgCb   dndCreateMsgcb(SMgmtWrapper *pWrapper);
 SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
 int32_t  dndInitMsgHandle(SDnode *pDnode);
 void     dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
@@ -45,8 +44,7 @@ void dmGetMnodeEpSet(SDnodeData *pMgmt, SEpSet *pEpSet);
 void dmUpdateMnodeEpSet(SDnodeData *pMgmt, SEpSet *pEpSet);
 void dmSendRedirectRsp(SDnodeData *pMgmt, const SRpcMsg *pMsg);
 
-void dmGetMonitorSysInfo(SMonSysInfo *pInfo);
-void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
+void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo);
 void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo);
 void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo);

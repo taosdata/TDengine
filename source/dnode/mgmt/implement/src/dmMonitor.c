@@ -37,7 +37,7 @@ static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
 
 static void dmGetMonitorInfo(SDnode *pDnode, SMonDmInfo *pInfo) {
   dmGetMonitorBasicInfo(pDnode, &pInfo->basic);
-  dmGetMonitorSysInfo(&pInfo->sys);
+  dndGetMonitorSysInfo(&pInfo->sys);
   dmGetMonitorDnodeInfo(pDnode, &pInfo->dnode);
 }
 
@@ -178,17 +178,4 @@ void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo) {
     }
     rpcFreeCont(rsp.pCont);
   }
-}
-
-void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {
-  taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
-  taosGetCpuCores(&pInfo->cpu_cores);
-  taosGetProcMemory(&pInfo->mem_engine);
-  taosGetSysMemory(&pInfo->mem_system);
-  pInfo->mem_total = tsTotalMemoryKB;
-  pInfo->disk_engine = 0;
-  pInfo->disk_used = tsDataSpace.size.used;
-  pInfo->disk_total = tsDataSpace.size.total;
-  taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
-  taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 }

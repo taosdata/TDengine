@@ -21,7 +21,7 @@ void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {}
 int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonSmInfo smInfo = {0};
   smGetMonitorInfo(pWrapper, &smInfo);
-  dmGetMonitorSysInfo(&smInfo.sys);
+  dndGetMonitorSysInfo(&smInfo.sys);
   monGetLogs(&smInfo.log);
 
   int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
@@ -58,7 +58,8 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
-    return dndOpenNode(pWrapper);
+    // return dndOpenNode(pWrapper);
+    return 0;
   }
 }
 

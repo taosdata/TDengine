@@ -21,7 +21,7 @@ void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {}
 int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonBmInfo bmInfo = {0};
   bmGetMonitorInfo(pWrapper, &bmInfo);
-  dmGetMonitorSysInfo(&bmInfo.sys);
+  dndGetMonitorSysInfo(&bmInfo.sys);
   monGetLogs(&bmInfo.log);
 
   int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
@@ -58,7 +58,8 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->data.dnodeId);
     return -1;
   } else {
-    return dndOpenNode(pWrapper);
+    // return dndOpenNode(pWrapper);
+    return 0;
   }
 }
 

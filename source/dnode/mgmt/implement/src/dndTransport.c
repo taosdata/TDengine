@@ -19,6 +19,10 @@
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
+static int32_t dndSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq);
+static void    dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
+static void    dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+static void    dndReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type);
 
 static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[NODE_BEGIN];
@@ -299,6 +303,15 @@ static void dndCleanupServer(SDnode *pDnode) {
 int32_t dndInitTrans(SDnode *pDnode) {
   if (dndInitServer(pDnode) != 0) return -1;
   if (dndInitClient(pDnode) != 0) return -1;
+
+  SMsgCb msgCb = {
+      .sendReqFp = dndSendReq,
+      .sendRspFp = dndSendRsp,
+      .registerBrokenLinkArgFp = dndRegisterBrokenLinkArg,
+      .releaseHandleFp = dndReleaseHandle,
+  };
+  pDnode->data.msgCb = msgCb;
+
   return 0;
 }
 
@@ -410,17 +423,6 @@ static void dndReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type) 
     SRpcMsg msg = {.handle = handle, .code = type};
     taosProcPutToParentQ(pWrapper->procObj, &msg, sizeof(SRpcMsg), NULL, 0, PROC_RELEASE);
   }
-}
-
-SMsgCb dndCreateMsgcb(SMgmtWrapper *pWrapper) {
-  SMsgCb msgCb = {
-      .pWrapper = pWrapper,
-      .sendReqFp = dndSendReq,
-      .sendRspFp = dndSendRsp,
-      .registerBrokenLinkArgFp = dndRegisterBrokenLinkArg,
-      .releaseHandleFp = dndReleaseHandle,
-  };
-  return msgCb;
 }
 
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,

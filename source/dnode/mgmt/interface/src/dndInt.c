@@ -160,3 +160,22 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
       .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
   rpcSendResponse(&rpcRsp);
 }
+
+void dndGetMonitorSysInfo(SMonSysInfo *pInfo) {
+  taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
+  taosGetCpuCores(&pInfo->cpu_cores);
+  taosGetProcMemory(&pInfo->mem_engine);
+  taosGetSysMemory(&pInfo->mem_system);
+  pInfo->mem_total = tsTotalMemoryKB;
+  pInfo->disk_engine = 0;
+  pInfo->disk_used = tsDataSpace.size.used;
+  pInfo->disk_total = tsDataSpace.size.total;
+  taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
+  taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+}
+
+SMsgCb dndCreateMsgcb(SMgmtWrapper *pWrapper) {
+  SMsgCb msgCb = pWrapper->pDnode->data.msgCb;
+  msgCb.pWrapper = pWrapper;
+  return msgCb;
+}
