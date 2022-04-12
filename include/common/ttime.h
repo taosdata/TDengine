@@ -64,6 +64,7 @@ char getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
 int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit);
+int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal);
 
 void taosFormatUtcTime(char *buf, int32_t bufLen, int64_t time, int32_t precision);
 

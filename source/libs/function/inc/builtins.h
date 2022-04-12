@@ -22,7 +22,7 @@ extern "C" {
 
 #include "functionMgt.h"
 
-#define FUNCTION_NAME_MAX_LENGTH 16
+#define FUNCTION_NAME_MAX_LENGTH 32
 
 #define FUNC_MGT_FUNC_CLASSIFICATION_MASK(n)    (1 << n)
 

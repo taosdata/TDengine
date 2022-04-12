@@ -1,6 +1,7 @@
 #include "function.h"
 #include "scalar.h"
 #include "tdatablock.h"
+#include "ttime.h"
 #include "sclInt.h"
 #include "sclvector.h"
 
@@ -865,6 +866,36 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     colDataAppend(pOutput->columnData, i, buf, false);
     input   += tDataTypes[type].bytes;
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t type = GET_PARAM_TYPE(pInput);
+  int32_t timePrec = GET_PARAM_PRECISON(pInput);
+  if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (inputNum != 1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    int64_t timeVal = 0;
+    convertStringToTimestamp(type, input, timePrec, &timeVal);
+
+    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
+    input += varDataTLen(input);
   }
 
   pOutput->numOfRows = pInput->numOfRows;

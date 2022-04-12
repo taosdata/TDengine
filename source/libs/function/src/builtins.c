@@ -404,6 +404,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "to_unixtimestamp",
+    .type = FUNCTION_TYPE_TO_UNIXTIMESTAMP,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .checkFunc    = checkAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = toUnixtimestampFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -621,6 +631,9 @@ int32_t checkAndGetResultType(SFunctionNode* pFunc) {
     }
     case FUNCTION_TYPE_TO_ISO8601: {
       pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
+    }
+    case FUNCTION_TYPE_TO_UNIXTIMESTAMP: {
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
     }
 
     case FUNCTION_TYPE_TBNAME: {
