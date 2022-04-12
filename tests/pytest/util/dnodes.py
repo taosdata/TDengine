@@ -294,11 +294,12 @@ class TDDnode:
 
             print(cmd)
 
-        taosadapterCmd = "nohup %s --opentsdb_telnet.enable=true --monitor.writeToTD=false > /dev/null 2>&1 & " % (
-            taosadapterBinPath)
-        tdLog.info(taosadapterCmd)
-        if os.system(taosadapterCmd) != 0:
-            tdLog.exit(taosadapterCmd)
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "nohup %s --opentsdb_telnet.enable=true --monitor.writeToTD=false > /dev/null 2>&1 & " % (
+                taosadapterBinPath)
+            tdLog.info(taosadapterCmd)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -359,11 +360,12 @@ class TDDnode:
 
         cmd = "mintty -h never -w hide %s -c %s" % (
             binPath, self.cfgDir)
-
-        taosadapterCmd = "mintty -h never -w hide %s " % (
-            taosadapterBinPath)
-        if os.system(taosadapterCmd) != 0:
-            tdLog.exit(taosadapterCmd)
+        
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "mintty -h never -w hide %s --monitor.writeToTD=false " % (
+                taosadapterBinPath)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -431,9 +433,10 @@ class TDDnode:
 
             print(cmd)
 
-        taosadapterCmd = "%s --monitor.writeToTD=false > /dev/null 2>&1 & " % (taosadapterBinPath)
-        if os.system(taosadapterCmd) != 0:
-            tdLog.exit(taosadapterCmd)
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "%s --monitor.writeToTD=false > /dev/null 2>&1 & " % (taosadapterBinPath)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
