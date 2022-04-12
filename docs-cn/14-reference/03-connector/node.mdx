@@ -201,3 +201,53 @@ promise2.then(function (result) {
 [node-example-raw.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example-raw.js)同样是一个使用 NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`。
 
 [所有示例代码](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs/examples)
+
+## 使用RESTful 连接器
+TDengine 还提供TypeScript的RESTful 连接器。
+注意：`td2.0-rest-connector`依赖[node-fetch v2](https://github.com/node-fetch/node-fetch/tree/2.x) 。
+### RESTful 连接器的使用
+* 安装连接器
+```bash
+npm i td2.0-rest-connector
+```
+* 应用连接器
+``` TypeScript
+import { options, connect } from 'td2.0-rest-connector'
+options.path='/rest/sqlt';
+// 设置HOST
+options.host='localhost';
+// 设置其他的属性例如：用户名/密码
+
+let conn = connect(options);
+let cursor = conn.cursor();
+(async()=>{
+    let result = await cursor.query('show databases');
+    // 打印查询结果
+    result.toString();
+})()
+```
+
+### RESTful 常用方法
+``` javascript
+    // restult 是Result对象，即执行查询命令后返回的对象。
+    // 获取执行结果对象
+    result.getResult()
+    // 获得执行状态,返回 'succ'|'error'.
+    result.getStatus()
+    // 获得返回结果的头,返回Array<any>|undefined （当执行SQL语句失败时返回undefined）。
+    result.getHead()
+    // 获得返回结果的元数据, 返回Meta[]|undefined（当执行SQL语句失败时返回undefined）。
+    result.getMeta()
+    // 获得返回结果的数据，返回 Array<Array<any>>|undefined（当执行SQL语句失败时返回undefined）。
+    result.getData()
+    // 获得执行命令影响的行数，返回 number|undefined（当执行SQL语句失败时返回undefined）。
+    result.getAffectRows()
+    // 获得执行的命令，返回 string（需要在`query(sql,false)`中设置 'pure=false'，默认为true）。
+    result.getCommand()
+    // 获得执行的命令的错误码，返回number|undefined（当执行SQL语句失败时返回undefined）。
+    result.getErrCode()
+    // 获得执行的命令的错误信息，返回string|undefined（当执行SQL语句失败时返回undefined）。
+    result.getErrStr()
+```
+### 示例程序
+更多示例参考[TDengineREST connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/TypeScript-REST)
