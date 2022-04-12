@@ -177,14 +177,14 @@ TEST_F(PlannerTest, groupBy) {
   bind("SELECT count(*) FROM t1");
   ASSERT_TRUE(run());
 
-  bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
-  ASSERT_TRUE(run());
+  // bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
+  // ASSERT_TRUE(run());
 
-  bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
-  ASSERT_TRUE(run());
+  // bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
+  // ASSERT_TRUE(run());
 
-  bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
-  ASSERT_TRUE(run());
+  // bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
+  // ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, subquery) {

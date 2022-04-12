@@ -385,7 +385,6 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
     pCol->len += pCol->bytes;
   }
 #ifdef TD_SUPPORT_BITMAP
-
     tdSetBitmapValType(pCol->pBitmap, numOfRows, valType, bitmapMode);
 #endif
   return 0;
@@ -486,7 +485,7 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
  * @param pCols
  * @param forceSetNull
  */
-int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols) {
   if (TD_IS_TP_ROW(pRow)) {
     return tdAppendTpRowToDataCol(pRow, pSchema, pCols);
   } else if (TD_IS_KV_ROW(pRow)) {
@@ -497,7 +496,7 @@ int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCol
   return TSDB_CODE_SUCCESS;
 }
 
-int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset, bool forceSetNull) {
+int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset, bool forceSetNull, TDRowVerT maxVer) {
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
   ASSERT(target->numOfCols == source->numOfCols);
   int offset = 0;
@@ -510,6 +509,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
 
   if ((target->numOfRows == 0) || (dataColsKeyLast(target) < dataColsKeyAtRow(source, *pOffset))) {  // No overlap
     ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
+    // TODO: filter the maxVer
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
         if (source->cols[j].len > 0 || target->cols[j].len > 0) {
@@ -555,9 +555,9 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
     // TKEY  tkey2 = (*iter2 >= limit2) ? TKEY_NULL : dataColsTKeyAt(src2, *iter2);
 
     ASSERT(tkey1 == TKEY_NULL || (!TKEY_IS_DELETED(tkey1)));
-
+    // TODO: filter the maxVer
     if (key1 < key2) {
-      for (int i = 0; i < src1->numOfCols; i++) {
+      for (int i = 0; i < src1->numOfCols; ++i) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
         if (src1->cols[i].len > 0 || target->cols[i].len > 0) {
           SCellVal sVal = {0};
@@ -568,12 +568,12 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
         }
       }
 
-      target->numOfRows++;
-      (*iter1)++;
+      ++target->numOfRows;
+      ++(*iter1);
     } else if (key1 >= key2) {
-      // if ((key1 > key2) || (key1 == key2 && !TKEY_IS_DELETED(tkey2))) {
-      if ((key1 > key2) || (key1 == key2)) {
-        for (int i = 0; i < src2->numOfCols; i++) {
+      // TODO: filter the maxVer
+      if ((key1 > key2) || ((key1 == key2) && !TKEY_IS_DELETED(key2))) {
+        for (int i = 0; i < src2->numOfCols; ++i) {
           SCellVal sVal = {0};
           ASSERT(target->cols[i].type == src2->cols[i].type);
           if (tdGetColDataOfRow(&sVal, src2->cols + i, *iter2, src2->bitmapMode) < 0) {
@@ -590,11 +590,11 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
             dataColSetNullAt(&target->cols[i], target->numOfRows, true, target->bitmapMode);
           }
         }
-        target->numOfRows++;
+        ++target->numOfRows;
       }
 
-      (*iter2)++;
-      if (key1 == key2) (*iter1)++;
+      ++(*iter2);
+      if (key1 == key2) ++(*iter1);
     }
 
     ASSERT(target->numOfRows <= target->maxPoints);

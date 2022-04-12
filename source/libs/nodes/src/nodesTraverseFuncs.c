@@ -77,9 +77,14 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_ORDER_BY_EXPR:
       res = walkNode(((SOrderByExprNode*)pNode)->pExpr, order, walker, pContext);
       break;
-    case QUERY_NODE_STATE_WINDOW:
-      res = walkNode(((SStateWindowNode*)pNode)->pExpr, order, walker, pContext);
+    case QUERY_NODE_STATE_WINDOW: {
+      SStateWindowNode* pState = (SStateWindowNode*)pNode;
+      res = walkNode(pState->pExpr, order, walker, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = walkNode(pState->pCol, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
       res = walkNode(pSession->pCol, order, walker, pContext);
@@ -211,12 +216,22 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_ORDER_BY_EXPR:
       res = rewriteNode(&(((SOrderByExprNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
-    case QUERY_NODE_STATE_WINDOW:
-      res = rewriteNode(&(((SStateWindowNode*)pNode)->pExpr), order, rewriter, pContext);
+    case QUERY_NODE_STATE_WINDOW: {
+      SStateWindowNode* pState = (SStateWindowNode*)pNode;
+      res = rewriteNode(&pState->pExpr, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&pState->pCol, order, rewriter, pContext);
+      }
       break;
-    case QUERY_NODE_SESSION_WINDOW:
-      res = rewriteNode(&(((SSessionWindowNode*)pNode)->pCol), order, rewriter, pContext);
+    }
+    case QUERY_NODE_SESSION_WINDOW: {
+      SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
+      res = rewriteNode(&pSession->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&pSession->pGap, order, rewriter, pContext);
+      }
       break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = rewriteNode(&(pInterval->pInterval), order, rewriter, pContext);

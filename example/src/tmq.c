@@ -163,12 +163,13 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     printf("subscribe err\n");
     return;
   }
-  /*int32_t cnt = 0;*/
+  int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
     tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
-      /*cnt++;*/
+      cnt++;
+      printf("get data\n");
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
       /*} else {*/

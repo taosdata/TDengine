@@ -58,7 +58,7 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->dnodeId);
     return -1;
   } else {
-    return bmOpen(pWrapper);
+    return dndOpenNode(pWrapper);
   }
 }
 
@@ -77,6 +77,7 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   } else {
+    // dndCloseNode(pWrapper);
     return bmDrop(pWrapper);
   }
 }

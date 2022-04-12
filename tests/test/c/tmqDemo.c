@@ -588,7 +588,7 @@ int32_t syncWriteDataByRatio() {
 
 void printParaIntoFile() {
   // FILE *fp = fopen(g_stConfInfo.resultFileName, "a");
-  TdFilePtr pFile = taosOpenFile(g_stConfInfo.resultFileName, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_STREAM);
+  TdFilePtr pFile = taosOpenFile(g_stConfInfo.resultFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_STREAM);
   if (NULL == pFile) {
     fprintf(stderr, "Failed to open %s for save result\n", g_stConfInfo.resultFileName);
     exit -1;

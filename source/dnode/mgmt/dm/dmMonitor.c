@@ -25,11 +25,10 @@ static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
 
 static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->uptime = (taosGetTimestampMs() - pDnode->rebootTime) / (86400000.0f);
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL) {
-    pInfo->has_mnode = pWrapper->required;
-    dndReleaseWrapper(pWrapper);
-  }
+  pInfo->has_mnode = pDnode->wrappers[MNODE].required;
+  pInfo->has_qnode = pDnode->wrappers[QNODE].required;
+  pInfo->has_snode = pDnode->wrappers[SNODE].required;
+  pInfo->has_bnode = pDnode->wrappers[BNODE].required;
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
   pInfo->logdir.size = tsLogSpace.size;
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
@@ -65,7 +64,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
   bool getFromAPI = !tsMultiProcess;
   pWrapper = &pDnode->wrappers[MNODE];
   if (getFromAPI) {
-    if (dndMarkWrapper(pWrapper) != 0) {
+    if (dndMarkWrapper(pWrapper) == 0) {
       mmGetMonitorInfo(pWrapper, &mmInfo);
       dndReleaseWrapper(pWrapper);
     }
@@ -82,7 +81,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
 
   pWrapper = &pDnode->wrappers[VNODES];
   if (getFromAPI) {
-    if (dndMarkWrapper(pWrapper) != 0) {
+    if (dndMarkWrapper(pWrapper) == 0) {
       vmGetMonitorInfo(pWrapper, &vmInfo);
       dndReleaseWrapper(pWrapper);
     }
@@ -99,7 +98,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
 
   pWrapper = &pDnode->wrappers[QNODE];
   if (getFromAPI) {
-    if (dndMarkWrapper(pWrapper) != 0) {
+    if (dndMarkWrapper(pWrapper) == 0) {
       qmGetMonitorInfo(pWrapper, &qmInfo);
       dndReleaseWrapper(pWrapper);
     }
@@ -116,7 +115,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
 
   pWrapper = &pDnode->wrappers[SNODE];
   if (getFromAPI) {
-    if (dndMarkWrapper(pWrapper) != 0) {
+    if (dndMarkWrapper(pWrapper) == 0) {
       smGetMonitorInfo(pWrapper, &smInfo);
       dndReleaseWrapper(pWrapper);
     }
@@ -133,7 +132,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
 
   pWrapper = &pDnode->wrappers[BNODE];
   if (getFromAPI) {
-    if (dndMarkWrapper(pWrapper) != 0) {
+    if (dndMarkWrapper(pWrapper) == 0) {
       bmGetMonitorInfo(pWrapper, &bmInfo);
       dndReleaseWrapper(pWrapper);
     }

@@ -55,6 +55,14 @@ void functionFinalize(SqlFunctionCtx *pCtx) {
   pResInfo->isNullRes = (pResInfo->numOfRes == 0)? 1:0;
 }
 
+EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
+    return FUNC_DATA_REQUIRED_NO_NEEDED;
+  }
+  return FUNC_DATA_REQUIRED_STATIS_NEEDED;
+}
+
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(int64_t);
   return true;
@@ -212,6 +220,9 @@ bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
     case TSDB_DATA_TYPE_UTINYINT:
       *((uint8_t *)buf) = 0;
       break;
+    case TSDB_DATA_TYPE_BOOL:
+      *((int8_t*)buf) = 0;
+      break;
     default:
       assert(0);
   }
@@ -254,6 +265,9 @@ bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       SET_DOUBLE_VAL(((double *)buf), DBL_MAX);
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      *((int8_t*)buf) = 1;
       break;
     default:
       assert(0);
@@ -385,8 +399,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    if (type == TSDB_DATA_TYPE_TINYINT) {
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
       LOOPCHECK_N(*(int8_t*)buf, pCol, pCtx, int8_t, numOfRows, start, isMinFunc, numOfElems);
     } else if (type == TSDB_DATA_TYPE_SMALLINT) {
       LOOPCHECK_N(*(int16_t*) buf, pCol, pCtx, int16_t, numOfRows, start, isMinFunc, numOfElems);

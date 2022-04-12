@@ -475,7 +475,7 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
       }
     }
 
-    tdAppendSTSRowToDataCol(row, *ppSchema, pCols, true);
+    tdAppendSTSRowToDataCol(row, *ppSchema, pCols);
   }
 
   return 0;

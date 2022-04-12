@@ -252,6 +252,7 @@ static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pExprs);
   nodesDestroyList(pNode->pFuncs);
+  nodesDestroyNode(pNode->pTspk);
 }
 
 static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
@@ -593,7 +594,6 @@ void nodesDestroyNode(SNodeptr pNode) {
       SIntervalPhysiNode* pPhyNode = (SIntervalPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pFill);
-      nodesDestroyNode(pPhyNode->pTspk);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -692,6 +692,17 @@ int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode) {
     }
   }
   return nodesListAppend(*pList, pNode);
+}
+
+int32_t nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode) {
+  if (NULL == *pList) {
+    *pList = nodesMakeList();
+    if (NULL == *pList) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListStrictAppend(*pList, pNode);
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {

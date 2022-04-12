@@ -260,6 +260,7 @@ typedef struct {
 
 typedef struct SSchema {
   int8_t   type;
+  int8_t   index;  // default is 0, not index created
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];

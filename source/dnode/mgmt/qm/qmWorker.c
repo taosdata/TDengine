@@ -32,7 +32,7 @@ static void qmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
 
-  if (pMsg->rpcMsg.msgType == TDMT_MON_SM_INFO) {
+  if (pMsg->rpcMsg.msgType == TDMT_MON_QM_INFO) {
     code = qmProcessGetMonQmInfoReq(pMgmt->pWrapper, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
