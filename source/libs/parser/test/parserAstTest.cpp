@@ -226,6 +226,16 @@ TEST_F(ParserTest, selectExpression) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, selectCondition) {
+  setDatabase("root", "test");
+
+  bind("SELECT c1 FROM t1 where ts in (true, false)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 where c1 > 10 and c1 is not null");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, selectPseudoColumn) {
   setDatabase("root", "test");
 
