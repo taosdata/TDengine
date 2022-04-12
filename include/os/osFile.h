@@ -44,7 +44,7 @@ extern "C" {
 
 typedef struct TdFile *TdFilePtr;
  
-#define TD_FILE_CTEATE    0x0001
+#define TD_FILE_CREATE    0x0001
 #define TD_FILE_WRITE     0x0002
 #define TD_FILE_READ      0x0004
 #define TD_FILE_TRUNC     0x0008

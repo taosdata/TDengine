@@ -129,6 +129,12 @@ static void transDestroyConnCtx(STransConnCtx* ctx);
 static SCliThrdObj* createThrdObj();
 static void         destroyThrdObj(SCliThrdObj* pThrd);
 
+// snprintf may cause performance problem
+#define CONN_CONSTRUCT_HASH_KEY(key, ip, port)          \
+  do {                                                  \
+    snprintf(key, sizeof(key), "%s:%d", ip, (int)port); \
+  } while (0)
+
 #define CONN_HOST_THREAD_INDEX(conn) (conn ? ((SCliConn*)conn)->hThrdIdx : -1)
 #define CONN_PERSIST_TIME(para)      (para * 1000 * 10)
 #define CONN_GET_HOST_THREAD(conn)   (conn ? ((SCliConn*)conn)->hostThrd : NULL)
@@ -206,8 +212,10 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
     }                                 \
   } while (0)
 
-#define CONN_NO_PERSIST_BY_APP(conn) (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
-#define CONN_RELEASE_BY_SERVER(conn) (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+#define CONN_NO_PERSIST_BY_APP(conn) \
+  (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+#define CONN_RELEASE_BY_SERVER(conn) \
+  (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 
 #define REQUEST_NO_RESP(msg)         ((msg)->noResp == 1)
 #define REQUEST_PERSIS_HANDLE(msg)   ((msg)->persistHandle == 1)
@@ -282,8 +290,9 @@ void cliHandleResp(SCliConn* conn) {
     tDebug("%s cli conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
-  tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn, TMSG_INFO(pHead->msgType),
-         taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port), taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
+  tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
+         TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
+         taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
 
   conn->secured = pHead->secured;
 
@@ -349,10 +358,12 @@ void cliHandleExcept(SCliConn* pConn) {
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
       transMsg.ahandle = transCtxDumpVal(&pConn->ctx, transMsg.msgType);
-      tDebug("%s cli conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle, TMSG_INFO(transMsg.msgType));
+      tDebug("%s cli conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle,
+             TMSG_INFO(transMsg.msgType));
       if (transMsg.ahandle == NULL) {
         transMsg.ahandle = transCtxDumpBrokenlinkVal(&pConn->ctx, (int32_t*)&(transMsg.msgType));
-        tDebug("%s cli conn %p construct ahandle %p due to brokenlink", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle);
+        tDebug("%s cli conn %p construct ahandle %p due to brokenlink", CONN_GET_INST_LABEL(pConn), pConn,
+               transMsg.ahandle);
       }
     } else {
       transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
@@ -423,8 +434,7 @@ void* destroyConnPool(void* pool) {
 
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   char key[128] = {0};
-  tstrncpy(key, ip, strlen(ip));
-  tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
+  CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
   SHashObj*  pPool = pool;
   SConnList* plist = taosHashGet(pPool, key, strlen(key));
@@ -456,8 +466,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
 
   char key[128] = {0};
-  tstrncpy(key, conn->ip, strlen(conn->ip));
-  tstrncpy(key + strlen(key), (char*)(&conn->port), sizeof(conn->port));
+  CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
   tTrace("cli conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
 
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
@@ -626,8 +635,9 @@ void cliSend(SCliConn* pConn) {
   pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
-  tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pHead->msgType),
-         taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+  tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
+         TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+         taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
