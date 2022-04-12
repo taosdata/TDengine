@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 #include "tconfig.h"
+#include "tgrant.h"
 
 static struct {
   bool     dumpConfig;
@@ -90,8 +91,7 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
 }
 
 static void dndGenerateGrant() {
-  // grantParseParameter();
-  printf("this feature is not implemented yet\n");
+  grantParseParameter();
 }
 
 static void dndPrintVersion() {
