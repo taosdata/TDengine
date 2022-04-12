@@ -1486,6 +1486,18 @@ static void setInformationSchemaDbCfg(SDbObj *pDbObj) {
   pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
 }
 
+static void setPerfSchemaDbCfg(SDbObj* pDbObj) {
+  ASSERT(pDbObj != NULL);
+  strncpy(pDbObj->name, TSDB_PERFORMANCE_SCHEMA_DB, tListLen(pDbObj->name));
+
+  pDbObj->createdTime = 0;
+  pDbObj->cfg.numOfVgroups = 0;
+  pDbObj->cfg.quorum = 1;
+  pDbObj->cfg.replications = 1;
+  pDbObj->cfg.update = 1;
+  pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
+}
+
 static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SVgObj  *pVgroup = pObj;
   int32_t *numOfTables = p1;
@@ -1515,10 +1527,15 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   }
 
   // Append the information_schema database into the result.
-  if (numOfRows < rowsCapacity) {
-    SDbObj dummyISDb = {0};
-    setInformationSchemaDbCfg(&dummyISDb);
-    dumpDbInfoToPayload(data, &dummyISDb, pShow, numOfRows, rowsCapacity, 14);
+  if (numOfRows  + 2 < rowsCapacity) {
+    SDbObj infoschemaDb = {0};
+    setInformationSchemaDbCfg(&infoschemaDb);
+    dumpDbInfoToPayload(data, &infoschemaDb, pShow, numOfRows, rowsCapacity, 14);
+    numOfRows += 1;
+
+    SDbObj perfschemaDb = {0};
+    setPerfSchemaDbCfg(&perfschemaDb);
+    dumpDbInfoToPayload(data, &perfschemaDb, pShow, numOfRows, rowsCapacity, 14);
     numOfRows += 1;
   }
 
