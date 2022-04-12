@@ -150,7 +150,7 @@ private:
   SQuery* query_;
 };
 
-TEST_F(PlannerTest, simple) {
+TEST_F(PlannerTest, selectBasic) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1");
@@ -164,14 +164,27 @@ TEST_F(PlannerTest, selectConstant) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, stSimple) {
+TEST_F(PlannerTest, selectStableBasic) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM st1");
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, groupBy) {
+TEST_F(PlannerTest, selectJoin) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT t1.* FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, selectGroupBy) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1");
@@ -187,14 +200,14 @@ TEST_F(PlannerTest, groupBy) {
   // ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, subquery) {
+TEST_F(PlannerTest, selectSubquery) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 group by b");
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, interval) {
+TEST_F(PlannerTest, selectInterval) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1 interval(10s)");
@@ -210,14 +223,14 @@ TEST_F(PlannerTest, interval) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, sessionWindow) {
+TEST_F(PlannerTest, selectSessionWindow) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1 session(ts, 10s)");
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, stateWindow) {
+TEST_F(PlannerTest, selectStateWindow) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1 state_window(c1)");
@@ -227,7 +240,7 @@ TEST_F(PlannerTest, stateWindow) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, partitionBy) {
+TEST_F(PlannerTest, selectPartitionBy) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1 partition by c1");
@@ -243,7 +256,7 @@ TEST_F(PlannerTest, partitionBy) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, orderBy) {
+TEST_F(PlannerTest, selectOrderBy) {
   setDatabase("root", "test");
 
   bind("SELECT c1 FROM t1 order by c1");
@@ -259,7 +272,7 @@ TEST_F(PlannerTest, orderBy) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, groupByOrderBy) {
+TEST_F(PlannerTest, selectGroupByOrderBy) {
   setDatabase("root", "test");
 
   bind("select count(*), sum(c1) from t1 order by sum(c1)");
@@ -269,7 +282,7 @@ TEST_F(PlannerTest, groupByOrderBy) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, distinct) {
+TEST_F(PlannerTest, selectDistinct) {
   setDatabase("root", "test");
 
   bind("SELECT distinct c1 FROM t1");
@@ -282,7 +295,7 @@ TEST_F(PlannerTest, distinct) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, limit) {
+TEST_F(PlannerTest, selectLimit) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1 limit 2");
@@ -295,7 +308,7 @@ TEST_F(PlannerTest, limit) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, slimit) {
+TEST_F(PlannerTest, selectSlimit) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1 partition by c1 slimit 2");

@@ -79,13 +79,13 @@ alter_account_option ::= USERS literal.                                         
 alter_account_option ::= CONNS literal.                                           { }
 alter_account_option ::= STATE literal.                                           { }
 
-/************************************************ create/alter/drop/show user *****************************************/
+/************************************************ create/alter/drop user **********************************************/
 cmd ::= CREATE USER user_name(A) PASS NK_STRING(B).                               { pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B); }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
 cmd ::= ALTER USER user_name(A) PRIVILEGE NK_STRING(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PRIVILEGES, &B); }
 cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
 
-/************************************************ create/drop/alter/show dnode ****************************************/
+/************************************************ create/drop/alter dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_host_name(A) PORT NK_INTEGER(B).                       { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
 cmd ::= DROP DNODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A); }
@@ -124,7 +124,7 @@ cmd ::= DROP SNODE ON DNODE NK_INTEGER(A).                                      
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }
 cmd ::= DROP MNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_MNODE_STMT, &A); }
 
-/************************************************ create/drop/show/use database ***************************************/
+/************************************************ create/drop/use database ********************************************/
 cmd ::= CREATE DATABASE not_exists_opt(A) db_name(B) db_options(C).               { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C); }
 cmd ::= DROP DATABASE exists_opt(A) db_name(B).                                   { pCxt->pRootNode = createDropDatabaseStmt(pCxt, A, &B); }
 cmd ::= USE db_name(A).                                                           { pCxt->pRootNode = createUseDatabaseStmt(pCxt, &A); }
@@ -332,6 +332,7 @@ cmd ::= SHOW ACCOUNTS.                                                          
 cmd ::= SHOW APPS.                                                                { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_APPS_STMT, NULL, NULL); }
 cmd ::= SHOW CONNECTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONNECTIONS_STMT, NULL, NULL); }
 cmd ::= SHOW LICENCE.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCE_STMT, NULL, NULL); }
+cmd ::= SHOW GRANTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCE_STMT, NULL, NULL); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
 cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
 cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT, A); }
