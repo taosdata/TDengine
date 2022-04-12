@@ -14,6 +14,7 @@
  */
 
 #include "catalog.h"
+#include "scheduler.h"
 #include "clientInt.h"
 #include "clientLog.h"
 #include "os.h"
@@ -66,6 +67,7 @@ void taos_cleanup(void) {
 
   rpcCleanup();
   catalogDestroy();
+  schedulerDestroy();
   taosCloseLog();
 
   tscInfo("all local resources released");
@@ -98,7 +100,7 @@ void taos_close(TAOS *taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  /*taosRemoveRef(clientConnRefPool, pTscObj->id);*/
+  taosRemoveRef(clientConnRefPool, pTscObj->id);
 }
 
 int taos_errno(TAOS_RES *tres) {
@@ -366,7 +368,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  //  scheduleCancelJob(pRequest->body.pQueryJob);
+  schedulerFreeJob(pRequest->body.queryJob);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {

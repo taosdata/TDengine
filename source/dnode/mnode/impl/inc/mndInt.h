@@ -75,7 +75,6 @@ typedef struct {
 } SShowMgmt;
 
 typedef struct {
-  int32_t    connId;
   SCacheObj *cache;
 } SProfileMgmt;
 

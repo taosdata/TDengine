@@ -341,12 +341,12 @@ int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 int32_t tDeserializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 
 typedef struct {
-  int32_t acctId;
-  int64_t clusterId;
-  int32_t connId;
-  int8_t  superUser;
-  SEpSet  epSet;
-  char    sVersion[128];
+  int32_t  acctId;
+  int64_t  clusterId;
+  uint32_t connId;
+  int8_t   superUser;
+  SEpSet   epSet;
+  char     sVersion[128];
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1039,40 +1039,6 @@ int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* 
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 
 typedef struct {
-  char    sql[TSDB_SHOW_SQL_LEN];
-  int32_t queryId;
-  int64_t useconds;
-  int64_t stime;
-  int64_t qId;
-  int64_t sqlObjId;
-  int32_t pid;
-  char    fqdn[TSDB_FQDN_LEN];
-  int8_t  stableQuery;
-  int32_t numOfSub;
-  char    subSqlInfo[TSDB_SHOW_SUBQUERY_LEN];  // include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
-} SQueryDesc;
-
-typedef struct {
-  int32_t connId;
-  int32_t pid;
-  int32_t numOfQueries;
-  int32_t numOfStreams;
-  char    app[TSDB_APP_NAME_LEN];
-  char    pData[];
-} SHeartBeatReq;
-
-typedef struct {
-  int32_t connId;
-  int32_t queryId;
-  int32_t streamId;
-  int32_t totalDnodes;
-  int32_t onlineDnodes;
-  int8_t  killConnection;
-  int8_t  align[3];
-  SEpSet  epSet;
-} SHeartBeatRsp;
-
-typedef struct {
   int32_t connId;
   int32_t queryId;
 } SKillQueryReq;
@@ -1674,13 +1640,48 @@ typedef struct {
 } SKv;
 
 typedef struct {
-  int32_t connId;
+  int64_t tscRid;
   int32_t hbType;
 } SClientHbKey;
 
 typedef struct {
-  SClientHbKey connKey;
-  SHashObj*    info;  // hash<Skv.key, Skv>
+  int64_t tid;
+  int32_t status;
+} SQuerySubDesc;
+
+typedef struct {
+  char     sql[TSDB_SHOW_SQL_LEN];
+  uint64_t queryId;
+  int64_t  useconds;
+  int64_t  stime;
+  int64_t  reqRid;
+  int32_t  pid;
+  char     fqdn[TSDB_FQDN_LEN];
+  int32_t  subPlanNum;
+  SArray*  subDesc;    // SArray<SQuerySubDesc>
+} SQueryDesc;
+
+typedef struct {
+  uint32_t   connId;
+  int32_t    pid;
+  char       app[TSDB_APP_NAME_LEN];
+  SArray*    queryDesc;   // SArray<SQueryDesc>
+} SQueryHbReqBasic;
+
+typedef struct {
+  uint32_t connId;
+  uint64_t killRid;
+  int32_t  totalDnodes;
+  int32_t  onlineDnodes;
+  int8_t   killConnection;
+  int8_t   align[3];
+  SEpSet   epSet;
+} SQueryHbRspBasic;
+
+typedef struct {
+  SClientHbKey      connKey;
+  SQueryHbReqBasic* query;
+  SHashObj*         info;  // hash<Skv.key, Skv>
 } SClientHbReq;
 
 typedef struct {
@@ -1689,9 +1690,10 @@ typedef struct {
 } SClientHbBatchReq;
 
 typedef struct {
-  SClientHbKey connKey;
-  int32_t      status;
-  SArray*      info;  // Array<Skv>
+  SClientHbKey      connKey;
+  int32_t           status;
+  SQueryHbRspBasic* query;
+  SArray*           info;  // Array<Skv>
 } SClientHbRsp;
 
 typedef struct {
@@ -1711,8 +1713,23 @@ static FORCE_INLINE void tFreeReqKvHash(SHashObj* info) {
   }
 }
 
+static FORCE_INLINE void tFreeClientHbQueryDesc(void* pDesc) {
+  SQueryDesc* desc = (SQueryDesc*)pDesc;
+  if (desc->subDesc) {
+    taosArrayDestroy(desc->subDesc);
+    desc->subDesc = NULL;
+  }
+}
+
 static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
+  if (req->query) {
+    if (req->query->queryDesc) {
+      taosArrayDestroyEx(req->query->queryDesc, tFreeClientHbQueryDesc);
+    }
+    taosMemoryFreeClear(req->query);
+  }
+  
   if (req->info) {
     tFreeReqKvHash(req->info);
     taosHashCleanup(req->info);
@@ -1741,6 +1758,7 @@ static FORCE_INLINE void tFreeClientKv(void* pKv) {
 
 static FORCE_INLINE void tFreeClientHbRsp(void* pRsp) {
   SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
+  taosMemoryFreeClear(rsp->query);
   if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
 }
 
@@ -1769,13 +1787,13 @@ static FORCE_INLINE int32_t tDecodeSKv(SCoder* pDecoder, SKv* pKv) {
 }
 
 static FORCE_INLINE int32_t tEncodeSClientHbKey(SCoder* pEncoder, const SClientHbKey* pKey) {
-  if (tEncodeI32(pEncoder, pKey->connId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pKey->tscRid) < 0) return -1;
   if (tEncodeI32(pEncoder, pKey->hbType) < 0) return -1;
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSClientHbKey(SCoder* pDecoder, SClientHbKey* pKey) {
-  if (tDecodeI32(pDecoder, &pKey->connId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pKey->tscRid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pKey->hbType) < 0) return -1;
   return 0;
 }

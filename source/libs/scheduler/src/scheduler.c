@@ -2655,6 +2655,34 @@ _return:
   SCH_RET(code);
 }
 
+int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
+  int32_t  code = 0;
+  SSchJob *pJob = schAcquireJob(job);
+  if (NULL == pJob) {
+    qDebug("acquire job from jobRef list failed, may not started or dropped, refId:%" PRIx64, job);
+    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+
+  if (pJob->status < JOB_TASK_STATUS_NOT_START || pJob->levelNum <= 0 || NULL == pJob->levels) {
+    qDebug("job not initialized or not executable job, refId:%" PRIx64, job);
+    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+
+  for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
+    SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
+    
+    for (int32_t m = 0; m < pLevel->taskNum; ++m) {
+      SSchTask *pTask = taosArrayGet(pLevel->subTasks, m);
+      SQuerySubDesc subDesc = {.tid = pTask->taskId, .status = pTask->status};
+      
+      taosArrayPush(pSub, &subDesc);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t scheduleCancelJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
@@ -2672,7 +2700,7 @@ int32_t scheduleCancelJob(int64_t job) {
 void schedulerFreeJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qDebug("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
     return;
   }
 

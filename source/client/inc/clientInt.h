@@ -43,7 +43,8 @@ extern "C" {
     }                                \
   } while (0)
 
-#define HEARTBEAT_INTERVAL 1500  // ms
+//#define HEARTBEAT_INTERVAL 1500  // ms
+#define HEARTBEAT_INTERVAL 15000  // ms TODO
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -139,6 +140,7 @@ typedef struct STscObj {
   TdThreadMutex   mutex;      // used to protect the operation on db
   int32_t         numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo*   pAppInfo;
+  SHashObj*       pRequests;
 } STscObj;
 
 typedef struct SResultColumn {
@@ -215,11 +217,15 @@ int taos_init();
 
 void* createTscObj(const char* user, const char* auth, const char* db, SAppInstInfo* pAppInfo);
 void  destroyTscObj(void* pObj);
+STscObj *acquireTscObj(int64_t rid);
+int32_t releaseTscObj(int64_t rid);
 
 uint64_t generateRequestId();
 
 void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
 void  destroyRequest(SRequestObj* pRequest);
+SRequestObj *acquireRequest(int64_t rid);
+int32_t releaseRequest(int64_t rid);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
@@ -258,7 +264,7 @@ SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
 
 // conn level
-int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType);
+int  hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, int32_t hbType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 
 int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);

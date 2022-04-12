@@ -458,7 +458,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     taos_close(pTscObj);
     pTscObj = NULL;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%d, dnodeConn:%p, reqId:0x%" PRIx64, pTscObj->id,
+    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, pTscObj->id,
              pTscObj->connId, pTscObj->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }

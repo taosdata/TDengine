@@ -134,6 +134,42 @@ void *taosDecodeSEpSet(void *buf, SEpSet *pEp) {
 static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq) {
   if (tEncodeSClientHbKey(pEncoder, &pReq->connKey) < 0) return -1;
 
+  if (pReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+    int32_t queryNum = 0;
+    if (pReq->query) {
+      queryNum = 1;
+      if (tEncodeI32(pEncoder, queryNum) < 0) return -1;
+      if (tEncodeU32(pEncoder, pReq->query->connId) < 0) return -1;
+      if (tEncodeI32(pEncoder, pReq->query->pid) < 0) return -1;
+      if (tEncodeCStr(pEncoder, pReq->query->app) < 0) return -1;
+      
+      int32_t num = taosArrayGetSize(pReq->query->queryDesc);
+      if (tEncodeI32(pEncoder, num) < 0) return -1;
+      
+      for (int32_t i = 0; i < num; ++i) {
+        SQueryDesc *desc = taosArrayGet(pReq->query->queryDesc, i);
+        if (tEncodeCStr(pEncoder, desc->sql) < 0) return -1;
+        if (tEncodeU64(pEncoder, desc->queryId) < 0) return -1;
+        if (tEncodeI64(pEncoder, desc->useconds) < 0) return -1;
+        if (tEncodeI64(pEncoder, desc->stime) < 0) return -1;
+        if (tEncodeI64(pEncoder, desc->reqRid) < 0) return -1;
+        if (tEncodeI32(pEncoder, desc->pid) < 0) return -1;
+        if (tEncodeCStr(pEncoder, desc->fqdn) < 0) return -1;
+        if (tEncodeI32(pEncoder, desc->subPlanNum) < 0) return -1;
+
+        int32_t snum = desc->subDesc ? taosArrayGetSize(desc->subDesc) : 0;
+        if (tEncodeI32(pEncoder, snum) < 0) return -1;
+        for (int32_t m = 0; m < snum; ++m) {
+          SQuerySubDesc *sDesc = taosArrayGet(desc->subDesc, m);
+          if (tEncodeI64(pEncoder, sDesc->tid) < 0) return -1;
+          if (tEncodeI32(pEncoder, sDesc->status) < 0) return -1;
+        }
+      }
+    } else {
+      if (tEncodeI32(pEncoder, queryNum) < 0) return -1;
+    }
+  }
+  
   int32_t kvNum = taosHashGetSize(pReq->info);
   if (tEncodeI32(pEncoder, kvNum) < 0) return -1;
   void *pIter = taosHashIterate(pReq->info, NULL);
@@ -148,6 +184,53 @@ static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq
 
 static int32_t tDeserializeSClientHbReq(SCoder *pDecoder, SClientHbReq *pReq) {
   if (tDecodeSClientHbKey(pDecoder, &pReq->connKey) < 0) return -1;
+
+  if (pReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+    int32_t queryNum = 0;
+    if (tDecodeI32(pDecoder, &queryNum) < 0) return -1;
+    if (queryNum) {
+      pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
+      if (NULL == pReq->query) return -1;
+      if (tDecodeU32(pDecoder, &pReq->query->connId) < 0) return -1;
+      if (tDecodeI32(pDecoder, &pReq->query->pid) < 0) return -1;
+      if (tDecodeCStrTo(pDecoder, pReq->query->app) < 0) return -1;
+
+      int32_t num = 0;
+      if (tDecodeI32(pDecoder, &num) < 0) return -1;
+      if (num > 0) {
+        pReq->query->queryDesc = taosArrayInit(num, sizeof(SQueryDesc));
+        if (NULL == pReq->query->queryDesc) return -1;
+        
+        for (int32_t i = 0; i < num; ++i) {
+          SQueryDesc desc = {0};
+          if (tDecodeCStrTo(pDecoder, desc.sql) < 0) return -1;
+          if (tDecodeU64(pDecoder, &desc.queryId) < 0) return -1;
+          if (tDecodeI64(pDecoder, &desc.useconds) < 0) return -1;
+          if (tDecodeI64(pDecoder, &desc.stime) < 0) return -1;
+          if (tDecodeI64(pDecoder, &desc.reqRid) < 0) return -1;
+          if (tDecodeI32(pDecoder, &desc.pid) < 0) return -1;
+          if (tDecodeCStrTo(pDecoder, desc.fqdn) < 0) return -1;
+          if (tDecodeI32(pDecoder, &desc.subPlanNum) < 0) return -1;
+
+          int32_t snum = 0;
+          if (tDecodeI32(pDecoder, &snum) < 0) return -1;
+          if (snum > 0) {
+            desc.subDesc = taosArrayInit(snum, sizeof(SQuerySubDesc));
+            if (NULL == desc.subDesc) return -1;
+            
+            for (int32_t m = 0; m < snum; ++m) {
+              SQuerySubDesc sDesc = {0};
+              if (tDecodeI64(pDecoder, &sDesc.tid) < 0) return -1;
+              if (tDecodeI32(pDecoder, &sDesc.status) < 0) return -1;
+              taosArrayPush(desc.subDesc, &sDesc);
+            }
+          }
+
+          taosArrayPush(pReq->query->queryDesc, &desc);
+        }
+      }
+    }
+  }
 
   int32_t kvNum = 0;
   if (tDecodeI32(pDecoder, &kvNum) < 0) return -1;
@@ -168,6 +251,20 @@ static int32_t tSerializeSClientHbRsp(SCoder *pEncoder, const SClientHbRsp *pRsp
   if (tEncodeSClientHbKey(pEncoder, &pRsp->connKey) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->status) < 0) return -1;
 
+  int32_t queryNum = 0;
+  if (pRsp->query) {
+    queryNum = 1;
+    if (tEncodeI32(pEncoder, queryNum) < 0) return -1;  
+    if (tEncodeU32(pEncoder, pRsp->query->connId) < 0) return -1;
+    if (tEncodeU64(pEncoder, pRsp->query->killRid) < 0) return -1;
+    if (tEncodeI32(pEncoder, pRsp->query->totalDnodes) < 0) return -1;
+    if (tEncodeI32(pEncoder, pRsp->query->onlineDnodes) < 0) return -1;
+    if (tEncodeI8(pEncoder, pRsp->query->killConnection) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pRsp->query->epSet) < 0) return -1;
+  } else {
+    if (tEncodeI32(pEncoder, queryNum) < 0) return -1;  
+  }
+  
   int32_t kvNum = taosArrayGetSize(pRsp->info);
   if (tEncodeI32(pEncoder, kvNum) < 0) return -1;
   for (int32_t i = 0; i < kvNum; i++) {
@@ -181,6 +278,19 @@ static int32_t tSerializeSClientHbRsp(SCoder *pEncoder, const SClientHbRsp *pRsp
 static int32_t tDeserializeSClientHbRsp(SCoder *pDecoder, SClientHbRsp *pRsp) {
   if (tDecodeSClientHbKey(pDecoder, &pRsp->connKey) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->status) < 0) return -1;
+
+  int32_t queryNum = 0;
+  if (tDecodeI32(pDecoder, &queryNum) < 0) return -1;
+  if (queryNum) {
+    pRsp->query = taosMemoryCalloc(1, sizeof(*pRsp->query));
+    if (NULL == pRsp->query) return -1;
+    if (tDecodeU32(pDecoder, &pRsp->query->connId) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pRsp->query->killRid) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pRsp->query->totalDnodes) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pRsp->query->onlineDnodes) < 0) return -1;
+    if (tDecodeI8(pDecoder, &pRsp->query->killConnection) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &pRsp->query->epSet) < 0) return -1;
+  }
 
   int32_t kvNum = 0;
   if (tDecodeI32(pDecoder, &kvNum) < 0) return -1;
@@ -224,8 +334,9 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
 
   int32_t reqNum = 0;
   if (tDecodeI32(&decoder, &reqNum) < 0) return -1;
-  if (pBatchReq->reqs == NULL) {
+  if (reqNum > 0) {
     pBatchReq->reqs = taosArrayInit(reqNum, sizeof(SClientHbReq));
+    if (NULL == pBatchReq->reqs) return -1;
   }
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq req = {0};
@@ -2564,7 +2675,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->acctId) < 0) return -1;
   if (tEncodeI64(&encoder, pRsp->clusterId) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->connId) < 0) return -1;
+  if (tEncodeU32(&encoder, pRsp->connId) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->sVersion) < 0) return -1;
@@ -2582,7 +2693,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->acctId) < 0) return -1;
   if (tDecodeI64(&decoder, &pRsp->clusterId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->connId) < 0) return -1;
+  if (tDecodeU32(&decoder, &pRsp->connId) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pRsp->sVersion) < 0) return -1;
