@@ -21,10 +21,12 @@ extern "C" {
 #endif
 
 #include "function.h"
+#include "functionMgt.h"
 
 bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 void functionFinalize(SqlFunctionCtx *pCtx);
 
+EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t countFunction(SqlFunctionCtx *pCtx);
 

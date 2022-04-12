@@ -9,8 +9,8 @@ ADD_EXECUTABLE(queryUtilTest ${SOURCE_LIST})
 
 TARGET_INCLUDE_DIRECTORIES(
         queryUtilTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/qcom/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/qcom/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/qcom/inc"
 )
 
 TARGET_LINK_LIBRARIES(

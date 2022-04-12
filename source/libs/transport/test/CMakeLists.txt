@@ -33,7 +33,7 @@ target_sources(pushServer
 
 target_include_directories(transportTest 
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
@@ -54,7 +54,7 @@ target_link_libraries (transUT
 
 target_include_directories(client
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
@@ -67,13 +67,13 @@ target_link_libraries (client
 )
 target_include_directories(server
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
 target_include_directories(transUT
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
@@ -86,7 +86,7 @@ target_link_libraries (server
 )
 target_include_directories(syncClient
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 target_link_libraries (syncClient
@@ -99,7 +99,7 @@ target_link_libraries (syncClient
 
 target_include_directories(pushServer
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 target_link_libraries (pushServer

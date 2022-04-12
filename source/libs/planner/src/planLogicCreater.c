@@ -200,6 +200,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   strcpy(pScan->tableName.tname, pRealTable->table.tableName);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
   pScan->ratio = pRealTable->ratio;
+  pScan->dataRequired = FUNC_DATA_REQUIRED_ALL_NEEDED;
 
   // set columns to scan
   SNodeList* pCols = NULL;
@@ -488,6 +489,12 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   pWindow->winType = WINDOW_TYPE_STATE;
   pWindow->pStateExpr = nodesCloneNode(pState->pExpr);
 
+  pWindow->pTspk = nodesCloneNode(pState->pCol);
+  if (NULL == pWindow->pTspk) {
+    nodesDestroyNode(pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
@@ -499,6 +506,12 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
 
   pWindow->winType = WINDOW_TYPE_SESSION;
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
+
+  pWindow->pTspk = nodesCloneNode(pSession->pCol);
+  if (NULL == pWindow->pTspk) {
+    nodesDestroyNode(pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }

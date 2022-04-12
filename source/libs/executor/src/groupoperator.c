@@ -166,7 +166,7 @@ static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
 // assign the group keys or user input constant values if required
 static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t totalRows, int32_t rowIndex) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (pCtx[i].functionId == -1) {
+    if (pCtx[i].functionId == -1) {       // select count(*),key from t group by key.
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[i]);
 
       SColumnInfoData* pColInfoData = pCtx[i].input.pData[0];
@@ -344,7 +344,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pOperator->name         = "GroupbyAggOperator";
   pOperator->blockingOptr = true;
   pOperator->status       = OP_NOT_OPENED;
-  //  pOperator->operatorType = OP_Groupby;
+  // pOperator->operatorType = OP_Groupby;
   pOperator->pExpr        = pExprInfo;
   pOperator->numOfOutput  = numOfCols;
   pOperator->info         = pInfo;
@@ -352,6 +352,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pOperator->_openFn      = operatorDummyOpenFn;
   pOperator->getNextFn    = hashGroupbyAggregate;
   pOperator->closeFn      = destroyGroupOperatorInfo;
+  pOperator->encodeResultRow = aggEncodeResultRow;
+  pOperator->decodeResultRow = aggDecodeResultRow;
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;

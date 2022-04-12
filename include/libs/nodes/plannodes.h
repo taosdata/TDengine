@@ -30,6 +30,7 @@ typedef struct SLogicNode {
   SNode* pConditions;
   SNodeList* pChildren;
   struct SLogicNode* pParent;
+  int32_t optimizedFlag;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -50,6 +51,8 @@ typedef struct SScanLogicNode {
   SName tableName;
   bool showRewrite;
   double ratio;
+  SNodeList* pDynamicScanFuncs;
+  int32_t dataRequired;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -84,6 +87,7 @@ typedef struct SVnodeModifLogicNode {
 typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t srcGroupId;
+  uint8_t precision;
 } SExchangeLogicNode;
 
 typedef enum EWindowType {
@@ -163,7 +167,7 @@ typedef struct SDataBlockDescNode {
   SNodeList* pSlots;
   int32_t totalRowSize;
   int32_t outputRowSize;
-  int16_t precision;
+  uint8_t precision;
 } SDataBlockDescNode;
 
 typedef struct SPhysiNode {
@@ -195,20 +199,13 @@ typedef struct SSystemTableScanPhysiNode {
   int32_t accountId;
 } SSystemTableScanPhysiNode;
 
-typedef enum EScanRequired {
-  SCAN_REQUIRED_DATA_NO_NEEDED = 1,
-  SCAN_REQUIRED_DATA_STATIS_NEEDED,
-  SCAN_REQUIRED_DATA_ALL_NEEDED,
-  SCAN_REQUIRED_DATA_DISCARD,
-} EScanRequired;
-
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
   double ratio;
-  EScanRequired scanRequired;
-  SNodeList* pScanReferFuncs;
+  int32_t dataRequired;
+  SNodeList* pDynamicScanFuncs;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -253,11 +250,11 @@ typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
+  SNode* pTspk; // timestamp primary key
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
   SWinodwPhysiNode window;
-  SNode* pTspk; // timestamp primary key
   int64_t    interval;
   int64_t    offset;
   int64_t    sliding;
@@ -274,7 +271,7 @@ typedef struct SMultiTableIntervalPhysiNode {
 
 typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
-  int64_t    gap;
+  int64_t gap;
 } SSessionWinodwPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {

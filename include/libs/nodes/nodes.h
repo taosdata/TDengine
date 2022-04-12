@@ -216,6 +216,7 @@ SNodeList* nodesMakeList();
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
+int32_t nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t nodesListPushFront(SNodeList* pList, SNodeptr pNode);

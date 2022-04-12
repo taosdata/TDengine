@@ -39,7 +39,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
 
   taosGetTmpfilePath(tsTempDir, "join", pTSBuf->path);
   // pTSBuf->pFile = fopen(pTSBuf->path, "wb+");
-  pTSBuf->pFile = taosOpenFile(pTSBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  pTSBuf->pFile = taosOpenFile(pTSBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (pTSBuf->pFile == NULL) {
     taosMemoryFree(pTSBuf);
     return NULL;

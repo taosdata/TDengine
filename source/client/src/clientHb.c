@@ -435,11 +435,11 @@ static int32_t hbCreateThread() {
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-//  if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
-//    terrno = TAOS_SYSTEM_ERROR(errno);
-//    return -1;
-//  }
-//  taosThreadAttrDestroy(&thAttr);
+  if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+ }
+  taosThreadAttrDestroy(&thAttr);
   return 0;
 }
 
@@ -500,8 +500,6 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
 }
 
 void appHbMgrCleanup(void) {
-  taosThreadMutexLock(&clientHbMgr.lock);
-
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
     SAppHbMgr *pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
@@ -510,8 +508,6 @@ void appHbMgrCleanup(void) {
     taosHashCleanup(pTarget->connInfo);
     pTarget->connInfo = NULL;
   }
-
-  taosThreadMutexUnlock(&clientHbMgr.lock);
 }
 
 int hbMgrInit() {
@@ -532,7 +528,6 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
-#if 0
   hbStopThread();
 
   // destroy all appHbMgr
@@ -545,7 +540,6 @@ void hbMgrCleanUp() {
   taosThreadMutexUnlock(&clientHbMgr.lock);
 
   clientHbMgr.appHbMgrs = NULL;
-#endif
 }
 
 int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *info) {

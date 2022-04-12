@@ -173,7 +173,7 @@ uint32_t tsMaxRange = 500;                      // max range
 uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
-static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
+void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
   tsDiskCfg[index].level = level;
   tsDiskCfg[index].primary = primary;
