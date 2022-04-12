@@ -3,8 +3,11 @@ sidebar_label: 超级表管理
 title: 超级表 STable 管理
 ---
 
+:::note
 
-注意：在 2.0.15.0 及以后的版本中，开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
+在 2.0.15.0 及以后的版本中开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在 2.0.15.0 之前的版本中 STABLE 保留字需写作 TABLE。
+
+:::
 
 ## 创建超级表
 

@@ -87,6 +87,7 @@ TAOS *shellInit(SShellArguments *_args) {
   }
 
   if (con == NULL) {
+    printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(con));
     fflush(stdout);
     return con;
   }

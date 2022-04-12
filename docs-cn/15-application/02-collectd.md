@@ -36,7 +36,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### 安装 TDengine
 
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/）页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
 
 ## 数据链路设置
 
@@ -52,7 +52,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### 配置 collectd
 
-在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+在 `/etc/collectd/collectd.conf` 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 
 ```
 LoadPlugin network
@@ -65,7 +65,7 @@ sudo systemctl start collectd
 
 ### 配置 StatsD
 
-在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+在 `config.js` 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 
 ```
 backends 部分添加 "./backends/repeater"
