@@ -21,7 +21,7 @@
 #include "parUtil.h"
 #include "ttime.h"
 
-#define GET_OPTION_VAL(pVal, defaultVal) (NULL == (pVal) ? (defaultVal) : ((SValueNode*)(pVal))->datum.i)
+#define GET_OPTION_VAL(pVal, defaultVal) (NULL == (pVal) ? (defaultVal) : getBigintFromValueNode((SValueNode*)(pVal)))
 
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
@@ -380,6 +380,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   uint8_t precision = (NULL != pCxt->pCurrStmt ? pCxt->pCurrStmt->precision : pVal->node.resType.precision);
+  pVal->node.resType.precision = precision;
   if (pVal->isDuration) {
     if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, precision) !=
         TSDB_CODE_SUCCESS) {
@@ -452,6 +453,9 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
       }
       pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    } else {
+      pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+      pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     }
     return DEAL_RES_CONTINUE;
   }
@@ -1041,6 +1045,27 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static int64_t getUnitPerMinute(uint8_t precision) {
+  switch (precision) {
+  case TSDB_TIME_PRECISION_MILLI:
+    return MILLISECOND_PER_MINUTE;
+  case TSDB_TIME_PRECISION_MICRO:
+    return MILLISECOND_PER_MINUTE * 1000L;
+  case TSDB_TIME_PRECISION_NANO:
+    return NANOSECOND_PER_MINUTE;
+  default:
+    break;
+  }
+  return MILLISECOND_PER_MINUTE;
+}
+
+static int64_t getBigintFromValueNode(SValueNode* pVal) {
+  if (pVal->isDuration) {
+    return pVal->datum.i / getUnitPerMinute(pVal->node.resType.precision);
+  }
+  return pVal->datum.i;
+}
+
 static int32_t buildCreateDbRetentions(const SNodeList* pRetentions, SCreateDbReq* pReq) {
   if (NULL != pRetentions) {
     pReq->pRetensions = taosArrayInit(LIST_LENGTH(pRetentions), sizeof(SRetention));
@@ -1098,7 +1123,10 @@ static int32_t checkRangeOption(STranslateContext* pCxt, const char* pName, SVal
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
       return pCxt->errCode;
     }
-    int64_t val = pVal->datum.i;
+    if (pVal->isDuration && (TIME_UNIT_MINUTE != pVal->unit && TIME_UNIT_HOUR != pVal->unit && TIME_UNIT_DAY != pVal->unit)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_OPTION_UNIT, pName, pVal->unit);
+    }
+    int64_t val = getBigintFromValueNode(pVal);
     if (val < minVal || val > maxVal) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_RANGE_OPTION, pName, val, minVal, maxVal);
     }
@@ -1187,9 +1215,18 @@ static int32_t checkKeepOption(STranslateContext* pCxt, SNodeList* pKeep) {
     }
   }
 
-  int32_t daysToKeep0 = ((SValueNode*)nodesListGetNode(pKeep, 0))->datum.i;
-  int32_t daysToKeep1 = ((SValueNode*)nodesListGetNode(pKeep, 1))->datum.i;
-  int32_t daysToKeep2 = ((SValueNode*)nodesListGetNode(pKeep, 2))->datum.i;
+  SValueNode* pKeep0 = (SValueNode*)nodesListGetNode(pKeep, 0);
+  SValueNode* pKeep1 = (SValueNode*)nodesListGetNode(pKeep, 1);
+  SValueNode* pKeep2 = (SValueNode*)nodesListGetNode(pKeep, 2);
+  if ((pKeep0->isDuration && (TIME_UNIT_MINUTE != pKeep0->unit && TIME_UNIT_HOUR != pKeep0->unit && TIME_UNIT_DAY != pKeep0->unit)) ||
+      (pKeep1->isDuration && (TIME_UNIT_MINUTE != pKeep1->unit && TIME_UNIT_HOUR != pKeep1->unit && TIME_UNIT_DAY != pKeep1->unit)) ||
+      (pKeep2->isDuration && (TIME_UNIT_MINUTE != pKeep2->unit && TIME_UNIT_HOUR != pKeep2->unit && TIME_UNIT_DAY != pKeep2->unit))) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_KEEP_UNIT, pKeep0->unit, pKeep1->unit, pKeep2->unit);
+  }
+
+  int32_t daysToKeep0 = getBigintFromValueNode(pKeep0);
+  int32_t daysToKeep1 = getBigintFromValueNode(pKeep1);
+  int32_t daysToKeep2 = getBigintFromValueNode(pKeep2);
   if (daysToKeep0 < TSDB_MIN_KEEP || daysToKeep1 < TSDB_MIN_KEEP || daysToKeep2 < TSDB_MIN_KEEP ||
       daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_KEEP_VALUE, daysToKeep0, daysToKeep1, daysToKeep2,
@@ -1240,8 +1277,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, SDatabaseOptions* p
     code = checkRangeOption(pCxt, "compression", pOptions->pCompressionLevel, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code =
-        checkRangeOption(pCxt, "daysPerFile", pOptions->pDaysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+    code = checkRangeOption(pCxt, "daysPerFile", pOptions->pDaysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "fsyncPeriod", pOptions->pFsyncPeriod, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
