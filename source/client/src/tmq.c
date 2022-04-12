@@ -17,26 +17,12 @@
 #include "clientLog.h"
 #include "parser.h"
 #include "planner.h"
-#include "scheduler.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
-#include "tpagedbuf.h"
 #include "tqueue.h"
 #include "tref.h"
-
-typedef struct {
-  int32_t curBlock;
-  int32_t curRow;
-  void**  uData;
-} SMqRowIter;
-
-struct tmq_message_t {
-  SMqPollRsp msg;
-  void*      vg;
-  SMqRowIter iter;
-};
 
 struct tmq_list_t {
   SArray container;
@@ -1564,32 +1550,6 @@ const char* tmq_err2str(tmq_resp_err_t err) {
     return "success";
   }
   return "fail";
-}
-
-TAOS_ROW tmq_get_row(tmq_message_t* message) {
-  SMqPollRsp* rsp = &message->msg;
-  while (1) {
-    if (message->iter.curBlock < taosArrayGetSize(rsp->pBlockData)) {
-      SSDataBlock* pBlock = taosArrayGet(rsp->pBlockData, message->iter.curBlock);
-      if (message->iter.curRow < pBlock->info.rows) {
-        for (int i = 0; i < pBlock->info.numOfCols; i++) {
-          SColumnInfoData* pData = taosArrayGet(pBlock->pDataBlock, i);
-          if (colDataIsNull_s(pData, message->iter.curRow))
-            message->iter.uData[i] = NULL;
-          else {
-            message->iter.uData[i] = colDataGetData(pData, message->iter.curRow);
-          }
-        }
-        message->iter.curRow++;
-        return message->iter.uData;
-      } else {
-        message->iter.curBlock++;
-        message->iter.curRow = 0;
-        continue;
-      }
-    }
-    return NULL;
-  }
 }
 
 char* tmq_get_topic_name(tmq_message_t* message) { return "not implemented yet"; }

@@ -13,7 +13,6 @@
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
-static int32_t       setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -42,7 +41,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
 
 static STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                 SAppInstInfo* pAppInfo);
-static void     setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+
 
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port) {
@@ -590,7 +589,7 @@ TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, c
   return taos_connect(ipStr, userStr, passStr, dbStr, port);
 }
 
-static void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
+void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
