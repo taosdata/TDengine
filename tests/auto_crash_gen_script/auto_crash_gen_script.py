@@ -208,7 +208,7 @@ def check_memory(run_dir):
         dnode_name = stderr_file.split("/")[-3]
         back_path = os.path.join(core_path,"reporter",dnode_name)
         if not os.path.exists(back_path):
-            os.mkdir(back_path)
+            os.system("mkdir -p %s"%back_path)
 
         if grep_res:
             os.system("cp %s %s"%(stderr_file , back_path))
