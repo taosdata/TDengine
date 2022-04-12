@@ -171,7 +171,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doFetchRow(pRequest, true, true);
 
   } else if (TD_RES_TMQ(res)) {
-    tmq_message_t  *msg = ((tmq_message_t *)res);
+    SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo = taosArrayGet(msg->res, msg->resIter);
 
     doSetOneRowPtr(pResultInfo);

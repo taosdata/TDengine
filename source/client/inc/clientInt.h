@@ -194,14 +194,13 @@ enum {
 #define TD_RES_QUERY(res) (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)   (*(int8_t*)res == RES_TYPE__TMQ)
 
-struct tmq_message_t {
-  int8_t     resType;
-  SMqPollRsp msg;
-  char*      topic;
-  void*      vg;
-  SArray*    res;  // SArray<SReqResultInfo>
-  int32_t    resIter;
-};
+typedef struct SMqRspObj {
+  int8_t  resType;
+  char*   topic;
+  void*   vg;
+  SArray* res;  // SArray<SReqResultInfo>
+  int32_t resIter;
+} SMqRspObj;
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
@@ -222,13 +221,13 @@ typedef struct SRequestObj {
 } SRequestObj;
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
-  tmq_message_t* msg = (tmq_message_t*)res;
-  int32_t        resIter = msg->resIter == -1 ? 0 : msg->resIter;
+  SMqRspObj* msg = (SMqRspObj*)res;
+  int32_t    resIter = msg->resIter == -1 ? 0 : msg->resIter;
   return (SReqResultInfo*)taosArrayGet(msg->res, resIter);
 }
 
 static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res) {
-  tmq_message_t* msg = (tmq_message_t*)res;
+  SMqRspObj* msg = (SMqRspObj*)res;
   if (++msg->resIter < taosArrayGetSize(msg->res)) {
     return (SReqResultInfo*)taosArrayGet(msg->res, msg->resIter);
   }

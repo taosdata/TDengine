@@ -24,6 +24,14 @@
 #include "tqueue.h"
 #include "tref.h"
 
+struct tmq_message_t {
+  SMqPollRsp msg;
+  char*      topic;
+  void*      vg;
+  SArray*    res;  // SArray<SReqResultInfo>
+  int32_t    resIter;
+};
+
 struct tmq_list_t {
   SArray container;
 };
