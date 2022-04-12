@@ -256,7 +256,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   return 0;
 }
 
-static int32_t taosAddClientLogCfg(SConfig *pCfg) {
+int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "logDir", tsLogDir, 1) != 0) return -1;

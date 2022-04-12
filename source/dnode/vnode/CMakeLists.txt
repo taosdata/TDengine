@@ -55,6 +55,8 @@ target_include_directories(
     vnode
     PUBLIC "inc"
     PRIVATE "src/inc"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    
 )
 target_link_libraries(
     vnode
@@ -69,6 +71,7 @@ target_link_libraries(
     PUBLIC scheduler
     PUBLIC tdb
     #PUBLIC bdb
+    #PUBLIC scalar
     PUBLIC transport
     PUBLIC stream
 )
