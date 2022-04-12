@@ -18,22 +18,30 @@ import os
 import threading
 from taostest.util.file import read_yaml, dict2file
 from queue import Queue
+from taostest.components.prometheus import PrometheusServer
+from datetime import datetime
 
 class CreateTable(TDCase):
     def __init__(self):
         self._remote: Remote = None
         self._fqdn: str = None
         self.case_configs = read_yaml(os.path.join(os.path.abspath(os.path.dirname(__file__)), "testcases.yaml"))
-        # self.create_table_cmd_dict = dict()
-        self.case_config_list = list()
+        self.create_table_cmd_dict = dict()
+        # self.case_config_list = list()
         self.error_msg = None
+        self.prometheus_settings = None
 
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
+        self.prometheus = PrometheusServer(self._remote)
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "prometheus":
+                self.prometheus_settings = env_setting
 
     def gen_create_table_cmd_dict(self):
         for case, case_config in self.case_configs["testcases"].items():
+            case_config_list = list()
             for config in case_config:
                 for fqdn in config["fqdn"]:
                     base_cmd = f'create_table -c {config["config_dir"]} '
@@ -79,29 +87,46 @@ class CreateTable(TDCase):
                     create_table_cmd_list.append(base_cmd)
                     case_config_dict["cmd_list"] = create_table_cmd_list
                     case_config_dict["case"] = case
-                    self.case_config_list.append(case_config_dict)
-                    # self.create_table_cmd_dict[case] = case_config_list
+                    case_config_list.append(case_config_dict)
+                    self.create_table_cmd_dict[case] = case_config_list
 
     def threads_run_create_table(self):
         self.gen_create_table_cmd_dict()
-        t = list()
-        que = Queue()
-        for case_config_dict in self.case_config_list:
-            print(case_config_dict)
-            # t.extend(threading.Thread(target=self._remote.cmd, args=(case_config_dict["fqdn"], [cmd])) for cmd in case_config_dict["cmd_list"])
-            for cmd in case_config_dict["cmd_list"]:
-                # t.append(threading.Thread(target=self._remote.cmd, args=(case_config_dict["fqdn"], [cmd])))
-                t.append(threading.Thread(target=lambda q, arg1, arg2: q.put(self._remote.cmd(arg1, arg2)), args=(que, case_config_dict["fqdn"], [cmd])))
-        for i in t:
-            i.start()
-        for i in t:
-            i.join()
-        with open(f'{self.run_log_dir}/create_table.log', 'a') as f:
-            while not que.empty():
-                result = que.get()
-                f.write(str(self.case_config_list[0]) + "\n\n")
-                self.case_config_list.pop(0)
-                f.write(result.split('\n')[-1] + "\n\n")
+        res_list = list()
+        for case, case_config_list in self.create_table_cmd_dict.items():
+            t = list()
+            que = Queue()
+            for case_config_dict in case_config_list:
+                for cmd in case_config_dict["cmd_list"]:
+                    t.append(threading.Thread(target=lambda q, arg1, arg2: q.put(self._remote.cmd(arg1, arg2)), args=(que, case_config_dict["fqdn"], [cmd])))
+            import time
+            for i in t:
+                i.start()
+            for i in t:
+                start_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                i.join()
+                end_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                while not que.empty():
+                    res_dict = dict()
+                    res_dict["casename"] = case
+                    result = que.get()
+                    res_dict["case_config"] = str(case_config_list[0])
+                    case_config_list.pop(0)
+                    res_dict["result"] = result.split('\n')[-1]
+                    res_dict["start_time"] = start_time
+                    res_dict["end_time"] = end_time
+                    res_list.append(res_dict)
+
+        for res_dict in res_list:
+            f = open(f'{self.run_log_dir}/create_table.log', 'a')
+            f.write("-------------------------------------------------------------------------\n\n")
+            f.write(res_dict["case_config"] + "\n\n")
+            f.write(res_dict["result"] + "\n\n")
+            f.write("-------------------------------------------------------------------------\n\n\n\n")
+            f.close()
+            if self.prometheus_settings is not None:
+                summary_res_dict, summary_dataframe_dict = self.prometheus.get_custom_query_range_datas(self.prometheus_settings, ["cpu_utilization"], res_dict["start_time"], res_dict["end_time"], 1)
+                self.prometheus.export_res2md(f'{self.run_log_dir}/create_table.log', summary_res_dict, summary_dataframe_dict)
 
     def run(self) -> bool:
         self.threads_run_create_table()
