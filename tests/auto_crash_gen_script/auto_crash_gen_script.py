@@ -229,6 +229,7 @@ def main():
         "--continue-on-exception":False }
 
     build_path = get_path()
+    os.system("pip3 install taospy")
     if repo =="community":
         crash_gen_path = build_path[:-5]+"community/tests/pytest/"
     elif repo =="TDengine":
