@@ -868,7 +868,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   // status
   if (tEncodeI32(&encoder, pReq->sver) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->dver) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->dnodeVer) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->clusterId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->rebootTime) < 0) return -1;
@@ -913,7 +913,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   // status
   if (tDecodeI32(&decoder, &pReq->sver) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->dver) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->dnodeVer) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->clusterId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->rebootTime) < 0) return -1;
@@ -965,7 +965,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   if (tStartEncode(&encoder) < 0) return -1;
 
   // status
-  if (tEncodeI64(&encoder, pRsp->dver) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->dnodeVer) < 0) return -1;
 
   // dnode cfg
   if (tEncodeI32(&encoder, pRsp->dnodeCfg.dnodeId) < 0) return -1;
@@ -996,7 +996,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   if (tStartDecode(&decoder) < 0) return -1;
 
   // status
-  if (tDecodeI64(&decoder, &pRsp->dver) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->dnodeVer) < 0) return -1;
 
   // cluster cfg
   if (tDecodeI32(&decoder, &pRsp->dnodeCfg.dnodeId) < 0) return -1;

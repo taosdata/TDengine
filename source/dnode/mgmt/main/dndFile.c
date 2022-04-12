@@ -148,7 +148,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
   cJSON    *root = NULL;
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s.shmfile", pDnode->dataDir, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%s.shmfile", pDnode->data.dataDir, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     dDebug("file %s not exist", file);
@@ -164,37 +164,37 @@ int32_t dndReadShmFile(SDnode *pDnode) {
       goto _OVER;
     }
 
-    for (EDndType ntype = DNODE + 1; ntype < NODE_MAX; ++ntype) {
+    for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
       snprintf(itemName, sizeof(itemName), "%s_shmid", dndNodeProcStr(ntype));
       cJSON *shmid = cJSON_GetObjectItem(root, itemName);
       if (shmid && shmid->type == cJSON_Number) {
-        pDnode->wrappers[ntype].shm.id = shmid->valueint;
+        pDnode->wrappers[ntype].procShm.id = shmid->valueint;
       }
 
       snprintf(itemName, sizeof(itemName), "%s_shmsize", dndNodeProcStr(ntype));
       cJSON *shmsize = cJSON_GetObjectItem(root, itemName);
       if (shmsize && shmsize->type == cJSON_Number) {
-        pDnode->wrappers[ntype].shm.size = shmsize->valueint;
+        pDnode->wrappers[ntype].procShm.size = shmsize->valueint;
       }
     }
   }
 
-  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
-    for (EDndType ntype = DNODE; ntype < NODE_MAX; ++ntype) {
+  if (!tsMultiProcess || pDnode->ntype == NODE_BEGIN || pDnode->ntype == NODE_END) {
+    for (EDndNodeType ntype = NODE_BEGIN; ntype < NODE_END; ++ntype) {
       SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-      if (pWrapper->shm.id >= 0) {
-        dDebug("shmid:%d, is closed, size:%d", pWrapper->shm.id, pWrapper->shm.size);
-        taosDropShm(&pWrapper->shm);
+      if (pWrapper->procShm.id >= 0) {
+        dDebug("shmid:%d, is closed, size:%d", pWrapper->procShm.id, pWrapper->procShm.size);
+        taosDropShm(&pWrapper->procShm);
       }
     }
   } else {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-    if (taosAttachShm(&pWrapper->shm) != 0) {
+    if (taosAttachShm(&pWrapper->procShm) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      dError("shmid:%d, failed to attach shm since %s", pWrapper->shm.id, terrstr());
+      dError("shmid:%d, failed to attach shm since %s", pWrapper->procShm.id, terrstr());
       goto _OVER;
     }
-    dInfo("node:%s, shmid:%d is attached, size:%d", pWrapper->name, pWrapper->shm.id, pWrapper->shm.size);
+    dInfo("node:%s, shmid:%d is attached, size:%d", pWrapper->name, pWrapper->procShm.id, pWrapper->procShm.size);
   }
 
   dDebug("successed to load %s", file);
@@ -215,8 +215,8 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
   char      realfile[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s.shmfile.bak", pDnode->dataDir, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%s.shmfile", pDnode->dataDir, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%s.shmfile.bak", pDnode->data.dataDir, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%s.shmfile", pDnode->data.dataDir, TD_DIRSEP);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -226,13 +226,13 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
   }
 
   len += snprintf(content + len, MAXLEN - len, "{\n");
-  for (EDndType ntype = DNODE + 1; ntype < NODE_MAX; ++ntype) {
+  for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndNodeProcStr(ntype), pWrapper->shm.id);
-    if (ntype == NODE_MAX - 1) {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndNodeProcStr(ntype), pWrapper->shm.size);
+    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndNodeProcStr(ntype), pWrapper->procShm.id);
+    if (ntype == NODE_END - 1) {
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndNodeProcStr(ntype), pWrapper->procShm.size);
     } else {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndNodeProcStr(ntype), pWrapper->shm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndNodeProcStr(ntype), pWrapper->procShm.size);
     }
   }
   len += snprintf(content + len, MAXLEN - len, "}\n");

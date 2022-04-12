@@ -53,7 +53,7 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.dnodeId != pDnode->dnodeId) {
+  if (createReq.dnodeId != pDnode->data.dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
     return -1;
@@ -72,7 +72,7 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (dropReq.dnodeId != pDnode->dnodeId) {
+  if (dropReq.dnodeId != pDnode->data.dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
     return -1;

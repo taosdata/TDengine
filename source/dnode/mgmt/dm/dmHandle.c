@@ -16,20 +16,20 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-void dmSendStatusReq(SDnodeMgmt *pMgmt) {
+void dmSendStatusReq(SDnodeData *pMgmt) {
   SDnode    *pDnode = pMgmt->pDnode;
   SStatusReq req = {0};
 
   taosRLockLatch(&pMgmt->latch);
   req.sver = tsVersion;
-  req.dver = pMgmt->dver;
-  req.dnodeId = pDnode->dnodeId;
-  req.clusterId = pDnode->clusterId;
-  req.rebootTime = pDnode->rebootTime;
+  req.dnodeVer = pMgmt->dnodeVer;
+  req.dnodeId = pDnode->data.dnodeId;
+  req.clusterId = pDnode->data.clusterId;
+  req.rebootTime = pDnode->data.rebootTime;
   req.updateTime = pMgmt->updateTime;
   req.numOfCores = tsNumOfCores;
-  req.numOfSupportVnodes = pDnode->numOfSupportVnodes;
-  tstrncpy(req.dnodeEp, pDnode->localEp, TSDB_EP_LEN);
+  req.numOfSupportVnodes = pDnode->data.supportVnodes;
+  tstrncpy(req.dnodeEp, pDnode->data.localEp, TSDB_EP_LEN);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -40,7 +40,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODE);
   if (pWrapper != NULL) {
     SMonVloadInfo info = {0};
     dmGetVnodeLoads(pWrapper, &info);
@@ -62,34 +62,34 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tmsgSendReq(&pMgmt->msgCb, &epSet, &rpcMsg);
 }
 
-static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
+static void dmUpdateDnodeCfg(SDnodeData *pMgmt, SDnodeCfg *pCfg) {
   SDnode *pDnode = pMgmt->pDnode;
 
-  if (pDnode->dnodeId == 0) {
+  if (pDnode->data.dnodeId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
-    pDnode->dnodeId = pCfg->dnodeId;
-    pDnode->clusterId = pCfg->clusterId;
+    pDnode->data.dnodeId = pCfg->dnodeId;
+    pDnode->data.clusterId = pCfg->clusterId;
     dmWriteFile(pMgmt);
     taosWUnLockLatch(&pMgmt->latch);
   }
 }
 
-int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessStatusRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
   SDnode  *pDnode = pMgmt->pDnode;
   SRpcMsg *pRsp = &pMsg->rpcMsg;
 
   if (pRsp->code != TSDB_CODE_SUCCESS) {
-    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pDnode->dropped && pDnode->dnodeId > 0) {
-      dInfo("dnode:%d, set to dropped since not exist in mnode", pDnode->dnodeId);
-      pDnode->dropped = 1;
+    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pDnode->data.dropped && pDnode->data.dnodeId > 0) {
+      dInfo("dnode:%d, set to dropped since not exist in mnode", pDnode->data.dnodeId);
+      pDnode->data.dropped = 1;
       dmWriteFile(pMgmt);
     }
   } else {
     SStatusRsp statusRsp = {0};
     if (pRsp->pCont != NULL && pRsp->contLen != 0 &&
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
-      pMgmt->dver = statusRsp.dver;
+      pMgmt->dnodeVer = statusRsp.dnodeVer;
       dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
       dmUpdateDnodeEps(pMgmt, statusRsp.pDnodeEps);
     }
@@ -100,26 +100,26 @@ int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessAuthRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
   SRpcMsg *pRsp = &pMsg->rpcMsg;
   dError("auth rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessGrantRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
   SRpcMsg *pRsp = &pMsg->rpcMsg;
   dError("grant rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessConfigReq(SDnodeData *pMgmt, SNodeMsg *pMsg) {
   SRpcMsg       *pReq = &pMsg->rpcMsg;
   SDCfgDnodeReq *pCfg = pReq->pCont;
   dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dndReleaseWrapper(pWrapper);
@@ -136,7 +136,7 @@ static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *
     return -1;
   }
 
-  int32_t code = (*pWrapper->fp.createMsgFp)(pWrapper, pMsg);
+  int32_t code = (*pWrapper->fp.createFp)(pWrapper, pMsg);
   if (code != 0) {
     dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
   } else {
@@ -147,7 +147,7 @@ static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *
   return code;
 }
 
-static int32_t dmProcessDropNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessDropNodeMsg(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
@@ -158,7 +158,7 @@ static int32_t dmProcessDropNodeMsg(SDnode *pDnode, EDndType ntype, SNodeMsg *pM
   taosWLockLatch(&pWrapper->latch);
   pWrapper->deployed = false;
 
-  int32_t code = (*pWrapper->fp.dropMsgFp)(pWrapper, pMsg);
+  int32_t code = (*pWrapper->fp.dropFp)(pWrapper, pMsg);
   if (code != 0) {
     pWrapper->deployed = true;
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());

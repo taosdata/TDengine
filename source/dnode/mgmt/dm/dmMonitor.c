@@ -18,13 +18,13 @@
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
-  pInfo->dnode_id = pDnode->dnodeId;
-  pInfo->cluster_id = pDnode->clusterId;
+  pInfo->dnode_id = pDnode->data.dnodeId;
+  pInfo->cluster_id = pDnode->data.clusterId;
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
 }
 
 static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
-  pInfo->uptime = (taosGetTimestampMs() - pDnode->rebootTime) / (86400000.0f);
+  pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) / (86400000.0f);
   pInfo->has_mnode = pDnode->wrappers[MNODE].required;
   pInfo->has_qnode = pDnode->wrappers[QNODE].required;
   pInfo->has_snode = pDnode->wrappers[SNODE].required;
@@ -79,7 +79,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
     }
   }
 
-  pWrapper = &pDnode->wrappers[VNODES];
+  pWrapper = &pDnode->wrappers[VNODE];
   if (getFromAPI) {
     if (dndMarkWrapper(pWrapper) == 0) {
       vmGetMonitorInfo(pWrapper, &vmInfo);

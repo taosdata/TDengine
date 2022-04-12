@@ -116,8 +116,8 @@ void qmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = qmOpen;
   mgmtFp.closeFp = qmClose;
-  mgmtFp.createMsgFp = qmProcessCreateReq;
-  mgmtFp.dropMsgFp = qmProcessDropReq;
+  mgmtFp.createFp = qmProcessCreateReq;
+  mgmtFp.dropFp = qmProcessDropReq;
   mgmtFp.requiredFp = qmRequire;
 
   qmInitMsgHandle(pWrapper);

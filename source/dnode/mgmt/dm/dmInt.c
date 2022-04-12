@@ -16,13 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-void dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet) {
+void dmGetMnodeEpSet(SDnodeData *pMgmt, SEpSet *pEpSet) {
   taosRLockLatch(&pMgmt->latch);
   *pEpSet = pMgmt->mnodeEpSet;
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet) {
+void dmUpdateMnodeEpSet(SDnodeData *pMgmt, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
 
   taosWLockLatch(&pMgmt->latch);
@@ -35,7 +35,7 @@ void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet) {
 }
 
 void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
+  SDnodeData *pMgmt = pWrapper->pMgmt;
   taosRLockLatch(&pMgmt->latch);
 
   SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
@@ -54,7 +54,7 @@ void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqd
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pReq) {
+void dmSendRedirectRsp(SDnodeData *pMgmt, const SRpcMsg *pReq) {
   SDnode *pDnode = pMgmt->pDnode;
 
   SEpSet epSet = {0};
@@ -63,7 +63,7 @@ void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pReq) {
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, pDnode->localFqdn) == 0 && epSet.eps[i].port == pDnode->serverPort) {
+    if (strcmp(epSet.eps[i].fqdn, pDnode->data.localFqdn) == 0 && epSet.eps[i].port == pDnode->data.serverPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
@@ -80,15 +80,14 @@ static int32_t dmStart(SMgmtWrapper *pWrapper) {
 
 static int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
-  SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
+  SDnodeData *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeData));
   dInfo("dnode-mgmt start to init");
 
-  pDnode->dnodeId = 0;
-  pDnode->dropped = 0;
-  pDnode->clusterId = 0;
+  pDnode->data.dnodeId = 0;
+  pDnode->data.dropped = 0;
+  pDnode->data.clusterId = 0;
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pDnode;
-  pMgmt->pWrapper = pWrapper;
   taosInitRWLatch(&pMgmt->latch);
 
   pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -103,7 +102,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (pDnode->dropped) {
+  if (pDnode->data.dropped) {
     dError("dnode will not start since its already dropped");
     return -1;
   }
@@ -125,7 +124,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
 }
 
 static void dmCleanup(SMgmtWrapper *pWrapper) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
+  SDnodeData *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
   dInfo("dnode-mgmt start to clean up");

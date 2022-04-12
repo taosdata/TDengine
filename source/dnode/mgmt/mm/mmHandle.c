@@ -56,7 +56,7 @@ int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.replica <= 1 || createReq.dnodeId != pDnode->dnodeId) {
+  if (createReq.replica <= 1 || createReq.dnodeId != pDnode->data.dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
@@ -75,7 +75,7 @@ int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (dropReq.dnodeId != pDnode->dnodeId) {
+  if (dropReq.dnodeId != pDnode->data.dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop mnode since %s", terrstr());
     return -1;
@@ -95,9 +95,9 @@ int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (alterReq.dnodeId != pDnode->dnodeId) {
+  if (alterReq.dnodeId != pDnode->data.dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to alter mnode since %s, dnodeId:%d input:%d", terrstr(), pDnode->dnodeId, alterReq.dnodeId);
+    dError("failed to alter mnode since %s, dnodeId:%d input:%d", terrstr(), pDnode->data.dnodeId, alterReq.dnodeId);
     return -1;
   } else {
     return mmAlter(pMgmt, &alterReq);

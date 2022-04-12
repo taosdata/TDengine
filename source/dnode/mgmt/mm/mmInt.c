@@ -18,9 +18,9 @@
 #include "wal.h"
 
 static bool mmDeployRequired(SDnode *pDnode) {
-  if (pDnode->dnodeId > 0) return false;
-  if (pDnode->clusterId > 0) return false;
-  if (strcmp(pDnode->localEp, pDnode->firstEp) != 0) return false;
+  if (pDnode->data.dnodeId > 0) return false;
+  if (pDnode->data.clusterId > 0) return false;
+  if (strcmp(pDnode->data.localEp, pDnode->data.firstEp) != 0) return false;
   return true;
 }
 
@@ -53,8 +53,8 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pMgmt->pDnode->serverPort;
-  tstrncpy(pReplica->fqdn, pMgmt->pDnode->localFqdn, TSDB_FQDN_LEN);
+  pReplica->port = pMgmt->pDnode->data.serverPort;
+  tstrncpy(pReplica->fqdn, pMgmt->pDnode->data.localFqdn, TSDB_FQDN_LEN);
   pOption->deploy = true;
 
   pMgmt->selfIndex = pOption->selfIndex;
@@ -80,7 +80,7 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
     pReplica->id = pCreate->replicas[i].id;
     pReplica->port = pCreate->replicas[i].port;
     memcpy(pReplica->fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    if (pReplica->id == pMgmt->pDnode->dnodeId) {
+    if (pReplica->id == pMgmt->pDnode->data.dnodeId) {
       pOption->selfIndex = i;
     }
   }
@@ -112,8 +112,8 @@ static int32_t mmOpenImp(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq) {
 
     if (!deployed) {
       dInfo("mnode start to deploy");
-      if (pMgmt->pWrapper->procType == PROC_CHILD) {
-        pMgmt->pDnode->dnodeId = 1;
+      if (pMgmt->pWrapper->procType == DND_PROC_CHILD) {
+        pMgmt->pDnode->data.dnodeId = 1;
       }
       mmBuildOptionForDeploy(pMgmt, &option);
     } else {
@@ -230,8 +230,8 @@ void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.openFp = mmOpen;
   mgmtFp.closeFp = mmClose;
   mgmtFp.startFp = mmStart;
-  mgmtFp.createMsgFp = mmProcessCreateReq;
-  mgmtFp.dropMsgFp = mmProcessDropReq;
+  mgmtFp.createFp = mmProcessCreateReq;
+  mgmtFp.dropFp = mmProcessDropReq;
   mgmtFp.requiredFp = mmRequire;
 
   mmInitMsgHandle(pWrapper);

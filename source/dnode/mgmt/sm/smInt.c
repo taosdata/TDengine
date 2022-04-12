@@ -113,8 +113,8 @@ void smSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = smOpen;
   mgmtFp.closeFp = smClose;
-  mgmtFp.createMsgFp = smProcessCreateReq;
-  mgmtFp.dropMsgFp = smProcessDropReq;
+  mgmtFp.createFp = smProcessCreateReq;
+  mgmtFp.dropFp = smProcessDropReq;
   mgmtFp.requiredFp = smRequire;
 
   smInitMsgHandle(pWrapper);

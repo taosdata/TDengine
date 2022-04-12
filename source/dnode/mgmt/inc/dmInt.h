@@ -22,35 +22,20 @@
 extern "C" {
 #endif
 
-typedef struct SDnodeMgmt {
-  int64_t       dver;
-  int64_t       updateTime;
-  int8_t        statusSent;
-  SEpSet        mnodeEpSet;
-  SHashObj     *dnodeHash;
-  SArray       *dnodeEps;
-  TdThread     *threadId;
-  SRWLatch      latch;
-  SSingleWorker mgmtWorker;
-  SSingleWorker monitorWorker;
-  SMsgCb        msgCb;
-  const char   *path;
-  SDnode       *pDnode;
-  SMgmtWrapper *pWrapper;
-} SDnodeMgmt;
+
 
 // dmFile.c
-int32_t dmReadFile(SDnodeMgmt *pMgmt);
-int32_t dmWriteFile(SDnodeMgmt *pMgmt);
-void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
+int32_t dmReadFile(SDnodeData *pMgmt);
+int32_t dmWriteFile(SDnodeData *pMgmt);
+void    dmUpdateDnodeEps(SDnodeData *pMgmt, SArray *pDnodeEps);
 
 // dmHandle.c
 void    dmInitMsgHandle(SMgmtWrapper *pWrapper);
-void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+void    dmSendStatusReq(SDnodeData *pMgmt);
+int32_t dmProcessConfigReq(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessStatusRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessAuthRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessGrantRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
 int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dmMonitor.c
@@ -58,9 +43,9 @@ void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
-int32_t dmStartThread(SDnodeMgmt *pMgmt);
-int32_t dmStartWorker(SDnodeMgmt *pMgmt);
-void    dmStopWorker(SDnodeMgmt *pMgmt);
+int32_t dmStartThread(SDnodeData *pMgmt);
+int32_t dmStartWorker(SDnodeData *pMgmt);
+void    dmStopWorker(SDnodeData *pMgmt);
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 

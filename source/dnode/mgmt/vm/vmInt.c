@@ -278,11 +278,11 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   taosInitRWLatch(&pMgmt->latch);
 
   SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, pDnode->dataDir, TSDB_FILENAME_LEN);
+  tstrncpy(dCfg.dir, pDnode->data.dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = pDnode->disks;
-  int32_t   numOfDisks = pDnode->numOfDisks;
+  SDiskCfg *pDisks = pDnode->data.disks;
+  int32_t   numOfDisks = pDnode->data.numOfDisks;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;
     numOfDisks = 1;
@@ -329,7 +329,7 @@ _OVER:
 
 static int32_t vmRequire(SMgmtWrapper *pWrapper, bool *required) {
   SDnode *pDnode = pWrapper->pDnode;
-  *required = pDnode->numOfSupportVnodes > 0;
+  *required = pDnode->data.supportVnodes > 0;
   return 0;
 }
 

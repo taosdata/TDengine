@@ -29,7 +29,7 @@ static bool dndRequireNode(SMgmtWrapper *pWrapper) {
 
 static int32_t dndInitNodeProc(SMgmtWrapper *pWrapper) {
   int32_t shmsize = tsMnodeShmSize;
-  if (pWrapper->ntype == VNODES) {
+  if (pWrapper->ntype == VNODE) {
     shmsize = tsVnodeShmSize;
   } else if (pWrapper->ntype == QNODE) {
     shmsize = tsQnodeShmSize;
@@ -43,18 +43,18 @@ static int32_t dndInitNodeProc(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (taosCreateShm(&pWrapper->shm, pWrapper->ntype, shmsize) != 0) {
+  if (taosCreateShm(&pWrapper->procShm, pWrapper->ntype, shmsize) != 0) {
     terrno = TAOS_SYSTEM_ERROR(terrno);
     dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());
     return -1;
   }
-  dInfo("node:%s, shm:%d is created, size:%d", pWrapper->name, pWrapper->shm.id, shmsize);
+  dInfo("node:%s, shm:%d is created, size:%d", pWrapper->name, pWrapper->procShm.id, shmsize);
 
   SProcCfg cfg = dndGenProcCfg(pWrapper);
   cfg.isChild = false;
-  pWrapper->procType = PROC_PARENT;
-  pWrapper->pProc = taosProcInit(&cfg);
-  if (pWrapper->pProc == NULL) {
+  pWrapper->procType = DND_PROC_PARENT;
+  pWrapper->procObj = taosProcInit(&cfg);
+  if (pWrapper->procObj == NULL) {
     dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
     return -1;
   }
@@ -62,7 +62,7 @@ static int32_t dndInitNodeProc(SMgmtWrapper *pWrapper) {
   return 0;
 }
 
-static int32_t dndNewNodeProc(SMgmtWrapper *pWrapper, EDndType n) {
+static int32_t dndNewNodeProc(SMgmtWrapper *pWrapper, EDndNodeType n) {
   char  tstr[8] = {0};
   char *args[6] = {0};
   snprintf(tstr, sizeof(tstr), "%d", n);
@@ -85,7 +85,7 @@ static int32_t dndNewNodeProc(SMgmtWrapper *pWrapper, EDndType n) {
 }
 
 static int32_t dndRunNodeProc(SMgmtWrapper *pWrapper) {
-  if (pWrapper->pDnode->ntype == NODE_MAX) {
+  if (pWrapper->pDnode->ntype == NODE_END) {
     dInfo("node:%s, should be started manually", pWrapper->name);
   } else {
     if (dndNewNodeProc(pWrapper, pWrapper->ntype) != 0) {
@@ -93,7 +93,7 @@ static int32_t dndRunNodeProc(SMgmtWrapper *pWrapper) {
     }
   }
 
-  if (taosProcRun(pWrapper->pProc) != 0) {
+  if (taosProcRun(pWrapper->procObj) != 0) {
     dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
     return -1;
   }
@@ -120,9 +120,9 @@ static int32_t dndOpenNodeImp(SMgmtWrapper *pWrapper) {
 
 int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
   SDnode *pDnode = pWrapper->pDnode;
-  if (pDnode->procType == PROC_SINGLE) {
+  if (pDnode->ptype == DND_PROC_SINGLE) {
     return dndOpenNodeImp(pWrapper);
-  } else if (pDnode->procType == PROC_PARENT) {
+  } else if (pDnode->ptype == DND_PROC_PARENT) {
     if (dndInitNodeProc(pWrapper) != 0) return -1;
     if (dndWriteShmFile(pDnode) != 0) return -1;
     if (dndRunNodeProc(pWrapper) != 0) return -1;
@@ -144,15 +144,15 @@ static void dndCloseNodeImp(SMgmtWrapper *pWrapper) {
     taosMsleep(10);
   }
 
-  if (pWrapper->pProc) {
-    taosProcCleanup(pWrapper->pProc);
-    pWrapper->pProc = NULL;
+  if (pWrapper->procObj) {
+    taosProcCleanup(pWrapper->procObj);
+    pWrapper->procObj = NULL;
   }
   dDebug("node:%s, mgmt has been closed", pWrapper->name);
 }
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
-  if (pWrapper->pDnode->procType == PROC_PARENT) {
+  if (pWrapper->pDnode->ptype == DND_PROC_PARENT) {
     if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
       dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
       taosKillProc(pWrapper->procId);
@@ -172,9 +172,9 @@ static void dndProcessProcHandle(void *handle) {
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process");
-  pDnode->procType = PROC_SINGLE;
+  pDnode->ptype = DND_PROC_SINGLE;
 
-  for (EDndType n = DNODE; n < NODE_MAX; ++n) {
+  for (EDndNodeType n = NODE_BEGIN; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
@@ -187,7 +187,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
   dndSetStatus(pDnode, DND_STAT_RUNNING);
 
-  for (EDndType n = 0; n < NODE_MAX; ++n) {
+  for (EDndNodeType n = 0; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
     if (pWrapper->fp.startFp == NULL) continue;
@@ -213,15 +213,15 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
 static int32_t dndRunInParentProcess(SDnode *pDnode) {
   dInfo("dnode run in parent process");
-  pDnode->procType = PROC_PARENT;
+  pDnode->ptype = DND_PROC_PARENT;
 
-  SMgmtWrapper *pDWrapper = &pDnode->wrappers[DNODE];
+  SMgmtWrapper *pDWrapper = &pDnode->wrappers[NODE_BEGIN];
   if (dndOpenNodeImp(pDWrapper) != 0) {
     dError("node:%s, failed to start since %s", pDWrapper->name, terrstr());
     return -1;
   }
 
-  for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
+  for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
@@ -233,7 +233,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     return -1;
   }
 
-  for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
+  for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
     if (dndRunNodeProc(pWrapper) != 0) return -1;
@@ -254,10 +254,10 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       dInfo("dnode is about to stop");
       dndSetStatus(pDnode, DND_STAT_STOPPED);
 
-      for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
+      for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
-        if (pDnode->ntype == NODE_MAX) continue;
+        if (pDnode->ntype == NODE_END) continue;
 
         if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
           dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
@@ -269,14 +269,14 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       }
       break;
     } else {
-      for (EDndType n = DNODE + 1; n < NODE_MAX; ++n) {
+      for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
-        if (pDnode->ntype == NODE_MAX) continue;
+        if (pDnode->ntype == NODE_END) continue;
 
         if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
           dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
-          taosProcCloseHandles(pWrapper->pProc, dndProcessProcHandle);
+          taosProcCloseHandles(pWrapper->procObj, dndProcessProcHandle);
           dndNewNodeProc(pWrapper, n);
         }
       }
@@ -291,7 +291,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
   dInfo("%s run in child process", pWrapper->name);
-  pDnode->procType = PROC_CHILD;
+  pDnode->ptype = DND_PROC_CHILD;
 
   pWrapper->required = dndRequireNode(pWrapper);
   if (!pWrapper->required) {
@@ -301,7 +301,7 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);
   tmsgSetDefaultMsgCb(&msgCb);
-  pWrapper->procType = PROC_CHILD;
+  pWrapper->procType = DND_PROC_CHILD;
 
   if (dndOpenNodeImp(pWrapper) != 0) {
     dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
@@ -310,8 +310,8 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
 
   SProcCfg cfg = dndGenProcCfg(pWrapper);
   cfg.isChild = true;
-  pWrapper->pProc = taosProcInit(&cfg);
-  if (pWrapper->pProc == NULL) {
+  pWrapper->procObj = taosProcInit(&cfg);
+  if (pWrapper->procObj == NULL) {
     dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
     return -1;
   }
@@ -325,7 +325,7 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
 
   dndSetStatus(pDnode, DND_STAT_RUNNING);
 
-  if (taosProcRun(pWrapper->pProc) != 0) {
+  if (taosProcRun(pWrapper->procObj) != 0) {
     dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
     return -1;
   }
@@ -347,7 +347,7 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
 int32_t dndRun(SDnode *pDnode) {
   if (!tsMultiProcess) {
     return dndRunInSingleProcess(pDnode);
-  } else if (pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
+  } else if (pDnode->ntype == NODE_BEGIN || pDnode->ntype == NODE_END) {
     return dndRunInParentProcess(pDnode);
   } else {
     return dndRunInChildProcess(pDnode);

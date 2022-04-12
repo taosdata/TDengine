@@ -744,8 +744,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t     sver;  // software version
-  int64_t     dver;  // dnode table version in sdb
+  int32_t     sver;      // software version
+  int64_t     dnodeVer;  // dnode table version in sdb
   int32_t     dnodeId;
   int64_t     clusterId;
   int64_t     rebootTime;
@@ -772,7 +772,7 @@ typedef struct {
 } SDnodeEp;
 
 typedef struct {
-  int64_t   dver;
+  int64_t   dnodeVer;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
 } SStatusRsp;

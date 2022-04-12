@@ -26,7 +26,7 @@ static struct {
   char     apolloUrl[PATH_MAX];
   SArray  *pArgs;  // SConfigPair
   SDnode  *pDnode;
-  EDndType ntype;
+  EDndNodeType ntype;
 } global = {0};
 
 static void dndStopDnode(int signum, void *info, void *ctx) {
@@ -46,7 +46,7 @@ static void dndSetSignalHandle() {
   taosSetSignal(SIGQUIT, dndStopDnode);
 
   if (!tsMultiProcess) {
-  } else if (global.ntype == DNODE || global.ntype == NODE_MAX) {
+  } else if (global.ntype == NODE_BEGIN || global.ntype == NODE_END) {
     taosIgnSignal(SIGCHLD);
   } else {
     taosKillChildOnParentStopped();
@@ -72,8 +72,8 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
-      if (global.ntype <= DNODE || global.ntype > NODE_MAX) {
-        printf("'-n' range is [1 - %d], default is 0\n", NODE_MAX - 1);
+      if (global.ntype <= NODE_BEGIN || global.ntype > NODE_END) {
+        printf("'-n' range is [1 - %d], default is 0\n", NODE_END - 1);
         return -1;
       }
     } else if (strcmp(argv[i], "-k") == 0) {
@@ -135,7 +135,7 @@ static int32_t dndInitLog() {
 
 static void dndSetProcInfo(int32_t argc, char **argv) {
   taosSetProcPath(argc, argv);
-  if (global.ntype != DNODE && global.ntype != NODE_MAX) {
+  if (global.ntype != NODE_BEGIN && global.ntype != NODE_END) {
     const char *name = dndNodeProcStr(global.ntype);
     taosSetProcName(argc, argv, name);
   }

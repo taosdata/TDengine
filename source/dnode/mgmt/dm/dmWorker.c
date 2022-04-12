@@ -17,7 +17,7 @@
 #include "dmInt.h"
 
 static void *dmThreadRoutine(void *param) {
-  SDnodeMgmt *pMgmt = param;
+  SDnodeData *pMgmt = param;
   SDnode     *pDnode = pMgmt->pDnode;
   int64_t     lastStatusTime = taosGetTimestampMs();
   int64_t     lastMonitorTime = lastStatusTime;
@@ -27,7 +27,7 @@ static void *dmThreadRoutine(void *param) {
   while (true) {
     taosThreadTestCancel();
     taosMsleep(200);
-    if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pDnode->dropped) {
+    if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pDnode->data.dropped) {
       continue;
     }
 
@@ -47,7 +47,7 @@ static void *dmThreadRoutine(void *param) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t dmStartThread(SDnodeMgmt *pMgmt) {
+int32_t dmStartThread(SDnodeData *pMgmt) {
   pMgmt->threadId = taosCreateThread(dmThreadRoutine, pMgmt);
   if (pMgmt->threadId == NULL) {
     dError("failed to init dnode thread");
@@ -59,7 +59,7 @@ int32_t dmStartThread(SDnodeMgmt *pMgmt) {
 }
 
 static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
-  SDnodeMgmt *pMgmt = pInfo->ahandle;
+  SDnodeData *pMgmt = pInfo->ahandle;
 
   SDnode  *pDnode = pMgmt->pDnode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
@@ -95,7 +95,7 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
+int32_t dmStartWorker(SDnodeData *pMgmt) {
   SSingleWorkerCfg mcfg = {.min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mcfg) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
@@ -112,7 +112,7 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
-void dmStopWorker(SDnodeMgmt *pMgmt) {
+void dmStopWorker(SDnodeData *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   tSingleWorkerCleanup(&pMgmt->monitorWorker);
 
@@ -124,7 +124,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
 }
 
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SDnodeData    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
@@ -133,7 +133,7 @@ int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SDnodeData    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
