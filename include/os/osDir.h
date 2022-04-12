@@ -38,6 +38,7 @@ typedef struct TdDirEntry *TdDirEntryPtr;
 void    taosRemoveDir(const char *dirname);
 bool    taosDirExist(char *dirname);
 int32_t taosMkDir(const char *dirname);
+int32_t taosMulMkDir(const char *dirname);
 void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
 int32_t taosRealPath(char *dirname, int32_t maxlen);
