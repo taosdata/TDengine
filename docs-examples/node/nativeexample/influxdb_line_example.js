@@ -29,6 +29,6 @@ try {
   createDatabase();
   insertData();
 } finally {
-  // cursor.close(); // 此处抛异常
+  cursor.close(); 
   conn.close();
 }

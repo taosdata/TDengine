@@ -48,6 +48,6 @@ try {
   prepareSTable();
   insertData();
 } finally {
-  // cursor.close(); // bug here
+  cursor.close();
   conn.close();
 }
