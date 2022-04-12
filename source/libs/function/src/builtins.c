@@ -394,6 +394,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "to_iso8601",
+    .type = FUNCTION_TYPE_TO_ISO8601,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .checkFunc    = checkAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = toISO8601Function,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -608,6 +618,9 @@ int32_t checkAndGetResultType(SFunctionNode* pFunc) {
       int32_t paraBytes = pParam->datum.i;
       pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType};
       break;
+    }
+    case FUNCTION_TYPE_TO_ISO8601: {
+      pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
     }
 
     case FUNCTION_TYPE_TBNAME: {
