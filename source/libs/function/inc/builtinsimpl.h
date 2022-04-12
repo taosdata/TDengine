@@ -21,31 +21,41 @@ extern "C" {
 #endif
 
 #include "function.h"
+#include "functionMgt.h"
 
 bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 void functionFinalize(SqlFunctionCtx *pCtx);
 
-bool getCountFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-void countFunction(SqlFunctionCtx *pCtx);
+EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+bool getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t countFunction(SqlFunctionCtx *pCtx);
 
-bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-void sumFunction(SqlFunctionCtx *pCtx);
+bool getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t sumFunction(SqlFunctionCtx *pCtx);
 
 bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
-bool getMinmaxFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-void minFunction(SqlFunctionCtx* pCtx);
-void maxFunction(SqlFunctionCtx *pCtx);
+bool getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t minFunction(SqlFunctionCtx* pCtx);
+int32_t maxFunction(SqlFunctionCtx *pCtx);
 
-bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-void stddevFunction(SqlFunctionCtx* pCtx);
+bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t stddevFunction(SqlFunctionCtx* pCtx);
 void stddevFinalize(SqlFunctionCtx* pCtx);
 
-bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-void firstFunction(SqlFunctionCtx *pCtx);
-void lastFunction(SqlFunctionCtx *pCtx);
+bool getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t percentileFunction(SqlFunctionCtx *pCtx);
+void percentileFinalize(SqlFunctionCtx* pCtx);
 
-void valFunction(SqlFunctionCtx *pCtx);
+bool getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool diffFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
+int32_t diffFunction(SqlFunctionCtx *pCtx);
+
+bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t firstFunction(SqlFunctionCtx *pCtx);
+int32_t lastFunction(SqlFunctionCtx *pCtx);
 
 #ifdef __cplusplus
 }

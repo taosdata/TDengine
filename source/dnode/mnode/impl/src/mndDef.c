@@ -17,7 +17,7 @@
 
 int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   int32_t sz = 0;
-  int32_t outputNameSz = 0;
+  /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->db) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
@@ -26,8 +26,11 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->dbUid) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->version) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->createdBy) < 0) return -1;
+  if (tEncodeI32(pEncoder, pObj->fixedSinkVgId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->smaId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pObj->logicalPlan) < 0) return -1;
+  /*if (tEncodeCStr(pEncoder, pObj->logicalPlan) < 0) return -1;*/
   if (tEncodeCStr(pEncoder, pObj->physicalPlan) < 0) return -1;
   // TODO encode tasks
   if (pObj->tasks) {
@@ -36,15 +39,18 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI32(pEncoder, sz) < 0) return -1;
 
   for (int32_t i = 0; i < sz; i++) {
-    SArray *pArray = taosArrayGet(pObj->tasks, i);
+    SArray *pArray = taosArrayGetP(pObj->tasks, i);
     int32_t innerSz = taosArrayGetSize(pArray);
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
-      SStreamTask *pTask = taosArrayGet(pArray, j);
+      SStreamTask *pTask = taosArrayGetP(pArray, j);
       if (tEncodeSStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
 
+  if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
+
+#if 0
   if (pObj->ColAlias != NULL) {
     outputNameSz = taosArrayGetSize(pObj->ColAlias);
   }
@@ -53,6 +59,7 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
     char *name = taosArrayGetP(pObj->ColAlias, i);
     if (tEncodeCStr(pEncoder, name) < 0) return -1;
   }
+#endif
   return pEncoder->pos;
 }
 
@@ -65,26 +72,33 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI64(pDecoder, &pObj->dbUid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->createdBy) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pObj->fixedSinkVgId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->smaId) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pObj->sql) < 0) return -1;
-  if (tDecodeCStrAlloc(pDecoder, &pObj->logicalPlan) < 0) return -1;
+  /*if (tDecodeCStrAlloc(pDecoder, &pObj->logicalPlan) < 0) return -1;*/
   if (tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan) < 0) return -1;
   pObj->tasks = NULL;
   int32_t sz;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
   if (sz != 0) {
-    pObj->tasks = taosArrayInit(sz, sizeof(SArray));
+    pObj->tasks = taosArrayInit(sz, sizeof(void *));
     for (int32_t i = 0; i < sz; i++) {
       int32_t innerSz;
       if (tDecodeI32(pDecoder, &innerSz) < 0) return -1;
-      SArray *pArray = taosArrayInit(innerSz, sizeof(SStreamTask));
+      SArray *pArray = taosArrayInit(innerSz, sizeof(void *));
       for (int32_t j = 0; j < innerSz; j++) {
-        SStreamTask task;
-        if (tDecodeSStreamTask(pDecoder, &task) < 0) return -1;
-        taosArrayPush(pArray, &task);
+        SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+        if (pTask == NULL) return -1;
+        if (tDecodeSStreamTask(pDecoder, pTask) < 0) return -1;
+        taosArrayPush(pArray, &pTask);
       }
-      taosArrayPush(pObj->tasks, pArray);
+      taosArrayPush(pObj->tasks, &pArray);
     }
   }
+
+  if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
+#if 0
   int32_t outputNameSz;
   if (tDecodeI32(pDecoder, &outputNameSz) < 0) return -1;
   if (outputNameSz != 0) {
@@ -98,5 +112,6 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
     if (tDecodeCStrAlloc(pDecoder, &name) < 0) return -1;
     taosArrayPush(pObj->ColAlias, &name);
   }
+#endif
   return 0;
 }

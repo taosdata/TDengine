@@ -20,27 +20,34 @@
 extern "C" {
 #endif
 
+#include "query.h"
 #include "querynodes.h"
+
+#define DESCRIBE_RESULT_COLS 4
+#define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_TYPE_LEN (20 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN (8 + VARSTR_HEADER_SIZE)
 
 typedef struct SDatabaseOptions {
   ENodeType type;
-  int32_t numOfBlocks;
-  int32_t cacheBlockSize;
-  int8_t cachelast;
-  int32_t compressionLevel;
-  int32_t daysPerFile;
-  int32_t fsyncPeriod;
-  int32_t maxRowsPerBlock;
-  int32_t minRowsPerBlock;
-  int32_t keep;
-  int32_t precision;
-  int32_t quorum;
-  int32_t replica;
-  int32_t ttl;
-  int32_t walLevel;
-  int32_t numOfVgroups;
-  int8_t singleStable;
-  int8_t streamMode;
+  SValueNode* pNumOfBlocks;
+  SValueNode* pCacheBlockSize;
+  SValueNode* pCachelast;
+  SValueNode* pCompressionLevel;
+  SValueNode* pDaysPerFile;
+  SValueNode* pFsyncPeriod;
+  SValueNode* pMaxRowsPerBlock;
+  SValueNode* pMinRowsPerBlock;
+  SNodeList* pKeep;
+  SValueNode* pPrecision;
+  SValueNode* pQuorum;
+  SValueNode* pReplica;
+  SValueNode* pTtl;
+  SValueNode* pWalLevel;
+  SValueNode* pNumOfVgroups;
+  SValueNode* pSingleStable;
+  SValueNode* pStreamMode;
+  SNodeList* pRetentions;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -69,10 +76,13 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType type;
-  int32_t keep;
-  int32_t ttl;
-  char comments[TSDB_STB_COMMENT_LEN];
+  SNodeList* pKeep;
+  SValueNode* pTtl;
+  SValueNode* pComments;
   SNodeList* pSma;
+  SNodeList* pFuncs;
+  SValueNode* pFilesFactor;
+  SValueNode* pDelay;
 } STableOptions;
 
 typedef struct SColumnDefNode {
@@ -80,6 +90,7 @@ typedef struct SColumnDefNode {
   char colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
   char comments[TSDB_STB_COMMENT_LEN];
+  bool sma;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -183,6 +194,12 @@ typedef struct SShowStmt {
   SNode* pTbNamePattern; // SValueNode
 } SShowStmt;
 
+typedef struct SShowCreatStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+} SShowCreatStmt;
+
 typedef enum EIndexType {
   INDEX_TYPE_SMA = 1,
   INDEX_TYPE_FULLTEXT
@@ -213,15 +230,15 @@ typedef struct SDropIndexStmt {
   char tableName[TSDB_TABLE_NAME_LEN];
 } SDropIndexStmt;
 
-typedef struct SCreateQnodeStmt {
+typedef struct SCreateComponentNodeStmt {
   ENodeType type;
   int32_t dnodeId;
-} SCreateQnodeStmt;
+} SCreateComponentNodeStmt;
 
-typedef struct SDropQnodeStmt {
+typedef struct SDropComponentNodeStmt {
   ENodeType type;
   int32_t dnodeId;
-} SDropQnodeStmt;
+} SDropComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
   ENodeType type;
@@ -242,6 +259,13 @@ typedef struct SAlterLocalStmt {
   char config[TSDB_DNODE_CONFIG_LEN];
   char value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
+
+typedef struct SDescribeStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  STableMeta* pMeta;
+} SDescribeStmt;
 
 #ifdef __cplusplus
 }

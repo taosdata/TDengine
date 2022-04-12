@@ -28,7 +28,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   memcpy(pOut->db, usedbRsp->db, TSDB_DB_FNAME_LEN);
   pOut->dbId = usedbRsp->uid;
 
-  pOut->dbVgroup = calloc(1, sizeof(SDBVgInfo));
+  pOut->dbVgroup = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -121,6 +121,42 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SDbCfgReq dbCfgReq = {0};
+  strcpy(dbCfgReq.db, input);
+
+  int32_t bufLen = tSerializeSDbCfgReq(NULL, 0, &dbCfgReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSDbCfgReq(pBuf, bufLen, &dbCfgReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SUserIndexReq indexReq = {0};
+  strcpy(indexReq.indexFName, input);
+
+  int32_t bufLen = tSerializeSUserIndexReq(NULL, 0, &indexReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSUserIndexReq(pBuf, bufLen, &indexReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
@@ -151,7 +187,7 @@ PROCESS_USEDB_OVER:
   if (code != 0) {
     if (pOut) {
       if (pOut->dbVgroup) taosHashCleanup(pOut->dbVgroup->vgHash);
-      tfree(pOut->dbVgroup);
+      taosMemoryFreeClear(pOut->dbVgroup);
     }
     qError("failed to process usedb rsp since %s", terrstr());
   }
@@ -188,7 +224,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   }
 
   if (pMetaMsg->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-    qError("invalid colId[%d] for the first column in table meta rsp msg", pMetaMsg->pSchemas[0].colId);
+    qError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", pMetaMsg->pSchemas[0].colId);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -199,7 +235,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
 
-  STableMeta *pTableMeta = calloc(1, metaSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -309,17 +345,54 @@ PROCESS_QLIST_OVER:
   return code;
 }
 
+int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
+  SDbCfgRsp out = {0};
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  memcpy(output, &out, sizeof(out));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryProcessGetIndexRsp(void *output, char *msg, int32_t msgSize) {
+  SUserIndexRsp out = {0};
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (tDeserializeSUserIndexRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSUserIndexRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  memcpy(output, &out, sizeof(out));
+
+  return TSDB_CODE_SUCCESS;
+}
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)] = queryBuildUseDbMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)]     = queryBuildUseDbMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryBuildGetDBCfgMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryBuildGetIndexMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)] = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)]     = queryProcessUseDBRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryProcessGetDbCfgRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryProcessGetIndexRsp;
 }
 
 #pragma GCC diagnostic pop

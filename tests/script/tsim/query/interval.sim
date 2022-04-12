@@ -29,18 +29,18 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
 
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 print =============== step2
 $i = 1
@@ -49,51 +49,51 @@ $tb = $tbPrefix . $i
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb interval(1m)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb interval(1m)
 print ===> $rows $data01 $data05
-if $rows != $rowNum then 
+if $rows != $rowNum then
   return -1
 endi
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
-if $data04 != 1 then 
+if $data04 != 1 then
   return -1
 endi
 
-#print =============== step3
+print =============== step3
 #$cc = 4 * 60000
 #$ms = 1601481600000 + $cc
 #sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms interval(1m)
 #print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms interval(1m)
 #print ===> $rows $data01 $data05
-#if $rows != 5 then 
+#if $rows != 5 then
 #  return -1
 #endi
-#if $data00 != 1 then 
+#if $data00 != 1 then
 #  return -1
 #endi
-#if $data04 != 1 then 
+#if $data04 != 1 then
 #  return -1
 #endi
 
-#print =============== step4
+print =============== step4
 #$cc = 40 * 60000
 #$ms = 1601481600000 + $cc
 
 #$cc = 1 * 60000
 #$ms2 = 1601481600000 - $cc
 
-#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m)
-#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m)
-#print ===> $rows $data01 $data05
-#if $rows != 20 then 
-#  return -1
-#endi
-#if $data00 != 1 then 
-#  return -1
-#endi
-#if $data04 != 1 then 
-#  return -1
-#endi
+sql select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from $tb  interval(1m)
+print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from $tb  interval(1m)
+print ===> $rows $data01 $data05
+if $rows != $rowNum then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+if $data02 != 60000 then
+  return -1
+endi
 
 #print =============== step5
 #$cc = 40 * 60000
@@ -105,13 +105,13 @@ endi
 #sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
 #print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
 #print ===> $rows $data21 $data25
-#if $rows != 42 then 
+#if $rows != 42 then
 #  return -1
 #endi
-#if $data20 != 1 then 
+#if $data20 != 1 then
 #  return -1
 #endi
-#if $data24 != 1 then 
+#if $data24 != 1 then
 #  return -1
 #endi
 
@@ -119,10 +119,10 @@ endi
 #sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt interval(1m)
 #print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt interval(1m)
 #print ===> $rows $data11
-#if $rows != 20 then 
+#if $rows != 20 then
 #  return -1
 #endi
-#if $data11 != 10 then 
+#if $data11 != 10 then
 #  return -1
 #endi
 
@@ -132,10 +132,10 @@ endi
 #sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms interval(1m)
 #print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms interval(1m)
 #print ===> $rows $data11
-#if $rows != 5 then 
+#if $rows != 5 then
 #  return -1
 #endi
-#if $data11 != 10 then 
+#if $data11 != 10 then
 #  return -1
 #endi
 
@@ -149,10 +149,10 @@ endi
 #sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m)
 #print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m)
 #print ===> $rows $data11
-#if $rows != 20 then 
+#if $rows != 20 then
 #  return -1
 #endi
-#if $data11 != 10 then 
+#if $data11 != 10 then
 #  return -1
 #endi
 #
@@ -166,17 +166,17 @@ endi
 #sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
 #print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
 #print ===> $rows $data11
-#if $rows != 42 then 
+#if $rows != 42 then
 #  return -1
 #endi
-#if $data11 != 10 then 
+#if $data11 != 10 then
 #  return -1
 #endi
 
 print =============== clear
 #sql drop database $db
 #sql show databases
-#if $rows != 0 then 
+#if $rows != 0 then
 #  return -1
 #endi
 

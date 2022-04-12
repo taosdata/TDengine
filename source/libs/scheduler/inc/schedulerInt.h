@@ -25,6 +25,8 @@ extern "C" {
 #include "planner.h"
 #include "scheduler.h"
 #include "thash.h"
+#include "trpc.h"
+#include "command.h"
 
 #define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
@@ -44,7 +46,7 @@ typedef struct SSchTrans {
 
 typedef struct SSchHbTrans {
   SRWLatch  lock;
-  uint64_t  seqId;
+  SRpcCtx   rpcCtx;
   SSchTrans trans;
 } SSchHbTrans;
 
@@ -76,12 +78,23 @@ typedef struct SSchedulerMgmt {
   SHashObj       *hbConnections;
 } SSchedulerMgmt;
 
-typedef struct SSchCallbackParam {
-  uint64_t queryId;
-  int64_t  refId;
-  uint64_t taskId;
-  void    *transport;
-} SSchCallbackParam;
+typedef struct SSchCallbackParamHeader {
+  bool isHbParam;
+} SSchCallbackParamHeader;
+
+typedef struct SSchTaskCallbackParam {
+  SSchCallbackParamHeader head;
+  uint64_t                queryId;
+  int64_t                 refId;
+  uint64_t                taskId;
+  void                   *transport;
+} SSchTaskCallbackParam;
+
+typedef struct SSchHbCallbackParam {
+  SSchCallbackParamHeader head;
+  SQueryNodeEpId          nodeEpId;
+  void                   *transport;
+} SSchHbCallbackParam;
 
 typedef struct SSchFlowControl {
   SRWLatch  lock;
@@ -90,6 +103,11 @@ typedef struct SSchFlowControl {
   uint32_t  execTaskNum;
   SArray   *taskList;      // Element is SSchTask*
 } SSchFlowControl;
+
+typedef struct SSchNodeInfo {
+  SQueryNodeAddr addr;
+  void          *handle;
+} SSchNodeInfo;
 
 typedef struct SSchLevel {
   int32_t         level;
@@ -116,7 +134,7 @@ typedef struct SSchTask {
   SQueryNodeAddr       succeedAddr;    // task executed success node address
   int8_t               candidateIdx;   // current try condidation index
   SArray              *candidateAddrs; // condidate node addresses, element is SQueryNodeAddr
-  SArray              *execAddrs;      // all tried node for current task, element is SQueryNodeAddr
+  SArray              *execNodes;      // all tried node for current task, element is SSchNodeInfo
   SQueryProfileSummary summary;        // task execution summary
   int32_t              childReady;     // child task ready number
   SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
@@ -125,10 +143,10 @@ typedef struct SSchTask {
 } SSchTask;
 
 typedef struct SSchJobAttr {
-  bool needFetch;
-  bool syncSchedule;
-  bool queryJob;
-  bool needFlowCtrl;
+  EExplainMode explainMode;
+  bool         syncSchedule;
+  bool         queryJob;
+  bool         needFlowCtrl;
 } SSchJobAttr;
 
 typedef struct SSchJob {
@@ -148,6 +166,7 @@ typedef struct SSchJob {
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
+  SExplainCtx     *explainCtx;
   int8_t           status;  
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
@@ -178,6 +197,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
 #define SCH_GET_TASK_STATUS_STR(task) jobTaskStatusStr(SCH_GET_TASK_STATUS(task))
 
+#define SCH_GET_TASK_HANDLE(_task) ((_task) ? (_task)->handle : NULL)
+#define SCH_SET_TASK_HANDLE(_task, _handle) ((_task)->handle = (_handle))
 
 #define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
@@ -192,6 +213,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_NEED_FETCH(_job) SCH_IS_QUERY_JOB(_job)
 #define SCH_IS_WAIT_ALL_JOB(_job) (!SCH_IS_QUERY_JOB(_job))
 #define SCH_IS_NEED_DROP_JOB(_job) (SCH_IS_QUERY_JOB(_job))
+#define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr) (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
@@ -205,6 +227,8 @@ extern SSchedulerMgmt schMgmt;
   qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...) \
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
+#define SCH_TASK_DLOGL(param, ...) \
+  qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...) \
   qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
 
@@ -228,6 +252,10 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schFetchFromRemote(SSchJob *pJob);
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
+int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId);
+int32_t schCloneSMsgSendInfo(void *src, void **dst);
+int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob);
+void schFreeJobImpl(void *job);
 
 
 #ifdef __cplusplus

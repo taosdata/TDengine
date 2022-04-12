@@ -129,7 +129,7 @@ int64_t taosCopyFile(const char *from, const char *to) {
   if (pFileFrom == NULL) goto _err;
 
   // fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
-  TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_EXCL);
+  TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_EXCL);
   if (pFileTo == NULL) goto _err;
 
   while (true) {
@@ -246,7 +246,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     }
   } else {
     int access = O_BINARY;
-    access |= (tdFileOptions & TD_FILE_CTEATE) ? O_CREAT : 0;
+    access |= (tdFileOptions & TD_FILE_CREATE) ? O_CREAT : 0;
     if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ)) {
       access |= O_RDWR;
     } else if (tdFileOptions & TD_FILE_WRITE) {
@@ -268,7 +268,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     autoDelFileListAdd(path);
   }
 
-  TdFilePtr pFile = (TdFilePtr)malloc(sizeof(TdFile));
+  TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
   if (pFile == NULL) {
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
@@ -294,7 +294,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
-  if (ppFile == NULL || *ppFile == NULL || (*ppFile)->fd == -1) {
+  if (ppFile == NULL || *ppFile == NULL) {
     return 0;
   }
   if ((*ppFile)->fp != NULL) {
@@ -312,7 +312,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
   taosThreadRwlockUnlock(&((*ppFile)->rwlock));
   taosThreadRwlockDestroy(&((*ppFile)->rwlock));
 #endif
-  free(*ppFile);
+  taosMemoryFree(*ppFile);
   *ppFile = NULL;
   return 0;
 #endif
@@ -325,7 +325,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
   int64_t leftbytes = count;
   int64_t readbytes;
   char   *tbuf = (char *)buf;
@@ -365,7 +365,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #if FILE_WITH_LOCK
   taosThreadRwlockUnlock(&(pFile->rwlock));
@@ -380,7 +380,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
 
   int64_t nleft = count;
   int64_t nwritten = 0;
@@ -414,7 +414,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
   int64_t ret = lseek(pFile->fd, (long)offset, whence);
 #if FILE_WITH_LOCK
   taosThreadRwlockUnlock(&(pFile->rwlock));
@@ -429,7 +429,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
 
   struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
@@ -456,7 +456,7 @@ int32_t taosLockFile(TdFilePtr pFile) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
 
   return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
 #endif
@@ -469,7 +469,7 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
 
   return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
 #endif
@@ -529,7 +529,7 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
 
   return ftruncate(pFile->fd, l_size);
 #endif
@@ -750,7 +750,7 @@ void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length) {
   if (pFile == NULL) {
     return NULL;
   }
-  assert(pFile->fd >= 0);
+  assert(pFile->fd >= 0); // Please check if you have closed the file.
 
   void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, pFile->fd, 0);
   return ptr;

@@ -40,8 +40,46 @@ int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type);
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut);
+int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut);
 
+/* Math functions */
+int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t sinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t cosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t tanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t ceilFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+/* String functions */
+int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t lowerFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t rtrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+/* Conversion functions */
+int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+bool getTimePseudoFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+
+int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus
 }

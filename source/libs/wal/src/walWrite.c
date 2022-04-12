@@ -216,13 +216,13 @@ int walRoll(SWal *pWal) {
   int64_t newFileFirstVersion = pWal->vers.lastVer + 1;
   char    fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, newFileFirstVersion, fnameStr);
-  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   walBuildLogName(pWal, newFileFirstVersion, fnameStr);
-  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -253,7 +253,8 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   return 0;
 }
 
-int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
+int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+                             int32_t bodyLen) {
   if (pWal == NULL) return -1;
   int code = 0;
 
@@ -296,6 +297,10 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
   int64_t offset = walGetCurFileOffset(pWal);
   pWal->writeHead.head.len = bodyLen;
   pWal->writeHead.head.msgType = msgType;
+
+  // sync info
+  pWal->writeHead.head.syncMeta = syncMeta;
+
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
 
@@ -330,6 +335,15 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
   taosThreadMutexUnlock(&pWal->mutex);
 
   return 0;
+}
+
+int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
+  SSyncLogMeta syncMeta = {
+      .isWeek = -1,
+      .seqNum = UINT64_MAX,
+      .term = UINT64_MAX,
+  };
+  return walWriteWithSyncInfo(pWal, index, msgType, syncMeta, body, bodyLen);
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {

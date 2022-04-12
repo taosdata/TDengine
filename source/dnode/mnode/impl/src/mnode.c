@@ -39,6 +39,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndQuery.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000
@@ -79,7 +80,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
         .pCont = pReq,
         .contLen = contLen,
     };
-    tmsgPutToQueue(&pMnode->msgCb, QUERY_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
@@ -91,7 +92,7 @@ static void mndPullupTelem(void *param, void *tmrId) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, QUERY_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
@@ -186,7 +187,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
   return 0;
 }
 
-static int32_t mndInitSteps(SMnode *pMnode) {
+static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   if (mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return -1;
@@ -209,14 +210,14 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
-  if (pMnode->clusterId <= 0) {
+  if (deploy) {
     if (mndAllocStep(pMnode, "mnode-sdb-deploy", mndDeploySdb, NULL) != 0) return -1;
   } else {
     if (mndAllocStep(pMnode, "mnode-sdb-read", mndReadSdb, NULL) != 0) return -1;
   }
-  // if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-timer", NULL, mndCleanupTimer) != 0) return -1;
@@ -261,29 +262,22 @@ static int32_t mndExecSteps(SMnode *pMnode) {
     }
   }
 
+  pMnode->clusterId = mndGetClusterId(pMnode);
   return 0;
 }
 
-static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
-  pMnode->dnodeId = pOption->dnodeId;
-  pMnode->clusterId = pOption->clusterId;
+static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->replica = pOption->replica;
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
-
-  if (pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
-    terrno = TSDB_CODE_MND_INVALID_OPTIONS;
-    return -1;
-  }
-
-  return 0;
+  pMnode->selfId = pOption->replicas[pOption->selfIndex].id;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mDebug("start to open mnode in %s", path);
 
-  SMnode *pMnode = calloc(1, sizeof(SMnode));
+  SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to open mnode since %s", terrstr());
@@ -292,10 +286,11 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   char timestr[24] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  mndSetOptions(pMnode, pOption);
 
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
-    free(pMnode);
+    taosMemoryFree(pMnode);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to open mnode since %s", terrstr());
     return NULL;
@@ -310,16 +305,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  code = mndSetOptions(pMnode, pOption);
-  if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", terrstr());
-    mndClose(pMnode);
-    terrno = code;
-    return NULL;
-  }
-
-  code = mndInitSteps(pMnode);
+  code = mndInitSteps(pMnode, pOption->deploy);
   if (code != 0) {
     code = terrno;
     mError("failed to open mnode since %s", terrstr());
@@ -346,8 +332,8 @@ void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
-    tfree(pMnode->path);
-    tfree(pMnode);
+    taosMemoryFreeClear(pMnode->path);
+    taosMemoryFreeClear(pMnode);
     mDebug("mnode is closed");
   }
 }
@@ -516,7 +502,11 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
     SMonVgroupDesc desc = {0};
     desc.vgroup_id = pVgroup->vgId;
-    strncpy(desc.database_name, pVgroup->dbName, sizeof(desc.database_name));
+
+    SName name = {0};
+    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tNameGetDbName(&name, desc.database_name);
+
     desc.tables_num = pVgroup->numOfTables;
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));

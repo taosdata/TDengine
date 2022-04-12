@@ -59,31 +59,36 @@ extern "C" {
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
+#pragma pack(push, 1)
 typedef struct {
-  int8_t   type;    // Column type
-  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
-  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
-  uint16_t offset;  // point offset in STpRow after the header part.
+  col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
+  int32_t  type : 8;     // column type
+  int32_t  bytes : 24;   // column bytes (0~16M)
+  int32_t  sma : 8;      // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
+  int32_t  offset : 24;  // point offset in STpRow after the header part.
 } STColumn;
+#pragma pack(pop)
 
 #define colType(col)   ((col)->type)
+#define colSma(col)    ((col)->sma)
 #define colColId(col)  ((col)->colId)
 #define colBytes(col)  ((col)->bytes)
 #define colOffset(col) ((col)->offset)
 
 #define colSetType(col, t)   (colType(col) = (t))
+#define colSetSma(col, s)    (colSma(col) = (s))
 #define colSetColId(col, id) (colColId(col) = (id))
 #define colSetBytes(col, b)  (colBytes(col) = (b))
 #define colSetOffset(col, o) (colOffset(col) = (o))
 
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
-  int32_t version;    // version
-  int32_t numOfCols;  // Number of columns appended
-  int32_t tlen;   // maximum length of a STpRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) +
-                  // (bytes))
-  uint16_t flen;  // First part length in a STpRow after the header part
-  uint16_t vlen;  // pure value part length, excluded the overhead (bytes only)
+  int32_t      numOfCols;  // Number of columns appended
+  schema_ver_t version;    // schema version
+  uint16_t     flen;       // First part length in a STpRow after the header part
+  int32_t      vlen;       // pure value part length, excluded the overhead (bytes only)
+  int32_t      tlen;       // maximum length of a STpRow without the header part
+                           // (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
   STColumn columns[];
 } STSchema;
 
@@ -93,7 +98,7 @@ typedef struct {
 #define schemaFLen(s)     ((s)->flen)
 #define schemaVLen(s)     ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
-#define tdFreeSchema(s)   tfree((s))
+#define tdFreeSchema(s)   taosMemoryFreeClear((s))
 
 STSchema *tdDupSchema(const STSchema *pSchema);
 int32_t   tdEncodeSchema(void **buf, STSchema *pSchema);
@@ -117,26 +122,31 @@ static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
 
 // ----------------- SCHEMA BUILDER DEFINITION
 typedef struct {
-  int32_t   tCols;
-  int32_t   nCols;
-  int32_t   tlen;
-  uint16_t  flen;
-  uint16_t  vlen;
-  int32_t   version;
-  STColumn *columns;
+  int32_t      tCols;
+  int32_t      nCols;
+  schema_ver_t version;
+  uint16_t     flen;
+  int32_t      vlen;
+  int32_t      tlen;
+  STColumn    *columns;
 } STSchemaBuilder;
 
-#define TD_VTYPE_BITS  2  // val type
-#define TD_VTYPE_PARTS 4  // 8 bits / TD_VTYPE_BITS = 4
-#define TD_VTYPE_OPTR  3  // TD_VTYPE_PARTS - 1, utilize to get remainder
+// use 2 bits for bitmap(default: STSRow/sub block)
+#define TD_VTYPE_BITS        2
+#define TD_VTYPE_PARTS       4  // PARTITIONS: 1 byte / 2 bits
+#define TD_VTYPE_OPTR        3  // OPERATOR: 4 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES(cnt) (((cnt) + TD_VTYPE_OPTR) >> 2)
 
-#define TD_BITMAP_BYTES(cnt) (ceil((double)cnt / TD_VTYPE_PARTS))
-#define TD_BIT_TO_BYTES(cnt) (ceil((double)cnt / 8))
+// use 1 bit for bitmap(super block)
+#define TD_VTYPE_BITS_I        1
+#define TD_VTYPE_PARTS_I       8  // PARTITIONS: 1 byte / 1 bit
+#define TD_VTYPE_OPTR_I        7  // OPERATOR: 8 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES_I(cnt) (((cnt) + TD_VTYPE_OPTR_I) >> 3)
 
-int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
-void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes);
+void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
+int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
@@ -360,10 +370,12 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
 }
 #endif
 // ----------------- Data column structure
+// SDataCol arrangement: data => bitmap => dataOffset
 typedef struct SDataCol {
-  int8_t          type;        // column type
-  uint8_t         bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
-  uint8_t         reserve : 7;
+  int8_t          type;            // column type
+  uint8_t         bitmap : 1;      // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
+  uint8_t         bitmapMode : 1;  // default is 0(2 bits), otherwise 1(1 bit)
+  uint8_t         reserve : 6;
   int16_t         colId;      // column ID
   int32_t         bytes;      // column data bytes defined
   int32_t         offset;     // data offset in a SDataRow (including the header size)
@@ -374,6 +386,8 @@ typedef struct SDataCol {
   void           *pBitmap;    // Bitmap pointer
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
+
+
 
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 #define isAllRowsNone(pCol) ((pCol)->len == 0)
@@ -415,9 +429,13 @@ typedef struct {
   col_id_t  numOfCols;  // Total number of cols
   int32_t   maxPoints;  // max number of points
   int32_t   numOfRows;
-  int32_t   sversion;  // TODO: set sversion
+  int32_t   bitmapMode : 1;  // default is 0(2 bits), otherwise 1(1 bit)
+  int32_t   sversion : 31;   // TODO: set sversion(not used yet)
   SDataCol *cols;
 } SDataCols;
+
+static FORCE_INLINE bool tdDataColsIsBitmapI(SDataCols *pCols) { return pCols->bitmapMode != 0; }
+static FORCE_INLINE void tdDataColsSetBitmapI(SDataCols *pCols) { pCols->bitmapMode = 1; }
 
 #define keyCol(pCols)              (&((pCols)->cols[0]))                    // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]  // the idx row of column-wised data
@@ -464,7 +482,7 @@ void       tdResetDataCols(SDataCols *pCols);
 int32_t    tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
-int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool forceSetNull);
+int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool forceSetNull, TDRowVerT maxVer);
 
 // ----------------- K-V data row structure
 /* |<-------------------------------------- len -------------------------------------------->|
@@ -493,7 +511,7 @@ typedef struct {
 #define kvRowCpy(dst, r)       memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i)    (kvRowColIdx(r) + (i))
-#define kvRowFree(r)           tfree(r)
+#define kvRowFree(r)           taosMemoryFreeClear(r)
 #define kvRowEnd(r)            POINTER_SHIFT(r, kvRowLen(r))
 #define kvRowValLen(r)         (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowTKey(r)           (*(TKEY *)(kvRowValues(r)))
@@ -590,10 +608,10 @@ void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
 void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
 SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, const void *value) {
+static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, int8_t type, const void *value) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
-    SColIdx *pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+    SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
     if (pColIdx == NULL) return -1;
     pBuilder->pColIdx = pColIdx;
   }
@@ -608,7 +626,7 @@ static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t col
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;
     }
-    void *buf = realloc(pBuilder->buf, pBuilder->alloc);
+    void *buf = taosMemoryRealloc(pBuilder->buf, pBuilder->alloc);
     if (buf == NULL) return -1;
     pBuilder->buf = buf;
   }

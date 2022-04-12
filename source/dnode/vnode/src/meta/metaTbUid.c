@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 int metaOpenUidGnrt(SMeta *pMeta) {
   // Init a generator
@@ -27,5 +26,5 @@ void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
 
 tb_uid_t metaGenerateUid(SMeta *pMeta) {
   // Generate a new table UID
-  return ++(pMeta->uidGnrt.nextUid);
+  return tGenIdPI64();
 }

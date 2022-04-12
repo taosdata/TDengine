@@ -44,8 +44,15 @@ typedef struct SCmdMsgInfo {
   void* pExtension;  // todo remove it soon
 } SCmdMsgInfo;
 
+typedef enum EQueryExecMode {
+  QUERY_EXEC_MODE_LOCAL = 1,
+  QUERY_EXEC_MODE_RPC,
+  QUERY_EXEC_MODE_SCHEDULE,
+  QUERY_EXEC_MODE_EMPTY_RESULT
+} EQueryExecMode;
+
 typedef struct SQuery {
-  bool directRpc;
+  EQueryExecMode execMode;
   bool haveResultSet;
   SNode* pRoot;
   int32_t numOfResCols;
@@ -54,6 +61,7 @@ typedef struct SQuery {
   int32_t msgType;
   SArray* pDbList;
   SArray* pTableList;
+  bool showRewrite;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);

@@ -156,17 +156,17 @@ SScript *simBuildScriptObj(char *fileName) {
     if (cmdLine[i].jump == 0) cmdLine[i].jump = numOfLines;
   }
 
-  SScript *script = malloc(sizeof(SScript));
+  SScript *script = taosMemoryMalloc(sizeof(SScript));
   memset(script, 0, sizeof(SScript));
 
   script->type = SIM_SCRIPT_TYPE_MAIN;
   script->numOfLines = numOfLines;
   tstrncpy(script->fileName, fileName, sizeof(script->fileName));
 
-  script->optionBuffer = malloc(optionOffset);
+  script->optionBuffer = taosMemoryMalloc(optionOffset);
   memcpy(script->optionBuffer, optionBuffer, optionOffset);
 
-  script->lines = malloc(sizeof(SCmdLine) * numOfLines);
+  script->lines = taosMemoryMalloc(sizeof(SCmdLine) * numOfLines);
   memcpy(script->lines, cmdLine, sizeof(SCmdLine) * numOfLines);
 
   return script;
@@ -239,7 +239,7 @@ SScript *simParseScript(char *fileName) {
       return NULL;
     }
   }
-  if(buffer != NULL) free(buffer);
+  if(buffer != NULL) taosMemoryFree(buffer);
   taosCloseFile(&pFile);
 
   script = simBuildScriptObj(fileName);

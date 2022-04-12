@@ -44,7 +44,7 @@ protected:
     query_ = nullptr;
     bool res = runImpl(parseCode, translateCode);
     qDestroyQuery(query_);
-    if (!res) {
+    if (1/*!res*/) {
       dump();
     }
     return res;
@@ -54,7 +54,7 @@ private:
   static const int max_err_len = 1024;
 
   bool runImpl(int32_t parseCode, int32_t translateCode) {
-    int32_t code = doParse(&cxt_, &query_);
+    int32_t code = parse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
       parseErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
       return (terrno == parseCode);
@@ -63,12 +63,18 @@ private:
       return false;
     }
     parsedAstStr_ = toString(query_->pRoot);
-    code = doTranslate(&cxt_, query_);
+    code = translate(&cxt_, query_);
     if (code != TSDB_CODE_SUCCESS) {
       translateErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
       return (terrno == translateCode);
     }
     translatedAstStr_ = toString(query_->pRoot);
+    code = calculateConstant(&cxt_, query_);
+    if (code != TSDB_CODE_SUCCESS) {
+      calcConstErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
+      return false;
+    }
+    calcConstAstStr_ = toString(query_->pRoot);
     return (TSDB_CODE_SUCCESS == translateCode);
   }
 
@@ -88,6 +94,13 @@ private:
       cout << "translate output: " << endl;
       cout << translatedAstStr_ << endl;
     }
+    if (!calcConstErrStr_.empty()) {
+      cout << "calculateConstant error: " << calcConstErrStr_ << endl;
+    }
+    if (!calcConstAstStr_.empty()) {
+      cout << "calculateConstant output: " << endl;
+      cout << calcConstAstStr_ << endl;
+    }
   }
 
   string toString(const SNode* pRoot, bool format = false) {
@@ -99,7 +112,7 @@ private:
       throw "nodesNodeToString failed!";
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 
@@ -112,6 +125,8 @@ private:
     parsedAstStr_.clear();
     translateErrStr_.clear();
     translatedAstStr_.clear();
+    calcConstErrStr_.clear();
+    calcConstAstStr_.clear();
   }
 
   string acctId_;
@@ -124,6 +139,8 @@ private:
   string parsedAstStr_;
   string translateErrStr_;
   string translatedAstStr_;
+  string calcConstErrStr_;
+  string calcConstAstStr_;
 };
 
 TEST_F(ParserTest, createAccount) {
@@ -191,6 +208,9 @@ TEST_F(ParserTest, selectConstant) {
 
   bind("SELECT 1234567890123456789012345678901234567890, 20.1234567890123456789012345678901234567890, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 15s FROM t1");
   ASSERT_TRUE(run());
+
+  bind("SELECT 123 + 45 FROM t1 where 2 - 1");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(ParserTest, selectExpression) {
@@ -203,6 +223,13 @@ TEST_F(ParserTest, selectExpression) {
   ASSERT_TRUE(run());
 
   bind("SELECT ts > 0, c1 BETWEEN 10 AND 20 AND c2 = 'qaz' FROM t1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, selectPseudoColumn) {
+  setDatabase("root", "test");
+
+  bind("SELECT _wstartts, _wendts, count(*) FROM t1 interval(10s)");
   ASSERT_TRUE(run());
 }
 
@@ -358,15 +385,12 @@ TEST_F(ParserTest, selectSemanticError) {
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION));
 }
 
-
 TEST_F(ParserTest, showUsers) {
   setDatabase("root", "test");
 
   bind("show users");
   ASSERT_TRUE(run());
 }
-
-
 
 TEST_F(ParserTest, createDnode) {
   setDatabase("root", "test");
@@ -419,6 +443,13 @@ TEST_F(ParserTest, createDatabase) {
        "VGROUPS 100 "
        "SINGLE_STABLE 0 "
        "STREAM_MODE 1 "
+       "RETENTIONS '15s:7d,1m:21d,15m:5y'"
+      );
+  ASSERT_TRUE(run());
+
+  bind("create database if not exists wxy_db "
+       "DAYS 100m "
+       "KEEP 200m,300h,400d "
       );
   ASSERT_TRUE(run());
 }
@@ -472,7 +503,7 @@ TEST_F(ParserTest, createTable) {
        "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
        "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
+       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2"
       );
   ASSERT_TRUE(run());
   
@@ -482,7 +513,10 @@ TEST_F(ParserTest, createTable) {
   bind("create table "
        "if not exists test.t1 using test.st1 (tag1, tag2) tags(1, 'abc') "
        "if not exists test.t2 using test.st1 (tag1, tag2) tags(2, 'abc') "
-       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc')"
+       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc') "
+       "if not exists test.t4 using test.st1 (tag1, tag2) tags(3, null) "
+       "if not exists test.t5 using test.st1 (tag1, tag2) tags(null, 'abc') "
+       "if not exists test.t6 using test.st1 (tag1, tag2) tags(null, null)"
       );
   ASSERT_TRUE(run());
 
@@ -494,7 +528,7 @@ TEST_F(ParserTest, createTable) {
        "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
        "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
+       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2"
       );
   ASSERT_TRUE(run());
 }
@@ -614,6 +648,48 @@ TEST_F(ParserTest, dropQnode) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, createBnode) {
+  setDatabase("root", "test");
+
+  bind("create bnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropBnode) {
+  setDatabase("root", "test");
+
+  bind("drop bnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createSnode) {
+  setDatabase("root", "test");
+
+  bind("create snode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropSnode) {
+  setDatabase("root", "test");
+
+  bind("drop snode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createMnode) {
+  setDatabase("root", "test");
+
+  bind("create mnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropMnode) {
+  setDatabase("root", "test");
+
+  bind("drop mnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, createTopic) {
   setDatabase("root", "test");
 
@@ -637,5 +713,18 @@ TEST_F(ParserTest, dropTopic) {
   ASSERT_TRUE(run());
 
   bind("drop topic if exists tp1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, explain) {
+  setDatabase("root", "test");
+
+  bind("explain SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
   ASSERT_TRUE(run());
 }

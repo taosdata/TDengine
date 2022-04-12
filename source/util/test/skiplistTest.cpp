@@ -32,7 +32,7 @@ void doubleSkipListTest() {
     size = 0;
 
     //    tSkipListNewNodeInfo(pSkipList, &level, &size);
-    //    auto d = (SSkipListNode*)calloc(1, size + sizeof(double) * 2);
+    //    auto d = (SSkipListNode*)taosMemoryCalloc(1, size + sizeof(double) * 2);
     //    d->level = level;
 
     double key = 0.997;
@@ -59,7 +59,7 @@ void doubleSkipListTest() {
     }
 
     if (size > 0) {
-      tfree(pNodes);
+      taosMemoryFreeClear(pNodes);
     }
   }
 
@@ -83,7 +83,7 @@ void randKeyTest() {
     int32_t s = 0;
 
     tSkipListNewNodeInfo(pSkipList, &level, &s);
-    auto d = (SSkipListNode*)calloc(1, s + sizeof(int32_t) * 2);
+    auto d = (SSkipListNode*)taosMemoryCalloc(1, s + sizeof(int32_t) * 2);
     d->level = level;
 
     int32_t* key = (int32_t*)SL_GET_NODE_KEY(pSkipList, d);
@@ -115,7 +115,7 @@ void stringKeySkiplistTest() {
   int32_t headsize = 0;
   tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
-  auto pNode = (SSkipListNode*)calloc(1, headsize + max_key_size + sizeof(double));
+  auto pNode = (SSkipListNode*)taosMemoryCalloc(1, headsize + max_key_size + sizeof(double));
   pNode->level = level;
 
   char* d = SL_GET_NODE_DATA(pNode);
@@ -127,7 +127,7 @@ void stringKeySkiplistTest() {
 
   tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
-  pNode = (SSkipListNode*)calloc(1, headsize + max_key_size + sizeof(double));
+  pNode = (SSkipListNode*)taosMemoryCalloc(1, headsize + max_key_size + sizeof(double));
   pNode->level = level;
 
   d = SL_GET_NODE_DATA(pNode);
@@ -153,7 +153,7 @@ void stringKeySkiplistTest() {
 
   tSkipListDestroy(pSkipList);
 
-  free(pRes);
+  taosMemoryFree(pRes);
 #endif
 
   tSkipListDestroy(pSkipList);
@@ -167,7 +167,7 @@ void stringKeySkiplistTest() {
     int32_t n = sprintf(k, "abc_%d_%d", i, i);
     tSkipListNewNodeInfo(pSkipList, &level, &headsize);
 
-    auto pNode = (SSkipListNode*)calloc(1, headsize + 20 + sizeof(double));
+    auto pNode = (SSkipListNode*)taosMemoryCalloc(1, headsize + 20 + sizeof(double));
     pNode->level = level;
 
     char* d = SL_GET_NODE_DATA(pNode);
@@ -197,7 +197,7 @@ void stringKeySkiplistTest() {
     tSkipListRemoveNode(pSkipList, pres[0]);
 
     if (num > 0) {
-      tfree(pres);
+      taosMemoryFreeClear(pres);
     }
   }
 
@@ -219,7 +219,7 @@ void skiplistPerformanceTest() {
 
   int32_t unit = MAX_SKIP_LIST_LEVEL * POINTER_BYTES * 2 + sizeof(double) * 2 + sizeof(int16_t);
 
-  char* total = (char*)calloc(1, unit * size);
+  char* total = (char*)taosMemoryCalloc(1, unit * size);
   char* p = total;
 
   for (int32_t i = 0; i < size; ++i) {
@@ -277,7 +277,7 @@ void skiplistPerformanceTest() {
   assert(SL_GET_SIZE(pSkipList) == size);
 
   tSkipListDestroy(pSkipList);
-  tfree(total);
+  taosMemoryFreeClear(total);
 }
 
 // todo not support duplicated key yet
@@ -288,7 +288,7 @@ void duplicatedKeyTest() {
     for (int32_t j = 0; j < 5; ++j) {
       int32_t level, size;
       tSkipListNewNodeInfo(pSkipList, &level, &size);
-      SSkipListNode* d = (SSkipListNode*)calloc(1, size + sizeof(int32_t));
+      SSkipListNode* d = (SSkipListNode*)taosMemoryCalloc(1, size + sizeof(int32_t));
       d->level = level;
       int32_t* key = (int32_t*)SL_GET_NODE_KEY(pSkipList, d);
       key[0] = i;
@@ -358,9 +358,9 @@ TEST(testCase, skiplist_test) {
           printf("-----%lf\n", pNodes[i]->key.dKey);
       }
       printf("the range query result size is: %d\n", size);
-      tfree(pNodes);
+      taosMemoryFreeClear(pNodes);
 
-      SSkipListKey *pKeys = malloc(sizeof(SSkipListKey) * 20);
+      SSkipListKey *pKeys = taosMemoryMalloc(sizeof(SSkipListKey) * 20);
       for (int32_t i = 0; i < 8; i += 2) {
           pKeys[i].dKey = i * 0.997;
           pKeys[i].nType = TSDB_DATA_TYPE_DOUBLE;
@@ -372,9 +372,9 @@ TEST(testCase, skiplist_test) {
       for (int32_t i = 0; i < r; ++i) {
   //        printf("%lf ", pNodes[i]->key.dKey);
       }
-      tfree(pNodes);
+      taosMemoryFreeClear(pNodes);
 
-      free(pKeys);*/
+      taosMemoryFree(pKeys);*/
 }
 
 #endif

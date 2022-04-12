@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tsdb.h>
+#include <vnode.h>
 #include "dataSinkMgt.h"
 #include "texception.h"
 #include "os.h"
@@ -51,11 +51,12 @@ static void freeqinfoFn(void *qhandle) {
   qDestroyTask(*handle);
 }
 
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
+    qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
   assert(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId);
+  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, model);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -228,3 +229,12 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   queryCostStatis(pTaskInfo);   // print the query cost summary
   doDestroyTask(pTaskInfo);
 }
+
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t *resNum, SExplainExecInfo **pRes) {
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)tinfo;
+  int32_t capacity = 0;
+
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);  
+}
+
+

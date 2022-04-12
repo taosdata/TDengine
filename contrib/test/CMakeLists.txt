@@ -7,9 +7,9 @@ if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)
 endif(${BUILD_WITH_LUCENE})
 
-if(${BUILD_WITH_BDB})
-    add_subdirectory(bdb)
-endif(${BUILD_WITH_BDB})
+#if(${BUILD_WITH_BDB})
+    #add_subdirectory(bdb)
+#endif(${BUILD_WITH_BDB})
 
 if(${BUILD_WITH_SQLITE})
     add_subdirectory(sqlite)

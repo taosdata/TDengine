@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDef.h"
+#include "vnodeInt.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
     "head",  // TSDB_FILE_HEAD
@@ -85,7 +85,7 @@ void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
   strncpy(TSDB_FILE_FULL_NAME(pMFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pMFile);
 
-  tfree(aname);
+  taosMemoryFreeClear(aname);
 
   return buf;
 }
@@ -119,10 +119,10 @@ int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
       // Try to create directory recursively
       char *s = strdup(TFILE_REL_NAME(&(pMFile->f)));
       if (tfsMkdirRecurAt(dirname(s), TSDB_FILE_LEVEL(pMFile), TSDB_FILE_ID(pMFile)) < 0) {
-        tfree(s);
+        taosMemoryFreeClear(s);
         return -1;
       }
-      tfree(s);
+      taosMemoryFreeClear(s);
 
       pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
       if (pMFile->fd < 0) {
@@ -352,7 +352,7 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pDFile);
-  tfree(aname);
+  taosMemoryFreeClear(aname);
 
   return buf;
 }
@@ -360,18 +360,18 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
 int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pDFile->pFile == NULL) {
     if (errno == ENOENT) {
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
       if (tfsMkdirRecurAt(pRepo->pTfs, taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
-        tfree(s);
+        taosMemoryFreeClear(s);
         return -1;
       }
-      tfree(s);
+      taosMemoryFreeClear(s);
 
-      pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
       if (pDFile->pFile == NULL) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
@@ -406,7 +406,7 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   }
 
   void *ptr = buf;
-  taosEncodeFixedU32(&ptr, 0);
+  // taosEncodeFixedU32(&ptr, 0); // fver moved to SDFInfo and saved to current
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
@@ -437,7 +437,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = taosDecodeFixedU32(pBuf, &_version);
+  // pBuf = taosDecodeFixedU32(pBuf, &_version);
   pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
   return 0;
 }
@@ -692,7 +692,7 @@ int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype
     }
   }
 
-  tfree(p);
+  taosMemoryFreeClear(p);
   return 0;
 }
 

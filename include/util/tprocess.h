@@ -22,38 +22,42 @@
 extern "C" {
 #endif
 
-typedef struct SProcQueue SProcQueue;
-typedef struct SProcObj   SProcObj;
+typedef enum { PROC_REQ = 1, PROC_RSP, PROC_REGIST, PROC_RELEASE } ProcFuncType;
+
+typedef struct SProcObj SProcObj;
 typedef void *(*ProcMallocFp)(int32_t contLen);
 typedef void *(*ProcFreeFp)(void *pCont);
-typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
+typedef void (*ProcConsumeFp)(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+                               ProcFuncType ftype);
 
 typedef struct {
-  int32_t       childQueueSize;
   ProcConsumeFp childConsumeFp;
   ProcMallocFp  childMallocHeadFp;
   ProcFreeFp    childFreeHeadFp;
   ProcMallocFp  childMallocBodyFp;
   ProcFreeFp    childFreeBodyFp;
-  int32_t       parentQueueSize;
   ProcConsumeFp parentConsumeFp;
-  ProcMallocFp  parentdMallocHeadFp;
+  ProcMallocFp  parentMallocHeadFp;
   ProcFreeFp    parentFreeHeadFp;
   ProcMallocFp  parentMallocBodyFp;
   ProcFreeFp    parentFreeBodyFp;
-  bool          testFlag;
-  void         *pParent;
+  SShm          shm;
+  void         *parent;
   const char   *name;
+  bool          isChild;
 } SProcCfg;
 
 SProcObj *taosProcInit(const SProcCfg *pCfg);
 void      taosProcCleanup(SProcObj *pProc);
 int32_t   taosProcRun(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
-bool      taosProcIsChild(SProcObj *pProc);
 
-int32_t taosProcPutToChildQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
-int32_t taosProcPutToParentQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
+int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                            void *handle, ProcFuncType ftype);
+void    taosProcRemoveHandle(SProcObj *pProc, void *handle);
+void    taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle));
+void    taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                             ProcFuncType ftype);
 
 #ifdef __cplusplus
 }

@@ -15,7 +15,7 @@
 
 #include "tcoding.h"
 
-#include "metaDef.h"
+#include "vnodeInt.h"
 
 static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
 static void   metaFree(SMeta *pMeta);
@@ -69,7 +69,7 @@ static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorF
   SMeta *pMeta;
   size_t psize = strlen(path);
 
-  pMeta = (SMeta *)calloc(1, sizeof(*pMeta));
+  pMeta = (SMeta *)taosMemoryCalloc(1, sizeof(*pMeta));
   if (pMeta == NULL) {
     return NULL;
   }
@@ -88,8 +88,8 @@ static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorF
 
 static void metaFree(SMeta *pMeta) {
   if (pMeta) {
-    tfree(pMeta->path);
-    free(pMeta);
+    taosMemoryFreeClear(pMeta->path);
+    taosMemoryFree(pMeta);
   }
 }
 

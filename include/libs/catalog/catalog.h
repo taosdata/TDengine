@@ -77,6 +77,9 @@ typedef struct SDbVgVersion {
   int32_t numOfTable; // unit is TSDB_TABLE_NUM_UNIT
 } SDbVgVersion;
 
+typedef SDbCfgRsp SDbCfgInfo;
+typedef SUserIndexRsp SIndexInfo;
+
 int32_t catalogInit(SCatalogCfg *cfg);
 
 /**
@@ -112,7 +115,7 @@ int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t d
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
-int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName);
+int32_t catalogRemoveTableMeta(SCatalog* pCtg, const SName* pTableName);
 
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid);
 
@@ -216,6 +219,10 @@ int32_t catalogGetQnodeList(SCatalog* pCatalog, void *pTransporter, const SEpSet
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
+
+int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg);
+
+int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
 
 
 /**

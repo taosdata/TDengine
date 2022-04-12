@@ -36,8 +36,6 @@ extern "C" {
 
 #define FILTER_DUMMY_EMPTY_OPTR  127
 
-#define MAX_NUM_STR_SIZE 40
-
 #define FILTER_RM_UNIT_MIN_ROWS 100
 
 enum {
@@ -231,7 +229,7 @@ typedef struct SFltBuildGroupCtx {
   int32_t      code;
 } SFltBuildGroupCtx;
 
-typedef struct SFilterInfo {
+struct SFilterInfo {
   bool              scalarMode;
   SFltScalarCtx     sclCtx;
   uint32_t          options;
@@ -256,7 +254,7 @@ typedef struct SFilterInfo {
   SArray           *blkList;
 
   SFilterPCtx       pctx;
-} SFilterInfo;
+};
 
 #define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
@@ -338,7 +336,7 @@ typedef struct SFilterInfo {
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) do { (colInfo).type = RANGE_TYPE_VAR_HASH; (colInfo).info = ha;} while (0)
 #define FILTER_PUSH_CTX(colInfo, ctx) do { (colInfo).type = RANGE_TYPE_MR_CTX; (colInfo).info = ctx;} while (0)
 
-#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint32_t) * n); memcpy(*(dst), src, sizeof(uint32_t) * n);} while (0)
+#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = taosMemoryMalloc(sizeof(uint32_t) * n); memcpy(*(dst), src, sizeof(uint32_t) * n);} while (0)
 
 #define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx) do { if ((gres)->colCtxs == NULL) { (gres)->colCtxs = taosArrayInit(gres->colNum, sizeof(SFilterColCtx)); } SFilterColCtx cCtx = {idx, ctx}; taosArrayPush((gres)->colCtxs, &cCtx); } while (0) 
 

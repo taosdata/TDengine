@@ -99,6 +99,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
 #define TSDB_INS_TABLE_QNODES                 "qnodes"
+#define TSDB_INS_TABLE_BNODES                 "bnodes"
+#define TSDB_INS_TABLE_CLUSTER                "cluster"
 #define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
 #define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
@@ -108,6 +110,13 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
+#define TSDB_INS_TABLE_BNODES                 "bnodes"
+#define TSDB_INS_TABLE_SNODES                 "snodes"
+
+#define TSDB_INDEX_TYPE_SMA      "SMA"
+#define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
+
+#define TSDB_INS_USER_STABLES_DBNAME_COLID    2
 
 #define TSDB_TICK_PER_SECOND(precision)                      \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1e3L \
@@ -126,18 +135,20 @@ extern const int32_t TYPE_BYTES[15];
   } while (0)
 
 typedef enum EOperatorType {
-  // arithmetic operator
+  // binary arithmetic operator
   OP_TYPE_ADD = 1,
   OP_TYPE_SUB,
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
   OP_TYPE_MOD,
+  // unary arithmetic operator
+  OP_TYPE_MINUS,
 
   // bit operator
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
-  // comparison operator
+  // binary comparison operator
   OP_TYPE_GREATER_THAN,
   OP_TYPE_GREATER_EQUAL,
   OP_TYPE_LOWER_THAN,
@@ -150,6 +161,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  // unary comparison operator
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
   OP_TYPE_IS_TRUE,
@@ -207,7 +219,10 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
-#define TSDB_INDEX_NAME_LEN      33  // 32 + 1 '\0'
+#define TSDB_INDEX_NAME_LEN      65  // 64 + 1 '\0'
+#define TSDB_INDEX_TYPE_LEN      10
+#define TSDB_INDEX_EXTS_LEN      256
+#define TSDB_INDEX_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_INDEX_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN
@@ -222,6 +237,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_APP_NAME_LEN    TSDB_UNI_LEN
 #define TSDB_STB_COMMENT_LEN 1024
+
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
  *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
@@ -301,13 +317,13 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TOTAL_BLOCKS     10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS 6
 
-#define TSDB_MIN_DAYS_PER_FILE     1
-#define TSDB_MAX_DAYS_PER_FILE     3650
-#define TSDB_DEFAULT_DAYS_PER_FILE 10
+#define TSDB_MIN_DAYS_PER_FILE     60    // unit minute
+#define TSDB_MAX_DAYS_PER_FILE     (3650 * 1440)
+#define TSDB_DEFAULT_DAYS_PER_FILE (10 * 1440)
 
-#define TSDB_MIN_KEEP     1       // data in db to be reserved.
-#define TSDB_MAX_KEEP     365000  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP 3650    // ten years
+#define TSDB_MIN_KEEP     (1 * 1440)       // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP     (365000 * 1440) // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP (3650 * 1440)    // ten years
 
 #define TSDB_MIN_MIN_ROW_FBLOCK     10
 #define TSDB_MAX_MIN_ROW_FBLOCK     1000
@@ -325,7 +341,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_FSYNC_PERIOD     180000  // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD 3000    // three second
 
-#define TSDB_MIN_WAL_LEVEL     0
+#define TSDB_MIN_WAL_LEVEL     1
 #define TSDB_MAX_WAL_LEVEL     2
 #define TSDB_DEFAULT_WAL_LEVEL 1
 
@@ -366,6 +382,27 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DB_CACHE_LAST_ROW  0
 #define TSDB_MAX_DB_CACHE_LAST_ROW  3
 #define TSDB_DEFAULT_CACHE_LAST_ROW 0
+
+#define TSDB_MIN_DB_STREAM_MODE     0
+#define TSDB_MAX_DB_STREAM_MODE     1
+#define TSDB_DEFAULT_DB_STREAM_MODE 0
+
+#define TSDB_MIN_DB_FILE_FACTOR     0
+#define TSDB_MAX_DB_FILE_FACTOR     1
+#define TSDB_DEFAULT_DB_FILE_FACTOR 0.1
+
+#define TSDB_MIN_DB_DELAY     1
+#define TSDB_MAX_DB_DELAY     10
+#define TSDB_DEFAULT_DB_DELAY 2
+
+#define TSDB_DEFAULT_EXPLAIN_VERBOSE false
+
+#define TSDB_MIN_EXPLAIN_RATIO       0
+#define TSDB_MAX_EXPLAIN_RATIO       1
+#define TSDB_DEFAULT_EXPLAIN_RATIO   0.001
+
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE 1024
+#define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY PLAN"
 
 #define TSDB_MAX_JOIN_TABLE_NUM 10
 #define TSDB_MAX_UNION_CLAUSE   5
@@ -445,17 +482,17 @@ typedef struct {
 
 #define TMQ_SEPARATOR ':'
 
-#define SND_UNIQUE_THREAD_NUM 2
-#define SND_SHARED_THREAD_NUM 2
-
 enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define MND_VGID -1
-#define QND_VGID 1
-#define VND_VGID 0
+#define MNODE_HANDLE -1
+#define QNODE_HANDLE 1
+#define DEFAULT_HANDLE 0
+
+#define MAX_NUM_STR_SIZE 40
+
 
 #ifdef __cplusplus
 }

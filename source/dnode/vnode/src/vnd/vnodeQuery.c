@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeQuery.h"
 #include "executor.h"
-#include "vnd.h"
+#include "vnodeInt.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
@@ -31,9 +30,8 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config};
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY: {
+    case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
-    }
     case TDMT_VND_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg);
     default:
@@ -42,8 +40,10 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 }
 
-int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
+  char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
@@ -65,11 +65,12 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessPollReq(pVnode->pTq, pMsg);
-    case TDMT_VND_TASK_EXEC:
-      return tqProcessTaskExec(pVnode->pTq, pMsg);
+      return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
+    case TDMT_VND_TASK_PIPE_EXEC:
+    case TDMT_VND_TASK_MERGE_EXEC:
+      return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, 0);
     case TDMT_VND_STREAM_TRIGGER:
-      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen);
+      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:
@@ -141,7 +142,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     pTagSchema = NULL;
   }
 
-  metaRsp.pSchemas = calloc(nCols + nTagCols, sizeof(SSchema));
+  metaRsp.pSchemas = taosMemoryCalloc(nCols + nTagCols, sizeof(SSchema));
   if (metaRsp.pSchemas == NULL) {
     code = TSDB_CODE_VND_OUT_OF_MEMORY;
     goto _exit;
@@ -182,19 +183,19 @@ _exit:
 
   tFreeSTableMetaRsp(&metaRsp);
   if (pSW != NULL) {
-    tfree(pSW->pSchema);
-    tfree(pSW);
+    taosMemoryFreeClear(pSW->pSchema);
+    taosMemoryFreeClear(pSW);
   }
 
   if (pTbCfg) {
-    tfree(pTbCfg->name);
+    taosMemoryFreeClear(pTbCfg->name);
     if (pTbCfg->type == META_SUPER_TABLE) {
-      free(pTbCfg->stbCfg.pTagSchema);
+      taosMemoryFree(pTbCfg->stbCfg.pTagSchema);
     } else if (pTbCfg->type == META_SUPER_TABLE) {
       kvRowFree(pTbCfg->ctbCfg.pTag);
     }
 
-    tfree(pTbCfg);
+    taosMemoryFreeClear(pTbCfg);
   }
 
   rpcMsg.handle = pMsg->handle;
@@ -203,14 +204,13 @@ _exit:
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
 
-  rpcSendResponse(&rpcMsg);
-
-  return code;
+  tmsgSendRsp(&rpcMsg);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void freeItemHelper(void *pItem) {
   char *p = *(char **)pItem;
-  free(p);
+  taosMemoryFree(p);
 }
 
 /**
@@ -230,7 +230,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
       taosArrayPush(pArray, &name);
       totalLen += strlen(name);
     } else {
-      tfree(name);
+      taosMemoryFreeClear(name);
     }
 
     numOfTables++;
@@ -260,7 +260,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
     STR_TO_VARSTR(p, n);
 
     p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
-    // free(n);
+    // taosMemoryFree(n);
   }
 
   pFetchRsp->numOfRows = htonl(numOfTables);
@@ -274,8 +274,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
       .code = 0,
   };
 
-  rpcSendResponse(&rpcMsg);
-
+  tmsgSendRsp(&rpcMsg);
   taosArrayDestroyEx(pArray, freeItemHelper);
   return 0;
 }

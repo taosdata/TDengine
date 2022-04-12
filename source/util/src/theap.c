@@ -19,7 +19,7 @@
 size_t heapSize(Heap* heap) { return heap->nelts; }
 
 Heap* heapCreate(HeapCompareFn fn) {
-  Heap* heap = calloc(1, sizeof(Heap));
+  Heap* heap = taosMemoryCalloc(1, sizeof(Heap));
   if (heap == NULL) {
     return NULL;
   }
@@ -30,7 +30,7 @@ Heap* heapCreate(HeapCompareFn fn) {
   return heap;
 }
 
-void heapDestroy(Heap* heap) { free(heap); }
+void heapDestroy(Heap* heap) { taosMemoryFree(heap); }
 
 HeapNode* heapMin(const Heap* heap) { return heap->min; }
 

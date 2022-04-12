@@ -57,6 +57,8 @@ static FORCE_INLINE void *taosDecodeFixedI8(const void *buf, int8_t *value) {
   return POINTER_SHIFT(buf, sizeof(*value));
 }
 
+static FORCE_INLINE void *taosSkipFixedLen(const void *buf, size_t len) { return POINTER_SHIFT(buf, len); }
+
 // ---- Fixed U16
 static FORCE_INLINE int32_t taosEncodeFixedU16(void **buf, uint16_t value) {
   if (buf != NULL) {
@@ -351,7 +353,7 @@ static FORCE_INLINE void *taosDecodeString(const void *buf, char **value) {
   uint64_t size = 0;
 
   buf = taosDecodeVariantU64(buf, &size);
-  *value = (char *)malloc((size_t)size + 1);
+  *value = (char *)taosMemoryMalloc((size_t)size + 1);
 
   if (*value == NULL) return NULL;
   memcpy(*value, buf, (size_t)size);
@@ -386,7 +388,7 @@ static FORCE_INLINE int32_t taosEncodeBinary(void **buf, const void *value, int3
 }
 
 static FORCE_INLINE void *taosDecodeBinary(const void *buf, void **value, int32_t valueLen) {
-  *value = malloc((size_t)valueLen);
+  *value = taosMemoryMalloc((size_t)valueLen);
   if (*value == NULL) return NULL;
   memcpy(*value, buf, (size_t)valueLen);
 

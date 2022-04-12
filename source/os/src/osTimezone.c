@@ -46,12 +46,22 @@
 #include <unistd.h>
 #endif
 
-void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight) {
-  if (inTimezone == NULL || inTimezone[0] == 0) return;
+void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8_t *outDaylight, enum TdTimezone *tsTimezone) {
+  if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) return;
+
+  char *buf = taosMemoryMalloc(strlen(inTimezoneStr) + 1);
+  buf[strlen(inTimezoneStr)] = 0;
+  for (int32_t i = 0; i < strlen(inTimezoneStr); i++) {
+      if(inTimezoneStr[i]==' ' || inTimezoneStr[i]=='(') {
+          buf[i] = 0;
+          break;
+      }
+      buf[i] = inTimezoneStr[i];
+  }
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   char winStr[TD_LOCALE_LEN * 2];
-  sprintf(winStr, "TZ=%s", inTimezone);
+  sprintf(winStr, "TZ=%s", buf);
   putenv(winStr);
   tzset();
    * get CURRENT time zone.
@@ -70,44 +80,48 @@ void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *ou
 #endif
 
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
+  *tsTimezone = tz;
   tz += daylight;
   /*
    * format:
    * (CST, +0800)
    * (BST, +0100)
    */
-  sprintf(outTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
   *outDaylight = daylight;
 
 #elif defined(_TD_DARWIN_64)
 
-  setenv("TZ", inTimezone, 1);
+  setenv("TZ", buf, 1);
   tzset();
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
+  *tsTimezone = tz;
   tz += daylight;
 
-  sprintf(outTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
   *outDaylight = daylight;
 
 #else
-  setenv("TZ", inTimezone, 1);
+  setenv("TZ", buf, 1);
   tzset();
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
+  *tsTimezone = tz;
   tz += daylight;
-  sprintf(outTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
   *outDaylight = daylight;
 
 #endif
 
+  taosMemoryFree(buf);
 }
 
-void taosGetSystemTimezone(char *outTimezone) {
+void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   char *tz = getenv("TZ");
   if (tz == NULL || strlen(tz) == 0) {
-    strcpy(outTimezone, "not configured");
+    strcpy(outTimezoneStr, "not configured");
   } else {
-    strcpy(outTimezone, tz);
+    strcpy(outTimezoneStr, tz);
   }
 
 #elif defined(_TD_DARWIN_64)
@@ -153,7 +167,7 @@ void taosGetSystemTimezone(char *outTimezone) {
    * Asia/Shanghai   (CST, +0800)
    * Europe/London   (BST, +0100)
    */
-  snprintf(outTimezone, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
+  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
            -timezone / 3600);
 
 #else
@@ -168,13 +182,14 @@ void taosGetSystemTimezone(char *outTimezone) {
 
   /* load time zone string from /etc/timezone */
   // FILE *f = fopen("/etc/timezone", "r");
+  errno = 0;
   TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
   char  buf[68] = {0};
   if (pFile != NULL) {
     int len = taosReadFile(pFile, buf, 64);
     if (len < 64 && taosGetErrorFile(pFile)) {
       taosCloseFile(&pFile);
-      // printf("read /etc/timezone error, reason:%s", strerror(errno));
+      printf("read /etc/timezone error, reason:%s", strerror(errno));
       return;
     }
 
@@ -202,6 +217,7 @@ void taosGetSystemTimezone(char *outTimezone) {
    * otherwise is GMT+00:00
    */
   int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
+  *tsTimezone = tz;
   tz += daylight;
 
   /*
@@ -210,7 +226,7 @@ void taosGetSystemTimezone(char *outTimezone) {
    * Asia/Shanghai   (CST, +0800)
    * Europe/London   (BST, +0100)
    */
-  snprintf(outTimezone, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
 #endif
 }

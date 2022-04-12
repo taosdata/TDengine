@@ -29,7 +29,7 @@
 
 #define FREE_HASH_NODE(_n) \
   do {                     \
-    tfree(_n);             \
+    taosMemoryFreeClear(_n);             \
   } while (0);
 
 typedef struct SHNode {
@@ -37,7 +37,7 @@ typedef struct SHNode {
   char             data[];
 } SHNode;
 
-typedef struct SSHashObj {
+struct SSHashObj {
   SHNode         **hashList;
   size_t           capacity;     // number of slots
   int64_t          size;         // number of elements in hash table
@@ -45,7 +45,7 @@ typedef struct SSHashObj {
   _equal_fn_t      equalFp;      // equal function
   int32_t          keyLen;
   int32_t          dataLen;
-} SSHashObj;
+};
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   int32_t len = MIN(length, HASH_MAX_CAPACITY);
@@ -62,7 +62,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn, size_t keyLen, size_t
     capacity = 4;
   }
 
-  SSHashObj* pHashObj = (SSHashObj*) calloc(1, sizeof(SSHashObj));
+  SSHashObj* pHashObj = (SSHashObj*) taosMemoryCalloc(1, sizeof(SSHashObj));
   if (pHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -78,9 +78,9 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn, size_t keyLen, size_t
   pHashObj->keyLen = keyLen;
   pHashObj->dataLen = dataLen;
 
-  pHashObj->hashList = (SHNode **)calloc(pHashObj->capacity, sizeof(void *));
+  pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (pHashObj->hashList == NULL) {
-    free(pHashObj);
+    taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -95,7 +95,7 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
 }
 
 static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  SHNode *pNewNode = malloc(sizeof(SHNode) + keyLen + dsize);
+  SHNode *pNewNode = taosMemoryMalloc(sizeof(SHNode) + keyLen + dsize);
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -107,7 +107,7 @@ static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *pDat
   return pNewNode;
 }
 
-void taosHashTableResize(SSHashObj *pHashObj) {
+static void taosHashTableResize(SSHashObj *pHashObj) {
   if (!HASH_NEED_RESIZE(pHashObj)) {
     return;
   }
@@ -120,7 +120,7 @@ void taosHashTableResize(SSHashObj *pHashObj) {
   }
 
   int64_t st = taosGetTimestampUs();
-  void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newCapacity);
+  void *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
   if (pNewEntryList == NULL) {
 //    qWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
@@ -258,6 +258,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key) {
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key) {
   // todo
+  return TSDB_CODE_SUCCESS;
 }
 
 void tSimpleHashClear(SSHashObj *pHashObj) {
@@ -287,7 +288,7 @@ void tSimpleHashCleanup(SSHashObj *pHashObj) {
   }
 
   tSimpleHashClear(pHashObj);
-  tfree(pHashObj->hashList);
+  taosMemoryFreeClear(pHashObj->hashList);
 }
 
 size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj) {

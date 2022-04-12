@@ -176,26 +176,6 @@ typedef struct SResPair {
   double avg;
 } SResPair;
 
-#define TSDB_BLOCK_DIST_STEP_ROWS 16
-
-typedef struct STableBlockDist {
-  uint16_t  rowSize;
-  uint16_t  numOfFiles;
-  uint32_t  numOfTables;
-  uint64_t  totalSize;
-  uint64_t  totalRows;
-  int32_t   maxRows;
-  int32_t   minRows;
-  int32_t   firstSeekTimeUs;
-  uint32_t  numOfRowsInMemTable;
-  uint32_t  numOfSmallBlocks;
-  SArray   *dataBlockInfos;
-} STableBlockDist;
-
-typedef struct SFileBlockInfo {
-  int32_t numBlocksOfStep;
-} SFileBlockInfo;
-
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell) {
   pCell->initialized = false;
 }
@@ -228,7 +208,7 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
     SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
 
     SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[i]);
-    if (!pResInfo->hasResult) {
+    if (pResInfo->numOfRes == 0) {
       for(int32_t j = 0; j < pResInfo->numOfRes; ++j) {
         colDataAppend(pCol, j, NULL, true);  // TODO add set null data api
       }
@@ -1922,14 +1902,14 @@ static void copyTopBotRes(SqlFunctionCtx *pCtx, int32_t type) {
   }
   
   // set the output timestamp of each record.
-  TSKEY *output = pCtx->ptsOutputBuf;
-  for (int32_t i = 0; i < len; ++i, output += step) {
-    *output = tvp[i]->timestamp;
-  }
+//  TSKEY *output = pCtx->pTsOutput;
+//  for (int32_t i = 0; i < len; ++i, output += step) {
+//    *output = tvp[i]->timestamp;
+//  }
   
   // set the corresponding tag data for each record
   // todo check malloc failure
-//  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+//  char **pData = taosMemoryCalloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
 //  for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
 //    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
 //  }
@@ -1943,7 +1923,7 @@ static void copyTopBotRes(SqlFunctionCtx *pCtx, int32_t type) {
 //    }
 //  }
   
-//  tfree(pData);
+//  taosMemoryFreeClear(pData);
 }
 
 /*
@@ -2422,7 +2402,7 @@ static void apercentile_finalizer(SqlFunctionCtx *pCtx) {
 //      double *res = tHistogramUniform(pOutput->pHisto, ratio, 1);
 //
 //      memcpy(pCtx->pOutput, res, sizeof(double));
-//      free(res);
+//      taosMemoryFree(res);
 //    } else {
 //      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
 //      return;
@@ -2433,7 +2413,7 @@ static void apercentile_finalizer(SqlFunctionCtx *pCtx) {
       
       double *res = tHistogramUniform(pOutput->pHisto, ratio, 1);
       memcpy(pCtx->pOutput, res, sizeof(double));
-      free(res);
+      taosMemoryFree(res);
     } else {  // no need to free
       setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
@@ -2707,7 +2687,7 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY *pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY *pTimestamp = NULL;//pCtx->pTsOutput;
   TSKEY *tsList = GET_TS_LIST(pCtx);
 
   double *pOutput = (double *)pCtx->pOutput;
@@ -2887,7 +2867,7 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
     } else {                                                                                 \
       *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i));      \
       *(type *)(&(ctx)->param[1].i) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
+      *(int64_t *)(ctx)->pTsOutput = GET_TS_DATA(ctx, index);                             \
     }                                                                                        \
   } while (0);
 
@@ -2901,7 +2881,7 @@ static void diff_function(SqlFunctionCtx *pCtx) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY* pTimestamp = NULL;//pCtx->pTsOutput;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
   switch (pCtx->inputType) {
@@ -3078,8 +3058,8 @@ static void arithmetic_function(SqlFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   //SScalarFunctionSupport *pSup = (SScalarFunctionSupport *)pCtx->param[1].pz;
 
-  SScalarParam output = {0};
-  output.data = pCtx->pOutput;
+//  SScalarParam output = {0};
+//  output.data = pCtx->pOutput;
 
   //evaluateExprNodeTree(pSup->pExprInfo->pExpr, pCtx->size, &output, pSup, getArithColumnData);
 }
@@ -3984,7 +3964,7 @@ static void irate_function(SqlFunctionCtx *pCtx) {
   }
 }
 
-static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
+static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDistInfo* pDist) {
   SBufferReader br = tbufInitReader(data, len, false);
 
   pDist->numOfTables = tbufReadUint32(&br);
@@ -4004,7 +3984,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
 
   char* outputBuf = NULL;
   if (comp) {
-    outputBuf = malloc(originalLen);
+    outputBuf = taosMemoryMalloc(originalLen);
 
     size_t actualLen = compLen;
     const char* compStr = tbufReadBinary(&br, &actualLen);
@@ -4018,13 +3998,13 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
 
   pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t)numSteps, sizeof(SFileBlockInfo));
   if (comp) {
-    tfree(outputBuf);
+    taosMemoryFreeClear(outputBuf);
   }
 }
 
 static void blockInfo_func(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
 
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary((char*)pCtx->pInput + sizeof(int32_t), len, pDist);
@@ -4036,8 +4016,8 @@ static void blockInfo_func(SqlFunctionCtx* pCtx) {
   //pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlockDist* pSrc) {
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlockDistInfo* pSrc) {
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
   assert(pDist != NULL && pSrc != NULL);
 
   pDist->numOfTables += pSrc->numOfTables;
@@ -4071,7 +4051,7 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
 }
 
 void block_func_merge(SqlFunctionCtx* pCtx) {
-  STableBlockDist info = {0};
+  STableBlockDistInfo info = {0};
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -4082,7 +4062,7 @@ void block_func_merge(SqlFunctionCtx* pCtx) {
   //pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
+void getPercentiles(STableBlockDistInfo *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
                     double* percents, int32_t* percentiles) {
   if (totalBlocks == 0) {
     for (int32_t i = 0; i < numOfPercents; ++i) {
@@ -4117,7 +4097,7 @@ void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32
   }
 }
 
-void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
+void generateBlockDistResult(STableBlockDistInfo *pTableBlockDist, char* result) {
   if (pTableBlockDist == NULL) {
     return;
   }
@@ -4178,7 +4158,7 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
 
 void blockinfo_func_finalizer(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
 
   pDist->rowSize = (uint16_t)pCtx->param[0].i;
   generateBlockDistResult(pDist, pCtx->pOutput);

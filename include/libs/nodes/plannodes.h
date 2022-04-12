@@ -30,6 +30,7 @@ typedef struct SLogicNode {
   SNode* pConditions;
   SNodeList* pChildren;
   struct SLogicNode* pParent;
+  int32_t optimizedFlag;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -48,6 +49,10 @@ typedef struct SScanLogicNode {
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
   SName tableName;
+  bool showRewrite;
+  double ratio;
+  SNodeList* pDynamicScanFuncs;
+  int32_t dataRequired;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -65,6 +70,11 @@ typedef struct SAggLogicNode {
 typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
+  char stmtName[TSDB_TABLE_NAME_LEN];
+  int64_t limit;
+  int64_t offset;
+  int64_t slimit;
+  int64_t soffset;
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
@@ -77,6 +87,7 @@ typedef struct SVnodeModifLogicNode {
 typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t srcGroupId;
+  uint8_t precision;
 } SExchangeLogicNode;
 
 typedef enum EWindowType {
@@ -96,7 +107,19 @@ typedef struct SWindowLogicNode {
   int8_t  slidingUnit;
   SFillNode* pFill;
   int64_t sessionGap;
+  SNode* pTspk;
+  SNode* pStateExpr;
 } SWindowLogicNode;
+
+typedef struct SSortLogicNode {
+  SLogicNode node;
+  SNodeList* pSortKeys;
+} SSortLogicNode;
+
+typedef struct SPartitionLogicNode {
+  SLogicNode node;
+  SNodeList* pPartitionKeys;
+} SPartitionLogicNode;
 
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
@@ -142,8 +165,9 @@ typedef struct SDataBlockDescNode {
   ENodeType type;
   int16_t dataBlockId;
   SNodeList* pSlots;
-  int32_t resultRowSize;
-  int16_t precision;
+  int32_t totalRowSize;
+  int32_t outputRowSize;
+  uint8_t precision;
 } SDataBlockDescNode;
 
 typedef struct SPhysiNode {
@@ -171,13 +195,17 @@ typedef SScanPhysiNode SStreamScanPhysiNode;
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet mgmtEpSet;
+  bool showRewrite;
+  int32_t accountId;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
-  SNode* pScanConditions;
+  double ratio;
+  int32_t dataRequired;
+  SNodeList* pDynamicScanFuncs;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -185,6 +213,10 @@ typedef STableScanPhysiNode STableSeqScanPhysiNode;
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
+  int64_t limit;
+  int64_t offset;
+  int64_t slimit;
+  int64_t soffset;
 } SProjectPhysiNode;
 
 typedef struct SJoinPhysiNode {
@@ -197,7 +229,7 @@ typedef struct SJoinPhysiNode {
 typedef struct SAggPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of group_by_clause and parameter expression of aggregate function
-  SNodeList* pGroupKeys; // SColumnRefNode list
+  SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
 } SAggPhysiNode;
 
@@ -218,6 +250,7 @@ typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
+  SNode* pTspk; // timestamp primary key
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -227,13 +260,38 @@ typedef struct SIntervalPhysiNode {
   int64_t    sliding;
   int8_t     intervalUnit;
   int8_t     slidingUnit;
+  uint8_t    precision;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
+typedef struct SMultiTableIntervalPhysiNode {
+  SIntervalPhysiNode interval;
+  SNodeList* pPartitionKeys;
+} SMultiTableIntervalPhysiNode;
+
 typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
-  int64_t    gap;
+  int64_t gap;
 } SSessionWinodwPhysiNode;
+
+typedef struct SStateWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  SNode* pStateKey;
+} SStateWinodwPhysiNode;
+
+typedef struct SSortPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of order_by_clause and parameter expression of aggregate function
+  SNodeList* pSortKeys; // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
+  SNodeList* pTargets;
+} SSortPhysiNode;
+
+typedef struct SPartitionPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of partition_by_clause
+  SNodeList* pPartitionKeys;
+  SNodeList* pTargets;
+} SPartitionPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;
@@ -266,11 +324,24 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
 } SSubplan;
 
+typedef enum EExplainMode {
+  EXPLAIN_MODE_DISABLE = 1,
+  EXPLAIN_MODE_STATIC,
+  EXPLAIN_MODE_ANALYZE
+} EExplainMode;
+
+typedef struct SExplainInfo {
+  EExplainMode mode;
+  bool verbose;
+  double ratio;
+} SExplainInfo;
+
 typedef struct SQueryPlan {
   ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SExplainInfo explainInfo;
 } SQueryPlan;
 
 #ifdef __cplusplus

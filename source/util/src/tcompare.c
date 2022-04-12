@@ -173,6 +173,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   if (isnan(p2)) {
     return 1;
   }
+
   if (FLT_EQUAL(p1, p2)) {
     return 0;
   }
@@ -355,12 +356,12 @@ int32_t compareStrRegexCompNMatch(const void *pLeft, const void *pRight) {
 
 int32_t compareStrRegexComp(const void *pLeft, const void *pRight) {
   size_t sz = varDataLen(pRight);
-  char  *pattern = malloc(sz + 1);
+  char  *pattern = taosMemoryMalloc(sz + 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
   pattern[sz] = 0;
 
   sz = varDataLen(pLeft);
-  char *str = malloc(sz + 1);
+  char *str = taosMemoryMalloc(sz + 1);
   memcpy(str, varDataVal(pLeft), sz);
   str[sz] = 0;
 
@@ -373,8 +374,8 @@ int32_t compareStrRegexComp(const void *pLeft, const void *pRight) {
     regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
     regfree(&regex);
-    free(str);
-    free(pattern);
+    taosMemoryFree(str);
+    taosMemoryFree(pattern);
     return 1;
   }
 
@@ -385,8 +386,8 @@ int32_t compareStrRegexComp(const void *pLeft, const void *pRight) {
   }
   int32_t result = (errCode == 0) ? 0 : 1;
   regfree(&regex);
-  free(str);
-  free(pattern);
+  taosMemoryFree(str);
+  taosMemoryFree(pattern);
   return result;
 }
 
@@ -401,17 +402,17 @@ int32_t compareStrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
-  char *pattern = calloc(varDataLen(pRight) + 1, sizeof(char));
+  char *pattern = taosMemoryCalloc(varDataLen(pRight) + 1, sizeof(char));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
   size_t sz = varDataLen(pLeft);
-  char  *buf = malloc(sz + 1);
+  char  *buf = taosMemoryMalloc(sz + 1);
   memcpy(buf, varDataVal(pLeft), sz);
   buf[sz] = 0;
 
   int32_t ret = patternMatch(pattern, buf, sz, &pInfo);
-  free(buf);
-  free(pattern);
+  taosMemoryFree(buf);
+  taosMemoryFree(pattern);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
@@ -424,11 +425,11 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
-  char *pattern = calloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
+  char *pattern = taosMemoryCalloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
   int32_t ret = WCSPatternMatch((TdUcs4*)pattern, (TdUcs4*)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
-  free(pattern);
+  taosMemoryFree(pattern);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
@@ -436,7 +437,6 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
 int32_t compareWStrPatternNotMatch(const void *pLeft, const void *pRight) {
   return compareWStrPatternMatch(pLeft, pRight) ? 0 : 1;
 }
-
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
@@ -568,53 +568,36 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
 }
 
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
-  __compar_fn_t comparFn = NULL;
-
   switch (keyType) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_BOOL:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt8Val : compareInt8ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt8Val : compareInt8ValDesc;
     case TSDB_DATA_TYPE_SMALLINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt16Val : compareInt16ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt16Val : compareInt16ValDesc;
     case TSDB_DATA_TYPE_INT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
     case TSDB_DATA_TYPE_FLOAT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareFloatVal : compareFloatValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareFloatVal : compareFloatValDesc;
     case TSDB_DATA_TYPE_DOUBLE:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareDoubleVal : compareDoubleValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareDoubleVal : compareDoubleValDesc;
     case TSDB_DATA_TYPE_UTINYINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint8Val : compareUint8ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint8Val : compareUint8ValDesc;
     case TSDB_DATA_TYPE_USMALLINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint16Val : compareUint16ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint16Val : compareUint16ValDesc;
     case TSDB_DATA_TYPE_UINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
     case TSDB_DATA_TYPE_UBIGINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
     case TSDB_DATA_TYPE_BINARY:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
     default:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
   }
-
-  return comparFn;
 }
 
 int32_t doCompare(const char *f1, const char *f2, int32_t type, size_t size) {

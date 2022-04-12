@@ -6,16 +6,16 @@
 #include <thread>
 #include <vector>
 #include "index.h"
+#include "indexCache.h"
+#include "indexFst.h"
+#include "indexFstCountingWriter.h"
+#include "indexFstUtil.h"
 #include "indexInt.h"
-#include "index_cache.h"
-#include "index_fst.h"
-#include "index_fst_counting_writer.h"
-#include "index_fst_util.h"
-#include "index_tfile.h"
+#include "indexTfile.h"
 #include "tglobal.h"
+#include "tlog.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "tlog.h"
 
 static std::string dir = "/tmp/index";
 
@@ -75,7 +75,7 @@ class FstReadMemory {
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
-    char* buf = (char*)calloc(1, sizeof(char) * _size);
+    char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
@@ -83,7 +83,7 @@ class FstReadMemory {
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
-    free(buf);
+    taosMemoryFreeClear(buf);
     return _fst != NULL;
   }
   bool Get(const std::string& key, uint64_t* val) {

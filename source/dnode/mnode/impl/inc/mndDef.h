@@ -26,6 +26,7 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
+#include "tstream.h"
 #include "ttimer.h"
 
 #include "mnode.h"
@@ -259,6 +260,7 @@ typedef struct {
   int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -267,6 +269,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
+  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;
 } SDbCfg;
@@ -412,6 +415,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;  // -1 for unassigned
   int32_t status;
+  int32_t epoch;
   SEpSet  epSet;
   int64_t oldConsumerId;
   int64_t consumerId;  // -1 for unassigned
@@ -422,6 +426,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pConsumerEp->vgId);
   tlen += taosEncodeFixedI32(buf, pConsumerEp->status);
+  tlen += taosEncodeFixedI32(buf, pConsumerEp->epoch);
   tlen += taosEncodeSEpSet(buf, &pConsumerEp->epSet);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
@@ -432,6 +437,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp
 static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsumerEp) {
   buf = taosDecodeFixedI32(buf, &pConsumerEp->vgId);
   buf = taosDecodeFixedI32(buf, &pConsumerEp->status);
+  buf = taosDecodeFixedI32(buf, &pConsumerEp->epoch);
   buf = taosDecodeSEpSet(buf, &pConsumerEp->epSet);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
@@ -441,7 +447,7 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
 
 static FORCE_INLINE void tDeleteSMqConsumerEp(SMqConsumerEp* pConsumerEp) {
   if (pConsumerEp) {
-    tfree(pConsumerEp->qmsg);
+    taosMemoryFreeClear(pConsumerEp->qmsg);
   }
 }
 
@@ -510,7 +516,7 @@ typedef struct {
 } SMqSubscribeObj;
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
-  SMqSubscribeObj* pSub = calloc(1, sizeof(SMqSubscribeObj));
+  SMqSubscribeObj* pSub = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
   if (pSub == NULL) {
     return NULL;
   }
@@ -537,10 +543,10 @@ static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
   return pSub;
 
 _err:
-  tfree(pSub->consumers);
-  tfree(pSub->lostConsumers);
-  tfree(pSub->unassignedVg);
-  tfree(pSub);
+  taosMemoryFreeClear(pSub->consumers);
+  taosMemoryFreeClear(pSub->lostConsumers);
+  taosMemoryFreeClear(pSub->unassignedVg);
+  taosMemoryFreeClear(pSub);
   return NULL;
 }
 
@@ -619,31 +625,32 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
-    taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
+    //taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
     // taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
-    taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
     // taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
 }
 
 typedef struct {
-  char     name[TSDB_TOPIC_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  version;
-  SRWLatch lock;
-  int32_t  sqlLen;
-  char*    sql;
-  char*    logicalPlan;
-  char*    physicalPlan;
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
+  int64_t        dbUid;
+  int32_t        version;
+  SRWLatch       lock;
+  int32_t        sqlLen;
+  char*          sql;
+  char*          logicalPlan;
+  char*          physicalPlan;
+  SSchemaWrapper schema;
 } SMqTopicObj;
 
 typedef struct {
@@ -730,12 +737,17 @@ typedef struct {
   SRWLatch lock;
   int8_t   status;
   // int32_t  sqlLen;
-  int32_t sinkVgId;  // 0 for automatic
-  char*   sql;
-  char*   logicalPlan;
-  char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
-  SArray* ColAlias;
+  int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
+  int32_t        fixedSinkVgId;  // 0 for shuffle
+  int64_t        smaId;          // 0 for unused
+  int8_t         trigger;
+  int32_t        triggerParam;
+  int64_t        waterMark;
+  char*          sql;
+  char*          logicalPlan;
+  char*          physicalPlan;
+  SArray*        tasks;  // SArray<SArray<SStreamTask>>
+  SSchemaWrapper outputSchema;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);

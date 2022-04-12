@@ -5,12 +5,12 @@
 #include <thread>
 #include <vector>
 #include "index.h"
+#include "indexCache.h"
+#include "indexFst.h"
+#include "indexFstCountingWriter.h"
+#include "indexFstUtil.h"
 #include "indexInt.h"
-#include "index_cache.h"
-#include "index_fst.h"
-#include "index_fst_counting_writer.h"
-#include "index_fst_util.h"
-#include "index_tfile.h"
+#include "indexTfile.h"
 #include "tskiplist.h"
 #include "tutil.h"
 void* callback(void* s) { return s; }
@@ -55,7 +55,7 @@ class FstReadMemory {
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
-    char* buf = (char*)calloc(1, sizeof(char) * _size);
+    char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
@@ -63,7 +63,7 @@ class FstReadMemory {
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
-    free(buf);
+    taosMemoryFree(buf);
     return _fst != NULL;
   }
   bool Get(const std::string& key, uint64_t* val) {
@@ -96,11 +96,41 @@ class FstReadMemory {
       char*       ch = (char*)fstSliceData(s, &sz);
       std::string key(ch, sz);
       printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
+      result.push_back(rt->out.out);
       swsResultDestroy(rt);
     }
-    for (size_t i = 0; i < result.size(); i++) {
+    streamWithStateDestroy(st);
+    fstStreamBuilderDestroy(sb);
+    return true;
+  }
+  bool SearchRange(AutomationCtx* ctx, const std::string& low, RangeType lowType, const std::string& high,
+                   RangeType highType, std::vector<uint64_t>& result) {
+    FstStreamBuilder* sb = fstSearch(_fst, ctx);
+
+    FstSlice l = fstSliceCreate((uint8_t*)low.c_str(), low.size());
+    FstSlice h = fstSliceCreate((uint8_t*)high.c_str(), high.size());
+
+    // range [low, high);
+    fstStreamBuilderSetRange(sb, &l, lowType);
+    fstStreamBuilderSetRange(sb, &h, highType);
+
+    fstSliceDestroy(&l);
+    fstSliceDestroy(&h);
+
+    StreamWithState*       st = streamBuilderIntoStream(sb);
+    StreamWithStateResult* rt = NULL;
+    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+      // result.push_back((uint64_t)(rt->out.out));
+      FstSlice*   s = &rt->data;
+      int32_t     sz = 0;
+      char*       ch = (char*)fstSliceData(s, &sz);
+      std::string key(ch, sz);
+      printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
+      result.push_back(rt->out.out);
+      swsResultDestroy(rt);
     }
-    std::cout << std::endl;
+    streamWithStateDestroy(st);
+    fstStreamBuilderDestroy(sb);
     return true;
   }
   bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
@@ -230,10 +260,10 @@ void checkFstLongTerm() {
   // for (int i = 0; i < result.size(); i++) {
   // assert(result[i] == i);  // check result
   //}
-  // free(ctx);
+  // taosMemoryFree(ctx);
   // delete m;
 }
-void checkFstCheckIterator() {
+void checkFstCheckIterator1() {
   FstWriter* fw = new FstWriter;
   int64_t    s = taosGetTimestampUs();
   int        count = 2;
@@ -243,8 +273,7 @@ void checkFstCheckIterator() {
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
 
   fw->Put("Hello world", 1);
-  fw->Put("hello world", 2);
-  fw->Put("hello worle", 3);
+  fw->Put("Hello worle", 2);
   fw->Put("hello worlf", 4);
   delete fw;
 
@@ -258,15 +287,298 @@ void checkFstCheckIterator() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"H", AUTOMATION_PREFIX);
+  AutomationCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
     // assert(result[i] == i);  // check result
   }
+  automCtxDestroy(ctx);
 
-  free(ctx);
+  delete m;
+}
+void checkFstCheckIterator2() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("a", 1);
+  fw->Put("b", 2);
+  fw->Put("c", 4);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+
+  // prefix search
+  std::vector<uint64_t> result;
+
+  AutomationCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
+  m->Search(ctx, result);
+  std::cout << "size: " << result.size() << std::endl;
+  // assert(result.size() == count);
+  for (int i = 0; i < result.size(); i++) {
+    // assert(result[i] == i);  // check result
+  }
+  automCtxDestroy(ctx);
+
+  delete m;
+}
+void checkFstCheckIteratorPrefix() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("Hello world", 1);
+  fw->Put("Hello worle", 2);
+  fw->Put("hello worlf", 4);
+  fw->Put("ja", 4);
+  fw->Put("jb", 4);
+  fw->Put("jc", 4);
+  fw->Put("jddddddddd", 4);
+  fw->Put("jefffffff", 4);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+
+    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
+    m->Search(ctx, result);
+    assert(result.size() == 1);
+    automCtxDestroy(ctx);
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+
+    AutomationCtx* ctx = automCtxCreate((void*)"Hello", AUTOMATION_PREFIX);
+    m->Search(ctx, result);
+    assert(result.size() == 2);
+    automCtxDestroy(ctx);
+  }
+  {
+    std::vector<uint64_t> result;
+
+    AutomationCtx* ctx = automCtxCreate((void*)"jddd", AUTOMATION_PREFIX);
+    m->Search(ctx, result);
+    assert(result.size() == 1);
+    automCtxDestroy(ctx);
+  }
+  delete m;
+}
+void checkFstCheckIteratorRange1() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("a", 1);
+  fw->Put("b", 2);
+  fw->Put("c", 3);
+  fw->Put("d", 4);
+  fw->Put("e", 5);
+  fw->Put("f", 5);
+  fw->Put("G", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "e", LT, result);
+    assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "e", LT, result);
+    assert(result.size() == 2);
+    automCtxDestroy(ctx);
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "e", LE, result);
+    assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "e", LE, result);
+    assert(result.size() == 4);
+    automCtxDestroy(ctx);
+  }
+  delete m;
+}
+void checkFstCheckIteratorRange2() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("ab", 1);
+  fw->Put("b", 2);
+  fw->Put("cdd", 3);
+  fw->Put("cde", 3);
+  fw->Put("ddd", 4);
+  fw->Put("ed", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "ed", LT, result);
+    assert(result.size() == 4);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "bb", GE, "ed", LT, result);
+    assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "ed", LE, result);
+    assert(result.size() == 5);
+    automCtxDestroy(ctx);
+    // taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "ed", LE, result);
+    assert(result.size() == 4);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "ed", LT, result);
+    assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  delete m;
+}
+void checkFstCheckIteratorRange3() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("ab", 1);
+  fw->Put("b", 2);
+  fw->Put("cdd", 3);
+  fw->Put("cde", 3);
+  fw->Put("ddd", 4);
+  fw->Put("ed", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "", (RangeType)10, result);
+    assert(result.size() == 5);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "", (RangeType)20, "ab", LE, result);
+    assert(result.size() == 1);
+    automCtxDestroy(ctx);
+    // taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "", (RangeType)30, "ab", LT, result);
+    assert(result.size() == 0);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "ed", GT, "ed", (RangeType)40, result);
+    assert(result.size() == 0);
+    automCtxDestroy(ctx);
+  }
   delete m;
 }
 
@@ -332,7 +644,12 @@ int main(int argc, char* argv[]) {
   // path suid colName ver
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
-  checkFstCheckIterator();
+  checkFstCheckIterator1();
+  checkFstCheckIterator2();
+  checkFstCheckIteratorPrefix();
+  checkFstCheckIteratorRange1();
+  checkFstCheckIteratorRange2();
+  checkFstCheckIteratorRange3();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

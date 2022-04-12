@@ -1,0 +1,41 @@
+
+sql connect
+
+print ================ insert data
+$dbNamme  = d1
+$tbPrefix = ct
+$tbNum    = 2
+$rowNum   = 100
+$tstart   = 1640966400000  # 2022-01-01 00:00:00.000
+
+sql use $dbNamme
+
+loop_insert:
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+
+  $x = 0
+  while $x < $rowNum
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    #print ====> insert into $tb values ($tstart , $c , $x , $binary )
+    #print ====> insert into ntb values ($tstart , $c , $x , $binary )
+    sql insert into $tb values ($tstart , $c , $x , $binary )
+    sql insert into ntb values ($tstart , $c , $x , $binary )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 1640966400000
+endw
+goto loop_insert
+
+

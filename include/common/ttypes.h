@@ -27,8 +27,12 @@ extern "C" {
 typedef int32_t  VarDataOffsetT;
 typedef uint32_t TDRowLenT;
 typedef uint8_t  TDRowValT;
+typedef uint64_t TDRowVerT;
 typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
+typedef int32_t  col_bytes_t;
+typedef uint16_t schema_ver_t;
+typedef int32_t  func_id_t;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -138,11 +142,49 @@ typedef struct {
     }                                          \
   } while (0)
 
+#define NUM_TO_STRING(_inputType, _input, _outputBytes, _output)     \
+  do {                                         \
+    switch (_inputType) {                      \
+      case TSDB_DATA_TYPE_TINYINT:             \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int8_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UTINYINT:            \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint8_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_SMALLINT:            \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int16_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_USMALLINT:           \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint16_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
+      case TSDB_DATA_TYPE_BIGINT:              \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRId64, *(int64_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UBIGINT:             \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_FLOAT:               \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_DOUBLE:              \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UINT:                \
+        snprintf(_output, (int32_t)(_outputBytes), "%u", *(uint32_t *)(_input));     \
+        break;                                 \
+      default:                                 \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int32_t *)(_input));     \
+        break;                                 \
+    }                                          \
+  } while (0)
+
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
+#define IS_MATHABLE_TYPE(_t) (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
 #define IS_VALID_TINYINT(_t)   ((_t) > INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) > INT16_MIN && (_t) <= INT16_MAX)

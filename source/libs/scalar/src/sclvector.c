@@ -25,108 +25,6 @@
 #include "tdatablock.h"
 #include "ttypes.h"
 
-//GET_TYPED_DATA(v, double, pRight->type, (char *)&((right)[i]));                                
-
-void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight, void *output, int32_t order) {
-  int32_t *pLeft = (int32_t *)left;
-  int32_t *pRight = (int32_t *)right;
-  double * pOutput = (double *)output;
-
-  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : TMAX(numLeft, numRight) - 1;
-  int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
-
-  if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
-      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
-        SET_DOUBLE_NULL(pOutput);
-        continue;
-      }
-
-      *pOutput = (double)pLeft[i] + pRight[i];
-    }
-  } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
-      if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
-        SET_DOUBLE_NULL(pOutput);
-        continue;
-      }
-
-      *pOutput = (double)pLeft[0] + pRight[i];
-    }
-  } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
-      if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
-        SET_DOUBLE_NULL(pOutput);
-        continue;
-      }
-      *pOutput = (double)pLeft[i] + pRight[0];
-    }
-  }
-}
-
-typedef double (*_getDoubleValue_fn_t)(void *src, int32_t index);
-
-double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
-  return (double)*((int8_t *)src + index);
-}
-double getVectorDoubleValue_UTINYINT(void *src, int32_t index) {
-  return (double)*((uint8_t *)src + index);
-}
-double getVectorDoubleValue_SMALLINT(void *src, int32_t index) {
-  return (double)*((int16_t *)src + index);
-}
-double getVectorDoubleValue_USMALLINT(void *src, int32_t index) {
-  return (double)*((uint16_t *)src + index);
-}
-double getVectorDoubleValue_INT(void *src, int32_t index) {
-  return (double)*((int32_t *)src + index);
-}
-double getVectorDoubleValue_UINT(void *src, int32_t index) {
-  return (double)*((uint32_t *)src + index);
-}
-double getVectorDoubleValue_BIGINT(void *src, int32_t index) {
-  return (double)*((int64_t *)src + index);
-}
-double getVectorDoubleValue_UBIGINT(void *src, int32_t index) {
-  return (double)*((uint64_t *)src + index);
-}
-double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
-  return (double)*((float *)src + index);
-}
-double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
-  return (double)*((double *)src + index);
-}
-
-_getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
-    _getDoubleValue_fn_t p = NULL;
-    if(srcType==TSDB_DATA_TYPE_TINYINT) {
-        p = getVectorDoubleValue_TINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
-        p = getVectorDoubleValue_UTINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
-        p = getVectorDoubleValue_SMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
-        p = getVectorDoubleValue_USMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_INT) {
-        p = getVectorDoubleValue_INT;
-    }else if(srcType==TSDB_DATA_TYPE_UINT) {
-        p = getVectorDoubleValue_UINT;
-    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
-        p = getVectorDoubleValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
-        p = getVectorDoubleValue_UBIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
-        p = getVectorDoubleValue_FLOAT;
-    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
-        p = getVectorDoubleValue_DOUBLE;
-    }else {
-        assert(0);
-    }
-    return p;
-}
-
-
-
 typedef int64_t (*_getBigintValue_fn_t)(void *src, int32_t index);
 
 int64_t getVectorBigintValue_TINYINT(void *src, int32_t index) {
@@ -186,9 +84,6 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     }
     return p;
 }
-
-
-
 
 typedef void* (*_getValueAddr_fn_t)(void *src, int32_t index);
 
@@ -261,147 +156,255 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
     return p;
 }
 
-static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t outType) {
+static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   int64_t value = strtoll(buf, NULL, 10);
-  SET_TYPED_DATA(pOut->data, outType, value);
+  colDataAppendInt64(pOut->columnData, rowIndex, &value);
 }
 
-static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t outType) {
+static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   uint64_t value = strtoull(buf, NULL, 10);
-  SET_TYPED_DATA(pOut->data, outType, value);
+  colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*) &value);
 }
 
-static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t outType) {
+static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   double value = strtod(buf, NULL);
-  SET_TYPED_DATA(pOut->data, outType, value);
+  colDataAppendDouble(pOut->columnData, rowIndex, &value);
 }
 
+static FORCE_INLINE void varToBool(char *buf, SScalarParam* pOut, int32_t rowIndex) {
+  int64_t value = strtoll(buf, NULL, 10);
+  bool v = (value != 0)? true:false;
+  colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*) &v);
+}
 
-int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
-  int32_t bufSize = 0;
-  char *tmp = NULL;
+static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIndex) {
+  int32_t len = 0;
+  int32_t inputLen = varDataLen(buf);
+
+  char* t = taosMemoryCalloc(1,(inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+  /*int32_t resLen = */taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4*) varDataVal(t), pOut->columnData->info.bytes, &len);
+  varDataSetLen(t, len);
+
+  colDataAppend(pOut->columnData, rowIndex, t, false);
+  taosMemoryFree(t);
+}
+
+//TODO opt performance, tmp is not needed.
+int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
+  int32_t bufSize = pIn->columnData->info.bytes;
+  char *tmp = taosMemoryMalloc(bufSize + VARSTR_HEADER_SIZE);
+
+  bool vton = false;
+
   _bufConverteFunc func = NULL;
-
-  if (IS_SIGNED_NUMERIC_TYPE(outType) || TSDB_DATA_TYPE_TIMESTAMP == outType || TSDB_DATA_TYPE_BOOL == outType) {
+  if (TSDB_DATA_TYPE_BOOL == outType) {
+    func = varToBool;
+  } else if (IS_SIGNED_NUMERIC_TYPE(outType) || TSDB_DATA_TYPE_TIMESTAMP == outType) {
     func = varToSigned;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(outType)) {
     func = varToUnsigned;
   } else if (IS_FLOAT_TYPE(outType)) {
     func = varToFloat;
+  } else if (outType == TSDB_DATA_TYPE_NCHAR) {
+    func = varToNchar;
+    vton = true;
   } else {
     sclError("invalid convert outType:%d", outType);
     return TSDB_CODE_QRY_APP_ERROR;
   }
-  
-  for (int32_t i = 0; i < pIn->num; ++i) {
-    sclMoveParamListData(pIn, 1, i);
-    sclMoveParamListData(pOut, 1, i);
-    
-    if (sclIsNull(pIn, i)) {
-      sclSetNull(pOut, i);
+
+  pOut->numOfRows = pIn->numOfRows;
+  for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+    if (colDataIsNull_s(pIn->columnData, i)) {
+      colDataAppendNULL(pOut->columnData, i);
       continue;
     }
 
-    if (TSDB_DATA_TYPE_BINARY == inType) {
-      if (varDataLen(pIn->data) >= bufSize) {
-        bufSize = varDataLen(pIn->data) + 1;
-        tmp = realloc(tmp, bufSize);
-      }
-
-      memcpy(tmp, varDataVal(pIn->data), varDataLen(pIn->data));
-      tmp[varDataLen(pIn->data)] = 0;
+    char* data = colDataGetData(pIn->columnData, i);
+    if (vton) {
+      memcpy(tmp, data, varDataTLen(data));
     } else {
-      if (varDataLen(pIn->data) * TSDB_NCHAR_SIZE >= bufSize) {
-        bufSize = varDataLen(pIn->data) * TSDB_NCHAR_SIZE + 1;
-        tmp = realloc(tmp, bufSize);
+      if (TSDB_DATA_TYPE_VARCHAR == inType) {
+        memcpy(tmp, varDataVal(data), varDataLen(data));
+        tmp[varDataLen(data)] = 0;
+      } else {
+        ASSERT(varDataLen(data) <= bufSize);
+
+        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
+        if (len < 0) {
+          sclError("castConvert taosUcs4ToMbs error 1");
+          taosMemoryFreeClear(tmp);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+
+        tmp[len] = 0;
       }
-      
-      int len = taosUcs4ToMbs((TdUcs4*)varDataVal(pIn->data), varDataLen(pIn->data), tmp);
-      if (len < 0){
-        sclError("castConvert taosUcs4ToMbs error 1");
-        tfree(tmp);
-        return TSDB_CODE_QRY_APP_ERROR;
-      }
-      
-      tmp[len] = 0;
     }
     
-    (*func)(tmp, pOut, outType);
+    (*func)(tmp, pOut, i);
   }
   
-  tfree(tmp);
-
+  taosMemoryFreeClear(tmp);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
-  int16_t inType = pIn->type; 
-  int16_t inBytes = pIn->bytes;
-  int16_t outType = pOut->type; 
-  int16_t outBytes = pOut->bytes; 
+// TODO opt performance
+int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
+  SColumnInfoData* pInputCol  = pIn->columnData;
+  SColumnInfoData* pOutputCol = pOut->columnData;
 
-  if (inType == TSDB_DATA_TYPE_BINARY || inType == TSDB_DATA_TYPE_NCHAR) {
+  int16_t inType   = pInputCol->info.type;
+  int16_t outType  = pOutputCol->info.type;
+
+  if (IS_VAR_DATA_TYPE(inType)) {
     return vectorConvertFromVarData(pIn, pOut, inType, outType);
   }
   
   switch (outType) {
-    case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BOOL: {
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        bool value = 0;
+        GET_TYPED_DATA(value, bool, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        int8_t value = 0;
+        GET_TYPED_DATA(value, int8_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        int16_t value = 0;
+        GET_TYPED_DATA(value, int16_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt16(pOutputCol, i, (int16_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        int32_t value = 0;
+        GET_TYPED_DATA(value, int32_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt32(pOutputCol, i, (int32_t *)&value);
+      }
+      break;
+    }
     case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:    
-      for (int32_t i = 0; i < pIn->num; ++i) {
-        sclMoveParamListData(pIn, 1, i);
-        sclMoveParamListData(pOut, 1, i);
-        
-        if (sclIsNull(pIn, i)) {
-          sclSetNull(pOut, i);
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
         int64_t value = 0;
-        
-        GET_TYPED_DATA(value, int64_t, inType, pIn->data);
-        SET_TYPED_DATA(pOut->data, outType, value);
+        GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt64(pOutputCol, i, (int64_t *)&value);
       }
       break;
-    case TSDB_DATA_TYPE_UTINYINT:  
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      for (int32_t i = 0; i < pIn->num; ++i) {
-        sclMoveParamListData(pIn, 1, i);
-        sclMoveParamListData(pOut, 1, i);
+    }
+    case TSDB_DATA_TYPE_UTINYINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
         
-        if (sclIsNull(pIn, i)) {
-          sclSetNull(pOut, i);
+        uint8_t value = 0;
+        GET_TYPED_DATA(value, uint8_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+        
+        uint16_t value = 0;
+        GET_TYPED_DATA(value, uint16_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt16(pOutputCol, i, (int16_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+        
+        uint32_t value = 0;
+        GET_TYPED_DATA(value, uint32_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt32(pOutputCol, i, (int32_t *)&value);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
         
         uint64_t value = 0;
-
-        GET_TYPED_DATA(value, uint64_t, inType, pIn->data);
-        SET_TYPED_DATA(pOut->data, outType, value);
+        GET_TYPED_DATA(value, uint64_t, inType, colDataGetData(pInputCol, i));
+        colDataAppendInt64(pOutputCol, i, (int64_t*)&value);
       }
       break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      for (int32_t i = 0; i < pIn->num; ++i) {
-        sclMoveParamListData(pIn, 1, i);
-        sclMoveParamListData(pOut, 1, i);
+    }
+    case TSDB_DATA_TYPE_FLOAT:{
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
         
-        if (sclIsNull(pIn, i)) {
-          sclSetNull(pOut, i);
+        float value = 0;
+        GET_TYPED_DATA(value, float, inType, colDataGetData(pInputCol, i));
+        colDataAppendFloat(pOutputCol, i, (float*)&value);
+      }
+      break;  
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
           continue;
         }
         
         double value = 0;
-
-        GET_TYPED_DATA(value, double, inType, pIn->data);
-        SET_TYPED_DATA(pOut->data, outType, value);
+        GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, i));
+        colDataAppendDouble(pOutputCol, i, (double*)&value);
       }
-      break;      
+      break;  
+    }
     default:
       sclError("invalid convert output type:%d", outType);
       return TSDB_CODE_QRY_APP_ERROR;
@@ -446,11 +449,13 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 }
 
 int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* pLeftOut, SScalarParam* pRightOut) {
-  if (pLeft->type == pRight->type) {
+  if (pLeft->pHashFilter != NULL || pRight->pHashFilter != NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCL_DATA_TYPE_DUMMY_HASH == pLeft->type || SCL_DATA_TYPE_DUMMY_HASH == pRight->type) {
+  int32_t leftType  = GET_PARAM_TYPE(pLeft);
+  int32_t rightType = GET_PARAM_TYPE(pRight);
+  if (leftType == rightType) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -458,7 +463,7 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
   SScalarParam *param2 = NULL, *paramOut2 = NULL;
   int32_t code = 0;
   
-  if (pLeft->type < pRight->type) {
+  if (leftType < rightType) {
     param1 = pLeft;
     param2 = pRight;
     paramOut1 = pLeftOut;
@@ -470,44 +475,38 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     paramOut2 = pLeftOut;
   }
 
-
-  int8_t type = vectorGetConvertType(param1->type, param2->type);
+  int8_t type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
   if (0 == type) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (type != param1->type) {
-    paramOut1->bytes = param1->bytes;
-    paramOut1->type = type;
-    paramOut1->num = param1->num;
-    paramOut1->data = malloc(paramOut1->num * tDataTypes[paramOut1->type].bytes);
-    if (NULL == paramOut1->data) {
-      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  if (type != GET_PARAM_TYPE(param1)) {
+    SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
+    paramOut1->numOfRows = param1->numOfRows;
+
+    paramOut1->columnData = createColumnInfoData(&t, param1->numOfRows);
+    if (paramOut1->columnData == NULL) {
+      return terrno;
     }
-    paramOut1->orig.data = paramOut1->data;
-    
+
     code = vectorConvertImpl(param1, paramOut1);
     if (code) {
-      tfree(paramOut1->data);
+//      taosMemoryFreeClear(paramOut1->data);
       return code;
     }
   }
   
-  if (type != param2->type) {
-    paramOut2->bytes = param2->bytes;
-    paramOut2->type = type;
-    paramOut2->num = param2->num;
-    paramOut2->data = malloc(paramOut2->num * tDataTypes[paramOut2->type].bytes);
-    if (NULL == paramOut2->data) {
-      tfree(paramOut1->data);
-      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  if (type != GET_PARAM_TYPE(param2)) {
+    SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
+    paramOut2->numOfRows = param2->numOfRows;
+
+    paramOut2->columnData = createColumnInfoData(&t, param2->numOfRows);
+    if (paramOut2->columnData == NULL) {
+      return terrno;
     }
-    paramOut2->orig.data = paramOut2->data;
-    
+
     code = vectorConvertImpl(param2, paramOut2);
     if (code) {
-      tfree(paramOut1->data);
-      tfree(paramOut2->data);
       return code;
     }
   }
@@ -515,652 +514,412 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
   return TSDB_CODE_SUCCESS;
 }
 
-void vectorMath(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, _mathFunc func) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double leftv = 0, rightv = 0;
-  bool isNull = false;
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num, .dataInBlock = false};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num, .dataInBlock = false};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
+enum {
+  VECTOR_DO_CONVERT = 0x1,
+  VECTOR_UN_CONVERT = 0x2,
+};
 
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
+static int32_t doConvertHelper(SScalarParam* pDest, int32_t* convert, const SScalarParam* pParam, int32_t type) {
+  SColumnInfoData* pCol = pParam->columnData;
+
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    pDest->numOfRows = pParam->numOfRows;
+
+    SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
+    pDest->columnData = createColumnInfoData(&t, pParam->numOfRows);
+    if (pDest->columnData == NULL) {
+      sclError("malloc %d failed", (int32_t)(pParam->numOfRows * sizeof(double)));
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
+
+    int32_t code = vectorConvertImpl(pParam, pDest);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
+
+    *convert = VECTOR_DO_CONVERT;
+  } else {
+    *convert = VECTOR_UN_CONVERT;
   }
 
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-
-      SET_DOUBLE_VAL(pOut->data, (*func)(leftv, rightv, &isNull));
-      if (isNull) {
-        sclSetNull(pOut, i);
-        isNull = false;
-      }      
-    }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }      
-
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-      
-      SET_DOUBLE_VAL(pOut->data, (*func)(leftv, rightv, &isNull));
-      if (isNull) {
-        sclSetNull(pOut, i);
-        isNull = false;
-      }
-    }
-  } else if (pRight->num == 1) {
-    sclMoveParamListData(pRight, 1, 0);
-    GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-    
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      
-      SET_DOUBLE_VAL(pOut->data, (*func)(leftv, rightv, &isNull));
-      if (isNull) {
-        sclSetNull(pOut, i);
-        isNull = false;
-      }
-    }
-  }
-
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
+  return TSDB_CODE_SUCCESS;
 }
 
-double mathAdd(double leftv, double rightv, bool *isNull) {
-  return leftv + rightv;
-}
+// TODO not correct for descending order scan
+static void vectorMathAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
 
-double mathSub(double leftv, double rightv, bool *isNull) {
-  return leftv - rightv;
-}
+  double *output = (double *)pOutputCol->pData;
 
-double mathMultiply(double leftv, double rightv, bool *isNull) {
-  return leftv * rightv;
-}
-
-double mathDivide(double leftv, double rightv, bool *isNull) {
-  double zero = 0;  
-  if (0 == compareDoubleVal(&rightv, &zero)) {
-    *isNull = true;
-    return zero;
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) + getVectorDoubleValueFnRight(pRightCol->pData, 0);
+    }
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
+    }
   }
-  
-  return leftv / rightv;
 }
 
-double mathRemainder(double leftv, double rightv, bool *isNull) {
-  double zero = 0;
-  if (0 == compareDoubleVal(&rightv, &zero)) {
-    *isNull = true;
-    return zero;
-  }
+static SColumnInfoData* doVectorConvert(SScalarParam* pInput, int32_t* doConvert) {
+  SScalarParam convertParam = {0};
 
-  return leftv - ((int64_t)(leftv / rightv)) * rightv;
-}
-
-
-void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  vectorMath(pLeft, pRight, pOut, _ord, mathAdd);
-}
-
-void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  vectorMath(pLeft, pRight, pOut, _ord, mathSub);
-}
-
-void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  vectorMath(pLeft, pRight, pOut, _ord, mathMultiply);
-}
-
-void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  vectorMath(pLeft, pRight, pOut, _ord, mathDivide);
-}
-
-void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  vectorMath(pLeft, pRight, pOut, _ord, mathRemainder);
-}
-
-#if 0
-void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double leftv = 0, rightv = 0;
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num, .dataInBlock = false};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num, .dataInBlock = false};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
-
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
-    }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
-    }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
+  int32_t code = doConvertHelper(&convertParam, doConvert, pInput, TSDB_DATA_TYPE_DOUBLE);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return NULL;
   }
 
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
+  if (*doConvert == VECTOR_DO_CONVERT) {
+    return convertParam.columnData;
+  } else {
+    return pInput->columnData;
+  }
+}
+
+static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
+  if (type == VECTOR_DO_CONVERT) {
+    colDataDestroy(pCol);
+  }
+}
+
+void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) + getVectorDoubleValueFnRight(pRightCol->pData, i);
+    }
+
+    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+    if (pOutputCol->hasNull) {
+      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+      for (int32_t j = 0; j < numOfBitLen; ++j) {
+        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+      }
+    }
+
+  } else if (pLeft->numOfRows == 1) {
+    vectorMathAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+  } else if (pRight->numOfRows == 1) {
+    vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
+  }
+
+  doReleaseVec(pLeftCol, leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
+}
+
+// TODO not correct for descending order scan
+static void vectorMathSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = (getVectorDoubleValueFnLeft(pLeftCol->pData, i) - getVectorDoubleValueFnRight(pRightCol->pData, 0)) * factor;
+    }
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
+    }
+  }
+}
+
+void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) - getVectorDoubleValueFnRight(pRightCol->pData, i);
+    }
+
+    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+    if (pOutputCol->hasNull) {
+      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+      for (int32_t j = 0; j < numOfBitLen; ++j) {
+        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+      }
+    }
+
+  } else if (pLeft->numOfRows == 1) {
+    vectorMathSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
+  } else if (pRight->numOfRows == 1) {
+    vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
+  }
+
+  doReleaseVec(pLeftCol,  leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
+}
+
+// TODO not correct for descending order scan
+static void vectorMathMultiplyHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) * getVectorDoubleValueFnRight(pRightCol->pData, 0);
+    }
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
+    }
+  }
+}
+
+void vectorMathMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) * getVectorDoubleValueFnRight(pRightCol->pData, i);
+    }
+
+    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+    if (pOutputCol->hasNull) {
+      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+      for (int32_t j = 0; j < numOfBitLen; ++j) {
+        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+      }
+    }
+
+  } else if (pLeft->numOfRows == 1) {
+    vectorMathMultiplyHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+  } else if (pRight->numOfRows == 1) {
+    vectorMathMultiplyHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
+  }
+
+  doReleaseVec(pLeftCol, leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
+}
+
+void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol  = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol = doVectorConvert(pRight, &rightConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  if (pLeft->numOfRows == pRight->numOfRows) {  // check for the 0 value
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) / getVectorDoubleValueFnRight(pRightCol->pData, i);
+    }
+
+    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+    if (pOutputCol->hasNull) {
+      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+      for (int32_t j = 0; j < numOfBitLen; ++j) {
+        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+      }
+    }
+
+  } else if (pLeft->numOfRows == 1) {
+    if (colDataIsNull_f(pLeftCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
+    } else {
+      for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
+        *output = getVectorDoubleValueFnLeft(pLeftCol->pData, 0) / getVectorDoubleValueFnRight(pRightCol->pData, i);
+      }
+      pOutputCol->hasNull = pRightCol->hasNull;
+      if (pOutputCol->hasNull) {
+        memcpy(pOutputCol->nullbitmap, pRightCol->nullbitmap, BitmapLen(pRight->numOfRows));
+      }
+    }
+  } else if (pRight->numOfRows == 1) {
+    if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
+    } else {
+      for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
+        *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) / getVectorDoubleValueFnRight(pRightCol->pData, 0);
+      }
+      pOutputCol->hasNull = pLeftCol->hasNull;
+      if (pOutputCol->hasNull) {
+        memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(pLeft->numOfRows));
+      }
+    }
+  }
+
+  doReleaseVec(pLeftCol,  leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
+}
+
+void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol  = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol = doVectorConvert(pRight, &rightConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  double zero = 0.0;
+
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      if (colDataIsNull_f(pLeftCol->nullbitmap, i) || colDataIsNull_f(pRightCol->nullbitmap, i)) {
+        colDataAppendNULL(pOutputCol, i);
         continue;
       }
 
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-
-      SET_DOUBLE_VAL(pOut->data, leftv + rightv);
-    }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }      
-
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-      
-      SET_DOUBLE_VAL(pOut->data, leftv + rightv);
-    }
-  } else if (pRight->num == 1) {
-    sclMoveParamListData(pRight, 1, 0);
-    GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-    
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
+      double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, i);
+      double rx = getVectorDoubleValueFnRight(pRightCol->pData, i);
+      if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx)) {
+        colDataAppendNULL(pOutputCol, i);
         continue;
       }
 
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      
-      SET_DOUBLE_VAL(pOut->data, leftv + rightv);
+      *output = lx - ((int64_t)(lx / rx)) * rx;
+    }
+  } else if (pLeft->numOfRows == 1) {
+    double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, 0);
+    if (colDataIsNull_f(pLeftCol->nullbitmap, 0) || isnan(lx) || isinf(lx)) {  // Set pLeft->numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
+    } else {
+      for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
+        if (colDataIsNull_f(pRightCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        double rx = getVectorDoubleValueFnRight(pRightCol->pData, i);
+        if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        *output = lx - ((int64_t)(lx / rx)) * rx;
+      }
+    }
+  } else if (pRight->numOfRows == 1) {
+    double rx = getVectorDoubleValueFnRight(pRightCol->pData, 0);
+    if (colDataIsNull_f(pRightCol->nullbitmap, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
+      colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
+    } else {
+      for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
+        if (colDataIsNull_f(pLeftCol->nullbitmap, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, i);
+        if (isnan(lx) || isinf(lx)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        *output = lx - ((int64_t)(lx / rx)) * rx;
+      }
     }
   }
 
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
+  doReleaseVec(pLeftCol, leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
 }
 
-void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double leftv = 0, rightv = 0;
+void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
 
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
+  pOut->numOfRows = pLeft->numOfRows;
 
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
-    }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
-    }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : (pLeft->numOfRows - 1);
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  int32_t leftConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+  for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
+    *output = - getVectorDoubleValueFnLeft(pLeftCol->pData, i);
   }
 
-
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(pLeft->type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRight->type);
-
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-
-      SET_DOUBLE_VAL(pOut->data, getVectorDoubleValueFnLeft(pLeft->data, i) - getVectorDoubleValueFnRight(pRight->data, i));
-    }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-  
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }      
-
-      SET_DOUBLE_VAL(pOut->data,getVectorDoubleValueFnLeft(pLeft->data, 0) - getVectorDoubleValueFnRight(pRight->data,i));
-    }
-  } else if (pRight->num == 1) {
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      SET_DOUBLE_VAL(pOut->data,getVectorDoubleValueFnLeft(pLeft->data,i) - getVectorDoubleValueFnRight(pRight->data,0));
-    }
+  pOutputCol->hasNull = pLeftCol->hasNull;
+  if (pOutputCol->hasNull) {
+    memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(pLeft->numOfRows));
   }
 
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
+  doReleaseVec(pLeftCol,  leftConvert);
 }
-void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double leftv = 0, rightv = 0;
-
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
-
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
-    }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
-    }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
-  }
-
-
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(pLeft->type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRight->type);
-
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-
-      SET_DOUBLE_VAL(pOut->data, getVectorDoubleValueFnLeft(pLeft->data, i) * getVectorDoubleValueFnRight(pRight->data, i));
-    }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-  
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }      
-
-      SET_DOUBLE_VAL(pOut->data,getVectorDoubleValueFnLeft(pLeft->data, 0) * getVectorDoubleValueFnRight(pRight->data,i));
-    }
-  } else if (pRight->num == 1) {
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      SET_DOUBLE_VAL(pOut->data,getVectorDoubleValueFnLeft(pLeft->data,i) * getVectorDoubleValueFnRight(pRight->data,0));
-    }
-  }
-
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
-}
-
-void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double leftv = 0, rightv = 0;
-
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
-
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
-    }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
-    }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
-  }
-
-
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(pLeft->type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRight->type);
-
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-
-      SET_DOUBLE_VAL(pOut->data, getVectorDoubleValueFnLeft(pLeft->data, i) / getVectorDoubleValueFnRight(pRight->data, i));
-    }
-  } else if (pLeft->num == 1) {
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }      
-
-      SET_DOUBLE_VAL(pOut->data,getVectorDoubleValueFnLeft(pLeft->data, 0) / getVectorDoubleValueFnRight(pRight->data,i));
-    }
-  } else if (pRight->num == 1) {
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      SET_DOUBLE_VAL(pOut->data,getVectorDoubleValueFnLeft(pLeft->data,i) / getVectorDoubleValueFnRight(pRight->data,0));
-    }
-  }
-
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
-}
-
-void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double leftv = 0, rightv = 0;
-
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
-
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
-    }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
-    }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
-  }
-
-
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(pLeft->type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRight->type);
-
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      double v, u = 0.0;
-      GET_TYPED_DATA(v, double, pRight->type, pRight->data);
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, double, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, double, pRight->type, pRight->data);
-
-      SET_DOUBLE_VAL(pOut->data, left - ((int64_t)(left / right)) * right);
-    }
-  } else if (pLeft->num == 1) {
-    double left = getVectorDoubleValueFnLeft(pLeft->data, 0);
-
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      double v, u = 0.0;
-      GET_TYPED_DATA(v, double, pRight->type, pRight->data);
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      double right = getVectorDoubleValueFnRight(pRight->data, i);
-      SET_DOUBLE_VAL(pOut->data, left - ((int64_t)(left / right)) * right);
-    }
-  } else if (pRight->num == 1) {
-    double right = getVectorDoubleValueFnRight(pRight->data, 0);
-
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      double v, u = 0.0;
-      GET_TYPED_DATA(v, double, pRight->type, pRight->data);
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      double left = getVectorDoubleValueFnLeft(pLeft->data, i);
-      SET_DOUBLE_VAL(pOut->data, left - ((int64_t)(left / right)) * right);
-    }
-  }                                                                                                 
-
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
-}
-
-#endif
 
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
+#if 0
   int32_t len = pLeft->bytes + pRight->bytes;
 
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   char *output = (char *)out;
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step, output += len) {
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += len) {
       char* left = POINTER_SHIFT(pLeft->data, pLeft->bytes * i);
       char* right = POINTER_SHIFT(pRight->data, pRight->bytes * i);
 
-      if (isNull(left, pLeft->type) || isNull(right, pRight->type)) {
+      if (isNull(left, pLeftCol->info.type) || isNull(right, pRight->info.type)) {
         setVardataNull(output, TSDB_DATA_TYPE_BINARY);
         continue;
       }
@@ -1170,10 +929,10 @@ void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       memcpy(varDataVal(output) + varDataLen(left), varDataVal(right), varDataLen(right));
       varDataSetLen(output, varDataLen(left) + varDataLen(right));
     }
-  } else if (pLeft->num == 1) {
-    for (; i >= 0 && i < pRight->num; i += step, output += len) {
+  } else if (pLeft->numOfRows == 1) {
+    for (; i >= 0 && i < pRight->numOfRows; i += step, output += len) {
       char *right = POINTER_SHIFT(pRight->data, pRight->bytes * i);
-      if (isNull(pLeft->data, pLeft->type) || isNull(right, pRight->type)) {
+      if (isNull(pLeft->data, pLeftCol->info.type) || isNull(right, pRight->info.type)) {
         setVardataNull(output, TSDB_DATA_TYPE_BINARY);
         continue;
       }
@@ -1182,10 +941,10 @@ void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       memcpy(varDataVal(output) + varDataLen(pLeft->data), varDataVal(right), varDataLen(right));
       varDataSetLen(output, varDataLen(pLeft->data) + varDataLen(right));
     }
-  } else if (pRight->num == 1) {
-    for (; i >= 0 && i < pLeft->num; i += step, output += len) {
+  } else if (pRight->numOfRows == 1) {
+    for (; i >= 0 && i < pLeft->numOfRows; i += step, output += len) {
       char* left = POINTER_SHIFT(pLeft->data, pLeft->bytes * i);
-      if (isNull(left, pLeft->type) || isNull(pRight->data, pRight->type)) {
+      if (isNull(left, pLeftCol->info.type) || isNull(pRight->data, pRight->info.type)) {
         SET_DOUBLE_NULL(output);
         continue;
       }
@@ -1195,257 +954,177 @@ void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       varDataSetLen(output, varDataLen(left) + varDataLen(pRight->data));
     }
   }
+#endif
 }
 
+static void vectorBitAndHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
+
+  double *output = (double *)pOutputCol->pData;
+
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) & getVectorBigintValueFnRight(pRightCol->pData, 0);
+    }
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
+    }
+  }
+}
 
 void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  int64_t leftv = 0, rightv = 0;
 
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pRight->num};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(int64_t));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
 
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
+
+  int64_t *output = (int64_t *)pOutputCol->pData;
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) & getVectorBigintValueFnRight(pRightCol->pData, i);
     }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(int64_t));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
+
+    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+    if (pOutputCol->hasNull) {
+      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+      for (int32_t j = 0; j < numOfBitLen; ++j) {
+        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] & pRightCol->nullbitmap[j];
+      }
     }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
+
+  } else if (pLeft->numOfRows == 1) {
+    vectorBitAndHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+  } else if (pRight->numOfRows == 1) {
+    vectorBitAndHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
   }
 
+  doReleaseVec(pLeftCol,  leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
+}
 
-  _getBigintValue_fn_t getVectorBigintValueFnLeft = getVectorBigintValueFn(pLeft->type);
-  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRight->type);
+static void vectorBitOrHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
+  int64_t *output = (int64_t *)pOutputCol->pData;
 
-      GET_TYPED_DATA(leftv, int64_t, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, int64_t, pRight->type, pRight->data);
-
-      SET_BIGINT_VAL(pOut->data, leftv & rightv);
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    int64_t rx = getVectorBigintValueFnRight(pRightCol->pData, 0);
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) | rx;
     }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    GET_TYPED_DATA(leftv, int64_t, pLeft->type, pLeft->data);
-  
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(rightv, int64_t, pRight->type, pRight->data);
-      
-      SET_BIGINT_VAL(pOut->data, leftv & rightv);
-    }
-  } else if (pRight->num == 1) {
-    sclMoveParamListData(pRight, 1, 0);
-    GET_TYPED_DATA(rightv, int64_t, pRight->type, pRight->data);
-  
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, int64_t, pLeft->type, pLeft->data);
-
-      SET_BIGINT_VAL(pOut->data, leftv & rightv);
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
     }
   }
-
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
 }
 
 void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  int64_t leftv = 0, rightv = 0;
 
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pRight->num};
-  if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(int64_t));
-    if (NULL == leftParam.data) {
-      sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
-      return;
-    }
-    leftParam.orig.data = leftParam.data;
+  int32_t leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
+  SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
 
-    if (vectorConvertImpl(pLeft, &leftParam)) {
-      return;
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
+
+  int64_t *output = (int64_t *)pOutputCol->pData;
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+      *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) | getVectorBigintValueFnRight(pRightCol->pData, i);
     }
-    pLeft = &leftParam;
-  }
-  if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(int64_t));
-    if (NULL == rightParam.data) {
-      sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
-      sclFreeParam(&leftParam);
-      return;
+
+    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+    if (pOutputCol->hasNull) {
+      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+      for (int32_t j = 0; j < numOfBitLen; ++j) {
+        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+      }
     }
-    rightParam.orig.data = rightParam.data;
-    
-    if (vectorConvertImpl(pRight, &rightParam)) {
-      sclFreeParam(&leftParam);
-      sclFreeParam(&rightParam);
-      return;
-    }
-    pRight = &rightParam;
+  } else if (pLeft->numOfRows == 1) {
+    vectorBitOrHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+  } else if (pRight->numOfRows == 1) {
+    vectorBitOrHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
   }
 
-  _getBigintValue_fn_t getVectorBigintValueFnLeft = getVectorBigintValueFn(pLeft->type);
-  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRight->type);
-
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, int64_t, pLeft->type, pLeft->data);
-      GET_TYPED_DATA(rightv, int64_t, pRight->type, pRight->data);
-
-      SET_BIGINT_VAL(pOut->data, leftv | rightv);
-    }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    GET_TYPED_DATA(leftv, int64_t, pLeft->type, pLeft->data);
-  
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(rightv, int64_t, pRight->type, pRight->data);
-      
-      SET_BIGINT_VAL(pOut->data, leftv | rightv);
-    }
-  } else if (pRight->num == 1) {
-    sclMoveParamListData(pRight, 1, 0);
-    GET_TYPED_DATA(rightv, int64_t, pRight->type, pRight->data);
-  
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
-        continue;
-      }
-
-      GET_TYPED_DATA(leftv, int64_t, pLeft->type, pLeft->data);
-
-      SET_BIGINT_VAL(pOut->data, leftv | rightv);
-    }
-  }
-
-
-  sclFreeParam(&leftParam);
-  sclFreeParam(&rightParam);  
+  doReleaseVec(pLeftCol,  leftConvert);
+  doReleaseVec(pRightCol, rightConvert);
 }
 
-
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  __compar_fn_t fp = filterGetCompFunc(pLeft->type, optr);
-  bool res = false;
+  int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+  __compar_fn_t fp = filterGetCompFunc(GET_PARAM_TYPE(pLeft), optr);
 
-  if (pLeft->num == pRight->num) {
-    for (; i < pRight->num && i >= 0; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  if (pRight->pHashFilter != NULL) {
+    for (; i >= 0 && i < pLeft->numOfRows; i += step) {
+      if (colDataIsNull_s(pLeft->columnData, i)) {
         continue;
       }
 
-      res = filterDoCompare(fp, optr, pLeft->data, pRight->data);
-
-      SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
+      char *pLeftData = colDataGetData(pLeft->columnData, i);
+      bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
-  } else if (pLeft->num == 1) {
-    sclMoveParamListData(pLeft, 1, 0);
-    
-    for (; i >= 0 && i < pRight->num; i += step) {
-      sclMoveParamListData(pRight, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, 0) || sclIsNull(pRight, i)) {
-        sclSetNull(pOut, i);
-        continue;
+    return;
+  }
+
+  if (pLeft->numOfRows == pRight->numOfRows) {
+    for (; i < pRight->numOfRows && i >= 0; i += step) {
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+        continue;  // TODO set null or ignore
       }
 
-
-      res = filterDoCompare(fp, optr, pLeft->data, pRight->data);
-
-      SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
+      char *pLeftData = colDataGetData(pLeft->columnData, i);
+      char *pRightData = colDataGetData(pRight->columnData, i);
+      bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
-  } else if (pRight->num == 1) {
-    sclMoveParamListData(pRight, 1, 0);
-  
-    for (; i >= 0 && i < pLeft->num; i += step) {
-      sclMoveParamListData(pLeft, 1, i);
-      sclMoveParamListData(pOut, 1, i);
-      
-      if (sclIsNull(pLeft, i) || sclIsNull(pRight, 0)) {
-        sclSetNull(pOut, i);
+  } else if (pRight->numOfRows == 1) {
+    char *pRightData = colDataGetData(pRight->columnData, 0);
+    ASSERT(pLeft->pHashFilter == NULL);
+
+    for (; i >= 0 && i < pLeft->numOfRows; i += step) {
+      if (colDataIsNull_s(pLeft->columnData, i)) {
         continue;
       }
 
-      res = filterDoCompare(fp, optr, pLeft->data, pRight->data);
+      char *pLeftData = colDataGetData(pLeft->columnData, i);
+      bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
+    }
+  } else if (pLeft->numOfRows == 1) {
+    char *pLeftData = colDataGetData(pLeft->columnData, 0);
+    for (; i >= 0 && i < pRight->numOfRows; i += step) {
+      if (colDataIsNull_s(pRight->columnData, i)) {
+        continue;
+      }
 
-      SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
+      char *pRightData = colDataGetData(pLeft->columnData, i);
+      bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
   }
 }
@@ -1459,21 +1138,19 @@ void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
   SScalarParam *param1 = NULL; 
   SScalarParam *param2 = NULL;
 
-  int32_t type = 0;
-  if (pLeftOut.type) {
+  if (pLeftOut.columnData != NULL) {
     param1 = &pLeftOut;
   } else {
     param1 = pLeft;
   }
 
-  if (pRightOut.type) {
+  if (pRightOut.columnData != NULL) {
     param2 = &pRightOut;
   } else {
     param2 = pRight;
   }
 
   vectorCompareImpl(param1, param2, pOut, _ord, optr);
-
   sclFreeParam(&pLeftOut);
   sclFreeParam(&pRightOut);  
 }
@@ -1527,63 +1204,39 @@ void vectorNotMatch(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOu
 }
 
 void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  bool res = false;
-  
-  for (; i >= 0 && i < pLeft->num; i += step) {
-    sclMoveParamListData(pLeft, 1, i);
-    sclMoveParamListData(pOut, 1, i);
-    
-    if (sclIsNull(pLeft, i)) {
-      res = true;
-      SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
-      continue;
-    }
-
-    res = false;
-    SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
+  for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
+    int8_t v = colDataIsNull_s(pLeft->columnData, i)? 1:0;
+    colDataAppendInt8(pOut->columnData, i, &v);
   }
+  pOut->numOfRows = pLeft->numOfRows;
 }
 
 void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  bool res = false;
-
-  for (; i >= 0 && i < pLeft->num; i += step) {
-    sclMoveParamListData(pLeft, 1, i);
-    sclMoveParamListData(pOut, 1, i);
-    
-    if (sclIsNull(pLeft, i)) {
-      res = false;
-      SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
-      continue;
-    }
-
-    res = true;
-    SET_TYPED_DATA(pOut->data, TSDB_DATA_TYPE_BOOL, res);
+  for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
+    int8_t v = colDataIsNull_s(pLeft->columnData, i)? 0:1;
+    colDataAppendInt8(pOut->columnData, i, &v);
   }
-
+  pOut->numOfRows = pLeft->numOfRows;
 }
 
 void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   vectorConvertImpl(pLeft, pOut);
 }
 
-
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
   switch (binFunctionId) {
     case OP_TYPE_ADD:
-      return vectorAdd;
+      return vectorMathAdd;
     case OP_TYPE_SUB:
-      return vectorSub;
+      return vectorMathSub;
     case OP_TYPE_MULTI:
-      return vectorMultiply;
+      return vectorMathMultiply;
     case OP_TYPE_DIV:
-      return vectorDivide;
+      return vectorMathDivide;
     case OP_TYPE_MOD:
-      return vectorRemainder;
+      return vectorMathRemainder;
+    case OP_TYPE_MINUS:
+      return vectorMathMinus;
     case OP_TYPE_GREATER_THAN:
       return vectorGreater;
     case OP_TYPE_GREATER_EQUAL:
@@ -1623,5 +1276,3 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return NULL;
   }
 }
-
-

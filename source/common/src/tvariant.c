@@ -199,14 +199,14 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
     case TSDB_DATA_TYPE_NCHAR: {  // here we get the nchar length from raw binary bits length
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
 
-      pVar->ucs4 = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
+      pVar->ucs4 = taosMemoryCalloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
       memcpy(pVar->ucs4, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
 
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
-      pVar->pz = calloc(len + 1, sizeof(char));
+      pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
       break;
@@ -224,7 +224,7 @@ void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
-    tfree(pVar->pz);
+    taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
 
@@ -233,7 +233,7 @@ void taosVariantDestroy(SVariant *pVar) {
     size_t num = taosArrayGetSize(pVar->arr);
     for (size_t i = 0; i < num; i++) {
       void *p = taosArrayGetP(pVar->arr, i);
-      free(p);
+      taosMemoryFree(p);
     }
     taosArrayDestroy(pVar->arr);
     pVar->arr = NULL;
@@ -254,7 +254,7 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
-    char   *p = realloc(pDst->pz, len);
+    char   *p = taosMemoryRealloc(pDst->pz, len);
     assert(p);
 
     memset(p, 0, len);
@@ -402,18 +402,18 @@ static int32_t toBinary(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
 
   // it is a in-place convert type for SVariant, local buffer is needed
   if (*pDest == pVariant->pz) {
-    pBuf = calloc(1, INITIAL_ALLOC_SIZE);
+    pBuf = taosMemoryCalloc(1, INITIAL_ALLOC_SIZE);
   }
 
   if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
     size_t newSize = pVariant->nLen * TSDB_NCHAR_SIZE;
     if (pBuf != NULL) {
       if (newSize >= INITIAL_ALLOC_SIZE) {
-        pBuf = realloc(pBuf, newSize + 1);
+        pBuf = taosMemoryRealloc(pBuf, newSize + 1);
       }
 
       taosUcs4ToMbs(pVariant->ucs4, (int32_t)newSize, pBuf);
-      free(pVariant->ucs4);
+      taosMemoryFree(pVariant->ucs4);
       pBuf[newSize] = 0;
     } else {
       taosUcs4ToMbs(pVariant->ucs4, (int32_t)newSize, *pDest);
@@ -460,23 +460,23 @@ static int32_t toNchar(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
   }
 
   if (*pDest == pVariant->pz) {
-    TdUcs4 *pWStr = calloc(1, (nLen + 1) * TSDB_NCHAR_SIZE);
+    TdUcs4 *pWStr = taosMemoryCalloc(1, (nLen + 1) * TSDB_NCHAR_SIZE);
     bool     ret = taosMbsToUcs4(pDst, nLen, pWStr, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
     if (!ret) {
-      tfree(pWStr);
+      taosMemoryFreeClear(pWStr);
       return -1;
     }
 
     // free the binary buffer in the first place
     if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
-      free(pVariant->ucs4);
+      taosMemoryFree(pVariant->ucs4);
     }
 
     pVariant->ucs4 = pWStr;
     *pDestSize = taosUcs4len(pVariant->ucs4);
 
     // shrink the allocate memory, no need to check here.
-    char *tmp = realloc(pVariant->ucs4, (*pDestSize + 1) * TSDB_NCHAR_SIZE);
+    char *tmp = taosMemoryRealloc(pVariant->ucs4, (*pDestSize + 1) * TSDB_NCHAR_SIZE);
     assert(tmp != NULL);
 
     pVariant->ucs4 = (TdUcs4 *)tmp;
@@ -512,6 +512,16 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
     setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
   }
+
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
+    *result = pVariant->i;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
+    *result = pVariant->u;
+  } else if (IS_FLOAT_TYPE(pVariant->nType)) {
+    *result = (int64_t) pVariant->d;
+  } else {
+    //TODO: handling var types
+  }
 #if 0
   errno = 0;
   if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
@@ -526,7 +536,7 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
 
     if (token.type == TK_NULL) {
       if (releaseVariantPtr) {
-        free(pVariant->pz);
+        taosMemoryFree(pVariant->pz);
         pVariant->nLen = 0;
       }
 
@@ -547,7 +557,7 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
     }
 
     if (releaseVariantPtr) {
-      free(pVariant->pz);
+      taosMemoryFree(pVariant->pz);
       pVariant->nLen = 0;
     }
 
@@ -566,7 +576,7 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
     if (token.type == TK_FLOAT) {
       double v = wcstod(pVariant->ucs4, &endPtr);
       if (releaseVariantPtr) {
-        free(pVariant->pz);
+        taosMemoryFree(pVariant->pz);
         pVariant->nLen = 0;
       }
       
@@ -577,7 +587,7 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
       *result = (int64_t)v;
     } else if (token.type == TK_NULL) {
       if (releaseVariantPtr) {
-        free(pVariant->pz);
+        taosMemoryFree(pVariant->pz);
         pVariant->nLen = 0;
       }
       setNull((char *)result, type, tDataTypes[type].bytes);
@@ -585,7 +595,7 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
     } else {
       int64_t val = wcstoll(pVariant->ucs4, &endPtr, 10);
       if (releaseVariantPtr) {
-        free(pVariant->pz);
+        taosMemoryFree(pVariant->pz);
         pVariant->nLen = 0;
       }
       
@@ -971,21 +981,21 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
         errno = 0;
         double v = strtod(pVariant->pz, NULL);
         if ((errno == ERANGE && v == -1) || (isinf(v) || isnan(v))) {
-          free(pVariant->pz);
+          taosMemoryFree(pVariant->pz);
           return -1;
         }
 
-        free(pVariant->pz);
+        taosMemoryFree(pVariant->pz);
         pVariant->d = v;
       } else if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
         errno = 0;
         double v = wcstod(pVariant->ucs4, NULL);
         if ((errno == ERANGE && v == -1) || (isinf(v) || isnan(v))) {
-          free(pVariant->pz);
+          taosMemoryFree(pVariant->pz);
           return -1;
         }
 
-        free(pVariant->pz);
+        taosMemoryFree(pVariant->pz);
         pVariant->d = v;
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
         double tmp = (double)pVariant->i;
@@ -1014,4 +1024,32 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
   }
 
   return 0;
+}
+
+char * taosVariantGet(SVariant *pVar, int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (char *)&pVar->i;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (char *)&pVar->u;
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_FLOAT:
+      return (char *)&pVar->d;
+    case TSDB_DATA_TYPE_BINARY:
+      return (char *)pVar->pz;
+    case TSDB_DATA_TYPE_NCHAR:
+      return (char *)pVar->ucs4;
+    default:
+      return NULL;
+  }
+
+  return NULL;
 }

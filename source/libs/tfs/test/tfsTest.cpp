@@ -196,7 +196,7 @@ TEST_F(TfsTest, 04_File) {
 
   {
     int32_t size = 1024;
-    void   *ret = malloc(size + sizeof(size_t));
+    void   *ret = taosMemoryMalloc(size + sizeof(size_t));
     *(size_t *)ret = size;
     void *buf = (void *)((char *)ret + sizeof(size_t));
 
@@ -231,7 +231,7 @@ TEST_F(TfsTest, 04_File) {
     EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
     // FILE *fp = fopen(f1.aname, "w");
-    TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     ASSERT_NE(pFile, nullptr);
     taosWriteFile(pFile, "12345678", 5);
     taosCloseFile(&pFile);
@@ -640,7 +640,7 @@ TEST_F(TfsTest, 05_MultiDisk) {
       EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
       // FILE *fp = fopen(f1.aname, "w");
-      TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
       ASSERT_NE(pFile, nullptr);
       taosWriteFile(pFile, "12345678", 5);
       taosCloseFile(&pFile);

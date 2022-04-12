@@ -49,12 +49,17 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
-  SRpcMsg rpcMsg;
-  int32_t rspLen;
-  void   *pRsp;
-  void   *pNode;
+  char     user[TSDB_USER_LEN];
+  uint32_t clientIp;
+  uint16_t clientPort;
+  SRpcMsg  rpcMsg;
+  int32_t  rspLen;
+  void    *pRsp;
+  void    *pNode;
 } SNodeMsg;
+
+typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
+typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -72,22 +77,30 @@ typedef struct SRpcInit {
   char *ckey;     // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
-  void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
+  RpcCfp cfp;
 
   // call back to retrieve the client auth info, for server app only
-  int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+  RpcAfp afp;;
 
   void *parent;
 } SRpcInit;
 
 typedef struct {
-  void *  val;
-  int32_t len;
-  void (*free)(void *arg);
+  void     *val;
+  int32_t (*clone)(void *src, void **dst);
+  void    (*freeFunc)(const void *arg);
 } SRpcCtxVal;
 
 typedef struct {
-  SHashObj *args;
+  int32_t   msgType;
+  void     *val;
+  int32_t (*clone)(void *src, void **dst);
+  void    (*freeFunc)(const void *arg);
+} SRpcBrokenlinkVal;
+
+typedef struct {
+  SHashObj *        args;
+  SRpcBrokenlinkVal brokenVal;
 } SRpcCtx;
 
 int32_t rpcInit();
@@ -97,20 +110,20 @@ void    rpcClose(void *);
 void *  rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);
 void *  rpcReallocCont(void *ptr, int contLen);
-void    rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
-void    rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 
+// Because taosd supports multi-process mode
+// These functions should not be used on the server side
+// Please use tmsg<xx> functions, which are defined in tmsgcb.h
+void rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 void rpcSendResponse(const SRpcMsg *pMsg);
+void rpcRegisterBrokenLinkArg(SRpcMsg *msg);
+void rpcReleaseHandle(void *handle, int8_t type);  // just release client conn to rpc instance, no close sock
+
+// These functions will not be called in the child process
 void rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
+void rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 int  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
-int  rpcReportProgress(void *pConn, char *pCont, int contLen);
-void rpcCancelRequest(int64_t rid);
-void rpcRegisterBrokenLinkArg(SRpcMsg *msg);
-// just release client conn to rpc instance, no close sock
-void rpcReleaseHandle(void *handle, int8_t type);  //
-void rpcRefHandle(void *handle, int8_t type);
-void rpcUnrefHandle(void *handle, int8_t type);
 
 #ifdef __cplusplus
 }

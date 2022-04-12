@@ -57,24 +57,30 @@ typedef enum EFunctionType {
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
-  FUNCTION_TYPE_ACOS,
-  FUNCTION_TYPE_ASION,
-  FUNCTION_TYPE_ATAN,
-  FUNCTION_TYPE_CEIL,
-  FUNCTION_TYPE_COS,
-  FUNCTION_TYPE_FLOOR,
   FUNCTION_TYPE_LOG,
   FUNCTION_TYPE_POW,
-  FUNCTION_TYPE_ROUND,
-  FUNCTION_TYPE_SIN,
   FUNCTION_TYPE_SQRT,
+  FUNCTION_TYPE_CEIL,
+  FUNCTION_TYPE_FLOOR,
+  FUNCTION_TYPE_ROUND,
+
+  FUNCTION_TYPE_SIN,
+  FUNCTION_TYPE_COS,
   FUNCTION_TYPE_TAN,
+  FUNCTION_TYPE_ASIN,
+  FUNCTION_TYPE_ACOS,
+  FUNCTION_TYPE_ATAN,
 
   // string function
-  FUNCTION_TYPE_CHAR_LENGTH = 1500,
+  FUNCTION_TYPE_LENGTH = 1500,
+  FUNCTION_TYPE_CHAR_LENGTH,
   FUNCTION_TYPE_CONCAT,
   FUNCTION_TYPE_CONCAT_WS,
-  FUNCTION_TYPE_LENGTH,
+  FUNCTION_TYPE_LOWER,
+  FUNCTION_TYPE_UPPER,
+  FUNCTION_TYPE_LTRIM,
+  FUNCTION_TYPE_RTRIM,
+  FUNCTION_TYPE_SUBSTR,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -95,19 +101,21 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SERVER_SERSION,
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
-  FUNCTION_TYPE_USER
+  FUNCTION_TYPE_USER,
+
+  // pseudo column function
+  FUNCTION_TYPE_ROWTS = 3500,
+  FUNCTION_TYPE_TBNAME,
+  FUNCTION_TYPE_QSTARTTS,
+  FUNCTION_TYPE_QENDTS,
+  FUNCTION_TYPE_WSTARTTS,
+  FUNCTION_TYPE_WENDTS,
+  FUNCTION_TYPE_WDURATION
 } EFunctionType;
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
-
-typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-
-typedef struct SScalarFuncExecFuncs {
-  FScalarExecProcess process;
-} SScalarFuncExecFuncs;
-
 
 int32_t fmFuncMgtInit();
 
@@ -124,8 +132,20 @@ bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
+bool fmIsPseudoColumnFunc(int32_t funcId);
+bool fmIsWindowPseudoColumnFunc(int32_t funcId);
+bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsSpecialDataRequiredFunc(int32_t funcId);
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 
-int32_t fmFuncScanType(int32_t funcId);
+typedef enum EFuncDataRequired {
+  FUNC_DATA_REQUIRED_ALL_NEEDED = 1,
+  FUNC_DATA_REQUIRED_STATIS_NEEDED,
+  FUNC_DATA_REQUIRED_NO_NEEDED,
+  FUNC_DATA_REQUIRED_DISCARD
+} EFuncDataRequired;
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);

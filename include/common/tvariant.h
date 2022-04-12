@@ -59,6 +59,7 @@ int32_t taosVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool 
 #endif
 
 int32_t taosVariantTypeSetType(SVariant *pVariant, char type);
+char * taosVariantGet(SVariant *pVar, int32_t type);
 
 #ifdef __cplusplus
 }

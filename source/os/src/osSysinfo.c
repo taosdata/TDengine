@@ -129,14 +129,12 @@ static void taosGetProcIOnfos() {
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    // printf("open file:%s failed", tsSysCpuFile);
     return -1;
   }
 
   char   *line = NULL;
   ssize_t _bytes = taosGetLineFile(pFile, &line);
   if ((_bytes < 0) || (line == NULL)) {
-    // printf("read file:%s failed", tsSysCpuFile);
     taosCloseFile(&pFile);
     return -1;
   }
@@ -145,7 +143,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
          &cpuInfo->idle);
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 }
@@ -153,14 +151,12 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    // printf("open file:%s failed", tsProcCpuFile);
     return -1;
   }
 
   char   *line = NULL;
   ssize_t _bytes = taosGetLineFile(pFile, &line);
   if ((_bytes < 0) || (line == NULL)) {
-    // printf("read file:%s failed", tsProcCpuFile);
     taosCloseFile(&pFile);
     return -1;
   }
@@ -174,7 +170,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     }
   }
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 }
@@ -182,12 +178,12 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 #endif
 
 bool taosCheckSystemIsSmallEnd() {
-    union check{
-        int16_t i;
-        char ch[2];
-    }c;
-    c.i=1;
-    return c.ch[0]==1;
+  union check {
+    int16_t i;
+    char    ch[2];
+  } c;
+  c.i = 1;
+  return c.ch[0] == 1;
 }
 
 void taosGetSystemInfo() {
@@ -268,7 +264,7 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
   return code;
 #else
@@ -293,7 +289,7 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
   return code;
 #endif
@@ -324,7 +320,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
   return code;
@@ -351,7 +347,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
   return code;
@@ -486,7 +482,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   char tmp[10];
   sscanf(line, "%s %" PRId64, tmp, usedKB);
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 #endif
@@ -606,7 +602,7 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     if (readIndex >= 4) break;
   }
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 
   if (readIndex < 4) {
@@ -615,6 +611,28 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
 
   return 0;
 #endif
+}
+
+void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
+  static int64_t last_rchars = 0;
+  static int64_t last_wchars = 0;
+  static int64_t last_read_bytes = 0;
+  static int64_t last_write_bytes = 0;
+
+  static int64_t cur_rchars = 0;
+  static int64_t cur_wchars = 0;
+  static int64_t cur_read_bytes = 0;
+  static int64_t cur_write_bytes = 0;
+  if (taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes) == 0) {
+    *rchars = cur_rchars - last_rchars;
+    *wchars = cur_wchars - last_wchars;
+    *read_bytes = cur_read_bytes - last_read_bytes;
+    *write_bytes = cur_write_bytes - last_write_bytes;
+    last_rchars = cur_rchars;
+    last_wchars = cur_wchars;
+    last_read_bytes = cur_read_bytes;
+    last_write_bytes = cur_write_bytes;
+  }
 }
 
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
@@ -665,11 +683,25 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     *transmit_bytes = o_tbytes;
   }
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 
   return 0;
 #endif
+}
+
+void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
+  static int64_t last_receive_bytes = 0;
+  static int64_t last_transmit_bytes = 0;
+
+  static int64_t cur_receive_bytes = 0;
+  static int64_t cur_transmit_bytes = 0;
+  if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
+    *receive_bytes = cur_receive_bytes - last_receive_bytes;
+    *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    last_receive_bytes = cur_receive_bytes;
+    last_transmit_bytes = cur_transmit_bytes;
+  }
 }
 
 void taosKillSystem() {

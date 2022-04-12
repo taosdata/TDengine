@@ -44,7 +44,7 @@ public:
 
 struct MockTableMeta {
   ~MockTableMeta() {
-    free(schema);
+    taosMemoryFree(schema);
   }
 
   STableMeta* schema;

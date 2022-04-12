@@ -134,7 +134,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     char *revisedCharset = taosCharsetReplace(str);
     tstrncpy(outCharset, revisedCharset, TD_CHARSET_LEN);
 
-    free(revisedCharset);
+    taosMemoryFree(revisedCharset);
     // printf("charset not configured, set to system default:%s", outCharset);
   } else {
     strcpy(outCharset, "UTF-8");
@@ -179,7 +179,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     char *revisedCharset = taosCharsetReplace(str);
     tstrncpy(outCharset, revisedCharset, TD_LOCALE_LEN);
 
-    free(revisedCharset);
+    taosMemoryFree(revisedCharset);
     // printf("charset not configured, set to system default:%s", outCharset);
   } else {
     strcpy(outCharset, "UTF-8");

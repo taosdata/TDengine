@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
+#include "vnodeInt.h"
 #include "tglobal.h"
 
 SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED};
@@ -29,7 +29,7 @@ int vnodeInit() {
 
   // Start commit handers
   vnodeMgr.nthreads = tsNumOfCommitThreads;
-  vnodeMgr.threads = calloc(vnodeMgr.nthreads, sizeof(TdThread));
+  vnodeMgr.threads = taosMemoryCalloc(vnodeMgr.nthreads, sizeof(TdThread));
   if (vnodeMgr.threads == NULL) {
     return -1;
   }
@@ -65,7 +65,7 @@ void vnodeCleanup() {
     taosThreadJoin(vnodeMgr.threads[i], NULL);
   }
 
-  tfree(vnodeMgr.threads);
+  taosMemoryFreeClear(vnodeMgr.threads);
   taosThreadCondDestroy(&(vnodeMgr.hasTask));
   taosThreadMutexDestroy(&(vnodeMgr.mutex));
 }
@@ -107,7 +107,7 @@ static void* loop(void* arg) {
     taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
     (*(pTask->execute))(pTask->arg);
-    free(pTask);
+    taosMemoryFree(pTask);
   }
 
   return NULL;

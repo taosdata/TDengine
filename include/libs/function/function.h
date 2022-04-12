@@ -27,16 +27,23 @@ extern "C" {
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
-typedef struct SFunctionNode SFunctionNode;
+struct SFunctionNode;
+typedef struct SScalarParam SScalarParam;
 
 typedef struct SFuncExecEnv {
   int32_t calcMemSize;
 } SFuncExecEnv;
 
-typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
-typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+typedef struct SScalarFuncExecFuncs {
+  FExecGetEnv getEnv;
+  FScalarExecProcess process;
+} SScalarFuncExecFuncs;
 
 typedef struct SFuncExecFuncs {
   FExecGetEnv getEnv;
@@ -45,7 +52,12 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
+typedef struct SFileBlockInfo {
+  int32_t numBlocksOfStep;
+} SFileBlockInfo;
+
+#define TSDB_BLOCK_DIST_STEP_ROWS 8
+#define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define FUNCTION_TYPE_SCALAR       1
 #define FUNCTION_TYPE_AGG          2
@@ -94,18 +106,15 @@ typedef struct SFuncExecFuncs {
 #define FUNCTION_DERIVATIVE   32
 #define FUNCTION_BLKINFO      33
 
-#define FUNCTION_HISTOGRAM    34
-#define FUNCTION_HLL          35
-#define FUNCTION_MODE         36
-#define FUNCTION_SAMPLE       37
 
 #define FUNCTION_COV          38
 
 typedef struct SResultRowEntryInfo {
-  int8_t   hasResult;       // result generated, not NULL value
-  bool     initialized;     // output buffer has been initialized
-  bool     complete;        // query has completed
-  uint32_t numOfRes;        // num of output result in current buffer
+//  int8_t   hasResult:6;       // result generated, not NULL value
+  bool     initialized:1;     // output buffer has been initialized
+  bool     complete:1;        // query has completed
+  uint8_t  isNullRes:6;       // the result is null
+  uint8_t  numOfRes;        // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -146,7 +155,8 @@ typedef struct SResultDataInfo {
   int32_t interBufSize;
 } SResultDataInfo;
 
-#define GET_RES_INFO(ctx) ((ctx)->resultInfo)
+#define GET_RES_INFO(ctx)        ((ctx)->resultInfo)
+#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowEntryInfo)))
 
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;      // total rows in current columnar data
@@ -176,21 +186,23 @@ typedef struct SqlFunctionCtx {
   int32_t          columnIndex;  // TODO remove it
   uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
+  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
   /////////////////////////////////////////////////////////////////
   bool             stableQuery;
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
-  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block
   int32_t          numOfParams;
   SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
-  void            *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  int32_t          offset;
   SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo     subsidiaryRes;
   SPoint1          start;
   SPoint1          end;
   SFuncExecFuncs   fpSet;
+  SScalarFuncExecFuncs sfp;
 } SqlFunctionCtx;
 
 enum {
@@ -203,7 +215,7 @@ enum {
 };
 
 typedef struct tExprNode {
-  uint8_t nodeType;
+  int32_t nodeType;
   union {
     struct {
       int32_t           optr;   // binary operator
@@ -219,7 +231,7 @@ typedef struct tExprNode {
       char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
       int32_t           functionId;
       int32_t           num;
-      SFunctionNode    *pFunctNode;
+      struct SFunctionNode    *pFunctNode;
       // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the
       // calculation instead.
       // E.g., Cov(col1, col2), the column information, w.r.t. the col1 and col2, is kept in pChild nodes.
@@ -227,10 +239,13 @@ typedef struct tExprNode {
       //  operator and is kept in the attribute of _node.
       struct tExprNode **pChild;
     } _function;
+
+    struct {
+      struct SNode* pRootNode;
+    } _optrRoot;
   };
 } tExprNode;
 
-void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
 typedef struct SAggFunctionInfo {
@@ -250,47 +265,11 @@ typedef struct SAggFunctionInfo {
   int32_t (*dataReqFunc)(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
-typedef struct SScalarParam {
-  void            *data;
-  union {
-    SColumnInfoData *columnData;
-    void            *data;
-  } orig;  
-  char            *bitmap;
-  bool             dataInBlock;
-  int32_t          num;
-  int32_t          type;
-  int32_t          bytes;
-} SScalarParam;
-
-typedef struct SScalarFunctionInfo {
-  char      name[FUNCTIONS_NAME_MAX_LENGTH];
-  int8_t    type;              // scalar function or aggregation function
-  uint32_t  functionId;        // index of scalar function
-  void     (*process)(struct SScalarParam* pOutput, size_t numOfInput, const struct SScalarParam *pInput);
-} SScalarFunctionInfo;
-
-typedef struct SMultiFunctionsDesc {
-  bool stableQuery;
-  bool groupbyColumn;
-  bool agg;
-  bool arithmeticOnAgg;
-  bool projectionQuery;
-  bool hasFilter;
-  bool onlyTagQuery;
-  bool orderProjectQuery;
-  bool globalMerge;
-  bool multigroupResult;
-  bool blockDistribution;
-  bool stateWindow;
-  bool timewindow;
-  bool sessionWindow;
-  bool topbotQuery;
-  bool interpQuery;
-  bool distinct;
-  bool join;
-  bool continueQuery;
-} SMultiFunctionsDesc;
+struct SScalarParam {
+  SColumnInfoData   *columnData;
+  SHashObj          *pHashFilter;
+  int32_t            numOfRows;
+};
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
@@ -298,8 +277,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
-
-void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc);
 
 tExprNode* exprdup(tExprNode* pTree);
 

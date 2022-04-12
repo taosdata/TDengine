@@ -112,6 +112,11 @@ private:
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
       pCxt->topicQuery = true;
+    } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
+      SMCreateSmaReq req = {0};
+      tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      pCxt->streamQuery = true;
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }
@@ -133,7 +138,7 @@ private:
       return string();
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 
@@ -152,6 +157,13 @@ TEST_F(PlannerTest, simple) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, selectConstant) {
+  setDatabase("root", "test");
+
+  bind("SELECT 2-1 FROM t1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, stSimple) {
   setDatabase("root", "test");
 
@@ -165,14 +177,14 @@ TEST_F(PlannerTest, groupBy) {
   bind("SELECT count(*) FROM t1");
   ASSERT_TRUE(run());
 
-  bind("SELECT c1, count(*) FROM t1 GROUP BY c1");
-  ASSERT_TRUE(run());
+  // bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
+  // ASSERT_TRUE(run());
 
-  bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
-  ASSERT_TRUE(run());
+  // bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
+  // ASSERT_TRUE(run());
 
-  bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
-  ASSERT_TRUE(run());
+  // bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
+  // ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, subquery) {
@@ -187,6 +199,15 @@ TEST_F(PlannerTest, interval) {
 
   bind("SELECT count(*) FROM t1 interval(10s)");
   ASSERT_TRUE(run());
+
+  bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 interval(10s) fill(linear)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*), sum(c1) FROM t1 interval(10s) fill(value, 10, 20)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, sessionWindow) {
@@ -196,10 +217,114 @@ TEST_F(PlannerTest, sessionWindow) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, stateWindow) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 state_window(c1)");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 state_window(c1 + 10)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, partitionBy) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 partition by c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 partition by c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM t1 partition by c1 group by c2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) FROM st1 partition by tag1, tag2 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, orderBy) {
+  setDatabase("root", "test");
+
+  bind("SELECT c1 FROM t1 order by c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT c1 FROM t1 order by c2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 order by c1 + 10, c2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 order by c1 desc nulls first");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, groupByOrderBy) {
+  setDatabase("root", "test");
+
+  bind("select count(*), sum(c1) from t1 order by sum(c1)");
+  ASSERT_TRUE(run());
+
+  bind("select count(*), sum(c1) a from t1 order by a");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, distinct) {
+  setDatabase("root", "test");
+
+  bind("SELECT distinct c1 FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT distinct c1, c2 + 10 FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT distinct c1 + 10 a FROM t1 order by a");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, limit) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 limit 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 limit 5 offset 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 limit 2, 5");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, slimit) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 partition by c1 slimit 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 partition by c1 slimit 5 soffset 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 partition by c1 slimit 2, 5");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, showTables) {
   setDatabase("root", "test");
 
   bind("show tables");
+  ASSERT_TRUE(run());
+
+  setDatabase("root", "information_schema");
+
+  bind("show tables");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, showStables) {
+  setDatabase("root", "test");
+
+  bind("show stables");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, createTopic) {
@@ -214,4 +339,24 @@ TEST_F(PlannerTest, stream) {
 
   bind("SELECT sum(c1) FROM st1");
   ASSERT_TRUE(run(true));
+}
+
+TEST_F(PlannerTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, explain) {
+  setDatabase("root", "test");
+
+  bind("explain SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
+  ASSERT_TRUE(run());
 }

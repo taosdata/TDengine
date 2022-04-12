@@ -21,16 +21,25 @@ extern "C" {
 #endif
 
 typedef struct STEnv {
-  char *   rootDir;
-  char *   jfname;
+  char    *rootDir;
+  char    *jfname;
   int      jfd;
   SPCache *pCache;
-} STEnv;
+  SPager  *pgrList;
+  int      nPager;
+  int      nPgrHash;
+  SPager **pgrHash;
+} TENV;
 
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
-int tdbEnvClose(STEnv *pEnv);
+int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv);
+int tdbEnvClose(TENV *pEnv);
+int tdbBegin(TENV *pEnv, TXN *pTxn);
+int tdbCommit(TENV *pEnv, TXN *pTxn);
+int tdbRollback(TENV *pEnv, TXN *pTxn);
 
-SPager *tdbEnvGetPager(STEnv *pEnv, const char *fname);
+void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
+void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
+SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
 
 #ifdef __cplusplus
 }

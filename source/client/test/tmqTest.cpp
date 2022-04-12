@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 
 TEST(testCase, driverInit_Test) {
   // taosInitGlobalCfg();
-//  taos_init();
+  //  taos_init();
 }
 
 TEST(testCase, create_topic_ctb_Test) {
@@ -55,8 +55,9 @@ TEST(testCase, create_topic_ctb_Test) {
 
   taos_free_result(pRes);
 
-  char* sql = "select * from tu";
-  pRes = tmq_create_topic(pConn, "test_ctb_topic_1", sql, strlen(sql));
+  // char* sql = "select * from tu";
+  // pRes = tmq_create_topic(pConn, "test_ctb_topic_1", sql, strlen(sql));
+  pRes = taos_query(pConn, "create test_ctb_topic_1 as select * from tu");
   taos_free_result(pRes);
   taos_close(pConn);
 }
@@ -69,7 +70,7 @@ TEST(testCase, create_topic_stb_Test) {
   if (taos_errno(pRes) != 0) {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
   }
-  //taos_free_result(pRes);
+  // taos_free_result(pRes);
 
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   ASSERT_TRUE(pFields == nullptr);
@@ -79,8 +80,9 @@ TEST(testCase, create_topic_stb_Test) {
 
   taos_free_result(pRes);
 
-  char* sql = "select * from st1";
-  pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
+  // char* sql = "select * from st1";
+  // pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
+  pRes = taos_query(pConn, "create test_ctb_topic_1 as select * from st1");
   taos_free_result(pRes);
   taos_close(pConn);
 }

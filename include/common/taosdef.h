@@ -57,6 +57,8 @@ typedef enum {
   TD_ROW_PARTIAL_UPDATE = 2,
 } TDUpdateConfig;
 
+#define TD_SUPPORT_UPDATE(u) ((u) > 0)
+
 typedef enum {
   TSDB_STATIS_OK = 0,    // statis part exist and load successfully
   TSDB_STATIS_NONE = 1,  // statis part not exist
@@ -75,6 +77,13 @@ typedef enum {
   TSDB_SMA_TYPE_TIME_RANGE = 1,  // Time-range-wise SMA
   TSDB_SMA_TYPE_ROLLUP = 2,      // Rollup SMA
 } ETsdbSmaType;
+
+typedef enum {
+  TSDB_BSMA_TYPE_NONE = 0,  // no block-wise SMA
+  TSDB_BSMA_TYPE_I = 1,     // sum/min/max(default)
+} ETsdbBSmaType;
+
+#define TSDB_BSMA_TYPE_LATEST TSDB_BSMA_TYPE_I
 
 extern char *qtypeStr[];
 

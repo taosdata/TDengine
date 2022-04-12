@@ -54,7 +54,7 @@ static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
-static void    mndTransSendRpcRsp(STrans *pTrans);
+static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SNodeMsg *pReq);
 static int32_t mndProcessKillTransReq(SNodeMsg *pReq);
 
@@ -74,7 +74,6 @@ int32_t mndInitTrans(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS_TIMER, mndProcessTransReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRANS, mndProcessKillTransReq);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndGetTransMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndRetrieveTrans);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndCancelGetNextTrans);
   return sdbSetTable(pMnode->pSdb, table);
@@ -255,7 +254,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   for (int32_t i = 0; i < redoLogNum; ++i) {
     SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
-    pData = malloc(dataLen);
+    pData = taosMemoryMalloc(dataLen);
     if (pData == NULL) goto TRANS_DECODE_OVER;
     mTrace("raw:%p, is created", pData);
     SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
@@ -265,7 +264,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   for (int32_t i = 0; i < undoLogNum; ++i) {
     SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
-    pData = malloc(dataLen);
+    pData = taosMemoryMalloc(dataLen);
     if (pData == NULL) goto TRANS_DECODE_OVER;
     mTrace("raw:%p, is created", pData);
     SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
@@ -275,7 +274,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   for (int32_t i = 0; i < commitLogNum; ++i) {
     SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
-    pData = malloc(dataLen);
+    pData = taosMemoryMalloc(dataLen);
     if (pData == NULL) goto TRANS_DECODE_OVER;
     mTrace("raw:%p, is created", pData);
     SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
@@ -288,7 +287,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT16(pRaw, dataPos, &action.msgType, TRANS_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, TRANS_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.contLen, TRANS_DECODE_OVER)
-    action.pCont = malloc(action.contLen);
+    action.pCont = taosMemoryMalloc(action.contLen);
     if (action.pCont == NULL) goto TRANS_DECODE_OVER;
     SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, TRANS_DECODE_OVER);
     if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto TRANS_DECODE_OVER;
@@ -300,7 +299,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT16(pRaw, dataPos, &action.msgType, TRANS_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, TRANS_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.contLen, TRANS_DECODE_OVER)
-    action.pCont = malloc(action.contLen);
+    action.pCont = taosMemoryMalloc(action.contLen);
     if (action.pCont == NULL) goto TRANS_DECODE_OVER;
     SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, TRANS_DECODE_OVER);
     if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto TRANS_DECODE_OVER;
@@ -315,9 +314,9 @@ TRANS_DECODE_OVER:
   if (terrno != 0) {
     mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, terrstr());
     mndTransDropData(pTrans);
-    tfree(pRow);
-    tfree(pData);
-    tfree(action.pCont);
+    taosMemoryFreeClear(pRow);
+    taosMemoryFreeClear(pData);
+    taosMemoryFreeClear(action.pCont);
     return NULL;
   }
 
@@ -428,7 +427,7 @@ static void mndTransDropData(STrans *pTrans) {
   mndTransDropActions(pTrans->redoActions);
   mndTransDropActions(pTrans->undoActions);
   if (pTrans->rpcRsp != NULL) {
-    free(pTrans->rpcRsp);
+    taosMemoryFree(pTrans->rpcRsp);
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
   }
@@ -472,7 +471,7 @@ static void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
 }
 
 STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const SRpcMsg *pReq) {
-  STrans *pTrans = calloc(1, sizeof(STrans));
+  STrans *pTrans = taosMemoryCalloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to create transaction since %s", terrstr());
@@ -517,7 +516,7 @@ static void mndTransDropActions(SArray *pArray) {
   int32_t size = taosArrayGetSize(pArray);
   for (int32_t i = 0; i < size; ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
-    tfree(pAction->pCont);
+    taosMemoryFreeClear(pAction->pCont);
   }
 
   taosArrayDestroy(pArray);
@@ -527,7 +526,7 @@ void mndTransDrop(STrans *pTrans) {
   if (pTrans != NULL) {
     mndTransDropData(pTrans);
     mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
-    tfree(pTrans);
+    taosMemoryFreeClear(pTrans);
   }
 }
 
@@ -737,7 +736,7 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static void mndTransSendRpcRsp(STrans *pTrans) {
+static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   bool sendRsp = false;
 
   if (pTrans->stage == TRN_STAGE_FINISHED) {
@@ -762,7 +761,7 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
     if (rpcCont != NULL) {
       memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
     }
-    free(pTrans->rpcRsp);
+    taosMemoryFree(pTrans->rpcRsp);
 
     mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
@@ -771,7 +770,7 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
                       .ahandle = pTrans->rpcAHandle,
                       .pCont = rpcCont,
                       .contLen = pTrans->rpcRspLen};
-    rpcSendResponse(&rspMsg);
+    tmsgSendRsp(&rspMsg);
     pTrans->rpcHandle = NULL;
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
@@ -898,7 +897,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
-      mDebug("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
+      mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
   }
@@ -938,7 +937,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       return errCode;
     }
   } else {
-    mDebug("trans:%d, %d of %d actions executed, code:0x%04x", pTrans->id, numOfReceived, numOfActions, errCode & 0XFFFF);
+    mDebug("trans:%d, %d of %d actions executing", pTrans->id, numOfReceived, numOfActions);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }
@@ -1158,7 +1157,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  mndTransSendRpcRsp(pTrans);
+  mndTransSendRpcRsp(pMnode, pTrans);
 }
 
 static int32_t mndProcessTransReq(SNodeMsg *pReq) {

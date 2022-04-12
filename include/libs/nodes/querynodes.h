@@ -22,6 +22,7 @@ extern "C" {
 
 #include "nodes.h"
 #include "tmsg.h"
+#include "tvariant.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
@@ -56,7 +57,7 @@ typedef enum EColumnType {
 typedef struct SColumnNode {
   SExprNode node; // QUERY_NODE_COLUMN
   uint64_t tableId;
-  int16_t colId;
+  col_id_t colId;
   EColumnType colType; // column or tag
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
@@ -79,6 +80,7 @@ typedef struct SValueNode {
   char* literal;
   bool isDuration;
   bool translate;
+  bool genByCalc;
   union {
     bool b;
     int64_t i;
@@ -122,6 +124,7 @@ typedef struct STableNode {
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
   char tableAlias[TSDB_TABLE_NAME_LEN];
+  uint8_t precision;
 } STableNode;
 
 struct STableMeta;
@@ -131,6 +134,7 @@ typedef struct SRealTableNode {
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
   char useDbName[TSDB_DB_NAME_LEN];
+  double ratio;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -180,23 +184,25 @@ typedef struct SOrderByExprNode {
 
 typedef struct SLimitNode {
   ENodeType type; // QUERY_NODE_LIMIT
-  uint64_t limit;
-  uint64_t offset;
+  int64_t limit;
+  int64_t offset;
 } SLimitNode;
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
-  SNode* pCol;
+  SNode* pCol; // timestamp primary key
+  SNode* pExpr;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
   ENodeType type; // QUERY_NODE_SESSION_WINDOW
-  SNode* pCol;
+  SNode* pCol; // timestamp primary key
   SNode* pGap; // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {
   ENodeType type; // QUERY_NODE_INTERVAL_WINDOW
+  SNode* pCol; // timestamp primary key
   SNode* pInterval; // SValueNode
   SNode* pOffset;   // SValueNode
   SNode* pSliding;  // SValueNode
@@ -231,6 +237,9 @@ typedef struct SSelectStmt {
   SNodeList* pOrderByList; // SOrderByExprNode
   SNode* pLimit;
   SNode* pSlimit;
+  char stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t precision;
+  bool isEmptyResult;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
@@ -253,6 +262,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_GROUP_BY,
   SQL_CLAUSE_HAVING,
+  SQL_CLAUSE_DISTINCT,
   SQL_CLAUSE_SELECT,
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
@@ -274,11 +284,23 @@ typedef struct SVnodeModifOpStmt {
   ENodeType   nodeType;
   ENodeType   sqlNodeType;
   SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  int8_t      schemaAttache;       // denote if submit block is built with table schema or not
   uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
   const char* sql;                 // current sql statement position
 } SVnodeModifOpStmt;
+
+typedef struct SExplainOptions {
+  ENodeType type;
+  bool verbose;
+  double ratio;
+} SExplainOptions;
+
+typedef struct SExplainStmt {
+  ENodeType type;
+  bool analyze;
+  SExplainOptions* pOptions;
+  SNode* pQuery;
+} SExplainStmt;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
@@ -290,6 +312,7 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
 
 bool nodesIsExprNode(const SNode* pNode);
 
+bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
@@ -298,6 +321,9 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
+char* nodesGetStrValueFromNode(SValueNode *pNode);
+char *getFillModeString(EFillMode mode);
+void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 #ifdef __cplusplus
 }

@@ -206,8 +206,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   char utf8_array[10] = "\0";
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
-  cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
-  cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
+  cmd.buffer = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
+  cmd.command = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
   showOnScreen(&cmd);
 
   // Read input.
@@ -252,8 +252,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           if (isReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
-            tfree(cmd.buffer);
-            tfree(cmd.command);
+            taosMemoryFreeClear(cmd.buffer);
+            taosMemoryFreeClear(cmd.command);
             return 0;
           } else {
             updateBuffer(&cmd);
@@ -367,7 +367,7 @@ void *shellLoopQuery(void *arg) {
 
   taosThreadCleanupPush(cleanup_handler, NULL);
 
-    char *command = malloc(MAX_COMMAND_SIZE);
+    char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
     if (command == NULL){
       tscError("failed to malloc command");
       return NULL;
@@ -386,7 +386,7 @@ void *shellLoopQuery(void *arg) {
       resetTerminalMode();
     } while (shellRunCommand(con, command) == 0);
 
-  tfree(command);
+  taosMemoryFreeClear(command);
   exitShell();
 
   taosThreadCleanupPop(1);
@@ -429,7 +429,7 @@ void showOnScreen(Command *cmd) {
   int size = 0;
 
   // Print out the command.
-  char *total_string = malloc(MAX_COMMAND_SIZE);
+  char *total_string = taosMemoryMalloc(MAX_COMMAND_SIZE);
   memset(total_string, '\0', MAX_COMMAND_SIZE);
   if (strcmp(cmd->buffer, "") == 0) {
     sprintf(total_string, "%s%s", PROMPT_HEADER, cmd->command);
@@ -461,7 +461,7 @@ void showOnScreen(Command *cmd) {
     str = total_string + size;
   }
 
-  free(total_string);
+  taosMemoryFree(total_string);
   /* for (int i = 0; i < size; i++){ */
   /*     char c = total_string[i]; */
   /*     if (k % w.ws_col == 0) { */

@@ -22,7 +22,7 @@ void tdListInit(SList *list, int32_t eleSize) {
 }
 
 SList *tdListNew(int32_t eleSize) {
-  SList *list = (SList *)malloc(sizeof(SList));
+  SList *list = (SList *)taosMemoryMalloc(sizeof(SList));
   if (list == NULL) return NULL;
 
   tdListInit(list, eleSize);
@@ -33,14 +33,14 @@ void tdListEmpty(SList *list) {
   SListNode *node;
   while ((node = TD_DLIST_HEAD(list)) != NULL) {
     TD_DLIST_POP(list, node);
-    free(node);
+    taosMemoryFree(node);
   }
 }
 
 void *tdListFree(SList *list) {
   if (list) {
     tdListEmpty(list);
-    free(list);
+    taosMemoryFree(list);
   }
 
   return NULL;
@@ -51,7 +51,7 @@ void tdListPrependNode(SList *list, SListNode *node) { TD_DLIST_PREPEND(list, no
 void tdListAppendNode(SList *list, SListNode *node) { TD_DLIST_APPEND(list, node); }
 
 int32_t tdListPrepend(SList *list, void *data) {
-  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  SListNode *node = (SListNode *)taosMemoryMalloc(sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
   memcpy((void *)(node->data), data, list->eleSize);
@@ -61,7 +61,7 @@ int32_t tdListPrepend(SList *list, void *data) {
 }
 
 int32_t tdListAppend(SList *list, void *data) {
-  SListNode *node = (SListNode *)calloc(1, sizeof(SListNode) + list->eleSize);
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
   memcpy((void *)(node->data), data, list->eleSize);

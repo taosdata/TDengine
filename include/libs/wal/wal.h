@@ -75,16 +75,31 @@ extern "C" {
 #define WAL_CUR_FAILED 1
 
 #pragma pack(push, 1)
-typedef enum { TAOS_WAL_NOLOG = 0, TAOS_WAL_WRITE = 1, TAOS_WAL_FSYNC = 2 } EWalType;
+typedef enum {
+  TAOS_WAL_NOLOG = 0,
+  TAOS_WAL_WRITE = 1,
+  TAOS_WAL_FSYNC = 2,
+} EWalType;
+
+// used by sync module
+typedef struct {
+  int8_t   isWeek;
+  uint64_t seqNum;
+  uint64_t term;
+} SSyncLogMeta;
 
 typedef struct SWalReadHead {
   int8_t  headVer;
-  int16_t msgType;
   int8_t  reserved;
+  int16_t msgType;
   int32_t len;
   int64_t ingestTs;  // not implemented
   int64_t version;
-  char    body[];
+
+  // sync meta
+  SSyncLogMeta syncMeta;
+
+  char body[];
 } SWalReadHead;
 
 typedef struct {
@@ -117,16 +132,16 @@ typedef struct SWal {
   SWalCfg cfg;
   int32_t fsyncSeq;
   // meta
-  SWalVer vers;
+  SWalVer   vers;
   TdFilePtr pWriteLogTFile;
   TdFilePtr pWriteIdxTFile;
-  int32_t writeCur;
-  SArray *fileInfoSet;
+  int32_t   writeCur;
+  SArray   *fileInfoSet;
   // status
   int64_t totSize;
   int64_t lastRollSeq;
   // ctl
-  int64_t         refId;
+  int64_t       refId;
   TdThreadMutex mutex;
   // path
   char path[WAL_PATH_LEN];
@@ -135,14 +150,15 @@ typedef struct SWal {
 } SWal;  // WAL HANDLE
 
 typedef struct SWalReadHandle {
-  SWal     *pWal;
-  TdFilePtr pReadLogTFile;
-  TdFilePtr pReadIdxTFile;
-  int64_t   curFileFirstVer;
-  int64_t   curVersion;
-  int64_t   capacity;
-  int64_t   status;  // if cursor valid
-  SWalHead *pHead;
+  SWal         *pWal;
+  TdFilePtr     pReadLogTFile;
+  TdFilePtr     pReadIdxTFile;
+  int64_t       curFileFirstVer;
+  int64_t       curVersion;
+  int64_t       capacity;
+  int64_t       status;  // if cursor valid
+  TdThreadMutex mutex;
+  SWalHead     *pHead;
 } SWalReadHandle;
 #pragma pack(pop)
 
@@ -158,6 +174,8 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
+int64_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+                             int32_t bodyLen);
 int64_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
 void    walFsync(SWal *, bool force);
 
@@ -174,6 +192,7 @@ int32_t walEndSnapshot(SWal *);
 SWalReadHandle *walOpenReadHandle(SWal *);
 void            walCloseReadHandle(SWalReadHandle *);
 int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
+int32_t         walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
 
 // deprecated
 #if 0

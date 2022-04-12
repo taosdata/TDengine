@@ -61,7 +61,7 @@ static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan,
 static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bool* pFound) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    pScan->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+    pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
     if (NULL == pScan->pVgroupList) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -167,6 +167,8 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
 
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(pCurrentGroup);
+  } else {
+    nodesClearList(pCurrentGroup);
   }
 
   return code;

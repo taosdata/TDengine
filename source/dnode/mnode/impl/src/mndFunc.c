@@ -51,7 +51,6 @@ int32_t mndInitFunc(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNC, mndProcessDropFuncReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_FUNC, mndProcessRetrieveFuncReq);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_FUNC, mndGetFuncMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_FUNC, mndRetrieveFuncs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_FUNC, mndCancelGetNextFunc);
 
@@ -127,8 +126,8 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pFunc->commentSize, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->codeSize, FUNC_DECODE_OVER)
 
-  pFunc->pComment = calloc(1, pFunc->commentSize);
-  pFunc->pCode = calloc(1, pFunc->codeSize);
+  pFunc->pComment = taosMemoryCalloc(1, pFunc->commentSize);
+  pFunc->pCode = taosMemoryCalloc(1, pFunc->codeSize);
   if (pFunc->pComment == NULL || pFunc->pCode == NULL) {
     goto FUNC_DECODE_OVER;
   }
@@ -142,7 +141,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
 FUNC_DECODE_OVER:
   if (terrno != 0) {
     mError("func:%s, failed to decode from raw:%p since %s", pFunc->name, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -157,8 +156,8 @@ static int32_t mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc) {
 
 static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
   mTrace("func:%s, perform delete action, row:%p", pFunc->name, pFunc);
-  tfree(pFunc->pCode);
-  tfree(pFunc->pComment);
+  taosMemoryFreeClear(pFunc->pCode);
+  taosMemoryFreeClear(pFunc->pComment);
   return 0;
 }
 
@@ -196,8 +195,8 @@ static int32_t mndCreateFunc(SMnode *pMnode, SNodeMsg *pReq, SCreateFuncReq *pCr
   func.signature = pCreate->signature;
   func.commentSize = pCreate->commentSize;
   func.codeSize = pCreate->codeSize;
-  func.pComment = malloc(func.commentSize);
-  func.pCode = malloc(func.codeSize);
+  func.pComment = taosMemoryMalloc(func.commentSize);
+  func.pCode = taosMemoryMalloc(func.codeSize);
   if (func.pCode == NULL || func.pCode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto CREATE_FUNC_OVER;
@@ -228,8 +227,8 @@ static int32_t mndCreateFunc(SMnode *pMnode, SNodeMsg *pReq, SCreateFuncReq *pCr
   code = 0;
 
 CREATE_FUNC_OVER:
-  free(func.pCode);
-  free(func.pComment);
+  taosMemoryFree(func.pCode);
+  taosMemoryFree(func.pComment);
   mndTransDrop(pTrans);
   return code;
 }

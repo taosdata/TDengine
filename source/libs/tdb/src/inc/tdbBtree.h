@@ -20,23 +20,37 @@
 extern "C" {
 #endif
 
-typedef struct SBTree    SBTree;
-typedef struct SBtCursor SBtCursor;
+typedef struct SBTree SBTree;
+typedef struct SBTC   SBTC;
+typedef struct SBtInfo {
+  SPgno root;
+  int   nLevel;
+  int   nData;
+} SBtInfo;
 
-struct SBtCursor {
+struct SBTC {
   SBTree *pBt;
   i8      iPage;
   SPage  *pPage;
   int     idx;
   int     idxStack[BTREE_MAX_DEPTH + 1];
   SPage  *pgStack[BTREE_MAX_DEPTH + 1];
-  void   *pBuf;
+  TXN    *pTxn;
 };
 
+// SBTree
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
-int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt);
-int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
+int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
+int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+
+// SBTC
+int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
+int tdbBtcMoveToFirst(SBTC *pBtc);
+int tdbBtcMoveToLast(SBTC *pBtc);
+int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbBtcClose(SBTC *pBtc);
 
 #ifdef __cplusplus
 }

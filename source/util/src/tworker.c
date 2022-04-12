@@ -22,7 +22,7 @@ typedef void *(*ThreadFp)(void *param);
 
 int32_t tQWorkerInit(SQWorkerPool *pool) {
   pool->qset = taosOpenQset();
-  pool->workers = calloc(pool->max, sizeof(SQWorker));
+  pool->workers = taosMemoryCalloc(pool->max, sizeof(SQWorker));
   if (pool->workers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -60,7 +60,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
     }
   }
 
-  tfree(pool->workers);
+  taosMemoryFreeClear(pool->workers);
   taosCloseQset(pool->qset);
   taosThreadMutexDestroy(&pool->mutex);
 
@@ -142,7 +142,7 @@ void tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue) {
 
 int32_t tWWorkerInit(SWWorkerPool *pool) {
   pool->nextId = 0;
-  pool->workers = calloc(pool->max, sizeof(SWWorker));
+  pool->workers = taosMemoryCalloc(pool->max, sizeof(SWWorker));
   if (pool->workers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -184,7 +184,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
     }
   }
 
-  tfree(pool->workers);
+  taosMemoryFreeClear(pool->workers);
   taosThreadMutexDestroy(&pool->mutex);
 
   uInfo("worker:%s is closed", pool->name);
@@ -287,8 +287,8 @@ void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
 int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) {
   SQWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
-  pPool->min = pCfg->minNum;
-  pPool->max = pCfg->maxNum;
+  pPool->min = pCfg->min;
+  pPool->max = pCfg->max;
   if (tQWorkerInit(pPool) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -316,7 +316,7 @@ void tSingleWorkerCleanup(SSingleWorker *pWorker) {
 int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
   SWWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
-  pPool->max = pCfg->maxNum;
+  pPool->max = pCfg->max;
   if (tWWorkerInit(pPool) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

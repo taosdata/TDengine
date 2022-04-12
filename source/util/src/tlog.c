@@ -199,7 +199,7 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   taosUmaskFile(0);
 
-  TdFilePtr pFile = taosOpenFile(name, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     tsLogObj.openInProgress = 0;
     tsLogObj.lines = tsLogObj.maxLines - 1000;
@@ -214,6 +214,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
+  taosSsleep(3);
   taosCloseLogByFd(pOldFile);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
@@ -347,7 +348,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
   taosUmaskFile(0);
-  tsLogObj.logHandle->pFile = taosOpenFile(fileName, TD_FILE_CTEATE | TD_FILE_WRITE);
+  tsLogObj.logHandle->pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE);
 
   if (tsLogObj.logHandle->pFile == NULL) {
     printf("\nfailed to open log file:%s, reason:%s\n", fileName, strerror(errno));
@@ -507,10 +508,10 @@ static void taosCloseLogByFd(TdFilePtr pFile) {
 static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   SLogBuff *tLogBuff = NULL;
 
-  tLogBuff = calloc(1, sizeof(SLogBuff));
+  tLogBuff = taosMemoryCalloc(1, sizeof(SLogBuff));
   if (tLogBuff == NULL) return NULL;
 
-  LOG_BUF_BUFFER(tLogBuff) = malloc(bufSize);
+  LOG_BUF_BUFFER(tLogBuff) = taosMemoryMalloc(bufSize);
   if (LOG_BUF_BUFFER(tLogBuff) == NULL) goto _err;
 
   LOG_BUF_START(tLogBuff) = LOG_BUF_END(tLogBuff) = 0;
@@ -524,8 +525,8 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   return tLogBuff;
 
 _err:
-  tfree(LOG_BUF_BUFFER(tLogBuff));
-  tfree(tLogBuff);
+  taosMemoryFreeClear(LOG_BUF_BUFFER(tLogBuff));
+  taosMemoryFreeClear(tLogBuff);
   return NULL;
 }
 
@@ -688,7 +689,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t compressSize = 163840;
   int32_t ret = 0;
   int32_t len = 0;
-  char   *data = malloc(compressSize);
+  char   *data = taosMemoryMalloc(compressSize);
   //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");
@@ -698,7 +699,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     ret = -2;
     goto cmp_end;
@@ -723,7 +724,7 @@ cmp_end:
   //  if (dstFp) {
   //    gzclose(dstFp);
   //  }
-  free(data);
+  taosMemoryFree(data);
 
   return ret;
 }

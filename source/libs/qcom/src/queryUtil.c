@@ -97,18 +97,14 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 static void* pTaskQueue = NULL;
 
 int32_t initTaskQueue() {
-  double factor = 4.0;
-
-  int32_t numOfThreads = TMAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
-
   int32_t queueSize = tsMaxConnections * 2;
-  pTaskQueue = taosInitScheduler(queueSize, numOfThreads, "tsc");
+  pTaskQueue = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc");
   if (NULL == pTaskQueue) {
     qError("failed to init task queue");
     return -1;
   }
 
-  qDebug("task queue is initialized, numOfThreads: %d", numOfThreads);
+  qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 
@@ -140,7 +136,7 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   return 0;
 }
 
-int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *rpcCtx) {
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
@@ -154,6 +150,7 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
                     .contLen = pInfo->msgInfo.len,
                     .ahandle = (void*)pInfo,
                     .handle = pInfo->msgInfo.handle,
+                    .persistHandle = persistHandle,
                     .code = 0};
   if (pInfo->msgType == TDMT_VND_QUERY || pInfo->msgType == TDMT_VND_FETCH ||
       pInfo->msgType == TDMT_VND_QUERY_CONTINUE) {
@@ -162,8 +159,12 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
 
   assert(pInfo->fp != NULL);
 
-  rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
+  rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+  return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
 
 char *jobTaskStatusStr(int32_t status) {
@@ -193,7 +194,7 @@ char *jobTaskStatusStr(int32_t status) {
   return "UNKNOWN";
 }
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name) {
   SSchema s = {0};
   s.type  = type;
   s.bytes = bytes;

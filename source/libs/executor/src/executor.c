@@ -16,9 +16,10 @@
 #include "executor.h"
 #include "executorimpl.h"
 #include "planner.h"
+#include "tdatablock.h"
 #include "vnode.h"
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t type, char* id) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -31,7 +32,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t t
       return TSDB_CODE_QRY_APP_ERROR;
     }
     pOperator->status = OP_NOT_OPENED;
-    return doSetStreamBlock(pOperator->pDownstream[0], input, type, id);
+    return doSetStreamBlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;
 
@@ -48,15 +49,16 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t t
         return TSDB_CODE_QRY_APP_ERROR;
       }
     } else {
-      ASSERT(!pInfo->blockValid);
+      for (int32_t i = 0; i < numOfBlocks; ++i) {
+        SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
 
-      SSDataBlock* pDataBlock = input;
-      pInfo->pRes->info = pDataBlock->info;
-      taosArrayClear(pInfo->pRes->pDataBlock);
-      taosArrayAddAll(pInfo->pRes->pDataBlock, pDataBlock->pDataBlock);
+        SSDataBlock* p = createOneDataBlock(pDataBlock);
+        p->info = pDataBlock->info;
 
-      // set current block valid.
-      pInfo->blockValid = true;
+        taosArrayClear(p->pDataBlock);
+        taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
+        taosArrayPush(pInfo->pBlockLists, &p);
+      }
     }
 
     return TSDB_CODE_SUCCESS;
@@ -64,17 +66,21 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t t
 }
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type) {
+  return qSetMultiStreamInput(tinfo, input, 1, type);
+}
+
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  if (input == NULL) {
+  if (pBlocks == NULL || numOfBlocks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*)input, type, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {
@@ -97,6 +103,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   pMsg->contentLen = pMsg->contentLen;
 #endif
 
+  qDebugL("stream task string %s", (const char*)msg);
+
   struct SSubplan* plan = NULL;
   int32_t          code = qStringToSubplan(msg, &plan);
   if (code != TSDB_CODE_SUCCESS) {
@@ -105,7 +113,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL);
+  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
     // TODO: destroy SSubplan & pTaskInfo
     terrno = code;

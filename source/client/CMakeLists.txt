@@ -2,13 +2,13 @@ aux_source_directory(src CLIENT_SRC)
 add_library(taos ${CLIENT_SRC})
 target_include_directories(
     taos
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/client"
+    PUBLIC "${TD_SOURCE_DIR}/include/client"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
     taos
     INTERFACE api
-    PRIVATE os util common transport nodes parser planner catalog scheduler function qcom
+    PRIVATE os util common transport nodes parser command planner catalog scheduler function qcom
 )
 
 if(${BUILD_TEST})

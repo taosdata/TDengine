@@ -4,23 +4,24 @@ add_library(function STATIC ${FUNCTION_SRC})
 target_include_directories(
     function
     PUBLIC
-        "${CMAKE_SOURCE_DIR}/include/libs/function"
-        "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
 target_link_libraries(
     function
+    PRIVATE os util common nodes scalar
     PUBLIC uv_a
-    PRIVATE os util common nodes
 )
 
 add_executable(runUdf test/runUdf.c)
 target_include_directories(
         runUdf
         PUBLIC
-            "${CMAKE_SOURCE_DIR}/include/libs/function"
-            "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
@@ -33,7 +34,8 @@ add_library(udf1 MODULE test/udf1.c)
 target_include_directories(
         udf1
         PUBLIC
-            "${CMAKE_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -42,8 +44,8 @@ add_executable(udfd src/udfd.c)
 target_include_directories(
         udfd
         PUBLIC
-            "${CMAKE_SOURCE_DIR}/include/libs/function"
-            "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/contrib/libuv/include"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

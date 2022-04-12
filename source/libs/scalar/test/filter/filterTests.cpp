@@ -71,7 +71,7 @@ void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
-    vnode->datum.p = (char *)malloc(varDataTLen(value));
+    vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataLen(value);
   } else {
@@ -102,7 +102,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   }
 
   if (NULL == *block) {
-    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 3;
     res->info.rows = rowNum;
     res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
@@ -113,7 +113,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
       idata.info.colId = i + 1;
 
       int32_t size = idata.info.bytes * rowNum;
-      idata.pData = (char *)calloc(1, size);
+      idata.pData = (char *)taosMemoryCalloc(1, size);
       taosArrayPush(res->pDataBlock, &idata);
     }
 
@@ -122,7 +122,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 3;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     
     blockDataEnsureCapacity(res, rowNum);
@@ -150,12 +150,12 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 1 + idx;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     
-    blockDataEnsureColumnCapacity(pColumn, rowNum);
+    colInfoDataEnsureCapacity(pColumn, rowNum);
 
     for (int32_t i = 0; i < rowNum; ++i) {
       colDataAppend(pColumn, i, (const char *)value, false);
@@ -234,15 +234,17 @@ TEST(timerangeTest, greater) {
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
 
-  SFilterInfo *filter = NULL;
-  int32_t code = filterInitFromNode(opNode1, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
-  ASSERT_EQ(code, 0);
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(opNode1, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
   STimeWindow win = {0};
-  code = filterGetTimeRange(filter, &win);
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(opNode1, &win, &isStrict);
   ASSERT_EQ(code, 0);
+  ASSERT_EQ(isStrict, true);  
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, INT64_MAX); 
-  filterFreeInfo(filter);
+  //filterFreeInfo(filter);
   nodesDestroyNode(opNode1);
 }
 
@@ -263,17 +265,68 @@ TEST(timerangeTest, greater_and_lower) {
   
   flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
 
-  SFilterInfo *filter = NULL;
-  int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
-  ASSERT_EQ(code, 0);
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
   STimeWindow win = {0};
-  code = filterGetTimeRange(filter, &win);
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(logicNode, &win, &isStrict);
+  ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, tbig); 
-  filterFreeInfo(filter);
+  //filterFreeInfo(filter);
   nodesDestroyNode(logicNode);
 }
+
+TEST(timerangeTest, greater_and_lower_not_strict) {
+  SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode1 = NULL, *logicNode2 = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  SScalarParam res = {0};
+  int64_t tsmall1 = 222, tbig1 = 333;
+  int64_t tsmall2 = 444, tbig2 = 555;
+  SNode *list[2] = {0};
+
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall1);
+  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig1);
+  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  list[0] = opNode1;
+  list[1] = opNode2;
+  
+  flttMakeLogicNode(&logicNode1, LOGIC_COND_TYPE_AND, list, 2);
+
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall2);
+  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig2);
+  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  list[0] = opNode1;
+  list[1] = opNode2;
+  
+  flttMakeLogicNode(&logicNode2, LOGIC_COND_TYPE_AND, list, 2);
+
+  list[0] = logicNode1;
+  list[1] = logicNode2;
+  flttMakeLogicNode(&logicNode1, LOGIC_COND_TYPE_OR, list, 2);
+
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
+  STimeWindow win = {0};
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(logicNode1, &win, &isStrict);
+  ASSERT_EQ(isStrict, false);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(win.skey, tsmall1);
+  ASSERT_EQ(win.ekey, tbig2); 
+  //filterFreeInfo(filter);
+  nodesDestroyNode(logicNode1);
+}
+
 
 
 TEST(columnTest, smallint_column_greater_double_value) {
@@ -325,7 +378,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   blockDataDestroy(src);
   nodesDestroyNode(opNode);
@@ -380,12 +433,11 @@ TEST(columnTest, int_column_greater_smallint_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(columnTest, int_column_in_double_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
@@ -426,13 +478,11 @@ TEST(columnTest, int_column_in_double_list) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
-
 
 TEST(columnTest, binary_column_in_binary_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
@@ -491,12 +541,11 @@ TEST(columnTest, binary_column_in_binary_list) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(columnTest, binary_column_like_binary) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -540,12 +589,11 @@ TEST(columnTest, binary_column_like_binary) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(columnTest, binary_column_is_null) {
   SNode *pLeft = NULL, *opNode = NULL;
@@ -588,7 +636,7 @@ TEST(columnTest, binary_column_is_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -635,13 +683,11 @@ TEST(columnTest, binary_column_is_not_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
-
 
 TEST(opTest, smallint_column_greater_int_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -674,12 +720,11 @@ TEST(opTest, smallint_column_greater_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(opTest, smallint_value_add_int_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -713,13 +758,11 @@ TEST(opTest, smallint_value_add_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
-
 
 TEST(opTest, bigint_column_multi_binary_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -758,7 +801,7 @@ TEST(opTest, bigint_column_multi_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -801,7 +844,7 @@ TEST(opTest, smallint_column_and_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -839,13 +882,11 @@ TEST(opTest, smallint_column_or_float_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
-
 
 TEST(opTest, smallint_column_or_double_value) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -879,12 +920,11 @@ TEST(opTest, smallint_column_or_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(opTest, binary_column_is_true) {
   SNode *pLeft = NULL, *opNode = NULL;
@@ -924,12 +964,11 @@ TEST(opTest, binary_column_is_true) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
 }
-
 
 TEST(filterModelogicTest, diff_columns_and_or_and) {
   flttInitLogFile();
@@ -996,7 +1035,7 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
@@ -1065,12 +1104,11 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
 }
-
 
 TEST(filterModelogicTest, diff_columns_or_and_or) {
   SNode *pLeft1 = NULL, *pRight1 = NULL, *pLeft2 = NULL, *pRight2 = NULL, *opNode1 = NULL, *opNode2 = NULL;
@@ -1135,7 +1173,7 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
@@ -1204,13 +1242,11 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
 }
-
-
 
 TEST(scalarModelogicTest, diff_columns_or_and_or) {
   flttInitLogFile();
@@ -1277,13 +1313,11 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
 }
-
-
 
 int main(int argc, char** argv) {
   taosSeedRand(taosGetTimestampSec());

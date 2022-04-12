@@ -70,8 +70,8 @@ void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 
 typedef struct {
   const char *name;
-  int32_t     minNum;
-  int32_t     maxNum;
+  int32_t     min;
+  int32_t     max;
   FItem       fp;
   void       *param;
 } SSingleWorkerCfg;
@@ -84,7 +84,7 @@ typedef struct {
 
 typedef struct {
   const char *name;
-  int32_t     maxNum;
+  int32_t     max;
   FItems      fp;
   void       *param;
 } SMultiWorkerCfg;

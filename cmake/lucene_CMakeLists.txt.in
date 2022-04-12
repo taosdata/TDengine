@@ -2,7 +2,7 @@
 # lucene
 ExternalProject_Add(lucene
         GIT_REPOSITORY https://github.com/yihaoDeng/LucenePlusPlus.git
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/lucene"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/lucene"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""

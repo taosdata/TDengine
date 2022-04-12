@@ -56,6 +56,12 @@ extern "C" {
       __typeof(b) __b = (b);     \
       (__a < __b) ? __a : __b;   \
     })
+
+#define TRANGE(a, b, c) \
+  ({                    \
+    a = TMAX(a, b);     \
+    a = TMIN(a, c);     \
+  })
 #endif
 
 #ifdef __cplusplus

@@ -14,6 +14,7 @@
  */
 
 #include "builtinsimpl.h"
+#include "tpercentile.h"
 #include "querynodes.h"
 #include "taggfunction.h"
 #include "tdatablock.h"
@@ -24,7 +25,6 @@
       break;                            \
     }                                   \
     (_info)->numOfRes = (res);          \
-    (_info)->hasResult = DATA_SET_FLAG; \
   } while (0)
 
 typedef struct SSumRes {
@@ -48,11 +48,19 @@ bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   return true;
 }
 
-static void doFinalizer(SResultRowEntryInfo* pResInfo) { cleanupResultRowEntry(pResInfo); }
-
 void functionFinalize(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  doFinalizer(pResInfo);
+
+  cleanupResultRowEntry(pResInfo);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0)? 1:0;
+}
+
+EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
+    return FUNC_DATA_REQUIRED_NO_NEEDED;
+  }
+  return FUNC_DATA_REQUIRED_STATIS_NEEDED;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -64,7 +72,7 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
-void countFunction(SqlFunctionCtx *pCtx) {
+int32_t countFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElem = 0;
 
   /*
@@ -96,6 +104,7 @@ void countFunction(SqlFunctionCtx *pCtx) {
   *((int64_t *)buf) += numOfElem;
 
   SET_VAL(pResInfo, numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 #define LIST_ADD_N(_res, _col, _start, _rows, _t, numOfElem)             \
@@ -110,7 +119,7 @@ void countFunction(SqlFunctionCtx *pCtx) {
     }                                                                    \
   } while (0)
 
-void sumFunction(SqlFunctionCtx *pCtx) {
+int32_t sumFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElem = 0;
 
   // Only the pre-computing information loaded and actual data does not loaded
@@ -137,8 +146,8 @@ void sumFunction(SqlFunctionCtx *pCtx) {
     int32_t start     = pInput->startRowIndex;
     int32_t numOfRows = pInput->numOfRows;
 
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      if (type == TSDB_DATA_TYPE_TINYINT) {
+    if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+      if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
         LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_SMALLINT) {
         LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int16_t, numOfElem);
@@ -166,6 +175,7 @@ void sumFunction(SqlFunctionCtx *pCtx) {
 
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -210,6 +220,9 @@ bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
     case TSDB_DATA_TYPE_UTINYINT:
       *((uint8_t *)buf) = 0;
       break;
+    case TSDB_DATA_TYPE_BOOL:
+      *((int8_t*)buf) = 0;
+      break;
     default:
       assert(0);
   }
@@ -252,6 +265,9 @@ bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       SET_DOUBLE_VAL(((double *)buf), DBL_MAX);
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      *((int8_t*)buf) = 1;
       break;
     default:
       assert(0);
@@ -383,8 +399,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    if (type == TSDB_DATA_TYPE_TINYINT) {
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
       LOOPCHECK_N(*(int8_t*)buf, pCol, pCtx, int8_t, numOfRows, start, isMinFunc, numOfElems);
     } else if (type == TSDB_DATA_TYPE_SMALLINT) {
       LOOPCHECK_N(*(int16_t*) buf, pCol, pCtx, int16_t, numOfRows, start, isMinFunc, numOfElems);
@@ -431,14 +447,16 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
   return numOfElems;
 }
 
-void minFunction(SqlFunctionCtx *pCtx) {
+int32_t minFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = doMinMaxHelper(pCtx, 1);
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
-void maxFunction(SqlFunctionCtx *pCtx) {
+int32_t maxFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = doMinMaxHelper(pCtx, 0);
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef struct STopBotRes {
@@ -453,6 +471,7 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 }
 
 typedef struct SStddevRes {
+  double  result;
   int64_t count;
   union  {double  quadraticDSum; int64_t quadraticISum;};
   union  {double  dsum; int64_t isum;};
@@ -463,51 +482,275 @@ bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
-void stddevFunction(SqlFunctionCtx* pCtx) {
+bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  SStddevRes* pRes = GET_ROWCELL_INTERBUF(pResultInfo);
+  memset(pRes, 0, sizeof(SStddevRes));
+  return true;
+}
+
+int32_t stddevFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   // Only the pre-computing information loaded and actual data does not loaded
   SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
-  int32_t type = pInput->pData[0]->info.type;
+  int32_t               type = pInput->pData[0]->info.type;
 
   SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-//  } else {  // computing based on the true data block
-    SColumnInfoData* pCol = pInput->pData[0];
+  // computing based on the true data block
+  SColumnInfoData* pCol = pInput->pData[0];
 
-    int32_t start     = pInput->startRowIndex;
-    int32_t numOfRows = pInput->numOfRows;
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
 
-    switch(type) {
-      case TSDB_DATA_TYPE_INT: {
-        int32_t* plist = (int32_t*)pCol->pData;
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+        int8_t* plist = (int8_t*)pCol->pData;
         for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
           if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
 
+          numOfElem += 1;
           pStddevRes->count += 1;
-          pStddevRes->isum  += plist[i];
+          pStddevRes->isum += plist[i];
           pStddevRes->quadraticISum += plist[i] * plist[i];
         }
+
+        break;
+      }
+
+      case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t* plist = (int16_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->isum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
       }
       break;
     }
 
+    case TSDB_DATA_TYPE_INT: {
+      int32_t* plist = (int32_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->isum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t* plist = (int64_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->isum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      float* plist = (float*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->isum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double* plist = (double*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->isum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
+
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 void stddevFinalize(SqlFunctionCtx* pCtx) {
   functionFinalize(pCtx);
 
   SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  double res = pStddevRes->quadraticISum/pStddevRes->count - (pStddevRes->isum / pStddevRes->count) * (pStddevRes->isum / pStddevRes->count);
+  double avg = pStddevRes->isum / ((double) pStddevRes->count);
+  pStddevRes->result = sqrt(pStddevRes->quadraticISum/((double)pStddevRes->count) - avg*avg);
 }
 
+typedef struct SPercentileInfo {
+  double      result;
+  tMemBucket *pMemBucket;
+  int32_t     stage;
+  double      minval;
+  double      maxval;
+  int64_t     numOfElems;
+} SPercentileInfo;
 
+bool getPercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SPercentileInfo);
+  return true;
+}
 
+bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  // in the first round, get the min-max value of all involved data
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  SET_DOUBLE_VAL(&pInfo->minval, DBL_MAX);
+  SET_DOUBLE_VAL(&pInfo->maxval, -DBL_MAX);
+  pInfo->numOfElems = 0;
+
+  return true;
+}
+
+int32_t percentileFunction(SqlFunctionCtx *pCtx) {
+  int32_t notNullElems = 0;
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+
+  SColumnInfoData *pCol = pInput->pData[0];
+  int32_t type = pCol->info.type;
+
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+    pInfo->stage += 1;
+
+    // all data are null, set it completed
+    if (pInfo->numOfElems == 0) {
+      pResInfo->complete = true;
+      return 0;
+    } else {
+      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+    }
+  }
+
+  // the first stage, only acquire the min/max value
+  if (pInfo->stage == 0) {
+    if (pCtx->input.colDataAggIsSet) {
+      double tmin = 0.0, tmax = 0.0;
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
+        tmin = (double)GET_INT64_VAL(&pAgg->min);
+        tmax = (double)GET_INT64_VAL(&pAgg->max);
+      } else if (IS_FLOAT_TYPE(type)) {
+        tmin = GET_DOUBLE_VAL(&pAgg->min);
+        tmax = GET_DOUBLE_VAL(&pAgg->max);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        tmin = (double)GET_UINT64_VAL(&pAgg->min);
+        tmax = (double)GET_UINT64_VAL(&pAgg->max);
+      }
+
+      if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
+        SET_DOUBLE_VAL(&pInfo->minval, tmin);
+      }
+
+      if (GET_DOUBLE_VAL(&pInfo->maxval) < tmax) {
+        SET_DOUBLE_VAL(&pInfo->maxval, tmax);
+      }
+
+      pInfo->numOfElems += (pInput->numOfRows - pAgg->numOfNull);
+    } else {
+      // check the valid data one by one
+      int32_t start = pInput->startRowIndex;
+      for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+        if (colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        char *data = colDataGetData(pCol, i);
+
+        double v = 0;
+        GET_TYPED_DATA(v, double, pCtx->inputType, data);
+        if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
+          SET_DOUBLE_VAL(&pInfo->minval, v);
+        }
+
+        if (v > GET_DOUBLE_VAL(&pInfo->maxval)) {
+          SET_DOUBLE_VAL(&pInfo->maxval, v);
+        }
+
+        pInfo->numOfElems += 1;
+      }
+    }
+
+    return 0;
+  }
+
+  // the second stage, calculate the true percentile value
+  int32_t start = pInput->startRowIndex;
+  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+    if (colDataIsNull_f(pCol->nullbitmap, i)) {
+      continue;
+    }
+
+    char *data = colDataGetData(pCol, i);
+
+    notNullElems += 1;
+    tMemBucketPut(pInfo->pMemBucket, data, 1);
+  }
+
+  SET_VAL(pResInfo, notNullElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+// TODO set the correct parameter.
+void percentileFinalize(SqlFunctionCtx* pCtx) {
+  double v = 50;//pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
+
+  tMemBucket * pMemBucket = ppInfo->pMemBucket;
+  if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
+    SET_DOUBLE_VAL(&ppInfo->result, getPercentile(pMemBucket, v));
+  }
+
+  tMemBucketDestroy(pMemBucket);
+  functionFinalize(pCtx);
+}
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);
@@ -517,9 +760,9 @@ bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 
 // TODO fix this
 // This ordinary first function only handle the data block in ascending order
-void firstFunction(SqlFunctionCtx *pCtx) {
+int32_t firstFunction(SqlFunctionCtx *pCtx) {
   if (pCtx->order == TSDB_ORDER_DESC) {
-    return;
+    return 0;
   }
 
   int32_t numOfElems = 0;
@@ -533,7 +776,7 @@ void firstFunction(SqlFunctionCtx *pCtx) {
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
-    return;
+    return 0;
   }
 
   // Check for the first not null data
@@ -550,19 +793,18 @@ void firstFunction(SqlFunctionCtx *pCtx) {
 //      DO_UPDATE_TAG_COLUMNS(pCtx, k);
 //    }
 
-    pResInfo->hasResult = DATA_SET_FLAG;
     pResInfo->complete = true;
-
     numOfElems++;
     break;
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
-void lastFunction(SqlFunctionCtx *pCtx) {
+int32_t lastFunction(SqlFunctionCtx *pCtx) {
   if (pCtx->order != TSDB_ORDER_DESC) {
-    return;
+    return 0;
   }
 
   int32_t numOfElems = 0;
@@ -571,13 +813,12 @@ void lastFunction(SqlFunctionCtx *pCtx) {
   char* buf = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-
   SColumnInfoData* pInputCol = pInput->pData[0];
 
   // All null data column, return directly.
   if (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows) {
     ASSERT(pInputCol->hasNull == true);
-    return;
+    return 0;
   }
 
   if (pCtx->order == TSDB_ORDER_DESC) {
@@ -591,8 +832,6 @@ void lastFunction(SqlFunctionCtx *pCtx) {
 
 //      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
 //      DO_UPDATE_TAG_COLUMNS(pCtx, ts);
-
-      pResInfo->hasResult = DATA_SET_FLAG;
       pResInfo->complete = true;  // set query completed on this column
       numOfElems++;
       break;
@@ -606,10 +845,8 @@ void lastFunction(SqlFunctionCtx *pCtx) {
       char* data = colDataGetData(pInputCol, i);
       TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
 
-      if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) < ts) {
-        pResInfo->hasResult = DATA_SET_FLAG;
+      if (pResInfo->numOfRes == 0 || (*(TSKEY*)buf) < ts) {
         memcpy(buf, data, pCtx->inputBytes);
-
         *(TSKEY*)buf = ts;
 //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
@@ -620,12 +857,246 @@ void lastFunction(SqlFunctionCtx *pCtx) {
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
-void valFunction(SqlFunctionCtx *pCtx) {
+typedef struct SDiffInfo {
+  bool  hasPrev;
+  bool  includeNull;
+  bool  ignoreNegative;
+  bool  firstOutput;
+  union { int64_t i64; double d64;} prev;
+} SDiffInfo;
+
+bool getDiffFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SDiffInfo);
+  return true;
+}
+
+bool diffFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  SDiffInfo* pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pDiffInfo->hasPrev  = false;
+  pDiffInfo->prev.i64 = 0;
+  pDiffInfo->ignoreNegative = false; // TODO set correct param
+  pDiffInfo->includeNull = false;
+  pDiffInfo->firstOutput = false;
+  return true;
+}
+
+int32_t diffFunction(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  SDiffInfo *pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  SColumnInfoData* pInputCol = pCtx->input.pData[0];
-  memcpy(buf, pInputCol->pData, pInputCol->info.bytes);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pInputCol = pInput->pData[0];
+
+  bool  isFirstBlock = (pDiffInfo->hasPrev == false);
+  int32_t numOfElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+//  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  int32_t startOffset = pCtx->offset;
+  switch (pInputCol->info.type) {
+    case TSDB_DATA_TYPE_INT: {
+      SColumnInfoData *pOutput = (SColumnInfoData *)pCtx->pOutput;
+      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+
+        int32_t pos = startOffset + (isFirstBlock? (numOfElems-1):numOfElems);
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          if (pDiffInfo->includeNull) {
+            colDataSetNull_f(pOutput->nullbitmap, pos);
+            if (tsList != NULL) {
+              colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+            }
+
+            numOfElems += 1;
+          }
+          continue;
+        }
+
+        int32_t v = *(int32_t*) colDataGetData(pInputCol, i);
+        if (pDiffInfo->hasPrev) {
+          int32_t delta = (int32_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
+          if (delta < 0 && pDiffInfo->ignoreNegative) {
+            colDataSetNull_f(pOutput->nullbitmap, pos);
+          } else {
+            colDataAppendInt32(pOutput, pos, &delta);
+          }
+
+          if (pTsOutput != NULL) {
+            colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+          }
+        }
+
+        pDiffInfo->prev.i64 = v;
+        pDiffInfo->hasPrev  = true;
+        numOfElems++;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BIGINT: {
+      SColumnInfoData *pOutput = (SColumnInfoData *)pCtx->pOutput;
+      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+          continue;
+        }
+
+        int32_t v = 0;
+        if (pDiffInfo->hasPrev) {
+          v = *(int64_t*) colDataGetData(pInputCol, i);
+          int64_t delta = (int64_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
+          if (pDiffInfo->ignoreNegative) {
+            continue;
+          }
+
+//          *(pOutput++) = delta;
+//          *pTimestamp  = (tsList != NULL)? tsList[i]:0;
+//
+//          pOutput    += 1;
+//          pTimestamp += 1;
+        }
+
+        pDiffInfo->prev.i64 = v;
+        pDiffInfo->hasPrev = true;
+        numOfElems++;
+      }
+      break;
+    }
+#if 0
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *pData = (double *)data;
+      double *pOutput = (double *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
+
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
+          SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
+          *pTimestamp = (tsList != NULL)? tsList[i]:0;
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pDiffInfo->d64Prev = pData[i];
+        pDiffInfo->hasPrev = true;
+        numOfElems++;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *pData = (float *)data;
+      float *pOutput = (float *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
+
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
+          *pOutput = (float)(pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
+          *pTimestamp = (tsList != NULL)? tsList[i]:0;
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pDiffInfo->d64Prev = pData[i];
+        pDiffInfo->hasPrev = true;
+        numOfElems++;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *pData = (int16_t *)data;
+      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
+
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
+          *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
+          *pTimestamp = (tsList != NULL)? tsList[i]:0;
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pDiffInfo->i64Prev = pData[i];
+        pDiffInfo->hasPrev = true;
+        numOfElems++;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *pData = (int8_t *)data;
+      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
+
+        if (pDiffInfo->hasPrev) {  // initial value is not set yet
+          *pOutput = (int8_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
+          *pTimestamp = (tsList != NULL)? tsList[i]:0;
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pDiffInfo->i64Prev = pData[i];
+        pDiffInfo->hasPrev = true;
+        numOfElems++;
+      }
+      break;
+    }
+#endif
+    default:
+      break;
+//      qError("error input type");
+  }
+
+  // initial value is not set yet
+  if (!pDiffInfo->hasPrev || numOfElems <= 0) {
+    /*
+     * 1. current block and blocks before are full of null
+     * 2. current block may be null value
+     */
+    assert(pCtx->hasNull);
+    return 0;
+  } else {
+//    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+//      SqlFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+//      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+//        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+//      }
+//    }
+
+    int32_t forwardStep = (isFirstBlock) ? numOfElems - 1 : numOfElems;
+    return forwardStep;
+  }
 }
+

@@ -15,13 +15,17 @@
 
 #include "tdbInt.h"
 
-struct STDb {
-  STEnv  *pEnv;
+struct STDB {
+  TENV   *pEnv;
   SBTree *pBt;
 };
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
-  STDb   *pDb;
+struct STDBC {
+  SBTC btc;
+};
+
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TENV *pEnv, TDB **ppDb) {
+  TDB    *pDb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
@@ -30,7 +34,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   *ppDb = NULL;
 
-  pDb = (STDb *)calloc(1, sizeof(*pDb));
+  pDb = (TDB *)tdbOsCalloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
@@ -45,6 +49,8 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
     if (ret < 0) {
       return -1;
     }
+
+    tdbEnvAddPager(pEnv, pPager);
   }
 
   ASSERT(pPager != NULL);
@@ -59,31 +65,66 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   return 0;
 }
 
-int tdbDbClose(STDb *pDb) {
+int tdbDbClose(TDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbDrop(STDb *pDb) {
+int tdbDbDrop(TDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBtCursor  btc;
-  SBtCursor *pCur;
-  int        ret;
+int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
+  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
+}
 
-  pCur = &btc;
-  ret = tdbBtreeCursor(pCur, pDb->pBt);
-  if (ret < 0) {
+int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
+  return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
+}
+
+int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
+  return tdbBtreePGet(pDb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
+}
+
+int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
+  int   ret;
+  TDBC *pDbc = NULL;
+
+  *ppDbc = NULL;
+  pDbc = (TDBC *)tdbOsMalloc(sizeof(*pDbc));
+  if (pDbc == NULL) {
     return -1;
   }
 
-  ret = tdbBtCursorInsert(pCur, pKey, keyLen, pVal, valLen);
+  tdbBtcOpen(&pDbc->btc, pDb->pBt, NULL);
+
+  // TODO: move to first now, we can move to any key-value
+  // and in any direction, design new APIs.
+  ret = tdbBtcMoveToFirst(&pDbc->btc);
   if (ret < 0) {
+    ASSERT(0);
     return -1;
   }
 
+  *ppDbc = pDbc;
+  return 0;
+}
+
+int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);
+}
+
+int tdbDbcClose(TDBC *pDbc) {
+  if (pDbc) {
+    tdbOsFree(pDbc);
+  }
+
+  return 0;
+}
+
+int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  // TODO
+  ASSERT(0);
   return 0;
 }

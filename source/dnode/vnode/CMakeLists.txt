@@ -1,57 +1,77 @@
-set(META_DB_IMPL_LIST "BDB" "TDB")
-set(META_DB_IMPL "BDB" CACHE STRING "Use BDB as the default META implementation")
-set_property(CACHE META_DB_IMPL PROPERTY STRINGS ${META_DB_IMPL_LIST})
+# vnode
+add_library(vnode STATIC "")
+target_sources(
+    vnode
+    PRIVATE
+    # vnode
+    "src/vnd/vnodeArenaMAImpl.c"
+    "src/vnd/vnodeBufferPool.c"
+    "src/vnd/vnodeCfg.c"
+    "src/vnd/vnodeCommit.c"
+    "src/vnd/vnodeInt.c"
+    "src/vnd/vnodeMain.c"
+    "src/vnd/vnodeMgr.c"
+    "src/vnd/vnodeQuery.c"
+    "src/vnd/vnodeStateMgr.c"
+    "src/vnd/vnodeWrite.c"
 
-if(META_DB_IMPL IN_LIST META_DB_IMPL_LIST)
-    message(STATUS "META DB Impl: ${META_DB_IMPL}==============")
-else()
-    message(FATAL_ERROR "Invalid META DB IMPL: ${META_DB_IMPL}==============")
-endif()
+    # meta
+    # "src/meta/metaBDBImpl.c"
+    "src/meta/metaCache.c"
+    "src/meta/metaCfg.c"
+    "src/meta/metaIdx.c"
+    "src/meta/metaMain.c"
+    "src/meta/metaQuery.c"
+    "src/meta/metaTable.c"
+    "src/meta/metaTbCfg.c"
+    "src/meta/metaTbTag.c"
+    "src/meta/metaTbUid.c"
+    "src/meta/metaTDBImpl.c"
 
-aux_source_directory(src/meta META_SRC)
-if(${META_DB_IMPL} STREQUAL "BDB")
-    list(REMOVE_ITEM META_SRC "src/meta/metaTDBImpl.c")
-elseif(${META_DB_IMPL} STREQUAL "TDB")
-    list(REMOVE_ITEM META_SRC "src/meta/metaBDBImpl.c")
-endif()
+    # tsdb
+    # "src/tsdb/tsdbBDBImpl.c"
+    "src/tsdb/tsdbCommit.c"
+    "src/tsdb/tsdbCompact.c"
+    "src/tsdb/tsdbFile.c"
+    "src/tsdb/tsdbFS.c"
+    "src/tsdb/tsdbMain.c"
+    "src/tsdb/tsdbMemTable.c"
+    "src/tsdb/tsdbOptions.c"
+    "src/tsdb/tsdbRead.c"
+    "src/tsdb/tsdbReadImpl.c"
+    "src/tsdb/tsdbScan.c"
+    # "src/tsdb/tsdbSma.c"
+    "src/tsdb/tsdbWrite.c"
 
-aux_source_directory(src/tq TQ_SRC)
-aux_source_directory(src/tsdb TSDB_SRC)
-aux_source_directory(src/vnd VND_SRC)
-
-list(APPEND
-    VNODE_SRC
-    ${META_SRC}
-    ${TQ_SRC}
-    ${TSDB_SRC}
-    ${VND_SRC}
+    # tq
+    "src/tq/tq.c"
+    "src/tq/tqCommit.c"
+    "src/tq/tqMetaStore.c"
+    "src/tq/tqOffset.c"
+    "src/tq/tqPush.c"
+    "src/tq/tqRead.c"
 )
-
-add_library(vnode STATIC ${VNODE_SRC})
 target_include_directories(
     vnode
-    PUBLIC inc
-    PRIVATE src/inc
+    PUBLIC "inc"
+    PRIVATE "src/inc"
 )
 target_link_libraries(
     vnode
     PUBLIC os
     PUBLIC util
     PUBLIC common
-    PUBLIC transport
     PUBLIC tfs
     PUBLIC wal
-    PUBLIC scheduler
-    PUBLIC executor
     PUBLIC qworker
     PUBLIC sync
+    PUBLIC executor
+    PUBLIC scheduler
+    PUBLIC tdb
+    #PUBLIC bdb
+    PUBLIC transport
+    PUBLIC stream
 )
-
-if(${META_DB_IMPL} STREQUAL "BDB")
-    target_link_libraries(vnode PUBLIC bdb)
-elseif(${META_DB_IMPL} STREQUAL "TDB")
-    target_link_libraries(vnode PUBLIC tdb)
-endif()
 
 if(${BUILD_TEST})
     add_subdirectory(test)
