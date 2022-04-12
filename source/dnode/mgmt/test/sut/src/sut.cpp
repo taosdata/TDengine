@@ -139,11 +139,11 @@ void Testbase::SendShowRetrieveReq() {
   void*   pReq = rpcMallocCont(contLen);
   tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
 
-  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pReq, contLen);
-  pRetrieveRsp = (SRetrieveTableRsp*)pRsp->pCont;
-  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-  pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
-  pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
+//  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pReq, contLen);
+//  pRetrieveRsp = (SRetrieveTableRsp*)pRsp->pCont;
+//  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
+//  pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
+//  pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
   pData = pRetrieveRsp->data;
   pos = 0;
