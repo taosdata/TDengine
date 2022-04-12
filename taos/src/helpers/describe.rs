@@ -1,8 +1,8 @@
 #[derive(Debug, Deserialize)]
 pub struct Described {
-    field: String,
-    r#type: TaosDataType,
-    length: usize,
+    pub field: String,
+    pub r#type: TaosDataType,
+    pub length: usize,
 }
 #[derive(Debug)]
 pub enum ColumnMeta {

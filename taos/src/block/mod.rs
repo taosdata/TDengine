@@ -55,6 +55,9 @@ pub struct Block<'a> {
     num_of_rows: i32,
 }
 
+unsafe impl Send for Block<'_> {}
+unsafe impl Sync for Block<'_> {}
+
 struct BlockState {
     /// Whether or not the sleep time has elapsed
     completed: bool,
@@ -123,7 +126,7 @@ impl<'a> Block<'a> {
 
     pub fn into_iter_rows(self) -> impl Iterator<Item = Row<'a>> {
         let num_of_rows = self.num_of_rows as _;
-        std::iter::repeat(Rc::new(self))
+        std::iter::repeat(Arc::new(self))
             .enumerate()
             .take(num_of_rows)
             .map(|(index, block)| Row::new(block, index))

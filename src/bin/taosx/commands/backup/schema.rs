@@ -1,166 +1,115 @@
-use libtaos::ColumnMeta;
-use parquet::basic::{
-    ConvertedType, LogicalType, Repetition, TimeUnit, TimestampType, Type as PhysicalType,
-};
+use parquet::basic::{Repetition, Type as PhysicalType};
 use parquet::schema::types::Type;
 use std::sync::Arc;
 
-use super::fetch::TableInfo;
-
-pub fn get_database_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(Arc::new(
-        Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(Arc::new(
-        Type::primitive_type_builder("property", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    ));
-    Arc::new(
-        Type::group_type_builder("database")
-            .with_fields(&mut fields)
-            .build()
-            .unwrap(),
-    )
+#[derive(Debug, Clone, Default)]
+pub struct TaosParquetSchema {
+    fields: Vec<Arc<Type>>,
 }
 
-pub fn get_field_schema(name: &str) -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(Arc::new(
-        Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(Arc::new(
-        Type::primitive_type_builder("type", PhysicalType::INT32)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(Arc::new(
-        Type::primitive_type_builder("length", PhysicalType::INT32)
-            .with_repetition(Repetition::OPTIONAL)
-            .build()
-            .unwrap(),
-    ));
-    Arc::new(
-        Type::group_type_builder(name)
-            .with_fields(&mut fields)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    )
-}
+impl TaosParquetSchema {
+    fn add_required_byte_array_col(mut self, name: &str) -> Self {
+        self.fields.push(Arc::new(
+            Type::primitive_type_builder(name, PhysicalType::BYTE_ARRAY)
+                .with_repetition(Repetition::REQUIRED)
+                .build()
+                .unwrap(),
+        ));
+        self
+    }
 
-pub fn get_subtable_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(Arc::new(
-        Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(Arc::new(
-        Type::primitive_type_builder("tag", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    ));
-    Arc::new(
-        Type::group_type_builder("sub_tables")
-            .with_fields(&mut fields)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    )
-}
+    fn add_required_int_col(mut self, name: &str) -> Self {
+        self.fields.push(Arc::new(
+            Type::primitive_type_builder(name, PhysicalType::INT32)
+                .with_repetition(Repetition::REQUIRED)
+                .build()
+                .unwrap(),
+        ));
+        self
+    }
 
-fn get_tableinfo_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(Arc::new(
-        Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(get_field_schema("cols"));
-    fields.push(get_field_schema("tags"));
-    // fields.push(get_subtable_schema());
-    Arc::new(
-        Type::group_type_builder("table_info")
-            .with_fields(&mut fields)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    )
-}
+    fn add_required_bool_col(mut self, name: &str) -> Self {
+        self.fields.push(Arc::new(
+            Type::primitive_type_builder(name, PhysicalType::BOOLEAN)
+                .with_repetition(Repetition::REQUIRED)
+                .build()
+                .unwrap(),
+        ));
+        self
+    }
 
-pub fn get_table_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(get_tableinfo_schema());
+    fn add_group(mut self, group: Arc<Type>) -> Self {
+        self.fields.push(group);
+        self
+    }
 
-    Arc::new(
-        Type::group_type_builder("table")
-            .with_fields(&mut fields)
-            .build()
-            .unwrap(),
-    )
-}
+    fn build_repeated_group(mut self, name: &str) -> Arc<Type> {
+        Arc::new(
+            Type::group_type_builder(name)
+                .with_fields(&mut self.fields)
+                .with_repetition(Repetition::REPEATED)
+                .build()
+                .unwrap(),
+        )
+    }
 
-pub fn get_data_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(Arc::new(
-        Type::primitive_type_builder("value", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(Arc::new(
-        Type::primitive_type_builder("is_null", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    Arc::new(
-        Type::group_type_builder("data")
-            .with_fields(&mut fields)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    )
-}
+    fn build_schema(mut self, name: &str) -> Arc<Type> {
+        Arc::new(
+            Type::group_type_builder(name)
+                .with_fields(&mut self.fields)
+                .build()
+                .unwrap(),
+        )
+    }
 
-fn get_block_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(Arc::new(
-        Type::primitive_type_builder("tbname", PhysicalType::BYTE_ARRAY)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap(),
-    ));
-    fields.push(get_data_schema());
-    Arc::new(
-        Type::group_type_builder("block")
-            .with_fields(&mut fields)
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap(),
-    )
-}
+    pub fn build_table_schema(self) -> Arc<Type> {
+        self.add_group(
+            TaosParquetSchema::default()
+                .add_required_byte_array_col("name")
+                .add_group(
+                    TaosParquetSchema::default()
+                        .add_required_byte_array_col("name")
+                        .add_required_int_col("type")
+                        .add_required_int_col("length")
+                        .add_required_bool_col("is_tag")
+                        .build_repeated_group("meta"),
+                )
+                .build_repeated_group("table_info"),
+        )
+        .build_schema("table")
+    }
 
-pub fn get_chunk_schema() -> Arc<Type> {
-    let mut fields = vec![];
-    fields.push(get_block_schema());
-    Arc::new(
-        Type::group_type_builder("chunk")
-            .with_fields(&mut fields)
-            .build()
-            .unwrap(),
-    )
+    pub fn build_tag_schema(self) -> Arc<Type> {
+        self.add_group(
+            TaosParquetSchema::default()
+                .add_required_byte_array_col("stbname")
+                .add_group(
+                    TaosParquetSchema::default()
+                        .add_group(
+                            TaosParquetSchema::default()
+                                .add_required_byte_array_col("value")
+                                .add_required_bool_col("is_nulls")
+                                .build_repeated_group("data"),
+                        )
+                        .build_repeated_group("subtable"),
+                )
+                .build_repeated_group("stable"),
+        )
+        .build_schema("tags")
+    }
+
+    pub fn build_chunk_schema(self) -> Arc<Type> {
+        self.add_group(
+            TaosParquetSchema::default()
+                .add_required_byte_array_col("name")
+                .add_group(
+                    TaosParquetSchema::default()
+                        .add_required_byte_array_col("value")
+                        .add_required_byte_array_col("is_nulls")
+                        .build_repeated_group("data"),
+                )
+                .build_repeated_group("block"),
+        )
+        .build_schema("chunk")
+    }
 }

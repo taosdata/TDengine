@@ -1,4 +1,5 @@
 use clap::Args;
+use futures::Future;
 use parquet::{
     basic::Compression,
     file::{
@@ -10,23 +11,25 @@ use parquet::{
 use std::{
     fmt::Debug,
     fs::{self, File},
+    io::Write,
     path::PathBuf,
     sync::Arc,
 };
-use taos::Taos;
+use taos::{Taos, TaosOptions};
 use taosx::{Database, TaosOpts};
 use thread_id;
 use tokio::runtime::Builder;
 
 use crate::commands::backup::{
-    fetch::{fetch_database_info, fetch_stable_list, fetch_table_list, TableInfo},
-    schema::{get_chunk_schema, get_database_schema, get_table_schema},
-    serialize::{serialize_dbinfo, serialize_tableinfo},
+    fetch::{fetch_database_info, fetch_table_list},
+    schema::TaosParquetSchema,
 };
 
-use self::serialize::serialzie_data;
+use self::{
+    fetch::fetch_stable_tag_buffer,
+    serialize::{serialize_tableinfo, serialize_tag, serialzie_data},
+};
 
-use super::restore::deserialize::deserialize_print_file;
 mod fetch;
 mod schema;
 mod serialize;
@@ -44,8 +47,58 @@ pub(crate) struct App {
     thread: Option<u32>,
 }
 
+fn allocate_task<Fut: 'static>(
+    table_list: Vec<String>,
+    schema: Arc<Type>,
+    dir: PathBuf,
+    path: &str,
+    mut threads: u32,
+    db: String,
+    f: impl Fn(Arc<Type>, Vec<String>, PathBuf, String) -> Fut,
+) where
+    Fut: Future<Output = ()> + std::marker::Send,
+{
+    let mut own_path = dir.clone();
+    own_path.push(path);
+    fs::create_dir(own_path.clone()).unwrap_or_else(|_| {
+        fs::remove_dir_all(own_path.clone()).unwrap_or_else(|_| {
+            fs::remove_dir(own_path.clone()).unwrap();
+        });
+        fs::create_dir(own_path.clone()).unwrap();
+    });
+    if threads > table_list.len() as _ {
+        threads = table_list.len() as _;
+    }
+    let tables_per_thread = table_list.len() as u32 / threads;
+    log::info!(
+        "{} threads each deal at most {} tables",
+        threads,
+        tables_per_thread
+    );
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(threads as usize)
+        .enable_all()
+        .build()
+        .unwrap();
+    let mut handles = Vec::with_capacity(threads as _);
+    let chunks: Vec<&[String]> = table_list.chunks(tables_per_thread as _).collect();
+    for chunk in chunks {
+        handles.push(runtime.spawn(f(
+            schema.clone(),
+            chunk.to_owned(),
+            own_path.clone(),
+            db.clone(),
+        )));
+    }
+    for handle in handles {
+        runtime.block_on(handle).unwrap();
+    }
+}
+
 impl App {
     pub fn run_with_taos_opts(&self, _opts: &TaosOpts) {
+        log::info!("prepare config options");
+
         let database = self.database.as_deref().unwrap_or("test");
         let db = String::from(database);
         let threads = self.thread.unwrap_or(1);
@@ -53,107 +106,126 @@ impl App {
         let path = PathBuf::from(output);
 
         log::info!("prepare parquet schema");
-        let database_schema = get_database_schema();
-        let table_schema = get_table_schema();
-        let chunk_schema = get_chunk_schema();
+
+        let table_schema = TaosParquetSchema::default().build_table_schema();
+        let tag_schema = TaosParquetSchema::default().build_tag_schema();
+        let chunk_schema = TaosParquetSchema::default().build_chunk_schema();
 
         log::info!("start backup database info");
 
-        let database = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(fetch_database_info(db.clone()));
+        let database = fetch_database_info(db.clone());
 
-        dbg!(&database);
+        backup_database(database, path.clone());
 
-        Builder::new_multi_thread()
-            .worker_threads(threads as usize)
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(backup_database_info(
-                database_schema,
-                database,
-                path.clone(),
-            ));
+        log::info!("finish backup database info");
 
-        // let tableinfo_list = Builder::new_current_thread()
-        //     .enable_all()
-        //     .build()
-        //     .unwrap()
-        //     .block_on(TableInfo::new(db.clone(), stable_list, common_list));
+        let (select_list, describe_list, stable_list) = fetch_table_list(db.clone());
 
-        let mut table_path = path.clone();
-        table_path.push("table.info");
-        fs::remove_dir_all(table_path.clone()).unwrap();
-        fs::create_dir_all(table_path.clone()).unwrap();
-
-        let (select_list, describe_list, total_table) = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(fetch_table_list(db.clone()));
-        log::debug!(
-            "select list: {:?}; describe list {:?}",
+        log::info!(
+            "select list: {:?}; describe list {:?}; stable_list{:?}",
             select_list,
-            describe_list
+            describe_list,
+            stable_list
         );
 
-        // Builder::new_multi_thread()
-        //     .worker_threads(threads as usize)
-        //     .enable_all()
-        //     .build()
-        //     .unwrap()
-        //     .block_on(backup_table_info(
-        //         table_schema,
-        //         tableinfo_list,
-        //         table_path.clone(),
-        //     ));
-
-        let mut block_path = path.clone();
-        block_path.push("block");
-        fs::remove_dir_all(block_path.clone()).unwrap();
-        fs::create_dir_all(block_path.clone()).unwrap();
-
-        let tables_per_thread = total_table / threads;
-        let runtime = Builder::new_multi_thread()
-            .worker_threads(threads as usize)
-            .enable_all()
-            .build()
-            .unwrap();
-        let mut handles = Vec::with_capacity(threads as _);
-
-        let chunks: Vec<&[String]> = select_list.chunks(tables_per_thread as _).collect();
-        for chunk in chunks {
-            handles.push(runtime.spawn(backup_data(
-                chunk_schema.clone(),
-                chunk.to_owned(),
-                block_path.clone(),
-                db.clone(),
-            )));
-        }
-        for handle in handles {
-            runtime.block_on(handle).unwrap();
-        }
+        log::info!("start backup table meta info");
+        allocate_task(
+            describe_list,
+            table_schema,
+            path.clone(),
+            "table.info",
+            threads,
+            db.clone(),
+            backup_table_schema,
+        );
+        log::info!("finish backup table meta info");
+        log::info!("start backup table tags");
+        allocate_task(
+            stable_list,
+            tag_schema,
+            path.clone(),
+            "tags",
+            threads,
+            db.clone(),
+            backup_stable_tags,
+        );
+        log::info!("finish backup table tags");
+        log::info!("start backup data");
+        allocate_task(
+            select_list,
+            chunk_schema,
+            path.clone(),
+            "chunk",
+            threads,
+            db.clone(),
+            backup_data,
+        );
+        log::info!("finish backup data");
     }
 }
 
-async fn backup_database_info(schema: Arc<Type>, database: Database, mut path: PathBuf) {
+fn backup_database(database: Database, mut path: PathBuf) {
     path.push("db.info");
-    let file = File::create(path.as_path()).unwrap();
-    serialize_dbinfo(schema, database, file);
-    let file = File::open(path.clone()).unwrap();
-    deserialize_print_file(file);
+    let mut file = File::create(path.as_path()).unwrap();
+    let j = serde_json::to_string_pretty(&database).unwrap();
+    file.write(j.as_bytes()).unwrap();
 }
 
-async fn backup_table_info(schema: Arc<Type>, tableinfo_list: Vec<TableInfo>, mut path: PathBuf) {
+async fn backup_table_schema(
+    schema: Arc<Type>,
+    table_list: Vec<String>,
+    mut path: PathBuf,
+    db: String,
+) {
     let thread_id = thread_id::get();
     path.push(format!("{}.parquet", thread_id));
     let file = File::create(path.as_path()).unwrap();
-    serialize_tableinfo(schema.clone(), tableinfo_list, file).await;
-    let file = File::open(path.clone()).unwrap();
-    deserialize_print_file(file);
+    let props = Arc::new(
+        WriterProperties::builder()
+            .set_compression(Compression::SNAPPY)
+            .build(),
+    );
+    let taos = TaosOptions::new()
+        .database(db.clone())
+        .host("10.72.136.169")
+        .build()
+        .unwrap();
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    for tbname in table_list {
+        let describe = taos.describe(&tbname).await.unwrap();
+        writer = serialize_tableinfo(&tbname, describe, writer);
+    }
+    writer.close().unwrap();
+}
+
+async fn backup_stable_tags(
+    schema: Arc<Type>,
+    table_list: Vec<String>,
+    mut path: PathBuf,
+    database: String,
+) {
+    let thread_id = thread_id::get();
+    path.push(format!("{}.parquet", thread_id));
+    let file = File::create(path.as_path()).unwrap();
+    let props = Arc::new(
+        WriterProperties::builder()
+            .set_compression(Compression::SNAPPY)
+            .build(),
+    );
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let taos = Taos::new("10.72.136.169", "root", "taosdata", database.clone(), 6030).unwrap();
+    for tbname in table_list {
+        let tag_buffer = fetch_stable_tag_buffer(database.clone(), tbname.clone()).await;
+        let res = taos
+            .query(format!("select tbname{} from {}", tag_buffer, tbname).as_str())
+            .await
+            .unwrap();
+        let stream = res.fetch_block_stream();
+        writer = serialize_tag(writer, &tbname, stream).await;
+    }
+    writer.close().unwrap();
+    // let file = File::open(path.clone()).unwrap();
+    // deserialize_print_file(file);
 }
 
 async fn backup_data(
@@ -181,6 +253,6 @@ async fn backup_data(
         writer = serialzie_data(writer, &tbname, stream).await;
     }
     writer.close().unwrap();
-    let file = File::open(path.clone()).unwrap();
-    deserialize_print_file(file);
+    // let file = File::open(path.clone()).unwrap();
+    // deserialize_print_file(file);
 }

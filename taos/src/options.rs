@@ -111,7 +111,7 @@ impl TaosOptions {
     pub fn build(&self) -> Result<Taos> {
         static SET_CONFIG: Once = Once::new();
         SET_CONFIG.call_once(|| {
-            println!("initialize taos options");
+            // println!("initialize taos options");
             if !self.params.is_empty() {
                 let json = serde_json::to_string(&self.params).expect("params to json");
                 self.set_config_json(&json);

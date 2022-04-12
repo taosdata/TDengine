@@ -1,362 +1,80 @@
-use bevy_reflect::Struct;
 use futures::{future, StreamExt};
-use libtaos::TaosDataType;
 use parquet::{
-    basic::Compression,
     column::writer::*,
     data_type::{BoolType, ByteArray, ByteArrayType, Int32Type},
-    file::{
-        properties::WriterProperties,
-        writer::{FileWriter, ParquetWriter, RowGroupWriter, SerializedFileWriter},
-    },
-    schema::types::Type,
+    file::writer::{FileWriter, ParquetWriter, RowGroupWriter, SerializedFileWriter},
 };
-use serde::de::value;
-use std::sync::Arc;
-use taos::block::BlockStream;
-use taos::Taos;
-use taosx::Database;
 
-use super::fetch::TableInfo;
+use taos::{block::BlockStream, helpers::ColumnMeta};
 
-pub fn serialize_dbinfo<W>(schema: Arc<Type>, database: Database, target: W)
+pub fn serialize_col_meta(
+    mut row_group_writer: Box<dyn RowGroupWriter>,
+    col_metas: Vec<ColumnMeta>,
+) -> Box<dyn RowGroupWriter> {
+    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
+    let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
+    let mut name_values = vec![];
+    let mut type_values = vec![];
+    let mut length_values = vec![];
+    let mut is_tags = vec![];
+    let def_levels = vec![2; col_metas.len()];
+    let mut rep_levels = vec![2; col_metas.len()];
+    rep_levels[0] = 0;
+    for meta in col_metas {
+        match meta {
+            ColumnMeta::Column(v) => {
+                name_values.push(ByteArray::from(v.field.as_bytes().to_vec()));
+                length_values.push(v.length as i32);
+                type_values.push(v.r#type as i32);
+                is_tags.push(false);
+            }
+            ColumnMeta::Tag(v) => {
+                name_values.push(ByteArray::from(v.field.as_bytes().to_vec()));
+                type_values.push(v.r#type as i32);
+                length_values.push(v.length as i32);
+                is_tags.push(true);
+            }
+        }
+    }
+
+    typed
+        .write_batch(&mut name_values, Some(&def_levels), Some(&rep_levels))
+        .unwrap();
+    row_group_writer.close_column(data_writer).unwrap();
+    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
+    let typed = get_typed_column_writer_mut::<Int32Type>(&mut data_writer);
+    typed
+        .write_batch(&mut type_values, Some(&def_levels), Some(&rep_levels))
+        .unwrap();
+    row_group_writer.close_column(data_writer).unwrap();
+    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
+    let typed = get_typed_column_writer_mut::<Int32Type>(&mut data_writer);
+    typed
+        .write_batch(&mut length_values, Some(&def_levels), Some(&rep_levels))
+        .unwrap();
+    row_group_writer.close_column(data_writer).unwrap();
+    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
+    let typed = get_typed_column_writer_mut::<BoolType>(&mut data_writer);
+    typed
+        .write_batch(&mut is_tags, Some(&def_levels), Some(&rep_levels))
+        .unwrap();
+    row_group_writer.close_column(data_writer).unwrap();
+    row_group_writer
+}
+
+pub fn serialize_tableinfo<W>(
+    tbname: &str,
+    describe: Vec<ColumnMeta>,
+    mut writer: SerializedFileWriter<W>,
+) -> SerializedFileWriter<W>
 where
     W: ParquetWriter + 'static,
 {
-    let props = Arc::new(
-        WriterProperties::builder()
-            .set_compression(Compression::SNAPPY)
-            .build(),
-    );
-    let mut writer = SerializedFileWriter::new(target, schema, props).unwrap();
     let mut row_group_writer = writer.next_row_group().unwrap();
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let mut rep = 0;
-    for (i, value) in database.iter_fields().enumerate() {
-        if let Some(value) = value.downcast_ref::<String>() {
-            if i == 0 {
-                let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
-                typed
-                    .write_batch(
-                        &[ByteArray::from(value.as_bytes().to_owned())],
-                        Some(&[0]),
-                        Some(&[0]),
-                    )
-                    .unwrap();
-                row_group_writer.close_column(data_writer).unwrap();
-                data_writer = row_group_writer.next_column().unwrap().unwrap();
-            } else {
-                def_levels.push(1);
-                rep_levels.push(rep);
-                values.push(ByteArray::from(value.as_bytes().to_owned()));
-                rep = 1;
-            }
-            println!("i: {}, values: {}", i, *value);
-        }
-    }
-    let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
-    typed
-        .write_batch(&values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
+    row_group_writer = serialzie_tbname(row_group_writer, tbname);
+    row_group_writer = serialize_col_meta(row_group_writer, describe);
     writer.close_row_group(row_group_writer).unwrap();
-    writer.close().unwrap();
-}
-
-pub fn serialzie_tablename(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    for table in tableinfo_list {
-        values.push(ByteArray::from(table.name.as_str()));
-        def_levels.push(1);
-        rep_levels.push(0);
-    }
-
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub fn serialize_colname(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let def = 2;
-    let mut rep;
-    for table in tableinfo_list {
-        rep = 0;
-        for col in &table.cols {
-            values.push(ByteArray::from(col.name.as_str()));
-            def_levels.push(def);
-            rep_levels.push(rep);
-            rep = 2;
-        }
-    }
-
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub fn serialize_tagname(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let def = 2;
-    let mut rep;
-    for table in tableinfo_list {
-        rep = 0;
-        if let Some(tags) = &table.tags {
-            for tag in tags {
-                values.push(ByteArray::from(tag.name.as_str()));
-                def_levels.push(def);
-                rep_levels.push(rep);
-                rep = 2;
-            }
-        } else {
-            rep_levels.push(0);
-            def_levels.push(1);
-        }
-    }
-
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub fn serialize_coltype(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<Int32Type>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let def = 2;
-    let mut rep;
-    for table in tableinfo_list {
-        rep = 0;
-        for col in &table.cols {
-            values.push(col.type_ as i32);
-            def_levels.push(def);
-            rep_levels.push(rep);
-            rep = 2;
-        }
-    }
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub fn serialize_tagtype(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<Int32Type>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let def = 2;
-    let mut rep;
-    for table in tableinfo_list {
-        rep = 0;
-        if let Some(tags) = &table.tags {
-            for tag in tags {
-                values.push(tag.type_ as i32);
-                def_levels.push(def);
-                rep_levels.push(rep);
-                rep = 2;
-            }
-        } else {
-            rep_levels.push(0);
-            def_levels.push(1);
-        }
-    }
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub fn serialize_collength(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<Int32Type>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let mut def;
-    let mut rep;
-    for table in tableinfo_list {
-        rep = 0;
-        for col in &table.cols {
-            values.push(col.bytes as i32);
-            def = match col.type_ {
-                TaosDataType::Binary => 3,
-                TaosDataType::NChar => 3,
-                _ => 2,
-            };
-            def_levels.push(def);
-            rep_levels.push(rep);
-            rep = 1;
-        }
-    }
-
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub fn serialize_taglength(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<Int32Type>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let mut def;
-    let mut rep;
-    for table in tableinfo_list {
-        rep = 0;
-        if let Some(tags) = &table.tags {
-            for tag in tags {
-                values.push(tag.bytes as i32);
-                def = match tag.type_ {
-                    TaosDataType::Binary => 3,
-                    TaosDataType::NChar => 3,
-                    _ => 2,
-                };
-                def_levels.push(def);
-                rep_levels.push(rep);
-                rep = 1;
-            }
-        } else {
-            rep_levels.push(0);
-            def_levels.push(1);
-        }
-    }
-
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub async fn serialize_tag_data(
-    mut row_group_writer: Box<dyn RowGroupWriter>,
-    tableinfo_list: &Vec<TableInfo>,
-) -> Box<dyn RowGroupWriter> {
-    let taos = Taos::new("10.72.136.169", "root", "taosdata", "", 6030).unwrap();
-    let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
-    let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
-    let mut values = vec![];
-    let mut def_levels = vec![];
-    let mut rep_levels = vec![];
-    let def = 2;
-    let mut rep;
-    for tableinfo in tableinfo_list {
-        rep = 0;
-        if let Some(buffer) = &tableinfo.tag_buffer {
-            let res = taos
-                .query(format! {"select tbname, {} from test.{}", buffer, tableinfo.name})
-                .await
-                .unwrap();
-            let stream = res.fetch_block_stream();
-            stream
-                .enumerate()
-                .for_each(|(_, partial)| {
-                    let row_num = partial.num_of_rows();
-                    for col in partial.columns_iter() {
-                        match col {
-                            taos::block::BorrowedColumn::Bool(_, v) => todo!(),
-                            taos::block::BorrowedColumn::TinyInt(_, v) => todo!(),
-                            taos::block::BorrowedColumn::SmallInt(_, v) => todo!(),
-                            taos::block::BorrowedColumn::Int(_, v) => todo!(),
-                            taos::block::BorrowedColumn::BigInt(_, v) => todo!(),
-                            taos::block::BorrowedColumn::Float(_, v) => todo!(),
-                            taos::block::BorrowedColumn::Double(_, v) => todo!(),
-                            taos::block::BorrowedColumn::Binary(v) => todo!(),
-                            taos::block::BorrowedColumn::Timestamp(_, v) => todo!(),
-                            taos::block::BorrowedColumn::NChar(v) => todo!(),
-                            taos::block::BorrowedColumn::UTinyInt(_, v) => todo!(),
-                            taos::block::BorrowedColumn::USmallInt(_, v) => todo!(),
-                            taos::block::BorrowedColumn::UInt(_, v) => todo!(),
-                            taos::block::BorrowedColumn::UBigInt(_, v) => todo!(),
-                            _ => unreachable!(),
-                        }
-                    }
-                    future::ready(())
-                })
-                .await;
-        } else {
-            rep_levels.push(0);
-            def_levels.push(1);
-        }
-    }
-    typed
-        .write_batch(&mut values, Some(&def_levels), Some(&rep_levels))
-        .unwrap();
-    row_group_writer.close_column(data_writer).unwrap();
-    row_group_writer
-}
-
-pub async fn serialize_tableinfo<W>(schema: Arc<Type>, tableinfo_list: Vec<TableInfo>, target: W)
-where
-    W: ParquetWriter + 'static,
-{
-    let props = Arc::new(
-        WriterProperties::builder()
-            .set_compression(Compression::SNAPPY)
-            .build(),
-    );
-    let mut writer = SerializedFileWriter::new(target, schema, props).unwrap();
-    let mut row_group_writer = writer.next_row_group().unwrap();
-    row_group_writer = serialzie_tablename(row_group_writer, &tableinfo_list);
-    row_group_writer = serialize_colname(row_group_writer, &tableinfo_list);
-    row_group_writer = serialize_coltype(row_group_writer, &tableinfo_list);
-    row_group_writer = serialize_collength(row_group_writer, &tableinfo_list);
-    row_group_writer = serialize_tagname(row_group_writer, &tableinfo_list);
-    row_group_writer = serialize_tagtype(row_group_writer, &tableinfo_list);
-    row_group_writer = serialize_taglength(row_group_writer, &tableinfo_list);
-    writer.close_row_group(row_group_writer).unwrap();
-    writer.close().unwrap();
+    writer
 }
 
 fn serialzie_tbname(
@@ -370,6 +88,88 @@ fn serialzie_tbname(
         .unwrap();
     row_group_writer.close_column(data_writer).unwrap();
     row_group_writer
+}
+
+pub async fn serialize_tag<W>(
+    mut writer: SerializedFileWriter<W>,
+    tbname: &str,
+    stream: BlockStream<'_>,
+) -> SerializedFileWriter<W>
+where
+    W: ParquetWriter + 'static,
+{
+    stream
+        .enumerate()
+        .for_each(|(_, row)| {
+            let mut row_group_writer = writer.next_row_group().unwrap();
+            row_group_writer = serialzie_tbname(row_group_writer, tbname);
+            let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
+            let typed = get_typed_column_writer_mut::<ByteArrayType>(&mut data_writer);
+            let num_of_rows = row.num_of_rows();
+            let num_of_fields = row.num_of_fields();
+            let mut values = vec![];
+            let mut null_values = vec![];
+            let def_levels = vec![3; num_of_rows as usize * num_of_fields as usize];
+            let mut rep_levels = vec![];
+            let mut rep;
+            for v in row.rows_iter() {
+                rep = 2;
+                for value in v {
+                    rep_levels.push(rep);
+                    match value.to_owned() {
+                        taos::block::BorrowedValue::Null => {
+                            values.push(ByteArray::from(""));
+                            null_values.push(true);
+                        }
+                        taos::block::BorrowedValue::Bool(_) => todo!(),
+                        taos::block::BorrowedValue::TinyInt(_) => todo!(),
+                        taos::block::BorrowedValue::SmallInt(_) => todo!(),
+                        taos::block::BorrowedValue::Int(v) => {
+                            values.push(ByteArray::from(v.to_string().as_bytes().to_vec()));
+                            null_values.push(false);
+                        }
+                        taos::block::BorrowedValue::BigInt(_) => todo!(),
+                        taos::block::BorrowedValue::Float(_) => todo!(),
+                        taos::block::BorrowedValue::Double(_) => todo!(),
+                        taos::block::BorrowedValue::Binary(v) => {
+                            let mut value = Vec::new();
+                            value.push(34);
+                            value.append(&mut v.to_vec());
+                            value.push(34);
+                            values.push(ByteArray::from(value));
+                            null_values.push(false);
+                        }
+                        taos::block::BorrowedValue::Timestamp(_) => todo!(),
+                        taos::block::BorrowedValue::NChar(_) => todo!(),
+                        taos::block::BorrowedValue::UTinyInt(_) => todo!(),
+                        taos::block::BorrowedValue::USmallInt(_) => todo!(),
+                        taos::block::BorrowedValue::UInt(_) => todo!(),
+                        taos::block::BorrowedValue::UBigInt(_) => todo!(),
+                        taos::block::BorrowedValue::Json(_) => todo!(),
+                        taos::block::BorrowedValue::VarChar(_) => todo!(),
+                        taos::block::BorrowedValue::VarBinary(_) => todo!(),
+                        taos::block::BorrowedValue::Decimal(_) => todo!(),
+                        taos::block::BorrowedValue::Blob(_) => todo!(),
+                    }
+                    rep = 3;
+                }
+            }
+            rep_levels[0] = 0;
+            typed
+                .write_batch(&values, Some(&def_levels), Some(&rep_levels))
+                .unwrap();
+            row_group_writer.close_column(data_writer).unwrap();
+            let mut data_writer = row_group_writer.next_column().unwrap().unwrap();
+            let typed = get_typed_column_writer_mut::<BoolType>(&mut data_writer);
+            typed
+                .write_batch(&null_values, Some(&def_levels), Some(&rep_levels))
+                .unwrap();
+            row_group_writer.close_column(data_writer).unwrap();
+            writer.close_row_group(row_group_writer).unwrap();
+            future::ready(())
+        })
+        .await;
+    writer
 }
 
 pub async fn serialzie_data<W>(
@@ -402,7 +202,7 @@ where
                     taos::block::Column::Int(is_nulls, vs) => {
                         let mut tmp_vec = Vec::new();
                         for v in vs {
-                            tmp_vec.extend_from_slice(&v.to_be_bytes());
+                            tmp_vec.extend_from_slice(&v.to_string().as_bytes());
                         }
                         null_values.push(ByteArray::from(
                             is_nulls
@@ -418,7 +218,7 @@ where
                     taos::block::Column::Float(is_nulls, vs) => {
                         let mut tmp_vec = Vec::new();
                         for v in vs {
-                            tmp_vec.extend_from_slice(&v.to_be_bytes());
+                            tmp_vec.extend_from_slice(&v.to_string().as_bytes());
                         }
                         null_values.push(ByteArray::from(
                             is_nulls
@@ -435,7 +235,7 @@ where
                     taos::block::Column::Timestamp(is_nulls, vs) => {
                         let mut tmp_vec = Vec::new();
                         for v in vs {
-                            tmp_vec.extend_from_slice(&v.to_be_bytes());
+                            tmp_vec.extend_from_slice(&v.to_string().as_bytes());
                         }
                         values.push(ByteArray::from(tmp_vec));
                         null_values.push(ByteArray::from(

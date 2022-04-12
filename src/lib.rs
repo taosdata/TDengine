@@ -1,7 +1,5 @@
-use bevy_reflect::Reflect;
 use chrono_tz::Tz;
 use clap::Args;
-use core::panic;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use url::Url;
@@ -35,7 +33,7 @@ pub struct TaosOpts {
     pub cfg_dir: Option<PathBuf>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Reflect)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Database {
     pub name: String,
     pub replica: i16,

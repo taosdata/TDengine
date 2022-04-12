@@ -4,6 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
     rc::Rc,
     slice,
+    sync::Arc,
 };
 
 use bitvec_simd::BitVec;
@@ -18,7 +19,7 @@ use super::{value::BorrowedValue, Block};
 #[derive(Debug)]
 pub struct Row<'block> {
     // todo: Rc or Arc?
-    block: Rc<Block<'block>>,
+    block: Arc<Block<'block>>,
     index: usize,
 }
 
@@ -31,11 +32,8 @@ impl<'block> Deref for Row<'block> {
 }
 
 impl<'block> Row<'block> {
-    pub(crate) fn new(block: Rc<Block<'block>>, index: usize) -> Self {
-        Self {
-            block,
-            index: dbg!(index),
-        }
+    pub(crate) fn new(block: Arc<Block<'block>>, index: usize) -> Self {
+        Self { block, index }
     }
     pub(crate) fn deserializer(&self) -> Deserializer {
         Deserializer::new(self)
@@ -451,7 +449,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         // let value = visitor.visit_map(self);
         // unimplemented!();
-        log::info!("visit map");
+        // log::info!("visit map");
         visitor.visit_map(MapReader::new(self))
     }
 
@@ -470,7 +468,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("name: {_name}, fields: {_fields:?}");
+        // println!("name: {_name}, fields: {_fields:?}");
         self.deserialize_map(visitor)
     }
 }

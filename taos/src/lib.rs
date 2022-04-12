@@ -150,7 +150,7 @@ mod tests {
     #[tokio::test]
     async fn test_describe() -> Result<()> {
         let taos = TaosOptions::new().build()?;
-        let desc = taos.describe("log.logs").await?;
+        let desc = taos.describe("test.meters").await?;
         dbg!(desc);
         Ok(())
     }

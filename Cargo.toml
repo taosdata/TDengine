@@ -26,12 +26,12 @@ tokio = { version = "1", features = ["full"] }
 taos = { path = "taos" }
 taos-sys = { path = "taos-sys"}
 futures = "0.3.21"
-libtaos = "*"
-parquet = "11.0.0"
+parquet = {version = "11.0.0", features = ["cli"]}
 glob = "0.3.0"
 bitvec_simd = "0.20.5"
 log = "0.4.16"
 simple_logger = "2.1.0"
 thread-id = "4.0.0"
 r2d2 = "0.8.9"
-bevy_reflect = "0.6.0"
+serde_json = "1.0.59"
+num_enum = "0.5.7"
