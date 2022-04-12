@@ -224,6 +224,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     }
   }
 
+  printf("connect failed, reason: %s\n\n", taos_errstr(pSql));
+
   return NULL;
 }
 
