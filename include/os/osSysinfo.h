@@ -39,7 +39,7 @@ int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
 int32_t taosGetCpuCores(float *numOfCores);
-int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
+void    taosGetCpuUsage(double *cpu_system, double *cpu_engine);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
 int32_t taosGetSysMemory(int64_t *usedKB);

@@ -126,6 +126,7 @@ typedef struct SDnode {
   int32_t      numOfDisks;
   uint16_t     serverPort;
   bool         dropped;
+  EProcType    procType;
   EDndType     ntype;
   EDndStatus   status;
   EDndEvent    event;
