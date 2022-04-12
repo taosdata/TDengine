@@ -17,25 +17,19 @@
 #include "clientLog.h"
 #include "parser.h"
 #include "planner.h"
-#include "scheduler.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
-#include "tpagedbuf.h"
 #include "tqueue.h"
 #include "tref.h"
 
-typedef struct {
-  int32_t curBlock;
-  int32_t curRow;
-  void**  uData;
-} SMqRowIter;
-
 struct tmq_message_t {
   SMqPollRsp msg;
+  char*      topic;
   void*      vg;
-  SMqRowIter iter;
+  SArray*    res;  // SArray<SReqResultInfo>
+  int32_t    resIter;
 };
 
 struct tmq_list_t {
@@ -849,7 +843,8 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (msgEpoch < tmqEpoch) {
     /*printf("discard rsp epoch %d, current epoch %d\n", msgEpoch, tmqEpoch);*/
     /*tsem_post(&tmq->rspSem);*/
-    tscWarn("msg discard from vg %d since from earlier epoch, rsp epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
+    tscWarn("msg discard from vg %d since from earlier epoch, rsp epoch %d, current epoch %d", pParam->vgId, msgEpoch,
+            tmqEpoch);
     return 0;
   }
 
@@ -886,8 +881,8 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
   memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
   tDecodeSMqPollRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->msg);
-  pRsp->iter.curBlock = 0;
-  pRsp->iter.curRow = 0;
+  /*pRsp->iter.curBlock = 0;*/
+  /*pRsp->iter.curRow = 0;*/
   // TODO: alloc mem
   /*pRsp->*/
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
@@ -899,8 +894,8 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 #endif
 
-  tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld", tmq->consumerId, pParam->pVg->vgId, pRsp->msg.reqOffset,
-           pRsp->msg.rspOffset);
+  tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld", tmq->consumerId, pParam->pVg->vgId,
+           pRsp->msg.reqOffset, pRsp->msg.rspOffset);
 
   pRsp->vg = pParam->pVg;
   taosWriteQitem(tmq->mqueue, pRsp);
@@ -921,7 +916,8 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
   bool    set = false;
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
-  tscDebug("consumer %ld update ep epoch %d to epoch %d, topic num: %d", tmq->consumerId, tmq->epoch, epoch, topicNumGet);
+  tscDebug("consumer %ld update ep epoch %d to epoch %d, topic num: %d", tmq->consumerId, tmq->epoch, epoch,
+           topicNumGet);
   SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
   if (newTopics == NULL) {
     return false;
@@ -1289,7 +1285,8 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
       atomic_add_fetch_32(&tmq->waitingRequest, 1);
-      tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %ld, reqId %lu", tmq->consumerId, pTopic->topicName, pVg->vgId, tmq->epoch, pVg->currentOffset, pReq->reqId);
+      tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %ld, reqId %lu", tmq->consumerId,
+               pTopic->topicName, pVg->vgId, tmq->epoch, pVg->currentOffset, pReq->reqId);
       /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/
       asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
       pVg->pollCnt++;
@@ -1564,32 +1561,6 @@ const char* tmq_err2str(tmq_resp_err_t err) {
     return "success";
   }
   return "fail";
-}
-
-TAOS_ROW tmq_get_row(tmq_message_t* message) {
-  SMqPollRsp* rsp = &message->msg;
-  while (1) {
-    if (message->iter.curBlock < taosArrayGetSize(rsp->pBlockData)) {
-      SSDataBlock* pBlock = taosArrayGet(rsp->pBlockData, message->iter.curBlock);
-      if (message->iter.curRow < pBlock->info.rows) {
-        for (int i = 0; i < pBlock->info.numOfCols; i++) {
-          SColumnInfoData* pData = taosArrayGet(pBlock->pDataBlock, i);
-          if (colDataIsNull_s(pData, message->iter.curRow))
-            message->iter.uData[i] = NULL;
-          else {
-            message->iter.uData[i] = colDataGetData(pData, message->iter.curRow);
-          }
-        }
-        message->iter.curRow++;
-        return message->iter.uData;
-      } else {
-        message->iter.curBlock++;
-        message->iter.curRow = 0;
-        continue;
-      }
-    }
-    return NULL;
-  }
 }
 
 char* tmq_get_topic_name(tmq_message_t* message) { return "not implemented yet"; }
