@@ -162,7 +162,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   char file[PATH_MAX];
   snprintf(file, sizeof(file), "%s%sdnode.json.bak", pMgmt->path, TD_DIRSEP);
 
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     dError("failed to write %s since %s", file, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);

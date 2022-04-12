@@ -536,6 +536,8 @@ int32_t qwDropTask(QW_FPARAMS_DEF) {
   QW_ERR_RET(qwDropTaskStatus(QW_FPARAMS()));
   QW_ERR_RET(qwDropTaskCtx(QW_FPARAMS()));
 
+  QW_TASK_DLOG_E("task is dropped");
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1239,8 +1241,10 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING);
   } else if (ctx->phase > 0) {
-    qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
-    QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
+    if (0 == qwMsg->code) {
+      qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
+      QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
+    }
 
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     rsped = true;
@@ -1273,7 +1277,7 @@ _return:
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
-  if (TSDB_CODE_SUCCESS != code) {
+  if ((TSDB_CODE_SUCCESS != code) && (0 == qwMsg->code)) {
     qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   }

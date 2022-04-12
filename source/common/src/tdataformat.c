@@ -411,6 +411,7 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 #endif
 
   pCols->numOfRows = 0;
+  pCols->bitmapMode = 0;
   pCols->numOfCols = schemaNCols(pSchema);
 
   for (i = 0; i < schemaNCols(pSchema); ++i) {

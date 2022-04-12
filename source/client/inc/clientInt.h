@@ -84,10 +84,10 @@ typedef struct {
 } SClientHbMgr;
 
 typedef struct SQueryExecMetric {
-  int64_t start;   // start timestamp
-  int64_t parsed;  // start to parse
-  int64_t send;    // start to send to server
-  int64_t rsp;     // receive response from server
+  int64_t start;   // start timestamp, us
+  int64_t parsed;  // start to parse, us
+  int64_t send;    // start to send to server, us
+  int64_t rsp;     // receive response from server, us
 } SQueryExecMetric;
 
 typedef struct SInstanceSummary {
@@ -276,14 +276,13 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
                             uint16_t port);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery);
-
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-void*   doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr);
+void*   doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows, bool convertUcs4);
 void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 

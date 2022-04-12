@@ -96,7 +96,7 @@ int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 
   if (alterReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to alter mnode since %s", terrstr());
+    dError("failed to alter mnode since %s, dnodeId:%d input:%d", terrstr(), pDnode->dnodeId, alterReq.dnodeId);
     return -1;
   } else {
     return mmAlter(pMgmt, &alterReq);

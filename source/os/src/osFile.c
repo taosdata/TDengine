@@ -129,7 +129,7 @@ int64_t taosCopyFile(const char *from, const char *to) {
   if (pFileFrom == NULL) goto _err;
 
   // fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
-  TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_EXCL);
+  TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_EXCL);
   if (pFileTo == NULL) goto _err;
 
   while (true) {
@@ -246,7 +246,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     }
   } else {
     int access = O_BINARY;
-    access |= (tdFileOptions & TD_FILE_CTEATE) ? O_CREAT : 0;
+    access |= (tdFileOptions & TD_FILE_CREATE) ? O_CREAT : 0;
     if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ)) {
       access |= O_RDWR;
     } else if (tdFileOptions & TD_FILE_WRITE) {

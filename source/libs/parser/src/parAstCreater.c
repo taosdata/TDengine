@@ -207,7 +207,9 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
   SNode* pExpr = pRawExpr->pNode;
-  strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
+  if (nodesIsExprNode(pExpr)) {
+    strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
+  }
   taosMemoryFreeClear(pNode);
   return pExpr;
 }
@@ -456,6 +458,13 @@ SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap
 SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   SStateWindowNode* state = (SStateWindowNode*)nodesMakeNode(QUERY_NODE_STATE_WINDOW);
   CHECK_OUT_OF_MEM(state);
+  state->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == state->pCol) {
+    nodesDestroyNode(state);
+    CHECK_OUT_OF_MEM(state->pCol);
+  }
+  ((SColumnNode*)state->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(((SColumnNode*)state->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
   state->pExpr = pExpr;
   return (SNode*)state;
 }
@@ -498,8 +507,9 @@ SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* p
   if (NULL == pNode || !pCxt->valid) {
     return pNode;
   }
-  uint32_t maxLen = sizeof(((SExprNode*)pNode)->aliasName);
-  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n > maxLen ? maxLen : pAlias->n);
+  int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
+  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
+  ((SExprNode*)pNode)->aliasName[len] = '\0';
   return pNode;
 }
 
@@ -582,34 +592,6 @@ SNode* createDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   return (SNode*)pOptions;
-}
-
-static bool checkAndSetKeepOption(SAstCreateContext* pCxt, SNodeList* pKeep, int32_t* pKeep0, int32_t* pKeep1, int32_t* pKeep2) {
-  int32_t numOfKeep = LIST_LENGTH(pKeep);
-  if (numOfKeep > 3 || numOfKeep < 1) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid number of keep options");
-    return false;
-  }
-
-  int32_t daysToKeep0 = strtol(((SValueNode*)nodesListGetNode(pKeep, 0))->literal, NULL, 10);
-  int32_t daysToKeep1 = numOfKeep > 1 ? strtol(((SValueNode*)nodesListGetNode(pKeep, 1))->literal, NULL, 10) : daysToKeep0;
-  int32_t daysToKeep2 = numOfKeep > 2 ? strtol(((SValueNode*)nodesListGetNode(pKeep, 2))->literal, NULL, 10) : daysToKeep1;
-  if (daysToKeep0 < TSDB_MIN_KEEP || daysToKeep1 < TSDB_MIN_KEEP || daysToKeep2 < TSDB_MIN_KEEP ||
-      daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid option keep: %d, %d, %d valid range: [%d, %d]", daysToKeep0, daysToKeep1, daysToKeep2, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-    return false;
-  }
-
-  if (!((daysToKeep0 <= daysToKeep1) && (daysToKeep1 <= daysToKeep2))) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid keep value, should be keep0 <= keep1 <= keep2");
-    return false;
-  }
-
-  *pKeep0 = daysToKeep0;
-  *pKeep1 = daysToKeep1;
-  *pKeep2 = daysToKeep2;
-  return true;
 }
 
 SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {

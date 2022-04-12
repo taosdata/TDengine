@@ -488,6 +488,12 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   pWindow->winType = WINDOW_TYPE_STATE;
   pWindow->pStateExpr = nodesCloneNode(pState->pExpr);
 
+  pWindow->pTspk = nodesCloneNode(pState->pCol);
+  if (NULL == pWindow->pTspk) {
+    nodesDestroyNode(pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
@@ -499,6 +505,12 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
 
   pWindow->winType = WINDOW_TYPE_SESSION;
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
+
+  pWindow->pTspk = nodesCloneNode(pSession->pCol);
+  if (NULL == pWindow->pTspk) {
+    nodesDestroyNode(pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }

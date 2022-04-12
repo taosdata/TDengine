@@ -57,6 +57,8 @@ typedef enum {
   TD_ROW_PARTIAL_UPDATE = 2,
 } TDUpdateConfig;
 
+#define TD_SUPPORT_UPDATE(u) ((u) > 0)
+
 typedef enum {
   TSDB_STATIS_OK = 0,    // statis part exist and load successfully
   TSDB_STATIS_NONE = 1,  // statis part not exist

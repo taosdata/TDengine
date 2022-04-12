@@ -188,7 +188,7 @@ TEST_F(DndTestMnode, 03_Drop_Mnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_MNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_REDIRECT);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
   }
 
   {
