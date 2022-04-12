@@ -360,7 +360,7 @@ class TDDnode:
         cmd = "mintty -h never -w hide %s -c %s" % (
             binPath, self.cfgDir)
 
-        taosadapterCmd = "mintty -h never -w hide %s --monitor.writeToTD=false " % (
+        taosadapterCmd = "mintty -h never -w hide %s " % (
             taosadapterBinPath)
         if os.system(taosadapterCmd) != 0:
             tdLog.exit(taosadapterCmd)
