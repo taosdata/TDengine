@@ -437,6 +437,12 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
+  pTableScan->dataRequired = pScanLogicNode->dataRequired;
+  pTableScan->pDynamicScanFuncs = nodesCloneList(pScanLogicNode->pDynamicScanFuncs);
+  if (NULL != pScanLogicNode->pDynamicScanFuncs && NULL == pTableScan->pDynamicScanFuncs) {
+    nodesDestroyNode(pTableScan);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   return createScanPhysiNodeFinalize(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
