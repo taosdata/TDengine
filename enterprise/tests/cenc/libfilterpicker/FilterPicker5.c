@@ -451,7 +451,7 @@ void Pick(
             sample[n] = sampleNew[n];
     }
     if (sampleNew != NULL)
-        free(sampleNew);
+        taosMemoryFree(sampleNew);
 
 
 }

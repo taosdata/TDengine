@@ -230,7 +230,7 @@ static bool build_file_list()
         return true;
 
     puts( "loading file names..." );
-    g_input_files = (InputFile*)malloc( sizeof(InputFile) * g_num_input_files );
+    g_input_files = (InputFile*)taosMemoryMalloc( sizeof(InputFile) * g_num_input_files );
     if( g_input_files == NULL )
     {
         puts( "failed to allocate memory" );
@@ -274,7 +274,7 @@ static OutputFile* get_output_file( const Record* r )
         const char* sqlFmt = "CREATE TABLE %s USING %s TAGS ('%s', '', '%s', '');\n";
 
         fprintf( g_table_file, sqlFmt, r->tbname, g_stable, r->equid, r->type );
-        TableEntry* te = (TableEntry*)malloc( sizeof(TableEntry) );
+        TableEntry* te = (TableEntry*)taosMemoryMalloc( sizeof(TableEntry) );
         if( te == NULL )
         {
             puts( "failed to allocate memory for table entry." );
@@ -567,7 +567,7 @@ static void close_output_files()
         g_table_file = NULL;
     }
 
-    free( g_output_files );
+    taosMemoryFree( g_output_files );
     g_output_files = NULL;
 }
 
@@ -635,7 +635,7 @@ static bool run()
         goto clean;
     }
 
-    g_record_pool = (Record*)malloc( sizeof(Record) * MAX_NUM_OF_RECORD );
+    g_record_pool = (Record*)taosMemoryMalloc( sizeof(Record) * MAX_NUM_OF_RECORD );
     if( g_record_pool == NULL )
     {
         puts( "failed to allocate record pool." );
@@ -646,7 +646,7 @@ static bool run()
     g_record_pool[MAX_NUM_OF_RECORD - 1].next = NULL;
     g_next_free_record = g_record_pool;
 
-    g_records = (Record**)malloc( sizeof(Record*) * MAX_NUM_OF_RECORD );
+    g_records = (Record**)taosMemoryMalloc( sizeof(Record*) * MAX_NUM_OF_RECORD );
     if( g_records == NULL )
     {
         puts( "failed to allocate memory for records." );
@@ -666,22 +666,22 @@ clean:
             while( te != NULL )
             {
                 TableEntry* next = te->next;
-                free( te );
+                taosMemoryFree( te );
                 te = next;
             }
         }
-        free( g_tables );
+        taosMemoryFree( g_tables );
         g_tables = NULL;
     }
 
-    free( g_records );
+    taosMemoryFree( g_records );
     g_records = NULL;
-    free( g_record_pool );
+    taosMemoryFree( g_record_pool );
     g_record_pool = NULL;
     g_next_free_record = NULL;
     g_num_records = 0;
 
-    free( g_input_files );
+    taosMemoryFree( g_input_files );
     g_input_files = NULL;
 
     return ret;

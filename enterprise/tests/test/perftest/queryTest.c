@@ -140,7 +140,7 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
 
   char* buffer[10000] = {0};
   for (int32_t i = 0; i < 10000; ++i) {
-    buffer[i] = malloc(1024);
+    buffer[i] = taosMemoryMalloc(1024);
   }
 
   loadData("~/0902_excavator_data_f.csv", buffer);
@@ -192,7 +192,7 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
   }
 
   for (int32_t i = 0; i < 10000; ++i) {
-    free(buffer[i]);
+    taosMemoryFree(buffer[i]);
     buffer[i] = NULL;
   }
 
@@ -227,7 +227,7 @@ int multiThreadQuery(int32_t numOfThreads, char* sql) {
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  pthread_t* threadId = malloc(sizeof(pthread_t) * numOfThreads);
+  pthread_t* threadId = taosMemoryMalloc(sizeof(pthread_t) * numOfThreads);
 
   MultiThreadQueryInfo* params = calloc(1, sizeof(MultiThreadQueryInfo) * numOfThreads);
 
@@ -274,7 +274,7 @@ void generatedData(TAOS* taos) {
 
   int32_t numOfTables = i;
 
-  free(line);
+  taosMemoryFree(line);
   line = NULL;
 
   printf("total devid:%d\n", i);

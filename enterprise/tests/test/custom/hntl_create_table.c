@@ -73,7 +73,7 @@ void t(int argc, char *argv[])
   size_t len;
 
   while (!feof(fp)) {
-    free(line);
+    taosMemoryFree(line);
     line = NULL;
     getline(&line, &len, fp);
     if (line == NULL) break;

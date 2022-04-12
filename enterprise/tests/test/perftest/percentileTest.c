@@ -257,7 +257,7 @@ void qsortTest() {
 
   const int32_t num = 2000;
 
-  int32_t *d = (int32_t *)malloc(sizeof(int32_t) * num);
+  int32_t *d = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * num);
   for (int32_t i = 0; i < num; ++i) {
     d[i] = i % 4;
   }

@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "httpLog.h"
 #include "httpJson.h"
 #include "httpResp.h"
@@ -154,7 +154,7 @@ void opBuildPutDetailAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int3
 
 bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpDebug("context:%p, fd:%d, check opentsdb command, code:%s, state:%d, type:%d, rettype:%d, tags:%d", pContext,
+  httpDebug("context:%p, fd:%p, check opentsdb command, code:%s, state:%d, type:%d, rettype:%d, tags:%d", pContext,
             pContext->fd, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
@@ -163,14 +163,14 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)-1;
-          httpDebug("context:%p, fd:%d, import failed, try create database", pContext, pContext->fd);
+          httpDebug("context:%p, fd:%p, import failed, try create database", pContext, pContext->fd);
           return false;
         }
-      } else if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
+      } else if (code == TSDB_CODE_TSC_INVALID_TABLE_NAME) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)(multiCmds->pos - 2);
-          httpDebug("context:%p, fd:%d, import failed, try create stable", pContext, pContext->fd);
+          httpDebug("context:%p, fd:%p, import failed, try create stable", pContext, pContext->fd);
           return false;
         }
       } else {
@@ -179,10 +179,10 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpDebug("context:%p, fd:%d, code:%s, create database failed", pContext, pContext->fd, tstrerror(code));
+    httpDebug("context:%p, fd:%p, code:%s, create database failed", pContext, pContext->fd, tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpDebug("context:%p, fd:%d, code:%s, create stable failed", pContext, pContext->fd, tstrerror(code));
+    httpDebug("context:%p, fd:%p, code:%s, create stable failed", pContext, pContext->fd, tstrerror(code));
   } else {
   }
 
@@ -192,7 +192,7 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
 void opSetPutDetailNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug(
-      "context:%p, fd:%d, get opentsdb detail next command, pos:%d, "
+      "context:%p, fd:%p, get opentsdb detail next command, pos:%d, "
       "code:%s, state:%d, type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType,
       cmd->tagNum);
@@ -254,7 +254,7 @@ void opBuildPutSummaryAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int
 bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug(
-      "context:%p, fd:%d, check opentsdb summary command, code:%s, "
+      "context:%p, fd:%p, check opentsdb summary command, code:%s, "
       "state:%d, type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
 
@@ -264,14 +264,14 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = -1;
-          httpDebug("context:%p, fd:%d, import failed, try create database", pContext, pContext->fd);
+          httpDebug("context:%p, fd:%p, import failed, try create database", pContext, pContext->fd);
           return false;
         }
-      } else if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
+      } else if (code == TSDB_CODE_TSC_INVALID_TABLE_NAME) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = 0;
-          httpDebug("context:%p, fd:%d, import failed, try create stable", pContext, pContext->fd);
+          httpDebug("context:%p, fd:%p, import failed, try create stable", pContext, pContext->fd);
           return false;
         }
       } else {
@@ -280,10 +280,10 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpDebug("context:%p, fd:%d, code:%s, create database failed", pContext, pContext->fd, tstrerror(code));
+    httpDebug("context:%p, fd:%p, code:%s, create database failed", pContext, pContext->fd, tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpDebug("context:%p, fd:%d, code:%s, create stable failed", pContext, pContext->fd, tstrerror(code));
+    httpDebug("context:%p, fd:%p, code:%s, create stable failed", pContext, pContext->fd, tstrerror(code));
   } else {
   }
 
@@ -293,7 +293,7 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
 void opSetPutSummaryNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug(
-      "context:%p, fd:%d, get opentsdb summary next command, pos:%d, "
+      "context:%p, fd:%p, get opentsdb summary next command, pos:%d, "
       "code:%s, state:%d, type:%d, rettype:%d, tags:%d",
       pContext, pContext->fd, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType,
       cmd->tagNum);

@@ -133,8 +133,8 @@ int main(int argc, char * argv[]) {
 	fprintf(logFp, "%s Inserting data......\ \n", getTimeString());
 	printf("%s Inserting data......\ \n", getTimeString());
 
-    pthread_t * pids = malloc(nconnections * sizeof(pthread_t));
-    info * infos = malloc(nconnections * sizeof(info));
+    pthread_t * pids = taosMemoryMalloc(nconnections * sizeof(pthread_t));
+    info * infos = taosMemoryMalloc(nconnections * sizeof(info));
     int a = ntables / nconnections;
     int b = ntables % nconnections;
     int last = 0;
@@ -180,8 +180,8 @@ int main(int argc, char * argv[]) {
         taos_close(t_info->taos);
     }
 
-    free(pids);
-    free(infos);
+    taosMemoryFree(pids);
+    taosMemoryFree(infos);
 
     return 0;
 }
@@ -202,7 +202,7 @@ int randValue() {
 // sync insertion
 void * sync_write(void * sarg) {
     info * winfo = (info * )sarg;
-    char * buffer = malloc(65536);
+    char * buffer = taosMemoryMalloc(65536);
     char *pStr = NULL;
     int   count = 0;
     double st = 0;
@@ -240,7 +240,7 @@ void * sync_write(void * sarg) {
 		queryDB(winfo->taos, buffer);
 	}
 
-    free(buffer);
+    taosMemoryFree(buffer);
 
     return NULL;
 }

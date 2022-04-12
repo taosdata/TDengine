@@ -183,40 +183,40 @@ void free_FilterPicker5_Memory(FilterPicker5_Memory** pfilterPicker5_Memory) {
     if (*pfilterPicker5_Memory == NULL)
         return;
 
-    free((*pfilterPicker5_Memory)->xRec);
-    free((*pfilterPicker5_Memory)->test);
+    taosMemoryFree((*pfilterPicker5_Memory)->xRec);
+    taosMemoryFree((*pfilterPicker5_Memory)->test);
     for (k = 0; k < (*pfilterPicker5_Memory)->numRecursive; k++)
-        free((*pfilterPicker5_Memory)->filteredSample[k]);
-    free((*pfilterPicker5_Memory)->filteredSample);
-    free((*pfilterPicker5_Memory)->lastFilteredSample);
-    free((*pfilterPicker5_Memory)->mean_xRec);
-    free((*pfilterPicker5_Memory)->mean_stdDev_xRec);
-    free((*pfilterPicker5_Memory)->mean_var_xRec);
-    free((*pfilterPicker5_Memory)->period);
-    free((*pfilterPicker5_Memory)->lowPassConst);
-    free((*pfilterPicker5_Memory)->highPassConst);
+        taosMemoryFree((*pfilterPicker5_Memory)->filteredSample[k]);
+    taosMemoryFree((*pfilterPicker5_Memory)->filteredSample);
+    taosMemoryFree((*pfilterPicker5_Memory)->lastFilteredSample);
+    taosMemoryFree((*pfilterPicker5_Memory)->mean_xRec);
+    taosMemoryFree((*pfilterPicker5_Memory)->mean_stdDev_xRec);
+    taosMemoryFree((*pfilterPicker5_Memory)->mean_var_xRec);
+    taosMemoryFree((*pfilterPicker5_Memory)->period);
+    taosMemoryFree((*pfilterPicker5_Memory)->lowPassConst);
+    taosMemoryFree((*pfilterPicker5_Memory)->highPassConst);
 
     for (k = 0; k < (*pfilterPicker5_Memory)->numRecursive; k++) {
-        free((*pfilterPicker5_Memory)->polarityDerivativeSum[k]);
-        free((*pfilterPicker5_Memory)->polaritySumAbsDerivative[k]);
+        taosMemoryFree((*pfilterPicker5_Memory)->polarityDerivativeSum[k]);
+        taosMemoryFree((*pfilterPicker5_Memory)->polaritySumAbsDerivative[k]);
     }
-    free((*pfilterPicker5_Memory)->polarityDerivativeSum);
-    free((*pfilterPicker5_Memory)->polaritySumAbsDerivative);
-    free((*pfilterPicker5_Memory)->integralCharFunctClipped);
-    free((*pfilterPicker5_Memory)->charFunctClippedValue);
-    free((*pfilterPicker5_Memory)->charFunctValue);
-    free((*pfilterPicker5_Memory)->charFunctNumRecursiveIndex);
+    taosMemoryFree((*pfilterPicker5_Memory)->polarityDerivativeSum);
+    taosMemoryFree((*pfilterPicker5_Memory)->polaritySumAbsDerivative);
+    taosMemoryFree((*pfilterPicker5_Memory)->integralCharFunctClipped);
+    taosMemoryFree((*pfilterPicker5_Memory)->charFunctClippedValue);
+    taosMemoryFree((*pfilterPicker5_Memory)->charFunctValue);
+    taosMemoryFree((*pfilterPicker5_Memory)->charFunctNumRecursiveIndex);
 
     for (k = 0; k < (*pfilterPicker5_Memory)->numRecursive; k++) {
-        free((*pfilterPicker5_Memory)->indexUncertainty[k]);
+        taosMemoryFree((*pfilterPicker5_Memory)->indexUncertainty[k]);
     }
-    free((*pfilterPicker5_Memory)->indexUncertainty);
-    free((*pfilterPicker5_Memory)->charFunctUncertainty);
-    free((*pfilterPicker5_Memory)->charFunctUncertaintyLast);
-    free((*pfilterPicker5_Memory)->uncertaintyThreshold);
+    taosMemoryFree((*pfilterPicker5_Memory)->indexUncertainty);
+    taosMemoryFree((*pfilterPicker5_Memory)->charFunctUncertainty);
+    taosMemoryFree((*pfilterPicker5_Memory)->charFunctUncertaintyLast);
+    taosMemoryFree((*pfilterPicker5_Memory)->uncertaintyThreshold);
 
 
-    free(*pfilterPicker5_Memory);
+    taosMemoryFree(*pfilterPicker5_Memory);
     *pfilterPicker5_Memory = NULL;
 
 }

@@ -50,7 +50,7 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
         tUpEvent = (double) itUpEvent / 1000.0;
     }
 
-    amps = (float *) malloc(numOfRows * sizeof(float));
+    amps = (float *) taosMemoryMalloc(numOfRows * sizeof(float));
     if (amps == NULL) {
         fprintf(stderr, "failed to allocate for amps\r\n");
         return;
@@ -151,9 +151,9 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
         *numOfOutput = num_picks;
     }
 
-    free(amps);
+    taosMemoryFree(amps);
 
     if (pick_list) {
-        free(pick_list);
+        taosMemoryFree(pick_list);
     }
 }

@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+#include "tlog.h"
 #include "tglobal.h"
 
 void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
@@ -23,8 +23,8 @@ void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
   if (v2 != NULL) {
     int length = (int)strlen(v2);
     if (length > 0) level = atoi(v2);
-    if (level < 0 || level >= TSDB_MAX_TIERS) {
-      uError("config option:dataDir, input level:%s, not in range [0, %d), set default 0", v2, TSDB_MAX_TIERS);
+    if (level < 0 || level >= TFS_MAX_TIERS) {
+      uError("config option:dataDir, input level:%s, not in range [0, %d), set default 0", v2, TFS_MAX_TIERS);
       level = 0;
     }
   }
@@ -39,7 +39,7 @@ void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
     }
   }
 
-  if (tsDiskCfgNum >= TSDB_MAX_DISKS) return;
+  if (tsDiskCfgNum >= TFS_MAX_TIERS) return;
   taosAddDataDir(tsDiskCfgNum, v1, level, primary);
   tsDiskCfgNum++;
 }

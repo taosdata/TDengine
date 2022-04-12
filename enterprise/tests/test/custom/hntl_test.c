@@ -102,14 +102,14 @@ static error_t opt_parser(int key, char * arg, struct argp_state * state) {
             arguments->mode = atoi(arg) ? ASYNC : SYNC;
             break;
         case 'h':
-            arguments->ip = (char *) malloc(MAX_IP_LEN);
+            arguments->ip = (char *) taosMemoryMalloc(MAX_IP_LEN);
             strcpy(arguments->ip, arg);
             break;
         case 'd':
             strcpy(arguments->database, arg);
             break;
         case 'e':
-            arguments->metric = (char *) malloc(MAX_METRIC_NAME_LEN);
+            arguments->metric = (char *) taosMemoryMalloc(MAX_METRIC_NAME_LEN);
             strcpy(arguments->metric, arg);
             break;
         case 't':
@@ -215,9 +215,9 @@ int main(int argc, char * argv[]) {
     }
 
     /* Inserting data */
-    pthread_t * pids = (pthread_t *)malloc(args->threads*sizeof(pthread_t));
+    pthread_t * pids = (pthread_t *)taosMemoryMalloc(args->threads*sizeof(pthread_t));
     memset(pids, 0, args->threads * sizeof(pthread_t));
-    struct insert_args * iargs = (struct insert_args *) malloc(args->threads * sizeof(struct insert_args));
+    struct insert_args * iargs = (struct insert_args *) taosMemoryMalloc(args->threads * sizeof(struct insert_args));
     memset(iargs, 0, args->threads * sizeof(struct insert_args));
 
     assert(args->ntables >= args->threads);
@@ -262,8 +262,8 @@ int main(int argc, char * argv[]) {
         taos_close(iargs[i].taos);
     }
 
-    free(pids);
-    free(iargs);
+    taosMemoryFree(pids);
+    taosMemoryFree(iargs);
 
 __exit:
     return 0;
@@ -464,5 +464,5 @@ void generate_data(const char * pattern, char * data, int dataLen, int64_t times
 
     pstr += sprintf(pstr, " )");
 
-    free(dupstr);
+    taosMemoryFree(dupstr);
 }

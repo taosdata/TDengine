@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
             int index = (int) (pick->indices[0] * 0.5  + pick->indices[1] * 0.5 );
             printf("%s\n",mydata.time[index]);	// 示例程序中检测到地震波信号，打印出该点的时间，在测试时序数据库时，应存入另一张结果表中。
         }
-        free(pick_list); 
+        taosMemoryFree(pick_list); 
     } 
     fclose(fp2);
     free_PickList(pick_list_definative, num_picks_definative); // PickData objects freed here

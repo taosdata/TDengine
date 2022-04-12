@@ -33,7 +33,7 @@
 #include "ihash.h"
 #include "shash.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tutil.h"
 #include "tmd5.h"
 
@@ -41,10 +41,10 @@
 // log functions
 // 
 
-#define gsError(...) taosPrintLog("ERROR ", 199, __VA_ARGS__); 
-#define gsWarn(...)  taosPrintLog("WARN  ", 199, __VA_ARGS__); 
-#define gsPrint(...) taosPrintLog("INFO  ", 199, __VA_ARGS__); 
-#define gsDump(...)  taosPrintLongString("ERROR ", 199, __VA_ARGS__); 
+#define gsError(...) taosPrintLog("ERROR ", DEBUG_ERROR, 199, __VA_ARGS__); 
+#define gsWarn(...)  taosPrintLog("WARN  ", DEBUG_WARN, 199, __VA_ARGS__); 
+#define gsPrint(...) taosPrintLog("INFO  ", DEBUG_INFO, 199, __VA_ARGS__); 
+#define gsDump(...)  taosPrintLongString("ERROR ", DEBUG_ERROR, 199, __VA_ARGS__); 
 
 #define GS_RESULT_FAILURE  "failure"
 #define GS_RESULT_SUCCESS  "success"
@@ -213,10 +213,10 @@ void gsFreeGlobal()
 {
   for (int i = 0; i < gsGlobal->taskLen; ++i) {
     GsTask *task = &gsGlobal->tasks[i];
-    free(task->name);
-    free(task->sql);
+    taosMemoryFree(task->name);
+    taosMemoryFree(task->sql);
   }
-  free(gsGlobal->tasks);
+  taosMemoryFree(gsGlobal->tasks);
 
   for (int i = 0; i < gsGlobal->threadNum; ++i) {
     GsThread *thread = &gsGlobal->threads[i];
@@ -227,17 +227,17 @@ void gsFreeGlobal()
       SQLFreeHandle(SQL_HANDLE_DBC, thread->hstmt);
     }
 
-    free(thread);
+    taosMemoryFree(thread);
   }
-  free(gsGlobal->threads);
+  taosMemoryFree(gsGlobal->threads);
 
-  free(gsGlobal);
+  taosMemoryFree(gsGlobal);
   gsGlobal = 0;
 }
 
 void gsMallocGlobal()
 {
-  gsGlobal = (GsGlobal*)malloc(sizeof(gsGlobal));
+  gsGlobal = (GsGlobal*)taosMemoryMalloc(sizeof(gsGlobal));
   memset(&gsGlobal, 0, sizeof(gsGlobal));
   strcpy(gsGlobal->odbcUser, "root");
   strcpy(gsGlobal->odbcPassword, "123456");
@@ -283,7 +283,7 @@ void gsReadConfigFile()
 
   line = NULL;
   while (!feof(fp)) {
-    tfree(line);
+    taosMemoryFreeClear(line);
     line = option = value = NULL;
     len = olen = vlen = 0;
 
@@ -358,7 +358,7 @@ void gsReadConfigFile()
     }
   }
 
-  tfree(line);
+  taosMemoryFreeClear(line);
   fclose(fp);
 
   gsPrintArgs();
@@ -392,7 +392,7 @@ void gsReadBasicConfig()
 
   line = NULL;
   while (!feof(fp)) {
-    tfree(line);
+    taosMemoryFreeClear(line);
     line = option = value = NULL;
     len = olen = vlen = 0;
 
@@ -416,7 +416,7 @@ void gsReadBasicConfig()
     else {}
   }
 
-  tfree(line);
+  taosMemoryFreeClear(line);
   fclose(fp);
 
   struct stat  dirstat;

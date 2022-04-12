@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+#include "tlog.h"
 #include "tglobal.h"
 #include "tutil.h"
 #include <dlfcn.h>
@@ -87,7 +87,7 @@ static bool moduleReadCfg() {
   tsModulesNum = moduleNum;
 
   fclose(fp);
-  tfree(line);
+  taosMemoryFreeClear(line);
   return true;
 }
 
@@ -153,6 +153,6 @@ void moduleStop() {
     }
   }
 
-  free(tsModules);
+  taosMemoryFree(tsModules);
 }
 

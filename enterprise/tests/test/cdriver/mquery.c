@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
   if (argc >=7 ) save = atoi(argv[6]);
 
   strcpy(prefix, argv[1]);
-  pInfo = (SInfo *)malloc(sizeof(SInfo)*numOfThreads);
+  pInfo = (SInfo *)taosMemoryMalloc(sizeof(SInfo)*numOfThreads);
 
   taos_init();
 

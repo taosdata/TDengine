@@ -20,7 +20,7 @@ namespace {
  * @return
  */
 int64_t* createTsList(int32_t num, int64_t start, int32_t step) {
-  int64_t* pList = (int64_t*)malloc(num * sizeof(int64_t));
+  int64_t* pList = (int64_t*)taosMemoryMalloc(num * sizeof(int64_t));
 
   for (int64_t i = 0; i < num; ++i) {
     pList[i] = start + i * step;
@@ -88,7 +88,7 @@ void multiTagsTest() {
   for (int32_t i = 0; i < numOfTags; ++i) {
     int64_t* list = createTsList(num, start, step);
     tsBufAppend(pTSBuf, 0, i, (const char*)list, num * sizeof(int64_t));
-    free(list);
+    taosMemoryFree(list);
 
     start += step * num;
   }
@@ -121,7 +121,7 @@ void multiVnodeTagsTest() {
     for (int32_t i = 0; i < numOfTags; ++i) {
       int64_t* list = createTsList(num, start, step);
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
-      free(list);
+      taosMemoryFree(list);
 
       start += step * num;
     }
@@ -162,7 +162,7 @@ void loadDataTest() {
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
       printf("%d - %lld\n", i, list[0]);
 
-      free(list);
+      taosMemoryFree(list);
       start += step * num;
     }
 
@@ -233,13 +233,13 @@ void TSTraverse() {
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
       printf("%d - %d - %lld, %lld\n", j, i, list[0], list[num - 1]);
 
-      free(list);
+      taosMemoryFree(list);
       start += step * num;
 
       list = createTsList(num, start, step);
       tsBufAppend(pTSBuf, j, i, (const char*)list, num * sizeof(int64_t));
       printf("%d - %d - %lld, %lld\n", j, i, list[0], list[num - 1]);
-      free(list);
+      taosMemoryFree(list);
 
       start += step * num;
     }
@@ -375,7 +375,7 @@ void mergeDiffVnodeBufferTest() {
     tsBufAppend(pTSBuf1, 0, i, (const char*)list, num * sizeof(int64_t));
     tsBufAppend(pTSBuf2, 0, i, (const char*)list, num * sizeof(int64_t));
 
-    free(list);
+    taosMemoryFree(list);
 
     start += step * num;
   }
@@ -406,7 +406,7 @@ void mergeIdenticalVnodeBufferTest() {
     int64_t* list = createTsList(num, start, step);
 
     tsBufAppend(pTSBuf1, 12, i, (const char*)list, num * sizeof(int64_t));
-    free(list);
+    taosMemoryFree(list);
 
     start += step * num;
   }
@@ -415,7 +415,7 @@ void mergeIdenticalVnodeBufferTest() {
     int64_t* list = createTsList(num, start, step);
 
     tsBufAppend(pTSBuf2, 77, i, (const char*)list, num * sizeof(int64_t));
-    free(list);
+    taosMemoryFree(list);
 
     start += step * num;
   }

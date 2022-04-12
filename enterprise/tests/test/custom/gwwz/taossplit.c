@@ -21,7 +21,7 @@
 #include "ihash.h"
 #include "shash.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tutil.h"
 #include <error.h>
 
@@ -219,18 +219,18 @@ static struct arguments tdArgs = {
 // log function
 #define tdError(...)                          \
   if (tdArgs.debugFlag & DEBUG_ERROR) {            \
-    taosPrintLog("ERROR TD  ", 255, __VA_ARGS__); \
+    taosPrintLog("ERROR TD  ", DEBUG_ERROR, 255, __VA_ARGS__); \
   }
 #define tdWarn(...)                                  \
   if (tdArgs.debugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN  TD  ", tdArgs.debugFlag, __VA_ARGS__); \
+    taosPrintLog("WARN  TD  ", DEBUG_WARN, tdArgs.debugFlag, __VA_ARGS__); \
   }
 #define tdTrace(...)                           \
   if (tdArgs.debugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("TD  ", tdArgs.debugFlag, __VA_ARGS__); \
+    taosPrintLog("TD  ", DEBUG_TRACE, tdArgs.debugFlag, __VA_ARGS__); \
   }
 #define tdPrint(...) \
-  { taosPrintLog("TD  ", 255, __VA_ARGS__); }
+  { taosPrintLog("TD  ", DEBUG_SCREEN, 255, __VA_ARGS__); }
 
 int tdCheckParam(struct arguments *arguments) {
   tdPrint("program parameters");
@@ -434,7 +434,7 @@ void tdSortCsvFiles()
     }
   }
 
-  free(fileDate);
+  taosMemoryFree(fileDate);
 }
 
 void tdMallocCsvFiles()
@@ -631,7 +631,7 @@ void tdParseCsvFile(char *csvfile) {
   int lineNum = 0;
 
   if (taosContainSchema) {
-    tfree(line);
+    taosMemoryFreeClear(line);
     getline(&line, &len, fp);
     if (line == NULL) {
       tdPrint("file:%s is empty", csvfile);
@@ -640,7 +640,7 @@ void tdParseCsvFile(char *csvfile) {
   }
 
   do {
-    tfree(line);
+    taosMemoryFreeClear(line);
     int ret = getline(&line, &len, fp);
     if (line == NULL || ret == -1 || len == 0) {
       tdPrint("file:%s read finished, totallines:%d", csvfile, lineNum);

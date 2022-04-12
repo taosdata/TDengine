@@ -16,7 +16,7 @@
 #include "ihash.h"
 #include "shash.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tutil.h"
 #include "tmd5.h"
 
@@ -24,10 +24,10 @@
 // log functions
 // 
 
-#define gsError(...) taosPrintLog("ERROR ", 199, __VA_ARGS__); 
-#define gsWarn(...)  taosPrintLog("WARN  ", 199, __VA_ARGS__); 
-#define gsPrint(...) taosPrintLog("INFO  ", 199, __VA_ARGS__); 
-#define gsDump(...)  taosPrintLongString("ERROR ", 199, __VA_ARGS__); 
+#define gsError(...) taosPrintLog("ERROR ", DEBUG_ERROR, 199, __VA_ARGS__); 
+#define gsWarn(...)  taosPrintLog("WARN  ", DEBUG_WARN, 199, __VA_ARGS__); 
+#define gsPrint(...) taosPrintLog("INFO  ", DEBUG_INFO, 199, __VA_ARGS__); 
+#define gsDump(...)  taosPrintLongString("ERROR ", DEBUG_ERROR, 199, __VA_ARGS__); 
 
 #define GS_ARG_MAX_LEN 100
 

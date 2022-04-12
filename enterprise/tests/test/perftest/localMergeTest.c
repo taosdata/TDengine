@@ -11,7 +11,7 @@ const int32_t PAGE_SIZE = 4096;
 const int32_t NUM_OF_COLS = 2;
 
 void *generateColumnFormatData(int32_t numOfRows, int32_t rowLen, SColumnModel *pModel) {
-    char *data = (char *) malloc(numOfRows * rowLen);
+    char *data = (char *) taosMemoryMalloc(numOfRows * rowLen);
     assert(data != NULL);
 
     int64_t ff = 1000;
@@ -59,7 +59,7 @@ void *generateMultiColumnFormatData(int32_t numOfRows, int32_t rowLen, SColumnMo
 }
 
 void getFieldInfo(TAOS_FIELD **pField, int16_t **colOffset, int32_t numOfCols) {
-    (*pField) = (TAOS_FIELD *) malloc(sizeof(TAOS_FIELD) * numOfCols);
+    (*pField) = (TAOS_FIELD *) taosMemoryMalloc(sizeof(TAOS_FIELD) * numOfCols);
 
     (*pField)[0].type = TSDB_DATA_TYPE_BIGINT;
     strcpy((*pField)[0].name, "count(*)");
@@ -69,13 +69,13 @@ void getFieldInfo(TAOS_FIELD **pField, int16_t **colOffset, int32_t numOfCols) {
     strcpy((*pField)[1].name, "a");
     (*pField)[1].bytes = sizeof(int32_t);
 
-    (*colOffset) = malloc(sizeof(int16_t) * numOfCols);
+    (*colOffset) = taosMemoryMalloc(sizeof(int16_t) * numOfCols);
     (*colOffset)[0] = 0;
     (*colOffset)[1] = (*pField)[0].bytes + (*colOffset)[0];
 }
 
 void getMultiTagsFieldInfo(TAOS_FIELD **pField, int16_t **colOffset, int32_t numOfCols) {
-    (*pField) = (TAOS_FIELD *) malloc(sizeof(TAOS_FIELD) * numOfCols);
+    (*pField) = (TAOS_FIELD *) taosMemoryMalloc(sizeof(TAOS_FIELD) * numOfCols);
 
     (*pField)[0].type = TSDB_DATA_TYPE_BIGINT;
     strcpy((*pField)[0].name, "count(*)");
@@ -93,7 +93,7 @@ void getMultiTagsFieldInfo(TAOS_FIELD **pField, int16_t **colOffset, int32_t num
     strcpy((*pField)[3].name, "b");
     (*pField)[3].bytes = 12;
 
-    (*colOffset) = malloc(sizeof(int16_t) * numOfCols);
+    (*colOffset) = taosMemoryMalloc(sizeof(int16_t) * numOfCols);
     (*colOffset)[0] = 0;
     (*colOffset)[1] = (*pField)[0].bytes + (*colOffset)[0];
     (*colOffset)[2] = (*pField)[1].bytes + (*colOffset)[1];
@@ -193,7 +193,7 @@ void initMultiTagSQLCmd(SSqlCmd *pCmd, SColumnModel *pModel, int32_t numOfCols) 
 }
 
 tExtMemBuffer **createExtBuffer(int32_t rowLen) {
-    tExtMemBuffer **pMemoryBuf = (tExtMemBuffer **) malloc(POINTER_BYTES * 1);
+    tExtMemBuffer **pMemoryBuf = (tExtMemBuffer **) taosMemoryMalloc(POINTER_BYTES * 1);
     pMemoryBuf[0] = createExtMemBuffer(128 * 1024, rowLen);
 
     pMemoryBuf[0]->flushModel = MULTIPLE_APPEND_MODEL;
@@ -231,7 +231,7 @@ static void singleTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     void *pData = generateColumnFormatData(numOfRows, rowLen, &model);
     tColModelDisplay(&model, pData, numOfRows, numOfRows);
 
-    tFilePage *inputBuffer = (tFilePage *) malloc(MAX_AVAIL_BUFFER + sizeof(tFilePage));
+    tFilePage *inputBuffer = (tFilePage *) taosMemoryMalloc(MAX_AVAIL_BUFFER + sizeof(tFilePage));
     inputBuffer->numOfElems = 0;
 
     tExtMemBuffer **pMemoryBuf = createExtBuffer(rowLen);
@@ -274,7 +274,7 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
 
     // tmp buffer size, should larger than a single page
     int32_t maxElemsCapacity = MAX_AVAIL_BUFFER / rowLen;
-    SColumnModel* model = malloc(sizeof(SColumnModel));//{maxElemsCapacity, numCols, colOffset, pField};
+    SColumnModel* model = taosMemoryMalloc(sizeof(SColumnModel));//{maxElemsCapacity, numCols, colOffset, pField};
     model->maxCapacity = maxElemsCapacity;
     model->numOfCols = numCols;
     model->colOffset = colOffset;
@@ -282,13 +282,13 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
 
     tOrderDescriptor* pOrderDesc = tOrderDesCreate(starCmpCol, tListLen(starCmpCol), model);
 
-    SColumnModel* resModel = malloc(sizeof(SColumnModel));
+    SColumnModel* resModel = taosMemoryMalloc(sizeof(SColumnModel));
     memmove(resModel, model, sizeof(SColumnModel));
 
     void *pData = generateMultiColumnFormatData(numOfRows, rowLen, model);
     tColModelDisplay(model, pData, numOfRows, numOfRows);
 
-    tFilePage *inputBuffer = (tFilePage *) malloc(MAX_AVAIL_BUFFER + sizeof(tFilePage));
+    tFilePage *inputBuffer = (tFilePage *) taosMemoryMalloc(MAX_AVAIL_BUFFER + sizeof(tFilePage));
     inputBuffer->numOfElems = 0;
 
     tExtMemBuffer **pMemoryBuf = createExtBuffer(rowLen);
@@ -315,16 +315,16 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     tscLocalDoReduce(pObj);
     tColModelDisplay(model, pRes->data, pRes->numOfRows, pRes->numOfRows);
 
-    tfree(pData);
-    tfree(inputBuffer);
-    tfree(pCmd->pGroupbyExpr);
+    taosMemoryFreeClear(pData);
+    taosMemoryFreeClear(inputBuffer);
+    taosMemoryFreeClear(pCmd->pGroupbyExpr);
 
 //    destoryExtMemBuffer(pMemoryBuf);
-    tfree(*pMemoryBuf);
+    taosMemoryFreeClear(*pMemoryBuf);
 
     tOrderDescDestroy(pOrderDesc);
 
-    tfree(pObj);
+    taosMemoryFreeClear(pObj);
 }
 
 int32_t main(int argc, char **argv) {

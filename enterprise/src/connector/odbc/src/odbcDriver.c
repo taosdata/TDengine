@@ -2978,7 +2978,7 @@ SQLRETURN
 odbcAllocEnv(SQLHENV *env)
 {
   ENV *e;
-  e = (ENV*)malloc(sizeof(ENV));
+  e = (ENV*)taosMemoryMalloc(sizeof(ENV));
   if (e == NULL) {
     *env = SQL_NULL_HENV;
     return SQL_ERROR;
@@ -3023,7 +3023,7 @@ odbcFreeEnv(SQLHENV env)
   if (env != NULL) {
     e->signature = 0;
     pthread_mutex_destroy(&e->mutex);
-    free(e);
+    taosMemoryFree(e);
   }
 
   return SQL_SUCCESS;
@@ -3053,7 +3053,7 @@ odbcAllocDbc(SQLHENV env, SQLHDBC *dbc)
     return SQL_ERROR;
   }
 
-  d = (DBC*)malloc(sizeof(DBC));
+  d = (DBC*)taosMemoryMalloc(sizeof(DBC));
   if (d == NULL) {
     *dbc = SQL_NULL_HDBC;
     return SQL_ERROR;
@@ -3110,7 +3110,7 @@ odbcFreeDbc(SQLHDBC dbc)
 
   d->signature = 0;
   pthread_mutex_destroy(&d->mutex);
-  free(d);
+  taosMemoryFree(d);
 
   return SQL_SUCCESS;
 }
@@ -3779,9 +3779,9 @@ SQLRETURN SQL_API SQLConnectW(SQLHDBC dbc, SQLWCHAR *dsn, SQLSMALLINT dsnLen,
   ret = odbcTaosConnect((DBC*)dbc, (char*)dsnBuf, "", "", (char*)uidBuf, (char*)pwdBuf);
   HDBC_UNLOCK(dbc);
 
-  free(dsnBuf);
-  free(uidBuf);
-  free(pwdBuf);
+  taosMemoryFree(dsnBuf);
+  taosMemoryFree(uidBuf);
+  taosMemoryFree(pwdBuf);
 
   return ret;
 }
@@ -3819,7 +3819,7 @@ odbcAllocStmt(SQLHDBC hdbc, SQLHSTMT *stmt)
   STMT *s;
   DBC *d = (DBC*)hdbc;
   
-  s = (STMT*)malloc(sizeof(STMT));
+  s = (STMT*)taosMemoryMalloc(sizeof(STMT));
   if (s == NULL) {
     *stmt = SQL_NULL_HSTMT;
     HDBC_UNLOCK(hdbc);
@@ -3875,7 +3875,7 @@ odbcFreeStmt(SQLHSTMT stmt, SQLUSMALLINT opt)
 
   STMT *s = (STMT*)stmt;
   s->signature = 0;
-  free(s);
+  taosMemoryFree(s);
 
   return ret;
 }
@@ -6745,7 +6745,7 @@ SQLPrepareW(SQLHSTMT stmt, SQLWCHAR *query, SQLINTEGER queryLen)
   ret = odbcPrepare(stmt, buf);
   HSTMT_UNLOCK(stmt);
 
-  free(buf);
+  taosMemoryFree(buf);
   return ret;
 }
 
@@ -6824,7 +6824,7 @@ SQLExecDirectW(SQLHSTMT stmt, SQLWCHAR *query, SQLINTEGER queryLen)
   s->isPreparedStmt = false;
   HSTMT_UNLOCK(stmt);
 
-  free(buf);
+  taosMemoryFree(buf);
   return ret;
 }
 

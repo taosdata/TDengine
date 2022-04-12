@@ -335,8 +335,8 @@ int main(int argc, char * argv[]) {
     srand(time(NULL));
 
     printf("Inserting data......\n");
-    pthread_t * pids = malloc(arguments.nconnections * sizeof(pthread_t));
-    info * infos = malloc(arguments.nconnections * sizeof(info));
+    pthread_t * pids = taosMemoryMalloc(arguments.nconnections * sizeof(pthread_t));
+    info * infos = taosMemoryMalloc(arguments.nconnections * sizeof(info));
     int a = arguments.ntables / arguments.nconnections;
     int b = arguments.ntables % arguments.nconnections;
     int last = 0;
@@ -382,8 +382,8 @@ int main(int argc, char * argv[]) {
         taos_close(t_info->taos);
     }
 
-    free(pids);
-    free(infos);
+    taosMemoryFree(pids);
+    taosMemoryFree(infos);
 
     return 0;
 }
@@ -403,7 +403,7 @@ void queryDB(TAOS * taos, char * command) {
 // sync insertion
 void * sync_write(void * sarg) {
     info * winfo = (info * )sarg;
-    char * buffer = malloc(65536);
+    char * buffer = taosMemoryMalloc(65536);
     char *pStr = NULL;
     int   count = 0;
     int   sample_data_counter = 0;
@@ -480,7 +480,7 @@ void * sync_write(void * sarg) {
         }
     } 
 
-    free(buffer);
+    taosMemoryFree(buffer);
 
     return NULL;
 }
@@ -537,7 +537,7 @@ int loadSampleData(char *fschema, char *fsample) {
 
             number_of_values++;
 
-            schema_info.tags[schema_info.number_of_tags] = (STagInfo *) malloc(sizeof(STagInfo)+sizeof(STag)*number_of_values);
+            schema_info.tags[schema_info.number_of_tags] = (STagInfo *) taosMemoryMalloc(sizeof(STagInfo)+sizeof(STag)*number_of_values);
             schema_info.tags[schema_info.number_of_tags]->number_of_tag_values = number_of_values;
 
             strcpy(schema_info.tags[schema_info.number_of_tags]->tag_str, token1);
@@ -557,7 +557,7 @@ int loadSampleData(char *fschema, char *fsample) {
 
             if (total_percent != 1) {
                 fprintf(stderr, "Invalid tag percent distribution\n");
-                free(line);
+                taosMemoryFree(line);
                 return -1;
             }
 
@@ -565,7 +565,7 @@ int loadSampleData(char *fschema, char *fsample) {
         }
 
     }
-    free(line);
+    taosMemoryFree(line);
     fclose(f);
     f = NULL;
 
@@ -585,11 +585,11 @@ int loadSampleData(char *fschema, char *fsample) {
 }
 
 void freeSampleData() {
-    if (schema_info.data_schema != NULL) free(schema_info.data_schema);
+    if (schema_info.data_schema != NULL) taosMemoryFree(schema_info.data_schema);
     for (int i = 0; i < schema_info.number_of_tags; i++) {
-        if (schema_info.tags[i] != NULL) free(schema_info.tags[i]);
+        if (schema_info.tags[i] != NULL) taosMemoryFree(schema_info.tags[i]);
     }
-    for (int i = 0; i < sample_data_size; i++) free(sample_data[i]); 
+    for (int i = 0; i < sample_data_size; i++) taosMemoryFree(sample_data[i]); 
 }
 
 #ifdef __TEST__

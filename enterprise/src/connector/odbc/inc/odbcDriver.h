@@ -28,12 +28,12 @@
 #endif
 
 
-#define odbcFatal(...) { if (odbcDebugFlag & DEBUG_FATAL) { taosPrintLog("ODB FATAL ", tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
-#define odbcError(...) { if (odbcDebugFlag & DEBUG_ERROR) { taosPrintLog("ODB ERROR ", tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
-#define odbcWarn(...)  { if (odbcDebugFlag & DEBUG_WARN)  { taosPrintLog("ODB WARN ", tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
-#define odbcInfo(...)  { if (odbcDebugFlag & DEBUG_INFO)  { taosPrintLog("ODB ", tscEmbedded ? 255 : cDodbcDebugFlagebugFlag, __VA_ARGS__); }}
-#define odbcDebug(...) { if (odbcDebugFlag & DEBUG_DEBUG) { taosPrintLog("ODB ", odbcDebugFlag, __VA_ARGS__); }}
-#define odbcTrace(...) { if (odbcDebugFlag & DEBUG_TRACE) { taosPrintLog("ODB ", odbcDebugFlag, __VA_ARGS__); }}
+#define odbcFatal(...) { if (odbcDebugFlag & DEBUG_FATAL) { taosPrintLog("ODB FATAL ", DEBUG_FATAL, tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
+#define odbcError(...) { if (odbcDebugFlag & DEBUG_ERROR) { taosPrintLog("ODB ERROR ", DEBUG_ERROR, tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
+#define odbcWarn(...)  { if (odbcDebugFlag & DEBUG_WARN)  { taosPrintLog("ODB WARN ", DEBUG_WARN, tscEmbedded ? 255 : odbcDebugFlag, __VA_ARGS__); }}
+#define odbcInfo(...)  { if (odbcDebugFlag & DEBUG_INFO)  { taosPrintLog("ODB ", DEBUG_INFO, tscEmbedded ? 255 : cDodbcDebugFlagebugFlag, __VA_ARGS__); }}
+#define odbcDebug(...) { if (odbcDebugFlag & DEBUG_DEBUG) { taosPrintLog("ODB ", DEBUG_DEBUG, odbcDebugFlag, __VA_ARGS__); }}
+#define odbcTrace(...) { if (odbcDebugFlag & DEBUG_TRACE) { taosPrintLog("ODB ", DEBUG_TRACE, odbcDebugFlag, __VA_ARGS__); }}
 
 #define MAX_BIND_COL TSDB_MAX_COLUMNS
 #define MAX_ERROR_LEN 1024
@@ -46,7 +46,7 @@
 */
 typedef struct env {
   void *signature;
-  pthread_mutex_t mutex;
+  TdThreadMutex   mutex;
 } ENV;
 
 /**
@@ -56,7 +56,7 @@ typedef struct env {
 */
 typedef struct dbc {
   void *signature;
-  pthread_mutex_t mutex;
+  TdThreadMutex   mutex;
   ENV *env;
   int32_t version;
   uint8_t version_maj;

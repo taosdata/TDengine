@@ -16,7 +16,7 @@
 #include "tlog.h"
 #include "ihash.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tutil.h"
 
 #define GW_FILE_LEN          256
@@ -25,9 +25,9 @@
 #define GW_INSERT_BATCH_NUM  700
 #define GW_CACHE_BLOCK_SIZE  65536
 
-#define gwError(...) taosPrintLog("ERROR ", 199, __VA_ARGS__); 
-#define gwWarn(...)  taosPrintLog("WARN  ", 199, __VA_ARGS__); 
-#define gwPrint(...) taosPrintLog("INFO  ", 199, __VA_ARGS__); 
+#define gwError(...) taosPrintLog("ERROR ", DEBUG_ERROR, 199, __VA_ARGS__); 
+#define gwWarn(...)  taosPrintLog("WARN  ", DEBUG_WARN, 199, __VA_ARGS__); 
+#define gwPrint(...) taosPrintLog("INFO  ", DEBUG_INFO, 199, __VA_ARGS__); 
 
 typedef struct {
   pthread_t threadID;
@@ -669,7 +669,7 @@ void gwThreadProcessFile(GwThread *thread, GwTable *table, char *logfile)
       , &data[25], &data[26], &data[27], &data[28], &data[29]
       , &data[30], &data[31], &data[32], &data[33], &data[34]
       , &data[35]);
-    free(line);
+    taosMemoryFree(line);
 
     if (num != GW_METRIC_COL_LEN) {
       //gwError("column length invalid");

@@ -33,7 +33,7 @@ typedef struct callback_params_s {
 // base64 decode
 unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
   int            c1, c2, c3, c4;
-  unsigned char *result = (unsigned char *)malloc((size_t)(inlen * 3) / 4 + 1);
+  unsigned char *result = (unsigned char *)taosMemoryMalloc((size_t)(inlen * 3) / 4 + 1);
   unsigned char *out = result;
 
   *outlen = 0;
@@ -73,7 +73,7 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
   }
 
 base64_decode_error:
-  free(result);
+  taosMemoryFree(result);
   result = 0;
   *outlen = 0;
 
@@ -244,7 +244,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
         cenc_import_detail(mstl, param);
 
-        free(p);
+        taosMemoryFree(p);
         mstl3_free(&mstl, 0);
       }
     }
