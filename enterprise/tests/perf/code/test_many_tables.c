@@ -131,8 +131,8 @@ int main(int argc, char * argv[]) {
     /* Insert data */
     double ts = getCurrentTime();
     printf("Inserting data......\n");
-    pthread_t * pids = malloc(nconnections * sizeof(pthread_t));
-    info * infos = malloc(nconnections * sizeof(info));
+    pthread_t * pids = taosMemoryMalloc(nconnections * sizeof(pthread_t));
+    info * infos = taosMemoryMalloc(nconnections * sizeof(info));
     int a = ntables / nconnections;
     int b = ntables % nconnections;
     int last = 0;
@@ -175,8 +175,8 @@ int main(int argc, char * argv[]) {
         taos_close(t_info->taos);
     }
 
-    free(pids);
-    free(infos);
+    taosMemoryFree(pids);
+    taosMemoryFree(infos);
 
     return 0;
 }
@@ -230,7 +230,7 @@ void * sync_write(void * sarg) {
 void * async_write(void * sarg) {
     info * winfo = (info *)sarg;
 
-    sTable * tb_infos = (sTable *) malloc(sizeof(sTable)*(winfo->end_table_id-winfo->start_table_id+1));
+    sTable * tb_infos = (sTable *) taosMemoryMalloc(sizeof(sTable)*(winfo->end_table_id-winfo->start_table_id+1));
 
     for (int tID = winfo->start_table_id; tID <= winfo->end_table_id; tID++) {
         sTable * tb_info = tb_infos+tID-winfo->start_table_id;
@@ -252,7 +252,7 @@ void * async_write(void * sarg) {
     }
 
     sem_wait(&(winfo->lock_sem));
-    free(tb_infos);
+    taosMemoryFree(tb_infos);
 
     return NULL;
 }

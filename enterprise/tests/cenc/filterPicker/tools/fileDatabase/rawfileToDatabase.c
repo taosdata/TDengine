@@ -59,7 +59,7 @@ uint64_t hash_key(char *data, size_t len)
 // base64 encode
 char *base64_encode(const unsigned char *value, int vlen) {
   unsigned char oval = 0;
-  char *        result = (char *)malloc((size_t)(vlen * 4) / 3 + 10);
+  char *        result = (char *)taosMemoryMalloc((size_t)(vlen * 4) / 3 + 10);
   char *        out = result;
 
   while (vlen >= 3) {
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
                            "insert into p%d using ps tags (%d) values (%ld, now, '%s');",
                             id, id, start_time, base64);
 
-        free(base64);
+        taosMemoryFree(base64);
 
         if (np <= 0) {
             fprintf(stderr, "fprintf error cmd: %s\r\n", cmd);

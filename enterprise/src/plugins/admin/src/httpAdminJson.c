@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "types.h"
 #include "tglobal.h"
 #include "httpLog.h"
 #include "httpJson.h"
@@ -92,9 +93,9 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
     TAOS_ROW row = taos_fetch_row(result);
     int32_t* length = taos_fetch_lengths(result);
 
-    if (cmd->numOfRows >= tsRestRowLimit) {
-      break;
-    }
+    // if (cmd->numOfRows >= tsRestRowLimit) {
+    //   break;
+    // }
 
     cmd->numOfRows++;
 
@@ -145,21 +146,21 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
     httpJsonToken(jsonBuf, JsonArrEnd);
   }
 
-  if (cmd->numOfRows >= tsRestRowLimit) {
-    httpDebug("context:%p, fd:%d, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve", pContext,
-              pContext->fd, pContext->user, cmd->numOfRows, tsRestRowLimit);
-    return false;
-  } else {
-    if (!FD_VALID(pContext->fd)) {
-      httpError("context:%p, fd:%d, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
+  // if (cmd->numOfRows >= tsRestRowLimit) {
+  //   httpDebug("context:%p, fd:%p, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve", pContext,
+  //             pContext->fd, pContext->user, cmd->numOfRows, tsRestRowLimit);
+  //   return false;
+  // } else {
+    if (pContext->fd == NULL) {
+      httpError("context:%p, fd:%p, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
                 pContext->user);
       return false;
     } else {
-      httpDebug("context:%p, fd:%d, user:%s, total rows:%d retrieved", pContext, pContext->fd, pContext->user,
+      httpDebug("context:%p, fd:%p, user:%s, total rows:%d retrieved", pContext, pContext->fd, pContext->user,
                 cmd->numOfRows);
       return true;
     }
-  }
+  // }
 }
 
 bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {

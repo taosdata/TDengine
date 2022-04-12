@@ -126,8 +126,8 @@ int main(int argc, char * argv[]) {
 
     taos_close(taos);
 
-    pthread_t * pids = (pthread_t *) malloc(sizeof(pthread_t)*nclients);
-    insert_info * infos = (insert_info *) malloc(sizeof(insert_info)*nclients);
+    pthread_t * pids = (pthread_t *) taosMemoryMalloc(sizeof(pthread_t)*nclients);
+    insert_info * infos = (insert_info *) taosMemoryMalloc(sizeof(insert_info)*nclients);
 
     for (int i = 0; i < nclients; i++){
         insert_info * info = infos + i;
@@ -158,8 +158,8 @@ int main(int argc, char * argv[]) {
         pthread_join(pids[i], NULL);
     }
 
-    free(pids);
-    free(infos);
+    taosMemoryFree(pids);
+    taosMemoryFree(infos);
 
     return 0;
 }

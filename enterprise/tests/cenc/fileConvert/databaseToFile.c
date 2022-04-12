@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
     }
 
     // init TAOS
-    taos_init();
+    // taos_init();
 
     // connect
     taos = taos_connect(tsdb_server, tsdb_usrname, tsdb_passwd, NULL, 0);

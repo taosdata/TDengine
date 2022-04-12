@@ -204,7 +204,7 @@ void dynamic_bind_insert_operation(MYSQL *mysql, char *table_name, entry_list *e
   }
 
   // prepare sampling record array
-  sampling_ele **sample_recs = (sampling_ele **)malloc(sizeof(void *) * total_sample_rec_cnt);
+  sampling_ele **sample_recs = (sampling_ele **)taosMemoryMalloc(sizeof(void *) * total_sample_rec_cnt);
   int32_t        sampling_cnt = 0;
 
   sampling_ele *r1 = record_sample_start();
@@ -284,7 +284,7 @@ int multiThreadInsert(int32_t numOfThreads, void *mysql) {
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  pthread_t *threadId = malloc(sizeof(pthread_t) * numOfThreads);
+  pthread_t *threadId = taosMemoryMalloc(sizeof(pthread_t) * numOfThreads);
 
   MultiThreadInsert *params = calloc(1, sizeof(MultiThreadInsert) * numOfThreads);
 
@@ -354,13 +354,13 @@ int main(int argc, char **argv) {
 //  }
 //
 //  // prepare sampling record array
-//  sampling_ele **sample_recs = (sampling_ele **)malloc(sizeof(void*) * total_sample_rec_cnt);
+//  sampling_ele **sample_recs = (sampling_ele **)taosMemoryMalloc(sizeof(void*) * total_sample_rec_cnt);
 //  int32_t        sampling_cnt = 0;
 //
 //  sampling_ele *r1 = record_sample_start();
 //  sample_recs[sampling_cnt++] = r1;
 //
-//  char *big_qstr = (char *)malloc(sizeof(char) * max_sql_len);
+//  char *big_qstr = (char *)taosMemoryMalloc(sizeof(char) * max_sql_len);
 //
 //  int32_t all_cnt = 1;
 //  while (el != NULL) {

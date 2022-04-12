@@ -810,7 +810,7 @@ const char * odbcColAttrString(SQLUSMALLINT id)
 
 void * xmalloc(size_t size)
 {
-  void *alloc = malloc(size);
+  void *alloc = taosMemoryMalloc(size);
   if (alloc == 0)
   {
     odbcError("out of memory (malloc)");
@@ -821,7 +821,7 @@ void * xmalloc(size_t size)
 }
 
 void xfree(void *p) {
-  free(p);
+  taosMemoryFree(p);
 }
 
 /**

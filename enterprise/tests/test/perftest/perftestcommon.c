@@ -31,7 +31,7 @@ int64_t get_ts_in_ms() {
  * @param s
  */
 sampling_ele *record_sample_start() {
-    sampling_ele *s = (sampling_ele* )malloc(sizeof(sampling_ele));
+    sampling_ele *s = (sampling_ele* )taosMemoryMalloc(sizeof(sampling_ele));
     if (s == 0) {
         perror("failed to allocation memory");
     }
@@ -67,7 +67,7 @@ entry *extract_entry(char *line) {
 
     int32_t part = 0;
 
-    entry *e = (entry *) malloc(sizeof(entry));
+    entry *e = (entry *) taosMemoryMalloc(sizeof(entry));
     if (e == 0) {
         perror("out of memory in loading raw data into memory");
         return 0;
@@ -166,7 +166,7 @@ entry_list *load_all_data_into_mem(char *root_dir) {
         exit(1);
     }
 
-    entry_list *entries = (entry_list *) malloc(sizeof(entry_list));
+    entry_list *entries = (entry_list *) taosMemoryMalloc(sizeof(entry_list));
     entries->cur_len = 0;
     entries->data = 0;
     entries->tail = 0;
@@ -185,12 +185,12 @@ void release_entries(entry_list *entries) {
         if (entries->data != 0) {
             entry *el = entries->data;
             entries->data = entries->data->next;
-            free(el);
+            taosMemoryFree(el);
             entries->cur_len--;
         }
     }
 
-    free(entries);
+    taosMemoryFree(entries);
 }
 
 /**
@@ -268,7 +268,7 @@ void get_current_ts(char* buf, int32_t len) {
 };
 
 entry_list* load_all_data_into_mem_rv(int32_t count) {
-    entry_list* el = (entry_list*)malloc(sizeof(entry_list));
+    entry_list* el = (entry_list*)taosMemoryMalloc(sizeof(entry_list));
     el->cur_len = count;
 
     el->tail = NULL;
@@ -277,7 +277,7 @@ entry_list* load_all_data_into_mem_rv(int32_t count) {
     srand(time(NULL));
 
     for(int32_t i=0; i<el->cur_len; ++i) {
-        entry* ele = (entry*) malloc(sizeof(entry));
+        entry* ele = (entry*) taosMemoryMalloc(sizeof(entry));
         ele->direction = i;
         ele->next = NULL;
         ele->lat = (float)rand()/1000;

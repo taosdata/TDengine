@@ -302,7 +302,7 @@ BOOL INSTAPI ConfigDSN(HWND hwnd, WORD request, LPCSTR driver, LPCSTR attribs)
   BOOL success = TRUE;
   
   if (setupdlg == NULL) {
-    setupdlg = (SETUPDLG *)malloc(sizeof(SETUPDLG));
+    setupdlg = (SETUPDLG *)taosMemoryMalloc(sizeof(SETUPDLG));
   }
   if (setupdlg == NULL) {
     odbcError("ConfigDSN, setup program initialize failed");
@@ -359,7 +359,7 @@ BOOL INSTAPI ConfigDSN(HWND hwnd, WORD request, LPCSTR driver, LPCSTR attribs)
 
   odbcInfo("ConfigDSN, setup dialog closed");
 
-  //free(setupdlg);
+  //taosMemoryFree(setupdlg);
   //setupdlg = NULL;
 
   return success;

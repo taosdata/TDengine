@@ -578,7 +578,7 @@ static void tmfclose(FILE *fp) {
 
 static void tmfree(char *buf) {
     if (NULL != buf) {
-        free(buf);
+        taosMemoryFree(buf);
     }
 }
 
@@ -642,7 +642,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
     int         num_fields = taos_field_count(res);
     TAOS_FIELD *fields     = taos_fetch_fields(res);
 
-    char* databuf = (char*) calloc(1, 100*1024*1024);
+    char* databuf = (char*) taosMemoryCalloc(1, 100*1024*1024);
     if (databuf == NULL) {
         errorPrint("%s() LN%d, failed to malloc, warning: save result to file slowly!\n",
                 __func__, __LINE__);
@@ -675,7 +675,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(databuf, pThreadInfo);
     }
-    free(databuf);
+    taosMemoryFree(databuf);
 }
 
 static void selectAndGetResult(     threadInfo *pThreadInfo, char *command, int resultMode)
@@ -696,7 +696,7 @@ static void selectAndGetResult(     threadInfo *pThreadInfo, char *command, int 
   // 0: write file, 1: only format but not write file, 2: only pull but not format
   char* databuf = NULL;
   if (RESULT_WRITE_FILE == resultMode) {
-    databuf = (char*) calloc(1, 100*1024*1024);
+    databuf = (char*) taosMemoryCalloc(1, 100*1024*1024);
     if (databuf == NULL) {
         errorPrint("%s() LN%d, failed to malloc, warning: save result to file slowly!\n",
                 __func__, __LINE__);
@@ -732,7 +732,7 @@ static void selectAndGetResult(     threadInfo *pThreadInfo, char *command, int 
       appendResultBufToFile(databuf, pThreadInfo);
   }
 
-  free(databuf);  
+  taosMemoryFree(databuf);  
   taos_free_result(res);
 }
 
@@ -856,25 +856,25 @@ static double rand_double()
 
 static void init_rand_data() {
 
-    g_randint_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randint_buff = taosMemoryCalloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randint_buff);
-    g_rand_voltage_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_rand_voltage_buff = taosMemoryCalloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_rand_voltage_buff);
-    g_randbigint_buff = calloc(1, BIGINT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randbigint_buff = taosMemoryCalloc(1, BIGINT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randbigint_buff);
-    g_randsmallint_buff = calloc(1, SMALLINT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randsmallint_buff = taosMemoryCalloc(1, SMALLINT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randsmallint_buff);
-    g_randtinyint_buff = calloc(1, TINYINT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randtinyint_buff = taosMemoryCalloc(1, TINYINT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randtinyint_buff);
-    g_randbool_buff = calloc(1, BOOL_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randbool_buff = taosMemoryCalloc(1, BOOL_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randbool_buff);
-    g_randfloat_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randfloat_buff = taosMemoryCalloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randfloat_buff);
-    g_rand_current_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_rand_current_buff = taosMemoryCalloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_rand_current_buff);
-    g_rand_phase_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_rand_phase_buff = taosMemoryCalloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_rand_phase_buff);
-    g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randdouble_buff = taosMemoryCalloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randdouble_buff);
 
     for (int i = 0; i < MAX_PREPARED_RAND; i++){
@@ -1427,7 +1427,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
             continue;
         }
 
-        dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
+        dbInfos[count] = (SDbInfo *)taosMemoryCalloc(1, sizeof(SDbInfo));
         if (dbInfos[count] == NULL) {
             errorPrint( "failed to allocate memory for some dbInfo[%d]\n", count);
             return -1;
@@ -1536,14 +1536,14 @@ static void printfQuerySystemInfo(TAOS * taos) {
 
     // show databases
     res = taos_query(taos, "show databases;");
-    SDbInfo** dbInfos = (SDbInfo **)calloc(MAX_DATABASE_COUNT, sizeof(SDbInfo *));
+    SDbInfo** dbInfos = (SDbInfo **)taosMemoryCalloc(MAX_DATABASE_COUNT, sizeof(SDbInfo *));
     if (dbInfos == NULL) {
         errorPrint("%s() LN%d, failed to allocate memory\n", __func__, __LINE__);
         return;
     }
     int dbCount = getDbFromServer(taos, dbInfos);
     if (dbCount <= 0) {
-        free(dbInfos);
+        taosMemoryFree(dbInfos);
         return;
     }
 
@@ -1560,14 +1560,14 @@ static void printfQuerySystemInfo(TAOS * taos) {
         snprintf(buffer, 1024, "show %s.stables;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
-        free(dbInfos[i]);
+        taosMemoryFree(dbInfos[i]);
     }
 
-    free(dbInfos);
+    taosMemoryFree(dbInfos);
 }
 
 static char* getTagValueFromTagSample(SSuperTable* stbInfo, int tagUsePos) {
-    char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
+    char*  dataBuf = (char*)taosMemoryCalloc(TSDB_MAX_SQL_LEN+1, 1);
     if (NULL == dataBuf) {
         errorPrint("%s() LN%d, calloc failed! size:%d\n",
                 __func__, __LINE__, TSDB_MAX_SQL_LEN+1);
@@ -1583,7 +1583,7 @@ static char* getTagValueFromTagSample(SSuperTable* stbInfo, int tagUsePos) {
 
 static char *generateBinaryNCharTagValues(int64_t tableSeq, uint32_t len)
 {
-    char* buf = (char*)calloc(len, 1);
+    char* buf = (char*)taosMemoryCalloc(len, 1);
     if (NULL == buf) {
         printf("calloc failed! size:%d\n", len);
         return NULL;
@@ -1600,7 +1600,7 @@ static char *generateBinaryNCharTagValues(int64_t tableSeq, uint32_t len)
 }
 
 static char* generateTagValuesForStb(SSuperTable* stbInfo, int64_t tableSeq) {
-    char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
+    char*  dataBuf = (char*)taosMemoryCalloc(TSDB_MAX_SQL_LEN+1, 1);
     if (NULL == dataBuf) {
         printf("calloc failed! size:%d\n", TSDB_MAX_SQL_LEN+1);
         return NULL;
@@ -1689,7 +1689,7 @@ static int64_t generateNoTimestampRowData(       SSuperTable* stbInfo,  char* re
             if ((stbInfo->columns[i].dataLen + 1) >  (maxSqlLen - dataLen - 3)) {
                 return 0;
             }
-            char* buf = (char*)calloc(stbInfo->columns[i].dataLen+1, 1);
+            char* buf = (char*)taosMemoryCalloc(stbInfo->columns[i].dataLen+1, 1);
             if (NULL == buf) {
                 errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
                 return -1;
@@ -1754,7 +1754,7 @@ static int64_t generateNoTimestampRowData(       SSuperTable* stbInfo,  char* re
 
 int32_t setSchemalessLineTemplate(char* dbName, SSuperTable*           superTbl) {
   int   templateLen  = 65535;
-  char* lineTemplate = calloc(templateLen+1, sizeof(char));
+  char* lineTemplate = taosMemoryCalloc(templateLen+1, sizeof(char));
   if (NULL == lineTemplate) {
     printf("calloc fail for lineTemplate\n");
     exit(-1);
@@ -1836,7 +1836,7 @@ int32_t setSchemalessLineTemplate(char* dbName, SSuperTable*           superTbl)
 
 static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  superTbl) {
 
-    char *command = calloc(1, BUFFER_SIZE);
+    char *command = taosMemoryCalloc(1, BUFFER_SIZE);
     assert(command);
 
     char cols[COL_BUFFER_LEN] = "\0";
@@ -1848,12 +1848,12 @@ static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  super
     if (superTbl->columnCount == 0) {
         errorPrint("%s() LN%d, super table column count is %d\n",
                 __func__, __LINE__, superTbl->columnCount);
-        free(command);
+        taosMemoryFree(command);
         return -1;
     }
 
     uint64_t maxSqlLen = superTbl->maxSqlLen;
-    superTbl->randDataBuf = calloc(maxSqlLen, 1);
+    superTbl->randDataBuf = taosMemoryCalloc(maxSqlLen, 1);
     if (NULL == superTbl->randDataBuf) {
         errorPrint( "Failed to alloc %"PRIu64" Bytes, reason:%s\n", maxSqlLen, strerror(errno));
         return -1;
@@ -1900,7 +1900,7 @@ static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  super
             //lenOfOneRow += TIMESTAMP_BUFF_LEN;
         } else {
             taos_close(taos);
-            free(command);
+            taosMemoryFree(command);
             errorPrint("%s() LN%d, config error data type : %s\n",
                     __func__, __LINE__, dataType);
             exit(EXIT_FAILURE);
@@ -1910,10 +1910,10 @@ static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  super
     //superTbl->lenOfOneRow = lenOfOneRow + 20; // timestamp
 
     // save for creating child table
-    superTbl->colsOfCreateChildTable = (char*)calloc(len+20, 1);
+    superTbl->colsOfCreateChildTable = (char*)taosMemoryCalloc(len+20, 1);
     if (NULL == superTbl->colsOfCreateChildTable) {
         taos_close(taos);
-        free(command);
+        taosMemoryFree(command);
         errorPrint("%s() LN%d, Failed when calloc, size:%d", __func__, __LINE__, len+1);
         exit(EXIT_FAILURE);
     }
@@ -1923,7 +1923,7 @@ static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  super
 
     if (superTbl->tagCount == 0) {
         errorPrint("%s() LN%d, super table tag count is %d\n", __func__, __LINE__, superTbl->tagCount);
-        free(command);
+        taosMemoryFree(command);
         return -1;
     }
 
@@ -1971,7 +1971,7 @@ static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  super
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
         } else {
             taos_close(taos);
-            free(command);
+            taosMemoryFree(command);
             errorPrint("%s() LN%d, config error tag type : %s\n",
                     __func__, __LINE__, dataType);
             exit(EXIT_FAILURE);
@@ -1989,12 +1989,12 @@ static int createSuperTable(      TAOS * taos, char* dbName, SSuperTable*  super
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         errorPrint( "create supertable %s failed!\n\n",
                 superTbl->sTblName);
-        free(command);
+        taosMemoryFree(command);
         return -1;
     }
 
     debugPrint("create supertable %s success!\n\n", superTbl->sTblName);
-    free(command);
+    taosMemoryFree(command);
     return 0;
 }
 
@@ -2115,7 +2115,7 @@ static void* createTable(void *sarg)
 
     int buff_len = BUFFER_SIZE;
 
-    pThreadInfo->buffer = calloc(buff_len, 1);
+    pThreadInfo->buffer = taosMemoryCalloc(buff_len, 1);
     if (pThreadInfo->buffer == NULL) {
         errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
         return NULL;
@@ -2130,7 +2130,7 @@ static void* createTable(void *sarg)
 
     for (uint64_t i = pThreadInfo->start_table_from; i <= pThreadInfo->end_table_to; i++) {
       if (stbInfo == NULL) {
-          free(pThreadInfo->buffer);
+          taosMemoryFree(pThreadInfo->buffer);
           errorPrint("%s() LN%d, use metric, but super table info is NULL\n", __func__, __LINE__);
           return NULL;
       }
@@ -2146,7 +2146,7 @@ static void* createTable(void *sarg)
           tagsValBuf = generateTagValuesForStb(stbInfo, i);
       } else {
           if (0 == stbInfo->tagSampleCount) {
-              free(pThreadInfo->buffer);
+              taosMemoryFree(pThreadInfo->buffer);
               ERROR_EXIT("use sample file for tag, but has no content!\n");
           }
           tagsValBuf = getTagValueFromTagSample(
@@ -2155,7 +2155,7 @@ static void* createTable(void *sarg)
       }
   
       if (NULL == tagsValBuf) {
-          free(pThreadInfo->buffer);
+          taosMemoryFree(pThreadInfo->buffer);
           ERROR_EXIT("use metric, but tag buffer is NULL\n");
       }
       len += snprintf(pThreadInfo->buffer + len,
@@ -2164,7 +2164,7 @@ static void* createTable(void *sarg)
               pThreadInfo->db_name, stbInfo->childTblPrefix,
               i, pThreadInfo->db_name,
               stbInfo->sTblName, tagsValBuf);
-      free(tagsValBuf);
+      taosMemoryFree(tagsValBuf);
       batchNum++;
       if ((batchNum < stbInfo->batchCreateTableNum)
        && ((buff_len - len) >= (stbInfo->lenOfTagOfOneRow + 256))) {
@@ -2175,7 +2175,7 @@ static void* createTable(void *sarg)
       if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
                   NO_INSERT_TYPE, false)){
           errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
-          free(pThreadInfo->buffer);
+          taosMemoryFree(pThreadInfo->buffer);
           return NULL;
       }
 
@@ -2194,7 +2194,7 @@ static void* createTable(void *sarg)
         }
     }
 
-    free(pThreadInfo->buffer);
+    taosMemoryFree(pThreadInfo->buffer);
     return NULL;
 }
 
@@ -2202,8 +2202,8 @@ static int startMultiThreadCreateChildTable(
         char* cols, int threads, uint64_t tableFrom, int64_t ntables,
         char* db_name, SSuperTable* stbInfo) {
 
-    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    TdThread  *pids = taosMemoryCalloc(1, threads * sizeof(TdThread));
+    threadInfo *infos = taosMemoryCalloc(1, threads * sizeof(threadInfo));
 
     if ((NULL == pids) || (NULL == infos)) {
         ERROR_EXIT("createChildTable malloc failed\n");
@@ -2237,8 +2237,8 @@ static int startMultiThreadCreateChildTable(
         if (pThreadInfo->taos == NULL) {
             errorPrint( "%s() LN%d, Failed to connect to TDengine, reason:%s\n",
                     __func__, __LINE__, taos_errstr(NULL));
-            free(pids);
-            free(infos);
+            taosMemoryFree(pids);
+            taosMemoryFree(infos);
             return -1;
         }
 
@@ -2260,8 +2260,8 @@ static int startMultiThreadCreateChildTable(
         taos_close(pThreadInfo->taos);
     }
 
-    free(pids);
-    free(infos);
+    taosMemoryFree(pids);
+    taosMemoryFree(infos);
 
     return 0;
 }
@@ -3211,10 +3211,10 @@ static bool getInfoFromJsonFile(char* file) {
 
     bool  ret = false;
     int   maxLen = 6400000;
-    char *content = calloc(1, maxLen + 1);
+    char *content = taosMemoryCalloc(1, maxLen + 1);
     int   len = fread(content, 1, maxLen, fp);
     if (len <= 0) {
-        free(content);
+        taosMemoryFree(content);
         fclose(fp);
         printf("failed to read %s, content is null", file);
         return false;
@@ -3258,7 +3258,7 @@ static bool getInfoFromJsonFile(char* file) {
     }
 
 PARSE_OVER:
-    free(content);
+    taosMemoryFree(content);
     cJSON_Delete(root);
     fclose(fp);
     return ret;
@@ -3269,19 +3269,19 @@ static void postFreeResource() {
     for (int i = 0; i < g_pDbs->dbCount; i++) {
         for (uint64_t j = 0; j < g_pDbs->db[i].superTblCount; j++) {
             if (0 != g_pDbs->db[i].superTbls[j].colsOfCreateChildTable) {
-                free(g_pDbs->db[i].superTbls[j].colsOfCreateChildTable);
+                taosMemoryFree(g_pDbs->db[i].superTbls[j].colsOfCreateChildTable);
                 g_pDbs->db[i].superTbls[j].colsOfCreateChildTable = NULL;
             }
             if (0 != g_pDbs->db[i].superTbls[j].tagDataBuf) {
-                free(g_pDbs->db[i].superTbls[j].tagDataBuf);
+                taosMemoryFree(g_pDbs->db[i].superTbls[j].tagDataBuf);
                 g_pDbs->db[i].superTbls[j].tagDataBuf = NULL;
             }
             if (0 != g_pDbs->db[i].superTbls[j].randDataBuf) {
-                free(g_pDbs->db[i].superTbls[j].randDataBuf);
+                taosMemoryFree(g_pDbs->db[i].superTbls[j].randDataBuf);
                 g_pDbs->db[i].superTbls[j].randDataBuf = NULL;
             }
             if (0 != g_pDbs->db[i].superTbls[j].schemalessLineTemplate) {
-                free(g_pDbs->db[i].superTbls[j].schemalessLineTemplate);
+                taosMemoryFree(g_pDbs->db[i].superTbls[j].schemalessLineTemplate);
                 g_pDbs->db[i].superTbls[j].schemalessLineTemplate = NULL;
             }
         }
@@ -3316,12 +3316,12 @@ static void* syncWriteForSchemaless(threadInfo *pThreadInfo, SSuperTable* stbInf
 
     int  lenOfOneRows;
     lenOfOneRows = sizeof(stbInfo->schemalessLineTemplate)+128;  // 128 for timestamp    
-    char* lineBuf = (char*)calloc(stbInfo->batchRows * lenOfOneRows, sizeof(char));
+    char* lineBuf = (char*)taosMemoryCalloc(stbInfo->batchRows * lenOfOneRows, sizeof(char));
     if (NULL == lineBuf) {
       return NULL;
     }
 
-    char** lineArry = (char**)calloc(stbInfo->batchRows, sizeof(char*));
+    char** lineArry = (char**)taosMemoryCalloc(stbInfo->batchRows, sizeof(char*));
     if (NULL == lineArry) {
       return NULL;
     }
@@ -3379,7 +3379,7 @@ static void* syncWrite(void *sarg) {
     }
     
     int64_t maxSqlLen = stbInfo->maxSqlLen;
-    pThreadInfo->buffer = calloc(stbInfo->maxSqlLen+1, 1);
+    pThreadInfo->buffer = taosMemoryCalloc(stbInfo->maxSqlLen+1, 1);
     if (NULL == pThreadInfo->buffer) {
         errorPrint( "Failed to alloc %"PRIu64" Bytes, reason:%s\n", stbInfo->maxSqlLen, strerror(errno));
         return NULL;
@@ -3514,9 +3514,9 @@ static void startMultiThreadInsertData(int threads, char* db_name, char* precisi
           exit(EXIT_FAILURE);
       }
   
-      char** linesStb = calloc(stbInfo->childTblCount, sizeof(char*));
+      char** linesStb = taosMemoryCalloc(stbInfo->childTblCount, sizeof(char*));
       for (int i = 0; i < stbInfo->childTblCount; i++) {
-        char* lineStb = calloc(strlen(stbInfo->schemalessLineTemplate)+128, 1);
+        char* lineStb = taosMemoryCalloc(strlen(stbInfo->schemalessLineTemplate)+128, 1);
         snprintf(lineStb, strlen(stbInfo->schemalessLineTemplate)+128, stbInfo->schemalessLineTemplate, i, start_time - timestampStep);
         linesStb[i] = lineStb;
       }
@@ -3524,9 +3524,9 @@ static void startMultiThreadInsertData(int threads, char* db_name, char* precisi
       int32_t code = taos_insert_lines(taos, linesStb, stbInfo->childTblCount);
      
       for (int i = 0; i < stbInfo->childTblCount; ++i) {
-        free(linesStb[i]);
+        taosMemoryFree(linesStb[i]);
       }
-      free(linesStb);
+      taosMemoryFree(linesStb);
       taos_close(taos);
   
       if (code != TSDB_CODE_SUCCESS) {
@@ -3557,13 +3557,13 @@ static void startMultiThreadInsertData(int threads, char* db_name, char* precisi
       b = ntables % threads;
   }
 
-  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+  TdThread  *pids = taosMemoryCalloc(1, threads * sizeof(TdThread));
   assert(pids != NULL);
 
-  threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+  threadInfo *infos = taosMemoryCalloc(1, threads * sizeof(threadInfo));
   assert(infos != NULL);
 
-  memset(pids, 0, threads * sizeof(pthread_t));
+  memset(pids, 0, threads * sizeof(TdThread));
   memset(infos, 0, threads * sizeof(threadInfo));
 
   for (int i = 0; i < threads; i++) {
@@ -3579,7 +3579,7 @@ static void startMultiThreadInsertData(int threads, char* db_name, char* precisi
 
     pThreadInfo->taos = taos_connect(g_pDbs->host, g_pDbs->user, g_pDbs->password, db_name, g_pDbs->port);
     if (NULL == pThreadInfo->taos) {
-      free(infos);
+      taosMemoryFree(infos);
       errorPrint("%s() LN%d, connect to server fail from insert sub thread, reason: %s\n", __func__, __LINE__, taos_errstr(NULL));
       exit(EXIT_FAILURE);
     }
@@ -3659,8 +3659,8 @@ static void startMultiThreadInsertData(int threads, char* db_name, char* precisi
           (double)minDelay/1000.0);
   }
 
-  free(pids);
-  free(infos);
+  taosMemoryFree(pids);
+  taosMemoryFree(infos);
 }
 
 static void startInsertCsvFile(char* db_name, SSuperTable* stbInfo) {
@@ -3716,17 +3716,17 @@ static int insertTestProcess() {
   init_rand_data();
   
   // create database and super tables
-  char *cmdBuffer = calloc(1, BUFFER_SIZE);
+  char *cmdBuffer = taosMemoryCalloc(1, BUFFER_SIZE);
   assert(cmdBuffer);
   
   if(createDatabasesAndStables(cmdBuffer) != 0) {
     if (g_fpOfInsertResult) {
       fclose(g_fpOfInsertResult);
     }
-    free(cmdBuffer);
+    taosMemoryFree(cmdBuffer);
     return -1;
   }
-  free(cmdBuffer);
+  taosMemoryFree(cmdBuffer);
   
   double start;
   double end;
@@ -3850,7 +3850,7 @@ static int queryTestProcess() {
     }
     taos_close(taos);
 
-    pthread_t  *pids  = NULL;
+    TdThread   *pids  = NULL;
     threadInfo *infos = NULL;
     //==== create sub threads for query from specify table
     int nConcurrent    = g_queryInfo.specifiedQueryInfo.concurrent;
@@ -3859,8 +3859,8 @@ static int queryTestProcess() {
     //uint64_t startTs = taosGetTimestampMs();
 
     if ((nSqlCount > 0) && (nConcurrent > 0)) {
-        pids  = calloc(1, nConcurrent * sizeof(pthread_t));
-        infos = calloc(1, nConcurrent * sizeof(threadInfo));
+        pids  = taosMemoryCalloc(1, nConcurrent * sizeof(TdThread));
+        infos = taosMemoryCalloc(1, nConcurrent * sizeof(threadInfo));
 
         if ((NULL == pids) || (NULL == infos)) {
             ERROR_EXIT("memory allocation failed for create threads\n");
@@ -4076,7 +4076,7 @@ static int subscribeTestProcess() {
 
     taos_close(taos); // TODO: workaround to use separate taos connection;
 
-    pthread_t  *pids = NULL;
+    TdThread   *pids = NULL;
     threadInfo *infos = NULL;
 
     //==== create threads for query for specified table
@@ -4092,12 +4092,12 @@ static int subscribeTestProcess() {
             exit(EXIT_FAILURE);
         }
 
-        pids  = calloc(
+        pids  = taosMemoryCalloc(
                 1,
                 g_queryInfo.specifiedQueryInfo.sqlCount *
                 g_queryInfo.specifiedQueryInfo.concurrent *
-                sizeof(pthread_t));
-        infos = calloc(
+                sizeof(TdThread));
+        infos = taosMemoryCalloc(
                 1,
                 g_queryInfo.specifiedQueryInfo.sqlCount *
                 g_queryInfo.specifiedQueryInfo.concurrent *
@@ -4134,7 +4134,7 @@ static int subscribeTestProcess() {
 }
 
 static void initOfInsertMeta() {
-    g_pDbs = malloc(sizeof(SDbs)+1);
+    g_pDbs = taosMemoryMalloc(sizeof(SDbs)+1);
     if (NULL == g_pDbs) {
       printf("malloc fail for sdb\n");
       exit(-1);

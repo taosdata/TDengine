@@ -80,7 +80,7 @@ memory_table_t **get_memory_table(const char *sid, memory_table_t **mtb)
   }
 
   if (*t == NULL) {
-    *t = (memory_table_t *) malloc(sizeof(memory_table_t));
+    *t = (memory_table_t *) taosMemoryMalloc(sizeof(memory_table_t));
     if (*t) {
       memset(*t, 0, sizeof(memory_table_t));
       strncpy((*t)->sid, sid, strlen(sid));
@@ -100,7 +100,7 @@ void free_memory_table(memory_table_t **mtb)
     if (mtb[i]) {
       for (t = &mtb[i]; *t; t = &(*t)->next) {
         free_FilterPicker5_Memory(&(*t)->memory);
-        free(*t);
+        taosMemoryFree(*t);
       }
     }
   }
@@ -110,7 +110,7 @@ void free_memory_table(memory_table_t **mtb)
 // base64 decode
 unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
   int            c1, c2, c3, c4;
-  unsigned char *result = (unsigned char *)malloc((size_t)(inlen * 3) / 4 + 1);
+  unsigned char *result = (unsigned char *)taosMemoryMalloc((size_t)(inlen * 3) / 4 + 1);
   unsigned char *out = result;
 
   *outlen = 0;
@@ -150,7 +150,7 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
   }
 
 base64_decode_error:
-  free(result);
+  taosMemoryFree(result);
   result = 0;
   *outlen = 0;
 
@@ -257,13 +257,13 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   }
 
   onumsamples = inumsamples;
-  osamples = (char *) malloc(onumsamples * sizeof(float));
-  ots = (char *) malloc(onumsamples * sizeof(long long));
+  osamples = (char *) taosMemoryMalloc(onumsamples * sizeof(float));
+  ots = (char *) taosMemoryMalloc(onumsamples * sizeof(long long));
 
   callback_udf_func((char *) samps.samples, 4, inumsamples, samps.time, osamples, ots, &onumsamples, &init);
 
-  free(osamples);
-  free(ots);
+  taosMemoryFree(osamples);
+  taosMemoryFree(ots);
 
   (*t)->memory = (FilterPicker5_Memory *) init.ptr;
 }
@@ -315,7 +315,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
         cenc_picker_func(mstl, param);
 
-        free(p);
+        taosMemoryFree(p);
         mstl3_free(&mstl, 0);
       }
     }
@@ -422,7 +422,7 @@ int main(int argc, char *argv[]) {
 
   usleep(500000);
 
-  params.mtb = (memory_table_t **) malloc(sizeof(memory_table_t *) * MEM_TAB_MOD);
+  params.mtb = (memory_table_t **) taosMemoryMalloc(sizeof(memory_table_t *) * MEM_TAB_MOD);
   if (params.mtb == NULL) {
     fprintf(stderr, "failed to allocate for memories.\r\n");
     exit(1);
@@ -508,7 +508,7 @@ failed:
 
   if (params.mtb) {
     free_memory_table(params.mtb);
-    free(params.mtb);
+    taosMemoryFree(params.mtb);
   }
 
   return 0;

@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
   if (argc >= 5 ) strcpy(configDir, argv[4]);
 
   int size = sizeof(STable) * numOfTables;
-  tableList = (STable *)malloc(size);
+  tableList = (STable *)taosMemoryMalloc(size);
   memset(tableList, 0, size);
 
   taos_init();

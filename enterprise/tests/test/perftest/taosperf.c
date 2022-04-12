@@ -78,7 +78,7 @@ void sync_insert_operation(TAOS *conn, const char *tname, entry_list *entries,
             (total_len + sample_interval - 1) / sample_interval;
 
     // prepare sampling record array
-    sampling_ele **sample_recs = malloc(sizeof(void*) * total_sample_rec_cnt);
+    sampling_ele **sample_recs = taosMemoryMalloc(sizeof(void*) * total_sample_rec_cnt);
     int32_t sample_cnt = 0;
 
     sampling_ele *r1 = record_sample_start();
@@ -288,7 +288,7 @@ void async_multi_table_insert_operation(
 
     printf("create %d tables completed!\n", table_num);
 
-    STable *tableList = (STable *) malloc(sizeof(STable) * table_num);
+    STable *tableList = (STable *) taosMemoryMalloc(sizeof(STable) * table_num);
     int32_t total_sample_rec_cnt = rec_each_table / 1000;
     assert(total_sample_rec_cnt > 0);
 
@@ -306,7 +306,7 @@ void async_multi_table_insert_operation(
         tableList[i].isDone = false;
         strcpy(tableList[i].outputdir, outputdir);
 
-        tableList[i].samples = malloc(sizeof(void*) * total_sample_rec_cnt);
+        tableList[i].samples = taosMemoryMalloc(sizeof(void*) * total_sample_rec_cnt);
 
         sampling_ele *r1 = record_sample_start();
         tableList[i].samples[tableList[i].sample_cnt] = r1;
@@ -337,7 +337,7 @@ void async_multi_table_insert_operation(
         sleep(1);
     }
     printf("all insertion done!\n");
-    free(tableList);
+    taosMemoryFree(tableList);
 }
 
 /**
@@ -371,7 +371,7 @@ void simple_read_operation(TAOS *conn, char *tname, char *outputdir) {
 
     int32_t ct = 100000;
 
-    sampling_ele **sample_recs = malloc(sizeof(void*) * 1000);
+    sampling_ele **sample_recs = taosMemoryMalloc(sizeof(void*) * 1000);
     int32_t sample_cnt = 0;
 
     sampling_ele *r1 = record_sample_start();

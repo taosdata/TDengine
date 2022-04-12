@@ -72,7 +72,7 @@ void free_PickData(PickData* pickData)
 	if (pickData == NULL)
 		return;
 
-	free(pickData);
+	taosMemoryFree(pickData);
 
 }
 
@@ -202,7 +202,7 @@ void addPickToPickList(PickData* pickData, PickData*** ppick_list, int* pnum_pic
 		newPickList = calloc(*pnum_picks + SIZE_INCREMENT, sizeof(PickData*));
 		for (n = 0; n < *pnum_picks; n++)
 			newPickList[n] = (*ppick_list)[n];
-		free(*ppick_list);
+		taosMemoryFree(*ppick_list);
 		*ppick_list = newPickList;
 	}
 
@@ -227,6 +227,6 @@ void free_PickList(PickData** pick_list, int num_picks)
 	for (n = 0; n < num_picks; n++)
 		free_PickData(*(pick_list + n));
 
-	free(pick_list);
+	taosMemoryFree(pick_list);
 }
 

@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
   if (argc >= 6 ) strcpy(configDir, argv[5]);
  
   strcpy(prefix, argv[1]);
-  pInfo = (SInfo *)malloc(sizeof(SInfo)*numOfThreads);
+  pInfo = (SInfo *)taosMemoryMalloc(sizeof(SInfo)*numOfThreads);
 
   taos_init();
 

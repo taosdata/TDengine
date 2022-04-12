@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
   if (argc >= 7) is_query = atoi(argv[6]);
  
   strcpy(prefix, table);
-  pInfo = (SInfo *)malloc(sizeof(SInfo)*numOfThreads);
+  pInfo = (SInfo *)taosMemoryMalloc(sizeof(SInfo)*numOfThreads);
 
   taos_init();
 
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
   printf("threads exit\n");
 
   pthread_attr_destroy(&thattr);
-  free(pInfo);
+  taosMemoryFree(pInfo);
 }
 
 void *syncTest(void *param) 
@@ -320,7 +320,7 @@ void *monitor(void *param) {
     TAOS * conn = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
 
     int size = sizeof(int) * qinfo->nthreads;
-    int * records_count = (int *)malloc(size);
+    int * records_count = (int *)taosMemoryMalloc(size);
     memset(records_count, 0, size);
 
     char buffer[1024] = "\0";
@@ -338,7 +338,7 @@ void *monitor(void *param) {
             if (result == NULL) {
                 uError("Failed to retreive results:%s", taos_errstr(conn));
                 taos_close(conn);
-                free(records_count);
+                taosMemoryFree(records_count);
                 exit(1);
             }
             int count = 0;
@@ -351,7 +351,7 @@ void *monitor(void *param) {
                 uError("%s.%s%d records not increasing: old %d  new %d", 
                         qinfo->db, qinfo->tb_prefix, i, records_count[i], count);
                 taos_close(conn);
-                free(records_count);
+                taosMemoryFree(records_count);
                 exit(0);
             }
 

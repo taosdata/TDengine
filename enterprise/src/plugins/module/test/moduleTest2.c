@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+#include "tlog.h"
 #include "taos.h"
 
-static pthread_t threadId;
-static pthread_t stopFlag = false;
+static TdThread  threadId;
+static TdThread  stopFlag = false;
 
 static void *threadFunc(void *arg) {
   static int32_t count = 0;
@@ -36,11 +36,11 @@ static void *threadFunc(void *arg) {
 int32_t taosModuleStart() {
   uInfo("moduleTest2 start func is called");
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  if (pthread_create(&threadId, &thattr, threadFunc, NULL) != 0) {
+  if (taosThreadCreate(&threadId, &thattr, threadFunc, NULL) != 0) {
     uError("failed to run thread for moduleTest2");
   } else {
     uInfo("moduleTest2 thread create successfully");
@@ -54,6 +54,6 @@ void taosModuleStop() {
 
   if (!stopFlag) {
     stopFlag = true;
-    pthread_join(threadId, NULL);
+    taosThreadJoin(threadId, NULL);
   }
 }

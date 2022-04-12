@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     if (replica > 5) replica = 5;
     
     int size = sizeof(STable) * AREA_LEN;
-    tableList = (STable *)malloc(size);
+    tableList = (STable *)taosMemoryMalloc(size);
     memset(tableList, 0, size);
 
     taos_init();
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
         STable *pTable = tableList + i;
         taos_close(pTable->taos);
     }
-    free(tableList);
+    taosMemoryFree(tableList);
     //printf("quit the program\n");
     
     return 0;

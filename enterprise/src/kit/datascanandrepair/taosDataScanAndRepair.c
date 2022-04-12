@@ -239,7 +239,7 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
 
   FILE *    reportFP = NULL;
 
-  SVnodeInfo *pInfo = (SVnodeInfo *)calloc(1, sizeof(SVnodeInfo));
+  SVnodeInfo *pInfo = (SVnodeInfo *)taosMemoryCalloc(1, sizeof(SVnodeInfo));
   if (pInfo == NULL) {
     fprintf(stderr, "ERROR! failed to allocate memory , size:%zu\n", sizeof(SVnodeInfo));
     return NULL;
@@ -282,7 +282,7 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
   size = sizeof(SMeterObj) + 256 * sizeof(SColumn) + 256 * 16 + sizeof(TSCKSUM);
   buff = malloc(size);
 
-  pInfo->pTable = (SMeterObj **)calloc(pInfo->cfg.maxSessions, sizeof(SMeterObj *));
+  pInfo->pTable = (SMeterObj **)taosMemoryCalloc(pInfo->cfg.maxSessions, sizeof(SMeterObj *));
   if (pInfo->pTable == NULL) {
     goto _error_meterObj;
   }

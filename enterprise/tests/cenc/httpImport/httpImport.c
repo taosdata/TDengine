@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
                       "insert into p%d using ps tags (%d) values (now, now, '%s');",
                       id, id, base64);
 
-        free(base64);
+        taosMemoryFree(base64);
 
         if (np < 0) {
             fprintf(stderr, "fprintf error cmd in loop: %s\r\n", cmd);

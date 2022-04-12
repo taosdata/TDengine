@@ -37,7 +37,7 @@ TEST(testCase, histogram_binary_search) {
   idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 3.9);
   assert(idx == 4);
 
-  free(pHisto);
+  taosMemoryFree(pHisto);
 }
 
 TEST(testCase, histogram_add) {
@@ -98,7 +98,7 @@ TEST(testCase, histogram_add) {
   tHistogramDestroy(&pHisto);
   tHistogramDestroy(&pHisto1);
   tHistogramDestroy(&pRes);
-  free(res);
+  taosMemoryFree(res);
 }
 
 TEST(testCase, heapsort) {
@@ -118,5 +118,5 @@ TEST(testCase, heapsort) {
   //
   //    printf("\n");
   //
-  //    free(pEntry);
+  //    taosMemoryFree(pEntry);
 }

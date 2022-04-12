@@ -25,18 +25,19 @@
 #include "tdataformat.h"
 #include "monitor.h"
 #include "mnode.h"
-#include "mnodeDef.h"
-#include "mnodeInt.h"
-#include "mnodeAcct.h"
-#include "mnodeDnode.h"
-#include "mnodeDb.h"
-#include "mnodeMnode.h"
-#include "mnodeSdb.h"
-#include "mnodeShow.h"
-#include "mnodeUser.h"
-#include "mnodeVgroup.h"
-#include "mnodeRead.h"
-#include "mnodeWrite.h"
+#include "mndDef.h"
+#include "mndInt.h"
+#include "mndAcct.h"
+#include "mndDnode.h"
+#include "mndDb.h"
+#include "mndMnode.h"
+// #include "mnodeSdb.h"
+#include "mndShow.h"
+#include "mndUser.h"
+#include "mndVgroup.h"
+#include "tmsgtype.h"
+// #include "mnodeRead.h"
+// #include "mnodeWrite.h"
 
 #define TSDB_MIN_USERS_PER_ACCT       2
 #define TSDB_MAX_USERS_PER_ACCT       10
@@ -63,10 +64,10 @@ extern void *  tsMnodeTmr;
 static void *  tsMgmtStatisTimer = NULL;
 
 static int64_t acctGetStatistic(SAcctObj *pAcct);
-static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg);
-static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg);
-static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg);
-static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+// static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg);
+// static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg);
+// static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg);
+// static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void acctDoStatistic(void *handle, void *tmrId) {  
@@ -91,9 +92,9 @@ static void acctDoStatistic(void *handle, void *tmrId) {
 }
 
 int32_t acctInit() {
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, acctProcessCreateAcctMsg);
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, acctProcessDropAcctMsg);
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
+  mnodeAddWriteMsgHandle(TSDB_SQL_CREATE_ACCT, acctProcessCreateAcctMsg);
+  mnodeAddWriteMsgHandle(TSDB_SQL_DROP_ACCT, acctProcessDropAcctMsg);
+  mnodeAddWriteMsgHandle(TSDB_SQL_ALTER_ACCT, acctProcessAlterAcctMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_ACCT, mnodeCancelGetNextAcct);
@@ -208,7 +209,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
     return TSDB_CODE_MND_INVALID_ACCT_OPTION;
   }
 
-  pAcct = malloc(sizeof(SAcctObj));
+  pAcct = taosMemoryMalloc(sizeof(SAcctObj));
   memset(pAcct, 0, sizeof(SAcctObj));
   strcpy(pAcct->user, name);
   taosEncryptPass((uint8_t*) pass, strlen(pass), pAcct->pass);
@@ -246,9 +247,9 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to create by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    tfree(pAcct);
+    taosMemoryFreeClear(pAcct);
   } else {
-    mLInfo("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    mInfo("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
 
     // create a user in the same name and pass
     char suser[64] = {0};
@@ -278,7 +279,7 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   } else {
-    mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    mInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
 
   mnodeDecAcctRef(pAcct);
@@ -586,9 +587,9 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
   int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    tfree(pAcct);
+    taosMemoryFreeClear(pAcct);
   } else {
-    mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
+    mInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
 
   mnodeDecAcctRef(pAcct);

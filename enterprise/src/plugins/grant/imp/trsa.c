@@ -75,7 +75,7 @@ int64_t rsa_modExp(int64_t b, int64_t e, int64_t m) {
 }
 
 int64_t *rsa_encrypt(const char *message, const uint64_t message_size, const struct public_key_class *pub) {
-  int64_t *encrypted = malloc(sizeof(int64_t) * message_size);
+  int64_t *encrypted = taosMemoryMalloc(sizeof(int64_t) * message_size);
   if (encrypted == NULL) {
     fprintf(stderr, "Error: Heap allocation failed.\n");
     return NULL;
@@ -98,11 +98,11 @@ char *rsa_decrypt(const int64_t *message, const uint64_t message_size, const str
   // We allocate space to do the decryption (temp) and space for the output as a
   // char array
   // (decrypted)
-  char *decrypted = malloc(message_size / sizeof(int64_t));
-  char *temp = malloc(message_size);
+  char *decrypted = taosMemoryMalloc(message_size / sizeof(int64_t));
+  char *temp = taosMemoryMalloc(message_size);
   if ((decrypted == NULL) || (temp == NULL)) {
-    tfree(decrypted);
-    tfree(temp);
+    taosMemoryFreeClear(decrypted);
+    taosMemoryFreeClear(temp);
     fprintf(stderr, "Error: Heap allocation failed.\n");
     return NULL;
   }
@@ -117,7 +117,7 @@ char *rsa_decrypt(const int64_t *message, const uint64_t message_size, const str
   for (i = 0; i < message_size / 8; i++) {
     decrypted[i] = temp[i];
   }
-  free(temp);
+  taosMemoryFree(temp);
   return decrypted;
 }
 

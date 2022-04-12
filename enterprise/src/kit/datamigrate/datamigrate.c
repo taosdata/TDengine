@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
     SDnodeModEntry *dnodeTable = NULL;
 
     if (n_nodes > 0) {
-        dnodeTable = calloc(n_nodes, sizeof(SDnodeModEntry));
+        dnodeTable = taosMemoryCalloc(n_nodes, sizeof(SDnodeModEntry));
         if (dnodeTable == NULL)
         {
             fprintf(stderr, "ERROR! Failed to allocate memory\n");
@@ -253,17 +253,17 @@ int main(int argc, char *argv[])
     };
 
     char ofname[400] = "\0";
-    int ofd = -1;
+    TdFilePtr pFile = NULL;
     uint32_t sdbEcommit = 0;
-    SRowHead *pRowHead = malloc(1024 * 1024);
+    SRowHead *pRowHead = taosMemoryMalloc(1024 * 1024);
 
     taosResolveCRC();
 
     for (int k = 0; k < sizeof(sdb_mod_vector_table)/sizeof(sdb_mod_vector_table[0]); k++)
     {
         sprintf(ofname, "%s/%s", mgmtDir, sdb_mod_vector_table[k].filename);
-        ofd = open(ofname, O_RDWR);
-        if (ofd < 0)
+        pFile =  taosOpenFile(ofname, TD_FILE_WRITE | TD_FILE_READ);
+        if (pFile == NULL)
         {
             fprintf(stderr, "failed to open file %s\n", ofname);
             continue;
@@ -271,11 +271,11 @@ int main(int argc, char *argv[])
         else
         {
             printf("> Processing file:%s\n", ofname);
-            __off_t offset = lseek(ofd, sizeof(SSdbHeader) + sizeof(sdbEcommit), SEEK_SET);
+            __off_t offset = taosLSeekFile(pFile, sizeof(SSdbHeader) + sizeof(sdbEcommit), SEEK_SET);
             while (1)
             {
                 memset(pRowHead, 0, 1024 * 1024);
-                int bytes = read(ofd, pRowHead, sizeof(SRowHead));
+                int bytes = taosReadFile(pFile, pRowHead, sizeof(SRowHead));
                 if (bytes < 0)
                 {
                     fprintf(stderr, "ERROR! file %s may be broken.....\n", ofname);
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 
                 if (bytes < sizeof(SRowHead) || pRowHead->delimiter != SDB_DELIMITER)
                 {
-                    offset = lseek(ofd, -(bytes - 1), SEEK_CUR);
+                    offset = taosLSeekFile(pFile, -(bytes - 1), SEEK_CUR);
                     continue;
                 }
 
@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
                     break;
                 }
 
-                bytes = read(ofd, pRowHead->data, pRowHead->rowSize + sizeof(TSCKSUM));
+                bytes = taosReadFile(pFile, pRowHead->data, pRowHead->rowSize + sizeof(TSCKSUM));
                 if (bytes < pRowHead->rowSize + sizeof(TSCKSUM))
                 {
                     fprintf(stderr, "ERROR! file %s may be broken.....\n", ofname);
@@ -314,18 +314,18 @@ int main(int argc, char *argv[])
                 (sdb_mod_vector_table[k].func)(pRowHead->data, dnodeTable, n_nodes);
 
                 taosCalcChecksumAppend(0, (uint8_t *)pRowHead, tsize);
-                lseek(ofd, offset, SEEK_SET);
-                write(ofd, pRowHead, tsize);
+                taosLSeekFile(pFile, offset, SEEK_SET);
+                taosWriteFile(pFile, pRowHead, tsize);
 
                 // offset += sizeof(SRowHead)+pRowHead->rowSize+sizeof(TSCKSUM);
-                offset = lseek(ofd, 0, SEEK_CUR);
+                offset = taosLSeekFile(pFile, 0, SEEK_CUR);
             }
 
-            taosClose(ofd);
+            taosCloseFile(&pFile);
         }
     }
 
-    free(pRowHead);
+    taosMemoryFree(pRowHead);
 
 
     // =======================================  MOD LINK =======================================

@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+#include "tlog.h"
 #include "taos.h"
 
 int32_t taosModuleStart() {

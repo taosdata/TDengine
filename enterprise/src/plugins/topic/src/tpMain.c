@@ -18,16 +18,19 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tglobal.h"
+#include "mndDef.h"
+#include "tsdb.h"
+#include "tfs.h"
+#include "tdataformat.h"
 #include "mnode.h"
 #include "dnode.h"
-#include "mnodeDef.h"
-#include "mnodeInt.h"
-#include "mnodeDb.h"
-#include "mnodeSdb.h"
-#include "mnodeShow.h"
-#include "mnodeUser.h"
-#include "mnodeRead.h"
-#include "mnodeWrite.h"
+#include "mndInt.h"
+// #include "mnodeDb.h"
+// #include "mnodeSdb.h"
+// #include "mnodeShow.h"
+// #include "mnodeUser.h"
+// #include "mnodeRead.h"
+// #include "mnodeWrite.h"
 
 #define TP_SCHEMA_SQL_LEN 4096
 #define TP_BINARY_LEN     16000
@@ -449,7 +452,7 @@ static int32_t tpRunInThread(int32_t msgType, SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
-  pthread_t      threadID;
+  TdThread       threadID;
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);

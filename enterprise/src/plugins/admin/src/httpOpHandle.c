@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "cJSON.h"
@@ -86,7 +86,7 @@ char *opGetDbFromUrl(HttpContext *pContext) {
 }
 
 bool opProcessLoginRequest(HttpContext *pContext) {
-  httpDebug("context:%p, fd:%d, user:%s, process opentsdb login msg", pContext, pContext->fd, pContext->user);
+  httpDebug("context:%p, fd:%p, user:%s, process opentsdb login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
@@ -428,7 +428,7 @@ request from opentsdb
 ]
 */
 bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, process opentsdb put detail msg", pContext, pContext->fd);
+  httpDebug("context:%p, fd:%p, process opentsdb put detail msg", pContext, pContext->fd);
 
   char *filter = pContext->parser->body.str;
   if (filter == NULL) {
@@ -443,7 +443,7 @@ bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
   }
 
   int32_t size = cJSON_GetArraySize(root);
-  httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
+  httpDebug("context:%p, fd:%p, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRICS_NULL);
     cJSON_Delete(root);
@@ -773,7 +773,7 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
 
 // summary parse
 bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, process opentsdb put summary msg", pContext, pContext->fd);
+  httpDebug("context:%p, fd:%p, process opentsdb put summary msg", pContext, pContext->fd);
 
   char *filter = pContext->parser->body.str;
   if (filter == NULL) {
@@ -788,7 +788,7 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   }
 
   int32_t size = cJSON_GetArraySize(root);
-  httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
+  httpDebug("context:%p, fd:%p, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRICS_NULL);
     cJSON_Delete(root);

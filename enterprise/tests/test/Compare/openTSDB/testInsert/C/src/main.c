@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
     SWriteInfo * pWrite = (SWriteInfo *) calloc(arguments.connections, sizeof(SWriteInfo));
     if (pWrite == NULL) {
         fprintf(stderr, "failed to allocate memory\n");
-        free(threads);
+        taosMemoryFree(threads);
         goto _exit_error;
     }
 
@@ -262,8 +262,8 @@ int main(int argc, char *argv[]) {
 
     printf("Done! Spent %10.4f seconds to insert %ld records, speed: %12.2f R/s\n", et, 1L * arguments.num_of_detectors*arguments.points_per_detector, (1L*arguments.num_of_detectors*arguments.points_per_detector)/et);
 
-    free(pWrite);
-    free(threads);
+    taosMemoryFree(pWrite);
+    taosMemoryFree(threads);
     freeSampleData(sample_data, nfields);
     return 0;
 
@@ -276,14 +276,14 @@ void freeSampleData(SMetricInfo *sample_data, int nfields) {
     for (int i = 0; i < nfields; i++) {
         for (int j = 0; j < MAX_SAMPLE_DATA_SIZE; j++) {
             if (sample_data[i].sample_value[j] != NULL) {
-                free(sample_data[i].sample_value[j]);
+                taosMemoryFree(sample_data[i].sample_value[j]);
             } else {
                 break;
             }
         }
     }
 
-    free(sample_data);
+    taosMemoryFree(sample_data);
 
 }
 
@@ -427,7 +427,7 @@ int loadSampleData(char * fschema, char * fsample, SMetricInfo ** sample_data, i
                 count ++;
             }
             *nfields = count;
-            free(line_t);
+            taosMemoryFree(line_t);
 
             *sample_data = (SMetricInfo *)calloc(count, sizeof(SMetricInfo));
 
@@ -505,11 +505,11 @@ int loadSampleData(char * fschema, char * fsample, SMetricInfo ** sample_data, i
     }
 
     fclose(fs);
-    if (line != NULL) free(line);
+    if (line != NULL) taosMemoryFree(line);
     return 0;
 
 _exit_failure:
-    if (line != NULL) free(line);
+    if (line != NULL) taosMemoryFree(line);
     return -1;
 
 }

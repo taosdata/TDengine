@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "taos.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tutil.h"
 #include "testCommon.h"
 

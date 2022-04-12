@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+#include "tlog.h"
 #include "ttimer.h"
 #include "trpc.h"
 #include "tutil.h"
@@ -25,30 +25,34 @@
 #include "machine.h"
 #include "mnode.h"
 #include "dnode.h"
-#include "mnodeDef.h"
-#include "mnodeDb.h"
-#include "mnodeDnode.h"
-#include "mnodeTable.h"
-#include "mnodeMnode.h"
-#include "mnodeSdb.h"
-#include "mnodeShow.h"
-#include "mnodeAcct.h"
-#include "mnodeUser.h"
-#include "mnodePeer.h"
+#include "mndDef.h"
+#include "mndDb.h"
+#include "mndDnode.h"
+// #include "mnodeTable.h"
+#include "mndMnode.h"
+// #include "mnodeSdb.h"
+#include "mndShow.h"
+#include "mndAcct.h"
+#include "mndUser.h"
+// #include "mnodePeer.h"
+#include "mndSync.h"
 
 #ifndef min
   #define min(x, y) (x)<(y)?(x):(y)
 #endif
-
+#if 0
 extern void *tsMnodeTmr;
+#endif
 extern SGrantObj grantObj;
 
 static char   *grantSecondsToString(uint32_t seconds);
 static void    grantCheckGrantInfo(void *, void *);
 static void    grantSendMsgToMgmt(void *, void *);
-static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg);
+static int32_t grantProcessMsgInMgmt(SNodeMsg *pMsg);
 static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
-static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+#if 0
+// static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+#endif
 static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void *grantCheckTimer = NULL;
@@ -80,11 +84,13 @@ int32_t grantInit() {
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
 
+#if 0
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_GRANT_RSP, grantProcessRspInDnode);
   taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMnodeTmr, &grantSendTimer);
+#endif
 
   uDebug("grant data is initialized");
   return TSDB_CODE_SUCCESS;
@@ -106,7 +112,7 @@ void grantParseParameter() {
 }
 
 static char *grantSecondsToString(uint32_t seconds) {
-  char *ts = calloc(64, 1);
+  char *ts = taosMemoryCalloc(64, 1);
   time_t sec = seconds;
   struct tm * ptm = localtime(&sec);
   strftime(ts, 64, "%Y-%m-%d %H:%M:%S", ptm);
@@ -121,6 +127,7 @@ static uint32_t grantGetCulsterCreateTime() {
   SDbObj *   pDb = NULL;
 
   int64_t createTime = (int64_t)taosGetTimestampMs();
+#if 0
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
@@ -151,7 +158,7 @@ static uint32_t grantGetCulsterCreateTime() {
     createTime = createTime < pDb->createdTime ? createTime : pDb->createdTime;
     mnodeDecDbRef(pDb);
   }
-
+#endif
   return (uint32_t)(createTime / 1000);
 }
 
@@ -159,8 +166,9 @@ static uint32_t grantGetCulsterCurSpeed() { return 0; }
 
 uint32_t grantGetCulsterCurTimeSeries() {
   void *      pIter = NULL;
-  SCTableObj *pTable = NULL;
   uint32_t    numOfPoints = 0;
+#if 0
+  SCTableObj *pTable = NULL;
 
   while (1) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);
@@ -172,7 +180,7 @@ uint32_t grantGetCulsterCurTimeSeries() {
     }
     mnodeDecTableRef(pTable);
   }
-
+#endif
   return numOfPoints;
 }
 
@@ -182,14 +190,14 @@ static uint32_t grantGetCulsterCurDbs() {
   void *   pIter = NULL;
   SDbObj * pDb = NULL;
   uint32_t numOfDbs = 0;
-
+#if 0
   while (1) {
     pIter = mnodeGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
     if (strcmp(pDb->name, tsMonitorDbName) != 0) numOfDbs++;
     mnodeDecDbRef(pDb);
   }
-
+#endif
   return numOfDbs;
 }
 
@@ -197,7 +205,7 @@ static uint32_t grantGetCulsterCurUsers() {
   void *    pIter = NULL;
   SUserObj *pUser = NULL;
   uint32_t  numOfUsers = 0;
-
+#if 0
   while (1) {
     pIter = mnodeGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
@@ -206,7 +214,7 @@ static uint32_t grantGetCulsterCurUsers() {
     numOfUsers++;
     mnodeDecUserRef(pUser);
   }
-
+#endif
   return numOfUsers;
 }
 
@@ -220,14 +228,14 @@ static uint32_t grantGetCulsterCurAccts() {
   void *    pIter = NULL;
   SAcctObj *pAcct = NULL;
   uint32_t  numOfAccts = 0;
-
+#if 0
   while (1) {
     pIter = mnodeGetNextAcct(pIter, &pAcct);
     if (pAcct == NULL) break;
     numOfAccts++;
     mnodeDecAcctRef(pAcct);
   }
-
+#endif
   return numOfAccts;
 }
 
@@ -235,14 +243,14 @@ static uint32_t grantGetCulsterCurDnodes() {
   void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   int32_t    numOfDnodes = 0;
-
+#if 0
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     numOfDnodes++;
     mnodeDecDnodeRef(pDnode);
   }
-
+#endif
   return numOfDnodes;
 }
 
@@ -251,14 +259,14 @@ static uint32_t grantGetCulsterCurCpuCores() {
   void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   uint32_t   numOfCpuCores = 0;
-
+#if 0
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     numOfCpuCores += pDnode->numOfCores;
     mnodeDecDnodeRef(pDnode);
   }
-
+#endif
   return numOfCpuCores;
 }
 
@@ -281,9 +289,11 @@ static void grantResetMaster() {
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
   uDebug("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
          grantStatus.curTimeSeries);
-  free(ts);
+  taosMemoryFree(ts);
 
+#if 0
   taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMnodeTmr, &grantCheckTimer);
+#endif
 }
 
 void grantReset(EGrantType grant, uint64_t value) {
@@ -475,13 +485,17 @@ int32_t grantCheck(EGrantType grant) {
 
 static void grantProcessRspInDnode(SRpcMsg *rpcMsg) {
   uDebug("grant rsp received from mnode, result:%s", tstrerror(rpcMsg->code));
+#if 0
   if (rpcMsg->code != TSDB_CODE_SUCCESS && tsMnodeTmr != NULL) {
     taosTmrReset(grantSendMsgToMgmt, 3000, NULL, tsMnodeTmr, &grantSendTimer);
   }
+#endif
 }
 
 static void grantSendMsgToMgmt(void *p1, void *p2) {
+#if 0
   taosTmrReset(grantSendMsgToMgmt, GRANT_HEART_BEAT_MSG * 1000, NULL, tsMnodeTmr, &grantSendTimer);
+#endif
 
   if (!grantObj.granted) return;
 
@@ -506,20 +520,20 @@ static void grantSendMsgToMgmt(void *p1, void *p2) {
   char *ts = grantSecondsToString(grantObj.expireTimeSec);
   uDebug("grant send message to mnode, storage:%uGB, timeseries:%u, database:%u, users:%u, expire:%s %u",
         grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts, grantObj.expireTimeSec);
-  free(ts);
+  taosMemoryFree(ts);
 
   SRpcMsg rpcMsg = {
     .pCont   = pGrant,
     .contLen = sizeof(SGrantMsg),
-    .msgType = TSDB_MSG_TYPE_DM_GRANT
+    .msgType = TDMT_MND_GRANT
   };
 
-  SRpcEpSet epSet = {0};
-  dnodeGetEpSetForPeer(&epSet);
-  dnodeSendMsgToDnode(&epSet, &rpcMsg);
+  // SRpcEpSet epSet = {0};
+  // dnodeGetEpSetForPeer(&epSet);
+  // dnodeSendMsgToDnode(&epSet, &rpcMsg);
 }
 
-static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
+static int32_t grantProcessMsgInMgmt(SNodeMsg *pMsg)
 {  
   SGrantMsg  *pGrant = pMsg->rpcMsg.pCont;
 
@@ -571,16 +585,16 @@ static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
     grantStatus.expired = true;
   }
 
-  free(ts);
+  taosMemoryFree(ts);
 
   return TSDB_CODE_SUCCESS;
 }
 
 static void grantCheckGrantInfo(void *p1, void *p2) {
+#if 0
   taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMnodeTmr, &grantCheckTimer);
   grantStatus.expired = false;
-
-  if (sdbIsMaster()) {
+  if (mndIsMaster()) {
 
     /*
      * When all nodes are online, the grant time is judged
@@ -605,12 +619,12 @@ static void grantCheckGrantInfo(void *p1, void *p2) {
       char *ts1 = grantSecondsToString(grantStatus.expireTimeSec);
       char *ts2 = grantSecondsToString(grantStatus.lastReceived);
       uError("grant message not received beyond %d seconds, set to un-grant state, expire at %s, last received at %s, ", GRANT_TOLERENCE, ts1, ts2);
-      free(ts1);
-      free(ts2);
+      taosMemoryFree(ts1);
+      taosMemoryFree(ts2);
       grantStatus.expired = true;
     }
   }
-
+#endif
   /*
    * For debug usage
    */
@@ -619,11 +633,11 @@ static void grantCheckGrantInfo(void *p1, void *p2) {
     char *ts1 = grantSecondsToString(grantStatus.expireTimeSec);
     char *ts2 = grantSecondsToString(grantStatus.lastReceived);
     uDebug("grant expire at %s, last received at %s, expired %d seconds, tolerance %d seconds", ts1, ts2, curTime - grantStatus.lastReceived, GRANT_TOLERENCE);
-    free(ts1);
-    free(ts2);
+    taosMemoryFree(ts1);
+    taosMemoryFree(ts2);
   }
 }
-
+#if 0
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   char cfgFile[PATH_MAX] = {0};
   sprintf(cfgFile, "%s/taos.cfg", configDir);
@@ -731,7 +745,7 @@ static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 
   return 0;
 }
-
+#endif
 int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   char *  pWrite;

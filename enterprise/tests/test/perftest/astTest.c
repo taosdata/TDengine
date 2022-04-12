@@ -3,7 +3,7 @@
 
 #include "tast.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tskiplist.h"
 #include "../../../../community/src/system/detail/inc/mgmt.h"
 
@@ -226,11 +226,11 @@ static void dropMeter(tSkipList *pSkipList) {
     for (int32_t i = 0; i < num; ++i) {
         tSkipListNode *pNode = pRes[i];
         STabObj *pTable = (STabObj *) pNode->pData;
-        free(pTable->pTagData);
-        free(pTable);
+        taosMemoryFree(pTable->pTagData);
+        taosMemoryFree(pTable);
         pNode->pData = NULL;
     }
-    free(pRes);
+    taosMemoryFree(pRes);
 }
 
 static tSkipList *createSkipList(SSchema *pSchema, int32_t numOfTags) {
@@ -308,7 +308,7 @@ static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipLis
     }
     printf("\n\n");
 
-    free(result.pRes);
+    taosMemoryFree(result.pRes);
     tSQLBinaryExprDestroy(&pExpr);*/
 }
 

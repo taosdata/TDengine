@@ -11,7 +11,7 @@
 
 // Function designed for chat between client and server.
 void func(int sockfd, int size) {
-  char *buff = malloc(size + 1);
+  char *buff = taosMemoryMalloc(size + 1);
   if (buff == NULL) {
     printf("failed to allocate memory\n");
     return;

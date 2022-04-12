@@ -135,10 +135,10 @@ int main(int argc, char *argv[]) {
         pthread_join(threads[i], NULL);
     }
 
-    free(threads);
-    free(threadArgs);
+    taosMemoryFree(threads);
+    taosMemoryFree(threadArgs);
     for (int i = 0; i < number_of_querys; i++) {
-        free(query_commands[i]);
+        taosMemoryFree(query_commands[i]);
     }
 
     return 0;
@@ -209,5 +209,5 @@ int loadQueryCommand(char * query_file) {
         if (number_of_querys >= MAX_QUERY_COMMANDS) break;
     }
 
-    if (line) free(line);
+    if (line) taosMemoryFree(line);
 }
