@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndNode.h"
+#include "dndInt.h"
 #include "wal.h"
 
 static int8_t once = DND_ENV_INIT;

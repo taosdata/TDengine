@@ -81,7 +81,7 @@ int32_t dndRun(SDnode *pDnode);
  * @param pDnode The dnode object to close.
  * @param event The event to handle.
  */
-void dndHandleEvent(SDnode *pDnode, EDndEvent event);
+void dndSetEvent(SDnode *pDnode, EDndEvent event);
 
 #ifdef __cplusplus
 }

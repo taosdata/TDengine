@@ -32,7 +32,7 @@ static struct {
 static void dndStopDnode(int signum, void *info, void *ctx) {
   SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
   if (pDnode != NULL) {
-    dndHandleEvent(pDnode, DND_EVENT_STOP);
+    dndSetEvent(pDnode, DND_EVENT_STOP);
   }
 }
 

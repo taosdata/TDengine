@@ -232,7 +232,8 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
     if (ntype == NODE_END - 1) {
       len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndProcName(ntype), pWrapper->procShm.size);
     } else {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndProcName(ntype), pWrapper->procShm.size);
+      len +=
+          snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndProcName(ntype), pWrapper->procShm.size);
     }
   }
   len += snprintf(content + len, MAXLEN - len, "}\n");

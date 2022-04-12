@@ -25,14 +25,6 @@ extern "C" {
 int32_t dndOpenNode(SMgmtWrapper *pWrapper);
 void    dndCloseNode(SMgmtWrapper *pWrapper);
 
-void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
-int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
-void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
-void          dndHandleEvent(SDnode *pDnode, EDndEvent event);
-void          dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-void          dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
-
 // dndTransport.c
 int32_t  dndInitTrans(SDnode *pDnode);
 void     dndCleanupTrans(SDnode *pDnode);

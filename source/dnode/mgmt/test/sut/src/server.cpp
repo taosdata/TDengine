@@ -68,7 +68,7 @@ bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const 
 }
 
 void TestServer::Stop() {
-  dndHandleEvent(pDnode, DND_EVENT_STOP);
+  dndSetEvent(pDnode, DND_EVENT_STOP);
   taosThreadJoin(threadId, NULL);
 
   if (pDnode != NULL) {
