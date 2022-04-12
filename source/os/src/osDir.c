@@ -68,6 +68,15 @@ void taosRemoveDir(const char *dirname) {
 bool taosDirExist(char *dirname) { return taosCheckExistFile(dirname); }
 
 int32_t taosMkDir(const char *dirname) {
+  int32_t code = mkdir(dirname, 0755);
+  if (code < 0 && errno == EEXIST) {
+    return 0;
+  }
+
+  return code;
+}
+
+int32_t taosMulMkDir(const char *dirname) {
   if (dirname == NULL) return -1;
   char *temp = strdup(dirname);
   char *pos = temp;
