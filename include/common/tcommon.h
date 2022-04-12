@@ -222,7 +222,7 @@ typedef struct SFunctParam {
 // the structure for sql function in select clause
 typedef struct SResSchame {
   int8_t  type;
-  int32_t colId;
+  int32_t slotId;
   int32_t bytes;
   int32_t precision;
   int32_t scale;
