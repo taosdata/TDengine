@@ -36,9 +36,9 @@ case1:
       auto_create_table: "no"
       batch_create_tbl_num: 1
       data_source: "rand"
-      insert_mode: "rest"
+      insert_mode: "taosc"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -113,7 +113,7 @@ case2:
       data_source: "rand"
       insert_mode: "taosc"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -188,7 +188,7 @@ case3:
       data_source: "rand"
       insert_mode: "taosc"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -263,7 +263,7 @@ case4:
       data_source: "rand"
       insert_mode: "taosc"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -338,7 +338,7 @@ case5:
       data_source: "rand"
       insert_mode: "taosc"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -413,7 +413,7 @@ case6:
       data_source: "rand"
       insert_mode: "taosc"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -488,7 +488,7 @@ case7:
       data_source: "rand"
       insert_mode: "rest"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -563,7 +563,7 @@ case8:
       data_source: "rand"
       insert_mode: "rest"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -638,7 +638,7 @@ case9:
       data_source: "rand"
       insert_mode: "rest"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -713,7 +713,7 @@ case10:
       data_source: "rand"
       insert_mode: "rest"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -788,7 +788,7 @@ case11:
       data_source: "rand"
       insert_mode: "rest"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -863,7 +863,7 @@ case12:
       data_source: "rand"
       insert_mode: "rest"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -938,7 +938,7 @@ case13:
       data_source: "rand"
       insert_mode: "stmt"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -1013,7 +1013,7 @@ case14:
       data_source: "rand"
       insert_mode: "stmt"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -1088,7 +1088,7 @@ case15:
       data_source: "rand"
       insert_mode: "stmt"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -1163,7 +1163,7 @@ case16:
       data_source: "rand"
       insert_mode: "stmt"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -1238,7 +1238,7 @@ case17:
       data_source: "rand"
       insert_mode: "stmt"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -1313,7 +1313,7 @@ case18:
       data_source: "rand"
       insert_mode: "stmt"
       line_protocol: null
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -1388,7 +1388,7 @@ case19:
       data_source: "rand"
       insert_mode: "sml"
       line_protocol: telnet
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -1463,7 +1463,7 @@ case20:
       data_source: "rand"
       insert_mode: "sml"
       line_protocol: telnet
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
@@ -1538,7 +1538,7 @@ case21:
       data_source: "rand"
       insert_mode: "sml-rest"
       line_protocol: telnet
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 2000
       childtable_limit: 0
       childtable_offset: 0
@@ -1613,7 +1613,7 @@ case22:
       data_source: "rand"
       insert_mode: "sml-rest"
       line_protocol: telnet
-      tcp_transfer: no
+      tcp_transfer: "no"
       insert_rows: 20000
       childtable_limit: 0
       childtable_offset: 0
