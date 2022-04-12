@@ -809,7 +809,7 @@ static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   }
 
   mndReleaseDb(pMnode, pDb);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
 }

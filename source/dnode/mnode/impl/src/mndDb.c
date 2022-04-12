@@ -1540,7 +1540,7 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rowsCapacity, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
 
   return numOfRows;
 }

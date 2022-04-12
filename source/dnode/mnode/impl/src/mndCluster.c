@@ -209,7 +209,7 @@ static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, 
   }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

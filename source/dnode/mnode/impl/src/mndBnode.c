@@ -470,7 +470,7 @@ static int32_t mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, in
   }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
 
   return numOfRows;
 }

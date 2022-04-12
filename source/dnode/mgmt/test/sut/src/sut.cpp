@@ -133,7 +133,7 @@ const char* Testbase::GetMetaTbName() { return metaRsp.tbName; }
 void Testbase::SendShowRetrieveReq() {
   SRetrieveTableReq retrieveReq = {0};
   retrieveReq.showId = showId;
-  retrieveReq.free = 0;
+//  retrieveReq.free = 0;
 
   int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
   void*   pReq = rpcMallocCont(contLen);

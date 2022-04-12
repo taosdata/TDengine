@@ -1371,7 +1371,7 @@ static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, char *data, int
   }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
