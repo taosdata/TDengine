@@ -49,7 +49,7 @@ public class RestQueryExample {
     }
 }
 
-// possible stdout:
+// possible output:
 // avg(voltage)	location
 // 222.0	Beijing.Haidian
 // 219.0	Beijing.Chaoyang

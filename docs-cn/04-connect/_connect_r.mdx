@@ -1,0 +1,13 @@
+```R
+> library("DBI")
+> library("rJava")
+> library("RJDBC")
+> driver_path = "C:/TDengine/connector/jdbc/taos-jdbcdriver-2.0.37-dist.jar"
+> driver = JDBC("com.taosdata.jdbc.TSDBDriver", driver_path)
+> conn = dbConnect(driver, "jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata")
+> dbGetQuery(conn, "SELECT server_version()")
+  server_version()
+1         2.4.0.12
+> dbDisconnect(conn)
+[1] TRUE
+```

@@ -172,7 +172,8 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 连接开启批量拉取方式：
 
 ```java
-String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";Properties properties = new Properties();
+String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";
+Properties properties = new Properties();
 properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
 Connection connection = DriverManager.getConnection(url, properties);
 ```
