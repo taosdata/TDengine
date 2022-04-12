@@ -22,7 +22,6 @@
 #include "vnodeInt.h"
 
 #include "filter.h"
-#include "scalar.h"
 #include "taosdef.h"
 #include "tlosertree.h"
 #include "tmsg.h"
@@ -3659,8 +3658,8 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
 
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  void* filterInfo = taosMemoryCalloc(1, sizeof(SFilterInfo));
-  ret = filterInitFromNode((SNode*)pTagCond, *filterInfo, 0);
+  SFilterInfo* filterInfo = NULL;
+  ret = filterInitFromNode((SNode*)pTagCond, &filterInfo, 0);
   if (ret != TSDB_CODE_SUCCESS) {
     terrno = ret;
     return ret;
@@ -3669,8 +3668,8 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
   pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
   pGroupInfo->pGroupList = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
-  tsdbDebug("%p stable tid:%d, uid:%" PRIu64 " query, numOfTables:%u, belong to %" PRIzu " groups", tsdb,
-            pTable->tableId, pTable->uid, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
+  // tsdbDebug("%p stable tid:%d, uid:%" PRIu64 " query, numOfTables:%u, belong to %" PRIzu " groups", tsdb,
+  //          pTable->tableId, pTable->uid, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
   taosArrayDestroy(res);
   return ret;
