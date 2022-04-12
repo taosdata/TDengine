@@ -390,7 +390,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .checkFunc    = checkAndGetResultType,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = castFunction,
     .finalizeFunc = NULL
   },
   {
@@ -600,7 +600,13 @@ int32_t checkAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
     case FUNCTION_TYPE_CAST: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+      //type
+      SValueNode* pParam = nodesListGetNode(pFunc->pParameterList, 1);
+      int32_t paraType = pParam->datum.i;
+      //bytes
+      pParam = nodesListGetNode(pFunc->pParameterList, 2);
+      int32_t paraBytes = pParam->datum.i;
+      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType};
       break;
     }
 
