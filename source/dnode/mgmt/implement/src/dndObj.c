@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndInt.h"
+#include "dndNode.h"
 
 static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->data.supportVnodes = pOption->numOfSupportVnodes;

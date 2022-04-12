@@ -20,12 +20,12 @@ EDndRunStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
 
 void dndSetStatus(SDnode *pDnode, EDndRunStatus status) {
   if (pDnode->status != status) {
-    dDebug("dnode status set from %s to %s", dndStatStr(pDnode->status), dndStatStr(status));
+    dDebug("dnode status set from %s to %s", dndStatName(pDnode->status), dndStatName(status));
     pDnode->status = status;
   }
 }
 
-const char *dndStatStr(EDndRunStatus status) {
+const char *dndStatName(EDndRunStatus status) {
   switch (status) {
     case DND_STAT_INIT:
       return "init";
@@ -38,7 +38,7 @@ const char *dndStatStr(EDndRunStatus status) {
   }
 }
 
-const char *dndNodeLogStr(EDndNodeType ntype) {
+const char *dndLogName(EDndNodeType ntype) {
   switch (ntype) {
     case VNODE:
       return "vnode";
@@ -55,7 +55,7 @@ const char *dndNodeLogStr(EDndNodeType ntype) {
   }
 }
 
-const char *dndNodeProcStr(EDndNodeType ntype) {
+const char *dndProcName(EDndNodeType ntype) {
   switch (ntype) {
     case VNODE:
       return "taosv";
@@ -72,7 +72,7 @@ const char *dndNodeProcStr(EDndNodeType ntype) {
   }
 }
 
-const char *dndEventStr(EDndEvent ev) {
+const char *dndEventName(EDndEvent ev) {
   switch (ev) {
     case DND_EVENT_START:
       return "start";

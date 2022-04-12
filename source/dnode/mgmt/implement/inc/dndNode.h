@@ -13,35 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_INT_H_
-#define _TD_DND_INT_H_
+#ifndef _TD_DND_NODE_H_
+#define _TD_DND_NODE_H_
 
-#include "dndLog.h"
-#include "dndDef.h"
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-const char *dndStatName(EDndRunStatus stat);
-const char *dndLogName(EDndNodeType ntype);
-const char *dndProcName(EDndNodeType ntype);
-const char *dndEventName(EDndEvent ev);
-
-// dndExec.c
 int32_t dndOpenNode(SMgmtWrapper *pWrapper);
 void    dndCloseNode(SMgmtWrapper *pWrapper);
 
-// dndFile.c
-int32_t   dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
-int32_t   dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
-TdFilePtr dndCheckRunning(const char *dataDir);
-int32_t   dndReadShmFile(SDnode *pDnode);
-int32_t   dndWriteShmFile(SDnode *pDnode);
-
-// dndInt.c
-EDndRunStatus    dndGetStatus(SDnode *pDnode);
-void          dndSetStatus(SDnode *pDnode, EDndRunStatus stat);
 void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
 SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
@@ -82,4 +65,4 @@ void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo);
 }
 #endif
 
-#endif /*_TD_DND_INT_H_*/
+#endif /*_TD_DND_NODE_H_*/

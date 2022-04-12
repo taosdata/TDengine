@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndInt.h"
+#include "dndNode.h"
 #include "tconfig.h"
 
 static struct {
@@ -129,14 +129,14 @@ static SDnodeOpt dndGetOpt() {
 
 static int32_t dndInitLog() {
   char logName[12] = {0};
-  snprintf(logName, sizeof(logName), "%slog", dndNodeLogStr(global.ntype));
+  snprintf(logName, sizeof(logName), "%slog", dndLogName(global.ntype));
   return taosCreateLog(logName, 1, configDir, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void dndSetProcInfo(int32_t argc, char **argv) {
   taosSetProcPath(argc, argv);
   if (global.ntype != NODE_BEGIN && global.ntype != NODE_END) {
-    const char *name = dndNodeProcStr(global.ntype);
+    const char *name = dndProcName(global.ntype);
     taosSetProcName(argc, argv, name);
   }
 }

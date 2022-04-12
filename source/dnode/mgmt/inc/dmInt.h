@@ -16,7 +16,7 @@
 #ifndef _TD_DND_DNODE_INT_H_
 #define _TD_DND_DNODE_INT_H_
 
-#include "dndInt.h"
+#include "dndNode.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -23,7 +23,7 @@ int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   int64_t   len = 0;
   char      content[MAXLEN + 1] = {0};
   cJSON    *root = NULL;
-  char      file[PATH_MAX];
+  char      file[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
   snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
@@ -165,13 +165,13 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     }
 
     for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
-      snprintf(itemName, sizeof(itemName), "%s_shmid", dndNodeProcStr(ntype));
+      snprintf(itemName, sizeof(itemName), "%s_shmid", dndProcName(ntype));
       cJSON *shmid = cJSON_GetObjectItem(root, itemName);
       if (shmid && shmid->type == cJSON_Number) {
         pDnode->wrappers[ntype].procShm.id = shmid->valueint;
       }
 
-      snprintf(itemName, sizeof(itemName), "%s_shmsize", dndNodeProcStr(ntype));
+      snprintf(itemName, sizeof(itemName), "%s_shmsize", dndProcName(ntype));
       cJSON *shmsize = cJSON_GetObjectItem(root, itemName);
       if (shmsize && shmsize->type == cJSON_Number) {
         pDnode->wrappers[ntype].procShm.size = shmsize->valueint;
@@ -228,11 +228,11 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
   len += snprintf(content + len, MAXLEN - len, "{\n");
   for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndNodeProcStr(ntype), pWrapper->procShm.id);
+    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndProcName(ntype), pWrapper->procShm.id);
     if (ntype == NODE_END - 1) {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndNodeProcStr(ntype), pWrapper->procShm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndProcName(ntype), pWrapper->procShm.size);
     } else {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndNodeProcStr(ntype), pWrapper->procShm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndProcName(ntype), pWrapper->procShm.size);
     }
   }
   len += snprintf(content + len, MAXLEN - len, "}\n");
