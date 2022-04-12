@@ -168,7 +168,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
-    return doFetchRow(pRequest, true);
+    return doFetchRow(pRequest, true, false);
 
   } else if (TD_RES_TMQ(res)) {
     tmq_message_t  *msg = ((tmq_message_t *)res);
@@ -430,7 +430,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-    doFetchRow(pRequest, false);
+    doFetchRow(pRequest, false, false);
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -465,7 +465,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
       return 0;
     }
 
-    doFetchRow(pRequest, false);
+    doFetchRow(pRequest, false, false);
 
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 

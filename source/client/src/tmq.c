@@ -835,7 +835,8 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (msgEpoch < tmqEpoch) {
     /*printf("discard rsp epoch %d, current epoch %d\n", msgEpoch, tmqEpoch);*/
     /*tsem_post(&tmq->rspSem);*/
-    tscWarn("msg discard from vg %d since from earlier epoch, rsp epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
+    tscWarn("msg discard from vg %d since from earlier epoch, rsp epoch %d, current epoch %d", pParam->vgId, msgEpoch,
+            tmqEpoch);
     return 0;
   }
 
@@ -872,8 +873,8 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
   memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
   tDecodeSMqPollRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->msg);
-  pRsp->iter.curBlock = 0;
-  pRsp->iter.curRow = 0;
+  /*pRsp->iter.curBlock = 0;*/
+  /*pRsp->iter.curRow = 0;*/
   // TODO: alloc mem
   /*pRsp->*/
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
@@ -885,8 +886,8 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 #endif
 
-  tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld", tmq->consumerId, pParam->pVg->vgId, pRsp->msg.reqOffset,
-           pRsp->msg.rspOffset);
+  tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld", tmq->consumerId, pParam->pVg->vgId,
+           pRsp->msg.reqOffset, pRsp->msg.rspOffset);
 
   pRsp->vg = pParam->pVg;
   taosWriteQitem(tmq->mqueue, pRsp);
@@ -907,7 +908,8 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
   bool    set = false;
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
-  tscDebug("consumer %ld update ep epoch %d to epoch %d, topic num: %d", tmq->consumerId, tmq->epoch, epoch, topicNumGet);
+  tscDebug("consumer %ld update ep epoch %d to epoch %d, topic num: %d", tmq->consumerId, tmq->epoch, epoch,
+           topicNumGet);
   SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
   if (newTopics == NULL) {
     return false;
@@ -1275,7 +1277,8 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
       atomic_add_fetch_32(&tmq->waitingRequest, 1);
-      tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %ld, reqId %lu", tmq->consumerId, pTopic->topicName, pVg->vgId, tmq->epoch, pVg->currentOffset, pReq->reqId);
+      tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %ld, reqId %lu", tmq->consumerId,
+               pTopic->topicName, pVg->vgId, tmq->epoch, pVg->currentOffset, pReq->reqId);
       /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/
       asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
       pVg->pollCnt++;
