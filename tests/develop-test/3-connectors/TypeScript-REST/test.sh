@@ -27,9 +27,14 @@ WKC=`pwd`
 echo ${WKC}
 cd ${WKC}/src/connector/TypeScript-REST
 
+# test source code 
 npm install
 npm run example 
 # npm run test 
 
+# test published npm package td2.0-rest-connecto
+cd ${WKC}/examples/TypeScript-REST
+npm install 
+npm run test
 
 

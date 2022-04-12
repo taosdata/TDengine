@@ -235,6 +235,7 @@
 30,,script,./test.sh -f general/import/commit.sim 
 30,,script,./test.sh -f general/compute/diff2.sim 
 30,,develop-test,bash 3-connectors/R/test.sh
+30,,develop-test,bash 3-connectors/TypeScript-REST/test.sh
 29,,system-test,python3 ./test.py -f 0-others/create_col_tag.py 
 29,,script,./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim 
 29,,script,./test.sh -f general/wal/maxtables.sim 
@@ -311,7 +312,6 @@
 20,,develop-test,python3 test.py -f 2-query/ltrim_func.py
 20,,develop-test,python3 test.py -f 2-query/rtrim_func.py
 20,,develop-test,python3 test.py -f 2-query/substr_func.py
-20,,develop-test,bash 3-connectors/TypeScript-REST/test.sh 
 20,,pytest,python3 test.py -f query/query.py 
 20,,pytest,python3 test.py -f import_merge/importLastTO.py 
 20,,pytest,python3 test.py -f import_merge/importDataSub.py 

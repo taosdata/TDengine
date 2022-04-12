@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "td2.0-rest-connector": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.23"
+  },
+  "scripts": {
+    "test": "tsc test.ts && node test.js"
+  }
+}

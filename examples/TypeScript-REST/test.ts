@@ -1,4 +1,4 @@
-import { options, connect } from '../tdengine_rest'
+import { options, connect } from 'td2.0-rest-connector'
 options.path = '/rest/sqlt'
 options.host = 'localhost'
 
@@ -55,8 +55,3 @@ async function execute(sql: string, pure = false) {
     let end = new Date().getTime(); // 结束时间
     console.log("total spend time:%d ms",end - start);
 })()
-
-
-
-
-
