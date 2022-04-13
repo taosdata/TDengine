@@ -13,6 +13,7 @@
 import random
 import threading
 import time
+from taostest.util.sql import TDSql
 
 from taostest import ClusterCase
 
@@ -45,7 +46,7 @@ class Case3(ClusterCase):
     def run(self):
         # start alter schema task (self, db_nums , stable_nums,table_nums , time_sleep)
 
-        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params, self.master_node, True ))
+        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params , self.master_node, True ))
         taskthread.start()
         # wait thread
         
@@ -57,7 +58,6 @@ class Case3(ClusterCase):
         taskthread.join()
         dthread.join()
        
-        
 
     def cleanup(self):
         pass
