@@ -164,7 +164,7 @@ int32_t dmReadShmFile(SDnode *pDnode) {
       goto _OVER;
     }
 
-    for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
+    for (EDndNodeType ntype = DNODE + 1; ntype < NODE_END; ++ntype) {
       snprintf(itemName, sizeof(itemName), "%s_shmid", dmProcName(ntype));
       cJSON *shmid = cJSON_GetObjectItem(root, itemName);
       if (shmid && shmid->type == cJSON_Number) {
@@ -179,8 +179,8 @@ int32_t dmReadShmFile(SDnode *pDnode) {
     }
   }
 
-  if (!tsMultiProcess || pDnode->ntype == NODE_BEGIN || pDnode->ntype == NODE_END) {
-    for (EDndNodeType ntype = NODE_BEGIN; ntype < NODE_END; ++ntype) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_END) {
+    for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
       SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
       if (pWrapper->procShm.id >= 0) {
         dDebug("shmid:%d, is closed, size:%d", pWrapper->procShm.id, pWrapper->procShm.size);
@@ -226,7 +226,7 @@ int32_t dmWriteShmFile(SDnode *pDnode) {
   }
 
   len += snprintf(content + len, MAXLEN - len, "{\n");
-  for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
+  for (EDndNodeType ntype = DNODE + 1; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dmProcName(ntype), pWrapper->procShm.id);
     if (ntype == NODE_END - 1) {

@@ -174,7 +174,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
-  for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {

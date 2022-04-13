@@ -174,7 +174,7 @@ static int32_t dmRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process");
   pDnode->ptype = DND_PROC_SINGLE;
 
-  for (EDndNodeType n = NODE_BEGIN; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dmRequireNode(pWrapper);
     if (!pWrapper->required) continue;
@@ -215,13 +215,13 @@ static int32_t dmRunInParentProcess(SDnode *pDnode) {
   dInfo("dnode run in parent process");
   pDnode->ptype = DND_PROC_PARENT;
 
-  SMgmtWrapper *pDWrapper = &pDnode->wrappers[NODE_BEGIN];
+  SMgmtWrapper *pDWrapper = &pDnode->wrappers[DNODE];
   if (dmOpenNodeImp(pDWrapper) != 0) {
     dError("node:%s, failed to start since %s", pDWrapper->name, terrstr());
     return -1;
   }
 
-  for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dmRequireNode(pWrapper);
     if (!pWrapper->required) continue;
@@ -233,7 +233,7 @@ static int32_t dmRunInParentProcess(SDnode *pDnode) {
     return -1;
   }
 
-  for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
     if (dmRunNodeProc(pWrapper) != 0) return -1;
@@ -254,7 +254,7 @@ static int32_t dmRunInParentProcess(SDnode *pDnode) {
       dInfo("dnode is about to stop");
       dmSetStatus(pDnode, DND_STAT_STOPPED);
 
-      for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
+      for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
         if (pDnode->ntype == NODE_END) continue;
@@ -269,7 +269,7 @@ static int32_t dmRunInParentProcess(SDnode *pDnode) {
       }
       break;
     } else {
-      for (EDndNodeType n = NODE_BEGIN + 1; n < NODE_END; ++n) {
+      for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
         SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
         if (!pWrapper->required) continue;
         if (pDnode->ntype == NODE_END) continue;
@@ -347,7 +347,7 @@ static int32_t dmRunInChildProcess(SDnode *pDnode) {
 int32_t dmRun(SDnode *pDnode) {
   if (!tsMultiProcess) {
     return dmRunInSingleProcess(pDnode);
-  } else if (pDnode->ntype == NODE_BEGIN || pDnode->ntype == NODE_END) {
+  } else if (pDnode->ntype == DNODE || pDnode->ntype == NODE_END) {
     return dmRunInParentProcess(pDnode);
   } else {
     return dmRunInChildProcess(pDnode);

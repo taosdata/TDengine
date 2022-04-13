@@ -47,7 +47,7 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGQUIT, dmStopDnode);
 
   if (!tsMultiProcess) {
-  } else if (global.ntype == NODE_BEGIN || global.ntype == NODE_END) {
+  } else if (global.ntype == DNODE || global.ntype == NODE_END) {
     taosIgnSignal(SIGCHLD);
   } else {
     taosKillChildOnParentStopped();
@@ -73,7 +73,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
-      if (global.ntype <= NODE_BEGIN || global.ntype > NODE_END) {
+      if (global.ntype <= DNODE || global.ntype > NODE_END) {
         printf("'-n' range is [1 - %d], default is 0\n", NODE_END - 1);
         return -1;
       }
@@ -133,7 +133,7 @@ static int32_t dmInitLog() {
 
 static void dmSetProcInfo(int32_t argc, char **argv) {
   taosSetProcPath(argc, argv);
-  if (global.ntype != NODE_BEGIN && global.ntype != NODE_END) {
+  if (global.ntype != DNODE && global.ntype != NODE_END) {
     const char *name = dmProcName(global.ntype);
     taosSetProcName(argc, argv, name);
   }

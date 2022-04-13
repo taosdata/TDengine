@@ -42,7 +42,7 @@
 extern "C" {
 #endif
 
-typedef enum { NODE_BEGIN, VNODE, QNODE, SNODE, MNODE, BNODE, NODE_END } EDndNodeType;
+typedef enum { DNODE, VNODE, QNODE, SNODE, MNODE, BNODE, NODE_END } EDndNodeType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndRunStatus;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EDndEnvStatus;
 typedef enum { DND_PROC_SINGLE, DND_PROC_CHILD, DND_PROC_PARENT } EDndProcType;

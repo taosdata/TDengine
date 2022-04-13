@@ -55,7 +55,7 @@ void dmSendMonitorReport(SDnode *pDnode) {
   SRpcMsg req = {0};
   SRpcMsg rsp;
   SEpSet  epset = {.inUse = 0, .numOfEps = 1};
-  tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  tstrncpy(epset.eps[0].fqdn, pDnode->data.localFqdn, TSDB_FQDN_LEN);
   epset.eps[0].port = tsServerPort;
 
   SMgmtWrapper *pWrapper = NULL;
@@ -172,7 +172,7 @@ void dmGetVnodeLoads(SDnode *pDnode, SMonVloadInfo *pInfo) {
     SRpcMsg req = {.msgType = TDMT_MON_VM_LOAD};
     SRpcMsg rsp = {0};
     SEpSet  epset = {.inUse = 0, .numOfEps = 1};
-    tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+    tstrncpy(epset.eps[0].fqdn, pDnode->data.localFqdn, TSDB_FQDN_LEN);
     epset.eps[0].port = tsServerPort;
 
     dmSendRecv(pDnode, &epset, &req, &rsp);

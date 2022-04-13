@@ -18,19 +18,21 @@
 
 static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->data.dnodeId = 0;
-  pDnode->data.dropped = 0;
   pDnode->data.clusterId = 0;
-  pDnode->data.supportVnodes = pOption->numOfSupportVnodes;
-  pDnode->data.serverPort = pOption->serverPort;
-  pDnode->data.dataDir = strdup(pOption->dataDir);
+  pDnode->data.dnodeVer = 0;
+  pDnode->data.updateTime = 0;
+  pDnode->data.rebootTime = taosGetTimestampMs();
+  pDnode->data.dropped = 0;
   pDnode->data.localEp = strdup(pOption->localEp);
   pDnode->data.localFqdn = strdup(pOption->localFqdn);
   pDnode->data.firstEp = strdup(pOption->firstEp);
   pDnode->data.secondEp = strdup(pOption->secondEp);
+  pDnode->data.dataDir = strdup(pOption->dataDir);
   pDnode->data.disks = pOption->disks;
   pDnode->data.numOfDisks = pOption->numOfDisks;
+  pDnode->data.supportVnodes = pOption->numOfSupportVnodes;
+  pDnode->data.serverPort = pOption->serverPort;
   pDnode->ntype = pOption->ntype;
-  pDnode->data.rebootTime = taosGetTimestampMs();
 
   if (pDnode->data.dataDir == NULL || pDnode->data.localEp == NULL || pDnode->data.localFqdn == NULL ||
       pDnode->data.firstEp == NULL || pDnode->data.secondEp == NULL) {
@@ -38,7 +40,7 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
     return -1;
   }
 
-  if (!tsMultiProcess || pDnode->ntype == NODE_BEGIN || pDnode->ntype == NODE_END) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_END) {
     pDnode->data.lockfile = dmCheckRunning(pDnode->data.dataDir);
     if (pDnode->data.lockfile == NULL) {
       return -1;
@@ -87,7 +89,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   }
 
   dmSetStatus(pDnode, DND_STAT_INIT);
-  dmSetMgmtFp(&pDnode->wrappers[NODE_BEGIN]);
+  dmSetMgmtFp(&pDnode->wrappers[DNODE]);
   mmSetMgmtFp(&pDnode->wrappers[MNODE]);
   vmSetMgmtFp(&pDnode->wrappers[VNODE]);
   qmSetMgmtFp(&pDnode->wrappers[QNODE]);
