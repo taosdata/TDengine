@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndImp.h"
+#include "dmImp.h"
 
 static bool dndRequireNode(SMgmtWrapper *pWrapper) {
   bool    required = false;

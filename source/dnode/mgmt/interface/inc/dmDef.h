@@ -16,7 +16,7 @@
 #ifndef _TD_DND_DEF_H_
 #define _TD_DND_DEF_H_
 
-#include "dndLog.h"
+#include "dmLog.h"
 
 #include "cJSON.h"
 #include "tcache.h"

@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndImp.h"
+#include "dmImp.h"
 #include "tconfig.h"
 
 static struct {

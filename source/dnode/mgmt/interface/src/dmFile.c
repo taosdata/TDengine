@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndInt.h"
+#include "dmInt.h"
 
 #define MAXLEN 1024
 

@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndImp.h"
+#include "dmImp.h"
 
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"

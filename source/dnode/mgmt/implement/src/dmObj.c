@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndImp.h"
+#include "dmImp.h"
 
 
 static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {

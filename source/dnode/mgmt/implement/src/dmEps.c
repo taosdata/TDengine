@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndImp.h"
+#include "dmImp.h"
 
 static void dmPrintDnodes(SDnodeData *pMgmt);
 static bool dmIsEpChanged(SDnodeData *pMgmt, int32_t dnodeId, const char *ep);

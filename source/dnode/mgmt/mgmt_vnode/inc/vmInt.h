@@ -16,7 +16,7 @@
 #ifndef _TD_DND_VNODES_INT_H_
 #define _TD_DND_VNODES_INT_H_
 
-#include "dndInt.h"
+#include "dmInt.h"
 
 #include "sync.h"
 #include "vnode.h"
