@@ -18,7 +18,7 @@
 
 #define MAXLEN 1024
 
-int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
+int32_t dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
   int64_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -64,7 +64,7 @@ _OVER:
   return code;
 }
 
-int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
+int32_t dmWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
   int32_t   code = -1;
   int32_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -117,7 +117,7 @@ _OVER:
   return code;
 }
 
-TdFilePtr dndCheckRunning(const char *dataDir) {
+TdFilePtr dmCheckRunning(const char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.running", dataDir, TD_DIRSEP);
 
@@ -140,7 +140,7 @@ TdFilePtr dndCheckRunning(const char *dataDir) {
   return pFile;
 }
 
-int32_t dndReadShmFile(SDnode *pDnode) {
+int32_t dmReadShmFile(SDnode *pDnode) {
   int32_t   code = -1;
   char      itemName[24] = {0};
   char      content[MAXLEN + 1] = {0};
@@ -165,13 +165,13 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     }
 
     for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
-      snprintf(itemName, sizeof(itemName), "%s_shmid", dndProcName(ntype));
+      snprintf(itemName, sizeof(itemName), "%s_shmid", dmProcName(ntype));
       cJSON *shmid = cJSON_GetObjectItem(root, itemName);
       if (shmid && shmid->type == cJSON_Number) {
         pDnode->wrappers[ntype].procShm.id = shmid->valueint;
       }
 
-      snprintf(itemName, sizeof(itemName), "%s_shmsize", dndProcName(ntype));
+      snprintf(itemName, sizeof(itemName), "%s_shmsize", dmProcName(ntype));
       cJSON *shmsize = cJSON_GetObjectItem(root, itemName);
       if (shmsize && shmsize->type == cJSON_Number) {
         pDnode->wrappers[ntype].procShm.size = shmsize->valueint;
@@ -207,7 +207,7 @@ _OVER:
   return code;
 }
 
-int32_t dndWriteShmFile(SDnode *pDnode) {
+int32_t dmWriteShmFile(SDnode *pDnode) {
   int32_t   code = -1;
   int32_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -228,12 +228,11 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
   len += snprintf(content + len, MAXLEN - len, "{\n");
   for (EDndNodeType ntype = NODE_BEGIN + 1; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndProcName(ntype), pWrapper->procShm.id);
+    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dmProcName(ntype), pWrapper->procShm.id);
     if (ntype == NODE_END - 1) {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndProcName(ntype), pWrapper->procShm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dmProcName(ntype), pWrapper->procShm.size);
     } else {
-      len +=
-          snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndProcName(ntype), pWrapper->procShm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dmProcName(ntype), pWrapper->procShm.size);
     }
   }
   len += snprintf(content + len, MAXLEN - len, "}\n");

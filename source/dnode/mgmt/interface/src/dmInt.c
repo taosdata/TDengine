@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-const char *dndStatName(EDndRunStatus status) {
+const char *dmStatName(EDndRunStatus status) {
   switch (status) {
     case DND_STAT_INIT:
       return "init";
@@ -29,7 +29,7 @@ const char *dndStatName(EDndRunStatus status) {
   }
 }
 
-const char *dndLogName(EDndNodeType ntype) {
+const char *dmLogName(EDndNodeType ntype) {
   switch (ntype) {
     case VNODE:
       return "vnode";
@@ -46,7 +46,7 @@ const char *dndLogName(EDndNodeType ntype) {
   }
 }
 
-const char *dndProcName(EDndNodeType ntype) {
+const char *dmProcName(EDndNodeType ntype) {
   switch (ntype) {
     case VNODE:
       return "taosv";
@@ -63,7 +63,7 @@ const char *dndProcName(EDndNodeType ntype) {
   }
 }
 
-const char *dndEventName(EDndEvent ev) {
+const char *dmEventName(EDndEvent ev) {
   switch (ev) {
     case DND_EVENT_START:
       return "start";
@@ -76,27 +76,25 @@ const char *dndEventName(EDndEvent ev) {
   }
 }
 
-EDndRunStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
-
-void dndSetStatus(SDnode *pDnode, EDndRunStatus status) {
+void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {
   if (pDnode->status != status) {
-    dDebug("dnode status set from %s to %s", dndStatName(pDnode->status), dndStatName(status));
+    dDebug("dnode status set from %s to %s", dmStatName(pDnode->status), dmStatName(status));
     pDnode->status = status;
   }
 }
 
-void dndSetEvent(SDnode *pDnode, EDndEvent event) {
+void dmSetEvent(SDnode *pDnode, EDndEvent event) {
   if (event == DND_EVENT_STOP) {
     pDnode->event = event;
   }
 }
 
-void dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {
+void dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {
   pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
   pWrapper->msgVgIds[TMSG_INDEX(msgType)] = vgId;
 }
 
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
+SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
   SMgmtWrapper *pRetWrapper = pWrapper;
 
@@ -113,7 +111,7 @@ SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
   return pRetWrapper;
 }
 
-int32_t dndMarkWrapper(SMgmtWrapper *pWrapper) {
+int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
 
   taosRLockLatch(&pWrapper->latch);
@@ -129,7 +127,7 @@ int32_t dndMarkWrapper(SMgmtWrapper *pWrapper) {
   return code;
 }
 
-void dndReleaseWrapper(SMgmtWrapper *pWrapper) {
+void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   if (pWrapper == NULL) return;
 
   taosRLockLatch(&pWrapper->latch);
@@ -138,22 +136,22 @@ void dndReleaseWrapper(SMgmtWrapper *pWrapper) {
   dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
 }
 
-void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
+void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
   SStartupReq *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   pStartup->finished = 0;
 }
 
-static void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+static void dmGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
-  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
+  pStartup->finished = (pDnode->status == DND_STAT_RUNNING);
 }
 
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
+void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("startup req is received");
   SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
-  dndGetStartup(pDnode, pStartup);
+  dmGetStartup(pDnode, pStartup);
 
   dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
   SRpcMsg rpcRsp = {
@@ -161,7 +159,7 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-void dndGetMonitorSysInfo(SMonSysInfo *pInfo) {
+void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   taosGetCpuCores(&pInfo->cpu_cores);
   taosGetProcMemory(&pInfo->mem_engine);

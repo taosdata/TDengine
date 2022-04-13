@@ -17,7 +17,7 @@
 
 void* serverLoop(void* param) {
   SDnode* pDnode = (SDnode*)param;
-  dndRun(pDnode);
+  dmRun(pDnode);
   return NULL;
 }
 
@@ -36,7 +36,7 @@ bool TestServer::DoStart() {
   SDnodeOpt option = BuildOption(path, fqdn, port, firstEp);
   taosMkDir(path);
 
-  pDnode = dndCreate(&option);
+  pDnode = dmCreate(&option);
   if (pDnode == NULL) {
     return false;
   }
@@ -68,11 +68,11 @@ bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const 
 }
 
 void TestServer::Stop() {
-  dndSetEvent(pDnode, DND_EVENT_STOP);
+  dmSetEvent(pDnode, DND_EVENT_STOP);
   taosThreadJoin(threadId, NULL);
 
   if (pDnode != NULL) {
-    dndClose(pDnode);
+    dmClose(pDnode);
     pDnode = NULL;
   }
 }

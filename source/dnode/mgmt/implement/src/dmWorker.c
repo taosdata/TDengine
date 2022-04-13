@@ -33,7 +33,7 @@ static void *dmStatusThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
-      dmSendStatusReq(pMgmt);
+      dmSendStatusReq(pDnode);
       lastTime = curTime;
     }
   }
@@ -67,8 +67,8 @@ static void *dmMonitorThreadFp(void *param) {
 }
 
 int32_t dmStartStatusThread(SDnode *pDnode) {
-  pDnode->statusThreadId = taosCreateThread(dmStatusThreadFp, pDnode);
-  if (pDnode->statusThreadId == NULL) {
+  pDnode->data.statusThreadId = taosCreateThread(dmStatusThreadFp, pDnode);
+  if (pDnode->data.statusThreadId == NULL) {
     dError("failed to init dnode status thread");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -78,15 +78,15 @@ int32_t dmStartStatusThread(SDnode *pDnode) {
 }
 
 void dmStopStatusThread(SDnode *pDnode) {
-  if (pDnode->statusThreadId != NULL) {
-    taosDestoryThread(pDnode->statusThreadId);
-    pDnode->statusThreadId = NULL;
+  if (pDnode->data.statusThreadId != NULL) {
+    taosDestoryThread(pDnode->data.statusThreadId);
+    pDnode->data.statusThreadId = NULL;
   }
 }
 
 int32_t dmStartMonitorThread(SDnode *pDnode) {
-  pDnode->monitorThreadId = taosCreateThread(dmMonitorThreadFp, pDnode);
-  if (pDnode->monitorThreadId == NULL) {
+  pDnode->data.monitorThreadId = taosCreateThread(dmMonitorThreadFp, pDnode);
+  if (pDnode->data.monitorThreadId == NULL) {
     dError("failed to init dnode monitor thread");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -96,9 +96,9 @@ int32_t dmStartMonitorThread(SDnode *pDnode) {
 }
 
 void dmStopMonitorThread(SDnode *pDnode) {
-  if (pMgmt->monitorThreadId != NULL) {
-    taosDestoryThread(pMgmt->monitorThreadId);
-    pMgmt->monitorThreadId = NULL;
+  if (pDnode->data.monitorThreadId != NULL) {
+    taosDestoryThread(pDnode->data.monitorThreadId);
+    pDnode->data.monitorThreadId = NULL;
   }
 }
 
@@ -110,16 +110,39 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   switch (pRpc->msgType) {
     case TDMT_DND_CONFIG_DNODE:
-      code = dmProcessConfigReq(pMgmt, pMsg);
+      code = dmProcessConfigReq(pDnode, pMsg);
       break;
     case TDMT_MND_AUTH_RSP:
-      code = dmProcessAuthRsp(pMgmt, pMsg);
+      code = dmProcessAuthRsp(pDnode, pMsg);
       break;
     case TDMT_MND_GRANT_RSP:
-      code = dmProcessGrantRsp(pMgmt, pMsg);
+      code = dmProcessGrantRsp(pDnode, pMsg);
+      break;
+    case TDMT_DND_CREATE_MNODE:
+      code = dmProcessCreateNodeReq(pDnode, MNODE, pMsg);
+      break;
+    case TDMT_DND_DROP_MNODE:
+      code = dmProcessDropNodeReq(pDnode, MNODE, pMsg);
+      break;
+    case TDMT_DND_CREATE_QNODE:
+      code = dmProcessCreateNodeReq(pDnode, QNODE, pMsg);
+      break;
+    case TDMT_DND_DROP_QNODE:
+      code = dmProcessDropNodeReq(pDnode, QNODE, pMsg);
+      break;
+    case TDMT_DND_CREATE_SNODE:
+      code = dmProcessCreateNodeReq(pDnode, SNODE, pMsg);
+      break;
+    case TDMT_DND_DROP_SNODE:
+      code = dmProcessDropNodeReq(pDnode, SNODE, pMsg);
+      break;
+    case TDMT_DND_CREATE_BNODE:
+      code = dmProcessCreateNodeReq(pDnode, BNODE, pMsg);
+      break;
+    case TDMT_DND_DROP_BNODE:
+      code = dmProcessDropNodeReq(pDnode, BNODE, pMsg);
       break;
     default:
-      code = dmProcessCDnodeReq(pMgmt->pDnode, pMsg);
       break;
   }
 
@@ -134,9 +157,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-int32_t dmStartWorker(SDnodeData *pMgmt) {
-  SSingleWorkerCfg cfg = {.min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessMgmtQueue, .param = pMgmt};
-  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &cfg) != 0) {
+int32_t dmStartWorker(SDnode *pDnode) {
+  SSingleWorkerCfg cfg = {.min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessMgmtQueue, .param = pDnode};
+  if (tSingleWorkerInit(&pDnode->data.mgmtWorker, &cfg) != 0) {
     dError("failed to start dnode-mgmt worker since %s", terrstr());
     return -1;
   }
@@ -145,24 +168,13 @@ int32_t dmStartWorker(SDnodeData *pMgmt) {
   return 0;
 }
 
-void dmStopWorker(SDnodeData *pMgmt) {
-  tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+void dmStopWorker(SDnode *pDnode) {
+  tSingleWorkerCleanup(&pDnode->data.mgmtWorker);
   dDebug("dnode workers are closed");
 }
 
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnodeData    *pMgmt = pWrapper->pMgmt;
-  SSingleWorker *pWorker = &pMgmt->mgmtWorker;
-
-  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  taosWriteQitem(pWorker->queue, pMsg);
-  return 0;
-}
-
-int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnodeData    *pMgmt = pWrapper->pMgmt;
-  SSingleWorker *pWorker = &pMgmt->monitorWorker;
-
+  SSingleWorker *pWorker = &pWrapper->pDnode->data.mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;

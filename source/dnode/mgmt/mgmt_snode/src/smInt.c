@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
+static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
 
 static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) {
   SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
@@ -39,7 +39,7 @@ static int32_t smOpenImp(SSnodeMgmt *pMgmt) {
   }
 
   bool deployed = true;
-  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
+  if (dmWriteFile(pMgmt->pWrapper, deployed) != 0) {
     dError("failed to write snode file since %s", terrstr());
     return -1;
   }
@@ -61,7 +61,7 @@ int32_t smDrop(SMgmtWrapper *pWrapper) {
 
   dInfo("snode-mgmt start to drop");
   bool deployed = false;
-  if (dndWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pWrapper, deployed) != 0) {
     dError("failed to drop snode since %s", terrstr());
     return -1;
   }

@@ -16,22 +16,31 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
-static int32_t dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
-  SDnode *pDnode = pMgmt->pDnode;
+static void dmUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
+  if (pDnode->data.dnodeId == 0) {
+    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
+    taosWLockLatch(&pDnode->data.latch);
+    pDnode->data.dnodeId = pCfg->dnodeId;
+    pDnode->data.clusterId = pCfg->clusterId;
+    dmWriteEps(pDnode);
+    taosWUnLockLatch(&pDnode->data.latch);
+  }
+}
 
+static int32_t dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
   if (pRsp->code != TSDB_CODE_SUCCESS) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pDnode->data.dropped && pDnode->data.dnodeId > 0) {
       dInfo("dnode:%d, set to dropped since not exist in mnode", pDnode->data.dnodeId);
       pDnode->data.dropped = 1;
-      dmWriteFile(pMgmt);
+      dmWriteEps(pDnode);
     }
   } else {
     SStatusRsp statusRsp = {0};
-    if (pRsp->pCont != NULL && pRsp->contLen != 0 &&
+    if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
-      pMgmt->dnodeVer = statusRsp.dnodeVer;
-      dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
-      dmUpdateDnodeEps(pMgmt, statusRsp.pDnodeEps);
+      pDnode->data.dnodeVer = statusRsp.dnodeVer;
+      dmUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
+      dmUpdateEps(pDnode, statusRsp.pDnodeEps);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -44,11 +53,11 @@ void dmSendStatusReq(SDnode *pDnode) {
 
   taosRLockLatch(&pDnode->data.latch);
   req.sver = tsVersion;
-  req.dnodeVer = pMgmt->dnodeVer;
+  req.dnodeVer = pDnode->data.dnodeVer;
   req.dnodeId = pDnode->data.dnodeId;
   req.clusterId = pDnode->data.clusterId;
   req.rebootTime = pDnode->data.rebootTime;
-  req.updateTime = pMgmt->updateTime;
+  req.updateTime = pDnode->data.updateTime;
   req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = pDnode->data.supportVnodes;
   tstrncpy(req.dnodeEp, pDnode->data.localEp, TSDB_EP_LEN);
@@ -62,68 +71,52 @@ void dmSendStatusReq(SDnode *pDnode) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pDnode->data.latch);
 
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL) {
-    SMonVloadInfo info = {0};
-    dmGetVnodeLoads(pWrapper, &info);
-    req.pVloads = info.pVloads;
-    dndReleaseWrapper(pWrapper);
-  }
+  SMonVloadInfo info = {0};
+  dmGetVnodeLoads(pDnode, &info);
+  req.pVloads = info.pVloads;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
-  taosArrayDestroy(req.pVloads);
+  tFreeSStatusReq(&req);
 
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)0x9527};
-  SRpcMsg rspMsg = {0};
-  
+  SRpcMsg rpcRsp = {0};
+
   dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
-  dmSendToMnodeRecv(pDnode, rpcMsg, &rpcRsp);
+  dmSendToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
   dmProcessStatusRsp(pDnode, &rpcRsp);
 }
 
-static void dmUpdateDnodeCfg(SDnodeData *pMgmt, SDnodeCfg *pCfg) {
-  SDnode *pDnode = pMgmt->pDnode;
-
-  if (pDnode->data.dnodeId == 0) {
-    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
-    taosWLockLatch(&pDnode->data.latch);
-    pDnode->data.dnodeId = pCfg->dnodeId;
-    pDnode->data.clusterId = pCfg->clusterId;
-    dmWriteFile(pMgmt);
-    taosWUnLockLatch(&pDnode->data.latch);
-  }
-}
-
-int32_t dmProcessAuthRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessAuthRsp(SDnode *pDnode, SNodeMsg *pMsg) {
   SRpcMsg *pRsp = &pMsg->rpcMsg;
   dError("auth rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessGrantRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessGrantRsp(SDnode *pDnode, SNodeMsg *pMsg) {
   SRpcMsg *pRsp = &pMsg->rpcMsg;
   dError("grant rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessConfigReq(SDnodeData *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessConfigReq(SDnode *pDnode, SNodeMsg *pMsg) {
   SRpcMsg       *pReq = &pMsg->rpcMsg;
   SDCfgDnodeReq *pCfg = pReq->pCont;
   dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
-    dndReleaseWrapper(pWrapper);
+    dmReleaseWrapper(pWrapper);
     terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     dError("failed to create node since %s", terrstr());
     return -1;
   }
 
+  taosWLockLatch(&pDnode->wrapperLock);
   pWrapper = &pDnode->wrappers[ntype];
 
   if (taosMkDir(pWrapper->path) != 0) {
@@ -134,17 +127,20 @@ static int32_t dmProcessCreateNodeMsg(SDnode *pDnode, EDndNodeType ntype, SNodeM
 
   int32_t code = (*pWrapper->fp.createFp)(pWrapper, pMsg);
   if (code != 0) {
-    dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+    dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
-    dDebug("node:%s, has been opened", pWrapper->name);
+    dDebug("node:%s, has been created", pWrapper->name);
+    pWrapper->required = true;
     pWrapper->deployed = true;
+    (void)dmOpenNode(pWrapper);
   }
 
+  taosWUnLockLatch(&pDnode->wrapperLock);
   return code;
 }
 
-static int32_t dmProcessDropNodeMsg(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     dError("failed to drop node since %s", terrstr());
@@ -152,68 +148,57 @@ static int32_t dmProcessDropNodeMsg(SDnode *pDnode, EDndNodeType ntype, SNodeMsg
   }
 
   taosWLockLatch(&pWrapper->latch);
-  pWrapper->deployed = false;
 
   int32_t code = (*pWrapper->fp.dropFp)(pWrapper, pMsg);
   if (code != 0) {
-    pWrapper->deployed = true;
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
+    pWrapper->required = true;
+    pWrapper->deployed = true;
   } else {
-    pWrapper->deployed = false;
     dDebug("node:%s, has been dropped", pWrapper->name);
+    pWrapper->required = false;
+    pWrapper->deployed = false;
+    dmCloseNode(pWrapper);
   }
 
   taosWUnLockLatch(&pWrapper->latch);
-  dndReleaseWrapper(pWrapper);
-  return code;
+  dmReleaseWrapper(pWrapper);
+  return 0;
 }
 
-int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg) {
-  switch (pMsg->rpcMsg.msgType) {
-    case TDMT_DND_CREATE_MNODE:
-      return dmProcessCreateNodeMsg(pDnode, MNODE, pMsg);
-    case TDMT_DND_DROP_MNODE:
-      return dmProcessDropNodeMsg(pDnode, MNODE, pMsg);
-    case TDMT_DND_CREATE_QNODE:
-      return dmProcessCreateNodeMsg(pDnode, QNODE, pMsg);
-    case TDMT_DND_DROP_QNODE:
-      return dmProcessDropNodeMsg(pDnode, QNODE, pMsg);
-    case TDMT_DND_CREATE_SNODE:
-      return dmProcessCreateNodeMsg(pDnode, SNODE, pMsg);
-    case TDMT_DND_DROP_SNODE:
-      return dmProcessDropNodeMsg(pDnode, SNODE, pMsg);
-    case TDMT_DND_CREATE_BNODE:
-      return dmProcessCreateNodeMsg(pDnode, BNODE, pMsg);
-    case TDMT_DND_DROP_BNODE:
-      return dmProcessDropNodeMsg(pDnode, BNODE, pMsg);
-    default:
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      return -1;
-  }
-}
-
-static void dmSetMsgHandle(SMgmtWrapper *pWrapper) {
+static void dmSetMgmtMsgHandle(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
 
   // Requests handled by MNODE
-  dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
 }
 
-static int32_t dmStart(SMgmtWrapper *pWrapper) { return dmStartStatusThread(pWrapper->pDnode); }
+static int32_t dmStartMgmt(SMgmtWrapper *pWrapper) {
+  if (dmStartStatusThread(pWrapper->pDnode) != 0) {
+    return -1;
+  }
+  if (dmStartMonitorThread(pWrapper->pDnode) != 0) {
+    return -1;
+  }
+  return 0;
+}
 
-static void dmStop(SMgmtWrapper *pWrapper) { dmStopThread(pWrapper->pDnode); }
+static void dmStopMgmt(SMgmtWrapper *pWrapper) {
+  dmStopMonitorThread(pWrapper->pDnode);
+  dmStopStatusThread(pWrapper->pDnode);
+}
 
-static int32_t dmInit(SMgmtWrapper *pWrapper) {
+static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   dInfo("dnode-data start to init");
   SDnode *pDnode = pWrapper->pDnode;
 
@@ -224,7 +209,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (dmReadFile(pDnode) != 0) {
+  if (dmReadEps(pDnode) != 0) {
     dError("failed to read file since %s", terrstr());
     return -1;
   }
@@ -247,40 +232,40 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
   return 0;
 }
 
-static void dmCleanup(SMgmtWrapper *pWrapper) {
+static void dmCleanupMgmt(SMgmtWrapper *pWrapper) {
   dInfo("dnode-data start to clean up");
   SDnode *pDnode = pWrapper->pDnode;
   dmStopWorker(pDnode);
 
   taosWLockLatch(&pDnode->data.latch);
-  if (pMgmt->dnodeEps != NULL) {
-    taosArrayDestroy(pMgmt->dnodeEps);
-    pMgmt->dnodeEps = NULL;
+  if (pDnode->data.dnodeEps != NULL) {
+    taosArrayDestroy(pDnode->data.dnodeEps);
+    pDnode->data.dnodeEps = NULL;
   }
-  if (pMgmt->dnodeHash != NULL) {
-    taosHashCleanup(pMgmt->dnodeHash);
-    pMgmt->dnodeHash = NULL;
+  if (pDnode->data.dnodeHash != NULL) {
+    taosHashCleanup(pDnode->data.dnodeHash);
+    pDnode->data.dnodeHash = NULL;
   }
   taosWUnLockLatch(&pDnode->data.latch);
 
-  dndCleanupTrans(pDnode);
+  dmCleanupTrans(pDnode);
   dInfo("dnode-data is cleaned up");
 }
 
-static int32_t dmRequire(SMgmtWrapper *pWrapper, bool *required) {
+static int32_t dmRequireMgmt(SMgmtWrapper *pWrapper, bool *required) {
   *required = true;
   return 0;
 }
 
 void dmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = dmInit;
-  mgmtFp.closeFp = dmCleanup;
-  mgmtFp.startFp = dmStart;
-  mgmtFp.stopFp = dmStop;
-  mgmtFp.requiredFp = dmRequire;
+  mgmtFp.openFp = dmInitMgmt;
+  mgmtFp.closeFp = dmCleanupMgmt;
+  mgmtFp.startFp = dmStartMgmt;
+  mgmtFp.stopFp = dmStopMgmt;
+  mgmtFp.requiredFp = dmRequireMgmt;
 
-  dmSetMsgHandle(pWrapper);
+  dmSetMgmtMsgHandle(pWrapper);
   pWrapper->name = "dnode";
   pWrapper->fp = mgmtFp;
 }

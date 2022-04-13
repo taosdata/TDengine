@@ -22,48 +22,32 @@
 extern "C" {
 #endif
 
-int32_t dndOpenNode(SMgmtWrapper *pWrapper);
-void    dndCloseNode(SMgmtWrapper *pWrapper);
+int32_t dmOpenNode(SMgmtWrapper *pWrapper);
+void    dmCloseNode(SMgmtWrapper *pWrapper);
 
-// dndTransport.c
+// dmTransport.c
 int32_t  dmInitTrans(SDnode *pDnode);
-void     dndCleanupTrans(SDnode *pDnode);
-SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
-int32_t  dndInitMsgHandle(SDnode *pDnode);
-int32_t  dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pReq);
-void     dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+void     dmCleanupTrans(SDnode *pDnode);
+SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper);
+int32_t  dmInitMsgHandle(SDnode *pDnode);
+void     dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 void     dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp);
 
-// mgmt
-void dmSetMgmtFp(SMgmtWrapper *pWrapper);
-void bmSetMgmtFp(SMgmtWrapper *pWrapper);
-void qmSetMgmtFp(SMgmtWrapper *pMgmt);
-void smSetMgmtFp(SMgmtWrapper *pWrapper);
-void vmSetMgmtFp(SMgmtWrapper *pWrapper);
-void mmSetMgmtFp(SMgmtWrapper *pMgmt);
-
-void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
-void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo);
-void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo);
-void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo);
-void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo);
-void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo);
-
-// dmFile.c
-int32_t dmReadFile(SDnodeData *pMgmt);
-int32_t dmWriteFile(SDnodeData *pMgmt);
-void    dmUpdateDnodeEps(SDnodeData *pMgmt, SArray *pDnodeEps);
+// dmEps.c
+int32_t dmReadEps(SDnode *pDnode);
+int32_t dmWriteEps(SDnode *pDnode);
+void    dmUpdateEps(SDnode *pDnode, SArray *pDnodeEps);
 
 // dmHandle.c
 void    dmSendStatusReq(SDnode *pDnode);
 int32_t dmProcessConfigReq(SDnode *pDnode, SNodeMsg *pMsg);
-int32_t dmProcessStatusRsp(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnode *pDnode, SNodeMsg *pMsg);
-int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
+int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
+int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
 
 // dmMonitor.c
-void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
+void dmGetVnodeLoads(SDnode *pDnode, SMonVloadInfo *pInfo);
 void dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
@@ -71,11 +55,25 @@ int32_t dmStartStatusThread(SDnode *pDnode);
 void    dmStopStatusThread(SDnode *pDnode);
 int32_t dmStartMonitorThread(SDnode *pDnode);
 void    dmStopMonitorThread(SDnode *pDnode);
-
 int32_t dmStartWorker(SDnode *pDnode);
 void    dmStopWorker(SDnode *pDnode);
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+
+// mgmt nodes
+void dmSetMgmtFp(SMgmtWrapper *pWrapper);
+void bmSetMgmtFp(SMgmtWrapper *pWrapper);
+void qmSetMgmtFp(SMgmtWrapper *pWrapper);
+void smSetMgmtFp(SMgmtWrapper *pWrapper);
+void vmSetMgmtFp(SMgmtWrapper *pWrapper);
+void mmSetMgmtFp(SMgmtWrapper *pWrapper);
+
+void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
+void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo);
+void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo);
+void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo);
+void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo);
+void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo);
 
 #ifdef __cplusplus
 }

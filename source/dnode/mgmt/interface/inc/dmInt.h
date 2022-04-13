@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_INT_H_
-#define _TD_DND_INT_H_
+#ifndef _TD_DM_INT_H_
+#define _TD_DM_INT_H_
 
 #include "dmDef.h"
 
@@ -22,32 +22,32 @@
 extern "C" {
 #endif
 
-// dndInt.c
-const char   *dndStatName(EDndRunStatus stat);
-const char   *dndLogName(EDndNodeType ntype);
-const char   *dndProcName(EDndNodeType ntype);
-const char   *dndEventName(EDndEvent ev);
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
-int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
-void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
-EDndRunStatus dndGetStatus(SDnode *pDnode);
-void          dndSetStatus(SDnode *pDnode, EDndRunStatus stat);
-void          dndSetEvent(SDnode *pDnode, EDndEvent event);
-void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
-void          dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-void          dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
-void          dndGetMonitorSysInfo(SMonSysInfo *pInfo);
-SMsgCb        dmGetMsgcb(SMgmtWrapper *pWrapper);
+// dmInt.c
+SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
+int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
+void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
+const char   *dmStatName(EDndRunStatus stat);
+const char   *dmLogName(EDndNodeType ntype);
+const char   *dmProcName(EDndNodeType ntype);
+const char   *dmEventName(EDndEvent ev);
 
-// dndFile.c
-int32_t   dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
-int32_t   dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
-TdFilePtr dndCheckRunning(const char *dataDir);
-int32_t   dndReadShmFile(SDnode *pDnode);
-int32_t   dndWriteShmFile(SDnode *pDnode);
+void   dmSetStatus(SDnode *pDnode, EDndRunStatus stat);
+void   dmSetEvent(SDnode *pDnode, EDndEvent event);
+void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
+void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
+void   dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+void   dmGetMonitorSysInfo(SMonSysInfo *pInfo);
+SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper);
+
+// dmFile.c
+int32_t   dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
+int32_t   dmWriteFile(SMgmtWrapper *pWrapper, bool deployed);
+TdFilePtr dmCheckRunning(const char *dataDir);
+int32_t   dmReadShmFile(SDnode *pDnode);
+int32_t   dmWriteShmFile(SDnode *pDnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_INT_H_*/
+#endif /*_TD_DM_INT_H_*/

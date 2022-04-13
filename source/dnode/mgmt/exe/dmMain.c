@@ -18,32 +18,32 @@
 #include "tconfig.h"
 
 static struct {
-  bool     dumpConfig;
-  bool     generateGrant;
-  bool     printAuth;
-  bool     printVersion;
-  char     envFile[PATH_MAX];
-  char     apolloUrl[PATH_MAX];
-  SArray  *pArgs;  // SConfigPair
-  SDnode  *pDnode;
+  bool         dumpConfig;
+  bool         generateGrant;
+  bool         printAuth;
+  bool         printVersion;
+  char         envFile[PATH_MAX];
+  char         apolloUrl[PATH_MAX];
+  SArray      *pArgs;  // SConfigPair
+  SDnode      *pDnode;
   EDndNodeType ntype;
 } global = {0};
 
-static void dndStopDnode(int signum, void *info, void *ctx) {
+static void dmStopDnode(int signum, void *info, void *ctx) {
   SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
   if (pDnode != NULL) {
-    dndSetEvent(pDnode, DND_EVENT_STOP);
+    dmSetEvent(pDnode, DND_EVENT_STOP);
   }
 }
 
-static void dndSetSignalHandle() {
-  taosSetSignal(SIGTERM, dndStopDnode);
-  taosSetSignal(SIGHUP, dndStopDnode);
-  taosSetSignal(SIGINT, dndStopDnode);
-  taosSetSignal(SIGTSTP, dndStopDnode);
-  taosSetSignal(SIGABRT, dndStopDnode);
-  taosSetSignal(SIGBREAK, dndStopDnode);
-  taosSetSignal(SIGQUIT, dndStopDnode);
+static void dmSetSignalHandle() {
+  taosSetSignal(SIGTERM, dmStopDnode);
+  taosSetSignal(SIGHUP, dmStopDnode);
+  taosSetSignal(SIGINT, dmStopDnode);
+  taosSetSignal(SIGTSTP, dmStopDnode);
+  taosSetSignal(SIGABRT, dmStopDnode);
+  taosSetSignal(SIGBREAK, dmStopDnode);
+  taosSetSignal(SIGQUIT, dmStopDnode);
 
   if (!tsMultiProcess) {
   } else if (global.ntype == NODE_BEGIN || global.ntype == NODE_END) {
@@ -53,7 +53,7 @@ static void dndSetSignalHandle() {
   }
 }
 
-static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
+static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -89,12 +89,12 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
   return 0;
 }
 
-static void dndGenerateGrant() {
+static void dmGenerateGrant() {
   // grantParseParameter();
   printf("this feature is not implemented yet\n");
 }
 
-static void dndPrintVersion() {
+static void dmPrintVersion() {
 #ifdef TD_ENTERPRISE
   char *releaseName = "enterprise";
 #else
@@ -105,12 +105,12 @@ static void dndPrintVersion() {
   printf("buildInfo: %s\n", buildinfo);
 }
 
-static void dndDumpCfg() {
+static void dmDumpCfg() {
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfg(pCfg, 0, 1);
 }
 
-static SDnodeOpt dndGetOpt() {
+static SDnodeOpt dmGetOpt() {
   SConfig  *pCfg = taosGetCfg();
   SDnodeOpt option = {0};
 
@@ -127,43 +127,43 @@ static SDnodeOpt dndGetOpt() {
   return option;
 }
 
-static int32_t dndInitLog() {
+static int32_t dmInitLog() {
   char logName[12] = {0};
-  snprintf(logName, sizeof(logName), "%slog", dndLogName(global.ntype));
+  snprintf(logName, sizeof(logName), "%slog", dmLogName(global.ntype));
   return taosCreateLog(logName, 1, configDir, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
-static void dndSetProcInfo(int32_t argc, char **argv) {
+static void dmSetProcInfo(int32_t argc, char **argv) {
   taosSetProcPath(argc, argv);
   if (global.ntype != NODE_BEGIN && global.ntype != NODE_END) {
-    const char *name = dndProcName(global.ntype);
+    const char *name = dmProcName(global.ntype);
     taosSetProcName(argc, argv, name);
   }
 }
 
-static int32_t dndRunDnode() {
-  if (dndInit() != 0) {
+static int32_t dmRunDnode() {
+  if (dmInit() != 0) {
     dError("failed to init environment since %s", terrstr());
     return -1;
   }
 
-  SDnodeOpt option = dndGetOpt();
-  SDnode   *pDnode = dndCreate(&option);
+  SDnodeOpt option = dmGetOpt();
+  SDnode   *pDnode = dmCreate(&option);
   if (pDnode == NULL) {
     dError("failed to to create dnode since %s", terrstr());
     return -1;
   } else {
     global.pDnode = pDnode;
-    dndSetSignalHandle();
+    dmSetSignalHandle();
   }
 
   dInfo("start the service");
-  int32_t code = dndRun(pDnode);
+  int32_t code = dmRun(pDnode);
   dInfo("start shutting down the service");
 
   global.pDnode = NULL;
-  dndClose(pDnode);
-  dndCleanup();
+  dmClose(pDnode);
+  dmCleanup();
   taosCloseLog();
   taosCleanupCfg();
   return code;
@@ -175,22 +175,22 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  if (dndParseArgs(argc, argv) != 0) {
+  if (dmParseArgs(argc, argv) != 0) {
     printf("failed to start since parse args error\n");
     return -1;
   }
 
   if (global.generateGrant) {
-    dndGenerateGrant();
+    dmGenerateGrant();
     return 0;
   }
 
   if (global.printVersion) {
-    dndPrintVersion();
+    dmPrintVersion();
     return 0;
   }
 
-  if (dndInitLog() != 0) {
+  if (dmInitLog() != 0) {
     printf("failed to start since init log error\n");
     return -1;
   }
@@ -201,12 +201,12 @@ int main(int argc, char const *argv[]) {
   }
 
   if (global.dumpConfig) {
-    dndDumpCfg();
+    dmDumpCfg();
     taosCleanupCfg();
     taosCloseLog();
     return 0;
   }
 
-  dndSetProcInfo(argc, (char **)argv);
-  return dndRunDnode();
+  dmSetProcInfo(argc, (char **)argv);
+  return dmRunDnode();
 }

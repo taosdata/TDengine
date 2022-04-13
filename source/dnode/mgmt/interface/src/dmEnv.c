@@ -19,7 +19,7 @@
 
 static int8_t once = DND_ENV_INIT;
 
-int32_t dndInit() {
+int32_t dmInit() {
   dDebug("start to init dnode env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     terrno = TSDB_CODE_REPEAT_INIT;
@@ -45,7 +45,7 @@ int32_t dndInit() {
   return 0;
 }
 
-void dndCleanup() {
+void dmCleanup() {
   dDebug("start to cleanup dnode env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
     dError("dnode env is already cleaned up");

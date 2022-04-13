@@ -126,7 +126,7 @@ static void *vmOpenVnodeFunc(void *param) {
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", pCfg->vgId,
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
-    dndReportStartup(pDnode, "open-vnodes", stepDesc);
+    dmReportStartup(pDnode, "open-vnodes", stepDesc);
 
     SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
     msgCb.pWrapper = pMgmt->pWrapper;

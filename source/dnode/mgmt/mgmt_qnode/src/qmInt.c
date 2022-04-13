@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
+static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
 
 static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
   SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
@@ -42,7 +42,7 @@ static int32_t qmOpenImp(SQnodeMgmt *pMgmt) {
   }
 
   bool deployed = true;
-  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
+  if (dmWriteFile(pMgmt->pWrapper, deployed) != 0) {
     dError("failed to write qnode file since %s", terrstr());
     return -1;
   }
@@ -64,7 +64,7 @@ int32_t qmDrop(SMgmtWrapper *pWrapper) {
 
   dInfo("qnode-mgmt start to drop");
   bool deployed = false;
-  if (dndWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pWrapper, deployed) != 0) {
     dError("failed to drop qnode since %s", terrstr());
     return -1;
   }

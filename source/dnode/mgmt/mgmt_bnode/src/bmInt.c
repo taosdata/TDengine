@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-static int32_t bmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
+static int32_t bmRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
 
 static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
@@ -39,7 +39,7 @@ static int32_t bmOpenImp(SBnodeMgmt *pMgmt) {
   }
 
   bool deployed = true;
-  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
+  if (dmWriteFile(pMgmt->pWrapper, deployed) != 0) {
     dError("failed to write bnode file since %s", terrstr());
     return -1;
   }
@@ -61,7 +61,7 @@ int32_t bmDrop(SMgmtWrapper *pWrapper) {
 
   dInfo("bnode-mgmt start to drop");
   bool deployed = false;
-  if (dndWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pWrapper, deployed) != 0) {
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   }

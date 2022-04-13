@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_DEF_H_
-#define _TD_DND_DEF_H_
+#ifndef _TD_DM_DEF_H_
+#define _TD_DM_DEF_H_
 
 #include "dmLog.h"
 
@@ -110,9 +110,9 @@ typedef struct {
   int64_t       updateTime;
   int64_t       rebootTime;
   bool          dropped;
-  SEpSet        mnodeEpSet;
-  SHashObj     *dnodeHash;
+  SEpSet        mnodeEps;
   SArray       *dnodeEps;
+  SHashObj     *dnodeHash;
   TdThread     *statusThreadId;
   TdThread     *monitorThreadId;
   SRWLatch      latch;
@@ -140,6 +140,7 @@ typedef struct SDnode {
   SStartupReq   startup;
   SDnodeTrans   trans;
   SDnodeData    data;
+  SRWLatch      wrapperLock;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
 
@@ -147,4 +148,4 @@ typedef struct SDnode {
 }
 #endif
 
-#endif /*_TD_DND_DEF_H_*/
+#endif /*_TD_DM_DEF_H_*/

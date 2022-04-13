@@ -21,7 +21,7 @@ void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {}
 int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonSmInfo smInfo = {0};
   smGetMonitorInfo(pWrapper, &smInfo);
-  dndGetMonitorSysInfo(&smInfo.sys);
+  dmGetMonitorSysInfo(&smInfo.sys);
   monGetLogs(&smInfo.log);
 
   int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
@@ -58,7 +58,7 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
-    // return dndOpenNode(pWrapper);
+    // return dmOpenNode(pWrapper);
     return 0;
   }
 }
@@ -79,14 +79,14 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   } else {
     return smDrop(pWrapper);
-    // return dndCloseNode(pWrapper);
+    // return dmCloseNode(pWrapper);
   }
 }
 
 void smInitMsgHandle(SMgmtWrapper *pWrapper) {
-  dndSetMsgHandle(pWrapper, TDMT_MON_SM_INFO, smProcessMonitorMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_MON_SM_INFO, smProcessMonitorMsg, DEFAULT_HANDLE);
 
   // Requests handled by SNODE
-  dndSetMsgHandle(pWrapper, TDMT_SND_TASK_DEPLOY, smProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_SND_TASK_EXEC, smProcessExecMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_SND_TASK_DEPLOY, smProcessMgmtMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_SND_TASK_EXEC, smProcessExecMsg, DEFAULT_HANDLE);
 }

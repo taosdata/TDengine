@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_LOG_H_
-#define _TD_DND_LOG_H_
+#ifndef _TD_DM_LOG_H_
+#define _TD_DM_LOG_H_
 
 #include "tlog.h"
 
@@ -33,4 +33,4 @@ extern "C" {
 }
 #endif
 
-#endif /*_TD_DND_LOG_H_*/
+#endif /*_TD_DM_LOG_H_*/

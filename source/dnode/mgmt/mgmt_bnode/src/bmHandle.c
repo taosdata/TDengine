@@ -21,7 +21,7 @@ void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {}
 int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   SMonBmInfo bmInfo = {0};
   bmGetMonitorInfo(pWrapper, &bmInfo);
-  dndGetMonitorSysInfo(&bmInfo.sys);
+  dmGetMonitorSysInfo(&bmInfo.sys);
   monGetLogs(&bmInfo.log);
 
   int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
@@ -58,7 +58,7 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->data.dnodeId);
     return -1;
   } else {
-    // return dndOpenNode(pWrapper);
+    // return dmOpenNode(pWrapper);
     return 0;
   }
 }
@@ -78,11 +78,11 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   } else {
-    // dndCloseNode(pWrapper);
+    // dmCloseNode(pWrapper);
     return bmDrop(pWrapper);
   }
 }
 
 void bmInitMsgHandle(SMgmtWrapper *pWrapper) {
-  dndSetMsgHandle(pWrapper, TDMT_MON_BM_INFO, bmProcessMonitorMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_MON_BM_INFO, bmProcessMonitorMsg, DEFAULT_HANDLE);
 }

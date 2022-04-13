@@ -16,12 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
-
-static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
+static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->data.dnodeId = 0;
   pDnode->data.dropped = 0;
   pDnode->data.clusterId = 0;
-  
   pDnode->data.supportVnodes = pOption->numOfSupportVnodes;
   pDnode->data.serverPort = pOption->serverPort;
   pDnode->data.dataDir = strdup(pOption->dataDir);
@@ -34,24 +32,25 @@ static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->ntype = pOption->ntype;
   pDnode->data.rebootTime = taosGetTimestampMs();
 
-  if (pDnode->data.dataDir == NULL || pDnode->data.localEp == NULL || pDnode->data.localFqdn == NULL || pDnode->data.firstEp == NULL ||
-      pDnode->data.secondEp == NULL) {
+  if (pDnode->data.dataDir == NULL || pDnode->data.localEp == NULL || pDnode->data.localFqdn == NULL ||
+      pDnode->data.firstEp == NULL || pDnode->data.secondEp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   if (!tsMultiProcess || pDnode->ntype == NODE_BEGIN || pDnode->ntype == NODE_END) {
-    pDnode->data.lockfile = dndCheckRunning(pDnode->data.dataDir);
+    pDnode->data.lockfile = dmCheckRunning(pDnode->data.dataDir);
     if (pDnode->data.lockfile == NULL) {
       return -1;
     }
   }
 
   taosInitRWLatch(&pDnode->data.latch);
+  taosInitRWLatch(&pDnode->wrapperLock);
   return 0;
 }
 
-static void dndClearVars(SDnode *pDnode) {
+static void dmClearVars(SDnode *pDnode) {
   for (EDndNodeType n = 0; n < NODE_END; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
@@ -70,7 +69,7 @@ static void dndClearVars(SDnode *pDnode) {
   dDebug("dnode memory is cleared, data:%p", pDnode);
 }
 
-SDnode *dndCreate(const SDnodeOpt *pOption) {
+SDnode *dmCreate(const SDnodeOpt *pOption) {
   dDebug("start to create dnode object");
   int32_t code = -1;
   char    path[PATH_MAX] = {0};
@@ -82,12 +81,12 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (dndInitVars(pDnode, pOption) != 0) {
+  if (dmInitVars(pDnode, pOption) != 0) {
     dError("failed to init variables since %s", terrstr());
     goto _OVER;
   }
 
-  dndSetStatus(pDnode, DND_STAT_INIT);
+  dmSetStatus(pDnode, DND_STAT_INIT);
   dmSetMgmtFp(&pDnode->wrappers[NODE_BEGIN]);
   mmSetMgmtFp(&pDnode->wrappers[MNODE]);
   vmSetMgmtFp(&pDnode->wrappers[VNODE]);
@@ -111,12 +110,12 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     taosInitRWLatch(&pWrapper->latch);
   }
 
-  if (dndInitMsgHandle(pDnode) != 0) {
+  if (dmInitMsgHandle(pDnode) != 0) {
     dError("failed to init msg handles since %s", terrstr());
     goto _OVER;
   }
 
-  if (dndReadShmFile(pDnode) != 0) {
+  if (dmReadShmFile(pDnode) != 0) {
     dError("failed to read shm file since %s", terrstr());
     goto _OVER;
   }
@@ -129,7 +128,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
 
 _OVER:
   if (code != 0 && pDnode) {
-    dndClearVars(pDnode);
+    dmClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode since %s", terrstr());
   }
@@ -137,20 +136,14 @@ _OVER:
   return pDnode;
 }
 
-void dndClose(SDnode *pDnode) {
+void dmClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
   for (EDndNodeType n = 0; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dndCloseNode(pWrapper);
+    dmCloseNode(pWrapper);
   }
 
-  dndClearVars(pDnode);
+  dmClearVars(pDnode);
   dInfo("dnode is closed, data:%p", pDnode);
-}
-
-void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
-  if (event == DND_EVENT_STOP) {
-    pDnode->event = event;
-  }
 }
