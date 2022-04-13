@@ -19,7 +19,7 @@
 #include "taoserror.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tgrant.h"
+#include "mndGrant.h"
 #include "tref.h"
 #include "tglobal.h"
 #include "tdataformat.h"
