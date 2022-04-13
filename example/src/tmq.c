@@ -19,8 +19,8 @@
 #include <time.h>
 #include "taos.h"
 
-static int  running = 1;
-static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
+static int running = 1;
+/*static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }*/
 
 int32_t init_env() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -166,11 +166,11 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       cnt++;
-      printf("get data\n");
-      msg_process(tmqmessage);
+      /*printf("get data\n");*/
+      /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
       /*} else {*/
       /*break;*/
@@ -198,9 +198,9 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1000);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
-      msg_process(tmqmessage);
+      /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
 
       if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
@@ -226,10 +226,10 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t skipLogNum = 0;
   clock_t startTime = clock();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       batchCnt++;
-      skipLogNum += tmqGetSkipLogNum(tmqmessage);
+      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
       /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
     } else {
