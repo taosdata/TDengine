@@ -1168,10 +1168,12 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         }
       }
 
-      if (IS_VAR_DATA_TYPE(type)) {
-        input[k] += varDataTLen(input[k]);
-      } else {
-        input[k] += tDataTypes[type].bytes;
+      if (pInput[k].numOfRows != 1) {
+        if (IS_VAR_DATA_TYPE(type)) {
+          input[k] += varDataTLen(input[k]);
+        } else {
+          input[k] += tDataTypes[type].bytes;
+        }
       }
     }
 
