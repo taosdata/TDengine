@@ -19,7 +19,7 @@
 #include "ttimer.h"
 #include "trpc.h"
 #include "tutil.h"
-#include "tgrant.h"
+#include "mndGrant.h"
 #include "tglobal.h"
 #include "tdataformat.h"
 #include "machine.h"
@@ -53,7 +53,9 @@ static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
 #if 0
 // static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 #endif
+static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 
 static void *grantCheckTimer = NULL;
 static void *grantSendTimer = NULL;
@@ -79,11 +81,13 @@ SGrantStatus grantStatus = {
   GRANT_CPU_LIMITS
 };
 
-int32_t grantInit() {
+int32_t mndInitGrant(SMnode *pMnode) {
   char cfgFile[PATH_MAX] = {0};
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
 
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
 #if 0
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
@@ -96,7 +100,7 @@ int32_t grantInit() {
   return TSDB_CODE_SUCCESS;
 }
 
-void grantCleanUp() {
+void mndCleanupGrant() {
  taosTmrStopA(&grantCheckTimer); 
  taosTmrStopA(&grantSendTimer); 
 }
@@ -637,115 +641,120 @@ static void grantCheckGrantInfo(void *p1, void *p2) {
     taosMemoryFree(ts2);
   }
 }
-#if 0
-static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  char cfgFile[PATH_MAX] = {0};
-  sprintf(cfgFile, "%s/taos.cfg", configDir);
-  grantActiveSystem(cfgFile);
 
-  grantSendMsgToMgmt(NULL, NULL);
-  taosMsleep(10);
+static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  // char cfgFile[PATH_MAX] = {0};
+  // sprintf(cfgFile, "%s/taos.cfg", configDir);
+  // grantActiveSystem(cfgFile);
 
-  int32_t cols = 0;
-  SSchema *pSchema = pMeta->schema;
+  // grantSendMsgToMgmt(NULL, NULL);
+  // taosMsleep(10);
 
-  pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "version");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // int32_t cols = 0;
+  // SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = 19 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "expire time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "version");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 5 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "expired");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 19 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "expire time");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 21 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "storage(GB)");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 5 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "expired");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 21 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "timeseries");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 21 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "storage(GB)");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "databases");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 21 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "timeseries");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "users");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "databases");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "accounts");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "users");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "dnodes");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "accounts");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 11 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "connections");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "dnodes");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "streams");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 11 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "connections");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "cpu cores");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "streams");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "speed(PPS)");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "cpu cores");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "querytime");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
+  // pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "speed(PPS)");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
+  // pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
+  // pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  // strcpy(pSchema[cols].name, "querytime");
+  // pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  // cols++;
 
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  // pMeta->numOfColumns = htons(cols);
+  // pShow->numOfColumns = cols;
 
-  pShow->numOfRows = 1;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pIter = NULL;
+  // pShow->offset[0] = 0;
+  // for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+
+  // pShow->numOfRows = 1;
+  // pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  // pShow->pIter = NULL;
 
   return 0;
 }
-#endif
+
+static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
+}
+
 int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   char *  pWrite;

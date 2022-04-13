@@ -54,6 +54,7 @@
 #define GRANT_CPU_LIMITS           4102416000
 
 typedef struct {
+  uint32_t usbDongle;
   uint32_t officialVersion;
   uint32_t expireTimeSec;
   uint32_t limitStorage;
@@ -72,9 +73,11 @@ typedef struct {
   char     machine[GRANT_MACHINE_KEY_LEN + 1];
   char     active[GRANT_ACTIVE_KEY_LEN + 1];
   bool     granted;
+  bool     updateForced;
 } SGrantObj;
 
 typedef struct {
+  bool     usbDongle;
   bool     officialVersion;
   bool     expired;
   uint32_t expireTimeSec;
@@ -97,6 +100,8 @@ typedef struct {
 } SGrantStatus;
 
 typedef struct {
+  bool     updateForced;
+  uint32_t usbDongle;
   uint32_t officialVersion;
   uint32_t expireTimeSec;
   uint32_t limitStorage;
