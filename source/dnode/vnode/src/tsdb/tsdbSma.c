@@ -38,6 +38,29 @@ typedef enum {
   SMA_STORAGE_LEVEL_DFILESET = 1  // use days of TS data       e.g. vnode${N}/tsdb/tsma/sma_index_uid/v2f1906.tsma
 } ESmaStorageLevel;
 
+typedef struct SPoolMem {
+  int64_t          size;
+  struct SPoolMem *prev;
+  struct SPoolMem *next;
+} SPoolMem;
+
+struct SSmaEnv {
+  TdThreadRwlock lock;
+  TXN            txn;
+  SPoolMem      *pPool;
+  SDiskID        did;
+  TENV          *dbEnv;  // TODO: If it's better to put it in smaIndex level?
+  char          *path;   // relative path
+  SSmaStat      *pStat;
+};
+
+#define SMA_ENV_LOCK(env)       ((env)->lock)
+#define SMA_ENV_DID(env)        ((env)->did)
+#define SMA_ENV_ENV(env)        ((env)->dbEnv)
+#define SMA_ENV_PATH(env)       ((env)->path)
+#define SMA_ENV_STAT(env)       ((env)->pStat)
+#define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
+
 typedef struct {
   STsdb        *pTsdb;
   SDBFile       dFile;
@@ -104,7 +127,8 @@ static void    tsdbDestroyTSmaWriteH(STSmaWriteH *pSmaH);
 static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, int64_t interval, int8_t intervalUnit);
 static int32_t tsdbGetSmaStorageLevel(int64_t interval, int8_t intervalUnit);
 static int32_t tsdbSetRSmaDataFile(STSmaWriteH *pSmaH, int32_t fid);
-static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t keyLen, void *pData, uint32_t dataLen);
+static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyLen, void *pData, int32_t dataLen,
+                                    TXN *txn);
 static int64_t tsdbGetIntervalByPrecision(int64_t interval, uint8_t intervalUnit, int8_t precision, bool adjusted);
 static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLevel);
 static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, int64_t indexUid, int32_t fid);
@@ -117,9 +141,121 @@ static int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, const char *msg);
 // mgmt interface
 static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid);
 
+// Pool Memory
+static SPoolMem *openPool();
+static void      clearPool(SPoolMem *pPool);
+static void      closePool(SPoolMem *pPool);
+static void     *poolMalloc(void *arg, size_t size);
+static void      poolFree(void *arg, void *ptr);
+
+static int tsdbSmaBeginCommit(SSmaEnv *pEnv);
+static int tsdbSmaEndCommit(SSmaEnv *pEnv);
+
 // implementation
-static FORCE_INLINE int16_t tsdbTSmaAdd(STsdb *pTsdb, int16_t n) { return atomic_add_fetch_16(&REPO_TSMA_NUM(pTsdb), n); }
-static FORCE_INLINE int16_t tsdbTSmaSub(STsdb *pTsdb, int16_t n) { return atomic_sub_fetch_16(&REPO_TSMA_NUM(pTsdb), n); }
+static FORCE_INLINE int16_t tsdbTSmaAdd(STsdb *pTsdb, int16_t n) {
+  return atomic_add_fetch_16(&REPO_TSMA_NUM(pTsdb), n);
+}
+static FORCE_INLINE int16_t tsdbTSmaSub(STsdb *pTsdb, int16_t n) {
+  return atomic_sub_fetch_16(&REPO_TSMA_NUM(pTsdb), n);
+}
+
+static FORCE_INLINE int32_t tsdbRLockSma(SSmaEnv *pEnv) {
+  int code = taosThreadRwlockRdlock(&(pEnv->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tsdbWLockSma(SSmaEnv *pEnv) {
+  int code = taosThreadRwlockWrlock(&(pEnv->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tsdbUnLockSma(SSmaEnv *pEnv) {
+  int code = taosThreadRwlockUnlock(&(pEnv->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static SPoolMem *openPool() {
+  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
+
+  pPool->prev = pPool->next = pPool;
+  pPool->size = 0;
+
+  return pPool;
+}
+
+static void clearPool(SPoolMem *pPool) {
+  if (!pPool) return;
+  
+  SPoolMem *pMem;
+
+  do {
+    pMem = pPool->next;
+
+    if (pMem == pPool) break;
+
+    pMem->next->prev = pMem->prev;
+    pMem->prev->next = pMem->next;
+    pPool->size -= pMem->size;
+
+    tdbOsFree(pMem);
+  } while (1);
+
+  assert(pPool->size == 0);
+}
+
+static void closePool(SPoolMem *pPool) {
+  if (pPool) {
+    clearPool(pPool);
+    tdbOsFree(pPool);
+  }
+}
+
+static void *poolMalloc(void *arg, size_t size) {
+  void     *ptr = NULL;
+  SPoolMem *pPool = (SPoolMem *)arg;
+  SPoolMem *pMem;
+
+  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
+  if (pMem == NULL) {
+    assert(0);
+  }
+
+  pMem->size = sizeof(*pMem) + size;
+  pMem->next = pPool->next;
+  pMem->prev = pPool;
+
+  pPool->next->prev = pMem;
+  pPool->next = pMem;
+  pPool->size += pMem->size;
+
+  ptr = (void *)(&pMem[1]);
+  return ptr;
+}
+
+static void poolFree(void *arg, void *ptr) {
+  SPoolMem *pPool = (SPoolMem *)arg;
+  SPoolMem *pMem;
+
+  pMem = &(((SPoolMem *)ptr)[-1]);
+
+  pMem->next->prev = pMem->prev;
+  pMem->prev->next = pMem->next;
+  pPool->size -= pMem->size;
+
+  tdbOsFree(pMem);
+}
 
 int32_t tsdbInitSma(STsdb *pTsdb) {
   // tSma
@@ -213,7 +349,12 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did)
 
   char aname[TSDB_FILENAME_LEN] = {0};
   tfsAbsoluteName(pTsdb->pTfs, did, path, aname);
-  if (tsdbOpenBDBEnv(&pEnv->dbEnv, aname) != TSDB_CODE_SUCCESS) {
+  if (tsdbOpenDBEnv(&pEnv->dbEnv, aname) != TSDB_CODE_SUCCESS) {
+    tsdbFreeSmaEnv(pEnv);
+    return NULL;
+  }
+
+  if ((pEnv->pPool = openPool()) == NULL) {
     tsdbFreeSmaEnv(pEnv);
     return NULL;
   }
@@ -248,7 +389,8 @@ void tsdbDestroySmaEnv(SSmaEnv *pSmaEnv) {
     taosMemoryFreeClear(pSmaEnv->pStat);
     taosMemoryFreeClear(pSmaEnv->path);
     taosThreadRwlockDestroy(&(pSmaEnv->lock));
-    tsdbCloseBDBEnv(pSmaEnv->dbEnv);
+    tsdbCloseDBEnv(pSmaEnv->dbEnv);
+    closePool(pSmaEnv->pPool);
   }
 }
 
@@ -414,7 +556,7 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
     }
 
     // cache smaMeta
-    STSma *pSma = metaGetSmaInfoByIndex(pTsdb->pMeta, indexUid);
+    STSma *pSma = metaGetSmaInfoByIndex(pTsdb->pMeta, indexUid, true);
     if (pSma == NULL) {
       terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
       taosHashCleanup(pItem->expiredWindows);
@@ -498,10 +640,6 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg) {
     return TSDB_CODE_FAILED;
   }
 
-#ifndef TSDB_SMA_TEST
-  TSKEY expiredWindows[SMA_TEST_EXPIRED_WINDOW_SIZE];
-#endif
-
   // Firstly, assume that tSma can only be created on super table/normal table.
   // getActiveTimeWindow
 
@@ -563,6 +701,10 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg) {
       TSKEY winSKey = taosTimeTruncate(TD_ROW_KEY(row), &interval, interval.precision);
 
       tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, winSKey);
+
+      // TODO: release only when suid changes.
+      tdDestroyTSmaWrapper(pSW);
+      taosMemoryFreeClear(pSW);
     }
   }
 
@@ -676,10 +818,12 @@ static int32_t tsdbGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
  * @param dataLen
  * @return int32_t
  */
-static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t keyLen, void *pData, uint32_t dataLen) {
+static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyLen, void *pData, int32_t dataLen,
+                                    TXN *txn) {
   SDBFile *pDBFile = &pSmaH->dFile;
+
   // TODO: insert sma data blocks into B+Tree(TDB)
-  if (tsdbSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen) != 0) {
+  if (tsdbSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen, txn) != 0) {
     tsdbWarn("vgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " fail",
              REPO_ID(pSmaH->pTsdb), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
     return TSDB_CODE_FAILED;
@@ -826,6 +970,30 @@ static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLe
   return daysPerFile;
 }
 
+static int tsdbSmaBeginCommit(SSmaEnv *pEnv) {
+  TXN *pTxn = &pEnv->txn;
+  // start a new txn
+  tdbTxnOpen(pTxn, 0, poolMalloc, poolFree, pEnv->pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  if (tdbBegin(pEnv->dbEnv, pTxn) != 0) {
+    tsdbWarn("tsdbSma tdb restart txn fail");
+    return -1;
+  }
+  return 0;
+}
+
+static int tsdbSmaEndCommit(SSmaEnv *pEnv) {
+  TXN *pTxn = &pEnv->txn;
+
+  // Commit current txn
+  if (tdbCommit(pEnv->dbEnv, pTxn) != 0) {
+    tsdbWarn("tsdbSma tdb commit fail");
+    return -1;
+  }
+  tdbTxnClose(pTxn);
+  clearPool(pEnv->pPool);
+  return 0;
+}
+
 /**
  * @brief Insert/Update Time-range-wise SMA data.
  *  - If interval < SMA_STORAGE_SPLIT_HOURS(e.g. 24), save the SMA data as a part of DFileSet to e.g.
@@ -911,14 +1079,10 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
     int64_t      groupId = pDataBlock->info.groupId;
     for (int32_t j = 0; j < rows; ++j) {
       printf("|");
-      TSKEY skey = 1649295200000;  // TSKEY_INITIAL_VAL;  // the start key of TS window by interval
+      TSKEY skey = TSKEY_INITIAL_VAL;  //  the start key of TS window by interval
       void *pSmaKey = &smaKey;
       bool  isStartKey = false;
-      {
-        // just for debugging
-        isStartKey = true;
-        tsdbEncodeTSmaKey(groupId, skey, &pSmaKey);
-      }
+
       int32_t tlen = 0;     // reset the len
       pDataBuf = &dataBuf;  // reset the buf
       for (int32_t k = 0; k < colNum; ++k) {
@@ -929,7 +1093,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
             if (!isStartKey) {
               isStartKey = true;
               skey = *(TSKEY *)var;
-              printf("==> skey = %" PRIi64 " groupId = %" PRIi64 "|", skey, groupId);
+              printf("= skey %" PRIi64 " groupId = %" PRIi64 "|", skey, groupId);
               tsdbEncodeTSmaKey(groupId, skey, &pSmaKey);
             } else {
               printf(" %" PRIi64 " |", *(int64_t *)var);
@@ -1010,6 +1174,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
         // TODO: tsdbStartTSmaCommit();
         if (fid != tSmaH.dFile.fid) {
           if (tSmaH.dFile.fid != TSDB_IVLD_FID) {
+            tsdbSmaEndCommit(pEnv);
             tsdbCloseDBF(&tSmaH.dFile);
           }
           tsdbSetTSmaDataFile(&tSmaH, indexUid, fid);
@@ -1020,12 +1185,14 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
             tsdbUnRefSmaStat(pTsdb, pStat);
             return TSDB_CODE_FAILED;
           }
+          tsdbSmaBeginCommit(pEnv);
         }
 
-        if (tsdbInsertTSmaBlocks(&tSmaH, &smaKey, SMA_KEY_LEN, dataBuf, tlen) != 0) {
+        if (tsdbInsertTSmaBlocks(&tSmaH, &smaKey, SMA_KEY_LEN, dataBuf, tlen, &pEnv->txn) != 0) {
           tsdbWarn("vgId:%d insert tSma data blocks fail for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
                    " since %s",
                    REPO_ID(pTsdb), indexUid, skey, groupId, tstrerror(terrno));
+          tsdbSmaEndCommit(pEnv);
           tsdbDestroyTSmaWriteH(&tSmaH);
           tsdbUnRefSmaStat(pTsdb, pStat);
           return TSDB_CODE_FAILED;
@@ -1044,9 +1211,10 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
       printf("\n");
     }
   }
-
+  tsdbSmaEndCommit(pEnv);  // TODO: not commit for every insert
   tsdbDestroyTSmaWriteH(&tSmaH);
   tsdbUnRefSmaStat(pTsdb, pStat);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1370,8 +1538,8 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, char *pData, int64_t indexUid, 
   tsdbDebug("vgId:%d get sma data from %s: smaKey %" PRIx64 "-%" PRIx64 ", keyLen %d", REPO_ID(pTsdb),
             tReadH.dFile.path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), SMA_KEY_LEN);
 
-  void    *result = NULL;
-  uint32_t valueSize = 0;
+  void   *result = NULL;
+  int32_t valueSize = 0;
   if ((result = tsdbGetSmaDataByKey(&tReadH.dFile, smaKey, SMA_KEY_LEN, &valueSize)) == NULL) {
     tsdbWarn("vgId:%d get sma data failed from smaIndex %" PRIi64 ", smaKey %" PRIx64 "-%" PRIx64 " since %s",
              REPO_ID(pTsdb), indexUid, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), tstrerror(terrno));
@@ -1422,7 +1590,7 @@ int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg) {
     return -1;
   }
   tsdbDebug("vgId:%d TDMT_VND_CREATE_SMA msg received for %s:%" PRIi64, REPO_ID(pTsdb), vCreateSmaReq.tSma.indexName,
-         vCreateSmaReq.tSma.indexUid);
+            vCreateSmaReq.tSma.indexUid);
 
   // record current timezone of server side
   vCreateSmaReq.tSma.timezoneInt = tsTimezone;
@@ -1464,7 +1632,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
     return -1;
   }
 
-  tsdbTSmaSub(pTsdb, 1);  
+  tsdbTSmaSub(pTsdb, 1);
 
   // TODO: return directly or go on follow steps?
   return TSDB_CODE_SUCCESS;
