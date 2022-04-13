@@ -43,8 +43,7 @@ extern "C" {
     }                                \
   } while (0)
 
-//#define HEARTBEAT_INTERVAL 1500  // ms
-#define HEARTBEAT_INTERVAL 15000  // ms TODO
+#define HEARTBEAT_INTERVAL 1500  // ms
 
 typedef struct SAppInstInfo SAppInstInfo;
 

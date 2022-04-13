@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndInfoSchema.h"
+#include "mndPerfSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -1514,6 +1515,11 @@ static int32_t mndProcessTableMetaReq(SNodeMsg *pReq) {
   if (0 == strcmp(infoReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
     mDebug("information_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
     if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
+      goto RETRIEVE_META_OVER;
+    }
+  } else if (0 == strcmp(infoReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
+    mDebug("performance_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
+    if (mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
       goto RETRIEVE_META_OVER;
     }
   } else {

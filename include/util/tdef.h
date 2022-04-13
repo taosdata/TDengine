@@ -113,6 +113,13 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_BNODES                 "bnodes"
 #define TSDB_INS_TABLE_SNODES                 "snodes"
 
+#define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
+#define TSDB_PERFS_TABLE_CONNECTIONS          "connections"
+#define TSDB_PERFS_TABLE_QUERIES              "queries"
+#define TSDB_PERFS_TABLE_TOPICS               "topics"
+#define TSDB_PERFS_TABLE_CONSUMERS            "consumers"
+#define TSDB_PERFS_TABLE_SUBSCRIBES           "subscribes"
+
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
 
