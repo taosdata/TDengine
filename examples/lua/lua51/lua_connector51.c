@@ -303,51 +303,6 @@ void stream_cb(void *param, TAOS_RES *result, TAOS_ROW row){
   //  printf("-----------------------------------------------------------------------------------\n\r");
 }
 
-static int l_open_stream(lua_State *L){
-  int r = luaL_ref(L, LUA_REGISTRYINDEX);
-  TAOS *    taos = (TAOS*)lua_topointer(L,1);
-  const char * sqlstr = lua_tostring(L,2);
-  int stime = luaL_checknumber(L,3);
-
-  lua_newtable(L);
-  int table_index = lua_gettop(L);
-
-  struct cb_param *p = malloc(sizeof(struct cb_param));
-  p->state = L;
-  p->callback=r;
-  //  printf("r:%d, L:%d\n",r,L);
-  void * s = taos_open_stream(taos,sqlstr,stream_cb,stime,p,NULL);
-  if (s == NULL) {
-    printf("failed to open stream, reason:%s\n", taos_errstr(taos));
-    free(p);
-    lua_pushnumber(L, -1);
-    lua_setfield(L, table_index, "code");
-    lua_pushstring(L, taos_errstr(taos));
-    lua_setfield(L, table_index, "error");
-    lua_pushlightuserdata(L,NULL);
-    lua_setfield(L, table_index, "stream");
-  }else{
-    //    printf("success to open stream\n");
-    lua_pushnumber(L, 0);
-    lua_setfield(L, table_index, "code");
-    lua_pushstring(L, taos_errstr(taos));
-    lua_setfield(L, table_index, "error");
-    p->stream = s;
-    lua_pushlightuserdata(L,p);
-    lua_setfield(L, table_index, "stream");//stream has different content in lua and c.
-  }
-
-  return 1;
-}
-
-static int l_close_stream(lua_State *L){
-  //TODO:get stream and free cb_param
-  struct cb_param *p = lua_touserdata(L,1);
-  taos_close_stream(p->stream);
-  free(p);
-  return 0;
-}
-
 static int l_close(lua_State *L){
   TAOS *taos= (TAOS*)lua_topointer(L,1);
   lua_newtable(L);
@@ -373,8 +328,6 @@ static const struct luaL_Reg lib[] = {
     {"query", l_query},
     {"query_a",l_async_query},
     {"close", l_close},
-    {"open_stream", l_open_stream},
-    {"close_stream", l_close_stream},
     {NULL, NULL}
 };
 

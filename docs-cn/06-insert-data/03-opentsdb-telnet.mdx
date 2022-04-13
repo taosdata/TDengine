@@ -1,6 +1,6 @@
 ---
-sidebar_label: OpentsDB Telnet 协议
-title: OpentsDB Telnet 协议
+sidebar_label: OpentsDB 行协议
+title: OpentsDB 行协议
 ---
 
 import Tabs from "@theme/Tabs";
@@ -12,6 +12,27 @@ import RustTelnet from "./_rust_opts_telnet.mdx";
 import NodeTelnet from "./_js_opts_telnet.mdx";
 import CsTelnet from "./_cs_opts_telnet.mdx";
 import CTelnet from "./_c_opts_telnet.mdx";
+
+## 协议介绍
+
+OpentsDB 行协议同样采用一行字符串来表示一行数据。OpentsDB 采用的是单列模型，因此一行只能包含一个普通数据列。标签列依然可以有多个。分为四部分，具体格式约定如下：
+
+```txt
+<metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
+```
+
+- metric 将作为超级表名。
+- timestamp 本行数据对应的时间戳。根据时间戳的长度自动识别时间精度。支持秒和毫秒两种时间精度
+- value 度量值，必须为一个数值。对应的列名也是 “value”。
+- 最后一部分是标签集， 用空格分隔不同标签。
+
+例如：
+
+```txt
+meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3
+```
+
+参考[OpenTSDB Telnet API文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
 
 ## 示例代码
 

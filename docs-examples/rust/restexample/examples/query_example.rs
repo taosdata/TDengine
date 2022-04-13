@@ -33,7 +33,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// stdout:
+// output:
 // ts      current
 // 2022-03-28 09:56:51.249 10.3
 // 2022-03-28 09:56:51.749 12.6

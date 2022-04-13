@@ -56,7 +56,7 @@ def test_query(conn):
 if __name__ == "__main__":
     test_query(connect())
 
-# possible stdout:
+# possible output:
 # { count: 0, done: False }
 # fetched  8 rows
 # 1538548685000 10.300000 219

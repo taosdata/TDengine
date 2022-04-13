@@ -17,12 +17,12 @@ power.d1003 USING power.meters TAGS(Beijing.Haidian, 2) VALUES ('2018-10-03 14:3
 power.d1004 USING power.meters TAGS(Beijing.Haidian, 3) VALUES ('2018-10-03 14:38:05.000', 10.80000, 223, 0.29000) ('2018-10-03 14:38:06.500', 11.50000, 221, 0.35000)`;
   cursor.execute(sql);
 } finally {
-  // cursor.close();
+  cursor.close();
   conn.close();
 }
 
 // run with: node insert_example.js
-// stdout:
+// output:
 // Successfully connected to TDengine
 // Query OK, 0 row(s) affected (0.00509570s)
 // Query OK, 0 row(s) affected (0.00130880s)

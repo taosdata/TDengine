@@ -2,9 +2,9 @@
 title: 连接器
 ---
 
-TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
+TDengine 提供了丰富的应用程序开发接口，其中包括支持使用 C/C++、Java、Python、Go、Node.js、C# 等多种语言的连接器，包括使用 taos 客户端驱动接口和 RESTful 接口，便于用户快速开发自己的应用。
 
-![image-connecotr](/img/connector.png)
+![image-connector](/img/connector.png)
 
 ## 支持的系统
 
@@ -60,13 +60,13 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import InstallOnWindows from "./_linux_install.mdx";
 import InstallOnLinux from "./_windows_install.mdx";
-import VarifyWindows from "./_varify_linux.mdx";
-import VarifyLinux from "./_varify_windows.mdx";
+import VerifyWindows from "./_verify_linux.mdx";
+import VerifyLinux from "./_verify_windows.mdx";
 
 ## 安装客户端驱动
 
 :::info
-只有在没有安装 TDengine 服务端软件的系统上使用非 RESTFful 连接器才需要安装客户端驱动。
+只有在没有安装 TDengine 服务端软件的系统上使用非 RESTful 连接器才需要安装客户端驱动。
 
 :::
 
@@ -87,9 +87,10 @@ import VarifyLinux from "./_varify_windows.mdx";
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <VarifyLinux />
+    <VerifyLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <VarifyWindows />
+    <VerifyWindows />
   </TabItem>
 </Tabs>
+
