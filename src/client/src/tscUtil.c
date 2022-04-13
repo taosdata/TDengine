@@ -3307,6 +3307,9 @@ bool tscShouldBeFreed(SSqlObj* pSql) {
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd* pCmd, int32_t tableIndex) {
   assert(pCmd != NULL);
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  if(pQueryInfo == NULL) {
+    return NULL;
+  }
   return tscGetMetaInfo(pQueryInfo, tableIndex);
 }
 
