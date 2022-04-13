@@ -80,24 +80,24 @@ SScript *simProcessCallOver(SScript *script) {
       simExecSuccess = false;
       simInfo("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX "failed" FAILED_POSTFIX ", error:%s",
               script->fileName, script->error);
-      return NULL;
     } else {
       simExecSuccess = true;
       simInfo("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX "success" SUCCESS_POSTFIX,
               script->fileName);
-      simCloseTaosdConnect(script);
-      simScriptSucced++;
-      simScriptPos--;
-
-      simFreeScript(script);
-      if (simScriptPos == -1) {
-        simInfo("----------------------------------------------------------------------");
-        simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
-        return NULL;
-      }
-
-      return simScriptList[simScriptPos];
     }
+
+    simCloseTaosdConnect(script);
+    simScriptSucced++;
+    simScriptPos--;
+    simFreeScript(script);
+
+    if (simScriptPos == -1 && simExecSuccess) {
+      simInfo("----------------------------------------------------------------------");
+      simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
+      return NULL;
+    }
+
+    return simScriptList[simScriptPos];
   } else {
     simDebug("script:%s,  is stopped", script->fileName);
     simFreeScript(script);
