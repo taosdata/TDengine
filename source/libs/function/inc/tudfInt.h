@@ -30,6 +30,12 @@ enum {
 
 };
 
+enum {
+  TSDB_UDF_CALL_AGG_PROC = 0,
+  TSDb_UDF_CALL_AGG_FIN,
+  TSDB_UDF_CALL_SCALA_PROC,
+};
+
 typedef struct SUdfSetupRequest {
   char udfName[16]; //
   int8_t scriptType; // 0:c, 1: lua, 2:js
@@ -42,24 +48,18 @@ typedef struct SUdfSetupResponse {
   int64_t udfHandle;
 } SUdfSetupResponse;
 
-
 typedef struct SUdfCallRequest {
   int64_t udfHandle;
-  int8_t step;
+  int8_t callType;
 
-  int32_t inputBytes;
-  char *input;
-
-  int32_t stateBytes;
-  char *state;
+  SUdfDataBlock block;
+  SUdfInterBuf interBuf;
+  bool initFirst;
 } SUdfCallRequest;
 
-
 typedef struct SUdfCallResponse {
-  int32_t outputBytes;
-  char *output;
-  int32_t newStateBytes;
-  char *newState;
+  SUdfColumnData resultData;
+  SUdfInterBuf interBuf;
 } SUdfCallResponse;
 
 
@@ -76,7 +76,11 @@ typedef struct SUdfRequest {
   int64_t seqNum;
 
   int8_t type;
-  void *subReq;
+  union {
+    SUdfSetupRequest setup;
+    SUdfCallRequest call;
+    SUdfTeardownRequest teardown;
+  };
 } SUdfRequest;
 
 typedef struct SUdfResponse {
@@ -85,13 +89,17 @@ typedef struct SUdfResponse {
 
   int8_t type;
   int32_t code;
-  void *subRsp;
+  union {
+    SUdfSetupResponse setupRsp;
+    SUdfCallResponse callRsp;
+    SUdfTeardownResponse teardownRsp;
+  };
 } SUdfResponse;
 
-int32_t decodeRequest(char *buf, int32_t bufLen, SUdfRequest **pRequest);
-int32_t encodeResponse(char **buf, int32_t *bufLen, SUdfResponse *response);
+int32_t decodeRequest(char *buf, int32_t bufLen, SUdfRequest *pRequest);
 int32_t encodeRequest(char **buf, int32_t *bufLen, SUdfRequest *request);
-int32_t decodeResponse(char *buf, int32_t bufLen, SUdfResponse **pResponse);
+int32_t decodeResponse(char *buf, int32_t bufLen, SUdfResponse *pResponse);
+int32_t encodeResponse(char **buf, int32_t *bufLen, SUdfResponse *response);
 
 #ifdef __cplusplus
 }

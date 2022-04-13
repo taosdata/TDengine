@@ -44,7 +44,7 @@ typedef struct SUdf {
     int8_t type;
 
     uv_lib_t lib;
-    TUdfFunc normalFunc;
+    TUdfScalarProcFunc normalFunc;
 } SUdf;
 
 //TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
