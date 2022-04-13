@@ -18,7 +18,7 @@ const errorSql = 'show database';
 let conn = connect(options);
 let cursor = conn.cursor();
 
-async function execute(sql: string, pure = false) {
+async function execute(sql:string, pure = false) {
     let result = await cursor.query(sql, pure);
     // print query result as taos shell
     result.toString();
