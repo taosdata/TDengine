@@ -1512,7 +1512,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     7）INTERP的插值结果不受ORDER BY timestamp的影响，ORDER BY timestamp只影响输出结果的排序。
 
-  SQL示例（基于文档中广泛使用的电表schema）
+  SQL示例（基于文档中广泛使用的电表 schema ）
 
       1) 单点线性插值
      ```mysql
