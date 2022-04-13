@@ -9,3 +9,13 @@ taostest --use=test_217env.yaml --case=Query/queryscript/table_query/table_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_query/stable_query.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_query/stable_query_null.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_query/stable_query_union.py --keep
+
+#stable_fun_time_query
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_now.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_today.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_zone.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_to_iso8601.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_to_unixtimestamp.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_truncate.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_timediff.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep
