@@ -17,11 +17,11 @@
 #ifndef _GRANT
 #include "os.h"
 #include "taoserror.h"
-#include "tgrant.h"
+#include "mndGrant.h"
 #include "mndInt.h"
 
-int32_t grantInit() { return TSDB_CODE_SUCCESS; }
-void    grantCleanUp() {}
+int32_t mndInitGrant(SMnode *pMnode) { return TSDB_CODE_SUCCESS; }
+void    mndCleanupGrant() {}
 void    grantParseParameter() { mError("can't parsed parameter k"); }
 int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
 void    grantReset(EGrantType grant, uint64_t value) {}

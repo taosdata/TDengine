@@ -20,6 +20,7 @@ add_executable(taosd ${EXEC_SRC})
 target_include_directories(
     taosd
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
 )
 target_link_libraries(taosd dnode)
 
@@ -28,7 +29,6 @@ IF (TD_GRANT)
 ENDIF ()
 IF (TD_USB_DONGLE)
   TARGET_LINK_LIBRARIES(taosd usb_dongle)
-else()
 ENDIF ()
 
 if(${BUILD_TEST})
