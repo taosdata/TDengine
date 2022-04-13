@@ -94,6 +94,11 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 #define TSDB_TIME_PRECISION_NANO_STR  "ns"
 
+#define TSDB_TIME_PRECISION_SEC_DIGITS   10
+#define TSDB_TIME_PRECISION_MILLI_DIGITS 13
+#define TSDB_TIME_PRECISION_MICRO_DIGITS 16
+#define TSDB_TIME_PRECISION_NANO_DIGITS  19
+
 #define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
 #define TSDB_INS_TABLE_DNODES                 "dnodes"
 #define TSDB_INS_TABLE_MNODES                 "mnodes"

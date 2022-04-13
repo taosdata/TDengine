@@ -77,9 +77,9 @@ sql insert into ct4 values ( '2022-05-21 01:01:01.000', NULL, NULL, NULL, NULL, 
 print ================ start query ======================
 
 print ================ query 1 having condition
-sql_error select c1 from ct1 group by c1 having count(c1)
-sql_error select c1 from ct4 group by c1 having count(c1)
-sql_error select count(c1) from ct1 group by c1 having count(c1)
+sql select c1 from ct1 group by c1 having count(c1)
+sql select c1 from ct4 group by c1 having count(c1)
+sql select count(c1) from ct1 group by c1 having count(c1)
 
 sql  select sum(c1) ,count(c7) from ct4 group by c7 having count(c7) > 1  ;
 print ====> sql : select sum(c1) ,count(c7) from ct4 group by c7 having count(c7) > 1  ;
@@ -98,22 +98,22 @@ endi
 sql  select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 2  and  sum(c1) > 2 ;
 print ====> sql : select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 2  and  sum(c1) > 2 ;
 print ====> rows: $rows
-if $rows != 2 then
+if $rows != 7 then
     return -1
 endi
 
 sql  select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> sql : select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> rows: $rows
-if $rows != 2 then
+if $rows != 7 then
     return -1
 endi
 
 
 print ================ query 1 complex with  having condition
 
-sql select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) < 1 limit 1 offset 1
-print ====> sql : select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) < 1 limit 1 offset 1
+sql select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) > 1 limit 1 offset 0
+print ====> sql : select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) > 1 limit 1 offset 0
 print ====> rows: $rows
 if $rows != 1 then
     return -1
@@ -250,9 +250,9 @@ if $data00 != 20 then
 endi
 
 print ================ query 1 having condition
-sql_error select c1 from ct1 group by c1 having count(c1)
-sql_error select c1 from ct4 group by c1 having count(c1)
-sql_error select count(c1) from ct1 group by c1 having count(c1)
+sql select c1 from ct1 group by c1 having count(c1)
+sql select c1 from ct4 group by c1 having count(c1)
+sql select count(c1) from ct1 group by c1 having count(c1)
 
 sql  select sum(c1) ,count(c7) from ct4 group by c7 having count(c7) > 1  ;
 print ====> sql : select sum(c1) ,count(c7) from ct4 group by c7 having count(c7) > 1  ;
@@ -271,22 +271,22 @@ endi
 sql  select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 2  and  sum(c1) > 2 ;
 print ====> sql : select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 2  and  sum(c1) > 2 ;
 print ====> rows: $rows
-if $rows != 2 then
+if $rows != 7 then
     return -1
 endi
 
 sql  select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> sql : select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> rows: $rows
-if $rows != 2 then
+if $rows != 7 then
     return -1
 endi
 
 
 print ================ query 1 complex with  having condition
 
-sql select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) < 1 limit 1 offset 1
-print ====> sql : select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) < 1 limit 1 offset 1
+sql select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) > 1 limit 1 offset 0
+print ====> sql : select count(c1) from ct4 where c1 > 2 group by c7 having count(c1) > 1 limit 1 offset 0
 print ====> rows: $rows
 if $rows != 1 then
     return -1

@@ -762,7 +762,7 @@ static int32_t createAllColumns(STranslateContext* pCxt, SNodeList** pCols) {
   size_t  nums = taosArrayGetSize(pTables);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    int32_t     code = createColumnNodeByTable(pCxt, pTable, *pCols);
+    int32_t code = createColumnNodeByTable(pCxt, pTable, *pCols);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -829,11 +829,39 @@ static int32_t createFirstLastAllCols(STranslateContext* pCxt, SFunctionNode* pS
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isTableStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, SNodeList** pOutput) {
+  *pOutput = nodesMakeList();
+  if (NULL == *pOutput) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
+  }
+  bool foundTable = false;
+  SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
+  size_t  nums = taosArrayGetSize(pTables);
+  for (size_t i = 0; i < nums; ++i) {
+    STableNode* pTable = taosArrayGetP(pTables, i);
+    if (0 == strcmp(pTable->tableAlias, pCol->tableAlias)) {
+      int32_t code = createColumnNodeByTable(pCxt, pTable, *pOutput);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      foundTable = true;
+      break;
+    }
+  }
+  if (!foundTable) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, pCol->tableAlias);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pProjectionList) {  // select * ...
     return createAllColumns(pCxt, &pSelect->pProjectionList);
   } else {
-    // todo : t.*
     SNode* pNode = NULL;
     WHERE_EACH(pNode, pSelect->pProjectionList) {
       if (isFirstLastStar(pNode)) {
@@ -842,6 +870,14 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
         INSERT_LIST(pSelect->pProjectionList, pFuncs);
+        ERASE_NODE(pSelect->pProjectionList);
+        continue;
+      } else if (isTableStar(pNode)) {
+        SNodeList* pCols = NULL;
+        if (TSDB_CODE_SUCCESS != createTableAllCols(pCxt, (SColumnNode*)pNode, &pCols)) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        INSERT_LIST(pSelect->pProjectionList, pCols);
         ERASE_NODE(pSelect->pProjectionList);
         continue;
       }

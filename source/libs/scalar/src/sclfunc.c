@@ -801,6 +801,77 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t type = GET_PARAM_TYPE(pInput);
+  if (type != TSDB_DATA_TYPE_BIGINT && type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (inputNum != 1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input  = pInput[0].columnData->pData;
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    char fraction[20] = {0};
+    bool hasFraction = false;
+    NUM_TO_STRING(type, input, sizeof(fraction), fraction);
+    int32_t tsDigits = (int32_t)strlen(fraction);
+
+    char buf[64] = {0};
+    int64_t timeVal;
+    GET_TYPED_DATA(timeVal, int64_t, type, input);
+    if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
+      if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+        timeVal = timeVal / 1000;
+      } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+        timeVal = timeVal / (1000 * 1000);
+      } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+        timeVal = timeVal / (1000 * 1000 * 1000);
+      } else {
+        assert(0);
+      }
+      hasFraction = true;
+      memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
+    }
+
+    struct tm *tmInfo = localtime((const time_t *)&timeVal);
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
+    int32_t len = (int32_t)strlen(buf);
+
+    if (hasFraction) {
+      int32_t fracLen = (int32_t)strlen(fraction) + 1;
+      char *tzInfo = strchr(buf, '+');
+      if (tzInfo) {
+        memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+      } else {
+        tzInfo = strchr(buf, '-');
+        memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+      }
+
+      char tmp[32];
+      sprintf(tmp, ".%s", fraction);
+      memcpy(tzInfo, tmp, fracLen);
+      len += fracLen;
+    }
+
+    memmove(buf + VARSTR_HEADER_SIZE, buf, len);
+    varDataSetLen(buf, len);
+
+    colDataAppend(pOutput->columnData, i, buf, false);
+    input   += tDataTypes[type].bytes;
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doScalarFunctionUnique(pInput, inputNum, pOutput, atan);
 }
