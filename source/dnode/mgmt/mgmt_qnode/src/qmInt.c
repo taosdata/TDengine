@@ -19,7 +19,7 @@
 static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
 
 static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
-  SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
+  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
   msgCb.queueFps[QUERY_QUEUE] = qmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = qmPutMsgToFetchQueue;
   msgCb.qsizeFp = qmGetQueueSize;

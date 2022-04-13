@@ -29,6 +29,7 @@ void    dmCloseNode(SMgmtWrapper *pWrapper);
 int32_t  dmInitTrans(SDnode *pDnode);
 void     dmCleanupTrans(SDnode *pDnode);
 SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper);
+SMsgCb   dmGetMsgcb(SMgmtWrapper *pWrapper);
 int32_t  dmInitMsgHandle(SDnode *pDnode);
 void     dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 void     dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp);

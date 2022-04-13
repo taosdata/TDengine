@@ -37,14 +37,13 @@ void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgF
 void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void   dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 void   dmGetMonitorSysInfo(SMonSysInfo *pInfo);
-SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper);
 
 // dmFile.c
 int32_t   dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
 int32_t   dmWriteFile(SMgmtWrapper *pWrapper, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
-int32_t   dmReadShmFile(SDnode *pDnode);
-int32_t   dmWriteShmFile(SDnode *pDnode);
+int32_t   dmReadShmFile(SMgmtWrapper *pWrapper);
+int32_t   dmWriteShmFile(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }

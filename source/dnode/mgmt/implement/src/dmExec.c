@@ -124,7 +124,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     return dmOpenNodeImp(pWrapper);
   } else if (pDnode->ptype == DND_PROC_PARENT) {
     if (dmInitNodeProc(pWrapper) != 0) return -1;
-    if (dmWriteShmFile(pDnode) != 0) return -1;
+    if (dmWriteShmFile(pWrapper) != 0) return -1;
     if (dmRunNodeProc(pWrapper) != 0) return -1;
   }
   return 0;
@@ -226,11 +226,11 @@ static int32_t dmRunInParentProcess(SDnode *pDnode) {
     pWrapper->required = dmRequireNode(pWrapper);
     if (!pWrapper->required) continue;
     if (dmInitNodeProc(pWrapper) != 0) return -1;
-  }
 
-  if (dmWriteShmFile(pDnode) != 0) {
-    dError("failed to write runtime file since %s", terrstr());
-    return -1;
+    if (dmWriteShmFile(pWrapper) != 0) {
+      dError("failed to write runtime file since %s", terrstr());
+      return -1;
+    }
   }
 
   for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {

@@ -220,7 +220,6 @@ static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   if (mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-timer", NULL, mndCleanupTimer) != 0) return -1;
 
   return 0;
 }
@@ -345,6 +344,8 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
 }
 
 int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
+
+void mndStop(SMnode *pMnode) { return mndCleanupTimer(pMnode); }
 
 int32_t mndProcessMsg(SNodeMsg *pMsg) {
   SMnode  *pMnode = pMsg->pNode;

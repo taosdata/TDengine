@@ -19,7 +19,7 @@
 static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
 
 static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) {
-  SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
+  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
   pOption->msgCb = msgCb;
 }
 

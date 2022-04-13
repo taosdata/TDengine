@@ -68,6 +68,7 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
  * @param pMnode The mnode object.
  */
 int32_t mndStart(SMnode *pMnode);
+void    mndStop(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.

@@ -171,9 +171,3 @@ void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {
   taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 }
-
-SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
-  SMsgCb msgCb = pWrapper->pDnode->data.msgCb;
-  msgCb.pWrapper = pWrapper;
-  return msgCb;
-}

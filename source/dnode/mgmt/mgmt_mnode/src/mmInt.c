@@ -39,7 +39,7 @@ static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
 }
 
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
+  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
   msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToQueryQueue;
   msgCb.queueFps[READ_QUEUE] = mmPutMsgToReadQueue;
   msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
@@ -225,11 +225,18 @@ static int32_t mmStart(SMgmtWrapper *pWrapper) {
   return mndStart(pMgmt->pMnode);
 }
 
+static void mmStop(SMgmtWrapper *pWrapper) {
+  dDebug("mnode-mgmt start to stop");
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  mndStop(pMgmt->pMnode);
+}
+
 void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = mmOpen;
   mgmtFp.closeFp = mmClose;
   mgmtFp.startFp = mmStart;
+  mgmtFp.stopFp = mmStop;
   mgmtFp.createFp = mmProcessCreateReq;
   mgmtFp.dropFp = mmProcessDropReq;
   mgmtFp.requiredFp = mmRequire;

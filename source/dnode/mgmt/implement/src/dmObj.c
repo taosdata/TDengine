@@ -72,7 +72,7 @@ static void dmClearVars(SDnode *pDnode) {
 }
 
 SDnode *dmCreate(const SDnodeOpt *pOption) {
-  dDebug("start to create dnode object");
+  dDebug("start to create dnode");
   int32_t code = -1;
   char    path[PATH_MAX] = {0};
   SDnode *pDnode = NULL;
@@ -96,20 +96,25 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   smSetMgmtFp(&pDnode->wrappers[SNODE]);
   bmSetMgmtFp(&pDnode->wrappers[BNODE]);
 
-  for (EDndNodeType n = 0; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     snprintf(path, sizeof(path), "%s%s%s", pDnode->data.dataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
     pWrapper->procShm.id = -1;
     pWrapper->pDnode = pDnode;
     pWrapper->ntype = n;
+    pWrapper->procType = DND_PROC_SINGLE;
+    taosInitRWLatch(&pWrapper->latch);
+
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
 
-    pWrapper->procType = DND_PROC_SINGLE;
-    taosInitRWLatch(&pWrapper->latch);
+    if (n != DNODE && dmReadShmFile(pWrapper) != 0) {
+      dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());
+      goto _OVER;
+    }
   }
 
   if (dmInitMsgHandle(pDnode) != 0) {
@@ -117,13 +122,8 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (dmReadShmFile(pDnode) != 0) {
-    dError("failed to read shm file since %s", terrstr());
-    goto _OVER;
-  }
-
-  SMsgCb msgCb = dmGetMsgcb(&pDnode->wrappers[0]);
-  tmsgSetDefaultMsgCb(&msgCb);
+  pDnode->data.msgCb = dmGetMsgcb(&pDnode->wrappers[DNODE]);
+  tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
 
   dInfo("dnode is created, data:%p", pDnode);
   code = 0;

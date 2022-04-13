@@ -503,19 +503,21 @@ static void dmCleanupServer(SDnode *pDnode) {
 int32_t dmInitTrans(SDnode *pDnode) {
   if (dmInitServer(pDnode) != 0) return -1;
   if (dmInitClient(pDnode) != 0) return -1;
-
-  SMsgCb msgCb = {
-      .sendReqFp = dmSendReq,
-      .sendRspFp = dmSendRsp,
-      .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
-      .releaseHandleFp = dmReleaseHandle,
-  };
-  pDnode->data.msgCb = msgCb;
-
   return 0;
 }
 
 void dmCleanupTrans(SDnode *pDnode) {
   dmCleanupServer(pDnode);
   dmCleanupClient(pDnode);
+}
+
+SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
+  SMsgCb msgCb = {
+      .sendReqFp = dmSendReq,
+      .sendRspFp = dmSendRsp,
+      .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
+      .releaseHandleFp = dmReleaseHandle,
+      .pWrapper = pWrapper,
+  };
+  return msgCb;
 }
