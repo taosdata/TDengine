@@ -29,8 +29,6 @@
 struct termios oldtio;
 #endif
 
-typedef struct FILE TdCmd;
-
 void* taosLoadDll(const char* filename) {
 #if defined(WINDOWS)
   return NULL;
@@ -179,34 +177,4 @@ void resetTerminalMode() {
     exit(EXIT_FAILURE);
   }
 #endif
-}
-
-TdCmdPtr taosOpenCmd(const char *cmd) {
-  if (cmd == NULL) return NULL;
-  return (TdCmdPtr)popen(cmd, "r");
-}
-
-int64_t taosGetLineCmd(TdCmdPtr pCmd, char ** __restrict ptrBuf) {
-  if (pCmd == NULL) {
-    return -1;
-  }
-
-  size_t len = 0;
-  return getline(ptrBuf, &len, (FILE*)pCmd);
-}
-
-int32_t taosEOFCmd(TdCmdPtr pCmd) {
-  if (pCmd == NULL) {
-    return 0;
-  }
-  return feof((FILE*)pCmd);
-}
-
-int64_t taosCloseCmd(TdCmdPtr *ppCmd) {
-  if (ppCmd == NULL || *ppCmd == NULL) {
-    return 0;
-  }
-  pclose((FILE*)(*ppCmd));
-  *ppCmd = NULL;
-  return 0;
 }
