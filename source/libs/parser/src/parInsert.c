@@ -325,6 +325,11 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
   for (int k = pToken->n; pToken->z[k] != '\0'; k++) {
     if (pToken->z[k] == ' ' || pToken->z[k] == '\t') continue;
+    if (pToken->z[k] == '(' && pToken->z[k + 1] == ')') { //for insert NOW()/TODAY()
+      *end = pTokenEnd = &pToken->z[k + 2];
+      k++;
+      continue;
+    }
     if (pToken->z[k] == ',') {
       *end = pTokenEnd;
       *time = ts;
