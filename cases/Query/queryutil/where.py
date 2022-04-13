@@ -273,39 +273,136 @@ class TDWhere():
         
         return columns
 
-    def time_window(self):       
-        time = ['1','2','3','4','5','6','7','8','9','10']
-        unit = ['a','s','m','h','d','w','n','y']
-        td_base = str(random.sample(time,1)+random.sample(unit,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
+    def time_window(self):   
+        #方法重新，因此pass
+        pass    
+        # time = ['1','2','3','4','5','6','7','8','9','10']
+        # unit = ['a','s','m','h','d','w','n','y']
+        # td_base = str(random.sample(time,1)+random.sample(unit,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
         
-        td_interval = td_base
-        td_interval = 'interval'+'(' +td_interval + ')'
+        # td_interval = td_base
+        # td_interval = 'interval'+'(' +td_interval + ')'
 
-        td_sliding = td_base
-        td_sliding = 'sliding'+'(' +td_sliding + ')'
+        # td_sliding = td_base
+        # td_sliding = 'sliding'+'(' +td_sliding + ')'
 
-        fill = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT']
-        td_fill = str(random.sample(fill,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
-        td_fill = 'Fill' +'(' +td_fill + ')'
+        # fill = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT']
+        # td_fill = str(random.sample(fill,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
+        # td_fill = 'Fill' +'(' +td_fill + ')'
 
-        td_session = td_base
-        td_session = 'SESSION'+'(ts,'+td_session + ')'
+        # td_session = td_base
+        # td_session = 'SESSION'+'(ts,'+td_session + ')'
 
-        if self.NUM == 1:
-            time_window = td_interval
-        elif self.NUM == 2:
-            time_window = td_interval + ' ' + td_sliding
-        elif self.NUM == 3:
-            time_window = td_fill 
-        elif self.NUM == 4:
-            time_window = td_interval + ' ' + td_fill 
-        elif self.NUM == 5 :
-            time_window = td_interval + ' ' + td_sliding + ' ' + td_fill 
-        else:
-            time_window = td_session
+        # if self.NUM == 1:
+        #     time_window = td_interval
+        # elif self.NUM == 2:
+        #     time_window = td_interval + ' ' + td_sliding
+        # elif self.NUM == 3:
+        #     time_window = td_fill 
+        # elif self.NUM == 4:
+        #     time_window = td_interval + ' ' + td_fill 
+        # elif self.NUM == 5 :
+        #     time_window = td_interval + ' ' + td_sliding + ' ' + td_fill 
+        # else:
+        #     time_window = td_session
         
+        # return time_window
+
+    def time_window_new(self,i):  
+        #数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 
+        #在指定降频操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。     
+        interval_n, offset_n, sliding_n = [random.randrange(10,20)]  , [random.randrange(1,10)] , [random.randrange(1,10)] 
+        time_window = ''
+                
+        #单interval
+        interval_units = ['s','m','h','d','w','n','a','y']
+        unit = random.sample(interval_units,1)
+        interval_base = str(interval_n + unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_interval = 'interval'+'(' +interval_base + ')'
+        
+        #单interval+offset
+        offset_base = str(offset_n + unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_interval_offset = 'interval'+'(' +interval_base + ',' + offset_base + ')'
+
+        #interval + sliding
+        interval_sliding_units = ['s','m','h','d','w'] #有限制，所以需要删除几个
+        interval_sliding_unit = random.sample(interval_sliding_units,1)
+        
+        sliding_base = str(sliding_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_sliding = 'sliding'+'(' +sliding_base + ')'
+
+        sliding_interval_no_offset = str(interval_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        sliding_interval = 'interval'+'(' +sliding_interval_no_offset + ')'
+        
+        sliding_interval_offset = str(offset_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        sliding_interval_offset = 'interval'+'(' + sliding_interval_no_offset + ',' + sliding_interval_offset + ')'
+        
+        #单fill,对时间强要求
+        fills = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT']
+        fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_fill = 'Fill' +'(' +fill_base + ')'
+
+        #超级表，不支持session，state_window
+        session_units = ['s','m','h','d','w','a'] #不支持n(自然月) 和 y(自然年)
+        session_unit = random.sample(session_units,1)
+        session_base = str(interval_n + session_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_session = 'SESSION'+'(ts,'+ session_base + ')'
+        
+        #单state_window
+        func = ['STATE_WINDOW']
+        window_support_types = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_bool)'] #其余不支持
+        state_window = random.sample(func,1)+random.sample(window_support_types,1)
+        single_state_window = str(state_window).replace("[","").replace("]","").replace("'","").replace(", ","")
+
+        if i == 1:
+            time_window = single_interval
+        elif i == 2:
+            time_window = single_interval_offset
+        elif i == 3:
+            time_window = sliding_interval + ' ' + single_sliding
+        elif i == 4:
+            time_window = sliding_interval_offset + ' ' + single_sliding
+                        
+        elif i == 6:
+            time_window = sliding_interval + ' ' + single_fill 
+        elif i == 7:
+            time_window = sliding_interval + ' ' + single_sliding + ' ' + single_fill 
+        elif i == 8:
+            time_window = sliding_interval_offset + ' ' + single_fill 
+        elif i == 9:
+            time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill 
+                        
+        #下面是错误的
+        elif i == 11:
+            time_window = single_sliding
+        elif i == 12:
+            time_window = single_fill 
+        elif i == 13:
+            time_window = single_sliding + ' ' + single_fill    
+        elif i == 14:
+            time_window = single_session + ' ' + single_state_window  
+        elif i == 15:
+            time_window = single_sliding + ' ' + single_session  
+        elif i == 16:
+            time_window = single_sliding + ' ' + single_state_window  
+        elif i == 17:
+            time_window = single_fill + ' ' + single_session  
+        elif i == 18:
+            time_window = single_fill + ' ' + single_state_window  
+        elif i == 19:
+            time_window = single_fill + ' ' + single_session  + ' ' + single_state_window
+        elif i == 20:
+            time_window = single_sliding + ' ' + single_fill + ' ' + single_session  + ' ' + single_state_window
+                                    
+        #部分正确的，超级表错误，子表，普通表正确     
+        elif i == 21:
+            time_window = single_session
+        elif i == 22:
+            time_window = single_state_window
+
+                               
         return time_window
-
+    
     def groupby(self):    
         int_column = ['(q_int)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_float)','(q_double)','(q_int_null)','(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_float_null)','(q_double_null)']
         bia_column = ['(*)','(_c0)','(_C0)','(q_bool)','(q_binary)','(q_nchar)','(q_ts)','(q_bool_null)','(q_binary_null)','(q_nchar_null)','(q_ts_null)']
