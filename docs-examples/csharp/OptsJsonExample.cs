@@ -13,7 +13,7 @@ namespace TDengineExample
                 "{\"metric\": \"meters.current\", \"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}}," +
                 " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}]"
             };
-        
+
             IntPtr res = TDengine.SchemalessInsert(conn, lines, 1, (int)TDengineSchemalessProtocol.TSDB_SML_JSON_PROTOCOL, (int)TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
             if (TDengine.ErrorNo(res) != 0)
             {

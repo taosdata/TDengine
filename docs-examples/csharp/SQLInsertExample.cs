@@ -5,7 +5,7 @@ namespace TDengineExample
 {
     internal class SQLInsertExample
     {
- 
+
         static void Main()
         {
             IntPtr conn = GetConnection();
@@ -26,7 +26,8 @@ namespace TDengineExample
             ExitProgram(conn, 0);
         }
 
-        static IntPtr GetConnection() {
+        static IntPtr GetConnection()
+        {
             string host = "localhost";
             short port = 6030;
             string username = "root";
@@ -45,10 +46,11 @@ namespace TDengineExample
             return conn;
         }
 
-        static void CheckRes(IntPtr conn, IntPtr res, String errorMsg) {
+        static void CheckRes(IntPtr conn, IntPtr res, String errorMsg)
+        {
             if (TDengine.ErrorNo(res) != 0)
             {
-                Console.Write(errorMsg  + " since: " + TDengine.Error(res));
+                Console.Write(errorMsg + " since: " + TDengine.Error(res));
                 ExitProgram(conn, 1);
             }
         }

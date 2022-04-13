@@ -4,7 +4,8 @@ namespace TDengineExample
 {
     internal class InfluxDBLineExample
     {
-        static void Main() {
+        static void Main()
+        {
             IntPtr conn = GetConnection();
             PrepareDatabase(conn);
             string[] lines = {
@@ -52,7 +53,8 @@ namespace TDengineExample
         static void PrepareDatabase(IntPtr conn)
         {
             IntPtr res = TDengine.Query(conn, "CREATE DATABASE test");
-            if (TDengine.ErrorNo(res) != 0) {
+            if (TDengine.ErrorNo(res) != 0)
+            {
                 Console.WriteLine("failed to create database, reason: " + TDengine.Error(res));
                 ExitProgram(conn, 1);
             }

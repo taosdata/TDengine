@@ -12,7 +12,8 @@ namespace TDengineExample
             PrepareSTable();
             // 1. init and prepare
             stmt = TDengine.StmtInit(conn);
-            if (stmt == IntPtr.Zero) {
+            if (stmt == IntPtr.Zero)
+            {
                 Console.WriteLine("failed to init stmt, " + TDengine.Error(stmt));
                 ExitProgram();
             }
@@ -20,7 +21,7 @@ namespace TDengineExample
             CheckStmtRes(res, "failed to prepare stmt");
 
             // 2. bind table name and tags
-            TAOS_BIND[] tags =  new TAOS_BIND[2] {TaosBind.BindBinary("Beijing.Chaoyang"), TaosBind.BindInt(2) };
+            TAOS_BIND[] tags = new TAOS_BIND[2] { TaosBind.BindBinary("Beijing.Chaoyang"), TaosBind.BindInt(2) };
             res = TDengine.StmtSetTbnameTags(stmt, "d1001", tags);
             CheckStmtRes(res, "failed to bind table name and tags");
 
@@ -37,7 +38,7 @@ namespace TDengineExample
             // 4. add batch
             res = TDengine.StmtAddBatch(stmt);
             CheckStmtRes(res, "failed to add batch");
-            
+
             // 5. execute
             res = TDengine.StmtExecute(stmt);
             CheckStmtRes(res, "faild to execute");
@@ -69,9 +70,10 @@ namespace TDengineExample
             return conn;
         }
 
-   
 
-        static void PrepareSTable() {
+
+        static void PrepareSTable()
+        {
             IntPtr res = TDengine.Query(conn, "CREATE DATABASE power");
             CheckResPtr(res, "failed to create database");
             res = TDengine.Query(conn, "USE power");
@@ -86,7 +88,8 @@ namespace TDengineExample
             {
                 Console.WriteLine(errorMsg + ", " + TDengine.StmtErrorStr(stmt));
                 int code = TDengine.StmtClose(stmt);
-                if (code != 0) {
+                if (code != 0)
+                {
                     Console.WriteLine($"falied to close stmt, {code} reason: {TDengine.StmtErrorStr(stmt)} ");
                 }
                 ExitProgram();
