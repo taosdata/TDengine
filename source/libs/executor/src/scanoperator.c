@@ -548,7 +548,7 @@ EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
       char*       dbName = nodesGetValueFromNode(node);
       strncpy(pContext, varDataVal(dbName), varDataLen(dbName));
       *((char*)pContext + varDataLen(dbName)) = 0;
-      return DEAL_RES_ERROR;  // stop walk
+      return DEAL_RES_END;  // stop walk
     }
     default:
       break;
