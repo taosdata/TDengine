@@ -33,7 +33,7 @@ npm run example
 # npm run test 
 
 # test published npm package td2.0-rest-connecto
-cd ${WKC}/examples/TypeScript-REST
+cd ${WKC}/tests/examples/TypeScript-REST
 npm install 
 npm run test
 
