@@ -17,8 +17,8 @@ stopProcess taosd
 rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
 
-nohup taosd -c ${taosdConfig} > /dev/null 2>&1 &
-nohup taosadapter -c ${adapterConfig} > /dev/null 2>&1 &
+nohup taosd > /dev/null 2>&1 &
+nohup taosadapter > /dev/null 2>&1 &
 sleep 10
 
 # echo `pwd`
@@ -27,9 +27,14 @@ WKC=`pwd`
 echo ${WKC}
 cd ${WKC}/src/connector/TypeScript-REST
 
+# test source code 
 npm install
 npm run example 
 # npm run test 
 
+# test published npm package td2.0-rest-connecto
+cd ${WKC}/tests/examples/TypeScript-REST
+npm install 
+npm run test
 
 

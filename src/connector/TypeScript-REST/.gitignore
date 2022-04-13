@@ -4,3 +4,4 @@ dist/module
 dist/types.d.ts
 node_modules/
 tsc/
+.parcel-cache/

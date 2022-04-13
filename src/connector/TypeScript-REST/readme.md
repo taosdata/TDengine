@@ -4,12 +4,16 @@ This is a TDengine's RESTful connector in TypeScript. It's depend on [node-fetch
 # Usage 
 
 ```TypeScript
-import { options, connect } from '../tdengine_rest'
+import { options, connect } from 'td2.0-rest-connector'
 options.path='/rest/sqlt';
+// set host
+options.host='localhost';
+// set other options like user/passwd
+
 let conn = connect(options);
 let cursor = conn.cursor();
 (async()=>{
-    let result = cursor.execute("show database");
+    let result = await cursor.query('show databases');
     // print query result as taos shell
     result.toString();
     // Get Result object, return Result object.
