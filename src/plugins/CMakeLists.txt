@@ -95,7 +95,3 @@ ELSE ()
       MESSAGE("${Yellow} Windows system still use original embedded httpd ${ColourReset}")
   ENDIF ()
 ENDIF ()
-
-IF (TD_LINUX AND TD_MQTT)
-  ADD_SUBDIRECTORY(mqtt)
-ENDIF ()

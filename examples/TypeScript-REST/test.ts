@@ -1,4 +1,4 @@
-import { options, connect } from '../tdengine_rest'
+import { options, connect } from 'td2.0-rest-connector'
 options.path = '/rest/sqlt'
 options.host = 'localhost'
 
@@ -18,7 +18,7 @@ const errorSql = 'show database';
 let conn = connect(options);
 let cursor = conn.cursor();
 
-async function execute(sql: string, pure = false) {
+async function execute(sql:string, pure = false) {
     let result = await cursor.query(sql, pure);
     // print query result as taos shell
     result.toString();
@@ -55,8 +55,3 @@ async function execute(sql: string, pure = false) {
     let end = new Date().getTime(); // 结束时间
     console.log("total spend time:%d ms",end - start);
 })()
-
-
-
-
-

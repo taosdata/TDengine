@@ -52,6 +52,6 @@ try {
   prepareSTable();
   insertData();
 } finally {
-  // cursor.close(); // bug here, jira: 14505
+  cursor.close();
   conn.close();
 }

@@ -605,36 +605,36 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 - INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 group by tbname 一起使用，当作用嵌套查询外层时内层子查询不能含 GROUP BY 信息。
 - INTERP 的插值结果不受 ORDER BY timestamp 的影响，ORDER BY timestamp 只影响输出结果的排序。
 
-**SQL示例**：
+**SQL示例（基于文档中广泛使用的电表 schema )**：
 
 - 单点线性插值
 
 ```
- taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:40:00'，'2017-7-14 18:40:00') FILL(LINEAR);
+ taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:40:00','2017-7-14 18:40:00') FILL(LINEAR);
 ```
 
 - 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行取值(不插值)
 
 ```
- taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s);
+ taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s);
 ```
 
 - 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
 
 ```
-  taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+  taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
 ```
 
 - 在所有时间范围内每隔 5 秒钟进行向后插值
 
 ```
-  taos> SELECT INTERP(*) FROM t1 EVERY(5s) FILL(NEXT);
+  taos> SELECT INTERP(current) FROM t1 EVERY(5s) FILL(NEXT);
 ```
 
 - 根据 2017-07-14 17:00:00 到 2017-07-14 20:00:00 间的数据进行从 2017-07-14 18:00:00 到 2017-07-14 19:00:00 间每隔 5 秒钟进行线性插值
 
 ```
-  taos> SELECT INTERP(*) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+  taos> SELECT INTERP(current) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
 ```
 
 ### INTERP [2.3.1 之前的版本]
