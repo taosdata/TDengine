@@ -198,6 +198,8 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
+    ${csudo} rm -f ${lib_link_dir}/libtdb.*         || :
+    ${csudo} rm -f ${lib64_link_dir}/libtdb.*       || :
 
     ${csudo} cp -rf ${script_dir}/lib/* ${install_main_dir}/lib && ${csudo} chmod 777 ${install_main_dir}/lib/*
 
