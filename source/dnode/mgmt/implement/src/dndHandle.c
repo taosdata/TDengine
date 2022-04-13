@@ -16,66 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dndImp.h"
 
-void dmSendStatusReq(SDnodeData *pMgmt) {
-  SDnode    *pDnode = pMgmt->pDnode;
-  SStatusReq req = {0};
-
-  taosRLockLatch(&pMgmt->latch);
-  req.sver = tsVersion;
-  req.dnodeVer = pMgmt->dnodeVer;
-  req.dnodeId = pDnode->data.dnodeId;
-  req.clusterId = pDnode->data.clusterId;
-  req.rebootTime = pDnode->data.rebootTime;
-  req.updateTime = pMgmt->updateTime;
-  req.numOfCores = tsNumOfCores;
-  req.numOfSupportVnodes = pDnode->data.supportVnodes;
-  tstrncpy(req.dnodeEp, pDnode->data.localEp, TSDB_EP_LEN);
-
-  req.clusterCfg.statusInterval = tsStatusInterval;
-  req.clusterCfg.checkTime = 0;
-  char timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
-  memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  taosRUnLockLatch(&pMgmt->latch);
-
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL) {
-    SMonVloadInfo info = {0};
-    dmGetVnodeLoads(pWrapper, &info);
-    req.pVloads = info.pVloads;
-    dndReleaseWrapper(pWrapper);
-  }
-
-  int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void   *pHead = rpcMallocCont(contLen);
-  tSerializeSStatusReq(pHead, contLen, &req);
-  taosArrayDestroy(req.pVloads);
-
-  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)0x9527};
-  pMgmt->statusSent = 1;
-
-  dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
-  dndSendMsgToMnode(pDnode, &rpcMsg);
-}
-
-static void dmUpdateDnodeCfg(SDnodeData *pMgmt, SDnodeCfg *pCfg) {
+static int32_t dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
   SDnode *pDnode = pMgmt->pDnode;
-
-  if (pDnode->data.dnodeId == 0) {
-    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
-    taosWLockLatch(&pMgmt->latch);
-    pDnode->data.dnodeId = pCfg->dnodeId;
-    pDnode->data.clusterId = pCfg->clusterId;
-    dmWriteFile(pMgmt);
-    taosWUnLockLatch(&pMgmt->latch);
-  }
-}
-
-int32_t dmProcessStatusRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pMgmt->pDnode;
-  SRpcMsg *pRsp = &pMsg->rpcMsg;
 
   if (pRsp->code != TSDB_CODE_SUCCESS) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pDnode->data.dropped && pDnode->data.dnodeId > 0) {
@@ -94,8 +36,64 @@ int32_t dmProcessStatusRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
     tFreeSStatusRsp(&statusRsp);
   }
 
-  pMgmt->statusSent = 0;
   return TSDB_CODE_SUCCESS;
+}
+
+void dmSendStatusReq(SDnode *pDnode) {
+  SStatusReq req = {0};
+
+  taosRLockLatch(&pDnode->data.latch);
+  req.sver = tsVersion;
+  req.dnodeVer = pMgmt->dnodeVer;
+  req.dnodeId = pDnode->data.dnodeId;
+  req.clusterId = pDnode->data.clusterId;
+  req.rebootTime = pDnode->data.rebootTime;
+  req.updateTime = pMgmt->updateTime;
+  req.numOfCores = tsNumOfCores;
+  req.numOfSupportVnodes = pDnode->data.supportVnodes;
+  tstrncpy(req.dnodeEp, pDnode->data.localEp, TSDB_EP_LEN);
+
+  req.clusterCfg.statusInterval = tsStatusInterval;
+  req.clusterCfg.checkTime = 0;
+  char timestr[32] = "1970-01-01 00:00:00.00";
+  (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
+  taosRUnLockLatch(&pDnode->data.latch);
+
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODE);
+  if (pWrapper != NULL) {
+    SMonVloadInfo info = {0};
+    dmGetVnodeLoads(pWrapper, &info);
+    req.pVloads = info.pVloads;
+    dndReleaseWrapper(pWrapper);
+  }
+
+  int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  tSerializeSStatusReq(pHead, contLen, &req);
+  taosArrayDestroy(req.pVloads);
+
+  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)0x9527};
+  SRpcMsg rspMsg = {0};
+  
+  dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
+  dmSendToMnodeRecv(pDnode, rpcMsg, &rpcRsp);
+  dmProcessStatusRsp(pDnode, &rpcRsp);
+}
+
+static void dmUpdateDnodeCfg(SDnodeData *pMgmt, SDnodeCfg *pCfg) {
+  SDnode *pDnode = pMgmt->pDnode;
+
+  if (pDnode->data.dnodeId == 0) {
+    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
+    taosWLockLatch(&pDnode->data.latch);
+    pDnode->data.dnodeId = pCfg->dnodeId;
+    pDnode->data.clusterId = pCfg->clusterId;
+    dmWriteFile(pMgmt);
+    taosWUnLockLatch(&pDnode->data.latch);
+  }
 }
 
 int32_t dmProcessAuthRsp(SDnodeData *pMgmt, SNodeMsg *pMsg) {
@@ -194,7 +192,7 @@ int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg) {
   }
 }
 
-void dmInitMsgHandle(SMgmtWrapper *pWrapper) {
+static void dmSetMsgHandle(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
@@ -205,10 +203,84 @@ void dmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dmProcessMgmtMsg, DEFAULT_HANDLE);
-  dndSetMsgHandle(pWrapper, TDMT_DND_NETWORK_TEST, dmProcessMgmtMsg, DEFAULT_HANDLE);
 
   // Requests handled by MNODE
-  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessMonitorMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
   dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg, DEFAULT_HANDLE);
+}
+
+static int32_t dmStart(SMgmtWrapper *pWrapper) { return dmStartStatusThread(pWrapper->pDnode); }
+
+static void dmStop(SMgmtWrapper *pWrapper) { dmStopThread(pWrapper->pDnode); }
+
+static int32_t dmInit(SMgmtWrapper *pWrapper) {
+  dInfo("dnode-data start to init");
+  SDnode *pDnode = pWrapper->pDnode;
+
+  pDnode->data.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pDnode->data.dnodeHash == NULL) {
+    dError("failed to init dnode hash");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (dmReadFile(pDnode) != 0) {
+    dError("failed to read file since %s", terrstr());
+    return -1;
+  }
+
+  if (pDnode->data.dropped) {
+    dError("dnode will not start since its already dropped");
+    return -1;
+  }
+
+  if (dmStartWorker(pDnode) != 0) {
+    return -1;
+  }
+
+  if (dmInitTrans(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
+    return -1;
+  }
+
+  dInfo("dnode-data is initialized");
+  return 0;
+}
+
+static void dmCleanup(SMgmtWrapper *pWrapper) {
+  dInfo("dnode-data start to clean up");
+  SDnode *pDnode = pWrapper->pDnode;
+  dmStopWorker(pDnode);
+
+  taosWLockLatch(&pDnode->data.latch);
+  if (pMgmt->dnodeEps != NULL) {
+    taosArrayDestroy(pMgmt->dnodeEps);
+    pMgmt->dnodeEps = NULL;
+  }
+  if (pMgmt->dnodeHash != NULL) {
+    taosHashCleanup(pMgmt->dnodeHash);
+    pMgmt->dnodeHash = NULL;
+  }
+  taosWUnLockLatch(&pDnode->data.latch);
+
+  dndCleanupTrans(pDnode);
+  dInfo("dnode-data is cleaned up");
+}
+
+static int32_t dmRequire(SMgmtWrapper *pWrapper, bool *required) {
+  *required = true;
+  return 0;
+}
+
+void dmSetMgmtFp(SMgmtWrapper *pWrapper) {
+  SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = dmInit;
+  mgmtFp.closeFp = dmCleanup;
+  mgmtFp.startFp = dmStart;
+  mgmtFp.stopFp = dmStop;
+  mgmtFp.requiredFp = dmRequire;
+
+  dmSetMsgHandle(pWrapper);
+  pWrapper->name = "dnode";
+  pWrapper->fp = mgmtFp;
 }

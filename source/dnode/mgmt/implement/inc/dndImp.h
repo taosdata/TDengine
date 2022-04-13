@@ -26,12 +26,13 @@ int32_t dndOpenNode(SMgmtWrapper *pWrapper);
 void    dndCloseNode(SMgmtWrapper *pWrapper);
 
 // dndTransport.c
-int32_t  dndInitTrans(SDnode *pDnode);
+int32_t  dmInitTrans(SDnode *pDnode);
 void     dndCleanupTrans(SDnode *pDnode);
 SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper);
 int32_t  dndInitMsgHandle(SDnode *pDnode);
-void     dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pReq);
+int32_t  dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pReq);
 void     dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+void     dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp);
 
 // mgmt
 void dmSetMgmtFp(SMgmtWrapper *pWrapper);
@@ -54,12 +55,11 @@ int32_t dmWriteFile(SDnodeData *pMgmt);
 void    dmUpdateDnodeEps(SDnodeData *pMgmt, SArray *pDnodeEps);
 
 // dmHandle.c
-void    dmInitMsgHandle(SMgmtWrapper *pWrapper);
-void    dmSendStatusReq(SDnodeData *pMgmt);
-int32_t dmProcessConfigReq(SDnodeData *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessStatusRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessAuthRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessGrantRsp(SDnodeData *pMgmt, SNodeMsg *pMsg);
+void    dmSendStatusReq(SDnode *pDnode);
+int32_t dmProcessConfigReq(SDnode *pDnode, SNodeMsg *pMsg);
+int32_t dmProcessStatusRsp(SDnode *pDnode, SNodeMsg *pMsg);
+int32_t dmProcessAuthRsp(SDnode *pDnode, SNodeMsg *pMsg);
+int32_t dmProcessGrantRsp(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dmProcessCDnodeReq(SDnode *pDnode, SNodeMsg *pMsg);
 
 // dmMonitor.c
@@ -67,11 +67,15 @@ void dmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
-int32_t dmStartThread(SDnodeData *pMgmt);
-int32_t dmStartWorker(SDnodeData *pMgmt);
-void    dmStopWorker(SDnodeData *pMgmt);
+int32_t dmStartStatusThread(SDnode *pDnode);
+void    dmStopStatusThread(SDnode *pDnode);
+int32_t dmStartMonitorThread(SDnode *pDnode);
+void    dmStopMonitorThread(SDnode *pDnode);
+
+int32_t dmStartWorker(SDnode *pDnode);
+void    dmStopWorker(SDnode *pDnode);
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t dmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

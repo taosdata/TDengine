@@ -247,13 +247,13 @@ void dndSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
   rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
 }
 
-void dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pReq) {
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
-  dndSendRpcReq(pDnode, &epSet, pReq);
+  return dndSendRpcReq(pDnode, &epSet, pReq);
 }
 
-static inline void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
+void dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
   rpcSendRecv(pDnode->trans.clientRpc, &epSet, pReq, pRsp);
@@ -453,7 +453,7 @@ static inline int32_t dndRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
   SRpcMsg rpcRsp = {0};
   dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
-  dndSendMsgToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
+  dmSendToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     terrno = rpcRsp.code;
@@ -506,7 +506,7 @@ static void dndCleanupServer(SDnode *pDnode) {
   }
 }
 
-int32_t dndInitTrans(SDnode *pDnode) {
+int32_t dmInitTrans(SDnode *pDnode) {
   if (dndInitServer(pDnode) != 0) return -1;
   if (dndInitClient(pDnode) != 0) return -1;
 

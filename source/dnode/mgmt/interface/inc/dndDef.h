@@ -110,29 +110,26 @@ typedef struct {
   int64_t       updateTime;
   int64_t       rebootTime;
   bool          dropped;
-  int8_t        statusSent;
   SEpSet        mnodeEpSet;
   SHashObj     *dnodeHash;
   SArray       *dnodeEps;
-  TdThread     *threadId;
+  TdThread     *statusThreadId;
+  TdThread     *monitorThreadId;
   SRWLatch      latch;
   SSingleWorker mgmtWorker;
-  SSingleWorker monitorWorker;
   SMsgCb        msgCb;
   SDnode       *pDnode;
   const char   *path;
   TdFilePtr     lockfile;
-  struct {
-    char     *localEp;
-    char     *localFqdn;
-    char     *firstEp;
-    char     *secondEp;
-    char     *dataDir;
-    SDiskCfg *disks;
-    int32_t   numOfDisks;
-    int32_t   supportVnodes;
-    uint16_t  serverPort;
-  };
+  char         *localEp;
+  char         *localFqdn;
+  char         *firstEp;
+  char         *secondEp;
+  char         *dataDir;
+  SDiskCfg     *disks;
+  int32_t       numOfDisks;
+  int32_t       supportVnodes;
+  uint16_t      serverPort;
 } SDnodeData;
 
 typedef struct SDnode {

@@ -19,7 +19,7 @@
 static int32_t bmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
 static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
-  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
+  SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
   pOption->msgCb = msgCb;
 }
 

@@ -128,7 +128,7 @@ static void *vmOpenVnodeFunc(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
+    SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
     msgCb.pWrapper = pMgmt->pWrapper;
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;

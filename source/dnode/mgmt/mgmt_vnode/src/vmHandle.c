@@ -143,7 +143,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  SMsgCb msgCb = dndCreateMsgcb(pMgmt->pWrapper);
+  SMsgCb msgCb = dmGetMsgcb(pMgmt->pWrapper);
   msgCb.pWrapper = pMgmt->pWrapper;
   msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;

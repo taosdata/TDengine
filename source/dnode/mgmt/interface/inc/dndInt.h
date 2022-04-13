@@ -37,7 +37,7 @@ void          dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp 
 void          dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void          dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 void          dndGetMonitorSysInfo(SMonSysInfo *pInfo);
-SMsgCb        dndCreateMsgcb(SMgmtWrapper *pWrapper);
+SMsgCb        dmGetMsgcb(SMgmtWrapper *pWrapper);
 
 // dndFile.c
 int32_t   dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);

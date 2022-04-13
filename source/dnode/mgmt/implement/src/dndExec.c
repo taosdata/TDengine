@@ -299,7 +299,7 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
     return -1;
   }
 
-  SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+  SMsgCb msgCb = dmGetMsgcb(pWrapper);
   tmsgSetDefaultMsgCb(&msgCb);
   pWrapper->procType = DND_PROC_CHILD;
 

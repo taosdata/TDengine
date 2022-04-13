@@ -174,7 +174,7 @@ void dndGetMonitorSysInfo(SMonSysInfo *pInfo) {
   taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 }
 
-SMsgCb dndCreateMsgcb(SMgmtWrapper *pWrapper) {
+SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = pWrapper->pDnode->data.msgCb;
   msgCb.pWrapper = pWrapper;
   return msgCb;
