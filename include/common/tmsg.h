@@ -485,7 +485,7 @@ typedef struct {
   char    intervalUnit;
   char    slidingUnit;
   char
-          offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -2021,6 +2021,7 @@ typedef struct {
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);
+  tlen += taosEncodeFixedI8(buf, pSchema->index);
   tlen += taosEncodeFixedI32(buf, pSchema->bytes);
   tlen += taosEncodeFixedI16(buf, pSchema->colId);
   tlen += taosEncodeString(buf, pSchema->name);
@@ -2029,6 +2030,7 @@ static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema
 
 static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
   buf = taosDecodeFixedI8(buf, &pSchema->type);
+  buf = taosDecodeFixedI8(buf, &pSchema->index);
   buf = taosDecodeFixedI32(buf, &pSchema->bytes);
   buf = taosDecodeFixedI16(buf, &pSchema->colId);
   buf = taosDecodeStringTo(buf, pSchema->name);
@@ -2037,6 +2039,7 @@ static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
 
 static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
   if (tEncodeI8(pEncoder, pSchema->type) < 0) return -1;
+  if (tEncodeI8(pEncoder, pSchema->index) < 0) return -1;
   if (tEncodeI32(pEncoder, pSchema->bytes) < 0) return -1;
   if (tEncodeI16(pEncoder, pSchema->colId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pSchema->name) < 0) return -1;
@@ -2045,6 +2048,7 @@ static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSch
 
 static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
   if (tDecodeI8(pDecoder, &pSchema->type) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pSchema->index) < 0) return -1;
   if (tDecodeI32(pDecoder, &pSchema->bytes) < 0) return -1;
   if (tDecodeI16(pDecoder, &pSchema->colId) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;
@@ -2384,6 +2388,53 @@ typedef struct {
   SSchemaWrapper* schema;
   SArray*         pBlockData;  // SArray<SSDataBlock>
 } SMqPollRsp;
+
+typedef struct {
+  SMqRspHead head;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  int32_t    dataLen;
+  SArray*    blockPos;   // beginning pos for each SRetrieveTableRsp
+  void*      blockData;  // serialized batched SRetrieveTableRsp
+} SMqPollRspV2;
+
+static FORCE_INLINE int32_t tEncodeSMqPollRspV2(void** buf, const SMqPollRspV2* pRsp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
+  tlen += taosEncodeFixedI32(buf, pRsp->dataLen);
+  if (pRsp->dataLen != 0) {
+    int32_t sz = taosArrayGetSize(pRsp->blockPos);
+    tlen += taosEncodeFixedI32(buf, sz);
+    for (int32_t i = 0; i < sz; i++) {
+      int32_t blockPos = *(int32_t*)taosArrayGet(pRsp->blockPos, i);
+      tlen += taosEncodeFixedI32(buf, blockPos);
+    }
+    tlen += taosEncodeBinary(buf, pRsp->blockData, pRsp->dataLen);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqPollRspV2(const void* buf, SMqPollRspV2* pRsp) {
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
+  buf = taosDecodeFixedI32(buf, &pRsp->dataLen);
+  if (pRsp->dataLen != 0) {
+    int32_t sz;
+    buf = taosDecodeFixedI32(buf, &sz);
+    pRsp->blockPos = taosArrayInit(sz, sizeof(int32_t));
+    for (int32_t i = 0; i < sz; i++) {
+      int32_t blockPos;
+      buf = taosDecodeFixedI32(buf, &blockPos);
+      taosArrayPush(pRsp->blockPos, &blockPos);
+    }
+    buf = taosDecodeBinary(buf, &pRsp->blockData, pRsp->dataLen);
+  }
+  return (void*)buf;
+}
 
 typedef struct {
   SMqRspHead head;

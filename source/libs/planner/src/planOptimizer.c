@@ -147,8 +147,80 @@ static int32_t osdOptimize(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   return code;
 }
 
+static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdPartitionCondition(SJoinLogicNode* pJoin, SNodeList** pMultiTableCond, SNodeList** pSingleTableCond) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdPushJoinCondToOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNodeList* pMultiTableCond) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdPushJoinCondToChildren(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNodeList* pSingleTableCond) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdPushJoinCondition(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (NULL != pJoin->node.pConditions) {
+    SNodeList* pMultiTableCond = NULL;
+    SNodeList* pSingleTableCond = NULL;
+    int32_t code = cpdPartitionCondition(pJoin, &pMultiTableCond, &pSingleTableCond);
+    if (TSDB_CODE_SUCCESS == code && NULL != pMultiTableCond) {
+      code = cpdPushJoinCondToOnCond(pCxt, pJoin, pMultiTableCond);
+    }
+    if (TSDB_CODE_SUCCESS == code && NULL != pSingleTableCond) {
+      code = cpdPushJoinCondToChildren(pCxt, pJoin, pSingleTableCond);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdPushAggCondition(SOptimizeContext* pCxt, SAggLogicNode* pAgg) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdPushCondition(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pLogicNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      code = cpdOptimizeScanCondition(pCxt, (SScanLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      code = cpdPushJoinCondition(pCxt, (SJoinLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      code = cpdPushAggCondition(pCxt, (SAggLogicNode*)pLogicNode);
+      break;
+    default:
+      break;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pLogicNode->pChildren) {
+      code = cpdPushCondition(pCxt, (SLogicNode*)pChild);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+  return code;
+}
+
+static int32_t cpdOptimize(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
+  return cpdPushCondition(pCxt, pLogicNode);
+}
+
 static const SOptimizeRule optimizeRuleSet[] = {
-  { .pName = "OptimizeScanData", .optimizeFunc = osdOptimize }
+  { .pName = "OptimizeScanData", .optimizeFunc = osdOptimize },
+  { .pName = "ConditionPushDown", .optimizeFunc = cpdOptimize }
 };
 
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));

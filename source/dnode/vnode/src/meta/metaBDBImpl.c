@@ -667,7 +667,7 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   return pTbCfg;
 }
 
-STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
+void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
   STSma *  pCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
@@ -920,7 +920,7 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   return pCur;
 }
 
-void metaCloseSmaCurosr(SMSmaCursor *pCur) {
+void metaCloseSmaCursor(SMSmaCursor *pCur) {
   if (pCur) {
     if (pCur->pCur) {
       pCur->pCur->close(pCur->pCur);
@@ -930,7 +930,8 @@ void metaCloseSmaCurosr(SMSmaCursor *pCur) {
   }
 }
 
-const char *metaSmaCursorNext(SMSmaCursor *pCur) {
+int64_t metaSmaCursorNext(SMSmaCursor *pCur) {
+#if 0
   DBT skey = {0};
   DBT pkey = {0};
   DBT pval = {0};
@@ -946,6 +947,8 @@ const char *metaSmaCursorNext(SMSmaCursor *pCur) {
   } else {
     return NULL;
   }
+#endif
+  return 0;
 }
 
 STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
@@ -972,7 +975,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       ++pSW->number;
       STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
-        metaCloseSmaCurosr(pCur);
+        metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
@@ -980,7 +983,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       pSW->tSma = tptr;
       pBuf = pval.data;
       if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
-        metaCloseSmaCurosr(pCur);
+        metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
@@ -990,8 +993,8 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
     break;
   }
 
-  metaCloseSmaCurosr(pCur);
-  
+  metaCloseSmaCursor(pCur);
+
   return pSW;
 }
 
@@ -1004,7 +1007,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   int      ret;
 
   // TODO: lock?
-  ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &pCur, 0);
+  ret = pDB->pSmaIdx->cursor(pDB->pSmaIdx, NULL, &pCur, 0);
   if (ret != 0) {
     return NULL;
   }

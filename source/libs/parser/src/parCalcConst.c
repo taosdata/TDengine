@@ -143,7 +143,7 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
     if (TSDB_CODE_SUCCESS == pCxt->code) {
       pCxt->code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
     }
-    if (TSDB_CODE_SUCCESS == pCxt->code) {
+    if (TSDB_CODE_SUCCESS == pCxt->code && NULL != pJoin->pOnCond) {
       pCxt->code = rewriteCondition(pCxt, &pJoin->pOnCond);
     }
   }

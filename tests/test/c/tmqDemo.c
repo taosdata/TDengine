@@ -195,7 +195,7 @@ void parseArgument(int32_t argc, char *argv[]) {
 }
 
 static int  running = 1;
-static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
+/*static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }*/
 
 // calc dir size (not include itself 4096Byte)
 int64_t getDirectorySize(char *dir)
@@ -363,9 +363,9 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
-      msg_process(tmqmessage);
+      /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
 
       if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
@@ -392,12 +392,12 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
   int32_t skipLogNum = 0;
   int64_t startTime = taosGetTimestampUs();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 3000);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 3000);
     if (tmqmessage) {
       batchCnt++;
-      skipLogNum += tmqGetSkipLogNum(tmqmessage);
+      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
 	  if (0 != g_stConfInfo.showMsgFlag) {
-        msg_process(tmqmessage);
+        /*msg_process(tmqmessage);*/
 	  }
       tmq_message_destroy(tmqmessage);
     } else {

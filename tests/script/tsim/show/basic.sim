@@ -28,8 +28,8 @@ sql connect
 
 # select */column from information_schema.xxxx; xxxx include:
 # dnodes, mnodes, modules, qnodes, 
-# user_databases, user_functions, user_indexes, user_stables, user_streams, 
-# user_tables, user_table_distributed, user_users, vgroups, 
+# user_databases, user_functions, user_indexes, user_stables, user_streams,
+# user_tables, user_table_distributed, user_users, vgroups,
 
 print =============== add dnode2 into cluster
 sql create dnode $hostname port 7200
