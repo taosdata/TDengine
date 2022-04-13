@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 #include "tconfig.h"
+#include "tgrant.h"
 
 static struct {
   bool         dumpConfig;
@@ -89,10 +90,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   return 0;
 }
 
-static void dmGenerateGrant() {
-  // grantParseParameter();
-  printf("this feature is not implemented yet\n");
-}
+static void dmGenerateGrant() { grantParseParameter(); }
 
 static void dmPrintVersion() {
 #ifdef TD_ENTERPRISE

@@ -25,18 +25,18 @@ typedef struct SPoolMem {
 static SPoolMem *openPool();
 static void      clearPool(SPoolMem *pPool);
 static void      closePool(SPoolMem *pPool);
-static void     *poolMalloc(void *arg, size_t size);
+static void *    poolMalloc(void *arg, size_t size);
 static void      poolFree(void *arg, void *ptr);
 
 struct SMetaDB {
   TXN       txn;
-  TENV     *pEnv;
-  TDB      *pTbDB;
-  TDB      *pSchemaDB;
-  TDB      *pNameIdx;
-  TDB      *pStbIdx;
-  TDB      *pNtbIdx;
-  TDB      *pCtbIdx;
+  TENV *    pEnv;
+  TDB *     pTbDB;
+  TDB *     pSchemaDB;
+  TDB *     pNameIdx;
+  TDB *     pStbIdx;
+  TDB *     pNtbIdx;
+  TDB *     pCtbIdx;
   SPoolMem *pPool;
 };
 
@@ -46,7 +46,7 @@ typedef struct __attribute__((__packed__)) {
 } SSchemaDbKey;
 
 typedef struct {
-  char    *name;
+  char *   name;
   tb_uid_t uid;
 } SNameIdxKey;
 
@@ -205,14 +205,14 @@ void metaCloseDB(SMeta *pMeta) {
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   tb_uid_t       uid;
-  SMetaDB       *pMetaDb;
-  void          *pKey;
-  void          *pVal;
+  SMetaDB *      pMetaDb;
+  void *         pKey;
+  void *         pVal;
   int            kLen;
   int            vLen;
   int            ret;
   char           buf[512];
-  void          *pBuf;
+  void *         pBuf;
   SCtbIdxKey     ctbIdxKey;
   SSchemaDbKey   schemaDbKey;
   SSchemaWrapper schemaWrapper;
@@ -329,11 +329,11 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
 STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
   int      ret;
   SMetaDB *pMetaDb = pMeta->pDB;
-  void    *pKey;
-  void    *pVal;
+  void *   pKey;
+  void *   pVal;
   int      kLen;
   int      vLen;
-  STbCfg  *pTbCfg;
+  STbCfg * pTbCfg;
 
   // Fetch
   pKey = &uid;
@@ -385,14 +385,14 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 }
 
 static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx) {
-  void           *pKey;
-  void           *pVal;
+  void *          pKey;
+  void *          pVal;
   int             kLen;
   int             vLen;
   int             ret;
   SSchemaDbKey    schemaDbKey;
   SSchemaWrapper *pSchemaWrapper;
-  void           *pBuf;
+  void *          pBuf;
 
   // fetch
   schemaDbKey.uid = uid;
@@ -419,9 +419,9 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   tb_uid_t        quid;
   SSchemaWrapper *pSW;
   STSchemaBuilder sb;
-  SSchemaEx      *pSchema;
-  STSchema       *pTSchema;
-  STbCfg         *pTbCfg;
+  SSchemaEx *     pSchema;
+  STSchema *      pTSchema;
+  STbCfg *        pTbCfg;
 
   pTbCfg = metaGetTbInfoByUid(pMeta, uid);
   if (pTbCfg->type == META_CHILD_TABLE) {
@@ -452,7 +452,7 @@ struct SMTbCursor {
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
-  SMetaDB    *pDB = pMeta->pDB;
+  SMetaDB *   pDB = pMeta->pDB;
 
   pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
@@ -474,12 +474,12 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
 }
 
 char *metaTbCursorNext(SMTbCursor *pTbCur) {
-  void  *pKey = NULL;
-  void  *pVal = NULL;
+  void * pKey = NULL;
+  void * pVal = NULL;
   int    kLen;
   int    vLen;
   int    ret;
-  void  *pBuf;
+  void * pBuf;
   STbCfg tbCfg;
 
   for (;;) {
@@ -503,17 +503,17 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
 }
 
 struct SMCtbCursor {
-  TDBC    *pCur;
+  TDBC *   pCur;
   tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
+  void *   pKey;
+  void *   pVal;
   int      kLen;
   int      vLen;
 };
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
-  SMetaDB     *pDB = pMeta->pDB;
+  SMetaDB *    pDB = pMeta->pDB;
   int          ret;
 
   pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
@@ -621,6 +621,7 @@ static int metaEncodeSchema(void **buf, SSchemaWrapper *pSW) {
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     tlen += taosEncodeFixedI8(buf, pSchema->type);
+    tlen += taosEncodeFixedI8(buf, pSchema->index);
     tlen += taosEncodeFixedI16(buf, pSchema->colId);
     tlen += taosEncodeFixedI32(buf, pSchema->bytes);
     tlen += taosEncodeString(buf, pSchema->name);
@@ -637,6 +638,7 @@ static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     buf = taosDecodeFixedI8(buf, &pSchema->type);
+    buf = taosSkipFixedLen(buf, sizeof(int8_t));
     buf = taosDecodeFixedI16(buf, &pSchema->colId);
     buf = taosDecodeFixedI32(buf, &pSchema->bytes);
     buf = taosDecodeStringTo(buf, pSchema->name);
@@ -781,7 +783,7 @@ static void closePool(SPoolMem *pPool) {
 }
 
 static void *poolMalloc(void *arg, size_t size) {
-  void     *ptr = NULL;
+  void *    ptr = NULL;
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 

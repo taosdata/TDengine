@@ -95,7 +95,6 @@ static void dataTypeCopy(const SDataType* pSrc, SDataType* pDst) {
 static void exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   dataTypeCopy(&pSrc->resType, &pDst->resType);
   COPY_CHAR_ARRAY_FIELD(aliasName);
-  // CLONE_NODE_LIST_FIELD(pAssociationList);
 }
 
 static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
@@ -222,15 +221,19 @@ static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
 }
 
 static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
-  COPY_SCALAR_FIELD(scanType);
-  COPY_SCALAR_FIELD(scanFlag);
-  COPY_SCALAR_FIELD(scanRange);
-  COPY_SCALAR_FIELD(tableName);
-  COPY_SCALAR_FIELD(showRewrite);
+  CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
+  return (SNode*)pDst;
+}
+
+static SNode* logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_FIELD(pOnConditions);
   return (SNode*)pDst;
 }
 
@@ -263,15 +266,8 @@ static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNo
 static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
   COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  // COPY_SCALAR_FIELD(winType);
   CLONE_NODE_LIST_FIELD(pFuncs);
-  // COPY_SCALAR_FIELD(interval);
-  // COPY_SCALAR_FIELD(offset);
-  // COPY_SCALAR_FIELD(sliding);
-  // COPY_SCALAR_FIELD(intervalUnit);
-  // COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
-  // COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   return (SNode*)pDst;
 }
@@ -360,6 +356,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return downstreamSourceCopy((const SDownstreamSourceNode*)pNode, (SDownstreamSourceNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      return logicJoinCopy((const SJoinLogicNode*)pNode, (SJoinLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return logicAggCopy((const SAggLogicNode*)pNode, (SAggLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:

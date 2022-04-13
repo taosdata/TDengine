@@ -7,3 +7,11 @@ target_include_directories(
     dnode
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+IF (TD_GRANT)
+  TARGET_LINK_LIBRARIES(dnode grant)
+ENDIF ()
+IF (TD_USB_DONGLE)
+  TARGET_LINK_LIBRARIES(dnode usb_dongle)
+else()
+ENDIF ()

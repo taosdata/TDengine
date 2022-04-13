@@ -257,13 +257,20 @@ SNodeList* addValueNodeFromTypeToList(SAstCreateContext* pCxt, SDataType dataTyp
   char buf[64] = {0};
   //add value node for type
   snprintf(buf, sizeof(buf), "%u", dataType.type);
-  SToken token = {.type = TSDB_DATA_TYPE_TINYINT, .n = strlen(buf), .z = buf};
+  SToken token = {.type = TSDB_DATA_TYPE_SMALLINT, .n = strlen(buf), .z = buf};
   SNode* pNode = createValueNode(pCxt, token.type, &token);
   addNodeToList(pCxt, pList, pNode);
 
   //add value node for bytes
   memset(buf, 0, sizeof(buf));
-  snprintf(buf, sizeof(buf), "%u", dataType.bytes);
+  int32_t bytes;
+  if (IS_VAR_DATA_TYPE(dataType.type)) {
+    bytes = (dataType.type == TSDB_DATA_TYPE_NCHAR) ? dataType.bytes * TSDB_NCHAR_SIZE : dataType.bytes;
+    bytes += VARSTR_HEADER_SIZE;
+  } else {
+    bytes = dataType.bytes;
+  }
+  snprintf(buf, sizeof(buf), "%d", bytes);
   token.type = TSDB_DATA_TYPE_BIGINT;
   token.n = strlen(buf);
   token.z = buf;

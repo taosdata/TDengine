@@ -157,7 +157,7 @@ function install_main_path() {
     ${csudo} mkdir -p ${install_main_dir}/cfg
     ${csudo} mkdir -p ${install_main_dir}/bin
     ${csudo} mkdir -p ${install_main_dir}/connector
-    ${csudo} mkdir -p ${install_main_dir}/driver
+    ${csudo} mkdir -p ${install_main_dir}/lib
     ${csudo} mkdir -p ${install_main_dir}/examples
     ${csudo} mkdir -p ${install_main_dir}/include
     ${csudo} mkdir -p ${install_main_dir}/init.d
@@ -198,6 +198,8 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
+
+    ${csudo} cp -rf ${script_dir}/lib/* ${install_main_dir}/lib && ${csudo} chmod 777 ${install_main_dir}/lib/*
 
     ${csudo} ln -s ${install_main_dir}/lib/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so

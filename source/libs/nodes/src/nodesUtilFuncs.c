@@ -158,6 +158,16 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT: 
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_SCORES_STMT:
+    case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
@@ -692,6 +702,17 @@ int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode) {
     }
   }
   return nodesListAppend(*pList, pNode);
+}
+
+int32_t nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode) {
+  if (NULL == *pList) {
+    *pList = nodesMakeList();
+    if (NULL == *pList) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListStrictAppend(*pList, pNode);
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {

@@ -9,7 +9,7 @@
 # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 #
 ######## ######## ######## ######## ######## ######## ######## ######## ######## ######## 
-######## This test case include scene1 and scene3
+######## This test case include scene2 and scene4
 ######## ######## ######## ######## ######## ######## ######## ######## ######## ######## 
 
 system sh/stop_dnodes.sh
@@ -84,7 +84,7 @@ endi
 
 print =============== create child table
 $tbPrefix = ct
-$tbNum = 2
+$tbNum = 100
 
 $i = 0
 while $i < $tbNum
@@ -113,7 +113,7 @@ sql create topic topic_ntb_all as select * from ntb
 sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb
 
 sql show tables
-if $rows != 3 then 
+if $rows != 101 then 
   return -1
 endi
 
@@ -125,7 +125,7 @@ else
   run_back tsim/tmq/insertDataV4.sim
 endi
 
-sleep 1000
+#sleep 1000
 
 #$rowNum = 1000
 #$tstart = 1640966400000  # 2022-01-01 00:00:00.000
@@ -162,9 +162,9 @@ sleep 1000
 # -g      showMsgFlag, default is 0
 #        
 
-$consumeDelay = 5000
-$expectConsumeMsgCnt = 1000
-print expectConsumeMsgCnt: $expectConsumeMsgCnt, consumeDelay: $consumeDelay
+$consumeDelay = 50
+$consumeMsgCntFromTopic = 1000
+print consumeMsgCntFromTopic: $consumeMsgCntFromTopic , consumeDelay: $consumeDelay
 
 # supported key:
 # group.id:<xxx>
@@ -176,83 +176,50 @@ print expectConsumeMsgCnt: $expectConsumeMsgCnt, consumeDelay: $consumeDelay
 # td.connect.port:6030
 # td.connect.db:db
 
+$numOfTopics = 2
+$expectConsumeMsgCnt = $consumeMsgCntFromTopic * $numOfTopics
 $expect_result = @{consume success: @
 $expect_result = $expect_result . $expectConsumeMsgCnt
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
 print cmd result----> $system_content
-if $system_content >= $expect_result then
+#if $system_content != @{consume success: 20000, 0}@ then
+if $system_content < $expect_result then
   return -1
 endi
 
-#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-#print cmd result----> $system_content
-##if $system_content != @{consume success: 10000, 0}@ then
-#if $system_content != $expect_result then
-#  return -1
-#endi
-
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-print cmd result----> $system_content
-#if $system_content != @{consume success: 10000, 0}@ then
-if $system_content >= $expect_result then
-  return -1
-endi
-
+$numOfTopics = 3
+$expectConsumeMsgCnt = $consumeMsgCntFromTopic * $numOfTopics
 $expect_result = @{consume success: @
-$expect_result = $expect_result . $rowNum
+$expect_result = $expect_result . $expectConsumeMsgCnt
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
 print cmd result----> $system_content
-if $system_content >= $expect_result then
+#if $system_content != @{consume success: 300, 0}@ then
+if $system_content < $expectConsumeMsgCnt then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-print cmd result----> $system_content
-if $system_content >= $expect_result then
-  return -1
-endi
-
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-print cmd result----> $system_content
-if $system_content >= $expect_result then
-  return -1
-endi
-
+$numOfTopics = 3
+$expectConsumeMsgCnt = $consumeMsgCntFromTopic * $numOfTopics
 $expect_result = @{consume success: @
-$expect_result = $expect_result . $totalMsgCnt
+$expect_result = $expect_result . $expectConsumeMsgCnt
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
 print cmd result----> $system_content
-if $system_content >= $expect_result then
-  return -1
-endi
-
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-print cmd result----> $system_content
-if $system_content >= $expect_result then
-  return -1
-endi
-
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-print cmd result----> $system_content
-if $system_content >= $expect_result then
+#if $system_content != @{consume success: 30000, 0}@ then
+if $system_content < $expectConsumeMsgCnt then
   return -1
 endi
 

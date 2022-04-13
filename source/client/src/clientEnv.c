@@ -149,6 +149,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
     return NULL;
   }
 
+  pRequest->resType = RES_TYPE__QUERY;
   pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
