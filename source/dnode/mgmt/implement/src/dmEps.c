@@ -57,7 +57,7 @@ int32_t dmReadEps(SDnode *pDnode) {
   snprintf(file, sizeof(file), "%s%sdnode.json", pDnode->data.path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    dDebug("file %s not exist", file);
+    // dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_DNODE_OVER;
   }

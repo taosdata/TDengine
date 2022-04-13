@@ -29,7 +29,7 @@ int32_t dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    dDebug("file %s not exist", file);
+    // dDebug("file %s not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -150,7 +150,7 @@ int32_t dmReadShmFile(SMgmtWrapper *pWrapper) {
   snprintf(file, sizeof(file), "%s%sshmfile", pWrapper->path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    dDebug("node:%s, file %s not exist", pWrapper->name, file);
+    // dDebug("node:%s, file %s not exist", pWrapper->name, file);
     code = 0;
     goto _OVER;
   }

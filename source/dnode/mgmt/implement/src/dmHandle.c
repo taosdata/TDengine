@@ -199,7 +199,7 @@ static void dmStopMgmt(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
-  dInfo("dnode-data start to init");
+  dInfo("dnode-mgmt start to init");
   SDnode *pDnode = pWrapper->pDnode;
 
   pDnode->data.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -228,12 +228,12 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  dInfo("dnode-data is initialized");
+  dInfo("dnode-mgmt is initialized");
   return 0;
 }
 
 static void dmCleanupMgmt(SMgmtWrapper *pWrapper) {
-  dInfo("dnode-data start to clean up");
+  dInfo("dnode-mgmt start to clean up");
   SDnode *pDnode = pWrapper->pDnode;
   dmStopWorker(pDnode);
 
@@ -249,7 +249,7 @@ static void dmCleanupMgmt(SMgmtWrapper *pWrapper) {
   taosWUnLockLatch(&pDnode->data.latch);
 
   dmCleanupTrans(pDnode);
-  dInfo("dnode-data is cleaned up");
+  dInfo("dnode-mgmt is cleaned up");
 }
 
 static int32_t dmRequireMgmt(SMgmtWrapper *pWrapper, bool *required) {

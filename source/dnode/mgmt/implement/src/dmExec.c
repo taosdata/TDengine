@@ -21,8 +21,6 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
   int32_t code = (*pWrapper->fp.requiredFp)(pWrapper, &required);
   if (!required) {
     dDebug("node:%s, does not require startup", pWrapper->name);
-  } else {
-    dDebug("node:%s, needs to be started", pWrapper->name);
   }
   return required;
 }

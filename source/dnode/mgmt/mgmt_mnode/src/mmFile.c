@@ -28,7 +28,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   snprintf(file, sizeof(file), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    dDebug("file %s not exist", file);
+    // dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_MNODE_OVER;
   }

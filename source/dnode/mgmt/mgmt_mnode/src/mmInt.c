@@ -40,6 +40,7 @@ static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
 
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
+  msgCb.pWrapper = pMgmt->pWrapper;
   msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToQueryQueue;
   msgCb.queueFps[READ_QUEUE] = mmPutMsgToReadQueue;
   msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
