@@ -231,6 +231,7 @@ typedef enum EDealRes {
   DEAL_RES_CONTINUE = 1,
   DEAL_RES_IGNORE_CHILD,
   DEAL_RES_ERROR,
+  DEAL_RES_END
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
