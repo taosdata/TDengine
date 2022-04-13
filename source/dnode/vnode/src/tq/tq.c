@@ -82,9 +82,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
   memcpy(data, msg, msgLen);
 
   if (msgType == TDMT_VND_SUBMIT) {
-    // if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg) != 0) {
-    //   return -1;
-    // }
+    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg) != 0) {
+      return -1;
+    }
   }
 
   SRpcMsg req = {

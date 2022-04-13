@@ -22,18 +22,14 @@ while $i < $tbNum
 
   $x = 0
   while $x < $rowNum
-    $c = $x / 10
-    $c = $c * 10
-    $c = $x - $c
-
     $binary = ' . binary
-    $binary = $binary . $c
+    $binary = $binary . $i
     $binary = $binary . '
 
-    #print ====> insert into $tb values ($tstart , $c , $x , $binary )
-    #print ====> insert into ntb values ($tstart , $c , $x , $binary )
-    sql insert into $tb values ($tstart , $c , $x , $binary )
-    sql insert into ntb values ($tstart , $c , $x , $binary )
+    #print ====> insert into $tb values ($tstart , $i , $x , $binary )
+    #print ====> insert into ntb values ($tstart , $i , $x , $binary )
+    sql insert into $tb values ($tstart , $i , $x , $binary )
+    sql insert into ntb values ($tstart , 999 , 999 , 'binary-ntb' )
     $tstart = $tstart + 1
     $x = $x + 1
   endw

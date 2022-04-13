@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 #include "tconfig.h"
-#include "tgrant.h"
+#include "mndGrant.h"
 
 static struct {
   bool     dumpConfig;

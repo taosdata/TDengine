@@ -1196,21 +1196,22 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
     return -1;
   }
 
-  // TODO: vLen may be zero
-  pVal = TDB_REALLOC(*ppVal, cd.vLen);
-  if (pVal == NULL) {
-    TDB_FREE(pKey);
-    return -1;
-  }
-
   *ppKey = pKey;
-  *ppVal = pVal;
-
   *kLen = cd.kLen;
-  *vLen = cd.vLen;
-
   memcpy(pKey, cd.pKey, cd.kLen);
-  memcpy(pVal, cd.pVal, cd.vLen);
+
+  if (ppVal) {
+    // TODO: vLen may be zero
+    pVal = TDB_REALLOC(*ppVal, cd.vLen);
+    if (pVal == NULL) {
+      TDB_FREE(pKey);
+      return -1;
+    }
+
+    *ppVal = pVal;
+    *vLen = cd.vLen;
+    memcpy(pVal, cd.pVal, cd.vLen);
+  }
 
   ret = tdbBtcMoveToNext(pBtc);
   if (ret < 0) {
