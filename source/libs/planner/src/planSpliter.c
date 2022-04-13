@@ -190,6 +190,7 @@ int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan
     pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   }
   pSubplan->id.queryId = pCxt->queryId;
+  pSubplan->id.groupId = 1;
   setLogicNodeParent(pSubplan->pNode);
 
   int32_t code = applySplitRule(pSubplan);
