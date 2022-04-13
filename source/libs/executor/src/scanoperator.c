@@ -756,12 +756,12 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     return NULL;
   }
 
-  pInfo->accountId = accountId;
+  pInfo->accountId   = accountId;
   pInfo->showRewrite = showRewrite;
-  pInfo->pRes = pResBlock;
-  pInfo->capacity = 4096;
-  pInfo->pCondition = pCondition;
-  pInfo->scanCols = colList;
+  pInfo->pRes        = pResBlock;
+  pInfo->capacity    = 4096;
+  pInfo->pCondition  = pCondition;
+  pInfo->scanCols    = colList;
 
   // TODO remove it
   int32_t     tableType = 0;
@@ -833,15 +833,15 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
 #endif
   }
 
-  pOperator->name = "SysTableScanOperator";
+  pOperator->name         = "SysTableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfOutput = pResBlock->info.numOfCols;
-  pOperator->getNextFn = doSysTableScan;
-  pOperator->closeFn = destroySysScanOperator;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = pResBlock->info.numOfCols;
+  pOperator->getNextFn    = doSysTableScan;
+  pOperator->closeFn      = destroySysScanOperator;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   return pOperator;
 }

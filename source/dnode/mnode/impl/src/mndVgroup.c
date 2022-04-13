@@ -35,10 +35,9 @@ static int32_t mndProcessDropVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessSyncVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessCompactVnodeRsp(SNodeMsg *pRsp);
 
-static int32_t mndGetVgroupMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
-static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
@@ -499,58 +498,7 @@ static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pRep
   return 0;
 }
 
-static int32_t mndGetVgroupMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pNode;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  if (mndGetVgroupMaxReplica(pMnode, pShow->db, &pShow->replica, &pShow->numOfRows) != 0) {
-    return -1;
-  }
-
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vgId");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "tables");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  for (int32_t i = 0; i < pShow->replica; ++i) {
-    pShow->bytes[cols] = 2;
-    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
-    pSchema[cols].bytes = pShow->bytes[cols];
-    cols++;
-
-    pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_status", i + 1);
-    pSchema[cols].bytes = pShow->bytes[cols];
-    cols++;
-  }
-
-  pMeta->numOfColumns = cols;
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
-  return 0;
-}
-
-static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
@@ -575,44 +523,41 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, char *data, i
     }
 
     cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->vgId;
-    cols++;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
     SName name = {0};
-    char  db[TSDB_DB_NAME_LEN] = {0};
-    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT|T_NAME_DB);
-    tNameGetDbName(&name, db);
+    char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&name, varDataVal(db));
+    varDataSetLen(db, strlen(varDataVal(db)));
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, db);
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)db, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->numOfTables;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
 
-    //status
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, "ready"); // TODO
-    cols++;
+    // status
+    char buf[10] = {0};
+    STR_TO_VARSTR(buf, "ready");  // TODO
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, buf, false);
 
-    //onlines
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->replica;
-    cols++;
-
+    // onlines
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
 
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *)pWrite = pVgroup->vnodeGid[i].dnodeId;
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
 
+      char        buf1[20] = {0};
       const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
-      cols++;
+      STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->bytes[cols]);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)buf1, false);
     }
 
     numOfRows++;
@@ -623,7 +568,6 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, char *data, i
     mndReleaseDb(pMnode, pDb);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
@@ -653,12 +597,11 @@ int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
   return numOfVnodes;
 }
 
-static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
-  char   *pWrite;
   int32_t cols = 0;
 //  int32_t dnodeId = pShow->replica;
 
@@ -670,30 +613,29 @@ static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, in
       SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
       cols = 0;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(uint32_t *)pWrite = pVgroup->vgId;
-      cols++;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
       SName name = {0};
-      char  db[TSDB_DB_NAME_LEN] = {0};
-      tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT|T_NAME_DB);
-      tNameGetDbName(&name, db);
+      char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
+      tNameGetDbName(&name, varDataVal(db));
+      varDataSetLen(db, strlen(varDataVal(db)));
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_TO_VARSTR(pWrite, db);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)db, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(uint32_t *)pWrite = 0;  //todo: Tables
-      cols++;
+      uint32_t val = 0;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&val, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_TO_VARSTR(pWrite, mndGetRoleStr(pVgid->role));
-      cols++;
+      char buf[20] = {0};
+      STR_TO_VARSTR(buf, mndGetRoleStr(pVgid->role));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(uint32_t *)pWrite = pVgroup->replica;  //onlines
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);  // onlines
 
       numOfRows++;
     }
@@ -701,7 +643,6 @@ static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, in
     sdbRelease(pSdb, pVgroup);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }

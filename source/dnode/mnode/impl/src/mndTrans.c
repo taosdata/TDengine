@@ -74,7 +74,7 @@ int32_t mndInitTrans(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS_TIMER, mndProcessTransReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRANS, mndProcessKillTransReq);
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndRetrieveTrans);
+//  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndRetrieveTrans);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndCancelGetNextTrans);
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -1370,7 +1370,6 @@ static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, char *data, int
     sdbRelease(pSdb, pTrans);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }

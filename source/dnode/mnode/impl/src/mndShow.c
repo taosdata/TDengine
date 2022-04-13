@@ -60,7 +60,6 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq) {
   showObj.type = pReq->type;
   showObj.payloadLen = pReq->payloadLen;
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
-  memcpy(showObj.payload, pReq->payload, pReq->payloadLen);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -140,13 +139,14 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
       return -1;
     }
 
-    STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    pShow->pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    pShow->numOfColumns = pShow->pMeta->numOfColumns;
     int32_t offset = 0;
-    for(int32_t i = 0; i < meta->numOfColumns; ++i) {
-      pShow->numOfColumns = meta->numOfColumns;
+
+    for(int32_t i = 0; i < pShow->pMeta->numOfColumns; ++i) {
       pShow->offset[i] = offset;
 
-      int32_t bytes = meta->pSchemas[i].bytes;
+      int32_t bytes = pShow->pMeta->pSchemas[i].bytes;
       pShow->rowSize += bytes;
       pShow->bytes[i] = bytes;
       offset += bytes;
@@ -170,45 +170,83 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%s", pShow->id, mndShowStr(pShow->type));
 
-  /*
-   * the actual number of table may be larger than the value of pShow->numOfRows, if a query is
-   * issued during a continuous create table operation. Therefore, rowToRead may be less than 0.
-   */
-  size = pShow->rowSize * rowsToRead;
+  int32_t numOfCols = pShow->pMeta->numOfColumns;
 
-  size += SHOW_STEP_SIZE;
-  SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
-  if (pRsp == NULL) {
-    mndReleaseShowObj((SShowObj*) pShow, false);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
-    return -1;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  pBlock->info.numOfCols = numOfCols;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData idata = {0};
+    SSchema* p = &pShow->pMeta->pSchemas[i];
+
+    idata.info.bytes = p->bytes;
+    idata.info.type  = p->type;
+    idata.info.colId = p->colId;
+
+    taosArrayPush(pBlock->pDataBlock, &idata);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      pBlock->info.hasVarCol = true;
+    }
   }
 
-  pRsp->handle = htobe64(pShow->id);
-
+  blockDataEnsureCapacity(pBlock, rowsToRead);
   if (mndCheckRetrieveFinished((SShowObj*) pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
     rowsRead = 0;
   } else {
-    // if free flag is set, client wants to clean the resources
-    rowsRead = (*retrieveFp)(pReq, (SShowObj *)pShow, pRsp->data, rowsToRead);
+    rowsRead = (*retrieveFp)(pReq, (SShowObj *)pShow, pBlock, rowsToRead);
     if (rowsRead < 0) {
       terrno = rowsRead;
-      rpcFreeCont(pRsp);
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
       mndReleaseShowObj((SShowObj *)pShow, true);
       return -1;
     }
 
+    pBlock->info.rows = rowsRead;
     mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d numOfRows:%d", pShow->id, rowsRead, pShow->numOfRows);
+  }
+
+  // numOfCols + sizeof(SSysTableSchema) * numOfCols + data payload
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns + blockDataGetSize(pBlock)
+      + blockDataGetSerialMetaSize(pBlock);
+
+  SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
+  if (pRsp == NULL) {
+    mndReleaseShowObj((SShowObj*) pShow, false);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
+    blockDataDestroy(pBlock);
+    return -1;
+  }
+
+  pRsp->handle = htobe64(pShow->id);
+
+  // if free flag is set, client wants to clean the resources
+  if (rowsRead > 0) {
+    char *   pStart = pRsp->data;
+    SSchema *ps = pShow->pMeta->pSchemas;
+
+    *(int32_t *)pStart = htonl(pShow->pMeta->numOfColumns);
+    pStart += sizeof(int32_t);  // number of columns
+
+    for (int32_t i = 0; i < pShow->pMeta->numOfColumns; ++i) {
+      SSysTableSchema *pSchema = (SSysTableSchema *)pStart;
+      pSchema->bytes = htonl(ps[i].bytes);
+      pSchema->colId = htons(ps[i].colId);
+      pSchema->type = ps[i].type;
+
+      pStart += sizeof(SSysTableSchema);
+    }
+
+    int32_t len = 0;
+    blockCompressEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
   }
 
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
-
-  pReq->pRsp = pRsp;
-  pReq->rspLen = size;
+  pReq->pRsp      = pRsp;
+  pReq->rspLen    = size;
 
   if (rowsRead == 0 || rowsRead < rowsToRead) {
     pRsp->completed = 1;
@@ -219,6 +257,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
     mndReleaseShowObj((SShowObj*) pShow, false);
   }
 
+  blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
 }
 

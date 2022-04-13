@@ -203,17 +203,13 @@ void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 
 size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
-void*   blockDataDestroy(SSDataBlock* pBlock);
+
 
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 
 void blockDebugShowData(const SArray* dataBlocks);
-
-static FORCE_INLINE int32_t blockEstimateEncodeSize(const SSDataBlock* pBlock) {
-  return blockDataGetSerialMetaSize(pBlock) + (int32_t)ceil(blockDataGetSerialRowSize(pBlock) * pBlock->info.rows);
-}
 
 static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data,
                                                  int8_t compressed) {

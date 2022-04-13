@@ -26,7 +26,7 @@ static int32_t  mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SClusterObj *pNewCluster);
 static int32_t  mndCreateDefaultCluster(SMnode *pMnode);
-static int32_t  mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 
 int32_t mndInitCluster(SMnode *pMnode) {
@@ -178,12 +178,11 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
-static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode      *pMnode = pMsg->pNode;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;
-  char        *pWrite;
   SClusterObj *pCluster = NULL;
 
   while (numOfRows < rows) {
@@ -191,24 +190,22 @@ static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, 
     if (pShow->pIter == NULL) break;
 
     cols = 0;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pCluster->id, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pCluster->id;
-    cols++;
+    char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pCluster->name, TSDB_CLUSTER_ID_LEN);
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, buf, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pCluster->createdTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pCluster->createdTime, false);
 
     sdbRelease(pSdb, pCluster);
     numOfRows++;
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }

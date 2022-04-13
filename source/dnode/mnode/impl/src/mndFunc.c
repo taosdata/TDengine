@@ -34,8 +34,7 @@ static int32_t  mndDropFunc(SMnode *pMnode, SNodeMsg *pReq, SFuncObj *pFunc);
 static int32_t  mndProcessCreateFuncReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropFuncReq(SNodeMsg *pReq);
 static int32_t  mndProcessRetrieveFuncReq(SNodeMsg *pReq);
-static int32_t  mndGetFuncMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
@@ -462,70 +461,6 @@ RETRIEVE_FUNC_OVER:
   return code;
 }
 
-static int32_t mndGetFuncMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pNode;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
-
-  pShow->bytes[cols] = TSDB_FUNC_NAME_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = PATH_MAX + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "comment");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "aggregate");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = TSDB_TYPE_STR_MAX_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "outputtype");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "code_len");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "bufsize");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pMeta->numOfColumns = cols;
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = sdbGetSize(pSdb, SDB_FUNC);
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
-  return 0;
-}
-
 static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t len) {
   char *msg = "unknown";
   if (type >= sizeof(tDataTypes) / sizeof(tDataTypes[0])) {
@@ -544,13 +479,12 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t le
   return tDataTypes[type].name;
 }
 
-static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->pNode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SFuncObj *pFunc = NULL;
   int32_t   cols = 0;
-  char     *pWrite;
   char      buf[TSDB_TYPE_STR_MAX_LEN];
 
   while (numOfRows < rows) {
@@ -559,40 +493,42 @@ static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 
     cols = 0;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pFunc->name, pShow->bytes[cols]);
-    cols++;
+    char b1[tListLen(pFunc->name) + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pFunc->pComment, pShow->bytes[cols]);
-    cols++;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) b1, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE ? 1 : 0;
-    cols++;
+    char* b2 = taosMemoryCalloc(1, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
-                               pShow->bytes[cols]);
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) b2, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pFunc->createdTime;
-    cols++;
+    int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pFunc->codeSize;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &isAgg, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pFunc->bufSize;
-    cols++;
+    char b3[TSDB_TYPE_STR_MAX_LEN] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen), pShow->bytes[cols]);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) b3, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pFunc->createdTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pFunc->codeSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pFunc->bufSize, false);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }

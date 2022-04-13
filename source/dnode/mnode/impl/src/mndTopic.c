@@ -35,7 +35,6 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj
 static int32_t mndProcessCreateTopicReq(SNodeMsg *pReq);
 static int32_t mndProcessDropTopicReq(SNodeMsg *pReq);
 static int32_t mndProcessDropTopicInRsp(SNodeMsg *pRsp);
-static int32_t mndProcessTopicMetaReq(SNodeMsg *pReq);
 static int32_t mndGetTopicMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
@@ -53,7 +52,7 @@ int32_t mndInitTopic(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndProcessDropTopicInRsp);
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TP, mndRetrieveTopic);
+//  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TP, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TP, mndCancelGetNextTopic);
 
   return sdbSetTable(pMnode->pSdb, table);
@@ -596,7 +595,6 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 
   mndReleaseDb(pMnode, pDb);
   pShow->numOfRows += numOfRows;
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
 }
 

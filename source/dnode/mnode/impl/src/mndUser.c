@@ -35,8 +35,7 @@ static int32_t  mndProcessCreateUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SNodeMsg *pReq);
-static int32_t  mndGetUserMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
 int32_t mndInitUser(SMnode *pMnode) {
@@ -640,53 +639,7 @@ GET_AUTH_OVER:
   return code;
 }
 
-static int32_t mndGetUserMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pNode;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
-
-  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "privilege");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "account");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pMeta->numOfColumns = cols;
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = sdbGetSize(pSdb, SDB_USER);
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
-  return 0;
-}
-
-static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->pNode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
@@ -700,33 +653,32 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 
     cols = 0;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->user, pShow->bytes[cols]);
-    cols++;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pUser->superUser) {
-      const char *src = "super";
-      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-    } else {
-      const char *src = "normal";
-      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-    }
-    cols++;
+    char name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pUser->createdTime;
-    cols++;
+    colDataAppend(pColInfo, numOfRows, (const char*) name, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->acct, pShow->bytes[cols]);
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+    const char* src = pUser->superUser? "super":"normal";
+    char b[10+VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, (const char*) b, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pUser->createdTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->acct, pShow->bytes[cols]);
+    colDataAppend(pColInfo, numOfRows, (const char*) name, false);
 
     numOfRows++;
     sdbRelease(pSdb, pUser);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }

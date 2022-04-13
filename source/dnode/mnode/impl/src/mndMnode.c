@@ -35,7 +35,7 @@ static int32_t  mndProcessDropMnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessCreateMnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessAlterMnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessDropMnodeRsp(SNodeMsg *pRsp);
-static int32_t  mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextMnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitMnode(SMnode *pMnode) {
@@ -615,7 +615,7 @@ static int32_t mndProcessDropMnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
@@ -628,34 +628,32 @@ static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, in
     if (pShow->pIter == NULL) break;
 
     cols = 0;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) &pObj->id, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pObj->id;
-    cols++;
+    char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pObj->pDnode->ep, pShow->bytes[cols]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, b1, false);
 
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     const char *roles = mndGetRoleStr(pObj->role);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, roles, pShow->bytes[cols]);
-    cols++;
+    char* b2 = taosMemoryCalloc(1, strlen(roles) + VARSTR_HEADER_SIZE);
+    STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->roleTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) b2, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->createdTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->roleTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
 
   return numOfRows;

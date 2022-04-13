@@ -33,7 +33,7 @@ static int32_t  mndProcessCreateSnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessCreateSnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessDropSnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropSnodeRsp(SNodeMsg *pRsp);
-static int32_t  mndRetrieveSnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveSnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void     mndCancelGetNextSnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSnode(SMnode *pMnode) {
@@ -447,38 +447,34 @@ static int32_t mndProcessDropSnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndRetrieveSnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveSnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SSnodeObj *pObj = NULL;
-  char      *pWrite;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SNODE, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
     cols = 0;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*)&pObj->id, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pObj->id;
-    cols++;
+    char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->bytes[cols]);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pObj->pDnode->ep, pShow->bytes[cols]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)ep, false);
 
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->createdTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfRows += numOfRows;
 
   return numOfRows;

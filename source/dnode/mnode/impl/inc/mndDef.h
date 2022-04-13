@@ -388,10 +388,11 @@ typedef struct {
   int32_t payloadLen;
   void*   pIter;
   SMnode* pMnode;
+  STableMetaRsp* pMeta;
+  bool    sysDbRsp;
   char    db[TSDB_DB_FNAME_LEN];
   int16_t offset[TSDB_MAX_COLUMNS];
   int32_t bytes[TSDB_MAX_COLUMNS];
-  char    payload[];
 } SShowObj;
 
 typedef struct {
