@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import platform
 import sys
 from util.log import *
 from util.cases import *
@@ -70,32 +71,27 @@ class TDTestCase:
         tdLog.info("tdSql.checkData(0, 0, '34567')")
         tdSql.checkData(0, 0, '34567')
         tdLog.info("insert into tb values (now+4a, \"'';\")")
-        config_dir = subprocess.check_output(
-            str("ps -ef |grep dnode1|grep -v grep |awk '{print $NF}'"),
-            stderr=subprocess.STDOUT,
-            shell=True).decode('utf-8').replace(
-            '\n',
-            '')
 
-        binPath = self.getPath("taos")
-        if (binPath == ""):
-            tdLog.exit("taos not found!")
-        else:
-            tdLog.info("taos found: %s" % binPath)
+        if platform.system() == "Linux":
+            config_dir = subprocess.check_output(
+                str("ps -ef |grep dnode1|grep -v grep |awk '{print $NF}'"),
+                stderr=subprocess.STDOUT,
+                shell=True).decode('utf-8').replace(
+                    '\n',
+                    '')
 
-        result = ''.join(
-            os.popen(
-                r"""%s -s "insert into db.tb values (now+4a, \"'';\")" -c %s""" %
-                (binPath, (config_dir))).readlines())
-        if "Query OK" not in result:
-            tdLog.exit("err:insert '';")
-        tdLog.info('drop database db')
-        tdSql.execute('drop database db')
-        tdLog.info('show databases')
-        tdSql.query('show databases')
-        tdLog.info('tdSql.checkRow(0)')
-        tdSql.checkRows(1)
-# convert end
+            binPath = self.getPath("taos")
+            if (binPath == ""):
+                tdLog.exit("taos not found!")
+            else:
+                tdLog.info("taos found: %s" % binPath)
+
+            result = ''.join(
+                os.popen(
+                    r"""%s -s "insert into db.tb values (now+4a, \"'';\")" -c %s""" %
+                    (binPath, (config_dir))).readlines())
+            if "Query OK" not in result:
+                tdLog.exit("err:insert '';")
 
     def stop(self):
         tdSql.close()
