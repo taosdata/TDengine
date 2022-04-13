@@ -136,6 +136,10 @@ void parseArgument(int32_t argc, char* argv[]) {
     }
   }
 
+  if (0 == g_stConfInfo.consumeMsgCnt) {
+    g_stConfInfo.consumeMsgCnt = 0x7fffffff;
+  }
+
 #if 0
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
   pPrint("%s dbName:%s %s", GREEN, g_stConfInfo.dbName, NC);
@@ -493,6 +497,29 @@ int main(int32_t argc, char* argv[]) {
       } else {
     	 printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
       }	
+	} else if (2 == g_stConfInfo.checkMode) {
+      if ((totalMsgs +  pInfo->consumeMsgCnt) == 3 * g_stConfInfo.consumeMsgCnt) {
+    	 printf("success");
+      } else {
+    	 printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
+      }	
+	} else if (3 == g_stConfInfo.checkMode) {
+      if ((totalMsgs == 2 * g_stConfInfo.consumeMsgCnt) && (pInfo->consumeMsgCnt == 2 * g_stConfInfo.consumeMsgCnt)) {
+    	 printf("success");
+      } else {
+    	 printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
+      }	
+	} else if (4 == g_stConfInfo.checkMode) {
+      if (((totalMsgs == 0) && (pInfo->consumeMsgCnt == 3 * g_stConfInfo.consumeMsgCnt)) 
+	  	|| ((pInfo->consumeMsgCnt == 0) && (totalMsgs == 3 * g_stConfInfo.consumeMsgCnt)) 
+	  	|| ((pInfo->consumeMsgCnt == g_stConfInfo.consumeMsgCnt) && (totalMsgs == 2 * g_stConfInfo.consumeMsgCnt))
+	  	|| ((pInfo->consumeMsgCnt == 2 * g_stConfInfo.consumeMsgCnt) && (totalMsgs == g_stConfInfo.consumeMsgCnt))) {
+    	 printf("success");
+      } else {
+    	 printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
+      }	
+	} else {
+    	 printf("fail, check mode unknow. consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
 	}
   }
 
