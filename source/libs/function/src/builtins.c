@@ -434,6 +434,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "now",
+    .type = FUNCTION_TYPE_NOW,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .checkFunc    = checkAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = nowFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "today",
+    .type = FUNCTION_TYPE_TODAY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .checkFunc    = checkAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = todayFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -503,16 +523,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = winDurFunction,
     .finalizeFunc = NULL
   },
-  {
-    .name = "now",
-    .type = FUNCTION_TYPE_NOW,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .checkFunc    = checkAndGetResultType,
-    .getEnvFunc   = getTimePseudoFuncEnv,
-    .initFunc     = NULL,
-    .sprocessFunc = winDurFunction,
-    .finalizeFunc = NULL
-  }
 };
 
 const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFuncDefinition));
@@ -672,7 +682,8 @@ int32_t checkAndGetResultType(SFunctionNode* pFunc) {
     }
 
     case FUNCTION_TYPE_NOW:
-      // todo
+    case FUNCTION_TYPE_TODAY:
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
       break;
     default:
       ASSERT(0); // to found the fault ASAP.

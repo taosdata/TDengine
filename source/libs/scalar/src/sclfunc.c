@@ -1242,6 +1242,22 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1) {
+    return TSDB_CODE_FAILED;
+  }
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1) {
+    return TSDB_CODE_FAILED;
+  }
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doScalarFunctionUnique(pInput, inputNum, pOutput, atan);
 }

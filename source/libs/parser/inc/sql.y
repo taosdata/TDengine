@@ -503,6 +503,8 @@ column_name(A) ::= NK_ID(B).                                                    
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
 function_name(A) ::= FIRST(B).                                                    { A = B; }
 function_name(A) ::= LAST(B).                                                     { A = B; }
+function_name(A) ::= NOW(B).                                                      { A = B; }
+function_name(A) ::= TODAY(B).                                                    { A = B; }
 
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { }
@@ -535,6 +537,7 @@ expression(A) ::= pseudo_column(B).                                             
 expression(A) ::= column_reference(B).                                            { A = B; }
 expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).             { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 expression(A) ::= function_name(B) NK_LP NK_STAR(C) NK_RP(D).                     { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, createNodeList(pCxt, createColumnNode(pCxt, NULL, &C)))); }
+expression(A) ::= function_name(B) NK_LP NK_RP(D).                                { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNodeNoParam(pCxt, &B)); }
 //for CAST function CAST(expr AS type_name)
 expression(A) ::= function_name(B) NK_LP expression(C) AS type_name(D) NK_RP(E).  {
                                                                                     SNodeList *p = createNodeList(pCxt, releaseRawExprNode(pCxt, C));
@@ -587,8 +590,8 @@ expression_list(A) ::= expression_list(B) NK_COMMA expression(C).               
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
-pseudo_column(A) ::=  NOW(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  TODAY(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+//pseudo_column(A) ::=  NOW(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+//pseudo_column(A) ::=  TODAY(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  ROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  TBNAME(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::=  QSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
