@@ -26,7 +26,7 @@ class Case5(ClusterCase):
     def init(self):
         super().init()
         self.max_restart_interval = [5, 10]
-        self.restart_times = 5
+        self.restart_times = 100
         self.slave_nodes = self.get_slaves()
         self.slave_nodes.remove('dnode_2:6030')
         i = random.randint(0, len(self.slave_nodes) - 1)
@@ -37,10 +37,10 @@ class Case5(ClusterCase):
         self.master_node = self.master_nodes[i]
         self.logger.info("master: %s", self.master_node)
         # set alter schema params
-        self.params = {"_ts" : 1420041600000 , "_ts_step":1 ,"_row_nums":2 ,"_col_nums":12 ,  "tables_of_per_stable":2 ,"_tags_nums" : 10 , "_replica" :3 }
-        self.db_nums = 100 
-        self.stable_nums = 100
-        self.table_nums = 100
+        self.params = {"_ts" : 1420041600000 , "_ts_step":1 ,"_row_nums":1,"_col_nums":12 ,  "tables_of_per_stable":20 ,"_tags_nums" : 10 , "_replica" :3 }
+        self.db_nums = 10
+        self.stable_nums = 2
+        self.table_nums = 2
         self.time_sleep = 0
         self.tdSql = MyTDSQL(logger = self.logger, run_log_dir = self.run_log_dir, set_error_msg=self.set_error_msg)
 
@@ -52,13 +52,15 @@ class Case5(ClusterCase):
     def run(self):
        
         # alter schema task for all 
-        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params ))
-        taskthread.start()
+        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params , self.slave_node, True ))
 
         # restart master dnode thread
         dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.master_node, self.max_restart_interval, self.restart_times, self.slave_node))
         # start thread
+        taskthread.start()
         dthread.start()
+
+
         # wait thread
         dthread.join()
         taskthread.join()
@@ -71,7 +73,7 @@ class Case5(ClusterCase):
         '''
         abstract about author
         '''
-        return "wenzhouwww"
+        return "fztang"
 
     def tags(self):
         '''
@@ -81,6 +83,6 @@ class Case5(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for restart master and alter schema  ;
+            [test]<fztang> test case for ... ;
         '''
         return case_description
