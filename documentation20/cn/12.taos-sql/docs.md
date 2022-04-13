@@ -1512,27 +1512,27 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     7）INTERP的插值结果不受ORDER BY timestamp的影响，ORDER BY timestamp只影响输出结果的排序。
 
-  SQL示例：
+  SQL示例（基于文档中广泛使用的电表schema）
 
       1) 单点线性插值
      ```mysql
-      taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:40:00'，'2017-7-14 18:40:00') FILL(LINEAR);
+      taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:40:00','2017-7-14 18:40:00') FILL(LINEAR);
      ```
       2) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行取值(不插值)
      ```mysql
-      taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s);
+      taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s);
      ```
       3) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
      ```mysql
-       taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+       taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
      ```
      4.在所有时间范围内每隔5秒钟进行向后插值
      ```mysql
-       taos> SELECT INTERP(*) FROM t1 EVERY(5s) FILL(NEXT);
+       taos> SELECT INTERP(current) FROM t1 EVERY(5s) FILL(NEXT);
      ```
      5.根据2017-07-14 17:00:00到2017-07-14 20:00:00间的数据进行从2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
      ```mysql
-       taos> SELECT INTERP(*) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+       taos> SELECT INTERP(current) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
      ```
     
 
