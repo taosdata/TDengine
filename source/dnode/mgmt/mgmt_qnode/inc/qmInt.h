@@ -34,10 +34,6 @@ typedef struct SQnodeMgmt {
   SSingleWorker monitorWorker;
 } SQnodeMgmt;
 
-// qmInt.c
-int32_t qmOpen(SMgmtWrapper *pWrapper);
-int32_t qmDrop(SMgmtWrapper *pWrapper);
-
 // qmHandle.c
 void    qmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);

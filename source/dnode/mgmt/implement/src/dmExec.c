@@ -99,40 +99,78 @@ static int32_t dmRunNodeProc(SMgmtWrapper *pWrapper) {
   return 0;
 }
 
-static int32_t dmOpenNodeImp(SMgmtWrapper *pWrapper) {
+int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   if (taosMkDir(pWrapper->path) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("node:%s, failed to create dir:%s since %s", pWrapper->name, pWrapper->path, terrstr());
     return -1;
   }
 
-  if ((*pWrapper->fp.openFp)(pWrapper) != 0) {
-    dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
-    return -1;
-  }
+  if (pWrapper->procType == DND_PROC_SINGLE || pWrapper->procType == DND_PROC_CHILD) {
+    if ((*pWrapper->fp.openFp)(pWrapper) != 0) {
+      dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+      return -1;
+    }
 
-  dDebug("node:%s, has been opened", pWrapper->name);
-  pWrapper->deployed = true;
-  return 0;
-}
-
-int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
-  SDnode *pDnode = pWrapper->pDnode;
-  if (pDnode->ptype == DND_PROC_SINGLE) {
-    return dmOpenNodeImp(pWrapper);
-  } else if (pDnode->ptype == DND_PROC_PARENT) {
+    dDebug("node:%s, has been opened", pWrapper->name);
+    pWrapper->deployed = true;
+  } else {
     if (dmInitNodeProc(pWrapper) != 0) return -1;
     if (dmWriteShmFile(pWrapper) != 0) return -1;
     if (dmRunNodeProc(pWrapper) != 0) return -1;
   }
+
+  if (pWrapper->procType == DND_PROC_CHILD) {
+    SProcCfg cfg = dmGenProcCfg(pWrapper);
+    cfg.isChild = true;
+    pWrapper->procObj = taosProcInit(&cfg);
+    if (pWrapper->procObj == NULL) {
+      dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
+      return -1;
+    }
+  }
+
   return 0;
 }
 
-static void dmCloseNodeImp(SMgmtWrapper *pWrapper) {
-  dDebug("node:%s, mgmt start to close", pWrapper->name);
+int32_t dmStartNode(SMgmtWrapper *pWrapper) {
+  if (pWrapper->procType == DND_PROC_PARENT) {
+    dInfo("node:%s, not start in parent process", pWrapper->name);
+  } else if (pWrapper->procType == DND_PROC_CHILD) {
+    dInfo("node:%s, start in child process", pWrapper->name);
+    if (taosProcRun(pWrapper->procObj) != 0) {
+      dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
+      return -1;
+    }
+  } else {
+    if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+void dmStopNode(SMgmtWrapper *pWrapper) {
   if (pWrapper->fp.stopFp != NULL) {
     (*pWrapper->fp.stopFp)(pWrapper);
   }
+}
+
+void dmCloseNode(SMgmtWrapper *pWrapper) {
+  dInfo("node:%s, start to close", pWrapper->name);
+  if (pWrapper->procType == DND_PROC_PARENT) {
+    if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
+      dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
+      taosKillProc(pWrapper->procId);
+      dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pWrapper->procId);
+      taosWaitProc(pWrapper->procId);
+      dInfo("node:%s, child process:%d is stopped", pWrapper->name, pWrapper->procId);
+    }
+  }
+
+  dmStopNode(pWrapper);
 
   pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
@@ -150,20 +188,78 @@ static void dmCloseNodeImp(SMgmtWrapper *pWrapper) {
     taosProcCleanup(pWrapper->procObj);
     pWrapper->procObj = NULL;
   }
-  dDebug("node:%s, mgmt has been closed", pWrapper->name);
+
+  dInfo("node:%s, has been closed", pWrapper->name);
 }
 
-void dmCloseNode(SMgmtWrapper *pWrapper) {
-  if (pWrapper->pDnode->ptype == DND_PROC_PARENT) {
-    if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
-      dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
-      taosKillProc(pWrapper->procId);
-      dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pWrapper->procId);
-      taosWaitProc(pWrapper->procId);
-      dInfo("node:%s, child process:%d is stopped", pWrapper->name, pWrapper->procId);
+static int32_t dmOpenNodes(SDnode *pDnode) {
+  if (pDnode->ptype == DND_PROC_CHILD) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
+    pWrapper->required = dmRequireNode(pWrapper);
+    if (!pWrapper->required) {
+      dError("dnode:%s, failed to open since not required", pWrapper->name);
+    }
+
+    pWrapper->procType = DND_PROC_CHILD;
+
+    SMsgCb msgCb = pDnode->data.msgCb;
+    msgCb.pWrapper = pWrapper;
+    tmsgSetDefaultMsgCb(&msgCb);
+
+    if (dmOpenNode(pWrapper) != 0) {
+      dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+      return -1;
+    }
+  } else {
+    for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
+      SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+      pWrapper->required = dmRequireNode(pWrapper);
+      if (!pWrapper->required) continue;
+
+      if (pDnode->ptype == DND_PROC_PARENT && n != DNODE) {
+        pWrapper->procType = DND_PROC_PARENT;
+      } else {
+        pWrapper->procType = DND_PROC_SINGLE;
+      }
+
+      if (dmOpenNode(pWrapper) != 0) {
+        dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+        return -1;
+      }
     }
   }
-  dmCloseNodeImp(pWrapper);
+
+  dmSetStatus(pDnode, DND_STAT_RUNNING);
+  return 0;
+}
+
+static int32_t dmStartNodes(SDnode *pDnode) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+    if (dmStartNode(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
+  }
+
+  dInfo("TDengine initialized successfully");
+  dmReportStartup(pDnode, "TDengine", "initialized successfully");
+  return 0;
+}
+
+static void dmStopNodes(SDnode *pDnode) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dmStopNode(pWrapper);
+  }
+}
+
+static void dmCloseNodes(SDnode *pDnode) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dmCloseNode(pWrapper);
+  }
 }
 
 static void dmProcessProcHandle(void *handle) {
@@ -172,188 +268,55 @@ static void dmProcessProcHandle(void *handle) {
   rpcSendResponse(&rpcMsg);
 }
 
-static int32_t dmRunInSingleProcess(SDnode *pDnode) {
-  dInfo("dnode run in single process");
-  pDnode->ptype = DND_PROC_SINGLE;
+static void dmWatchNodes(SDnode *pDnode) {
+  if (pDnode->ptype == DND_PROC_PARENT) {
+    for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
+      SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+      if (!pWrapper->required) continue;
+      if (pDnode->ntype == NODE_END) continue;
 
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    pWrapper->required = dmRequireNode(pWrapper);
-    if (!pWrapper->required) continue;
-
-    if (dmOpenNodeImp(pWrapper) != 0) {
-      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
-      return -1;
-    }
-  }
-
-  dmSetStatus(pDnode, DND_STAT_RUNNING);
-
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    if (!pWrapper->required) continue;
-    if (pWrapper->fp.startFp == NULL) continue;
-    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
-      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
-      return -1;
-    }
-  }
-
-  dInfo("TDengine initialized successfully");
-  dmReportStartup(pDnode, "TDengine", "initialized successfully");
-  while (1) {
-    if (pDnode->event == DND_EVENT_STOP) {
-      dInfo("dnode is about to stop");
-      dmSetStatus(pDnode, DND_STAT_STOPPED);
-      break;
-    }
-    taosMsleep(100);
-  }
-
-  return 0;
-}
-
-static int32_t dmRunInParentProcess(SDnode *pDnode) {
-  dInfo("dnode run in parent process");
-  pDnode->ptype = DND_PROC_PARENT;
-
-  SMgmtWrapper *pDWrapper = &pDnode->wrappers[DNODE];
-  if (dmOpenNodeImp(pDWrapper) != 0) {
-    dError("node:%s, failed to start since %s", pDWrapper->name, terrstr());
-    return -1;
-  }
-
-  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    pWrapper->required = dmRequireNode(pWrapper);
-    if (!pWrapper->required) continue;
-    if (dmInitNodeProc(pWrapper) != 0) return -1;
-
-    if (dmWriteShmFile(pWrapper) != 0) {
-      dError("failed to write runtime file since %s", terrstr());
-      return -1;
-    }
-  }
-
-  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    if (!pWrapper->required) continue;
-    if (dmRunNodeProc(pWrapper) != 0) return -1;
-  }
-
-  dmSetStatus(pDnode, DND_STAT_RUNNING);
-
-  if ((*pDWrapper->fp.startFp)(pDWrapper) != 0) {
-    dError("node:%s, failed to start since %s", pDWrapper->name, terrstr());
-    return -1;
-  }
-
-  dInfo("TDengine initialized successfully");
-  dmReportStartup(pDnode, "TDengine", "initialized successfully");
-
-  while (1) {
-    if (pDnode->event == DND_EVENT_STOP) {
-      dInfo("dnode is about to stop");
-      dmSetStatus(pDnode, DND_STAT_STOPPED);
-
-      for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
-        SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-        if (!pWrapper->required) continue;
-        if (pDnode->ntype == NODE_END) continue;
-
-        if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
-          dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
-          taosKillProc(pWrapper->procId);
-          dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pWrapper->procId);
-          taosWaitProc(pWrapper->procId);
-          dInfo("node:%s, child process:%d is stopped", pWrapper->name, pWrapper->procId);
-        }
-      }
-      break;
-    } else {
-      for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
-        SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-        if (!pWrapper->required) continue;
-        if (pDnode->ntype == NODE_END) continue;
-
-        if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
-          dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
-          taosProcCloseHandles(pWrapper->procObj, dmProcessProcHandle);
-          dmNewNodeProc(pWrapper, n);
-        }
+      if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
+        dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
+        taosProcCloseHandles(pWrapper->procObj, dmProcessProcHandle);
+        dmNewNodeProc(pWrapper, n);
       }
     }
-
-    taosMsleep(100);
   }
-
-  return 0;
-}
-
-static int32_t dmRunInChildProcess(SDnode *pDnode) {
-  SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-  dInfo("%s run in child process", pWrapper->name);
-  pDnode->ptype = DND_PROC_CHILD;
-
-  pWrapper->required = dmRequireNode(pWrapper);
-  if (!pWrapper->required) {
-    dError("%s does not require startup", pWrapper->name);
-    return -1;
-  }
-
-  SMsgCb msgCb = dmGetMsgcb(pWrapper);
-  tmsgSetDefaultMsgCb(&msgCb);
-  pWrapper->procType = DND_PROC_CHILD;
-
-  if (dmOpenNodeImp(pWrapper) != 0) {
-    dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
-    return -1;
-  }
-
-  SProcCfg cfg = dmGenProcCfg(pWrapper);
-  cfg.isChild = true;
-  pWrapper->procObj = taosProcInit(&cfg);
-  if (pWrapper->procObj == NULL) {
-    dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
-    return -1;
-  }
-
-  if (pWrapper->fp.startFp != NULL) {
-    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
-      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
-      return -1;
-    }
-  }
-
-  dmSetStatus(pDnode, DND_STAT_RUNNING);
-
-  if (taosProcRun(pWrapper->procObj) != 0) {
-    dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
-    return -1;
-  }
-
-  dInfo("TDengine initialized successfully");
-  dmReportStartup(pDnode, "TDengine", "initialized successfully");
-  while (1) {
-    if (pDnode->event == DND_EVENT_STOP) {
-      dInfo("%s is about to stop", pWrapper->name);
-      dmSetStatus(pDnode, DND_STAT_STOPPED);
-      break;
-    }
-    taosMsleep(100);
-  }
-
-  return 0;
 }
 
 int32_t dmRun(SDnode *pDnode) {
   if (!tsMultiProcess) {
-    return dmRunInSingleProcess(pDnode);
+    pDnode->ptype = DND_PROC_SINGLE;
+    dInfo("dnode run in single process");
   } else if (pDnode->ntype == DNODE || pDnode->ntype == NODE_END) {
-    return dmRunInParentProcess(pDnode);
+    pDnode->ptype = DND_PROC_PARENT;
+    dInfo("dnode run in parent process");
   } else {
-    return dmRunInChildProcess(pDnode);
+    pDnode->ptype = DND_PROC_CHILD;
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
+    dInfo("%s run in child process", pWrapper->name);
   }
 
-  return 0;
+  if (dmOpenNodes(pDnode) != 0) {
+    dError("failed to open nodes since %s", terrstr());
+    return -1;
+  }
+
+  if (dmStartNodes(pDnode) != 0) {
+    dError("failed to start nodes since %s", terrstr());
+    return -1;
+  }
+
+  while (1) {
+    taosMsleep(100);
+    if (pDnode->event & DND_EVENT_STOP) {
+      dInfo("dnode is about to stop");
+      dmSetStatus(pDnode, DND_STAT_STOPPED);
+      dmStopNodes(pDnode);
+      dmCloseNodes(pDnode);
+      return 0;
+    } else {
+      dmWatchNodes(pDnode);
+    }
+  }
 }

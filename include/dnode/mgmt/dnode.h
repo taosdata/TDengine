@@ -51,7 +51,7 @@ typedef struct {
   int8_t    ntype;
 } SDnodeOpt;
 
-typedef enum { DND_EVENT_START, DND_EVENT_STOP = 1, DND_EVENT_CHILD } EDndEvent;
+typedef enum { DND_EVENT_START = 0, DND_EVENT_STOP = 1, DND_EVENT_CHILD = 2 } EDndEvent;
 
 /**
  * @brief Initialize and start the dnode.

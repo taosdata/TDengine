@@ -33,10 +33,6 @@ typedef struct SBnodeMgmt {
   SSingleWorker monitorWorker;
 } SBnodeMgmt;
 
-// bmInt.c
-int32_t bmOpen(SMgmtWrapper *pWrapper);
-int32_t bmDrop(SMgmtWrapper *pWrapper);
-
 // bmHandle.c
 void    bmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);

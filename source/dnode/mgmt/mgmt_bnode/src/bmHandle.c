@@ -57,10 +57,15 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->data.dnodeId);
     return -1;
-  } else {
-    // return dmOpenNode(pWrapper);
-    return 0;
   }
+
+  bool deployed = true;
+  if (dmWriteFile(pWrapper, deployed) != 0) {
+    dError("failed to write bnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
@@ -77,10 +82,15 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop bnode since %s", terrstr());
     return -1;
-  } else {
-    // dmCloseNode(pWrapper);
-    return bmDrop(pWrapper);
   }
+
+  bool deployed = false;
+  if (dmWriteFile(pWrapper, deployed) != 0) {
+    dError("failed to write bnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 void bmInitMsgHandle(SMgmtWrapper *pWrapper) {

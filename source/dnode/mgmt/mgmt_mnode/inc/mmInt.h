@@ -41,7 +41,7 @@ typedef struct SMnodeMgmt {
 
 // mmFile.c
 int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed);
+int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deployed);
 
 // mmInt.c
 int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq);

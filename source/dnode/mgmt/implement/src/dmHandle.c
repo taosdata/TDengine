@@ -152,18 +152,20 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
   int32_t code = (*pWrapper->fp.dropFp)(pWrapper, pMsg);
   if (code != 0) {
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
-    pWrapper->required = true;
-    pWrapper->deployed = true;
   } else {
     dDebug("node:%s, has been dropped", pWrapper->name);
     pWrapper->required = false;
     pWrapper->deployed = false;
-    dmCloseNode(pWrapper);
+    taosRemoveDir(pWrapper->path);
   }
 
   taosWUnLockLatch(&pWrapper->latch);
   dmReleaseWrapper(pWrapper);
-  return 0;
+
+  if (code == 0) {
+    dmCloseNode(pWrapper);
+  }
+  return code;
 }
 
 static void dmSetMgmtMsgHandle(SMgmtWrapper *pWrapper) {

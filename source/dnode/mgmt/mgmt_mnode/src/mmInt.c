@@ -134,12 +134,6 @@ static int32_t mmOpenImp(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq) {
     return -1;
   }
 
-  bool deployed = true;
-  if (mmWriteFile(pMgmt, deployed) != 0) {
-    dError("failed to write mnode file since %s", terrstr());
-    return -1;
-  }
-
   return 0;
 }
 
@@ -164,11 +158,11 @@ int32_t mmDrop(SMgmtWrapper *pWrapper) {
   if (pMgmt == NULL) return 0;
 
   dInfo("mnode-mgmt start to drop");
-  bool deployed = false;
-  if (mmWriteFile(pMgmt, deployed) != 0) {
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
+  // bool deployed = false;
+  // if (mmWriteFile(pMgmt, deployed) != 0) {
+  //   dError("failed to drop mnode since %s", terrstr());
+  //   return -1;
+  // }
 
   mmCloseImp(pMgmt);
   taosRemoveDir(pMgmt->path);
@@ -229,7 +223,9 @@ static int32_t mmStart(SMgmtWrapper *pWrapper) {
 static void mmStop(SMgmtWrapper *pWrapper) {
   dDebug("mnode-mgmt start to stop");
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  mndStop(pMgmt->pMnode);
+  if (pMgmt != NULL) {
+    mndStop(pMgmt->pMnode);
+  }
 }
 
 void mmSetMgmtFp(SMgmtWrapper *pWrapper) {

@@ -105,9 +105,11 @@ PRASE_MNODE_OVER:
   return code;
 }
 
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
-  char file[PATH_MAX];
-  snprintf(file, sizeof(file), "%s%smnode.json.bak", pMgmt->path, TD_DIRSEP);
+int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deployed) {
+  char file[PATH_MAX] = {0};
+  char realfile[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%smnode.json.bak", pWrapper->path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pWrapper->path, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -121,28 +123,27 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
   char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", deployed);
-  len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
-  for (int32_t i = 0; i < pMgmt->replica; ++i) {
-    SReplica *pReplica = &pMgmt->replicas[i];
-    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
-    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
-    if (i < pMgmt->replica - 1) {
-      len += snprintf(content + len, maxLen - len, "  },{\n");
-    } else {
-      len += snprintf(content + len, maxLen - len, "  }]\n");
+  if (pReq != NULL) {
+    len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
+    for (int32_t i = 0; i < pReq->replica; ++i) {
+      SReplica *pReplica = &pReq->replicas[i];
+      len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
+      len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
+      len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
+      if (i < pReq->replica - 1) {
+        len += snprintf(content + len, maxLen - len, "  },{\n");
+      } else {
+        len += snprintf(content + len, maxLen - len, "  }],\n");
+      }
     }
   }
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d\n", deployed);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
   taosMemoryFree(content);
-
-  char realfile[PATH_MAX];
-  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);

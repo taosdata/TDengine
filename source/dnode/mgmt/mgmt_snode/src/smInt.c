@@ -24,63 +24,17 @@ static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) {
   pOption->msgCb = msgCb;
 }
 
-static int32_t smOpenImp(SSnodeMgmt *pMgmt) {
-  SSnodeOpt option = {0};
-  smInitOption(pMgmt, &option);
-
-  pMgmt->pSnode = sndOpen(pMgmt->path, &option);
-  if (pMgmt->pSnode == NULL) {
-    dError("failed to open snode since %s", terrstr());
-    return -1;
-  }
-
-  if (smStartWorker(pMgmt) != 0) {
-    dError("failed to start snode worker since %s", terrstr());
-    return -1;
-  }
-
-  bool deployed = true;
-  if (dmWriteFile(pMgmt->pWrapper, deployed) != 0) {
-    dError("failed to write snode file since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-static void smCloseImp(SSnodeMgmt *pMgmt) {
-  if (pMgmt->pSnode != NULL) {
-    smStopWorker(pMgmt);
-    sndClose(pMgmt->pSnode);
-    pMgmt->pSnode = NULL;
-  }
-}
-
-int32_t smDrop(SMgmtWrapper *pWrapper) {
-  SSnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return 0;
-
-  dInfo("snode-mgmt start to drop");
-  bool deployed = false;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
-    dError("failed to drop snode since %s", terrstr());
-    return -1;
-  }
-
-  smCloseImp(pMgmt);
-  taosRemoveDir(pMgmt->path);
-  pWrapper->pMgmt = NULL;
-  taosMemoryFree(pMgmt);
-  dInfo("snode-mgmt is dropped");
-  return 0;
-}
-
 static void smClose(SMgmtWrapper *pWrapper) {
   SSnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
   dInfo("snode-mgmt start to cleanup");
-  smCloseImp(pMgmt);
+  if (pMgmt->pSnode != NULL) {
+    smStopWorker(pMgmt);
+    sndClose(pMgmt->pSnode);
+    pMgmt->pSnode = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("snode-mgmt is cleaned up");
@@ -99,15 +53,20 @@ int32_t smOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
 
-  int32_t code = smOpenImp(pMgmt);
-  if (code != 0) {
-    dError("failed to init snode-mgmt since %s", terrstr());
-    smClose(pWrapper);
-  } else {
-    dInfo("snode-mgmt is initialized");
+  SSnodeOpt option = {0};
+  smInitOption(pMgmt, &option);
+  pMgmt->pSnode = sndOpen(pMgmt->path, &option);
+  if (pMgmt->pSnode == NULL) {
+    dError("failed to open snode since %s", terrstr());
+    return -1;
   }
 
-  return code;
+  if (smStartWorker(pMgmt) != 0) {
+    dError("failed to start snode worker since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 void smSetMgmtFp(SMgmtWrapper *pWrapper) {

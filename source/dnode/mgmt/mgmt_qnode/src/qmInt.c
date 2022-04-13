@@ -27,69 +27,23 @@ static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
   pOption->msgCb = msgCb;
 }
 
-static int32_t qmOpenImp(SQnodeMgmt *pMgmt) {
-  SQnodeOpt option = {0};
-  qmInitOption(pMgmt, &option);
-
-  pMgmt->pQnode = qndOpen(&option);
-  if (pMgmt->pQnode == NULL) {
-    dError("failed to open qnode since %s", terrstr());
-    return -1;
-  }
-
-  if (qmStartWorker(pMgmt) != 0) {
-    dError("failed to start qnode worker since %s", terrstr());
-    return -1;
-  }
-
-  bool deployed = true;
-  if (dmWriteFile(pMgmt->pWrapper, deployed) != 0) {
-    dError("failed to write qnode file since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-static void qmCloseImp(SQnodeMgmt *pMgmt) {
-  if (pMgmt->pQnode != NULL) {
-    qmStopWorker(pMgmt);
-    qndClose(pMgmt->pQnode);
-    pMgmt->pQnode = NULL;
-  }
-}
-
-int32_t qmDrop(SMgmtWrapper *pWrapper) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return 0;
-
-  dInfo("qnode-mgmt start to drop");
-  bool deployed = false;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
-    dError("failed to drop qnode since %s", terrstr());
-    return -1;
-  }
-
-  qmCloseImp(pMgmt);
-  taosRemoveDir(pMgmt->path);
-  pWrapper->pMgmt = NULL;
-  taosMemoryFree(pMgmt);
-  dInfo("qnode-mgmt is dropped");
-  return 0;
-}
-
 static void qmClose(SMgmtWrapper *pWrapper) {
   SQnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
   dInfo("qnode-mgmt start to cleanup");
-  qmCloseImp(pMgmt);
+  if (pMgmt->pQnode != NULL) {
+    qmStopWorker(pMgmt);
+    qndClose(pMgmt->pQnode);
+    pMgmt->pQnode = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("qnode-mgmt is cleaned up");
 }
 
-int32_t qmOpen(SMgmtWrapper *pWrapper) {
+static int32_t qmOpen(SMgmtWrapper *pWrapper) {
   dInfo("qnode-mgmt start to init");
   SQnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SQnodeMgmt));
   if (pMgmt == NULL) {
@@ -102,15 +56,23 @@ int32_t qmOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
 
-  int32_t code = qmOpenImp(pMgmt);
-  if (code != 0) {
-    dError("failed to init qnode-mgmt since %s", terrstr());
+  SQnodeOpt option = {0};
+  qmInitOption(pMgmt, &option);
+  pMgmt->pQnode = qndOpen(&option);
+  if (pMgmt->pQnode == NULL) {
+    dError("failed to open qnode since %s", terrstr());
     qmClose(pWrapper);
-  } else {
-    dInfo("qnode-mgmt is initialized");
+    return -1;
   }
 
-  return code;
+  if (qmStartWorker(pMgmt) != 0) {
+    dError("failed to start qnode worker since %s", terrstr());
+    qmClose(pWrapper);
+    return -1;
+  }
+
+  dInfo("qnode-mgmt is initialized");
+  return 0;
 }
 
 void qmSetMgmtFp(SMgmtWrapper *pWrapper) {

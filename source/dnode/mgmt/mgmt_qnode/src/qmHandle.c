@@ -57,10 +57,15 @@ int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
     return -1;
-  } else {
-    // return dmOpenNode(pWrapper);
-    return 0;
   }
+
+  bool deployed = true;
+  if (dmWriteFile(pWrapper, deployed) != 0) {
+    dError("failed to write qnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
@@ -77,10 +82,15 @@ int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;
-  } else {
-    // dmCloseNode(pWrapper);
-    return qmDrop(pWrapper);
   }
+
+  bool deployed = false;
+  if (dmWriteFile(pWrapper, deployed) != 0) {
+    dError("failed to write qnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 void qmInitMsgHandle(SMgmtWrapper *pWrapper) {

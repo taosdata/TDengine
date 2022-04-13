@@ -24,63 +24,17 @@ static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->msgCb = msgCb;
 }
 
-static int32_t bmOpenImp(SBnodeMgmt *pMgmt) {
-  SBnodeOpt option = {0};
-  bmInitOption(pMgmt, &option);
-
-  pMgmt->pBnode = bndOpen(pMgmt->path, &option);
-  if (pMgmt->pBnode == NULL) {
-    dError("failed to open bnode since %s", terrstr());
-    return -1;
-  }
-
-  if (bmStartWorker(pMgmt) != 0) {
-    dError("failed to start bnode worker since %s", terrstr());
-    return -1;
-  }
-
-  bool deployed = true;
-  if (dmWriteFile(pMgmt->pWrapper, deployed) != 0) {
-    dError("failed to write bnode file since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-static void bmCloseImp(SBnodeMgmt *pMgmt) {
-  if (pMgmt->pBnode != NULL) {
-    bmStopWorker(pMgmt);
-    bndClose(pMgmt->pBnode);
-    pMgmt->pBnode = NULL;
-  }
-}
-
-int32_t bmDrop(SMgmtWrapper *pWrapper) {
-  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return 0;
-
-  dInfo("bnode-mgmt start to drop");
-  bool deployed = false;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
-    dError("failed to drop bnode since %s", terrstr());
-    return -1;
-  }
-
-  bmCloseImp(pMgmt);
-  taosRemoveDir(pMgmt->path);
-  pWrapper->pMgmt = NULL;
-  taosMemoryFree(pMgmt);
-  dInfo("bnode-mgmt is dropped");
-  return 0;
-}
-
 static void bmClose(SMgmtWrapper *pWrapper) {
   SBnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
   dInfo("bnode-mgmt start to cleanup");
-  bmCloseImp(pMgmt);
+  if (pMgmt->pBnode != NULL) {
+    bmStopWorker(pMgmt);
+    bndClose(pMgmt->pBnode);
+    pMgmt->pBnode = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("bnode-mgmt is cleaned up");
@@ -99,15 +53,22 @@ int32_t bmOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
 
-  int32_t code = bmOpenImp(pMgmt);
-  if (code != 0) {
-    dError("failed to init bnode-mgmt since %s", terrstr());
+  SBnodeOpt option = {0};
+  bmInitOption(pMgmt, &option);
+  pMgmt->pBnode = bndOpen(pMgmt->path, &option);
+  if (pMgmt->pBnode == NULL) {
+    dError("failed to open bnode since %s", terrstr());
     bmClose(pWrapper);
-  } else {
-    dInfo("bnode-mgmt is initialized");
+    return -1;
   }
 
-  return code;
+  if (bmStartWorker(pMgmt) != 0) {
+    dError("failed to start bnode worker since %s", terrstr());
+    bmClose(pWrapper);
+    return -1;
+  }
+
+  return 0;
 }
 
 void bmSetMgmtFp(SMgmtWrapper *pWrapper) {

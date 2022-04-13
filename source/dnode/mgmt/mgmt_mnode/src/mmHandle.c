@@ -60,9 +60,15 @@ int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
-  } else {
-    return mmOpenFromMsg(pWrapper, &createReq);
   }
+
+  bool deployed = true;
+  if (mmWriteFile(pWrapper, &createReq, deployed) != 0) {
+    dError("failed to write mnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
@@ -79,10 +85,15 @@ int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop mnode since %s", terrstr());
     return -1;
-  } else {
-    // dmCloseNode(pWrapper);
-    return mmDrop(pWrapper);
   }
+
+  bool deployed = false;
+  if (mmWriteFile(pWrapper, NULL, deployed) != 0) {
+    dError("failed to write mnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {

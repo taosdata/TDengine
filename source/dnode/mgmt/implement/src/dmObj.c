@@ -140,12 +140,6 @@ _OVER:
 
 void dmClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
-
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dmCloseNode(pWrapper);
-  }
-
   dmClearVars(pDnode);
   dInfo("dnode is closed, data:%p", pDnode);
 }
