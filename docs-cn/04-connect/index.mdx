@@ -56,10 +56,6 @@ pip install taospy
 ```
 pip install git+https://github.com/taosdata/taos-connector-python.git
 ```
-如果安装了 TDengine 服务端或客户端驱动程序，也可以从本地安装。比如：
-```
-pip install /usr/local/taos/connector/python
-```
 
 </TabItem>
 <TabItem label="Go" value="go">
@@ -116,24 +112,40 @@ Node.js 连接器通过不同的包提供不同的连接方式。
 
 编辑项目配置文件中添加 [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/) 的引用即可：
 
-```xml title=csharp.csproj
-<ItemGroup>
-  <PackageReference Include="TDengine.Connector" Version="1.0.6" />
-</ItemGroup>
+```xml title=csharp.csproj {12}
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <StartupObject>TDengineExample.AsyncQueryExample</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="1.0.6" />
+  </ItemGroup>
+
+</Project>
 ```
 也可通过 dotnet 命令添加：
 ```
 dotnet add package TDengine.Connector
 ```
+:::note 
+以下示例代码，均基于 dotnet6.0，如果使用其它版本，可能需要做适当调整。 
+
+:::
 
 </TabItem>
 <TabItem label="R" value="r">
 
-首先系统上要有 TDeninge 客户端驱动，安装目录下有`connector/jdbc/taos-jdbcdriver-xxx-dist.jar`。然后需要安装 R 的依赖包`RJDBC`：
-```r
+1. 下载 [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/2.0.38/)。
+2. 安装 R 的依赖包`RJDBC`：
+```R
 install.packages("RJDBC")
 ```
-
 </TabItem>
 </Tabs>
 
