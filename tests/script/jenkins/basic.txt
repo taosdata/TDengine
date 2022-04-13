@@ -59,6 +59,15 @@
 ./test.sh -f tsim/tmq/oneTopic.sim
 ./test.sh -f tsim/tmq/multiTopic.sim
 
+./test.sh -f tsim/tmq/mainConsumerInMultiTopic.sim
+./test.sh -f tsim/tmq/mainConsumerInOneTopic.sim
+
+#fail ./test.sh -f tsim/tmq/main2Con1Cgrp1TopicFrCtb.sim
+#fail ./test.sh -f tsim/tmq/main2Con1Cgrp1TopicFrStb.sim
+./test.sh -f tsim/tmq/main2Con1Cgrp2TopicFrCtb.sim
+./test.sh -f tsim/tmq/main2Con1Cgrp2TopicFrStb.sim
+
+
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
 ./test.sh -f tsim/stable/dnode3.sim
