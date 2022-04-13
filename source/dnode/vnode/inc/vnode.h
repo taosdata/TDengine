@@ -357,7 +357,7 @@ STbCfg         *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
 STbCfg         *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema       *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
-STSma          *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid);
+void           *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode);
 STSmaWrapper   *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid);
 SArray         *metaGetSmaTbUids(SMeta *pMeta, bool isDup);
 int             metaGetTbNum(SMeta *pMeta);
@@ -369,8 +369,8 @@ void            metaCloseCtbCurosr(SMCtbCursor *pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor *pCtbCur);
 
 SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid);
-void         metaCloseSmaCurosr(SMSmaCursor *pSmaCur);
-const char  *metaSmaCursorNext(SMSmaCursor *pSmaCur);
+void         metaCloseSmaCursor(SMSmaCursor *pSmaCur);
+int64_t      metaSmaCursorNext(SMSmaCursor *pSmaCur);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);
