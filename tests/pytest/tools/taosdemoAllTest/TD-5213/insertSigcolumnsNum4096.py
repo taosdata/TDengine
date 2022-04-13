@@ -24,8 +24,8 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
-    def getBuildPath(self):
+
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -33,26 +33,26 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
-        
+        return paths[0]
+
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
         #-N:regular table  -d:database name   -t:table num  -n:rows num per table  -l:col num  -y:force
-        #regular old && new
+        # regular old && new
         startTime = time.time()
-        os.system("%staosBenchmark -N -d regular_old -t 1 -n 10 -l 1023 -y" % binPath)
+        os.system("%s -N -d regular_old -t 1 -n 10 -l 1023 -y" % binPath)
         tdSql.execute("use regular_old")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -61,7 +61,7 @@ class TDTestCase:
         tdSql.query("describe d0;")
         tdSql.checkRows(1024)
 
-        os.system("%staosBenchmark -N -d regular_new -t 1 -n 10 -l 4095 -y" % binPath)
+        os.system("%s -N -d regular_new -t 1 -n 10 -l 4095 -y" % binPath)
         tdSql.execute("use regular_new")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -70,8 +70,9 @@ class TDTestCase:
         tdSql.query("describe d0;")
         tdSql.checkRows(4096)
 
-        #super table  -d:database name   -t:table num  -n:rows num per table  -l:col num  -y:force
-        os.system("%staosBenchmark -d super_old -t 1 -n 10 -l 1021 -y" % binPath)
+        # super table  -d:database name   -t:table num  -n:rows num per table
+        # -l:col num  -y:force
+        os.system("%s -d super_old -t 1 -n 10 -l 1021 -y" % binPath)
         tdSql.execute("use super_old")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -84,7 +85,7 @@ class TDTestCase:
         tdSql.query("describe d0;")
         tdSql.checkRows(1024)
 
-        os.system("%staosBenchmark -d super_new -t 1 -n 10 -l 4093 -y" % binPath)
+        os.system("%s -d super_new -t 1 -n 10 -l 4093 -y" % binPath)
         tdSql.execute("use super_new")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -102,9 +103,11 @@ class TDTestCase:
         tdSql.query("describe stb_new1_1;")
         tdSql.checkRows(4096)
 
-        # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
+        # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-5213
-        os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.json -y " % binPath)
+        os.system(
+            "%s -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.json -y " %
+            binPath)
         tdSql.execute("use json_test")
         tdSql.query("select count (tbname) from stb_old")
         tdSql.checkData(0, 0, 1)
@@ -112,7 +115,7 @@ class TDTestCase:
         tdSql.query("select * from stb_old")
         tdSql.checkRows(10)
         tdSql.checkCols(1024)
-            
+
         tdSql.query("select count (tbname) from stb_new")
         tdSql.checkData(0, 0, 1)
 
@@ -160,13 +163,11 @@ class TDTestCase:
         tdSql.query("describe stb_excel_0;")
         tdSql.checkRows(4096)
         endTime = time.time()
-        print("total time %ds" % (endTime - startTime))  
+        print("total time %ds" % (endTime - startTime))
 
+        os.system(
+            "rm -rf tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py.sql")
 
-        os.system("rm -rf tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py.sql")        
-        
-        
-        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -3609,16 +3609,11 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
       for (int32_t j = 0; j < rows; ++j) {
         char *src = FILTER_GET_COL_FIELD_DATA(fi, j);
         char *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
-        int32_t len = 0;
-        char *varSrc = varDataVal(src);
-        size_t k = 0, varSrcLen = varDataLen(src);
-        while (k < varSrcLen && varSrc[k++] == -1) {}
-        if (k == varSrcLen) {
-          /* NULL */
-          varDataLen(dst) = (VarDataLenT) varSrcLen;
+        if(isNull(src, TSDB_DATA_TYPE_NCHAR)){
           varDataCopy(dst, src);
           continue;
         }
+        int32_t len = 0;
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
         if(!ret) {
           qError("filterConverNcharColumns taosMbsToUcs4 error");

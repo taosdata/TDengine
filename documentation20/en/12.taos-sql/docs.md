@@ -602,6 +602,8 @@ Query OK, 1 row(s) in set (0.000081s)
 >  `TBNAME`: It can be regarded as a special tag in a STable query, representing the name of sub-table involved in the query
 >
 > _c0: Represents the first column of a table (STable)
+> _qstart,_qstop,_qduration: Represents starting time/stopping time/duration of query time window filter in where condition (supported since 2.6.0.0）
+> _wstart,_wstop,_wduration: Used in time-dimension aggregation query(e.g. interval/session window/state window）to represent starting time/stopping time/duration of each generated time window (supported since 2.6.0.0)
 
 #### Tips
 
@@ -1302,6 +1304,62 @@ TDengine supports aggregations over data, they are listed below:
     Query OK, 1 row(s) in set (0.000836s)
     ```
 
+-  **CSUM**
+    ```sql
+    SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Cumulative sum computes the running total of one time series. It occurs in select clause of SQL statement.
+
+    Input: Input column data type should be a numeric type.
+
+    Output: If the input data type is unsigned int type, the result data type is uint64_t. If the input data type is signed int type, the result data type is int64_t. If the input data type is float or double, the result data type is double. The function also outputs the timestamp of the current row.
+
+    Table: The csum function only applies to the normal table, child table, and super table with group by tbname.
+
+    Nested Query: The csum function applies to both outer query and nested query.
+
+    Note: Can't be used with +-*/ arithmatic operations，like csum(col1) + csum(col2), can only be used with aggragation functions.
+
+-  **MAVG**
+    ```sql
+    SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Moving Average Function Computes the rolling simple average over k values of one time series. It occurs in select clause of SQL statement. If the input time series has less than k values, no result is calculated.
+
+    Input: Input column data should be a numeric type. 
+
+    Output: The Result data type is double. The function also outputs the timestamp of the current row.
+
+    Parameter: K is an integer between 1 and 1000.
+
+    Table: The mavg function only applies to the normal table, child table, and super table with group by tbname.
+
+    Nested Query: The mavg function applies to both outer query and nested query.
+
+    Note: Can't be used with +-*/ arithmatic operations, like mavg(col1, k1) + mavg(col2, k1); can only be used with normal columns, selection and projection functions，can't be used with aggragation functions.
+
+-  **SAMPLE**
+    ```
+    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Sample function samples k values from a specific time series with equal probability. It occurs in select clause of SQL statement
+
+    Input: There are no restrictions on the input data type.
+
+    Output: The output data type is the same as the input data type. The function also outputs the timestamp of the current row.
+
+    Parameter: K is an integer between 1 and 1000.
+
+    Table: he sample function only applies to the normal table, child table, and super table with group by tbname.
+
+    Nested Query: The sample function applies to both outer query and nested query.
+
+    Note: Can't be used as operand in an expression
+
+
 - **ASIN**
     ```mysql
     SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1536,7 +1594,7 @@ TDengine supports aggregations over data, they are listed below:
     ```
     Function: Converts a value into as a specific data type of type_name.
 
-    Output Data Type: type_name specificied. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
+    Output Data Type: type_name specified. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
 
     Input: Normal column, constant, scalar function and the arithmetic computation(+,-,*,/,%) among them. Input data type includes BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY(M), TIMESTAMP, NCHAR(M), TINYINT UNSIGNED, SMALLINT UNSIGNED, INT UNSIGNED, and BIGINT UNSIGNED
 
@@ -1701,8 +1759,8 @@ TDengine supports aggregations over data, they are listed below:
     Notes:
     
       Returns NULL when input is NULL. 
-      Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
-      If input len is ommited, the output is whole substring starting from pos.
+      Input pos can be negative or positive. If it is a positive number, the beginning of the substring is pos characters from the beginning of the string. If it is a negative number, the beginning of the substring is pos characters from the end of the string
+      If input len is omitted, the output is whole substring starting from pos.
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
       Supported after version 2.6.0.x    
@@ -1814,6 +1872,320 @@ TDengine supports aggregations over data, they are listed below:
     2022-01-01 08:00:07.000000000 |                     9 |                        2 |
     Query OK, 6 row(s) in set (0.002613s)
      ```
+- **HISTOGRAM**
+    ```mysql
+    SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+    ```
+    Function: Returns count of data points in user-specified ranges.
+
+    Return Data Type: Double or INT64, depends on normalized parameter settings.
+
+    Applicable Fields: Numerical types.
+
+    Applied to: **table stable**.
+
+    Note:
+    1. This function is supported since 2.6.0.0.
+    2. bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
+    3）bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+       - "user_input": "[1, 3, 5, 7]"
+       User defined specified bin values.
+
+       - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "width" - bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+       The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
+
+       - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "factor" - exponential factor of bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+       The above "log_bin" descriptor generates a set of bins:[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
+    4）normalized: setting to 1/0 to turn on/off result normalization.
+
+    Example:
+    ```mysql
+     taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+     taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+     taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+    ```
+### Time Functions
+
+Starting from version 2.6.0.0, TDengine supports following time related functions:
+
+- **NOW**
+    ```mysql
+    SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator NOW();
+    INSERT INTO tb_name VALUES (NOW(), ...);
+    ```
+    Function: Returns current time of client.
+
+    Returned Data Type: TIMESTAMP type.
+
+    Applicable Fields: Can only be applied to TIMESTAMP field when used in WHERE or INSERT clause.
+
+    Applied to: **table stable**.
+
+    Note:
+      1）Support arithmetic operations，e.g. NOW() + 1s. Valid time unit:
+         b(nanosecond)、u(microsecond)、a(millisecond)、s(second)、m(minute)、h(hour)、d(day)、w(week).
+      2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT NOW() FROM meters;
+              now()          |
+    ==========================
+      2022-02-02 02:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT NOW() + 1h FROM meters;
+           now() + 1h         |
+    ==========================
+      2022-02-02 03:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+
+- **TODAY**
+    ```mysql
+    SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator TODAY()];
+    INSERT INTO tb_name VALUES (TODAY(), ...);
+    ```
+    Function: Returns current date of client.
+
+    Returned Data Type: TIMESTAMP type。
+
+    Applicable Fields: Can only be applied to TIMESTAMP field when used in WHERE or INSERT clause.
+
+    Applied to: **table stable**.
+
+    Note:
+      1）Support arithmetic operations, e.g. TODAY() + 1s. Valid time unit:
+         b(nanosecond)、u(microsecond)、a(millisecond)、s(second)、m(minute)、h(hour)、d(day)、w(week).
+      2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TODAY() FROM meters;
+             today()          |
+    ==========================
+      2022-02-02 00:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT TODAY() + 1h FROM meters;
+          today() + 1h        |
+    ==========================
+      2022-02-02 01:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+
+- **TIMEZONE**
+    ```mysql
+    SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns current time zone information of client.
+
+    Returned Data Type: BINARY type.
+
+    Applicable Fields: N/A.
+
+    Applied to: **table stable**.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMEZONE() FROM meters;
+               timezone()           |
+    =================================
+     UTC (UTC, +0000)               |
+    Query OK, 1 row(s) in set (0.002093s)
+    ```
+
+- **TO_ISO8601**
+    ```mysql
+    SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Convert UNIX timestamp to ISO8601 standard date-time format string, with client time zone information attached.
+
+    Returned Data Type: BINARY type.
+
+    Applicable Fields: UNIX timestamp constant and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestamp digits. If input is TIMESTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TO_ISO8601(1643738400) FROM meters;
+       to_iso8601(1643738400)    |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     
+    taos> SELECT TO_ISO8601(ts) FROM meters;
+           to_iso8601(ts)        |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+    ```
+
+ - **TO_UNIXTIMESTAMP**
+    ```mysql
+    SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Convert date-time format string to UNIX timestamp.
+
+    Returned Data Type: INT64.
+
+    Applicable Fields: String literal or BINARY/NCHAR type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Input date-time string format should conform ISO8601/RFC3339 standard，otherwise conversion will fail and 0 is returned.
+    2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+    to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+    ==============================================
+                                   1643767200000 |
+     
+    taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+          to_unixtimestamp(col_binary)     |
+    ========================================
+                             1643767200000 |
+                             1643767200000 |
+                             1643767200000 |
+    ```
+
+ - **TIMETRUNCATE**
+    ```mysql
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Truncate timestamp by time_unit.
+
+    Returned Data Type: TIMESTAMP type.
+
+    Applicable Fields: UNIX timestamp, date-time format string, and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Supported time_unit:
+         1u(microsecond)，1a(millisecond)，1s(second)，1m(minute)，1h(hour)，1d(day)。
+    2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+      timetruncate(1643738522000, 1h) |
+    ===================================
+          2022-02-02 02:00:00.000     |
+    Query OK, 1 row(s) in set (0.001499s)
+    
+    taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+      timetruncate("2022-02-02 02:02:02", 1h) |
+    ===========================================
+          2022-02-02 02:00:00.000             |
+    Query OK, 1 row(s) in set (0.003903s)
+    
+    taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+      timetruncate(ts, 1h)   |
+    ==========================
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+    Query OK, 3 row(s) in set (0.003903s)
+    ```
+
+ - **TIMEDIFF**
+    ```mysql
+    SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Calculate duration between two timestamps with time_unit precision。
+
+    Returned Data Type: INT64.
+
+    Applicable Fields: UNIX timestamp, date-time format string, and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Supported time_unit:
+         1u(microsecond)，1a(millisecond)，1s(second)，1m(minute)，1h(hour)，1d(day)。
+    2）If time_unit is unspecified, returned time duration unit is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+     timediff(1643738400000, 1643742000000) |
+    =========================================
+                                    3600000 |
+    Query OK, 1 row(s) in set (0.002553s)
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+     timediff(1643738400000, 1643742000000, 1h) |
+    =============================================
+                                              1 |
+    Query OK, 1 row(s) in set (0.003726s)
+    
+    taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+     timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+    =============================================================
+                                                              1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    
+    taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+       timediff(ts_col1, ts_col2, 1h) |
+    ===================================
+                                    1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    ```
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 

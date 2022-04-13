@@ -57,10 +57,11 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 | taos-jdbcdriver 版本 | TDengine 2.0.x.x 版本 | TDengine 2.2.x.x 版本 | TDengine 2.4.x.x 版本 | JDK 版本 |
 | -------------------- | --------------------- | --------------------- | --------------------- | -------- |
-| 2.0.37               | X                     | X                     | 2.4.0.6 以上          | 1.8.x    |
-| 2.0.36               | X                     | 2.2.2.11 以上         | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.35               | X                     | 2.2.2.11 以上         | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.33 - 2.0.34      | 2.0.3.0 以上          | 2.2.0.0 以上          | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.38               | X                     | X                     | 2.4.0.14 及以上       | 1.8.x    |
+| 2.0.37               | X                     | X                     | 2.4.0.6 及以上        | 1.8.x    |
+| 2.0.36               | X                     | 2.2.2.11 及以上       | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.35               | X                     | 2.2.2.11 及以上       | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.33 - 2.0.34      | 2.0.3.0 及以上        | 2.2.0.0 及以上        | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
 | 2.0.31 - 2.0.32      | 2.1.3.0 - 2.1.7.7     | X                     | X                     | 1.8.x    |
 | 2.0.22 - 2.0.30      | 2.0.18.0 - 2.1.2.1    | X                     | X                     | 1.8.x    |
 | 2.0.12 - 2.0.21      | 2.0.8.0 - 2.0.17.4    | X                     | X                     | 1.8.x    |
@@ -114,7 +115,8 @@ maven 项目中，在pom.xml 中添加以下依赖：
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.18</version>
+ <!--具体版本请参考上面的版本对应表-->
+ <version>2.x.xx</version>
 </dependency>
 ```
 
@@ -150,7 +152,18 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
 3. 使用 6041 作为连接端口。
 
-如果希望获得更好的写入和查询性能，Java 应用可以使用 **JDBC-JNI** 的driver，如下所示：
+从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，**JDBC-RESTful** 的 driver 增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 **JDBC-RESTful** 支持大数据量查询，并提升查询性能。
+
+连接开启批量拉取方式：
+
+```
+String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";Properties properties = new Properties();
+properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
+Connection connection = DriverManager.getConnection(url, properties);
+```
+
+如果希望获得更好的写入和查询性能，Java 应用可以使用 **JDBC-JNI** 的 driver，如下所示：
+
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
 String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata";
@@ -206,7 +219,7 @@ properties 中的配置参数如下：
 * TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 * TSDBDriver.PROPERTY_KEY_LOCALE：客户端语言环境，默认值系统当前 locale。
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE：客户端使用的时区，默认值为系统当前时区。
-* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: 仅在使用JDBC-JNI时生效。true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
+* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 * TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: 仅在使用JDBC-RESTful时生效. 'TIMESTAMP'：结果集中timestamp类型的字段为一个long值; 'UTC'：结果集中timestamp类型的字段为一个UTC时间格式的字符串; 'STRING'：结果集中timestamp类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
 * TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行Statement的executeBatch时，如果中间有一条sql执行失败，继续执行下面的sq了。false：不再执行失败sql后的任何语句。默认值为：false。
 

@@ -107,11 +107,13 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
 }
 
 int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
+  int16_t leftType = pExpr->_node.pLeft->resultType;
+  int16_t rightType = pExpr->_node.pRight->resultType;
+  int16_t resultType = leftType;
+
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
-    int16_t leftType = pExpr->_node.pLeft->resultType;
-    int16_t rightType = pExpr->_node.pRight->resultType;
     if ((!IS_NUMERIC_TYPE(leftType) && !IS_TIMESTAMP_TYPE(leftType)) ||
         (!IS_NUMERIC_TYPE(rightType) && !IS_TIMESTAMP_TYPE(rightType))) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -131,6 +133,171 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
     } else {
       pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+    if ((leftType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(leftType) && !IS_UNSIGNED_NUMERIC_TYPE(leftType)) ||
+        (rightType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(rightType) && !IS_UNSIGNED_NUMERIC_TYPE(rightType)))
+    {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    uint8_t schemaType;
+    // now leftType and rightType are both numeric
+    if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_COL) {
+      if (leftType != rightType) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    } else if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL) {
+      if (pExpr->_node.pRight->nodeType != TSQL_NODE_VALUE) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      } else {
+        schemaType = pExpr->_node.pLeft->pSchema->type;
+        int64_t sVal = pExpr->_node.pRight->pVal->i64;
+        uint64_t uVal = pExpr->_node.pRight->pVal->u64;
+
+        switch (schemaType) {
+        case TSDB_DATA_TYPE_BOOL:
+          if ((pExpr->_node.pRight->pVal->nType != TSDB_DATA_TYPE_BOOL) ||
+              (pExpr->_node.pRight->pVal->i64 != 0 &&
+               pExpr->_node.pRight->pVal->i64 != 1 &&
+               pExpr->_node.pRight->pVal->i64 != TSDB_DATA_BOOL_NULL))
+          {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          if (sVal < -128 || sVal > 127) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          if (sVal < -32768 || sVal > 32767) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_INT:
+          if (sVal < INT32_MIN || sVal > INT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          if (sVal < INT64_MIN || sVal > INT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          if (uVal > 255) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          if (uVal > 65535) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          if (uVal > UINT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          if (uVal > UINT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        }
+
+        pExpr->_node.pRight->pSchema->type = schemaType;
+        pExpr->_node.pRight->pVal->nType = schemaType;
+
+        pExpr->_node.pRight->resultType = schemaType;
+        pExpr->_node.pRight->resultBytes = tDataTypes[schemaType].bytes;
+      }
+    } else {
+      if (pExpr->_node.pLeft->nodeType != TSQL_NODE_VALUE) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      } else {
+        schemaType = pExpr->_node.pRight->pSchema->type;
+        int64_t sVal = pExpr->_node.pLeft->pVal->i64;
+        uint64_t uVal = pExpr->_node.pLeft->pVal->u64;
+        switch (schemaType) {
+        case TSDB_DATA_TYPE_BOOL:
+          if ((pExpr->_node.pLeft->pVal->nType != TSDB_DATA_TYPE_BOOL) ||
+              (pExpr->_node.pLeft->pVal->i64 != 0 &&
+               pExpr->_node.pLeft->pVal->i64 != 1 &&
+               pExpr->_node.pLeft->pVal->i64 != TSDB_DATA_BOOL_NULL))
+          {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 1;
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          if (sVal < -128 || sVal > 127) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 1;
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          if (sVal < -32768 || sVal > 32767) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 2;
+          break;
+        case TSDB_DATA_TYPE_INT:
+          if (sVal < INT32_MIN || sVal > INT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 4;
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          if (sVal < INT64_MIN || sVal > INT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 8;
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          if (uVal > 255) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 1;
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          if (uVal > 65535) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 2;
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          if (uVal > UINT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 4;
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          if (uVal > UINT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 8;
+          break;
+        }
+
+        pExpr->_node.pLeft->pSchema->type = schemaType;
+        pExpr->_node.pLeft->pVal->nType = schemaType;
+
+        pExpr->_node.pLeft->resultType = schemaType;
+        pExpr->_node.pLeft->resultBytes = tDataTypes[schemaType].bytes;
+      }
+
+      resultType = schemaType;
+    }
+
+    if (resultType == TSDB_DATA_TYPE_BOOL) {
+      pExpr->resultType = TSDB_DATA_TYPE_BOOL;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    } else {
+      pExpr->resultType = resultType;
+      pExpr->resultBytes = tDataTypes[resultType].bytes;
     }
     return TSDB_CODE_SUCCESS;
   } else {
@@ -241,7 +408,8 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       return;
     }
     case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
@@ -438,7 +606,7 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
       }
       pInputs[i].numOfRows = (int16_t)numOfRows;
     } else if (pChild->nodeType == TSQL_NODE_VALUE) {
-      pChildrenOutput[i] = malloc(pChild->resultBytes);
+      pChildrenOutput[i] = malloc((pChild->resultBytes+1)*TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
       tVariantDump(pChild->pVal, pChildrenOutput[i], pChild->resultType, true);
       pInputs[i].data = pChildrenOutput[i];
       pInputs[i].numOfRows = 1;
@@ -535,7 +703,11 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
   if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
     output->type = TSDB_DATA_TYPE_BIGINT;
   } else {
-    output->type = TSDB_DATA_TYPE_DOUBLE;
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+      output->type = leftType; // rightType must be the same as leftType
+    } else {
+      output->type = TSDB_DATA_TYPE_DOUBLE;
+    }
   }
   output->bytes = tDataTypes[output->type].bytes;
 
@@ -955,7 +1127,7 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -1027,7 +1199,7 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -1181,8 +1353,7 @@ int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr) {
 
 int32_t exprValidateMathNode(tExprNode *pExpr) {
   switch (pExpr->_func.functionId) {
-    case TSDB_FUNC_SCALAR_POW:
-    case TSDB_FUNC_SCALAR_LOG: {
+    case TSDB_FUNC_SCALAR_POW: {
       if (pExpr->_func.numChildren != 2) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -1190,6 +1361,27 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
       tExprNode *child2 = pExpr->_func.pChildren[1];
       if (!IS_NUMERIC_TYPE(child1->resultType) || !IS_NUMERIC_TYPE(child2->resultType)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case TSDB_FUNC_SCALAR_LOG: {
+      if (pExpr->_func.numChildren != 1 && pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (pExpr->_func.numChildren == 2) {
+        tExprNode *child2 = pExpr->_func.pChildren[1];
+        if (!IS_NUMERIC_TYPE(child2->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
 
       pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
@@ -2040,13 +2232,19 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
     if (!hasNullInputs) {
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOG: {
-          assert(numInputs == 2);
-          double base = 0;
-          GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          double base = 2.7182818284590452354; //const M_E
+          if (numInputs == 2) {
+            GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          }
           double v1 = 0;
           GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
-          double result = log(v1) / log(base);
-          SET_TYPED_DATA(outputData, pOutput->type, result);
+          if (numInputs == 2) {
+            double result = log(v1) / log(base);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          } else {
+            double result = log(v1);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          }
           break;
         }
 
@@ -2230,14 +2428,12 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
 void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
   int32_t charLen = varDataLen(inputData);
-  char *newColData;
+  char *newColData = calloc(1, charLen + 1);
   if (type == TSDB_DATA_TYPE_BINARY) {
-    newColData = calloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
     taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
     tfree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
     int len = taosUcs4ToMbs(varDataVal(inputData), charLen, newColData);
     if (len < 0){
       uError("convertStringToTimestamp taosUcs4ToMbs error");

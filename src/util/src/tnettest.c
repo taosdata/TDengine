@@ -568,7 +568,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
   int32_t forceTcp  = tsRpcForceTcp;
-  
+
   //Precheck for FQDN lgenth
   if (strlen(host) >= TSDB_FQDN_LEN) {
     uError("FQDN length is too long");
@@ -615,7 +615,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     reqMsg.handle = NULL;   // rpc handle returned to app
     reqMsg.ahandle = NULL;  // app handle set by client
     tstrncpy((char*)reqMsg.pCont, "nettest speed", pkgLen);
-    
+
     rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
     int code = 0;

@@ -53,15 +53,9 @@ namespace Test.Fixture
                 {
                     if ((res = TDengine.Query(conn, $"drop database if exists {db}")) != IntPtr.Zero)
                     {
-                        if (TDengine.Close(conn) == 0)
-                        {
-                            Console.WriteLine("close connection success");
-                        }
-                        else
-                        {
-                            throw new Exception("close connection failed");
-                        }
-
+                        TDengine.Close(conn);
+                        Console.WriteLine("close connection success");
+   
                     }
                     else
                     {

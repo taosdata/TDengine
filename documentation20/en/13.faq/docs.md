@@ -30,7 +30,7 @@ Version 2.0 is a complete refactoring of the previous version, and the configura
 4. Install the latest stable version of TDengine
 5. If you need to migrate data or the data file is corrupted, please contact the official technical support team of TAOS Data to assist
 
-## 2. When encoutered with the error " Unable to establish connection " in Windows, what can I do?
+## 2. When encountered with the error " Unable to establish connection " in Windows, what can I do?
 
 See the [technical blog](https://www.taosdata.com/blog/2019/12/03/jdbcdriver%E6%89%BE%E4%B8%8D%E5%88%B0%E5%8A%A8%E6%80%81%E9%93%BE%E6%8E%A5%E5%BA%93/) for this issue.
 
@@ -103,7 +103,7 @@ Insert in batches. Each write statement can insert multiple records into one or 
 
 ## 12. What is the most effective way to write data? How to solve the problem that Chinese characters in nchar inserted under Windows systems are parsed into messy code?
 
-If there are Chinese characters in nchar data under Windows, please first confirm that the region of the system is set to China (which can be set in the Control Panel), then the taos client in cmd should already support it normally; If you are developing Java applications in an IDE, such as Eclipse and Intellij, please confirm that the file code in the IDE is GBK (this is the default coding type of Java), and then initialize the configuration of the client when generating the Connection. The specific statement is as follows:
+If there are Chinese characters in nchar data under Windows, please first confirm that the region of the system is set to China (which can be set in the Control Panel), then the taos client in cmd should already support it normally; If you are developing Java applications in an IDE, such as Eclipse and IntelliJ, please confirm that the file code in the IDE is GBK (this is the default coding type of Java), and then initialize the configuration of the client when generating the Connection. The specific statement is as follows:
 
 ```JAVA
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -126,7 +126,7 @@ Please update to the latest JDBC driver.
 
 ## 14. taos connect failed, reason: invalid timestamp.
 
-The common reason is that the server time and client time are not calibrated, which can be calibrated by synchronizing with the time server (use ntpdate command under Linux, and select automatic synchronization in the Windows time setting).
+The common reason is that the server time and client time are not calibrated, which can be calibrated by synchronizing with the time server (use `ntpdate` command under Linux, and select automatic synchronization in the Windows time setting).
 
 ## 15. Incomplete display of table name
 

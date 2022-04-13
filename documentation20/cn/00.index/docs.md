@@ -81,6 +81,7 @@ TDengine 是一个高效的存储、查询、分析时序大数据的平台，�
 - [C# Connector](/connector#csharp)：给 C# 应用提供一个连接 TDengine 服务器的驱动
 - [Windows 客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译 Windows 客户端，Windows 环境的各种连接器都需要它
 - [Rust Connector](/connector/rust): Rust 语言下通过 libtaos 客户端或 RESTful 接口，连接 TDengine 服务器。
+- [PHP Connector](/connector/php): 给 PHP 应用提供一个连接 TDengine 服务器的驱动，或 RESTful 接口，连接 TDengine 服务器。
 
 ## TDengine 组件与工具
 
@@ -96,6 +97,7 @@ TDengine 是一个高效的存储、查询、分析时序大数据的平台，�
 - [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过 IDEA 数据库管理工具可视化使用 TDengine
 - [TDengineGUI](https://github.com/skye0207/TDengineGUI)：基于 Electron 开发的跨平台 TDengine 图形化管理工具
 - [DataX](https://www.taosdata.com/blog/2021/10/26/3156.html)：支持 TDengine 和其他数据库之间进行数据迁移的工具
+- [Awesome TDengine](https://github.com/taosdata/awesome-tdengine)：与 TDengine 有关的精彩项目精选清单
 
 ## [TDengine 集群的安装、管理](/cluster)
 
