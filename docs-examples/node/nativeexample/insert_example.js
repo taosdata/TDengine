@@ -22,7 +22,7 @@ power.d1004 USING power.meters TAGS(Beijing.Haidian, 3) VALUES ('2018-10-03 14:3
 }
 
 // run with: node insert_example.js
-// stdout:
+// output:
 // Successfully connected to TDengine
 // Query OK, 0 row(s) affected (0.00509570s)
 // Query OK, 0 row(s) affected (0.00130880s)
