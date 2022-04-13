@@ -46,4 +46,3 @@ TAOS_STMT *stmtInit(TAOS *taos) {
   return pStmt;
 }
 
-
