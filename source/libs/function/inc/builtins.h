@@ -22,7 +22,7 @@ extern "C" {
 
 #include "functionMgt.h"
 
-#define FUNCTION_NAME_MAX_LENGTH 16
+#define FUNCTION_NAME_MAX_LENGTH 32
 
 #define FUNC_MGT_FUNC_CLASSIFICATION_MASK(n)    (1 << n)
 
@@ -41,12 +41,14 @@ extern "C" {
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef int32_t (*FCheckAndGetResultType)(SFunctionNode* pFunc);
+typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 typedef struct SBuiltinFuncDefinition {
   char name[FUNCTION_NAME_MAX_LENGTH];
   EFunctionType type;
   uint64_t classification;
   FCheckAndGetResultType checkFunc;
+  FFuncDataRequired dataRequiredFunc;
   FExecGetEnv getEnvFunc;
   FExecInit initFunc;
   FExecProcess processFunc;

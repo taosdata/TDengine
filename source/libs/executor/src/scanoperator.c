@@ -113,7 +113,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
-  SSDataBlock*     pBlock = &pTableScanInfo->block;
+  SSDataBlock*     pBlock = pTableScanInfo->pResBlock;
   STableGroupInfo* pTableGroupInfo = &pOperator->pTaskInfo->tableqinfoGroupInfo;
 
   *newgroup = false;
@@ -218,7 +218,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
 }
 
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
-                                           int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo,
+                                           int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
                                            SNode* pCondition, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
 
@@ -232,12 +232,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
     return NULL;
   }
 
-  pInfo->block.pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColumnInfoData idata = {0};
-    taosArrayPush(pInfo->block.pDataBlock, &idata);
-  }
-
+  pInfo->pResBlock        = pResBlock;
   pInfo->pFilterNode      = pCondition;
   pInfo->dataReader       = pTsdbReadHandle;
   pInfo->times            = repeatTime;
@@ -312,7 +307,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator, bool* newgroup) {
   tsdbGetFileBlocksDistInfo(pTableScanInfo->dataReader, &tableBlockDist);
   tableBlockDist.numOfRowsInMemTable = (int32_t) tsdbGetNumOfRowsInMemTable(pTableScanInfo->dataReader);
 
-  SSDataBlock* pBlock = &pTableScanInfo->block;
+  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
   pBlock->info.rows   = 1;
   pBlock->info.numOfCols = 1;
 
@@ -343,13 +338,13 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* 
   }
 
   pInfo->dataReader       = dataReader;
-  pInfo->block.pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+//  pInfo->block.pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
 
   SColumnInfoData infoData = {0};
   infoData.info.type  = TSDB_DATA_TYPE_BINARY;
   infoData.info.bytes = 1024;
   infoData.info.colId = 0;
-  taosArrayPush(pInfo->block.pDataBlock, &infoData);
+//  taosArrayPush(pInfo->block.pDataBlock, &infoData);
 
   pOperator->name          = "DataBlockInfoScanOperator";
   //  pOperator->operatorType = OP_TableBlockInfoScan;

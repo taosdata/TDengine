@@ -58,7 +58,7 @@ int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to create qnode since %s", terrstr());
     return -1;
   } else {
-    return qmOpen(pWrapper);
+    return dndOpenNode(pWrapper);
   }
 }
 
@@ -77,6 +77,7 @@ int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     dError("failed to drop qnode since %s", terrstr());
     return -1;
   } else {
+    // dndCloseNode(pWrapper);
     return qmDrop(pWrapper);
   }
 }

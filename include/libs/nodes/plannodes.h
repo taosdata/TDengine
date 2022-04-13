@@ -30,6 +30,7 @@ typedef struct SLogicNode {
   SNode* pConditions;
   SNodeList* pChildren;
   struct SLogicNode* pParent;
+  int32_t optimizedFlag;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -50,6 +51,8 @@ typedef struct SScanLogicNode {
   SName tableName;
   bool showRewrite;
   double ratio;
+  SNodeList* pDynamicScanFuncs;
+  int32_t dataRequired;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -196,20 +199,13 @@ typedef struct SSystemTableScanPhysiNode {
   int32_t accountId;
 } SSystemTableScanPhysiNode;
 
-typedef enum EScanRequired {
-  SCAN_REQUIRED_DATA_NO_NEEDED = 1,
-  SCAN_REQUIRED_DATA_STATIS_NEEDED,
-  SCAN_REQUIRED_DATA_ALL_NEEDED,
-  SCAN_REQUIRED_DATA_DISCARD,
-} EScanRequired;
-
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
   double ratio;
-  EScanRequired scanRequired;
-  SNodeList* pScanReferFuncs;
+  int32_t dataRequired;
+  SNodeList* pDynamicScanFuncs;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

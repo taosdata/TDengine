@@ -260,6 +260,7 @@ typedef struct {
 
 typedef struct SSchema {
   int8_t   type;
+  int8_t   index;  // default is 0, not index created
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
@@ -2015,6 +2016,7 @@ typedef struct {
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);
+  tlen += taosEncodeFixedI8(buf, pSchema->index);
   tlen += taosEncodeFixedI32(buf, pSchema->bytes);
   tlen += taosEncodeFixedI16(buf, pSchema->colId);
   tlen += taosEncodeString(buf, pSchema->name);
@@ -2023,6 +2025,7 @@ static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema
 
 static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
   buf = taosDecodeFixedI8(buf, &pSchema->type);
+  buf = taosDecodeFixedI8(buf, &pSchema->index);
   buf = taosDecodeFixedI32(buf, &pSchema->bytes);
   buf = taosDecodeFixedI16(buf, &pSchema->colId);
   buf = taosDecodeStringTo(buf, pSchema->name);
@@ -2031,6 +2034,7 @@ static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
 
 static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
   if (tEncodeI8(pEncoder, pSchema->type) < 0) return -1;
+  if (tEncodeI8(pEncoder, pSchema->index) < 0) return -1;
   if (tEncodeI32(pEncoder, pSchema->bytes) < 0) return -1;
   if (tEncodeI16(pEncoder, pSchema->colId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pSchema->name) < 0) return -1;
@@ -2039,6 +2043,7 @@ static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSch
 
 static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
   if (tDecodeI8(pDecoder, &pSchema->type) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pSchema->index) < 0) return -1;
   if (tDecodeI32(pDecoder, &pSchema->bytes) < 0) return -1;
   if (tDecodeI16(pDecoder, &pSchema->colId) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;

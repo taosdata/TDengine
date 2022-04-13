@@ -200,6 +200,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   strcpy(pScan->tableName.tname, pRealTable->table.tableName);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
   pScan->ratio = pRealTable->ratio;
+  pScan->dataRequired = FUNC_DATA_REQUIRED_ALL_NEEDED;
 
   // set columns to scan
   SNodeList* pCols = NULL;

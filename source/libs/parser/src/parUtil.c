@@ -62,35 +62,39 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INTERVAL_VALUE_TOO_SMALL:
       return "This interval value is too small : %s";
     case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
-      return "db not specified";
+      return "Database not specified";
     case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:
       return "Invalid identifier name : %s";
     case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
-      return "corresponding super table not in this db";
+      return "Corresponding super table not in this db";
     case TSDB_CODE_PAR_INVALID_RANGE_OPTION:
-      return "invalid option %s: %"PRId64" valid range: [%d, %d]";
+      return "Invalid option %s: %"PRId64" valid range: [%d, %d]";
     case TSDB_CODE_PAR_INVALID_STR_OPTION:
-      return "invalid option %s: %s";
+      return "Invalid option %s: %s";
     case TSDB_CODE_PAR_INVALID_ENUM_OPTION:
-      return "invalid option %s: %"PRId64", only %d, %d allowed";
+      return "Invalid option %s: %"PRId64", only %d, %d allowed";
     case TSDB_CODE_PAR_INVALID_TTL_OPTION:
-      return "invalid option ttl: %"PRId64", should be greater than or equal to %d";
+      return "Invalid option ttl: %"PRId64", should be greater than or equal to %d";
     case TSDB_CODE_PAR_INVALID_KEEP_NUM:
-      return "invalid number of keep options";
+      return "Invalid number of keep options";
     case TSDB_CODE_PAR_INVALID_KEEP_ORDER:
-      return "invalid keep value, should be keep0 <= keep1 <= keep2";
+      return "Invalid keep value, should be keep0 <= keep1 <= keep2";
     case TSDB_CODE_PAR_INVALID_KEEP_VALUE:
-      return "invalid option keep: %d, %d, %d valid range: [%d, %d]";
+      return "Invalid option keep: %d, %d, %d valid range: [%d, %d]";
     case TSDB_CODE_PAR_INVALID_COMMENT_OPTION:
-      return "invalid option comment, length cannot exceed %d";
+      return "Invalid option comment, length cannot exceed %d";
     case TSDB_CODE_PAR_INVALID_F_RANGE_OPTION:
-      return "invalid option %s: %f valid range: [%d, %d]";
+      return "Invalid option %s: %f valid range: [%d, %d]";
     case TSDB_CODE_PAR_INVALID_ROLLUP_OPTION:
-      return "invalid option rollup: only one function is allowed";
+      return "Invalid option rollup: only one function is allowed";
     case TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION:
-      return "invalid option retentions";
+      return "Invalid option retentions";
     case TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST:
       return "GROUP BY and WINDOW-clause can't be used together";
+    case TSDB_CODE_PAR_INVALID_OPTION_UNIT:
+      return "Invalid option %s unit: %c, only m, h, d allowed";
+    case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
+      return "Invalid option keep unit: %c, %c, %c, only m, h, d allowed";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

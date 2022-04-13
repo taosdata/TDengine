@@ -23,6 +23,14 @@ target_include_directories(
 )
 target_link_libraries(taosd dnode)
 
+IF (TD_GRANT)
+  TARGET_LINK_LIBRARIES(taosd grant)
+ENDIF ()
+IF (TD_USB_DONGLE)
+  TARGET_LINK_LIBRARIES(taosd usb_dongle)
+else()
+ENDIF ()
+
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})

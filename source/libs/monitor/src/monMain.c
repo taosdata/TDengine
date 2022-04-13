@@ -375,6 +375,9 @@ static void monGenDnodeJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "vnodes_num", pStat->totalVnodes);
   tjsonAddDoubleToObject(pJson, "masters", pStat->masterNum);
   tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode);
+  tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode);
+  tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode);
+  tjsonAddDoubleToObject(pJson, "has_bnode", pInfo->has_bnode);
 }
 
 static void monGenDiskJson(SMonInfo *pMonitor) {
@@ -530,7 +533,7 @@ void monSendReport() {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsMonitor.cfg.server, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
-      uError("failed to send monitor msg since %s", terrstr());
+      uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);
   }
