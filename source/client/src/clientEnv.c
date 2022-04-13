@@ -189,14 +189,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);
-  
-  if (taosHashPut(pObj->pRequests, &pRequest->self, sizeof(pRequest->self), &pRequest->self, sizeof(pRequest->self))) {
-    destroyRequest(pRequest);
-    releaseTscObj(pObj->id);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return NULL;
-  }
-  
+    
   return pRequest;
 }
 
