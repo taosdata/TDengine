@@ -170,7 +170,7 @@ void parseInputString() {
 
 
 static int  running = 1;
-static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
+/*static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }*/
 
 
 int queryDB(TAOS *taos, char *command) {
@@ -226,7 +226,7 @@ void loop_consume(tmq_t* tmq) {
   int32_t totalRows = 0;
   int32_t skipLogNum = 0;
   while (running) {
-    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, 8000);
+    TAOS_RES* tmqMsg = tmq_consumer_poll(tmq, 8000);
     if (tmqMsg) {
 	  totalMsgs++;
 
@@ -237,9 +237,9 @@ void loop_consume(tmq_t* tmq) {
 	  }
 	  #endif
 	  
-      skipLogNum += tmqGetSkipLogNum(tmqMsg);
+      /*skipLogNum += tmqGetSkipLogNum(tmqMsg);*/
 	  if (0 != g_stConfInfo.showMsgFlag) {
-        msg_process(tmqMsg);
+        /*msg_process(tmqMsg);*/
 	  }
       tmq_message_destroy(tmqMsg);
     } else {

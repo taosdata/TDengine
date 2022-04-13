@@ -255,7 +255,7 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 
   return 0;
 }
-
+#if 0
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqPollReq* pReq = pMsg->pCont;
   int64_t     consumerId = pReq->consumerId;
@@ -423,6 +423,205 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
   tEncodeSMqPollRsp(&abuf, &rsp);
   rsp.pBlockData = NULL;
+  pMsg->pCont = buf;
+  pMsg->contLen = tlen;
+  pMsg->code = 0;
+  tmsgSendRsp(pMsg);
+  vDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", pTq->pVnode->vgId, fetchOffset, consumerId,
+         pReq->epoch);
+  /*}*/
+
+  return 0;
+}
+#endif
+
+int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
+  SMqPollReq* pReq = pMsg->pCont;
+  int64_t     consumerId = pReq->consumerId;
+  int64_t     fetchOffset;
+  int64_t     blockingTime = pReq->blockingTime;
+  int32_t     reqEpoch = pReq->epoch;
+
+  if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
+    fetchOffset = 0;
+  } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
+    fetchOffset = walGetLastVer(pTq->pWal);
+  } else {
+    fetchOffset = pReq->currentOffset + 1;
+  }
+
+  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+         pTq->pVnode->vgId, pReq->currentOffset, fetchOffset);
+
+  SMqPollRspV2 rspV2 = {0};
+  rspV2.dataLen = 0;
+
+  STqConsumer* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
+  if (pConsumer == NULL) {
+    vWarn("tmq poll: consumer %ld (epoch %d) not found in vg %d", consumerId, pReq->epoch, pTq->pVnode->vgId);
+    pMsg->pCont = NULL;
+    pMsg->contLen = 0;
+    pMsg->code = -1;
+    tmsgSendRsp(pMsg);
+    return 0;
+  }
+
+  int32_t consumerEpoch = atomic_load_32(&pConsumer->epoch);
+  while (consumerEpoch < reqEpoch) {
+    consumerEpoch = atomic_val_compare_exchange_32(&pConsumer->epoch, consumerEpoch, reqEpoch);
+  }
+
+  STqTopic* pTopic = NULL;
+  int32_t   topicSz = taosArrayGetSize(pConsumer->topics);
+  for (int32_t i = 0; i < topicSz; i++) {
+    STqTopic* topic = taosArrayGet(pConsumer->topics, i);
+    // TODO race condition
+    ASSERT(pConsumer->consumerId == consumerId);
+    if (strcmp(topic->topicName, pReq->topic) == 0) {
+      pTopic = topic;
+      break;
+    }
+  }
+  if (pTopic == NULL) {
+    vWarn("tmq poll: consumer %ld (epoch %d) topic %s not found in vg %d", consumerId, pReq->epoch, pReq->topic,
+          pTq->pVnode->vgId);
+    pMsg->pCont = NULL;
+    pMsg->contLen = 0;
+    pMsg->code = -1;
+    tmsgSendRsp(pMsg);
+    return 0;
+  }
+
+  vDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch,
+         pTq->pVnode->vgId);
+
+  rspV2.reqOffset = pReq->currentOffset;
+  rspV2.skipLogNum = 0;
+
+  while (1) {
+    /*if (fetchOffset > walGetLastVer(pTq->pWal) || walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {*/
+    // TODO
+    consumerEpoch = atomic_load_32(&pConsumer->epoch);
+    if (consumerEpoch > reqEpoch) {
+      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
+             consumerId, pReq->epoch, pTq->pVnode->vgId, fetchOffset, consumerEpoch, reqEpoch);
+      break;
+    }
+    SWalReadHead* pHead;
+    if (walReadWithHandle_s(pTopic->pReadhandle, fetchOffset, &pHead) < 0) {
+      // TODO: no more log, set timer to wait blocking time
+      // if data inserted during waiting, launch query and
+      // response to user
+      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+             pTq->pVnode->vgId, fetchOffset);
+      break;
+    }
+    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
+           pTq->pVnode->vgId, fetchOffset, pHead->msgType);
+    /*int8_t pos = fetchOffset % TQ_BUFFER_SIZE;*/
+    /*pHead = pTopic->pReadhandle->pHead;*/
+    if (pHead->msgType == TDMT_VND_SUBMIT) {
+      SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
+      qTaskInfo_t task = pTopic->buffer.output[workerId].task;
+      ASSERT(task);
+      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+      while (1) {
+        SSDataBlock* pDataBlock = NULL;
+        uint64_t     ts;
+        if (qExecTask(task, &pDataBlock, &ts) < 0) {
+          ASSERT(false);
+        }
+        if (pDataBlock == NULL) {
+          /*pos = fetchOffset % TQ_BUFFER_SIZE;*/
+          break;
+        }
+
+        taosArrayPush(pRes, pDataBlock);
+      }
+
+      if (taosArrayGetSize(pRes) == 0) {
+        vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId,
+               pReq->epoch, pTq->pVnode->vgId, fetchOffset);
+        fetchOffset++;
+        rspV2.skipLogNum++;
+        taosArrayDestroy(pRes);
+        continue;
+      }
+      rspV2.rspOffset = fetchOffset;
+
+      int32_t blockSz = taosArrayGetSize(pRes);
+      int32_t tlen = 0;
+      for (int32_t i = 0; i < blockSz; i++) {
+        SSDataBlock* pBlock = taosArrayGet(pRes, i);
+        tlen += sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+      }
+
+      void* data = taosMemoryMalloc(tlen);
+      if (data == NULL) {
+        pMsg->code = -1;
+        taosMemoryFree(pHead);
+      }
+
+      rspV2.blockData = data;
+
+      void*   dataBlockBuf = data;
+      int32_t pos;
+      for (int32_t i = 0; i < blockSz; i++) {
+        pos = 0;
+        SSDataBlock* pBlock = taosArrayGet(pRes, i);
+        blockCompressEncode(pBlock, dataBlockBuf, &pos, pBlock->info.numOfCols, false);
+        taosArrayPush(rspV2.blockPos, &rspV2.dataLen);
+        rspV2.dataLen += pos;
+        dataBlockBuf = POINTER_SHIFT(dataBlockBuf, pos);
+      }
+
+      int32_t msgLen = sizeof(SMqRspHead) + tEncodeSMqPollRspV2(NULL, &rspV2);
+      void*   buf = rpcMallocCont(msgLen);
+
+      ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+      ((SMqRspHead*)buf)->epoch = pReq->epoch;
+      ((SMqRspHead*)buf)->consumerId = consumerId;
+
+      void* msgBodyBuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+      tEncodeSMqPollRspV2(&msgBodyBuf, &rspV2);
+
+      /*rsp.pBlockData = pRes;*/
+
+      /*taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);*/
+      pMsg->pCont = buf;
+      pMsg->contLen = tlen;
+      pMsg->code = 0;
+      vDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", pTq->pVnode->vgId, fetchOffset,
+             pHead->msgType, consumerId, pReq->epoch);
+      tmsgSendRsp(pMsg);
+      taosMemoryFree(pHead);
+      return 0;
+    } else {
+      taosMemoryFree(pHead);
+      fetchOffset++;
+      rspV2.skipLogNum++;
+    }
+  }
+
+  /*if (blockingTime != 0) {*/
+  /*tqAddClientPusher(pTq->tqPushMgr, pMsg, consumerId, blockingTime);*/
+  /*} else {*/
+
+  rspV2.rspOffset = fetchOffset - 1;
+
+  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqPollRspV2(NULL, &rspV2);
+  void*   buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    pMsg->code = -1;
+    return -1;
+  }
+  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+  ((SMqRspHead*)buf)->epoch = pReq->epoch;
+  ((SMqRspHead*)buf)->consumerId = consumerId;
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+  tEncodeSMqPollRspV2(&abuf, &rspV2);
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   pMsg->code = 0;
