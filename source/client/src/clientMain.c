@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "scheduler.h"
 #include "clientInt.h"
+#include "clientStmt.h"
 #include "clientLog.h"
 #include "os.h"
 #include "query.h"
@@ -560,7 +561,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
   if (taos == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -570,7 +571,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
 
 int taos_stmt_close(TAOS_STMT *stmt) {
   if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -580,7 +581,7 @@ int taos_stmt_close(TAOS_STMT *stmt) {
 
 int taos_stmt_execute(TAOS_STMT *stmt) {
   if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -590,7 +591,7 @@ int taos_stmt_execute(TAOS_STMT *stmt) {
 
 char *taos_stmt_errstr(TAOS_STMT *stmt) {
   if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -600,7 +601,7 @@ char *taos_stmt_errstr(TAOS_STMT *stmt) {
 
 int taos_stmt_affected_rows(TAOS_STMT *stmt) {
   if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -610,7 +611,7 @@ int taos_stmt_affected_rows(TAOS_STMT *stmt) {
 
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -620,7 +621,7 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
 
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (stmt == NULL || sql == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -630,7 +631,7 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
 
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags) {
   if (stmt == NULL || name == NULL || tags == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -640,7 +641,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags
 
 int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   if (stmt == NULL || name == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -650,7 +651,7 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
 
 int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
   if (stmt == NULL || insert == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -660,7 +661,7 @@ int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
 
 int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   if (stmt == NULL || nums == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -670,7 +671,7 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
 
 int taos_stmt_add_batch(TAOS_STMT *stmt) {
   if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -680,9 +681,9 @@ int taos_stmt_add_batch(TAOS_STMT *stmt) {
 
 TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return NULL;
   }
 
   return stmtUseResult(stmt);
@@ -690,7 +691,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
 
 int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNC__);
+    tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }

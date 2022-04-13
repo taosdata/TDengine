@@ -1,6 +1,7 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
+#include "clientStmt.h"
 #include "tdef.h"
 
 TAOS_STMT *stmtInit(TAOS *taos) {
@@ -45,4 +46,54 @@ TAOS_STMT *stmtInit(TAOS *taos) {
 
   return pStmt;
 }
+
+int stmtClose(TAOS_STMT *stmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtExec(TAOS_STMT *stmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
+char *stmtErrstr(TAOS_STMT *stmt) {
+  return NULL;
+}
+
+int stmtAffectedRows(TAOS_STMT *stmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtBind(TAOS_STMT *stmt, TAOS_BIND *bind) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtSetTbNameTags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtIsInsert(TAOS_STMT *stmt, int *insert) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtGetParamNum(TAOS_STMT *stmt, int *nums) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtAddBatch(TAOS_STMT *stmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
+TAOS_RES *stmtUseResult(TAOS_STMT *stmt) {
+  return NULL;
+}
+
+int stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
