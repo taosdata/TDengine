@@ -85,8 +85,8 @@ typedef enum EFunctionType {
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
   FUNCTION_TYPE_TO_ISO8601,
+  FUNCTION_TYPE_TO_UNIXTIMESTAMP,
   FUNCTION_TYPE_TO_JSON,
-  FUNCTION_TYPE_UNIXTIMESTAMP,
 
   // date and time function
   FUNCTION_TYPE_NOW = 2500,
