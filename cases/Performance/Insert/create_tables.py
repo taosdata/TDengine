@@ -28,7 +28,7 @@ class InsertTest(TDCase):
         file_name = []
 
         test_root = os.environ['TEST_ROOT']
-        cfg = read_yaml(test_root + "./cases/Performance/Insert/insert.yaml")
+        cfg = read_yaml(test_root + "./cases/Performance/Insert/createtables.yaml")
 
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
@@ -59,7 +59,6 @@ class InsertTest(TDCase):
                                       tscount=cfg[cases][json_file]["stb_info"]["tag_timestamp_count"])
                 # set json_files for taosBenchmark
 
-
                 db = jfile.setDBinfo(name=cfg[cases][json_file]["db_info"]["db_name"],
                                      drop=cfg[cases][json_file]["db_info"]["drop"],
                                      replica=cfg[cases][json_file]["db_info"]["replica"],
@@ -76,7 +75,7 @@ class InsertTest(TDCase):
                                        childtable_prefix=cfg[cases][json_file]["stb_info"]["childtable_prefix"] + str(
                                            i),
                                        childtable_count=cfg[cases][json_file]["stb_info"]["childtable_count"],
-                                       insert_rows=cfg[cases][json_file]["stb_info"]["insert_rows"], columns=col,
+                                       insert_rows=0, columns=col,
                                        tags=tag,
                                        timestamp_step=cfg[cases][json_file]["stb_info"]["timestamp_step"],
                                        start_timestamp=cfg[cases][json_file]["stb_info"]["start_timestamp"],
@@ -106,9 +105,9 @@ class InsertTest(TDCase):
             timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
             # get insert result
-            # Insert_file.full_create_tb_result(result_filename)
-            Insert_file.taosBenchmark_insert_summary_result(result_filename)
-            Insert_file.taosBenchmark_id_insert_result(result_filename)
+            Insert_file.full_create_tb_result(result_filename)
+            # Insert_file.taosBenchmark_insert_summary_result(result_filename)
+            # Insert_file.taosBenchmark_id_insert_result(result_filename)
 
             # get node_info and process_info
             env_setting = self.get_component_by_name("prometheus")
