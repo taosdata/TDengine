@@ -53,7 +53,7 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
 }
 
 static void dmClearVars(SDnode *pDnode) {
-  for (EDndNodeType n = 0; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
   }
@@ -141,7 +141,7 @@ _OVER:
 void dmClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
-  for (EDndNodeType n = 0; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     dmCloseNode(pWrapper);
   }

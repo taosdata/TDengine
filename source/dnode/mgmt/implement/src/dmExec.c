@@ -130,6 +130,10 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
 
 static void dmCloseNodeImp(SMgmtWrapper *pWrapper) {
   dDebug("node:%s, mgmt start to close", pWrapper->name);
+  if (pWrapper->fp.stopFp != NULL) {
+    (*pWrapper->fp.stopFp)(pWrapper);
+  }
+
   pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
@@ -185,7 +189,7 @@ static int32_t dmRunInSingleProcess(SDnode *pDnode) {
 
   dmSetStatus(pDnode, DND_STAT_RUNNING);
 
-  for (EDndNodeType n = 0; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
     if (pWrapper->fp.startFp == NULL) continue;

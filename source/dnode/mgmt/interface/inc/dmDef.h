@@ -119,7 +119,6 @@ typedef struct {
   SSingleWorker mgmtWorker;
   SMsgCb        msgCb;
   SDnode       *pDnode;
-  const char   *path;
   TdFilePtr     lockfile;
   char         *localEp;
   char         *localFqdn;

@@ -154,6 +154,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
       rpcSendResponse(&rspMsg);
     }
     rpcFreeCont(pMsg->pCont);
+    return;
   }
 
   if (pHandle->pMndWrapper != NULL || pHandle->pQndWrapper != NULL) {
@@ -174,7 +175,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
-  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
+  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
