@@ -19,3 +19,16 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/st
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_truncate.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_timediff.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep
+
+#stable_fun_str_query
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_base.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_lower.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_ltrim.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_length.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_interval.py --keep
