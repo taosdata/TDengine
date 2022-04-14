@@ -36,6 +36,7 @@ int vnodeScheduleTask(int (*execute)(void*), void* arg);
 // vnodeQuery ====================
 int  vnodeQueryOpen(SVnode* pVnode);
 void vnodeQueryClose(SVnode* pVnode);
+int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 #if 1
 // SVBufPool
