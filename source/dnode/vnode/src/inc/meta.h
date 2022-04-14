@@ -75,11 +75,6 @@ int  metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
 int  metaOpenCache(SMeta* pMeta);
 void metaCloseCache(SMeta* pMeta);
 
-// SMetaCfg
-extern const SMetaCfg defaultMetaOptions;
-// int                   metaValidateOptions(const SMetaCfg*);
-void metaOptionsCopy(SMetaCfg* pDest, const SMetaCfg* pSrc);
-
 // SMetaIdx
 int  metaOpenIdx(SMeta* pMeta);
 void metaCloseIdx(SMeta* pMeta);
