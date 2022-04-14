@@ -72,16 +72,6 @@ typedef struct SMSmaCursor SMSmaCursor;  // todo: remove
 typedef SVCreateTbReq   STbCfg;
 typedef SVCreateTSmaReq SSmaCfg;
 
-SMeta          *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
-void            metaClose(SMeta *pMeta);
-void            metaRemove(const char *path);
-int             metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
-int             metaDropTable(SMeta *pMeta, tb_uid_t uid);
-int             metaCommit(SMeta *pMeta);
-int32_t         metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg);
-int32_t         metaDropTSma(SMeta *pMeta, int64_t indexUid);
-STbCfg         *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
-STbCfg         *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema       *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
 void           *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode);

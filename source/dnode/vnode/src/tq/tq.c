@@ -13,9 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tcompare.h"
-#include "tdatablock.h"
-#include "tstream.h"
 #include "vnodeInt.h"
 
 int32_t tqInit() { return tqPushMgrInit(); }
