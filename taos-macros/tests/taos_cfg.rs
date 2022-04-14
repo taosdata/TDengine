@@ -1,12 +1,7 @@
 use taos::Taos;
-use taos_macros::taos_cfg;
+use taos_macros::c_cfg;
 
-#[taos_cfg(v3)]
-fn test_cfg(a: usize, b: *mut usize);
-
-
-// #[taos_cfg(v3)]
-// {
-//   fn test_cfg(a: usize, b: *mut usize);
-//   fn test_cfg2(a: usize, b: *mut usize);
-// }
+#[c_cfg(v3)]
+extern "C" {
+    fn test_cfg(a: usize, b: *mut usize);
+}

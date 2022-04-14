@@ -182,7 +182,7 @@ impl Attr {
                     let _ = iter.next();
                     let value = iter.next().expect(EXPECT);
                     match value {
-                        TokenTree::Literal(value) => attr.dropping = Some(value.clone()),
+                        TokenTree::Literal(value) => attr.precision = Some(value.clone()),
                         _ => unreachable!("expect {EXPECT}"),
                     }
                 }
