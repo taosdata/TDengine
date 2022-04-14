@@ -107,8 +107,7 @@ int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, i
 }
 
 void *tsdbGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_t *valLen) {
-  void *result;
-  void *pVal;
+  void *pVal = NULL;
   int   ret;
 
   ret = tdbDbGet(pDBF->pDB, pKey, keyLen, &pVal, valLen);
@@ -120,18 +119,10 @@ void *tsdbGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32
 
   ASSERT(*valLen >= 0);
 
-  result = taosMemoryMalloc(*valLen);
-
-  if (result == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
   // TODO: lock?
   // TODO: Would the key/value be destoryed during return the data?
   // TODO: How about the key is updated while value length is changed? The original value buffer would be freed
   // automatically?
-  memcpy(result, pVal, *valLen);
 
-  return result;
+  return pVal;
 }
