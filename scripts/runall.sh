@@ -3,13 +3,25 @@
 function usage() {
     echo "$0"
     echo -e "\t -l log dir"
+    echo -e "\t -s server pkg"
+    echo -e "\t -c client pkg"
+    echo -e "\t -f case file"
     echo -e "\t -h help"
 }
 
-while getopts "l:h" opt; do
+while getopts "l:s:c:f:h" opt; do
     case $opt in
         l)
             log_dir=$OPTARG
+            ;;
+        s)
+            server_pkg=$OPTARG
+            ;;
+        c)
+            client_pkg=$OPTARG
+            ;;
+        f)
+            case_file=$OPTARG
             ;;
         h)
             usage
@@ -35,7 +47,16 @@ mkdir -p $log_sub_dir
 log_file=$log_sub_dir/test.log
 failed_case_file=$log_sub_dir/failed.log
 ret=0
+cpwd=`dirname $0`
+cd ${cpwd}
+cpwd=`pwd`
+cd ${cpwd}/..
 export TEST_ROOT=`pwd`
+cd ${cpwd}
+
+if [ -z "$case_file" ]; then
+    case_file=cases.txt
+fi
 
 function run() {
     local i=0
@@ -45,6 +66,15 @@ function run() {
         if [ $? -ne 0 ]; then
             date
             echo -e "\e[33m $i >>>>> \e[0m $line"
+            echo "$line" | grep -q "\-\-setup"
+            if [ $? -eq 0 ]; then
+                if [ ! -z "$server_pkg" ]; then
+                    line="$line --server-pkg=$server_pkg"
+                fi
+                if [ ! -z "$client_pkg" ]; then
+                    line="$line --client-pkg=$client_pkg"
+                fi
+            fi
             $line
             if [ $? -ne 0 ]; then
                 ret=1
@@ -54,12 +84,13 @@ function run() {
                 echo -e "$line \e[32m SUCCESS\e[0m"
             fi
         fi
-    done <cases.txt
+    done <${case_file}
 }
 
 run 2>&1 | tee -a $log_file
 
 echo "====================================================================="
+echo "log file: $log_file"
 if [ $ret -ne 0 ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file
