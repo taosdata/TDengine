@@ -406,7 +406,18 @@ FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
 #endif
 }
 
+time_t taosTime(time_t *t) {
+  return time(t);
+}
+
+time_t taosMktime(struct tm *timep) {
+  return mktime(timep);
+}
+
 struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
+  if (result == NULL) {
+    return localtime(timep);
+  }
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   localtime_s(result, timep);
 #else

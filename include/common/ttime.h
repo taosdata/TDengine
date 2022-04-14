@@ -40,6 +40,7 @@ extern "C" {
  * @return timestamp decided by global conf variable, tsTimePrecision
  * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
  *    precision == TSDB_TIME_PRECISION_MILLI, it returns timestamp in millisecond.
+ *    precision == TSDB_TIME_PRECISION_NANO,  it returns timestamp in nanosecond.
  */
 static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
   if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -49,6 +50,24 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
   } else {
     return taosGetTimestampMs();
   }
+}
+
+/*
+ * @return timestamp of today at 00:00:00 in given precision
+ * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
+ *    precision == TSDB_TIME_PRECISION_MILLI, it returns timestamp in millisecond.
+ *    precision == TSDB_TIME_PRECISION_NANO,  it returns timestamp in nanosecond.
+ */
+static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
+  int64_t factor = (precision == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                   (precision == TSDB_TIME_PRECISION_MICRO) ? 1000000 : 1000000000;
+  time_t t = taosTime(NULL);
+  struct tm * tm= taosLocalTime(&t, NULL);
+  tm->tm_hour = 0;
+  tm->tm_min = 0;
+  tm->tm_sec = 0;
+
+  return (int64_t)taosMktime(tm) * factor;
 }
 
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
