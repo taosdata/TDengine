@@ -267,6 +267,11 @@ typedef struct SDescribeStmt {
   STableMeta* pMeta;
 } SDescribeStmt;
 
+typedef struct SKillStmt {
+  ENodeType type;
+  int32_t targetId;
+} SKillStmt;
+
 #ifdef __cplusplus
 }
 #endif
