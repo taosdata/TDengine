@@ -504,7 +504,6 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
-  char   *pWrite;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -545,20 +544,38 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
     colDataAppend(pColInfo, numOfRows, buf, false);
 
     // onlines
+    int32_t onlines = pVgroup->replica;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&onlines, false);
 
-    for (int32_t i = 0; i < pVgroup->replica; ++i) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
-
-      char        buf1[20] = {0};
-      const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
-      STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->bytes[cols]);
+    // default 3 replica
+    for (int32_t i = 0; i < 3; ++i) {
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)buf1, false);
+      if (i < pVgroup->replica) {
+        colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
+
+        char        buf1[20] = {0};
+        const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->bytes[cols]);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)buf1, false);
+      } else {
+        colDataAppendNULL(pColInfo, numOfRows);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppendNULL(pColInfo, numOfRows);
+      }
     }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppendNULL(pColInfo, numOfRows);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppendNULL(pColInfo, numOfRows);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataAppendNULL(pColInfo, numOfRows);
 
     numOfRows++;
     sdbRelease(pSdb, pVgroup);

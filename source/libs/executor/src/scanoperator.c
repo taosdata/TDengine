@@ -685,6 +685,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
 
     int64_t startTs = taosGetTimestampUs();
 
+    _retry:
     pInfo->req.type = pInfo->type;
     strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
     if (pInfo->showRewrite) {
@@ -738,7 +739,12 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     setSDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pTableRsp->numOfRows, pTableRsp->data, pTableRsp->compLen,
                               pOperator->numOfOutput, startTs, NULL, pInfo->scanCols);
 
-    return doFilterResult(pInfo);
+    doFilterResult(pInfo);
+    if (pInfo->pRes->info.rows == 0) {
+      goto _retry;
+    }
+
+    return pInfo->pRes;
   }
 
   return NULL;
@@ -796,6 +802,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, tListLen(pName->tname)) == 0) {
     //    tableType = TSDB_MGMT_TABLE_DIST;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CLUSTER;
   } else {
     ASSERT(0);
   }

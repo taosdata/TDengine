@@ -53,7 +53,7 @@ endi
 #sql show modules
 #sql show qnodes
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 #sql show functions
@@ -90,7 +90,7 @@ endi
 #sql select * from information_schema.`modules`
 #sql select * from information_schema.`qnodes`
 sql select * from information_schema.user_databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 #sql select * from information_schema.user_functions
@@ -151,7 +151,7 @@ endi
 #sql show modules
 #sql show qnodes
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 #sql show functions
@@ -188,7 +188,7 @@ endi
 #sql select * from information_schema.`modules`
 #sql select * from information_schema.`qnodes`
 sql select * from information_schema.user_databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 #sql select * from information_schema.user_functions

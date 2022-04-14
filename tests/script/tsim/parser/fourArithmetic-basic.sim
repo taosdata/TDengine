@@ -28,7 +28,7 @@ print =============== create database
 sql create database $dbNamme vgroups 1
 sql show databases
 print $data00 $data01 $data02
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 

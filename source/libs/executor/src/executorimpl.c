@@ -4073,7 +4073,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
 
     for (int32_t i = 0; i < numOfCols; ++i) {
       colLen[i] = htonl(colLen[i]);
-      ASSERT(colLen[i] > 0);
+      ASSERT(colLen[i] >= 0);
 
       SColumnInfoData* pColInfoData = taosArrayGet(block.pDataBlock, i);
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {

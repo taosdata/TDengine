@@ -1661,13 +1661,13 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
     }
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
     SName name = {0};
     char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTableName(pStb->name, &stbName[VARSTR_HEADER_SIZE]);
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char*) stbName, false);
 
     char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1675,6 +1675,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
     tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
 
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char*) db, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1697,7 +1698,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
         STR_TO_VARSTR(p, "");
       }
 
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
       colDataAppend(pColInfo, numOfRows, (const char *)p, false);
       taosMemoryFree(p);
     }
