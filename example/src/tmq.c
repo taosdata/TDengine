@@ -144,6 +144,7 @@ void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_
 }
 
 tmq_t* build_consumer() {
+#if 0
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -152,11 +153,15 @@ tmq_t* build_consumer() {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
   }
   taos_free_result(pRes);
+#endif
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  tmq_conf_set(conf, "td.connect.db", "abc1");
   tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
-  tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
+  tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
   return tmq;
 }
 
