@@ -357,7 +357,15 @@ tmq_t* tmq_consumer_new1(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq == NULL) {
     return NULL;
   }
-  pTmq->pTscObj = taos_connect(conf->ip, conf->user, conf->pass, conf->db, conf->port);
+  const char* user = conf->user == NULL ? TSDB_DEFAULT_USER : conf->user;
+  const char* pass = conf->pass == NULL ? TSDB_DEFAULT_PASS : conf->pass;
+
+  ASSERT(user);
+  ASSERT(pass);
+  ASSERT(conf->db);
+
+  pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, conf->db, conf->port, CONN_TYPE__TMQ);
+  if (pTmq->pTscObj == NULL) return NULL;
 
   pTmq->inWaiting = 0;
   pTmq->status = 0;
