@@ -242,6 +242,7 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
     j++;
   }
   dst[j] = '\0';
+  strtrim(dst);
   return j;
 }
 
@@ -259,7 +260,7 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
   uint8_t jsonNULL = TSDB_JSON_NULL;
   int jsonIndex = startColId + 1;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonKeyNULL, CHAR_BYTES);   // add json null type
-  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
+  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0){
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNULL, CHAR_BYTES);   // add json null value
     return TSDB_CODE_SUCCESS;
   }
@@ -281,13 +282,13 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {
       qError("json inner error:%d", i);
-      return buildSyntaxErrMsg(pMsgBuf, "json inner error", json);
+      retCode = buildSyntaxErrMsg(pMsgBuf, "json inner error", json);
       goto end;
     }
 
     char *jsonKey = item->string;
     if(!isValidateTag(jsonKey)){
-      retCode =  buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
+      retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
       goto end;
     }
 //    if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){

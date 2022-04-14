@@ -738,7 +738,7 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, voi
     }
 
     varDataSetLen(pa->buf, output);
-    tdAddColToKVRow(pa->builder, colId, varDataTLen(pa->buf));
+    tdAddColToKVRow(pa->builder, colId, pa->buf, varDataTLen(pa->buf));
   } else {
     tdAddColToKVRow(pa->builder, colId, value, TYPE_BYTES[type]);
   }
