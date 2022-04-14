@@ -1,6 +1,7 @@
 #include "function.h"
 #include "scalar.h"
 #include "tdatablock.h"
+#include "ttime.h"
 #include "sclInt.h"
 #include "sclvector.h"
 
@@ -330,6 +331,19 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNcharCo
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getNumOfNullEntries(SColumnInfoData *pColumnInfoData, int32_t numOfRows) {
+  int32_t numOfNulls = 0;
+  if (!pColumnInfoData->hasNull) {
+    return numOfNulls;
+  }
+  for (int i = 0; i < numOfRows; ++i) {
+    if (pColumnInfoData->varmeta.offset[i] == -1) {
+      numOfNulls++;
+    }
+  }
+  return numOfNulls;
+}
+
 int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum < 2 || inputNum > 8) { // concat accpet 2-8 input strings
     return TSDB_CODE_FAILED;
@@ -362,10 +376,12 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     if (hasNcharCol && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
     }
+
+    int32_t numOfNulls = getNumOfNullEntries(pInputData[i], pInput[i].numOfRows);
     if (pInput[i].numOfRows == 1) {
-      inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * factor * numOfRows;
+      inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * factor * (numOfRows - numOfNulls);
     } else {
-      inputLen += pInputData[i]->varmeta.length - numOfRows * VARSTR_HEADER_SIZE;
+      inputLen += pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE;
     }
   }
 
@@ -443,13 +459,15 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     if (hasNcharCol && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
     }
+
+    int32_t numOfNulls = getNumOfNullEntries(pInputData[i], pInput[i].numOfRows);
     if (i == 0) {
       // calculate required separator space
-      inputLen += (pInputData[0]->varmeta.length - VARSTR_HEADER_SIZE) * numOfRows * (inputNum - 2) * factor;
+      inputLen += (pInputData[0]->varmeta.length - VARSTR_HEADER_SIZE) * (numOfRows - numOfNulls) * (inputNum - 2) * factor;
     } else if (pInput[i].numOfRows == 1) {
-      inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * numOfRows * factor;
+      inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * (numOfRows - numOfNulls) * factor;
     } else {
-      inputLen += pInputData[i]->varmeta.length - numOfRows * VARSTR_HEADER_SIZE;
+      inputLen += pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE;
     }
   }
 
@@ -840,7 +858,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
     }
 
-    struct tm *tmInfo = localtime((const time_t *)&timeVal);
+    struct tm *tmInfo = taosLocalTime((const time_t *)&timeVal, NULL);
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
     int32_t len = (int32_t)strlen(buf);
 
@@ -865,6 +883,375 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     colDataAppend(pOutput->columnData, i, buf, false);
     input   += tDataTypes[type].bytes;
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t type = GET_PARAM_TYPE(pInput);
+  int32_t timePrec = GET_PARAM_PRECISON(pInput);
+  if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (inputNum != 1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    int64_t timeVal = 0;
+    convertStringToTimestamp(type, input, timePrec, &timeVal);
+
+    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
+    input += varDataTLen(input);
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t type = GET_PARAM_TYPE(&pInput[0]);
+  int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
+  if (inputNum != 2) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (type != TSDB_DATA_TYPE_BIGINT && type != TSDB_DATA_TYPE_TIMESTAMP &&
+      type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (GET_PARAM_TYPE(&pInput[1]) != TSDB_DATA_TYPE_BIGINT) { //time_unit
+    return TSDB_CODE_FAILED;
+  }
+
+  int64_t timeUnit, timeVal = 0;
+  GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+
+  char *input = NULL;
+  if (IS_VAR_DATA_TYPE(type)) {
+    input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
+  } else {
+    input = pInput[0].columnData->pData;
+  }
+
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
+      convertStringToTimestamp(type, input, TSDB_TIME_PRECISION_NANO, &timeVal);
+      //If converted value is less than 10digits in second, use value in second instead
+      int64_t timeValSec = timeVal / 1000000000;
+      if (timeValSec < 1000000000) {
+        timeVal = timeValSec;
+      }
+    } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
+      GET_TYPED_DATA(timeVal, int64_t, type, input);
+    } else if (type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
+      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      int64_t timeValSec = timeVal / factor;
+      if (timeValSec < 1000000000) {
+        timeVal = timeValSec;
+      }
+    }
+
+    char buf[20] = {0};
+    NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
+    int32_t tsDigits = (int32_t)strlen(buf);
+    timeUnit = timeUnit * 1000 / factor;
+
+    switch (timeUnit) {
+      case 0: { /* 1u */
+        if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000 * 1000;
+        //} else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+        //  //timeVal = timeVal / 1000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal = timeVal * factor;
+        } else {
+          timeVal = timeVal * 1;
+        }
+        break;
+      }
+      case 1: { /* 1a */
+        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal * 1;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000 * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000 * 1000000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS){
+          timeVal = timeVal * factor;
+        } else {
+          assert(0);
+        }
+        break;
+      }
+      case 1000: { /* 1s */
+        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal / 1000 * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000000 * 1000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000000 * 1000000000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal = timeVal * factor;
+        } else {
+          assert(0);
+        }
+        break;
+      }
+      case 60000: { /* 1m */
+        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal / 1000 / 60 * 60 * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000000 / 60 * 60 * 1000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000000 / 60 * 60 * 1000000000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal = timeVal * factor / factor / 60 * 60 * factor;
+        } else {
+          assert(0);
+        }
+        break;
+      }
+      case 3600000: { /* 1h */
+        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal / 1000 / 3600 * 3600 * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000000 / 3600 * 3600 * 1000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000000 / 3600 * 3600 * 1000000000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal = timeVal * factor / factor / 3600 * 3600 * factor;
+        } else {
+          assert(0);
+        }
+        break;
+      }
+      case 86400000: { /* 1d */
+        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000000 / 86400 * 86400 * 1000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000000 / 86400 * 86400 * 1000000000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal = timeVal * factor / factor / 86400* 86400 * factor;
+        } else {
+          assert(0);
+        }
+        break;
+      }
+      case 604800000: { /* 1w */
+        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
+        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal = timeVal * factor / factor / 604800 * 604800* factor;
+        } else {
+          assert(0);
+        }
+        break;
+      }
+      default: {
+        timeVal = timeVal * 1;
+        break;
+      }
+    }
+
+    //truncate the timestamp to db precision
+    switch (timePrec) {
+      case TSDB_TIME_PRECISION_MILLI: {
+        if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal / 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000000;
+        }
+        break;
+      }
+      case TSDB_TIME_PRECISION_MICRO: {
+        if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal = timeVal / 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal * 1000;
+        }
+        break;
+      }
+      case TSDB_TIME_PRECISION_NANO: {
+        if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal = timeVal * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal = timeVal * 1000000;
+        }
+        break;
+      }
+    }
+
+    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
+    if (IS_VAR_DATA_TYPE(type)) {
+      input += varDataTLen(input);
+    } else {
+      input += tDataTypes[type].bytes;
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 2 && inputNum != 3) {
+    return TSDB_CODE_FAILED;
+  }
+
+  int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
+  int64_t timeUnit = -1, timeVal[2] = {0};
+  if (inputNum == 3) {
+    if (GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_BIGINT) {
+      return TSDB_CODE_FAILED;
+    }
+    GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+  }
+
+  char *input[2];
+  for (int32_t k = 0; k < 2; ++k) {
+    int32_t type = GET_PARAM_TYPE(&pInput[k]);
+    if (type != TSDB_DATA_TYPE_BIGINT && type != TSDB_DATA_TYPE_TIMESTAMP &&
+        type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+      return TSDB_CODE_FAILED;
+    }
+
+    if (IS_VAR_DATA_TYPE(type)) {
+      input[k] = pInput[k].columnData->pData + pInput[k].columnData->varmeta.offset[0];
+    } else {
+      input[k] = pInput[k].columnData->pData;
+    }
+  }
+
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    for (int32_t k = 0; k < 2; ++k) {
+      if (colDataIsNull_s(pInput[0].columnData, i)) {
+        colDataAppendNULL(pOutput->columnData, i);
+        continue;
+      }
+
+      int32_t type = GET_PARAM_TYPE(&pInput[k]);
+      if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
+        convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
+      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
+        GET_TYPED_DATA(timeVal[k], int64_t, type, input[k]);
+        if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+          int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                           (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+          int64_t timeValSec = timeVal[k] / factor;
+          if (timeValSec < 1000000000) {
+            timeVal[k] = timeValSec;
+          }
+        }
+
+        char buf[20] = {0};
+        NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[k], sizeof(buf), buf);
+        int32_t tsDigits = (int32_t)strlen(buf);
+        if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+          timeVal[k] = timeVal[k] * 1000000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+          timeVal[k] = timeVal[k] * 1000000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+          timeVal[k] = timeVal[k] * 1000;
+        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+          timeVal[k] = timeVal[k];
+        }
+      }
+
+      if (pInput[k].numOfRows != 1) {
+        if (IS_VAR_DATA_TYPE(type)) {
+          input[k] += varDataTLen(input[k]);
+        } else {
+          input[k] += tDataTypes[type].bytes;
+        }
+      }
+    }
+
+    int64_t result = (timeVal[0] >= timeVal[1]) ? (timeVal[0] - timeVal[1]) :
+                                                  (timeVal[1] - timeVal[0]);
+
+    if (timeUnit < 0) { // if no time unit given use db precision
+      switch(timePrec) {
+        case TSDB_TIME_PRECISION_MILLI: {
+          result = result / 1000000;
+          break;
+        }
+        case TSDB_TIME_PRECISION_MICRO: {
+          result = result / 1000;
+          break;
+        }
+        case TSDB_TIME_PRECISION_NANO: {
+          result = result / 1;
+          break;
+        }
+      }
+    } else {
+      int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                       (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+      timeUnit = timeUnit * 1000 / factor;
+      switch(timeUnit) {
+        case 0: { /* 1u */
+          result = result / 1000;
+          break;
+        }
+        case 1: { /* 1a */
+          result = result / 1000000;
+          break;
+        }
+        case 1000: { /* 1s */
+          result = result / 1000000000;
+          break;
+        }
+        case 60000: { /* 1m */
+          result = result / 1000000000 / 60;
+          break;
+        }
+        case 3600000: { /* 1h */
+          result = result / 1000000000 / 3600;
+          break;
+        }
+        case 86400000: { /* 1d */
+          result = result / 1000000000 / 86400;
+          break;
+        }
+        case 604800000: { /* 1w */
+          result = result / 1000000000 / 604800;
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+    }
+
+    colDataAppend(pOutput->columnData, i, (char *)&result, false);
   }
 
   pOutput->numOfRows = pInput->numOfRows;

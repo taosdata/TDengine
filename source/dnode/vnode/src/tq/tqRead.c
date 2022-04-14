@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdatablock.h"
-#include "vnode.h"
+#include "vnodeInt.h"
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   STqReadHandle* pReadHandle = taosMemoryMalloc(sizeof(STqReadHandle));
@@ -88,7 +87,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
 
   pBlockInfo->numOfCols = taosArrayGetSize(pHandle->pColIdList);
   pBlockInfo->rows = pHandle->pBlock->numOfRows;
-//  pBlockInfo->uid = pHandle->pBlock->uid; // the uid can not be assigned to pBlockData.
+  //  pBlockInfo->uid = pHandle->pBlock->uid; // the uid can not be assigned to pBlockData.
   return 0;
 }
 
@@ -176,4 +175,42 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     curRow++;
   }
   return pArray;
+}
+
+void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SArray* pColIdList) { pReadHandle->pColIdList = pColIdList; }
+
+int tqReadHandleSetTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+  if (pHandle->tbIdHash) {
+    taosHashClear(pHandle->tbIdHash);
+  }
+
+  pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pHandle->tbIdHash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
+    int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
+    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+  }
+
+  return 0;
+}
+
+int tqReadHandleAddTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+  if (pHandle->tbIdHash == NULL) {
+    pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (pHandle->tbIdHash == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
+    int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
+    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+  }
+
+  return 0;
 }

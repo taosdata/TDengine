@@ -16,10 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #include "db.h"
 
-#include "metaDef.h"
-
-#include "tcoding.h"
-#include "thash.h"
+#include "vnodeInt.h"
 
 #define IMPL_WITH_LOCK 1
 // #if IMPL_WITH_LOCK
@@ -262,7 +259,7 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
   return 0;
 }
 
-int metaRemoveSmaFromDb(SMeta *pMeta,  int64_t indexUid) {
+int metaRemoveSmaFromDb(SMeta *pMeta, int64_t indexUid) {
   // TODO
 #if 0
   DBT key = {0};
@@ -667,8 +664,8 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   return pTbCfg;
 }
 
-STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
-  STSma *  pCfg = NULL;
+void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
+  STSma   *pCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
   DBT      value = {0};
@@ -711,9 +708,9 @@ static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_
   int             ret;
   void           *pBuf;
   // SSchema        *pSchema;
-  SSchemaKey      schemaKey = {uid, sver, 0};
-  DBT             key = {0};
-  DBT             value = {0};
+  SSchemaKey schemaKey = {uid, sver, 0};
+  DBT        key = {0};
+  DBT        value = {0};
 
   // Set key/value properties
   key.data = &schemaKey;
@@ -761,14 +758,14 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 }
 
 int metaGetTbNum(SMeta *pMeta) {
-  SMetaDB    *pDB = pMeta->pDB;
+  SMetaDB *pDB = pMeta->pDB;
 
   DB_BTREE_STAT *sp1;
   pDB->pTbDB->stat(pDB->pNtbIdx, NULL, &sp1, 0);
-  
+
   DB_BTREE_STAT *sp2;
   pDB->pTbDB->stat(pDB->pCtbIdx, NULL, &sp2, 0);
-  
+
   return sp1->bt_nkeys + sp2->bt_nkeys;
 }
 
@@ -920,7 +917,7 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   return pCur;
 }
 
-void metaCloseSmaCurosr(SMSmaCursor *pCur) {
+void metaCloseSmaCursor(SMSmaCursor *pCur) {
   if (pCur) {
     if (pCur->pCur) {
       pCur->pCur->close(pCur->pCur);
@@ -930,7 +927,8 @@ void metaCloseSmaCurosr(SMSmaCursor *pCur) {
   }
 }
 
-const char *metaSmaCursorNext(SMSmaCursor *pCur) {
+int64_t metaSmaCursorNext(SMSmaCursor *pCur) {
+#if 0
   DBT skey = {0};
   DBT pkey = {0};
   DBT pval = {0};
@@ -946,6 +944,8 @@ const char *metaSmaCursorNext(SMSmaCursor *pCur) {
   } else {
     return NULL;
   }
+#endif
+  return 0;
 }
 
 STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
@@ -972,7 +972,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       ++pSW->number;
       STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
-        metaCloseSmaCurosr(pCur);
+        metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
@@ -980,7 +980,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       pSW->tSma = tptr;
       pBuf = pval.data;
       if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
-        metaCloseSmaCurosr(pCur);
+        metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
@@ -990,8 +990,8 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
     break;
   }
 
-  metaCloseSmaCurosr(pCur);
-  
+  metaCloseSmaCursor(pCur);
+
   return pSW;
 }
 
@@ -1004,7 +1004,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   int      ret;
 
   // TODO: lock?
-  ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &pCur, 0);
+  ret = pDB->pSmaIdx->cursor(pDB->pSmaIdx, NULL, &pCur, 0);
   if (ret != 0) {
     return NULL;
   }

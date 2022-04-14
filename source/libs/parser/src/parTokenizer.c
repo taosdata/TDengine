@@ -175,6 +175,7 @@ static SKeyword keywordTable[] = {
     {"TBNAME",        TK_TBNAME},
     {"TIMESTAMP",     TK_TIMESTAMP},
     {"TINYINT",       TK_TINYINT},
+    {"TODAY",         TK_TODAY},
     {"TOPIC",         TK_TOPIC},
     {"TOPICS",        TK_TOPICS},
     {"TSERIES",       TK_TSERIES},

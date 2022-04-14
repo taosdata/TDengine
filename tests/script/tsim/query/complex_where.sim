@@ -25,7 +25,7 @@ sql connect
 print =============== create database
 sql create database db
 sql show databases
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 
@@ -192,14 +192,14 @@ if $data01 != 1 then
     return -1
 endi
 
-sql select c1 from stb1 where stb1 > 5 and c1 <= 6
+sql select c1 from stb1 where c1 > 5 and c1 <= 6
 print ====> sql : select c1 from stb1 where c1 > 5 and c1 <= 6
 print ====> rows: $rows
 print ====> rows0: $data00
-if $rows != 4 then
+if $rows != 3 then
     return -1
 endi
-if $data01 != 6 then
+if $data00 != 6 then
     return -1
 endi
 
@@ -210,7 +210,7 @@ print ====> rows0: $data00
 if $rows != 32 then
     return -1
 endi
-if $data01 != 1 then
+if $data00 != 1 then
     return -1
 endi
 
@@ -221,7 +221,7 @@ print ====> rows0: $data00
 if $rows != 17 then
     return -1
 endi
-if $data01 != 5 then
+if $data00 != 5 then
     return -1
 endi
 
@@ -240,7 +240,7 @@ if $rows != 12 then
     return -1
 endi
 
-sql_error select c1 from stb1 where c7 between false and true
+sql select c1 from stb1 where c7 between false and true
 
 sql select c1 from stb1 where c1 in (1,2,3)
 print ====> sql : select c1 from stb1 where c1 in (1,2,3)
@@ -272,98 +272,98 @@ endi
 
 
 print ================ query 2 complex with where
-sql select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select count(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select abs(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select abs(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select abs(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select acos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select acos(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select acos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select asin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select asin(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select asin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select atan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select atan(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select atan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select ceil(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select ceil(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select ceil(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select cos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select cos(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select cos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select floor(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select floor(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select floor(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select log(c1,10) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select log(c1,10) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select log(c1,10) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select pow(c1,3) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select pow(c1,3) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select pow(c1,3) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select round(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select round(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select round(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select sqrt(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select sqrt(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select sqrt(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select sin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select sin(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select sin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select tan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select tan(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select tan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
@@ -510,14 +510,14 @@ if $data01 != 1 then
     return -1
 endi
 
-sql select c1 from stb1 where stb1 > 5 and c1 <= 6
+sql select c1 from stb1 where c1 > 5 and c1 <= 6
 print ====> sql : select c1 from stb1 where c1 > 5 and c1 <= 6
 print ====> rows: $rows
 print ====> rows0: $data00
-if $rows != 4 then
+if $rows != 3 then
     return -1
 endi
-if $data01 != 6 then
+if $data00 != 6 then
     return -1
 endi
 
@@ -528,7 +528,7 @@ print ====> rows0: $data00
 if $rows != 32 then
     return -1
 endi
-if $data01 != 1 then
+if $data00 != 1 then
     return -1
 endi
 
@@ -539,7 +539,7 @@ print ====> rows0: $data00
 if $rows != 17 then
     return -1
 endi
-if $data01 != 5 then
+if $data00 != 5 then
     return -1
 endi
 
@@ -558,7 +558,7 @@ if $rows != 12 then
     return -1
 endi
 
-sql_error select c1 from stb1 where c7 between false and true
+sql select c1 from stb1 where c7 between false and true
 
 sql select c1 from stb1 where c1 in (1,2,3)
 print ====> sql : select c1 from stb1 where c1 in (1,2,3)
@@ -590,98 +590,98 @@ endi
 
 
 print ================ query 2 complex with where
-sql select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select count(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select count(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select abs(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select abs(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select abs(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select acos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select acos(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select acos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select asin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select asin(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select asin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select atan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select atan(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select atan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select ceil(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select ceil(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select ceil(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select cos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select cos(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select cos(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select floor(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select floor(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select floor(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select log(c1,10) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select log(c1,10) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select log(c1,10) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select pow(c1,3) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select pow(c1,3) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select pow(c1,3) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select round(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select round(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select round(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select sqrt(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select sqrt(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select sqrt(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select sin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select sin(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select sin(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then
     return -1
 endi
 
-sql select tan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 1
+sql select tan(c1) from ct3 where c1 > 2 group by c1 limit 1 offset 1
 print ====> sql : select tan(c1) from ct3 where c1 > 2 group by c7 limit 1 offset 2
 print ====> rows: $rows
 if $rows != 1 then

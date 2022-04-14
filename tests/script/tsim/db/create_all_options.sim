@@ -99,7 +99,7 @@ sql create database db
 sql show databases
 print rows: $rows
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 if $data0_db != db then # name
@@ -112,6 +112,7 @@ if $data3_db != 0 then  # ntables
   return -1
 endi
 if $data4_db != 1 then  # replica
+  print expect 1, actual: $data4_db
   return -1
 endi
 if $data5_db != 1 then  # quorum

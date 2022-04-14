@@ -210,7 +210,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 
   // get value by indexName
   STSma *qSmaCfg = NULL;
-  qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid1);
+  qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid1, true);
   assert(qSmaCfg != NULL);
   printf("name1 = %s\n", qSmaCfg->indexName);
   printf("timezone1 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
@@ -221,7 +221,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   tdDestroyTSma(qSmaCfg);
   taosMemoryFreeClear(qSmaCfg);
 
-  qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid2);
+  qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid2, true);
   assert(qSmaCfg != NULL);
   printf("name2 = %s\n", qSmaCfg->indexName);
   printf("timezone2 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
@@ -233,11 +233,12 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   taosMemoryFreeClear(qSmaCfg);
 
   // get index name by table uid
+#if 0
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
   assert(pSmaCur != NULL);
   uint32_t indexCnt = 0;
   while (1) {
-    const char *indexName = metaSmaCursorNext(pSmaCur);
+    const char *indexName = (const char *)metaSmaCursorNext(pSmaCur);
     if (indexName == NULL) {
       break;
     }
@@ -245,8 +246,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
     ++indexCnt;
   }
   EXPECT_EQ(indexCnt, nCntTSma);
-  metaCloseSmaCurosr(pSmaCur);
-
+  metaCloseSmaCursor(pSmaCur);
+#endif
   // get wrapper by table uid
   STSmaWrapper *pSW = metaGetSmaInfoByTable(pMeta, tbUid);
   assert(pSW != NULL);
@@ -408,7 +409,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   EXPECT_EQ(tdScanAndConvertSubmitMsg(pMsg), TSDB_CODE_SUCCESS);
 
-  EXPECT_EQ(tsdbUpdateSmaWindow(pTsdb, pMsg), 0);
+  EXPECT_EQ(tsdbUpdateSmaWindow(pTsdb, pMsg, 0), 0);
 
   // init
   const int32_t  tSmaGroupSize = 4;

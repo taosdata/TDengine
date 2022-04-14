@@ -24,11 +24,6 @@ sql connect
 
 print =============== create database
 sql create database db
-sql show databases
-if $rows != 2 then
-  return -1
-endi
-
 sql use db
 
 print =============== create super table and child table

@@ -87,7 +87,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pass = TSDB_DEFAULT_PASS;
   }
 
-  return taos_connect_internal(ip, user, pass, NULL, db, port);
+  return taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
 }
 
 void taos_close(TAOS *taos) {
@@ -124,8 +124,10 @@ const char *taos_errstr(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
-  SRequestObj *pRequest = (SRequestObj *)res;
-  destroyRequest(pRequest);
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    destroyRequest(pRequest);
+  }
 }
 
 int taos_field_count(TAOS_RES *res) {
@@ -168,23 +170,27 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
-    return doFetchRow(pRequest, true, true);
+    return doFetchRows(pRequest, true, true);
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj      *msg = ((SMqRspObj *)res);
+    SMqRspObj *msg = ((SMqRspObj *)res);
+    if (msg->resIter == -1) msg->resIter++;
     SReqResultInfo *pResultInfo = taosArrayGet(msg->res, msg->resIter);
-
-    doSetOneRowPtr(pResultInfo);
-    pResultInfo->current += 1;
-
-    if (pResultInfo->row == NULL) {
-      msg->resIter++;
-      pResultInfo = taosArrayGet(msg->res, msg->resIter);
+    if (pResultInfo->current < pResultInfo->numOfRows) {
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
+      return pResultInfo->row;
+    } else {
+      msg->resIter++;
+      if (msg->resIter < taosArrayGetSize(msg->res)) {
+        pResultInfo = taosArrayGet(msg->res, msg->resIter);
+        doSetOneRowPtr(pResultInfo);
+        pResultInfo->current += 1;
+        return pResultInfo->row;
+      } else {
+        return NULL;
+      }
     }
-
-    return pResultInfo->row;
 
   } else {
     // assert to avoid uninitialization error
@@ -404,7 +410,11 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   }
 
   SResultColumn *pCol = &pResultInfo->pCol[col];
-  return colDataIsNull_f(pCol->nullbitmap, row);
+  if (IS_VAR_DATA_TYPE(pResultInfo->fields[col].type)) {
+    return (pCol->offset[row] == -1);
+  } else {
+    return colDataIsNull_f(pCol->nullbitmap, row);
+  }
 }
 
 bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }
@@ -430,7 +440,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-    doFetchRow(pRequest, false, true);
+    doFetchRows(pRequest, false, true);
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -457,25 +467,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   if (res == NULL) {
     return 0;
   }
-  if (TD_RES_QUERY(res)) {
-    SRequestObj *pRequest = (SRequestObj *)res;
-
-    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
-        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      return 0;
-    }
-
-    doFetchRow(pRequest, false, false);
-
-    SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
-
-    pResultInfo->current = pResultInfo->numOfRows;
-    (*numOfRows) = pResultInfo->numOfRows;
-    (*pData) = (void *)pResultInfo->pData;
-
-    return 0;
-
-  } else if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
     if (pResultInfo == NULL) return -1;
 
@@ -483,11 +475,24 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     (*numOfRows) = pResultInfo->numOfRows;
     (*pData) = (void *)pResultInfo->pData;
     return 0;
-
-  } else {
-    ASSERT(0);
-    return -1;
   }
+
+  SRequestObj *pRequest = (SRequestObj *)res;
+
+  if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+    return 0;
+  }
+
+  doFetchRows(pRequest, false, false);
+
+  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  pResultInfo->current = pResultInfo->numOfRows;
+  (*numOfRows) = pResultInfo->numOfRows;
+  (*pData) = (void *)pResultInfo->pData;
+
+  return 0;
 }
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {

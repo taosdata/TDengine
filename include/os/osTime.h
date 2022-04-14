@@ -27,9 +27,11 @@ extern "C" {
 #ifndef ALLOW_FORBID_FUNC
     #define strptime STRPTIME_FUNC_TAOS_FORBID
     #define gettimeofday GETTIMEOFDAY_FUNC_TAOS_FORBID
+    #define localtime   LOCALTIME_FUNC_TAOS_FORBID
     #define localtime_s LOCALTIMES_FUNC_TAOS_FORBID
     #define localtime_r LOCALTIMER_FUNC_TAOS_FORBID
     #define time TIME_FUNC_TAOS_FORBID
+    #define mktime MKTIME_FUNC_TAOS_FORBID
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -82,6 +84,8 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
 
 char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
 struct tm *taosLocalTime(const time_t *timep, struct tm *result);
+time_t taosTime(time_t *t);
+time_t taosMktime(struct tm *timep);
 
 #ifdef __cplusplus
 }

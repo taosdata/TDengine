@@ -73,10 +73,6 @@ int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
       return qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg);
     case TDMT_VND_DROP_TASK:
       return qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg);
-    case TDMT_VND_SHOW_TABLES:
-      return qWorkerProcessShowMsg(pQnode, pQnode->pQuery, pMsg);
-    case TDMT_VND_SHOW_TABLES_FETCH:
-      // return vnodeGetTableList(pQnode, pMsg);
     case TDMT_VND_TABLE_META:
       // return vnodeGetTableMeta(pQnode, pMsg);
     case TDMT_VND_CONSUME:

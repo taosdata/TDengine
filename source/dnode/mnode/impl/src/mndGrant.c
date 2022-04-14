@@ -14,14 +14,20 @@
  */
 
 #define _DEFAULT_SOURCE
-#ifndef _GRANT
 #include "os.h"
 #include "taoserror.h"
-#include "tgrant.h"
+#include "mndGrant.h"
 #include "mndInt.h"
+#include "mndShow.h"
 
-int32_t grantInit() { return TSDB_CODE_SUCCESS; }
-void    grantCleanUp() {}
+#ifndef _GRANT
+static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+
+int32_t mndInitGrant(SMnode *pMnode) {
+    mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
+    return TSDB_CODE_SUCCESS; 
+}
+void    mndCleanupGrant() {}
 void    grantParseParameter() { mError("can't parsed parameter k"); }
 int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
 void    grantReset(EGrantType grant, uint64_t value) {}
@@ -29,3 +35,5 @@ void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
 
 #endif
+
+void mndGenerateMachineCode() { grantParseParameter(); }
