@@ -45,7 +45,7 @@ int32_t dmReadEps(SDnode *pDnode) {
   int32_t   maxLen = 256 * 1024;
   char     *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON    *root = NULL;
-  char      file[PATH_MAX];
+  char      file[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
   pDnode->data.dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
@@ -54,7 +54,7 @@ int32_t dmReadEps(SDnode *pDnode) {
     goto PRASE_DNODE_OVER;
   }
 
-  snprintf(file, sizeof(file), "%s%sdnode.json", pDnode->data.dataDir, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%sdnode.json", pDnode->wrappers[DNODE].path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     // dDebug("file %s not exist", file);
@@ -175,8 +175,10 @@ PRASE_DNODE_OVER:
 }
 
 int32_t dmWriteEps(SDnode *pDnode) {
-  char file[PATH_MAX];
-  snprintf(file, sizeof(file), "%s%sdnode.json.bak", pDnode->data.dataDir, TD_DIRSEP);
+  char file[PATH_MAX] = {0};
+  char realfile[PATH_MAX];
+  snprintf(file, sizeof(file), "%s%sdnode.json.bak", pDnode->wrappers[DNODE].path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode.json", pDnode->wrappers[DNODE].path, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -214,9 +216,6 @@ int32_t dmWriteEps(SDnode *pDnode) {
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
   taosMemoryFree(content);
-
-  char realfile[PATH_MAX];
-  snprintf(realfile, sizeof(realfile), "%s%sdnode.json", pDnode->data.dataDir, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);

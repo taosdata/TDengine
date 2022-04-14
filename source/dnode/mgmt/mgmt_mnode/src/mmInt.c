@@ -103,7 +103,18 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
   if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
     return -1;
   }
-  return mndAlter(pMgmt->pMnode, &option);
+
+  if (mndAlter(pMgmt->pMnode, &option) != 0) {
+    return -1;
+  }
+
+  bool deployed = true;
+  if (mmWriteFile(pMgmt->pWrapper, pReq, deployed) != 0) {
+    dError("failed to write mnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
 static void mmClose(SMgmtWrapper *pWrapper) {
@@ -170,6 +181,14 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
     dError("failed to start mnode worker since %s", terrstr());
     mmClose(pWrapper);
     return -1;
+  }
+
+  if (!deployed) {
+    deployed = true;
+    if (mmWriteFile(pWrapper, NULL, deployed) != 0) {
+      dError("failed to write mnode file since %s", terrstr());
+      return -1;
+    }
   }
 
   dInfo("mnode-mgmt is initialized");

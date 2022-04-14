@@ -121,22 +121,29 @@ int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deploye
   int32_t len = 0;
   int32_t maxLen = 4096;
   char   *content = taosMemoryCalloc(1, maxLen + 1);
-
+  
   len += snprintf(content + len, maxLen - len, "{\n");
-  if (pReq != NULL) {
-    len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
-    for (int32_t i = 0; i < pReq->replica; ++i) {
-      SReplica *pReplica = &pReq->replicas[i];
+  len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
+
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pReq != NULL || pMgmt != NULL) {
+    int8_t replica = (pReq != NULL ? pReq->replica : pMgmt->replica);
+    for (int32_t i = 0; i < replica; ++i) {
+      SReplica *pReplica = &pMgmt->replicas[i];
+      if (pReq != NULL) {
+        pReplica = &pReq->replicas[i];
+      }
       len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
       len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
       len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
-      if (i < pReq->replica - 1) {
+      if (i < replica - 1) {
         len += snprintf(content + len, maxLen - len, "  },{\n");
       } else {
         len += snprintf(content + len, maxLen - len, "  }],\n");
       }
     }
   }
+
   len += snprintf(content + len, maxLen - len, "  \"deployed\": %d\n", deployed);
   len += snprintf(content + len, maxLen - len, "}\n");
 
