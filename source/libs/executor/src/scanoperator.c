@@ -772,6 +772,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_DNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_MNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, tListLen(pName->tname)) == 0) {
