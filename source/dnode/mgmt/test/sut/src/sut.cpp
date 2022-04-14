@@ -40,7 +40,7 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-  dndInit();
+  dmInit();
 
   char fqdn[] = "localhost";
   char firstEp[TSDB_EP_LEN] = {0};
@@ -62,7 +62,7 @@ void Testbase::Cleanup() {
   client.Cleanup();
   taosMsleep(10);
   server.Stop();
-  dndCleanup();
+  dmCleanup();
 }
 
 void Testbase::Restart() {
@@ -133,17 +133,17 @@ const char* Testbase::GetMetaTbName() { return metaRsp.tbName; }
 void Testbase::SendShowRetrieveReq() {
   SRetrieveTableReq retrieveReq = {0};
   retrieveReq.showId = showId;
-  retrieveReq.free = 0;
+//  retrieveReq.free = 0;
 
   int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
   void*   pReq = rpcMallocCont(contLen);
   tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
 
-  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pReq, contLen);
-  pRetrieveRsp = (SRetrieveTableRsp*)pRsp->pCont;
-  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-  pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
-  pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
+//  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pReq, contLen);
+//  pRetrieveRsp = (SRetrieveTableRsp*)pRsp->pCont;
+//  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
+//  pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
+//  pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
   pData = pRetrieveRsp->data;
   pos = 0;

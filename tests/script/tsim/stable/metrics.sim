@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
-sleep 2000
+sleep 1000
 sql connect
 
 $dbPrefix = m_me_db
@@ -95,8 +95,8 @@ $i = 2
 $tb = $tbPrefix . $i
 sql insert into $tb values (now + 1m , 1 )
 
-print sleep 8000
-sleep 8000
+print sleep 2000
+sleep 2000
 
 print =============== step6
 
@@ -130,7 +130,7 @@ endi
 
 sql drop database $db
 sql show databases
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
 
