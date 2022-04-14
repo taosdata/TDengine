@@ -485,9 +485,9 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
   if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pFunc->functionName, &pFunc->funcId, &pFunc->funcType)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_FUNTION, pFunc->functionName);
   }
-  int32_t code = fmGetFuncResultType(pFunc);
-  if (TSDB_CODE_SUCCESS != code) {
-    return generateDealNodeErrMsg(pCxt, code, pFunc->functionName);
+  pCxt->errCode = fmGetFuncResultType(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return DEAL_RES_ERROR;
   }
   if (fmIsAggFunc(pFunc->funcId) && beforeHaving(pCxt->currClause)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
