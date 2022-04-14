@@ -408,7 +408,11 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   }
 
   SResultColumn *pCol = &pResultInfo->pCol[col];
-  return colDataIsNull_f(pCol->nullbitmap, row);
+  if (IS_VAR_DATA_TYPE(pResultInfo->fields[col].type)) {
+    return (pCol->offset[row] == -1);
+  } else {
+    return colDataIsNull_f(pCol->nullbitmap, row);
+  }
 }
 
 bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }

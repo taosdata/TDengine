@@ -590,7 +590,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
   bool    keep = filterExecute(filter, pInfo->pRes, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  SSDataBlock* px = createOneDataBlock(pInfo->pRes);
+  SSDataBlock* px = createOneDataBlock(pInfo->pRes, false);
   blockDataEnsureCapacity(px, pInfo->pRes->info.rows);
 
   // TODO refactor

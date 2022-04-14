@@ -1701,9 +1701,8 @@ static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
   }
 }
 
-int32_t setGroupResultOutputBuf_rv(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type,
-                                          int16_t bytes, int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo,
-                                          SAggSupporter* pAggSup) {
+int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes,
+                                int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup) {
   SResultRowInfo* pResultRowInfo = &binfo->resultRowInfo;
   SqlFunctionCtx* pCtx = binfo->pCtx;
 
@@ -3039,7 +3038,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  SSDataBlock* px = createOneDataBlock(pBlock);
+  SSDataBlock* px = createOneDataBlock(pBlock, false);
   blockDataEnsureCapacity(px, pBlock->info.rows);
 
   // todo extract method
@@ -4614,7 +4613,7 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
   SSortedMergeOperatorInfo* pInfo = pOperator->info;
   SSortHandle*              pHandle = pInfo->pSortHandle;
 
-  SSDataBlock* pDataBlock = createOneDataBlock(pInfo->binfo.pRes);
+  SSDataBlock* pDataBlock = createOneDataBlock(pInfo->binfo.pRes, false);
   blockDataEnsureCapacity(pDataBlock, pInfo->binfo.capacity);
 
   while (1) {

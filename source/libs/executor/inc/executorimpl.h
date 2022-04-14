@@ -468,10 +468,10 @@ typedef struct SFillOperatorInfo {
 } SFillOperatorInfo;
 
 typedef struct {
-  char   *pData;
-  bool    isNull;
-  int16_t type;
-  int32_t bytes;
+  char             *pData;
+  bool              isNull;
+  int16_t           type;
+  int32_t           bytes;
 } SGroupKeys, SStateKeys;
 
 typedef struct SGroupbyOperatorInfo {
@@ -497,19 +497,19 @@ typedef struct SDataGroupInfo {
 
 // The sort in partition may be needed later.
 typedef struct SPartitionOperatorInfo {
-  SOptrBasicInfo binfo;
-  SArray*        pGroupCols;
-  SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
-  char*          keyBuf;        // group by keys for hash
-  int32_t        groupKeyLen;   // total group by column width
-  SHashObj*      pGroupSet;     // quick locate the window object for each result
+  SOptrBasicInfo   binfo;
+  SArray*          pGroupCols;
+  SArray*          pGroupColVals; // current group column values, SArray<SGroupKeys>
+  char*            keyBuf;        // group by keys for hash
+  int32_t          groupKeyLen;   // total group by column width
+  SHashObj*        pGroupSet;     // quick locate the window object for each result
 
-  SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
-  int32_t        rowCapacity;   // maximum number of rows for each buffer page
-  int32_t*       columnOffset;  // start position for each column data
+  SDiskbasedBuf*   pBuf;          // query result buffer based on blocked-wised disk file
+  int32_t          rowCapacity;   // maximum number of rows for each buffer page
+  int32_t*         columnOffset;  // start position for each column data
 
-  void*          pGroupIter;    // group iterator
-  int32_t        pageIndex;     // page index of current group
+  void*            pGroupIter;    // group iterator
+  int32_t          pageIndex;     // page index of current group
 } SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
@@ -548,21 +548,21 @@ typedef struct SStateWindowOperatorInfo {
 } SStateWindowOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
-  SOptrBasicInfo     binfo;
-  bool               hasVarCol;
+  SOptrBasicInfo   binfo;
+  bool             hasVarCol;
   
-  SArray*            pSortInfo;
-  int32_t            numOfSources;
-  SSortHandle       *pSortHandle;
-  int32_t            bufPageSize;
-  uint32_t           sortBufSize;  // max buffer size for in-memory sort
-  int32_t            resultRowFactor;
-  bool               hasGroupVal;
-  SDiskbasedBuf     *pTupleStore;  // keep the final results
-  int32_t            numOfResPerPage;
-  char**             groupVal;
-  SArray            *groupInfo;
-  SAggSupporter      aggSup;
+  SArray*          pSortInfo;
+  int32_t          numOfSources;
+  SSortHandle     *pSortHandle;
+  int32_t          bufPageSize;
+  uint32_t         sortBufSize;  // max buffer size for in-memory sort
+  int32_t          resultRowFactor;
+  bool             hasGroupVal;
+  SDiskbasedBuf   *pTupleStore;  // keep the final results
+  int32_t          numOfResPerPage;
+  char**           groupVal;
+  SArray          *groupInfo;
+  SAggSupporter    aggSup;
 } SSortedMergeOperatorInfo;
 
 typedef struct SSortOperatorInfo {
@@ -590,8 +590,7 @@ int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInf
 void toSDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, int32_t* rowCellOffset);
 void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
-int32_t setGroupResultOutputBuf_rv(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type,
-                                   int16_t bytes, int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
+int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes, int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
 void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
 int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows,
                                          char* pData, int32_t compLen, int32_t numOfOutput, int64_t startTs,

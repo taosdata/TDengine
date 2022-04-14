@@ -1149,10 +1149,11 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
   return NULL;
 }
 
-SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
+SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   if(pDataBlock == NULL){
     return NULL;
   }
+
   int32_t numOfCols = pDataBlock->info.numOfCols;
 
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -1160,12 +1161,30 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
 
   pBlock->info.numOfCols = numOfCols;
   pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
+  pBlock->info.rowSize   = pDataBlock->info.rows;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     colInfo.info = p->info;
     taosArrayPush(pBlock->pDataBlock, &colInfo);
+  }
+
+  if (copyData) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+      SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
+
+      int32_t code = colInfoDataEnsureCapacity(pDst, pDataBlock->info.rows);
+      if (code != TSDB_CODE_SUCCESS) {
+        return NULL;
+      }
+
+      colDataAssign(pDst, pSrc, pDataBlock->info.rows);
+    }
+
+    pBlock->info.rows = pDataBlock->info.rows;
+    pBlock->info.capacity = pDataBlock->info.rows;
   }
 
   return pBlock;
