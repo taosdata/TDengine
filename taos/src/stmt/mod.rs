@@ -1,4 +1,4 @@
-use crate::{util::IntoCStr, Code, Result, Taos, Error, TaosResult};
+use crate::{util::IntoCStr, Code, Error, Result, Taos, TaosResult};
 use taos_sys::*;
 
 use std::ffi::CStr;

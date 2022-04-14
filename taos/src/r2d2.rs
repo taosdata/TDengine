@@ -1,4 +1,4 @@
-use super::{Result, Taos, Error, TaosOptions};
+use super::{Error, Result, Taos, TaosOptions};
 
 pub type TaosPool = r2d2::Pool<TaosOptions>;
 

@@ -101,8 +101,7 @@ where
     }
 }
 
-impl<'a> IntoNullableCStr<'a> for ()
-{
+impl<'a> IntoNullableCStr<'a> for () {
     fn into_nullable_c_str(self) -> NullableCStr<'a> {
         NullableCStr(None)
     }

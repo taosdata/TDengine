@@ -11,8 +11,11 @@ macro_rules! custom_error {
 }
 
 macro_rules! err {
-    (custom, $err:expr) => {
+    (custom $err:expr) => {
         <::taos_error::Error as ::serde::de::Error>::custom($err)
+    };
+    ('str $err:expr) => {
+        crate::Error::from_string($err)
     };
     ($err:expr) => {
         todo!()
@@ -35,6 +38,7 @@ pub mod future;
 pub mod async_query;
 
 pub mod helpers;
+
 use helpers::*;
 
 pub mod stream;
@@ -45,6 +49,7 @@ pub mod tmq;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
 pub struct Taos(*mut TAOS);
 
 unsafe impl Send for Taos {}
@@ -130,7 +135,7 @@ impl Taos {
             .try_collect()
             .await
     }
-    pub async fn databases(&self) -> Result<Vec<Database>> {
+    pub async fn databases(&self) -> Result<Vec<ShowDatabase>> {
         self.query(format!("show databases"))
             .await?
             .rows_de_stream()
@@ -143,77 +148,6 @@ impl Taos {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[tokio::test]
-    async fn test_describe() -> Result<()> {
-        let taos = TaosOptions::new().build()?;
-        let desc = taos.describe("log.logs").await?;
-        dbg!(desc);
-        Ok(())
-    }
-    #[tokio::test]
-    async fn databases() -> Result<()> {
-        simple_logger::init().unwrap();
-        let taos = TaosOptions::new().build()?;
-        let desc = taos.databases().await?;
-        println!("done");
-        dbg!(desc);
-        Ok(())
-    }
-}
-
-#[test]
-#[should_panic]
-fn async_query_callback_test() {
-    let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-    let callback = |res: Result<TaosResult>| {
-        let res = res.unwrap();
-        println!("ptr: {:p}", res.as_raw());
-        let rows = res.affected_rows();
-        println!("rows: {rows}");
-    };
-    taos.query_with_callback(callback);
-    println!("wait for 10 seconds");
-    std::thread::sleep(std::time::Duration::from_secs(10));
-    println!("wait finished");
-    println!("done");
-}
-
-#[test]
-fn query_async_await_future_test() {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
-            let res = taos
-                .query("select * from log.logs limit 10000")
-                .await
-                .unwrap();
-            let stream = res.fetch_block_stream();
-
-            use futures::stream::StreamExt;
-            let lengths = stream
-                .enumerate()
-                .map(|(bi, partial)| {
-                    partial
-                        .rows_iter()
-                        .enumerate()
-                        .map(|(ri, values)| {
-                            println!("block {bi}, row {ri}: {values:?}");
-                            return 1;
-                        })
-                        .sum::<usize>()
-                })
-                .fold(0, |acc, n| futures::future::ready(acc + n))
-                .await;
-            println!("lengths is {lengths}");
-        });
-}
 pub use result::*;
 
 pub mod block;
@@ -229,30 +163,105 @@ pub fn client_info() -> &'static str {
     });
     unsafe { VERSION }
 }
-
-#[test]
-fn test_client_info() {
-    let version = client_info();
-    dbg!(format!("{version}"));
-}
-
-#[test]
-fn test_err() {
-    fn err_with_res() -> Result<()> {
-        let taos = Taos::new(
-            "localhost",
-            std::ptr::null() as *const i8,
-            "taosdata",
-            std::ptr::null() as *const i8,
-            0,
-        )?;
-        taos.query_sync("select * from log.logs")?;
-        Ok(())
-    }
-    err_with_res().unwrap();
-}
-
 pub mod stmt;
 
 #[cfg(feature = "r2d2")]
 pub mod r2d2;
+
+pub mod prelude {
+    #[cfg(feature = "test")]
+    pub use taos_macros::test;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{client_info, Result, Taos, TaosOptions, TaosResult};
+    #[tokio::test]
+    async fn test_describe() -> Result<()> {
+        let taos = TaosOptions::new().build()?;
+        let desc = taos.describe("log.logs").await?;
+        dbg!(desc);
+        Ok(())
+    }
+    #[tokio::test]
+    async fn test_databases() -> Result<()> {
+        std::env::set_var("RUST_LOG", "TRACE");
+        simple_logger::init().unwrap();
+        let taos = TaosOptions::new().build()?;
+        let desc = taos.databases().await?;
+        println!("done");
+        dbg!(desc);
+        Ok(())
+    }
+    #[test]
+    fn test_client_info() {
+        let version = client_info();
+        dbg!(format!("{version}"));
+    }
+
+    #[test]
+    fn test_err() {
+        fn err_with_res() -> Result<()> {
+            let taos = Taos::new(
+                "localhost",
+                std::ptr::null() as *const i8,
+                "taosdata",
+                std::ptr::null() as *const i8,
+                0,
+            )?;
+            taos.query_sync("select * from log.logs")?;
+            Ok(())
+        }
+        err_with_res().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn async_query_callback_test() {
+        let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
+        let callback = |res: Result<TaosResult>| {
+            let res = res.unwrap();
+            println!("ptr: {:p}", res.as_raw());
+            let rows = res.affected_rows();
+            println!("rows: {rows}");
+        };
+        taos.query_with_callback(callback);
+        println!("wait for 10 seconds");
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        println!("wait finished");
+        println!("done");
+    }
+
+    #[test]
+    fn query_async_await_future_test() {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
+                let res = taos
+                    .query("select * from log.logs limit 10000")
+                    .await
+                    .unwrap();
+                let stream = res.fetch_block_stream();
+
+                use futures::stream::StreamExt;
+                let lengths = stream
+                    .enumerate()
+                    .map(|(bi, partial)| {
+                        partial
+                            .rows_iter()
+                            .enumerate()
+                            .map(|(ri, values)| {
+                                println!("block {bi}, row {ri}: {values:?}");
+                                return 1;
+                            })
+                            .sum::<usize>()
+                    })
+                    .fold(0, |acc, n| futures::future::ready(acc + n))
+                    .await;
+                println!("lengths is {lengths}");
+            });
+    }
+}

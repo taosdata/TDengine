@@ -289,6 +289,8 @@ impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
         V: de::DeserializeSeed<'de>,
     {
         let value = self.value.take().unwrap(); // always be here, so it's safe to unwrap
+        log::debug!("deserialize value: {:?}", value);
+        log::trace!("target value: {:?}", type_name::<V::Value>());
         seed.deserialize(value)
     }
 }
@@ -405,7 +407,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        dbg!(println!("deserialize_newtype_struct: {_name}"));
+        log::debug!("deserialize_newtype_struct: {_name}");
         visitor.visit_newtype_struct(self)
     }
 
@@ -416,7 +418,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        dbg!("deserialize_seq");
         visitor.visit_seq(SeqReader::new(self))
     }
 
@@ -452,6 +453,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         // let value = visitor.visit_map(self);
         // unimplemented!();
         log::info!("visit map");
+        dbg!(type_name::<V::Value>());
         visitor.visit_map(MapReader::new(self))
     }
 
@@ -470,7 +472,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("name: {_name}, fields: {_fields:?}");
+        log::debug!("name: {_name}, fields: {_fields:?}");
         self.deserialize_map(visitor)
     }
 }
