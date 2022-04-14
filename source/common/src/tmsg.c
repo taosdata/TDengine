@@ -134,7 +134,7 @@ void *taosDecodeSEpSet(void *buf, SEpSet *pEp) {
 static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq) {
   if (tEncodeSClientHbKey(pEncoder, &pReq->connKey) < 0) return -1;
 
-  if (pReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+  if (pReq->connKey.connType == CONN_TYPE__QUERY) {
     int32_t queryNum = 0;
     if (pReq->query) {
       queryNum = 1;
@@ -185,7 +185,7 @@ static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq
 static int32_t tDeserializeSClientHbReq(SCoder *pDecoder, SClientHbReq *pReq) {
   if (tDecodeSClientHbKey(pDecoder, &pReq->connKey) < 0) return -1;
 
-  if (pReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+  if (pReq->connKey.connType == CONN_TYPE__QUERY) {
     int32_t queryNum = 0;
     if (tDecodeI32(pDecoder, &queryNum) < 0) return -1;
     if (queryNum) {
@@ -3424,4 +3424,5 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
-  taosMemoryFreeClear(pReq->ast)
+  taosMemoryFreeClear(pReq->ast);
+}
