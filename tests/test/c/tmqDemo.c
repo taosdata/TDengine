@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
+
 #include <assert.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -336,7 +338,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
   tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
-  assert(tmq);
   tmq_conf_destroy(conf);
   return tmq;
 }
