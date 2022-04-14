@@ -687,6 +687,8 @@ static int32_t mndGetUserMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pM
 }
 
 static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  printf("%s(%d) %s rows=%d\n", __FILE__, __LINE__,__func__,rows);
+  printf("%s(%d) %s pShow->numOfReads=%d\n", __FILE__, __LINE__,__func__,pShow->numOfReads);
   SMnode   *pMnode = pReq->pNode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
@@ -701,10 +703,12 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  printf("%s(%d) %s pWrite=%p\n", __FILE__, __LINE__,__func__,pWrite);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->user, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  printf("%s(%d) %s pWrite=%p\n", __FILE__, __LINE__,__func__,pWrite);
     if (pUser->superUser) {
       const char *src = "super";
       STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
@@ -715,10 +719,12 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  printf("%s(%d) %s pWrite=%p\n", __FILE__, __LINE__,__func__,pWrite);
     *(int64_t *)pWrite = pUser->createdTime;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  printf("%s(%d) %s pWrite=%p\n", __FILE__, __LINE__,__func__,pWrite);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->acct, pShow->bytes[cols]);
     cols++;
 
@@ -728,6 +734,7 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
+  printf("%s(%d) %s numOfRows=%d\n", __FILE__, __LINE__,__func__,numOfRows);
   return numOfRows;
 }
 
