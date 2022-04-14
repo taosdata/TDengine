@@ -1,13 +1,6 @@
 use clap::Args;
 use futures::Future;
-use parquet::{
-    basic::Compression,
-    file::{
-        properties::WriterProperties,
-        writer::{FileWriter, SerializedFileWriter},
-    },
-    schema::types::Type,
-};
+use parquet::{basic::Compression, schema::types::Type};
 use std::{
     fmt::Debug,
     fs::{self, File},
@@ -15,7 +8,7 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
-use taos::{Taos, TaosOptions};
+use taos::TaosOptions;
 use taosx::{Database, TaosOpts};
 use thread_id;
 use tokio::runtime::Builder;
@@ -25,10 +18,7 @@ use crate::commands::backup::{
     schema::TaosParquetSchema,
 };
 
-use self::{
-    fetch::fetch_stable_tag_buffer,
-    serialize::{serialize_tableinfo, serialize_tag, serialzie_data},
-};
+use self::{fetch::fetch_stable_tag_buffer, serialize::Serialize};
 
 mod fetch;
 mod schema;
@@ -58,7 +48,7 @@ fn allocate_task<Fut: 'static>(
 ) where
     Fut: Future<Output = ()> + std::marker::Send,
 {
-    let mut own_path = dir.clone();
+    let mut own_path = dir;
     own_path.push(path);
     fs::create_dir(own_path.clone()).unwrap_or_else(|_| {
         fs::remove_dir_all(own_path.clone()).unwrap_or_else(|_| {
@@ -107,9 +97,7 @@ impl App {
 
         log::info!("prepare parquet schema");
 
-        let table_schema = TaosParquetSchema::default().build_table_schema();
-        let tag_schema = TaosParquetSchema::default().build_tag_schema();
-        let chunk_schema = TaosParquetSchema::default().build_chunk_schema();
+        let schema = TaosParquetSchema::default().build();
 
         log::info!("start backup database info");
 
@@ -131,7 +119,7 @@ impl App {
         log::info!("start backup table meta info");
         allocate_task(
             describe_list,
-            table_schema,
+            schema.clone(),
             path.clone(),
             "table.info",
             threads,
@@ -142,7 +130,7 @@ impl App {
         log::info!("start backup table tags");
         allocate_task(
             stable_list,
-            tag_schema,
+            schema.clone(),
             path.clone(),
             "tags",
             threads,
@@ -151,15 +139,7 @@ impl App {
         );
         log::info!("finish backup table tags");
         log::info!("start backup data");
-        allocate_task(
-            select_list,
-            chunk_schema,
-            path.clone(),
-            "chunk",
-            threads,
-            db.clone(),
-            backup_data,
-        );
+        allocate_task(select_list, schema, path, "chunk", threads, db, backup_data);
         log::info!("finish backup data");
     }
 }
@@ -168,7 +148,7 @@ fn backup_database(database: Database, mut path: PathBuf) {
     path.push("db.info");
     let mut file = File::create(path.as_path()).unwrap();
     let j = serde_json::to_string_pretty(&database).unwrap();
-    file.write(j.as_bytes()).unwrap();
+    file.write_all(j.as_bytes()).unwrap();
 }
 
 async fn backup_table_schema(
@@ -180,22 +160,12 @@ async fn backup_table_schema(
     let thread_id = thread_id::get();
     path.push(format!("{}.parquet", thread_id));
     let file = File::create(path.as_path()).unwrap();
-    let props = Arc::new(
-        WriterProperties::builder()
-            .set_compression(Compression::SNAPPY)
-            .build(),
-    );
-    let taos = TaosOptions::new()
-        .database(db.clone())
-        .host("10.72.136.169")
-        .build()
-        .unwrap();
-    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let taos = TaosOptions::new().database(db.clone()).build().unwrap();
+    let mut serialize = Serialize::new(file, Compression::SNAPPY, schema);
     for tbname in table_list {
         let describe = taos.describe(&tbname).await.unwrap();
-        writer = serialize_tableinfo(&tbname, describe, writer);
+        serialize.serialze_table_meta(&tbname, describe);
     }
-    writer.close().unwrap();
 }
 
 async fn backup_stable_tags(
@@ -207,13 +177,11 @@ async fn backup_stable_tags(
     let thread_id = thread_id::get();
     path.push(format!("{}.parquet", thread_id));
     let file = File::create(path.as_path()).unwrap();
-    let props = Arc::new(
-        WriterProperties::builder()
-            .set_compression(Compression::SNAPPY)
-            .build(),
-    );
-    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
-    let taos = Taos::new("10.72.136.169", "root", "taosdata", database.clone(), 6030).unwrap();
+    let mut serialize = Serialize::new(file, Compression::SNAPPY, schema);
+    let taos = TaosOptions::new()
+        .database(database.clone())
+        .build()
+        .unwrap();
     for tbname in table_list {
         let tag_buffer = fetch_stable_tag_buffer(database.clone(), tbname.clone()).await;
         let res = taos
@@ -221,11 +189,8 @@ async fn backup_stable_tags(
             .await
             .unwrap();
         let stream = res.fetch_block_stream();
-        writer = serialize_tag(writer, &tbname, stream).await;
+        serialize.serialize_tag(&tbname, stream).await;
     }
-    writer.close().unwrap();
-    // let file = File::open(path.clone()).unwrap();
-    // deserialize_print_file(file);
 }
 
 async fn backup_data(
@@ -237,22 +202,14 @@ async fn backup_data(
     let thread_id = thread_id::get();
     path.push(format!("{}.parquet", thread_id));
     let file = File::create(path.as_path()).unwrap();
-    let props = Arc::new(
-        WriterProperties::builder()
-            .set_compression(Compression::SNAPPY)
-            .build(),
-    );
-    let taos = Taos::new("10.72.136.169", "root", "taosdata", database, 6030).unwrap();
-    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let taos = TaosOptions::new().database(database).build().unwrap();
+    let mut serialize = Serialize::new(file, Compression::SNAPPY, schema);
     for tbname in tbname_list {
         let res = taos
             .query(format!("select * from {}", tbname).as_str())
             .await
             .unwrap();
         let stream = res.fetch_block_stream();
-        writer = serialzie_data(writer, &tbname, stream).await;
+        serialize.serialize_data(&tbname, stream).await;
     }
-    writer.close().unwrap();
-    // let file = File::open(path.clone()).unwrap();
-    // deserialize_print_file(file);
 }

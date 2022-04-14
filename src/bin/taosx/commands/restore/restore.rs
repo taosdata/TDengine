@@ -1,14 +1,13 @@
 use clap::Args;
 use futures::Future;
 use std::path::PathBuf;
-use taos::TaosOptions;
-use taosx::TaosOpts;
+use taos::{TaosOptions, Value};
+use taos_sys::TaosDataType;
+use taosx::{TaosBlock, TaosDescribe, TaosOpts, TaosTag};
 use tokio::runtime::Builder;
 pub(crate) mod deserialize;
 
-use self::deserialize::{
-    deserialize_data, deserialize_database, deserialize_table_info, deserialzie_tags,
-};
+use self::deserialize::{deserialize_database, Deserialize};
 #[derive(Debug, Args)]
 /// Restore from a backup output directory.
 
@@ -55,7 +54,6 @@ fn allocate_task<Fut: 'static>(
         .enable_all()
         .build()
         .unwrap();
-
     let mut handles = Vec::with_capacity(threads as _);
     let chunks: Vec<&[String]> = filelist.chunks(file_per_threads as _).collect();
     for chunk in chunks {
@@ -84,23 +82,14 @@ impl App {
 
         allocate_task(db.clone(), path.clone(), "tags", threads, restore_tags);
 
-        allocate_task(db.clone(), path.clone(), "chunk", threads, restore_data);
+        allocate_task(db, path, "chunk", threads, restore_data);
     }
 }
 
 fn restore_database(mut path: PathBuf) -> String {
     path.push("db.info");
-    let taos = TaosOptions::new().host("10.72.136.169").build().unwrap();
+    let taos = TaosOptions::new().build().unwrap();
     let database = deserialize_database(path);
-    Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            taos.query(format!("drop database if exists {}", database.name))
-                .await
-                .unwrap()
-        });
     Builder::new_current_thread()
         .enable_all()
         .build()
@@ -115,35 +104,133 @@ fn restore_database(mut path: PathBuf) -> String {
 }
 
 async fn restore_table_info(filelist: Vec<String>, db: String) {
-    let taos = TaosOptions::new()
-        .database(db)
-        .host("10.72.136.169")
-        .build()
-        .unwrap();
+    let taos = TaosOptions::new().database(db).build().unwrap();
     for file in filelist {
-        let create_list = deserialize_table_info(file).await;
-        for sql in create_list {
-            taos.query(sql).await.unwrap();
+        let mut deserialize = Deserialize::<TaosDescribe>::new(file);
+        deserialize.deserialize().await;
+        let describes = deserialize.output;
+        for describe in describes {
+            let mut col_buffer = String::from("");
+            let mut tag_buffer = String::from("");
+            for col in describe.describe {
+                match col {
+                    taosx::TaosColumnMeta::Column(des) => {
+                        if des.r#type == TaosDataType::Binary || des.r#type == TaosDataType::NChar {
+                            col_buffer += format!(
+                                "{} {}({}),",
+                                des.field.as_str(),
+                                des.r#type.as_str(),
+                                des.length
+                            )
+                            .as_str();
+                        } else {
+                            col_buffer +=
+                                format!("{} {},", des.field.as_str(), des.r#type.as_str(),)
+                                    .as_str();
+                        }
+                    }
+                    taosx::TaosColumnMeta::Tag(des) => {
+                        if des.r#type == TaosDataType::Binary || des.r#type == TaosDataType::NChar {
+                            tag_buffer += format!(
+                                "{} {}({}),",
+                                des.field.as_str(),
+                                des.r#type.as_str(),
+                                des.length
+                            )
+                            .as_str();
+                        } else {
+                            tag_buffer +=
+                                format!("{} {},", des.field.as_str(), des.r#type.as_str(),)
+                                    .as_str();
+                        }
+                    }
+                }
+            }
+            col_buffer.pop();
+            tag_buffer.pop();
+            let sql = format!(
+                "create table {} ({}) tags ({})",
+                describe.name, col_buffer, tag_buffer
+            );
+            taos.stmt(sql).unwrap().execute().unwrap();
         }
     }
 }
 
 async fn restore_tags(filelist: Vec<String>, db: String) {
-    let taos = TaosOptions::new()
-        .database(db)
-        .host("10.72.136.169")
-        .build()
-        .unwrap();
+    let taos = TaosOptions::new().database(db).build().unwrap();
     for file in filelist {
-        let create_list = deserialzie_tags(file).await;
-        for sql in create_list {
-            taos.query(sql).await.unwrap();
+        let mut deserialize = Deserialize::<TaosTag>::new(file);
+        deserialize.deserialize().await;
+        let taostags = deserialize.output;
+        for taostag in taostags {
+            let stbname = taostag.name;
+            for tag in taostag.tags {
+                let mut sql = String::new();
+                for (index, value) in tag.into_iter().enumerate() {
+                    if index == 0 {
+                        if let Value::Binary(b) = value {
+                            sql = format!(
+                                "create table {} using {} tags (",
+                                std::str::from_utf8(&b).unwrap(),
+                                &stbname
+                            );
+                        }
+                    } else {
+                        match value {
+                            Value::Null => sql += "NULL,",
+                            Value::Bool(_) => todo!(),
+                            Value::TinyInt(_) => todo!(),
+                            Value::SmallInt(_) => todo!(),
+                            Value::Int(v) => sql += format!("{},", v).as_str(),
+                            Value::BigInt(_) => todo!(),
+                            Value::Float(v) => sql += format!("{},", v).as_str(),
+                            Value::Double(_) => todo!(),
+                            Value::Binary(v) => {
+                                sql +=
+                                    format!("\'{}\',", std::str::from_utf8(&v).unwrap()).as_str();
+                            }
+                            Value::Timestamp(_) => todo!(),
+                            Value::NChar(_) => todo!(),
+                            Value::UTinyInt(_) => todo!(),
+                            Value::USmallInt(_) => todo!(),
+                            Value::UInt(_) => todo!(),
+                            Value::UBigInt(_) => todo!(),
+                            Value::Json(_) => todo!(),
+                            Value::VarChar(_) => todo!(),
+                            Value::VarBinary(_) => todo!(),
+                            Value::Decimal(_) => todo!(),
+                            Value::Blob(_) => todo!(),
+                        }
+                    }
+                }
+                sql.pop();
+                sql += ")";
+                taos.stmt(sql).unwrap().execute().unwrap();
+            }
         }
     }
 }
 
 async fn restore_data(filelist: Vec<String>, db: String) {
+    let taos = TaosOptions::new().database(db).build().unwrap();
     for file in filelist {
-        deserialize_data(file, db.clone()).await;
+        let mut deserialize = Deserialize::<TaosBlock>::new(file);
+        deserialize.deserialize().await;
+        let taos_blocks = deserialize.output;
+        for taos_block in taos_blocks {
+            let col_num = taos_block.data.len();
+            let mut prepare = format!("insert into {} values (", taos_block.name);
+            for _ in 0..col_num {
+                prepare += "?,";
+            }
+            prepare.pop();
+            prepare += ")";
+            let mut stmt = taos.stmt(prepare).expect("prepare");
+            let col_vec = taos_block.to_column_vec();
+            let bind: Vec<_> = col_vec.iter().map(|v| v.to_multi_bind()).collect();
+            stmt.multi_bind(&bind).expect("bind erro");
+            stmt.execute().expect("execute error");
+        }
     }
 }

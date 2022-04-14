@@ -12,11 +12,7 @@ pub fn fetch_table_list(database: String) -> (Vec<String>, Vec<String>, Vec<Stri
     let mut select_list = vec![];
     let mut describe_list = vec![];
     let mut stable_list = vec![];
-    let taos = TaosOptions::new()
-        .database(database)
-        .host("10.72.136.169")
-        .build()
-        .unwrap();
+    let taos = TaosOptions::new().database(database).build().unwrap();
     let tables: Vec<Table> = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -32,7 +28,7 @@ pub fn fetch_table_list(database: String) -> (Vec<String>, Vec<String>, Vec<Stri
         });
     for table in tables {
         select_list.push(table.table_name.clone());
-        if table.stable_name == "" {
+        if table.stable_name.is_empty() {
             describe_list.push(table.table_name);
         } else if !describe_list.contains(&table.stable_name) {
             stable_list.push(table.stable_name.clone());
@@ -44,7 +40,6 @@ pub fn fetch_table_list(database: String) -> (Vec<String>, Vec<String>, Vec<Stri
 
 pub fn fetch_database_info(database: String) -> Database {
     let taos = TaosOptions::new()
-        .host("10.72.136.169")
         .database(database.clone())
         .build()
         .unwrap();
@@ -72,7 +67,6 @@ pub fn fetch_database_info(database: String) -> Database {
 pub async fn fetch_stable_tag_buffer(database: String, stable: String) -> String {
     let mut tag_buffer = String::from("");
     let taos = TaosOptions::new()
-        .host("10.72.136.169")
         .database(database.clone())
         .build()
         .unwrap();

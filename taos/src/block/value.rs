@@ -7,7 +7,7 @@ use std::{
 
 use serde::{
     de::{VariantAccess, Visitor},
-    Deserialize,
+    Deserialize, Serialize,
 };
 use taos_sys::{TaosDataType, TSDB_DATA_TYPE_BINARY};
 
@@ -159,7 +159,7 @@ impl<'block> BorrowedValue<'block> {
 }
 
 // #[derive(Debug, Clone)]
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Value {
     Null,        // 0
     Bool(bool),  // 1
