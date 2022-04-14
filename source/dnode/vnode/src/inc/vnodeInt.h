@@ -17,6 +17,9 @@
 #define _TD_VNODE_DEF_H_
 
 #include "executor.h"
+#include "filter.h"
+#include "qworker.h"
+#include "sync.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 #include "tcompression.h"
@@ -25,14 +28,15 @@
 #include "tglobal.h"
 #include "tlist.h"
 #include "tlockfree.h"
+#include "tlosertree.h"
 #include "tmacro.h"
 #include "tmallocator.h"
 #include "tskiplist.h"
+#include "tstream.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "vnode.h"
 #include "wal.h"
-#include "qworker.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -219,6 +223,8 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 #include "tsdb.h"
 
 #include "tq.h"
+
+#include "tsdbSma.h"
 
 #ifdef __cplusplus
 }

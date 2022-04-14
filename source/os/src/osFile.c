@@ -768,7 +768,7 @@ int32_t taosUmaskFile(int32_t maskVal) {
 }
 
 int32_t taosGetErrorFile(TdFilePtr pFile) { return errno; }
-int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict__ ptrBuf) {
+int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   if (pFile == NULL) {
     return -1;
   }

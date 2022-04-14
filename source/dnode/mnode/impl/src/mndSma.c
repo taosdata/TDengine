@@ -40,8 +40,7 @@ static int32_t  mndProcessMCreateSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessVCreateSmaRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVDropSmaRsp(SNodeMsg *pRsp);
-static int32_t  mndGetSmaMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSma(SMnode *pMnode) {
@@ -765,14 +764,12 @@ static int32_t mndGetSmaMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
   return 0;
 }
 
-static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->pNode;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   SSmaObj *pSma = NULL;
   int32_t  cols = 0;
-  char    *pWrite;
-  char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
   SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
   if (pDb == NULL) return 0;
@@ -790,27 +787,32 @@ static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
 
     SName smaName = {0};
     tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, (char *)tNameGetTableName(&smaName));
-    cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pSma->createdTime;
+    char n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(n, (char *)tNameGetTableName(&smaName));
     cols++;
 
     SName stbName = {0};
     tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, (char *)tNameGetTableName(&stbName));
-    cols++;
+
+    char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(n1, (char *)tNameGetTableName(&stbName));
+
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) n, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)n1, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);
   }
 
   mndReleaseDb(pMnode, pDb);
-  pShow->numOfReads += numOfRows;
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

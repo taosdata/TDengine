@@ -38,7 +38,7 @@ static int32_t  mndProcessDropDbReq(SNodeMsg *pReq);
 static int32_t  mndProcessUseDbReq(SNodeMsg *pReq);
 static int32_t  mndProcessSyncDbReq(SNodeMsg *pReq);
 static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rowsCapacity);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetDbCfgReq(SNodeMsg *pReq);
 static int32_t  mndProcessGetIndexReq(SNodeMsg *pReq);
@@ -1353,90 +1353,76 @@ char *mnGetDbStr(char *src) {
   return pos;
 }
 
-static char *getDataPosition(char *pData, SShowObj *pShow, int32_t cols, int32_t rows, int32_t capacityOfRow) {
-  return pData + pShow->offset[cols] * capacityOfRow + pShow->bytes[cols] * rows;
-}
-
-static void dumpDbInfoToPayload(char *data, SDbObj *pDb, SShowObj *pShow, int32_t rows, int32_t rowCapacity,
-                                int64_t numOfTables) {
+static void dumpDbInfoData(SSDataBlock* pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables) {
   int32_t cols = 0;
 
-  char *pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char* buf = taosMemoryMalloc(pShow->bytes[cols]);
   char *name = mnGetDbStr(pDb->name);
   if (name != NULL) {
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, name, pShow->bytes[cols]);
   } else {
-    STR_TO_VARSTR(pWrite, "NULL");
+//    STR_TO_VARSTR(pWrite, "NULL");
+    ASSERT(0);
   }
-  cols++;
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int64_t *)pWrite = pDb->createdTime;
-  cols++;
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, buf, false);
+  taosMemoryFree(buf);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int16_t *)pWrite = pDb->cfg.numOfVgroups;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int64_t *)pWrite = numOfTables;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int16_t *)pWrite = pDb->cfg.replications;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int16_t *)pWrite = pDb->cfg.quorum;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.daysPerFile;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.quorum, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
+
   char tmp[128] = {0};
+  int32_t len = 0;
   if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
+    len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
   } else {
-    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
+    len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
   }
-  STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
-  cols++;
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
-  cols++;
+  varDataSetLen(tmp, len);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)tmp, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.totalBlocks;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheBlockSize, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.minRows;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.totalBlocks, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.maxRows;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int8_t *)pWrite = pDb->cfg.walLevel;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int8_t *)pWrite = pDb->cfg.compression;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.fsyncPeriod, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int8_t *)pWrite = pDb->cfg.cacheLastRow;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastRow, false);
+
   char *prec = NULL;
   switch (pDb->cfg.precision) {
     case TSDB_TIME_PRECISION_MILLI:
@@ -1452,33 +1438,48 @@ static void dumpDbInfoToPayload(char *data, SDbObj *pDb, SShowObj *pShow, int32_
       prec = "none";
       break;
   }
-  STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
-  cols++;
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int32_t *)pWrite = pDb->cfg.ttl;
-  cols++;
+  char t[10] = {0};
+  STR_WITH_SIZE_TO_VARSTR(t, prec, 2);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)t, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int8_t *)pWrite = pDb->cfg.singleSTable;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.ttl, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int8_t *)pWrite = pDb->cfg.streamMode;
-  cols++;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.singleSTable, false);
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.streamMode, false);
+
   char *status = "ready";
-  STR_WITH_SIZE_TO_VARSTR(pWrite, status, strlen(status));
-  cols++;
+  char b[24] = {0};
+  STR_WITH_SIZE_TO_VARSTR(b, status, strlen(status));
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataAppend(pColInfo, rows, (const char *)b, false);
 
   //  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
   //  *(int8_t *)pWrite = pDb->cfg.update;
+
 }
 
 static void setInformationSchemaDbCfg(SDbObj *pDbObj) {
   ASSERT(pDbObj != NULL);
   strncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
+
+  pDbObj->createdTime = 0;
+  pDbObj->cfg.numOfVgroups = 0;
+  pDbObj->cfg.quorum = 1;
+  pDbObj->cfg.replications = 1;
+  pDbObj->cfg.update = 1;
+  pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
+}
+
+static void setPerfSchemaDbCfg(SDbObj* pDbObj) {
+  ASSERT(pDbObj != NULL);
+  strncpy(pDbObj->name, TSDB_PERFORMANCE_SCHEMA_DB, tListLen(pDbObj->name));
 
   pDbObj->createdTime = 0;
   pDbObj->cfg.numOfVgroups = 0;
@@ -1496,11 +1497,27 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
   return true;
 }
 
-static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rowsCapacity) {
+static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rowsCapacity) {
   SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
+
+  // Append the information_schema database into the result.
+  if (!pShow->sysDbRsp) {
+    SDbObj infoschemaDb = {0};
+    setInformationSchemaDbCfg(&infoschemaDb);
+    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14);
+
+    numOfRows += 1;
+
+    SDbObj perfschemaDb = {0};
+    setPerfSchemaDbCfg(&perfschemaDb);
+    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3);
+
+    numOfRows += 1;
+    pShow->sysDbRsp = true;
+  }
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_DB, pShow->pIter, (void **)&pDb);
@@ -1511,21 +1528,12 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     int32_t numOfTables = 0;
     sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
 
-    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity, numOfTables);
+    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables);
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }
 
-  // Append the information_schema database into the result.
-  if (numOfRows < rowsCapacity) {
-    SDbObj dummyISDb = {0};
-    setInformationSchemaDbCfg(&dummyISDb);
-    dumpDbInfoToPayload(data, &dummyISDb, pShow, numOfRows, rowsCapacity, 14);
-    numOfRows += 1;
-  }
-
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rowsCapacity, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
 
   return numOfRows;
 }

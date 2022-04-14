@@ -20,7 +20,19 @@
 #include "taos.h"
 
 static int  running = 1;
-static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
+static void msg_process(TAOS_RES* msg) {
+  char buf[1024];
+  printf("topic: %s\n", tmq_get_topic_name(msg));
+  printf("vg:%d\n", tmq_get_vgroup_id(msg));
+  while (1) {
+    TAOS_ROW row = taos_fetch_row(msg);
+    if (row == NULL) break;
+    TAOS_FIELD* fields = taos_fetch_fields(msg);
+    int32_t     numOfFields = taos_field_count(msg);
+    taos_print_row(buf, row, fields, numOfFields);
+    printf("%s\n", buf);
+  }
+}
 
 int32_t init_env() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -42,8 +54,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes =
-      taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)");
+  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c4 int) tags(t1 int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -90,7 +101,7 @@ int32_t create_topic() {
 
   /*const char* sql = "select * from tu1";*/
   /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1 from ct1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c4 from ct1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -166,11 +177,11 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       cnt++;
-      printf("get data\n");
-      msg_process(tmqmessage);
+      /*printf("get data\n");*/
+      /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
       /*} else {*/
       /*break;*/
@@ -198,7 +209,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1000);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
@@ -226,10 +237,10 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t skipLogNum = 0;
   clock_t startTime = clock();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       batchCnt++;
-      skipLogNum += tmqGetSkipLogNum(tmqmessage);
+      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
       /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
     } else {

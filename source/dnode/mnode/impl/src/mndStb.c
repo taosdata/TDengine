@@ -40,7 +40,7 @@ static int32_t  mndProcessVCreateStbRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVAlterStbRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVDropStbRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessTableMetaReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitStb(SMnode *pMnode) {
@@ -1644,13 +1644,12 @@ static void mndExtractTableName(char *tableId, char *name) {
   }
 }
 
-static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->pNode;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   SStbObj *pStb = NULL;
   int32_t  cols = 0;
-  char    *pWrite;
 
   SDbObj* pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -1670,42 +1669,45 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     cols = 0;
 
     SName name = {0};
-    char stbName[TSDB_TABLE_NAME_LEN] = {0};
-    mndExtractTableName(pStb->name, stbName);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, stbName);
-    cols++;
+    char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    mndExtractTableName(pStb->name, &stbName[VARSTR_HEADER_SIZE]);
+    varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
-    char  db[TSDB_DB_NAME_LEN] = {0};
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) stbName, false);
+
+    char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
-    tNameGetDbName(&name, db);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, db);
-    cols++;
+    tNameGetDbName(&name, varDataVal(db));
+    varDataSetLen(db, strlen(varDataVal(db)));
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pStb->createdTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) db, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pStb->numOfColumns;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->createdTime, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pStb->numOfTags;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->numOfColumns, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pStb->updateTime; // number of tables
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->numOfTags, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pStb->commentLen != 0) {
-      STR_TO_VARSTR(pWrite, pStb->comment);
-    } else {
-      STR_TO_VARSTR(pWrite, "");
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
+
+    char* p = taosMemoryMalloc(pStb->commentLen + VARSTR_HEADER_SIZE); // check malloc failures
+    if (p != NULL) {
+      if (pStb->commentLen != 0) {
+        STR_TO_VARSTR(p, pStb->comment);
+      } else {
+        STR_TO_VARSTR(p, "");
+      }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      colDataAppend(pColInfo, numOfRows, (const char *)p, false);
+      taosMemoryFree(p);
     }
-    cols++;
 
     numOfRows++;
     sdbRelease(pSdb, pStb);
@@ -1715,8 +1717,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     mndReleaseDb(pMnode, pDb);
   }
 
-  pShow->numOfReads += numOfRows;
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

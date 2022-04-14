@@ -385,14 +385,14 @@ typedef struct {
   int16_t numOfColumns;
   int32_t rowSize;
   int32_t numOfRows;
-  int32_t numOfReads;
   int32_t payloadLen;
   void*   pIter;
   SMnode* pMnode;
+  STableMetaRsp* pMeta;
+  bool    sysDbRsp;
   char    db[TSDB_DB_FNAME_LEN];
   int16_t offset[TSDB_MAX_COLUMNS];
   int32_t bytes[TSDB_MAX_COLUMNS];
-  char    payload[];
 } SShowObj;
 
 typedef struct {

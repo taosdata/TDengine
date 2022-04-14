@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include "vnodeInt.h"
 
-static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
 int vnodeQueryOpen(SVnode *pVnode) {
@@ -57,11 +55,6 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_SHOW_TABLES:
-      return qWorkerProcessShowMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_SHOW_TABLES_FETCH:
-      return vnodeGetTableList(pVnode, pMsg);
-      //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
@@ -206,75 +199,4 @@ _exit:
 
   tmsgSendRsp(&rpcMsg);
   return TSDB_CODE_SUCCESS;
-}
-
-static void freeItemHelper(void *pItem) {
-  char *p = *(char **)pItem;
-  taosMemoryFree(p);
-}
-
-/**
- * @param pVnode
- * @param pMsg
- * @param pRsp
- */
-static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
-  SMTbCursor *pCur = metaOpenTbCursor(pVnode->pMeta);
-  SArray     *pArray = taosArrayInit(10, POINTER_BYTES);
-
-  char   *name = NULL;
-  int32_t totalLen = 0;
-  int32_t numOfTables = 0;
-  while ((name = metaTbCursorNext(pCur)) != NULL) {
-    if (numOfTables < 10000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
-      taosArrayPush(pArray, &name);
-      totalLen += strlen(name);
-    } else {
-      taosMemoryFreeClear(name);
-    }
-
-    numOfTables++;
-  }
-
-  // TODO: temp debug, and should del when show tables command ok
-  vInfo("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
-  if (numOfTables > 10000) {
-    numOfTables = 10000;
-  }
-
-  metaCloseTbCursor(pCur);
-
-  int32_t rowLen =
-      (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
-  // int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
-
-  int32_t payloadLen = rowLen * numOfTables;
-  //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
-
-  SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp) + payloadLen);
-  memset(pFetchRsp, 0, sizeof(SVShowTablesFetchRsp) + payloadLen);
-
-  char *p = pFetchRsp->data;
-  for (int32_t i = 0; i < numOfTables; ++i) {
-    char *n = taosArrayGetP(pArray, i);
-    STR_TO_VARSTR(p, n);
-
-    p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
-    // taosMemoryFree(n);
-  }
-
-  pFetchRsp->numOfRows = htonl(numOfTables);
-  pFetchRsp->precision = 0;
-
-  SRpcMsg rpcMsg = {
-      .handle = pMsg->handle,
-      .ahandle = pMsg->ahandle,
-      .pCont = pFetchRsp,
-      .contLen = sizeof(SVShowTablesFetchRsp) + payloadLen,
-      .code = 0,
-  };
-
-  tmsgSendRsp(&rpcMsg);
-  taosArrayDestroyEx(pArray, freeItemHelper);
-  return 0;
 }

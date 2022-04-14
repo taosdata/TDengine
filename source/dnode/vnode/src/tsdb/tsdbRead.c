@@ -13,18 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "talgo.h"
-#include "tcompare.h"
-#include "tdatablock.h"
-#include "tdataformat.h"
-#include "texception.h"
-#include "vnodeInt.h"
-
-#include "filter.h"
-#include "taosdef.h"
-#include "tlosertree.h"
-#include "tmsg.h"
 #include "vnodeInt.h"
 
 #define EXTRA_BYTES                2

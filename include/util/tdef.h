@@ -100,6 +100,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_NANO_DIGITS  19
 
 #define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
+#define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
 #define TSDB_INS_TABLE_DNODES                 "dnodes"
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
@@ -117,6 +118,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
 #define TSDB_INS_TABLE_BNODES                 "bnodes"
 #define TSDB_INS_TABLE_SNODES                 "snodes"
+#define TSDB_INS_TABLE_LICENCES               "grants"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
 #define TSDB_PERFS_TABLE_CONNECTIONS          "connections"
