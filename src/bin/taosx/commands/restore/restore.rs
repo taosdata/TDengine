@@ -42,7 +42,16 @@ fn allocate_task<Fut: 'static>(
     if threads > filelist.len() as _ {
         threads = filelist.len() as _;
     }
-    let file_per_threads = filelist.len() as u32 / threads;
+    let file_per_threads = if filelist.len() as u32 % threads == 0 {
+        filelist.len() as u32 / threads
+    } else {
+        filelist.len() as u32 / threads + 1
+    };
+
+    let mut handles = Vec::with_capacity(threads as _);
+    let chunks: Vec<&[String]> = filelist.chunks(file_per_threads as _).collect();
+    threads = chunks.len() as _;
+
     log::info!(
         "{} threads each deal with at most {} files",
         threads,
@@ -54,8 +63,6 @@ fn allocate_task<Fut: 'static>(
         .enable_all()
         .build()
         .unwrap();
-    let mut handles = Vec::with_capacity(threads as _);
-    let chunks: Vec<&[String]> = filelist.chunks(file_per_threads as _).collect();
     for chunk in chunks {
         handles.push(runtime.spawn(f(chunk.to_owned(), db.clone())))
     }

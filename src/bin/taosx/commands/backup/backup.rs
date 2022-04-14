@@ -59,19 +59,28 @@ fn allocate_task<Fut: 'static>(
     if threads > table_list.len() as _ {
         threads = table_list.len() as _;
     }
-    let tables_per_thread = table_list.len() as u32 / threads;
+    let tables_per_thread = if table_list.len() as u32 % threads == 0 {
+        table_list.len() as u32 / threads
+    } else {
+        table_list.len() as u32 / threads + 1
+    };
+
+    let mut handles = Vec::with_capacity(threads as _);
+    let chunks: Vec<&[String]> = table_list.chunks(tables_per_thread as _).collect();
+    threads = chunks.len() as _;
+
     log::info!(
         "{} threads each deal at most {} tables",
         threads,
         tables_per_thread
     );
+
     let runtime = Builder::new_multi_thread()
         .worker_threads(threads as usize)
         .enable_all()
         .build()
         .unwrap();
-    let mut handles = Vec::with_capacity(threads as _);
-    let chunks: Vec<&[String]> = table_list.chunks(tables_per_thread as _).collect();
+
     for chunk in chunks {
         handles.push(runtime.spawn(f(
             schema.clone(),
