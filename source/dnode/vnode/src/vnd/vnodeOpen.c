@@ -20,6 +20,29 @@ static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
+int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
+#if 0
+  char dir[TSDB_FILENAME_LEN];
+  // TODO: check if directory exists
+
+  // check config
+  if (vnodeCheckCfg(pCfg) < 0) {
+    vError("vgId: %d failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+  // create vnode env
+  tfsMkdir(pTfs, path);
+  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  if (vnodeSaveCfg(dir, pCfg) < 0) {
+    vError("vgId: %d failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+#endif
+  return 0;
+}
+
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 

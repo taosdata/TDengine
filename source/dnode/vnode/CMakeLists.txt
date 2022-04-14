@@ -10,7 +10,7 @@ target_sources(
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeInt.c"
-    "src/vnd/vnodeMain.c"
+    "src/vnd/vnodeOpen.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeWrite.c"
