@@ -1,5 +1,5 @@
 settings:
-  - name: taospy
+  - name: none
     spec:
       config:
         firstEp: "localhost:6030"

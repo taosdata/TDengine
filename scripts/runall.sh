@@ -46,6 +46,8 @@ log_sub_dir=${log_dir}/${date_tag}
 mkdir -p $log_sub_dir
 log_file=$log_sub_dir/test.log
 failed_case_file=$log_sub_dir/failed.log
+env_file=$log_sub_dir/env.txt
+touch $env_file
 ret=0
 cpwd=`dirname $0`
 cd ${cpwd}
@@ -66,16 +68,37 @@ function run() {
         if [ $? -ne 0 ]; then
             date
             echo -e "\e[33m $i >>>>> \e[0m $line"
-            echo "$line" | grep -q "\-\-setup"
+            cmd="$line"
+            echo "$cmd" | grep -q "\-\-use"
             if [ $? -eq 0 ]; then
-                if [ ! -z "$server_pkg" ]; then
-                    line="$line --server-pkg=$server_pkg"
+                # setup env if it is referenced the first time
+                local use_param=`echo "$cmd" | grep "\-\-use.*"`
+                local use_file=""
+                echo "$use_param" | grep -q "\-\-use="
+                if [ $? -eq 0 ]; then
+                    use_file=`echo "$use_param" | cut -d= -f2`
+                else
+                    use_file=`echo "$use_param" | awk '{print $2}'`
                 fi
-                if [ ! -z "$client_pkg" ]; then
-                    line="$line --client-pkg=$client_pkg"
+                if [ ! -z "$use_file" ]; then
+                    grep -q "$use_file" $env_file
+                    if [ $? -ne 0 ]; then
+                        echo "$use_file" >>$env_file
+                        cmd="${cmd/--use/--setup}"
+                    fi
                 fi
             fi
-            $line
+            echo "$cmd" | grep -q "\-\-setup"
+            if [ $? -eq 0 ]; then
+                if [ ! -z "$server_pkg" ]; then
+                    cmd="$cmd --server-pkg=$server_pkg"
+                fi
+                if [ ! -z "$client_pkg" ]; then
+                    cmd="$cmd --client-pkg=$client_pkg"
+                fi
+            fi
+            echo "execute command: $cmd"
+            $cmd
             if [ $? -ne 0 ]; then
                 ret=1
                 echo -e "$line \e[31m FAILED\e[0m"
