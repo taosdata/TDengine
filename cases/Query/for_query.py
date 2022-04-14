@@ -26,7 +26,7 @@ class TDFor:
             n += 1
             
             subprocess.getoutput("sysctl -p /etc/sysctl.conf")
-            os.system("./query_all.sh  >/root/log/query_all.txt")
+            os.system("./query_all.sh  >/root/log/query_all_%d.txt" %n)
                       
 
 TDFor().run()
