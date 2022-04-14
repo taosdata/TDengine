@@ -6,13 +6,6 @@ sql connect
 
 print =============== create database
 sql create database d1
-sql show databases
-if $rows != 2 then 
-  return -1
-endi
-
-print $data00 $data01 $data02
-
 sql use d1
 
 print =============== create super table, include column type for count/sum/min/max/first

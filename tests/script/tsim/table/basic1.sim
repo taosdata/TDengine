@@ -29,7 +29,7 @@ endi
 print =============== create database
 sql create database d1
 sql show databases
-if $rows != 5 then 
+if $rows != 6 then
   return -1
 endi
 

@@ -44,6 +44,7 @@ void    grantReset(EGrantType grant, uint64_t value);
 void    grantAdd(EGrantType grant, uint64_t value);
 void    grantRestore(EGrantType grant, uint64_t value);
 
+void parseGrantParameter();
 #ifdef __cplusplus
 }
 #endif

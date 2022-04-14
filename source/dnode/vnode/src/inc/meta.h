@@ -24,6 +24,17 @@ typedef struct SMetaCache SMetaCache;
 typedef struct SMetaIdx   SMetaIdx;
 typedef struct SMetaDB    SMetaDB;
 
+SMeta*  metaOpen(const char* path, const SMetaCfg* pMetaCfg, SMemAllocatorFactory* pMAF);
+void    metaClose(SMeta* pMeta);
+void    metaRemove(const char* path);
+int     metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg);
+int     metaDropTable(SMeta* pMeta, tb_uid_t uid);
+int     metaCommit(SMeta* pMeta);
+int32_t metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
+int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
+STbCfg* metaGetTbInfoByUid(SMeta* pMeta, tb_uid_t uid);
+STbCfg* metaGetTbInfoByName(SMeta* pMeta, char* tbname, tb_uid_t* uid);
+
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);

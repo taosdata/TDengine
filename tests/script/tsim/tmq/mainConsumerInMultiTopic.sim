@@ -42,36 +42,6 @@ $dbNamme  = d0
 loop_vgroups:
 print =============== create database $dbNamme vgroups $vgroups
 sql create database $dbNamme vgroups $vgroups
-sql show databases
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
-print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
-
-if $loop_cnt == 0 then 
-  if $rows != 2 then 
-    return -1
-  endi
-  if $data02 != 1 then  # vgroups
-    print vgroups: $data02
-    return -1
-  endi
-else
-  if $rows != 3 then 
-    return -1
-  endi
-  if $data00 == d1 then 
-    if $data02 != 4 then  # vgroups
-      print vgroups: $data02
-      return -1
-    endi
-  else  
-    if $data12 != 4 then  # vgroups
-      print vgroups: $data12
-      return -1
-    endi
-  endi
-endi
-
 sql use $dbNamme
 
 print =============== create super table
@@ -197,6 +167,7 @@ system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamm
 print cmd result----> $system_content
 #if $system_content != @{consume success: 20000, 0}@ then
 if $system_content != $expect_result then
+  print expect @{consume success: 20000, 0}@ , actual @system_content
   return -1
 endi
 

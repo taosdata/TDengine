@@ -58,7 +58,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);*/
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM_RSP, mndProcessDropStreamInRsp);*/
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TP, mndRetrieveStream);
+//  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TP, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TP, mndCancelGetNextStream);
 
   return sdbSetTable(pMnode->pSdb, table);
@@ -515,8 +515,7 @@ static int32_t mndRetrieveStream(SNodeMsg *pReq, SShowObj *pShow, char *data, in
   }
 
   mndReleaseDb(pMnode, pDb);
-  pShow->numOfReads += numOfRows;
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
