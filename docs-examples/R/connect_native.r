@@ -1,3 +1,6 @@
+if (! "RJDBC" %in% installed.packages()[, "Package"]) {
+  install.packages('RJDBC', repos='http://cran.us.r-project.org')
+}
 library("DBI")
 library("rJava")
 library("RJDBC")
