@@ -50,10 +50,10 @@ endi
 
 sql show databases
 print ===> $rows $data00 $data01 $data02 $data03
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
-if $data00 != tmqdb then 
+if $data20 != tmqdb then
   return -1
 endi
 

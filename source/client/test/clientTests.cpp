@@ -675,8 +675,15 @@ TEST(testCase, agg_query_tables) {
 
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t* length = taos_fetch_lengths(pRes);
+    for(int32_t i = 0; i < numOfFields; ++i) {
+      printf("(%d):%d " , i, length[i]);
+    }
+    printf("\n");
+
     int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
     printf("%s\n", str);
+    memset(str, 0, sizeof(str));
   }
 
   taos_free_result(pRes);

@@ -193,13 +193,6 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  if (pMsgInfo->msgType == TDMT_VND_SHOW_TABLES) {
-    SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
-    if (pShowReqInfo->pArray == NULL) {
-      pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
-      pShowReqInfo->pArray = pMsgInfo->pExtension;
-    }
-  }
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
 
@@ -615,100 +608,36 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
 
 void* doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
   assert(pRequest != NULL);
+
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
-
-  SEpSet epSet = {0};
-
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    if (pRequest->type == TDMT_VND_QUERY) {
-      // All data has returned to App already, no need to try again
-      if (pResultInfo->completed) {
-        pResultInfo->numOfRows = 0;
-        return NULL;
-      }
-
-      SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-      pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
-      if (pRequest->code != TSDB_CODE_SUCCESS) {
-        pResultInfo->numOfRows = 0;
-        return NULL;
-      }
-
-      pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
-      if (pRequest->code != TSDB_CODE_SUCCESS) {
-        pResultInfo->numOfRows = 0;
-        return NULL;
-      }
-
-      tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
-               pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
-
-      if (pResultInfo->numOfRows == 0) {
-        return NULL;
-      }
-
-      goto _return;
-    } else if (pRequest->type == TDMT_MND_SHOW) {
-      pRequest->type = TDMT_MND_SHOW_RETRIEVE;
-      epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-    } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
-      pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
-      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
-      SVgroupInfo*  pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
-
-      epSet = pVgroupInfo->epSet;
-    } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
-      pRequest->type = TDMT_VND_SHOW_TABLES;
-      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
-      pShowReqInfo->currentIndex += 1;
-      if (pShowReqInfo->currentIndex >= taosArrayGetSize(pShowReqInfo->pArray)) {
-        return NULL;
-      }
-
-      SVgroupInfo*     pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
-      SVShowTablesReq* pShowReq = taosMemoryCalloc(1, sizeof(SVShowTablesReq));
-      pShowReq->head.vgId = htonl(pVgroupInfo->vgId);
-
-      pRequest->body.requestMsg.len = sizeof(SVShowTablesReq);
-      pRequest->body.requestMsg.pData = pShowReq;
-
-      SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-      epSet = pVgroupInfo->epSet;
-
-      int64_t  transporterId = 0;
-      STscObj* pTscObj = pRequest->pTscObj;
-      asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
-      tsem_wait(&pRequest->body.rspSem);
-
-      pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
-    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
-      epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-
-      if (pResultInfo->completed) {
-        return NULL;
-      }
-    }
-
+    // All data has returned to App already, no need to try again
     if (pResultInfo->completed) {
       pResultInfo->numOfRows = 0;
       return NULL;
     }
 
-    SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+    SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+    pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
+    if (pRequest->code != TSDB_CODE_SUCCESS) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
 
-    int64_t  transporterId = 0;
-    STscObj* pTscObj = pRequest->pTscObj;
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
+    pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
+    if (pRequest->code != TSDB_CODE_SUCCESS) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
 
-    tsem_wait(&pRequest->body.rspSem);
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+             pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
-    pResultInfo->current = 0;
-    if (pResultInfo->numOfRows <= pResultInfo->current) {
+    if (pResultInfo->numOfRows == 0) {
       return NULL;
     }
   }
 
-_return:
   if (setupOneRowPtr) {
     doSetOneRowPtr(pResultInfo);
     pResultInfo->current += 1;
