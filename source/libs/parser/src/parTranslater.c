@@ -415,7 +415,6 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         pVal->datum.d = strtold(pVal->literal, &endPtr);
         break;
       }
-      case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
         pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
@@ -433,6 +432,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         }
         break;
       }
+      case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_JSON:
       case TSDB_DATA_TYPE_DECIMAL:
       case TSDB_DATA_TYPE_BLOB:
@@ -485,9 +485,9 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
   if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pFunc->functionName, &pFunc->funcId, &pFunc->funcType)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_FUNTION, pFunc->functionName);
   }
-  int32_t code = fmGetFuncResultType(pFunc);
-  if (TSDB_CODE_SUCCESS != code) {
-    return generateDealNodeErrMsg(pCxt, code, pFunc->functionName);
+  pCxt->errCode = fmGetFuncResultType(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return DEAL_RES_ERROR;
   }
   if (fmIsAggFunc(pFunc->funcId) && beforeHaving(pCxt->currClause)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);

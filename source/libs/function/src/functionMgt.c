@@ -69,11 +69,11 @@ int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncTyp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc) {
+int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
-  return funcMgtBuiltins[pFunc->funcId].checkFunc(pFunc);
+  return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pErrBuf, len);
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
