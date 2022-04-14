@@ -43,28 +43,12 @@
 extern "C" {
 #endif
 
-typedef struct STQ STQ;
-
+typedef struct SMeta        SMeta;
+typedef struct STsdb        STsdb;
+typedef struct STQ          STQ;
 typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
 typedef struct SQWorkerMgmt SQHandle;
-
-typedef struct SVnodeTask {
-  TD_DLIST_NODE(SVnodeTask);
-  void* arg;
-  int (*execute)(void*);
-} SVnodeTask;
-
-typedef struct SVnodeMgr {
-  td_mode_flag_t vnodeInitFlag;
-  // For commit
-  bool          stop;
-  uint16_t      nthreads;
-  TdThread*     threads;
-  TdThreadMutex mutex;
-  TdThreadCond  hasTask;
-  TD_DLIST(SVnodeTask) queue;
-} SVnodeMgr;
 
 typedef struct {
   int8_t  streamType;  // sma or other
@@ -80,8 +64,6 @@ typedef struct {
   SVnode*   pVnode;
   SHashObj* pHash;  // streamId -> SStreamSinkInfo
 } SSink;
-
-extern SVnodeMgr vnodeMgr;
 
 // SVState
 struct SVState {
@@ -106,57 +88,6 @@ struct SVnode {
   SMsgCb     msgCb;
   STfs*      pTfs;
 };
-
-int  vnodeScheduleTask(SVnodeTask* task);
-int  vnodeQueryOpen(SVnode* pVnode);
-void vnodeQueryClose(SVnode* pVnode);
-
-// vnodeCfg.h
-extern const SVnodeCfg defaultVnodeOptions;
-
-int  vnodeValidateOptions(const SVnodeCfg*);
-void vnodeOptionsCopy(SVnodeCfg* pDest, const SVnodeCfg* pSrc);
-
-// For commit
-#define vnodeShouldCommit vnodeBufPoolIsFull
-int vnodeSyncCommit(SVnode* pVnode);
-int vnodeAsyncCommit(SVnode* pVnode);
-
-// SVBufPool
-
-int   vnodeOpenBufPool(SVnode* pVnode);
-void  vnodeCloseBufPool(SVnode* pVnode);
-int   vnodeBufPoolSwitch(SVnode* pVnode);
-int   vnodeBufPoolRecycle(SVnode* pVnode);
-void* vnodeMalloc(SVnode* pVnode, uint64_t size);
-bool  vnodeBufPoolIsFull(SVnode* pVnode);
-
-SMemAllocatorFactory* vBufPoolGetMAF(SVnode* pVnode);
-
-// SVMemAllocator
-typedef struct SVArenaNode {
-  TD_SLIST_NODE(SVArenaNode);
-  uint64_t size;  // current node size
-  void*    ptr;
-  char     data[];
-} SVArenaNode;
-
-typedef struct SVMemAllocator {
-  T_REF_DECLARE()
-  TD_DLIST_NODE(SVMemAllocator);
-  uint64_t     capacity;
-  uint64_t     ssize;
-  uint64_t     lsize;
-  SVArenaNode* pNode;
-  TD_SLIST(SVArenaNode) nlist;
-} SVMemAllocator;
-
-SVMemAllocator* vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);
-void            vmaDestroy(SVMemAllocator* pVMA);
-void            vmaReset(SVMemAllocator* pVMA);
-void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
-void            vmaFree(SVMemAllocator* pVMA, void* ptr);
-bool            vmaIsFull(SVMemAllocator* pVMA);
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
