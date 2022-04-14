@@ -606,7 +606,7 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   }
 }
 
-void* doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
+void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
   assert(pRequest != NULL);
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
