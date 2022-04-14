@@ -64,7 +64,7 @@ TEST_F(MndTestAcct, 04_Show_Acct) {
   tSerializeSShowReq(pReq, contLen, &showReq);
   tFreeSShowReq(&showReq);
 
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SYSTABLE_RETRIEVE, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_MSG);
 }

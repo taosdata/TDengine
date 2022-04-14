@@ -213,7 +213,7 @@ typedef struct {
   int32_t maxConsumers;
   int32_t maxConns;
   int32_t maxTopics;
-  int64_t maxStorage;   // In unit of GB
+  int64_t maxStorage;
   int32_t accessState;  // Configured only by command
 } SAcctCfg;
 

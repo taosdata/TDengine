@@ -139,7 +139,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
       return -1;
     }
 
-    pShow->pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    pShow->pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb) + 1);
     pShow->numOfColumns = pShow->pMeta->numOfColumns;
     int32_t offset = 0;
 

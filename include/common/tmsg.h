@@ -363,7 +363,7 @@ typedef struct {
   int32_t maxTimeSeries;
   int32_t maxStreams;
   int32_t accessState;  // Configured only by command
-  int64_t maxStorage;   // In unit of GB
+  int64_t maxStorage;
 } SCreateAcctReq, SAlterAcctReq;
 
 int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
