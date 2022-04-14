@@ -54,7 +54,8 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c4 int) tags(t1 int)");
+  pRes =
+      taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -101,7 +102,7 @@ int32_t create_topic() {
 
   /*const char* sql = "select * from tu1";*/
   /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c4 from ct1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from ct1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;

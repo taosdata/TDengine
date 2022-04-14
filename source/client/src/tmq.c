@@ -791,7 +791,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     }
   }
 
-  struct tm* ptm = localtime(&tt);
+  struct tm* ptm = taosLocalTime(&tt, NULL);
   size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
