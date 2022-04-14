@@ -841,7 +841,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
     }
 
-    struct tm *tmInfo = localtime((const time_t *)&timeVal);
+    struct tm *tmInfo = taosLocalTime((const time_t *)&timeVal, NULL);
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
     int32_t len = (int32_t)strlen(buf);
 

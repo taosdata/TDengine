@@ -70,7 +70,7 @@ void           deltaToUtcInitOnce() {
   struct tm tm = {0};
 
   (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
-  m_deltaUtc = (int64_t)mktime(&tm);
+  m_deltaUtc = (int64_t)taosMktime(&tm);
   // printf("====delta:%lld\n\n", seconds);
 }
 
@@ -344,7 +344,7 @@ int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
-  int64_t seconds = mktime(&tm);
+  int64_t seconds = taosMktime(&tm);
 
   int64_t fraction = 0;
 
@@ -539,7 +539,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
-  return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+  return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
 
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
@@ -598,7 +598,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       tm.tm_mon = mon % 12;
     }
 
-    start = (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+    start = (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
   } else {
     int64_t delta = t - pInterval->interval;
     int32_t factor = (delta >= 0) ? 1 : -1;
@@ -745,7 +745,7 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
       assert(false);
   }
 
-  ptm = localtime(&quot);
+  ptm = taosLocalTime(&quot, NULL);
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
   length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
