@@ -26,6 +26,7 @@
 #include "tscProfile.h"
 #include "tscSubquery.h"
 
+void taos_close_stream(TAOS_STREAM *handle);
 static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOfRows);
 static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOfRows);
 static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql);

@@ -41,8 +41,6 @@ taos_fetch_rows_a
 taos_subscribe
 taos_consume
 taos_unsubscribe
-taos_open_stream
-taos_close_stream
 taos_load_table_info
 taos_data_type
 taos_stmt_set_sub_tbname
@@ -54,3 +52,7 @@ taos_insert_lines
 taos_schemaless_insert
 taos_result_block
 taos_print_row_ex
+taos_stmt_affected_rows
+taos_is_update_query
+taos_reset_current_db
+taos_parse_time

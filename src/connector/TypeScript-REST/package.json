@@ -1,0 +1,50 @@
+{
+  "name": "td2.0-rest-connector",
+  "version": "1.0.3",
+  "description": "A REST connector for TDengine",
+  "source": "tdengine_rest.ts",
+  "main": "dist/main/rest.js",
+  "module": "dist/module/rest.mjs",
+  "types": "dist/types.d.ts",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "parcel build --no-source-maps && node ./dist/test/test.main.js && node ./dist/test/test.module.mjs",
+    "example": "tsc && node ./tsc/example/example.js",
+    "build": "parcel build --no-source-maps",
+    "watch": "parcel watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taosdata/TDengine/tree/develop/src/connector/TypeScript-REST"
+  },
+  
+  "keywords": [
+    "REST",
+    "Node.js",
+    "Typescript",
+    "TDengine",
+    "taos",
+    "IOT",
+    "node-fetch"
+  ],
+  "author": "TaosData Inc.",
+  "license": "MIT",
+  "dependencies": {
+    "node-fetch": "^2.6.7",
+    "@types/node": "^17.0.23"
+  },
+  "devDependencies": {
+    "@parcel/packager-ts": "^2.4.1",
+    "@parcel/transformer-typescript-types": "^2.4.1",
+    "@types/node-fetch": "^2.6.1",
+    "parcel": "^2.4.0",
+    "typescript": "^4.6.3"
+  },
+  "bugs": {
+    "url": "https://github.com/taosdata/tdengine/issues"
+  },
+  "homepage": "https://github.com/taosdata/tdengine#readme"
+}

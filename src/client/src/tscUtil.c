@@ -116,9 +116,26 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      *str = '\'';
+      bool squote = false;
+      for (int32_t i = 0; i < bufSize; ++i) {
+        if (((char *)buf)[i] == '\'') {
+          squote = true;
+          break;
+        }
+      }
+
+      if (squote) {
+        *str = '\"';
+      } else {
+        *str = '\'';
+      }
+
       memcpy(str + 1, buf, bufSize);
-      *(str + bufSize + 1) = '\'';
+      if (squote) {
+        *(str + bufSize + 1) = '\"';
+      } else {
+        *(str + bufSize + 1) = '\'';
+      }
       n = bufSize + 2;
       break;
 
@@ -328,7 +345,8 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
 
     if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
         f != TSDB_FUNC_TS && f != TSDB_FUNC_SCALAR_EXPR && f != TSDB_FUNC_DIFF &&
-        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f)) {
+        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f) &&
+        f != TSDB_FUNC_STATE_COUNT && f != TSDB_FUNC_STATE_DURATION) {
       return false;
     }
   }
@@ -347,15 +365,14 @@ bool tscIsDiffDerivLikeQuery(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
+        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
       return true;
     }
   }
 
   return false;
 }
-
 
 bool tscHasColumnFilter(SQueryInfo* pQueryInfo) {
   // filter on primary timestamp column
@@ -394,7 +411,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscNeedTableSeqScan(SQueryInfo* pQueryInfo) {
-  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED));
+  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED) || (pQueryInfo->tsBuf != NULL));
 }
 
 bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo) {
@@ -978,6 +995,26 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
       pColData->pData = pRes->urow[i];
     }
 
+    if (pColData->info.type == TSDB_DATA_TYPE_NCHAR) {
+      int32_t rows = pBlock->info.rows;
+      int32_t bytes = pColData->info.bytes;
+      char *dstData = malloc(bytes * rows);
+      char *srcData = pColData->pData;
+      for (int32_t j = 0; j < rows; ++j) {
+        char *srcRow = srcData + bytes * j;
+        char *dstRow = dstData + bytes * j;
+        if(isNull(srcRow, TSDB_DATA_TYPE_NCHAR)){
+          varDataCopy(dstRow, srcRow);
+          continue;
+        }
+        int32_t len = 0;
+        taosMbsToUcs4(varDataVal(srcRow), varDataLen(srcRow), varDataVal(dstRow),
+                      bytes-VARSTR_HEADER_SIZE, &len);
+        varDataSetLen(dstRow, len);
+      }
+      memcpy(srcData, dstData, bytes*rows);
+      free(dstData);
+    }
     offset += pColData->info.bytes;
   }
 
@@ -986,14 +1023,9 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
     SColumnDataParam param = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
     filterSetColFieldData(pFilterInfo, &param, getColumnDataFromId);
 
-    bool gotNchar = false;
-    filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
     //bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
     bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, 0);
-    if (gotNchar) {
-      filterFreeNcharColumns(pFilterInfo);
-    }
     if (!all) {
       if (p) {
         doCompactSDataBlock(pBlock, pBlock->info.rows, p);
@@ -1491,7 +1523,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           pex->base.param[2].nType = TSDB_DATA_TYPE_INT;
           pex->base.param[2].i64 = pInputQI->order.order;
         }
-      }      
+      }
     }
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
@@ -1508,7 +1540,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
   uint64_t qId = pSql->self;
   qTableQuery(px->pQInfo, &qId);
-  convertQueryResult(pOutput, px, pSql->self, false, false);
+  convertQueryResult(pOutput, px, pSql->self, true, false);
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
@@ -2551,6 +2583,11 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
     p->colBytes = s->bytes;
     p->colType  = s->type;
+  } else if (TSDB_COL_IS_TSWIN_COL(pColIndex->columnIndex)) {
+    SSchema* s = tGetTimeWindowColumnSchema(pColIndex->columnIndex);
+    p->colInfo.colId = s->colId;
+    p->colBytes = s->bytes;
+    p->colType  = s->type;
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     p->colInfo.colId = pColIndex->columnIndex;
     p->colBytes = size;
@@ -2974,7 +3011,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         if (sep == NULL) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        *dbIncluded = true;
+
+        if (dbIncluded)  *dbIncluded = true;
 
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
@@ -3073,7 +3111,8 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId <= TSDB_UD_COLUMN_INDEX) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX || TSDB_COL_IS_TSWIN_COL(colId) ||
+      colId <= TSDB_UD_COLUMN_INDEX) {
     return true;
   }
 
@@ -4238,6 +4277,10 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     }
 
     return;
+  } else if (hasMoreClauseToTry(pSql)) {
+    if (pthread_mutex_init(&pSql->subState.mutex, NULL) != 0) {
+      goto _error;
+    }
   }
 
   pSql->cmd.active = pQueryInfo;
@@ -4940,7 +4983,7 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     pse->colType = pExpr->base.resType;
     if(pExpr->base.resBytes > INT16_MAX &&
         (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE
-         || pExpr->base.functionId == TSDB_FUNC_TAIL)){
+         || pExpr->base.functionId == TSDB_FUNC_TAIL || pExpr->base.functionId == TSDB_FUNC_SAMPLE)){
       pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
     }else{
       pse->colBytes = pExpr->base.resBytes;
@@ -5087,7 +5130,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
   pQueryAttr->range             = pQueryInfo->range;
-
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
@@ -5388,7 +5430,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+int parseJsontoTagData(char* json, uint32_t jsonLength, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
   // set json NULL data
   uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
   uint32_t jsonNULL = TSDB_DATA_JSON_NULL;
@@ -5399,7 +5441,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   varDataSetLen(nullTypeVal + CHAR_BYTES, INT_BYTES);
   *(uint32_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
-  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
+  if (!json || strtrim(json) == 0 || (jsonLength == strlen("null") && strncasecmp(json, "null", 4) == 0)){
     *(uint32_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;

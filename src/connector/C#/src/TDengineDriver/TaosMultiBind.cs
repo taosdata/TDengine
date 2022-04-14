@@ -17,7 +17,7 @@ namespace TDengineDriver
             int byteSize = sizeof(byte);
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr unmanagedBoolArr = Marshal.AllocHGlobal(elementCount * typeSize);
+            IntPtr c_bool_ptr = Marshal.AllocHGlobal(elementCount * typeSize);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -26,7 +26,7 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteByte(unmanagedBoolArr, typeSize * i, Convert.ToByte(arr[i] ?? false));
+                Marshal.WriteByte(c_bool_ptr, typeSize * i, Convert.ToByte(arr[i] ?? false));
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -34,7 +34,7 @@ namespace TDengineDriver
             }
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BOOL;
-            multiBind.buffer = unmanagedBoolArr;
+            multiBind.buffer = c_bool_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -53,7 +53,7 @@ namespace TDengineDriver
             int intSize = sizeof(int);
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr unmanagedTintIntArr = Marshal.AllocHGlobal(elementCount);
+            IntPtr c_tinyint_ptr = Marshal.AllocHGlobal(elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -64,7 +64,7 @@ namespace TDengineDriver
                 Byte[] toByteArr = BitConverter.GetBytes(arr[i] ?? sbyte.MinValue);
 
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteByte(unmanagedTintIntArr, typeSize * i, toByteArr[0]);
+                Marshal.WriteByte(c_tinyint_ptr, typeSize * i, toByteArr[0]);
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -73,7 +73,7 @@ namespace TDengineDriver
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TINYINT;
-            multiBind.buffer = unmanagedTintIntArr;
+            multiBind.buffer = c_tinyint_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -92,7 +92,7 @@ namespace TDengineDriver
             int byteSize = sizeof(byte);
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr unmanagedSmallIntArr = Marshal.AllocHGlobal(elementCount * typeSize);
+            IntPtr c_smallint_ptr = Marshal.AllocHGlobal(elementCount * typeSize);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -101,7 +101,7 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteInt16(unmanagedSmallIntArr, typeSize * i, arr[i] ?? short.MinValue);
+                Marshal.WriteInt16(c_smallint_ptr, typeSize * i, arr[i] ?? short.MinValue);
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -110,7 +110,7 @@ namespace TDengineDriver
             }
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_SMALLINT;
-            multiBind.buffer = unmanagedSmallIntArr;
+            multiBind.buffer = c_smallint_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -127,7 +127,7 @@ namespace TDengineDriver
             int byteSize = sizeof(byte);
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr intBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_int_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -136,7 +136,7 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteInt32(intBuff, typeSize * i, arr[i] ?? int.MinValue);
+                Marshal.WriteInt32(c_int_ptr, typeSize * i, arr[i] ?? int.MinValue);
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -145,7 +145,7 @@ namespace TDengineDriver
             }
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_INT;
-            multiBind.buffer = intBuff;
+            multiBind.buffer = c_int_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -162,7 +162,7 @@ namespace TDengineDriver
             int byteSize = sizeof(byte);
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr intBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_long_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -171,7 +171,7 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteInt64(intBuff, typeSize * i, arr[i] ?? long.MinValue);
+                Marshal.WriteInt64(c_long_ptr, typeSize * i, arr[i] ?? long.MinValue);
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -181,7 +181,7 @@ namespace TDengineDriver
             }
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BIGINT;
-            multiBind.buffer = intBuff;
+            multiBind.buffer = c_long_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -200,7 +200,7 @@ namespace TDengineDriver
             float[] arrTmp = new float[elementCount];
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr floatBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_float_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -216,11 +216,11 @@ namespace TDengineDriver
                 Marshal.WriteByte(nullArr, byteSize * i, Convert.ToByte(arr[i].Equals(null) ? 1 : 0));
             }
             //set TAOS_MULTI_BIND.buffer
-            Marshal.Copy(arrTmp, 0, floatBuff, elementCount);
+            Marshal.Copy(arrTmp, 0, c_float_ptr, elementCount);
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_FLOAT;
-            multiBind.buffer = floatBuff;
+            multiBind.buffer = c_float_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -239,7 +239,7 @@ namespace TDengineDriver
             double[] arrTmp = new double[elementCount];
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr doubleBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_double_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -255,11 +255,11 @@ namespace TDengineDriver
                 Marshal.WriteByte(nullArr, byteSize * i, Convert.ToByte(arr[i].Equals(null) ? 1 : 0));
             }
             //set TAOS_MULTI_BIND.buffer
-            Marshal.Copy(arrTmp, 0, doubleBuff, elementCount);
+            Marshal.Copy(arrTmp, 0, c_double_ptr, elementCount);
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_DOUBLE;
-            multiBind.buffer = doubleBuff;
+            multiBind.buffer = c_double_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -277,7 +277,7 @@ namespace TDengineDriver
             //used to replace null 
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr uTinyIntBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_unsigned_tinyint_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -287,7 +287,7 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteByte(uTinyIntBuff, typeSize * i, arr[i] ?? byte.MaxValue);
+                Marshal.WriteByte(c_unsigned_tinyint_ptr, typeSize * i, arr[i] ?? byte.MaxValue);
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -297,7 +297,7 @@ namespace TDengineDriver
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UTINYINT;
-            multiBind.buffer = uTinyIntBuff;
+            multiBind.buffer = c_unsigned_tinyint_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -315,7 +315,7 @@ namespace TDengineDriver
             //used to replace null 
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr uSmallIntBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_unsigned_smallint_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -328,7 +328,7 @@ namespace TDengineDriver
                 for (int j = 0; j < byteArr.Length; j++)
                 {
                     //set TAOS_MULTI_BIND.buffer
-                    Marshal.WriteByte(uSmallIntBuff, typeSize * i + j * byteSize, byteArr[j]);
+                    Marshal.WriteByte(c_unsigned_smallint_ptr, typeSize * i + j * byteSize, byteArr[j]);
                 }
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
@@ -339,7 +339,7 @@ namespace TDengineDriver
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_USMALLINT;
-            multiBind.buffer = uSmallIntBuff;
+            multiBind.buffer = c_unsigned_smallint_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -357,7 +357,7 @@ namespace TDengineDriver
             //used to replace null 
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr uIntBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_unsigned_int_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -370,7 +370,7 @@ namespace TDengineDriver
                 for (int j = 0; j < byteArr.Length; j++)
                 {
                     //set TAOS_MULTI_BIND.buffer
-                    Marshal.WriteByte(uIntBuff, typeSize * i + j * byteSize, byteArr[j]);
+                    Marshal.WriteByte(c_unsigned_int_ptr, typeSize * i + j * byteSize, byteArr[j]);
                 }
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
@@ -381,7 +381,7 @@ namespace TDengineDriver
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UINT;
-            multiBind.buffer = uIntBuff;
+            multiBind.buffer = c_unsigned_int_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -399,7 +399,7 @@ namespace TDengineDriver
             //used to replace null 
 
             //TAOS_MULTI_BIND.buffer
-            IntPtr uBigIntBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_unsigned_bigint_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -412,7 +412,7 @@ namespace TDengineDriver
                 for (int j = 0; j < byteArr.Length; j++)
                 {
                     //set TAOS_MULTI_BIND.buffer
-                    Marshal.WriteByte(uBigIntBuff, typeSize * i + j * byteSize, byteArr[j]);
+                    Marshal.WriteByte(c_unsigned_bigint_ptr, typeSize * i + j * byteSize, byteArr[j]);
                 }
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
@@ -423,7 +423,7 @@ namespace TDengineDriver
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UBIGINT;
-            multiBind.buffer = uBigIntBuff;
+            multiBind.buffer = c_unsigned_bigint_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -439,7 +439,7 @@ namespace TDengineDriver
             //The size of the buffer is typeSize * elementCount
             //This buffer is used to store TAOS_MULTI_BIND.buffer
             int typeSize = MaxElementLength(arr);
-            //This intSize is used to calcuate buffer size of the struct TAOS_MULTI_BIND's 
+            //This intSize is used to calculate buffer size of the struct TAOS_MULTI_BIND's 
             //length. The buffer is intSize * elementCount,which is used to store TAOS_MULTI_BIND.length
             int intSize = sizeof(int);
             //This byteSize is used to calculate the buffer size of the struct TAOS_MULTI_BIND.is_null
@@ -452,7 +452,7 @@ namespace TDengineDriver
             //TAOS_MULTI_BIND.is_null
             IntPtr nullArr = Marshal.AllocHGlobal(byteSize * elementCount);
             //TAOS_MULTI_BIND.buffer
-            IntPtr uNcharBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_char_prt = Marshal.AllocHGlobal(typeSize * elementCount);
 
             for (int i = 0; i < elementCount; i++)
             {
@@ -464,7 +464,7 @@ namespace TDengineDriver
                     for (int j = 0; j < itemLength; j++)
                     {
                         //Read byte after byte
-                        Marshal.WriteByte(uNcharBuff, i * typeSize + j, decodeByte[j]);
+                        Marshal.WriteByte(c_char_prt, i * typeSize + j, decodeByte[j]);
                     }
                 }
                 //Set TAOS_MULTI_BIND.length
@@ -474,7 +474,7 @@ namespace TDengineDriver
             }
             //Config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BINARY;
-            multiBind.buffer = uNcharBuff;
+            multiBind.buffer = c_char_prt;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -491,7 +491,7 @@ namespace TDengineDriver
             //The size of the buffer is typeSize * elementCount
             //This buffer is used to store TAOS_MULTI_BIND.buffer
             int typeSize = MaxElementLength(arr);
-            //This intSize is used to calcuate buffer size of the struct TAOS_MULTI_BIND's 
+            //This intSize is used to calculate buffer size of the struct TAOS_MULTI_BIND's 
             //length. The buffer is intSize * elementCount,which is used to store TAOS_MULTI_BIND.length
             int intSize = sizeof(int);
             //This byteSize is used to calculate the buffer size of the struct TAOS_MULTI_BIND.is_null
@@ -503,7 +503,7 @@ namespace TDengineDriver
             //TAOS_MULTI_BIND.is_null
             IntPtr nullArr = Marshal.AllocHGlobal(byteSize * elementCount);
             //TAOS_MULTI_BIND.buffer
-            IntPtr uNcharBuff = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_char_prt = Marshal.AllocHGlobal(typeSize * elementCount);
 
             for (int i = 0; i < elementCount; i++)
             {
@@ -515,7 +515,7 @@ namespace TDengineDriver
                     for (int j = 0; j < itemLength; j++)
                     {
                         //Read byte after byte
-                        Marshal.WriteByte(uNcharBuff, i * typeSize + j, decodeByte[j]);
+                        Marshal.WriteByte(c_char_prt, i * typeSize + j, decodeByte[j]);
                     }
                 }
                 //Set TAOS_MULTI_BIND.length
@@ -525,7 +525,7 @@ namespace TDengineDriver
             }
             //Config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_NCHAR;
-            multiBind.buffer = uNcharBuff;
+            multiBind.buffer = c_char_prt;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -542,7 +542,7 @@ namespace TDengineDriver
             int intSize = sizeof(int);
             int byteSize = sizeof(byte);
             //TAOS_MULTI_BIND.buffer
-            IntPtr unmanagedTsArr = Marshal.AllocHGlobal(typeSize * elementCount);
+            IntPtr c_long_ptr = Marshal.AllocHGlobal(typeSize * elementCount);
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
@@ -551,7 +551,7 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 //set TAOS_MULTI_BIND.buffer
-                Marshal.WriteInt64(unmanagedTsArr, typeSize * i, arr[i]);
+                Marshal.WriteInt64(c_long_ptr, typeSize * i, arr[i]);
                 //set TAOS_MULTI_BIND.length
                 Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null
@@ -560,7 +560,7 @@ namespace TDengineDriver
 
             //config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP;
-            multiBind.buffer = unmanagedTsArr;
+            multiBind.buffer = c_long_ptr;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;

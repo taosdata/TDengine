@@ -48,6 +48,8 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 int64_t  tsDnodeStartTime = 0;
 int8_t   tsDnodeNopLoop = 0;
+int32_t  tsTcpConnTimeout = 1000;
+int32_t  tsSyncCheckInterval = 1500;
 
 // common
 int32_t tsRpcTimer = 300;
@@ -185,15 +187,6 @@ int8_t   tsTelegrafUseFieldNum = 0;
 int8_t   tsHttpDbNameMandatory = 0;
 int32_t  tsHttpKeepAlive = 30000;
 
-// mqtt
-int8_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
-char   tsMqttHostName[TSDB_MQTT_HOSTNAME_LEN] = "test.mosquitto.org";
-char   tsMqttPort[TSDB_MQTT_PORT_LEN] = "1883";
-char   tsMqttUser[TSDB_MQTT_USER_LEN] = {0};
-char   tsMqttPass[TSDB_MQTT_PASS_LEN] = {0};
-char   tsMqttClientId[TSDB_MQTT_CLIENT_ID_LEN] = "TDengineMqttSubscriber";
-char   tsMqttTopic[TSDB_MQTT_TOPIC_LEN] = "/test";  // #
-
 // monitor
 int8_t  tsEnableMonitorModule = 1;
 int8_t  tsMonitorReplica = 1;
@@ -217,6 +210,7 @@ char   tsMnodeBakDir[PATH_MAX] = {0};
 char   tsDataDir[PATH_MAX] = {0};
 char   tsScriptDir[PATH_MAX] = {0};
 char   tsTempDir[PATH_MAX] = "/tmp/";
+int32_t tsKeepTimeOffset = 0;
 
 int32_t tsDiskCfgNum = 0;
 int32_t tsTopicBianryLen = 16000;
@@ -261,7 +255,6 @@ uint32_t cDebugFlag = 131;
 int32_t  jniDebugFlag = 131;
 int32_t  odbcDebugFlag = 131;
 int32_t  httpDebugFlag = 131;
-int32_t  mqttDebugFlag = 131;
 int32_t  monDebugFlag = 131;
 uint32_t qDebugFlag = 131;
 int32_t  rpcDebugFlag = 131;
@@ -318,7 +311,6 @@ void taosSetAllDebugFlag() {
     jniDebugFlag = debugFlag;
     odbcDebugFlag = debugFlag;
     httpDebugFlag = debugFlag;
-    mqttDebugFlag = debugFlag;
     monDebugFlag = debugFlag;
     qDebugFlag = debugFlag;
     rpcDebugFlag = debugFlag;
@@ -635,6 +627,26 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "tcpConnTimout";
+  cfg.ptr = &tsTcpConnTimeout;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "syncCheckInterval";
+  cfg.ptr = &tsSyncCheckInterval;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
   cfg.option = "balance";
   cfg.ptr = &tsEnableBalance;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -661,6 +673,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
   cfg.maxValue = 600;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "keepTimeOffset";
+  cfg.ptr = &tsKeepTimeOffset;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -23;
+  cfg.maxValue = 23;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1018,36 +1040,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "mqttHostName";
-  cfg.ptr = tsMqttHostName;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_MQTT_HOSTNAME_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "mqttPort";
-  cfg.ptr = tsMqttPort;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_MQTT_PORT_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "mqttTopic";
-  cfg.ptr = tsMqttTopic;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_MQTT_TOPIC_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "compressMsgSize";
   cfg.ptr = &tsCompressMsgSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1264,16 +1256,6 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "http";
   cfg.ptr = &tsEnableHttpModule;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "mqtt";
-  cfg.ptr = &tsEnableMqttModule;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
@@ -1526,16 +1508,6 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "httpDebugFlag";
   cfg.ptr = &httpDebugFlag;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
-  cfg.minValue = 0;
-  cfg.maxValue = 255;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "mqttDebugFlag";
-  cfg.ptr = &mqttDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;

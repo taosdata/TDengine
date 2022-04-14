@@ -9,7 +9,7 @@ Compared with OpenTSDB, TDengine has the following distinctive features.
 - Performance of data writing and querying far exceeds that of OpenTSDB.
 - Efficient compression mechanism for time-series data, which compresses less than 1/5 of the storage space on disk.
 - The installation and deployment is very simple, a single installation package to complete the installation and deployment, no other third-party software, the entire installation and deployment process in seconds;
-- The built-in functions cover all the query functions supported by OpenTSDB, and also support more time-series data query functions, scalar functions and aggregation functions, and support advanced query functions such as multiple time-window aggregation, join query, expression operation, multiple group aggregation, user-defined sorting, and user-defined functions. Adopting SQL-like syntax rules, it is easier to learn and basically has no learning cost.
+- The built-in functions cover all the query functions supported by OpenTSDB, and also support more time-series data query functions, scalar functions and aggregation functions, and support advanced query functions such as multiple time-window aggregation, join query, expression operation, multiple group aggregation, user-defined sorting, and user-defined functions. Adopting SQL-like syntax rules, it is easier to learn and basically has no learning cost. For OpenTSDB functions, please refer to Appendix 1 in this blog (scroll down to find it); for any other functions supported by TDengine, please refer to the SQL reference guide part in TDengine document on website.
 - Supports up to 128 tags with a total tag length of up to 16 KB.
 - In addition to HTTP, it also provides interfaces to Java, Python, C, Rust, Go, and other languages, and supports a variety of enterprise-class standard connector protocols such as JDBC.
 
@@ -63,7 +63,7 @@ This allows collectd to push the data to taosAdapter using the push to OpenTSDB 
 
 After the data has been written to TDengine properly, you can adapt Grafana to visualize the data written to TDengine. There is a connection plugin for Grafana in the TDengine installation directory connector/grafanaplugin. The way to use this plugin is simple.
 
-First copy the entire dist directory under the grafanaplugin directory to Grafana's plugins directory (the default address is /var/lib/grafana/plugins/), and then restart Grafana to see the TDengine data source under the Add Data Source menu.
+First copy the entire `dist` directory under the grafanaplugin directory to Grafana's plugins directory (the default address is /var/lib/grafana/plugins/), and then restart Grafana to see the TDengine data source under the Add Data Source menu.
 
 ```shell
 sudo cp -r . /var/lib/grafana/plugins/tdengine
@@ -144,15 +144,15 @@ The steps are as follows: the name of the metrics is used as the name of the TDe
 Create 3 super tables in TDengine.
 
 ```sql
-create stable memory(ts timestamp, val float) tags(host binary(12)，memory_type binary(20), memory_type_instance binary(20), source binary(20));
-create stable swap(ts timestamp, val double) tags(host binary(12), swap_type binary(20), swap_type_binary binary(20), source binary(20));
-create stable disk(ts timestamp, val double) tags(host binary(12), disk_point binary(20), disk_instance binary(20), disk_type binary(20), source binary(20));
+CREATE STABLE memory(ts timestamp, val float) tags(host binary(12)，memory_type binary(20), memory_type_instance binary(20), source binary(20));
+CREATE STABLE swap(ts timestamp, val double) tags(host binary(12), swap_type binary(20), swap_type_binary binary(20), source binary(20));
+CREATE STABLE disk(ts timestamp, val double) tags(host binary(12), disk_point binary(20), disk_instance binary(20), disk_type binary(20), source binary(20));
 ```
 
 For sub-tables use dynamic table creation as shown below:
 
 ```sql
-insert into memory_vm130_memory_bufferred_collectd  using memory tags(‘vm130’, ‘memory’, 'buffer', 'collectd') values(1632979445, 3.0656);
+INSERT INTO memory_vm130_memory_buffered_collectd  USING memory TAGS(‘vm130’, ‘memory’, 'buffer', 'collectd') VALUES(1632979445, 3.0656);
 ```
 
 Eventually about 340 sub-tables and 3 super-tables will be created in the system. Note that if the use of concatenated tagged values causes the sub-table names to exceed the system limit (191 bytes), then some encoding (e.g. MD5) needs to be used to convert them to an acceptable length.
@@ -168,7 +168,7 @@ Data is subscribed from the message queue and an adapted writer is started to wr
 After the data starts to be written for a sustained period, SQL statements can be used to check whether the amount of data written meets the expected write requirements. The following SQL statement is used to count the amount of data.
 
 ```sql
-select count(*) from memory
+SELECT COUNT(*) FROM memory
 ```
 
 After completing the query, if the written data does not differ from the expected one, and there are no abnormal error messages from the writing program itself, then you can confirm that the data writing is complete and valid.
@@ -207,13 +207,15 @@ Equivalent function: avg
 
 Example.
 
+```sql
 SELECT avg(val) FROM (SELECT first(val) FROM super_table WHERE ts >= startTime and ts <= endTime INTERVAL(20s) Fill(linear)) INTERVAL(20s)
+```
 
 Notes.
 
 1. the value within the Interval needs to be the same as the interval value of the outer query.
 
-As the interpolation of values in OpenTSDB uses linear interpolation, use fill(linear) to declare the interpolation type in the interpolation clause. The following functions with the same interpolation requirements are handled by this method. 3.
+As the interpolation of values in OpenTSDB uses linear interpolation, use FILL(linear) to declare the interpolation type in the interpolation clause. The following functions with the same interpolation requirements are handled by this method. 3.
 
 2. The 20s parameter in Interval means that the inner query will generate results in a 20-second window. In a real query, it needs to be adjusted to the time interval between different records. This ensures that the interpolation results are generated equivalently to the original data.
 
@@ -226,7 +228,9 @@ Equivalent function: count
 
 Example.
 
-select count(*) from super_table_name;
+```sql
+SELECT COUNT(*) FROM super_table_name;
+```
 
 **Dev**
 
@@ -234,7 +238,9 @@ Equivalent function: stddev
 
 Example.
 
-Select stddev(val) from table_name
+```sql
+SELECT STDDEV(val) FROM table_name
+```
 
 **Estimated percentiles**
 
@@ -242,7 +248,9 @@ Equivalent function: apercentile
 
 Example.
 
-Select apercentile(col1, 50, “t-digest”) from table_name
+```sql
+SELECT APERCENTILE(col1, 50, “t-digest”) FROM table_name
+```
 
 Remark.
 
@@ -254,7 +262,9 @@ Equivalent function: first
 
 Example.
 
-Select first(col1) from table_name
+```sql
+SELECT FIRST(col1) FROM table_name
+```
 
 **Last**
 
@@ -262,7 +272,9 @@ Equivalent function: last
 
 Example.
 
-Select last(col1) from table_name
+```sql
+SELECT LAST(col1) FROM table_name
+```
 
 **Max**
 
@@ -270,7 +282,9 @@ Equivalent function: max
 
 Example.
 
-Select max(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s)
+```sql
+SELECT MAX(value) FROM (SELECT FIRST(val) value FROM table_name INTERVAL(10s) FILL(linear)) INTERVAL(10s)
+```
 
 Note: The Max function requires interpolation, for the reasons given above.
 
@@ -280,13 +294,17 @@ Equivalent function: min
 
 Example.
 
-Select min(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s);
+```sql
+SELECT MIN(value) FROM (select first(val) value FROM table_name INTERVAL(10s) FILL(linear)) INTERVAL(10s);
+```
 
 **MinMax**
 
 Equivalent function: max
 
-Select max(val) from table_name
+```sql
+SELECT max(val) FROM table_name
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -294,7 +312,9 @@ Note: This function does not require interpolation, so it can be calculated dire
 
 Equivalent function: min
 
-Select min(val) from table_name
+```sql
+SELECT min(val) FROM table_name
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -308,7 +328,9 @@ Note:
 
 Equivalent function: sum
 
-Select max(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s)
+```sql
+SELECT MAX(value) FROM (SELECT FIRST(val) value FROM table_name INTERVAL(10s) FILL(linear)) INTERVAL(10s)
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -316,7 +338,9 @@ Note: This function does not require interpolation, so it can be calculated dire
 
 Equivalent function: sum
 
-Select sum(val) from table_name
+```sql
+SELECT SUM(val) FROM table_name
+```
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
@@ -331,8 +355,10 @@ query = {
 "metric":"cpu.usage_user",
 }]
 }
+```
 
 // Equivalent SQL:
+```sql
 SELECT count(*)
 FROM `cpu.usage_user`
 WHERE ts>=1510560000 AND ts<=1515000009
@@ -356,7 +382,7 @@ Combining the above formula and bringing the parameters into the calculation for
 
 ### Storage device selection considerations
 
-The hard disk should be used with a better random read performance hard disk device, if you can have SSD, consider using SSD as much as possible. better random read performance of the disk is extremely helpful to improve the system query performance and can improve the overall query response performance of the system. To obtain better query performance, the performance index of single-threaded random read IOPS of the hard disk device should not be lower than 1000, it is better to reach 5000 IOPS or more. To obtain an evaluation of the current device random read IO performance, it is recommended that fio software be used to evaluate its operational performance (see Appendix 1 for details on how to use it) to confirm whether it can meet the large file random read performance requirements.
+The hard disk should be used with a better random read performance hard disk device, if you can have SSD, consider using SSD as much as possible. better random read performance of the disk is extremely helpful to improve the system query performance and can improve the overall query response performance of the system. To obtain better query performance, the performance index of single-threaded random read IOPS of the hard disk device should not be lower than 1000, it is better to reach 5000 IOPS or more. To obtain an evaluation of the current device random read IO performance, it is recommended that `fio` software be used to evaluate its operational performance (see Appendix 1 for details on how to use it) to confirm whether it can meet the large file random read performance requirements.
 
 Hard disk write performance has little impact on TDengine; TDengine writes in append write mode, so as long as it has good sequential write performance, both SAS hard disks and SSDs, in general, can meet TDengine's requirements for disk write performance well.
 
@@ -390,7 +416,7 @@ FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. The specific meani
 
 Follow the same steps to set the parameters on the node that needs to run and start the taosd service, then add the Dnode to the cluster.
 
-Finally, start taos and execute the command show dnodes, if you can see all the nodes that have joined the cluster, then the cluster is successfully built. For the specific operation procedure and notes, please refer to the document [TDengine Cluster Installation, Management](https://www.taosdata.com/cn/documentation/cluster).
+Finally, start taos and execute the command `SHOW DNODES`, if you can see all the nodes that have joined the cluster, then the cluster is successfully built. For the specific operation procedure and notes, please refer to the document [TDengine Cluster Installation, Management](https://www.taosdata.com/cn/documentation/cluster).
 
 ## Appendix 4: Super table names
 

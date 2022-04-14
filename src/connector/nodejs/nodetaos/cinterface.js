@@ -328,13 +328,6 @@ function CTaosInterface(config = null, pass = false) {
     //void taos_unsubscribe(TAOS_SUB *tsub);
     'taos_unsubscribe': [ref.types.void, [ref.types.void_ptr]],
 
-    // Continuous Query
-    //TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-    //                              int64_t stime, void *param, void (*callback)(void *));
-    'taos_open_stream': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr, ref.types.int64, ref.types.void_ptr, ref.types.void_ptr]],
-    //void taos_close_stream(TAOS_STREAM *tstr);
-    'taos_close_stream': [ref.types.void, [ref.types.void_ptr]],
-
     //Schemaless insert
     //TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol，int precision)
     // 'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.int, ref.types.int, ref.types.int]]
@@ -715,51 +708,6 @@ CTaosInterface.prototype.consume = function consume(subscription) {
 CTaosInterface.prototype.unsubscribe = function unsubscribe(subscription) {
   //void taos_unsubscribe(TAOS_SUB *tsub);
   this.libtaos.taos_unsubscribe(subscription);
-}
-
-// Continuous Query
-CTaosInterface.prototype.openStream = function openStream(connection, sql, callback, stime, stoppingCallback, param = ref.ref(ref.NULL)) {
-  try {
-    sql = ref.allocCString(sql);
-  }
-  catch (err) {
-    throw "Attribute Error: sql string is expected as a str";
-  }
-  var cti = this;
-  let asyncCallbackWrapper = function (param2, result2, row) {
-    let fields = cti.fetchFields_a(result2);
-    let precision = cti.libtaos.taos_result_precision(result2);
-    let blocks = new Array(fields.length);
-    blocks.fill(null);
-    let numOfRows2 = 1;
-    let offset = 0;
-    if (numOfRows2 > 0) {
-      for (let i = 0; i < fields.length; i++) {
-        if (!convertFunctions[fields[i]['type']]) {
-          throw new errors.DatabaseError("Invalid data type returned from database");
-        }
-        blocks[i] = convertFunctions[fields[i]['type']](row, numOfRows2, fields[i]['bytes'], offset, precision);
-        offset += fields[i]['bytes'] * numOfRows2;
-      }
-    }
-    callback(param2, result2, blocks, fields);
-  }
-  asyncCallbackWrapper = ffi.Callback(ref.types.void, [ref.types.void_ptr, ref.types.void_ptr, ref.refType(ref.types.void_ptr2)], asyncCallbackWrapper);
-  asyncStoppingCallbackWrapper = ffi.Callback(ref.types.void, [ref.types.void_ptr], stoppingCallback);
-  let streamHandle = this.libtaos.taos_open_stream(connection, sql, asyncCallbackWrapper, stime, param, asyncStoppingCallbackWrapper);
-  if (ref.isNull(streamHandle)) {
-    throw new errors.TDError('Failed to open a stream with TDengine');
-    return false;
-  }
-  else {
-    console.log("Succesfully opened stream");
-    return streamHandle;
-  }
-}
-
-CTaosInterface.prototype.closeStream = function closeStream(stream) {
-  this.libtaos.taos_close_stream(stream);
-  console.log("Closed stream");
 }
 
 //Schemaless insert API

@@ -230,6 +230,7 @@ typedef struct SQueryAttr {
   bool             stabledev;        // super table stddev query
   bool             tsCompQuery;      // is tscomp query
   bool             diffQuery;        // is diff query
+  bool             stateQuery;       // is state query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needTableSeqScan; // need scan table by table
@@ -549,10 +550,17 @@ typedef struct SFillOperatorInfo {
   bool         multigroupResult;
 } SFillOperatorInfo;
 
+typedef struct SGroupbyDataInfo {
+  int32_t index;  // index of col in dataBlock
+  int32_t type;
+  int32_t bytes;
+} SGroupbyDataInfo;
+
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
-  int32_t        colIndex;
-  char          *prevData;   // previous group by value
+  SArray         *pGroupbyDataInfo;
+  int32_t        totalBytes;
+  char           *prevData;   // previous data buf
 } SGroupbyOperatorInfo;
 
 typedef struct SSWindowOperatorInfo {

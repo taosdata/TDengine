@@ -13,7 +13,7 @@ IF (TD_MVN_INSTALLED)
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/deploy-pom.xml
     DEPENDS ${_depends}
     COMMAND mvn -Dmaven.test.skip=true install -f ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/target/taos-jdbcdriver-2.0.37-dist.jar ${LIBRARY_OUTPUT_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/target/taos-jdbcdriver-2.0.38-dist.jar ${LIBRARY_OUTPUT_PATH}
     COMMAND mvn -Dmaven.test.skip=true clean -f ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
     COMMAND ${CMAKE_COMMAND} -E touch "${_output}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

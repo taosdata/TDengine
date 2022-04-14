@@ -22,7 +22,7 @@ Note: ● stands for that has been verified by official tests; ○ stands for th
 Note:
 
 - To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is libtaos.so in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
-- All APIs that execute SQL statements, such as `tao_query()`, `taos_query_a()`, `taos_subscribe()` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
+- All APIs that execute SQL statements, such as `taos_query()`, `taos_query_a()`, `taos_subscribe()` in C/C++ connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
 - Users upgrading to TDengine 2.0. 8.0 must update the JDBC connection. TDengine must upgrade taos-jdbcdriver to 2.0.12 and above.
 - No matter which programming language connector is selected, TDengine version 2.0 and above recommends that each thread of database application establish an independent connection or establish a connection pool based on threads to avoid mutual interference between threads of "USE statement" state variables in the connection (but query and write operations of the connection are thread-safe).
 
@@ -347,26 +347,107 @@ Gets the result set of the statement. The result set is used in the same way as 
 
 Execution completed, release all resources.
 
-### Continuous query interface
+- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
 
-TDengine provides time-driven real-time stream computing APIs. You can perform various real-time aggregation calculation operations on tables (data streams) of one or more databases at regular intervals. The operation is simple, only APIs for opening and closing streams. The details are as follows:
+Gets the error message if any stmt API returns error.
 
-- `TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), int64_t stime, void *param, void (*callback)(void *))`
+<a class="anchor" id="schemaless"></a>
+### Schemaless writing API
 
-This API is used to create data streams where:
+In addition to writing data using SQL or using the parameter binding API, writing can also be done using Schemaless, which eliminates the need to create a super table/data sub-table data structure in advance and writes data directly, while the TDengine system automatically creates and maintains the required table structure based on the written data content. The use of Schemaless is described in the Schemaless Writing section, and the C/C++ API used with it is described here.
 
-  * taos: Database connection established
-  * sql: SQL query statement (query statement only)
-  * fp: user-defined callback function pointer. After each stream computing is completed, TDengine passes the query result (TAOS_ROW), query status (TAOS_RES), and user-defined parameters (PARAM) to the callback function. In the callback function, the user can use `taos_num_fields()` to obtain the number of columns in the result set, and `taos_fetch_fields()` to obtain the type of data in each column of the result set.
-  * stime: The time when stream computing starts. If it is 0, it means starting from now. If it is not zero, it means starting from the specified time (the number of milliseconds from 1970/1/1 UTC time).
-  * param: It is a parameter provided by the application for callback. During callback, the parameter is provided to the application
-  * callback: The second callback function is called when the continuous query stop automatically.
+- `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
-The return value is NULL, indicating creation failed; the return value is not NULL, indicating creation successful.
+  **Function Description**
 
-- `void taos_close_stream (TAOS_STREAM *tstr)`
+  This interface writes the text data of the line protocol to TDengine.
 
-Close the data flow, where the parameter provided is the return value of `taos_open_stream()`. When the user stops stream computing, be sure to close the data flow.
+  **Parameter Description**
+
+  taos: database connection, the database connection established by taos_connect function.
+
+  lines: text data. A pattern-free text string that meets the parsing format requirements.
+
+  numLines: the number of lines of the text data, cannot be 0.
+
+  protocol: the protocol type of the lines, used to identify the format of the text data.
+
+  precision: precision string of the timestamp in the text data.
+
+  **Return Value**
+
+  TAOS_RES structure, the application can get the error message by using taos_errstr and also get the error code by using taos_errno.
+
+  In some cases, the returned TAOS_RES is NULL, in which case taos_errno can still be called to safely get the error code information.
+
+  The returned TAOS_RES needs to be freed by the caller, otherwise a memory leak will occur.
+
+  **Description**
+
+  The protocol type is enumerated and contains the following three formats.
+
+  TSDB_SML_LINE_PROTOCOL: InfluxDB line protocol (Line Protocol)
+
+  TSDB_SML_TELNET_PROTOCOL: OpenTSDB Text Line Protocol
+
+  TSDB_SML_JSON_PROTOCOL: OpenTSDB JSON protocol format
+
+  The timestamp resolution is defined in the taos.h file, as follows
+
+  TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+
+  TSDB_SML_TIMESTAMP_HOURS,
+
+  TSDB_SML_TIMESTAMP_MINUTES,
+
+  TSDB_SML_TIMESTAMP_SECONDS,
+
+  TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+
+  TSDB_SML_TIMESTAMP_MICRO_SECONDS,
+
+  TSDB_SML_TIMESTAMP_NANO_SECONDS
+
+  Note that the timestamp resolution parameter only takes effect when the protocol type is SML_LINE_PROTOCOL.
+
+  For OpenTSDB text protocols, the timestamp resolution follows the official resolution rules - the time precision is determined by the number of characters contained in the timestamp.
+
+  **Supported versions**
+
+  This functional interface is supported since version 2.3.0.0.
+
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <taos.h>
+
+int main() {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+
+  // connect to server
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+
+  // prepare the line string
+  char* lines1[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+  };
+
+  // schema-less insert
+  TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  if (taos_errno(res) != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  }
+
+  taos_free_result(res);
+
+  // close the connection
+  taos_close(taos);
+  return (code);
+}
+```
 
 ### Data subscription interface
 
@@ -468,13 +549,15 @@ for row in results:
 - Write data
 
     ```python
+    import taos
     import datetime
-
+    conn = taos.connect()
+    c1 = conn.cursor()
     # Create a database
-    c1.execute('create database db')
-    c1.execute('use db')
+    c1.execute('create database if not exists db1')
+    c1.execute('use db1')
     # Create a table
-    c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+    c1.execute('create table if not exists tb (ts timestamp, temperature int, humidity float)')
     # Insert data
     start_time = datetime.datetime(2019, 11, 1)
     affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
@@ -482,9 +565,11 @@ for row in results:
     time_interval = datetime.timedelta(seconds=60)
     sqlcmd = ['insert into tb values']
     for irow in range(1,11):
-    start_time += time_interval
-    sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
-    affected_rows = c1.execute(' '.join(sqlcmd))
+        start_time += time_interval
+        sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+    affected_rows += c1.execute(' '.join(sqlcmd))
+
+    print("inserted %s records" % affected_rows)
     ```
 
 - Query data
@@ -497,12 +582,12 @@ for row in results:
     numOfRows = c1.rowcount
     numOfCols = len(c1.description)
     for irow in range(numOfRows):
-    print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
+        print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
 
     # Use cursor loop directly to pull query result
     c1.execute('select * from tb')
     for data in c1:
-    print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
+        print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
     ```
 
 #### Query API

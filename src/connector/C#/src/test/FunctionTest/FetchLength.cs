@@ -4,8 +4,11 @@ using System.Collections.Generic;
 using Xunit;
 using TDengineDriver;
 using Test.UtilsTools.ResultSet;
+using Test.Case.Attributes;
 namespace Cases
 {
+    [TestCaseOrderer("XUnit.Case.Orderers.TestExeOrderer", "Cases.ExeOrder")]
+
     public class FetchLengthCase
     {
         /// <author>xiaolei</author>
@@ -13,7 +16,7 @@ namespace Cases
         /// <describe>TD-12103 C# connector fetch_row with binary data retrieving error</describe>
         /// <filename>FetchLength.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "Skip FetchLengthCase.TestRetrieveBinary()")]
+        [Fact(DisplayName = "FetchLengthCase.TestRetrieveBinary()"),TestExeOrder(1)]
         public void TestRetrieveBinary()
         {
             IntPtr conn = UtilsTools.TDConnection();
@@ -44,13 +47,24 @@ namespace Cases
             ResultSet actualResult = new ResultSet(resPtr);
             List<string> actualData = actualResult.GetResultData();
             List<TDengineMeta> actualMeta = actualResult.GetResultMeta();
-            expectData.Reverse();
+            
+            // Make expected data and retrieved data in same order
+            expectData.Sort();
+            actualData.Sort();
 
-            Assert.Equal(expectData[0], actualData[0]);
+            // Assert meta data
             Assert.Equal(expectMeta[1].name, actualMeta[0].name);
             Assert.Equal(expectMeta[1].size, actualMeta[0].size);
             Assert.Equal(expectMeta[1].type, actualMeta[0].type);
 
+            // Assert retrieved data
+            for (int i = 0; i < actualData.Count; i++)
+            {
+                // Console.WriteLine($"expectData[{i}]:{expectData[i]},, actualData[{i}]:{actualData[i]}" );
+                Assert.Equal(expectData[i].ToString(), actualData[i]);
+            }
+
         }
     }
-}
+} 
+

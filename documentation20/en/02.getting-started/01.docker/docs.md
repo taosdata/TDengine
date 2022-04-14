@@ -197,7 +197,7 @@ column[0]:FLOAT column[1]:INT column[2]:FLOAT
          Press enter key to continue or Ctrl-C to stop
 ```
 
-After enter, this command will automatically create a super table `meters` under the database test, there are 10,000 tables under this super table, the table name is "d0" to "d9999", each table has 10,000 records, each record has four fields (ts, current, voltage, phase), the time stamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999", each table has a tag location and groupId, groupId is set from 1 to 10 and location is set to "beijing" or "shanghai".
+After enter, this command will automatically create a super table `meters` under the database test, there are 10,000 tables under this super table, the table name is "d0" to "d9999", each table has 10,000 records, each record has four fields (ts, current, voltage, phase), the time stamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999", each table has a tag location and groupid, groupid is set from 1 to 10 and location is set to "beijing" or "shanghai".
 
 It takes about a few minutes to execute this command and ends up inserting a total of 100 million records.
 
@@ -217,7 +217,7 @@ taos>
 - **View the database.**
 
 ```bash
-$ taos> show databases;
+$ taos> SHOW DATABASES;
   name        |      created_time       |   ntables   |   vgroups   |    ···
   test        | 2021-08-18 06:01:11.021 |       10000 |           6 |    ···
   log         | 2021-08-18 05:51:51.065 |           4 |           1 |    ···
@@ -227,10 +227,10 @@ $ taos> show databases;
 - **View Super Tables.**
 
 ```bash
-$ taos> use test;
+$ taos> USE test;
 Database changed.
 
-$ taos> show stables;
+$ taos> SHOW STABLES;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters                         | 2021-08-18 06:01:11.116 |       4 |      2 |       10000 |
@@ -241,10 +241,7 @@ Query OK, 1 row(s) in set (0.003259s)
 - **View the table and limit the output to 10 entries.**
 
 ```bash
-$ taos> select * from test.t0 limit 10;
-
-DB error: Table does not exist (0.002857s)
-taos> select * from test.d0 limit 10;
+taos> SELECT * FROM test.d0 LIMIT 10;
            ts            |       current        |   voltage   |        phase         |
 ======================================================================================
  2017-07-14 10:40:00.000 |             10.12072 |         223 |              0.34167 |
@@ -264,7 +261,7 @@ Query OK, 10 row(s) in set (0.016791s)
 - **View the tag values for the d0 table.**
 
 ```bash
-$ taos> select groupid, location from test.d0;
+$ taos> SELECT groupid, location FROM test.d0;
    groupid   |     location     |
 =================================
            0 | shanghai         |
@@ -283,23 +280,23 @@ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
 Then you can use the taos shell to query the taosAdapter automatically created database statsd and the contents of the super table foo.
 
 ```
-taos> show databases;
+taos> SHOW DATABASES;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
 ====================================================================================================================================================================================================================================================================================
  log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
  statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
 Query OK, 2 row(s) in set (0.002112s)
 
-taos> use statsd;
+taos> USE statsd;
 Database changed.
 
-taos> show stables;
+taos> SHOW STABLES;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
 Query OK, 1 row(s) in set (0.001160s)
 
-taos> select * from foo;
+taos> SELECT * FROM foo;
               ts               |         value         |         metric_type          |
 =======================================================================================
  2021-12-28 09:21:48.840820836 |                     1 | counter                      |

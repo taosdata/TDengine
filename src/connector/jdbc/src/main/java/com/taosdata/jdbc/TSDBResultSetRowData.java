@@ -14,8 +14,6 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.utils.NullType;
-
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -132,7 +130,7 @@ public class TSDBResultSetRowData {
     public int getInt(int col, int nativeType) throws SQLException {
         Object obj = data.get(col - 1);
         if (obj == null)
-            return NullType.getIntNull();
+            return 0;
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
@@ -213,7 +211,7 @@ public class TSDBResultSetRowData {
     public long getLong(int col, int nativeType) throws SQLException {
         Object obj = data.get(col - 1);
         if (obj == null) {
-            return NullType.getBigIntNull();
+            return 0;
         }
 
         switch (nativeType) {
@@ -282,7 +280,7 @@ public class TSDBResultSetRowData {
     public float getFloat(int col, int nativeType) {
         Object obj = data.get(col - 1);
         if (obj == null)
-            return NullType.getFloatNull();
+            return 0;
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
@@ -301,7 +299,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return (Long) obj;
             default:
-                return NullType.getFloatNull();
+                return 0;
         }
     }
 
@@ -322,7 +320,7 @@ public class TSDBResultSetRowData {
     public double getDouble(int col, int nativeType) {
         Object obj = data.get(col - 1);
         if (obj == null)
-            return NullType.getDoubleNull();
+            return 0;
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
@@ -341,7 +339,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return (Long) obj;
             default:
-                return NullType.getDoubleNull();
+                return 0;
         }
     }
 
@@ -454,7 +452,7 @@ public class TSDBResultSetRowData {
                 milliseconds = ts / 1_000;
                 fracNanoseconds = (int) (ts * 1_000 % 1_000_000_000);
                 if (fracNanoseconds < 0) {
-                    if (milliseconds == 0 ){
+                    if (milliseconds == 0) {
                         milliseconds = -1;
                     }
                     fracNanoseconds += 1_000_000_000;
@@ -465,7 +463,7 @@ public class TSDBResultSetRowData {
                 milliseconds = ts / 1_000_000;
                 fracNanoseconds = (int) (ts % 1_000_000_000);
                 if (fracNanoseconds < 0) {
-                    if (milliseconds == 0 ){
+                    if (milliseconds == 0) {
                         milliseconds = -1;
                     }
                     fracNanoseconds += 1_000_000_000;

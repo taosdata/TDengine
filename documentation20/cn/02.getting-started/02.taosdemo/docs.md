@@ -1,6 +1,6 @@
 # 如何使用 taosBenchmark 进行性能测试
 
-自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosBenchmark （曾命名为 taosdemo）用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosBenchmark 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosBenchmark 参数灵活控制表的列数、数据类型、乱序比例以及并发线程数量。
+自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosBenchmark （曾命名为 taosdemo）用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosBenchmark 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosBenchmark 参数灵活按照实际场景定制表的个数（对应设备数）、表的列数（对应每个设备采样点）、数据类型、乱序数据比例、顺序或轮询插入方式、以及并发线程数量。
 
 运行 taosBenchmark 很简单，通过下载 [TDengine 安装包](https://www.taosdata.com/cn/all-downloads/)或者自行下载 [TDengine 代码](https://github.com/taosdata/TDengine)编译都可以在安装目录或者编译结果目录中找到并运行。
 
@@ -153,41 +153,70 @@ insert delay, avg:       8.31ms, max:     860.12ms, min:       2.00ms
 ```
 $ taosBenchmark --help
 
--f, --file=FILE The meta file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
--u, --user=USER The user name to use when connecting to the server.
--p, --password The password to use when connecting to the server.
--c, --config-dir=CONFIG_DIR Configuration directory.
--h, --host=HOST TDengine server FQDN to connect. The default host is localhost.
--P, --port=PORT The TCP/IP port number to use for the connection.
--I, --interface=INTERFACE The interface (taosc, rest, and stmt) taosBenchmark uses. By default use 'taosc'.
--d, --database=DATABASE Destination database. By default is 'test'.
--a, --replica=REPLICA Set the replica parameters of the database, By default use 1, min: 1, max: 3.
--m, --table-prefix=TABLEPREFIX Table prefix name. By default use 'd'.
--s, --sql-file=FILE The select SQL file.
--N, --normal-table Use normal table flag.
--o, --output=FILE Direct output to the named file. By default use './output.txt'.
--q, --query-mode=MODE Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.
--b, --data-type=DATATYPE The data_type of columns, By default use: FLOAT, INT, FLOAT.
--w, --binwidth=WIDTH The width of data_type 'BINARY' or 'NCHAR'. By default use 64
--l, --columns=COLUMNS The number of columns per record. Demo mode by default is 1 (float, int, float). Max values is 4095
-All of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.
--T, --threads=NUMBER The number of threads. By default use 8.
--i, --insert-interval=NUMBER The sleep time (ms) between insertion. By default is 0.
--S, --time-step=TIME_STEP The timestamp step between insertion. By default is 1.
--B, --interlace-rows=NUMBER The interlace rows of insertion. By default is 0.
--r, --rec-per-req=NUMBER The number of records per request. By default is 30000.
--t, --tables=NUMBER The number of tables. By default is 10000.
--n, --records=NUMBER The number of records per table. By default is 10000.
--M, --random The value of records generated are totally random.
-By default to simulate power equipment scenario.
--x, --aggr-func Test aggregation functions after insertion.
--y, --answer-yes Input yes for prompt.
--O, --disorder=NUMBER Insert order mode--0: In order, 1 ~ 50: disorder ratio. By default is in order.
--R, --disorder-range=NUMBER Out of order data's range. Unit is ms. By default is 1000.
--g, --debug Print debug info.
--?, --help Give this help list
---usage Give a short usage message
--V, --version Print program version.
+Usage: taosBenchmark [OPTION...]
+
+  -f, --file=FILE            (**IMPORTANT**) Set JSON configuration file(all
+                             options are going to read from this JSON file),
+                             which is mutually exclusive with other commandline
+                             options
+  -a, --replia=NUMBER        The number of replica when create database,
+                             default is 1.
+  -A, --tag-type=TAG_TYPE    Data type of tables' tags, default is
+                             INT,BINARY(16).
+  -b, --data-type=COL_TYPE   Data type of tables' cols, default is
+                             FLOAT,INT,FLOAT.
+  -B, --interlace-rows=NUMBER   The number of interlace rows insert into
+                             tables, default is 0
+  -c, --config-dir=CONFIG_DIR   Configuration directory.
+  -C, --chinese              Nchar and binary are basic unicode chinese
+                             characters, optional.
+  -d, --database=DATABASE    Name of database, default is test.
+  -E, --escape-character     Use escape character in stable and child table
+                             name, optional.
+  -F, --prepared_rand=NUMBER Random data source size, default is 10000.
+  -g, --debug                Debug mode, optional.
+  -G, --performance           Performance mode, optional.
+  -h, --host=HOST            TDengine server FQDN to connect, default is
+                             localhost.
+  -i, --insert-interval=NUMBER   Insert interval for interlace mode in
+                             milliseconds, default is 0.
+  -I, --interface=IFACE      insert mode, default is taosc, options:
+                             taosc|rest|stmt|sml
+  -l, --columns=NUMBER       Number of INT data type columns in table, default
+                             is 0.
+  -m, --table-prefix=TABLE_PREFIX
+                             Prefix of child table name, default is d.
+  -M, --random               Data source is randomly generated, optional.
+  -n, --records=NUMBER       Number of records for each table, default is
+                             10000.
+  -N, --normal-table         Only create normal table without super table,
+                             optional.
+  -o, --output=FILE          The path of result output file, default is
+                             ./output.txt.
+  -O, --disorder=NUMBER      Ratio of inserting data with disorder timestamp,
+                             default is 0.
+  -p, --password=PASSWORD    The password to use when connecting to the server,
+                             default is taosdata.
+  -P, --port=PORT            The TCP/IP port number to use for the connection,
+                             default is 6030.
+  -r, --rec-per-req=NUMBER   Number of records in each insert request, default
+                             is 30000.
+  -R, --disorder-range=NUMBER   Range of disordered timestamp, default is 1000.
+
+  -S, --time-step=NUMBER     Timestamp step in milliseconds, default is 1.
+  -t, --tables=NUMBER        Number of child tables, default is 10000.
+  -T, --threads=NUMBER       The number of thread when insert data, default is
+                             8.
+  -u, --user=USER            The user name to use when connecting to the
+                             server, default is root.
+  -w, --binwidth=NUMBER      The default length of nchar and binary if not
+                             specified, default is 64.
+  -x, --aggr-func            Query aggregation function after insertion,
+                             optional.
+  -y, --answer-yes           Pass confirmation prompt to continue, optional.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
@@ -198,7 +227,7 @@ Report bugs to <support@taosdata.com>.
 taosBenchmark 的参数是为了满足数据模拟的需求来设计的。下面介绍几个常用的参数：
 
 ```
--I, --interface=INTERFACE     The interface (taosc, rest, and stmt) taosBenchmark uses. Default is 'taosc'.
+-I, --interface=IFACE     The interface (taosc, rest, and stmt) taosBenchmark uses. Default is 'taosc'.
 ```
 
 前面介绍 taosBenchmark 不同接口的性能差异已经提到， -I 参数为选择不同的接口，目前支持 taosc、stmt 和 rest 几种。其中 taosc 为使用 SQL 语句方式进行数据写入；stmt 为使用参数绑定接口进行数据写入；rest 为使用 RESTful 协议进行数据写入。
@@ -339,6 +368,7 @@ select first(current) took 0.024105 second(s)
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -347,7 +377,7 @@ select first(current) took 0.024105 second(s)
 }
 ```
 
-例如：我们可以通过 "thread_count" 和 "thread_count_create_tbl" 来为建表和插入数据指定不同数量的线程。可以通过 "child_table_exists"、"childtable_limit" 和 "childtable_offset" 的组合来使用多个 taosBenchmark 进程（甚至可以在不同的电脑上）对同一个超级表的不同范围子表进行同时写入。也可以通过 "data_source" 和 "sample_file" 来指定数据来源为 csv 文件，来实现导入已有数据的功能。
+例如：我们可以通过 "thread_count" 和 "thread_count_create_tbl" 来为建表和插入数据指定不同数量的线程。可以通过 "child_table_exists"、"childtable_limit" 和 "childtable_offset" 的组合来使用多个 taosBenchmark 进程（甚至可以在不同的电脑上）对同一个超级表的不同范围子表进行同时写入。也可以通过 "data_source" 和 "sample_file" 来指定数据来源为 CSV 文件，来实现导入已有数据的功能。CSV 为半角逗号分隔的数据文件，每行数据列数需要和表的数据列数（如果是标签数据，是和标签数）相同。
 
 ## 使用 taosBenchmark 进行查询和订阅测试
 
@@ -478,7 +508,7 @@ taosBenchmark支持两种配置参数的模式，一种是命令行参数，一�
 
 一、命令行参数
 
--f：指定taosBenchmark所需参数的meta文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是NULL。目前仅支持不含 BOM（byte-order mark）的标准 UTF-8 编码文件。
+-f：指定 taosBenchmark 所需参数的 JSON 配置文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是 NULL。目前仅支持不含 BOM（byte-order mark）的标准 UTF-8 编码文件。
 
 -u： 用户名。可选项，缺省是“root“。
 
@@ -601,7 +631,7 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
-               "use_sample_ts": "no",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -706,31 +736,31 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "start_timestamp": 子表中记录时间戳的起始值，支持"2020-10-01 00:00:00.000"和“now”两种格式，可选项，缺省是“now”。
 
-"sample_format": 当插入数据源选择“sample”时，sample文件的格式，"csv"：csv格式，每列的值与子表的columns保持一致，但不包含第1列的时间戳。可选项，缺省是”csv”。目前仅仅支持csv格式的sample文件。
+"sample_format": 当插入数据源选择“sample”时，sample文件的格式，"csv"：CSV 格式，每列的值与子表的 columns 保持一致，但不包含第1列的时间戳。可选项，缺省是”csv”。目前仅仅支持 CSV 格式的 sample 文件。
 
 "sample_file":sample文件，包含路径和文件名。当插入数据源选择“sample”时，该项为必选项。
 
-"use_sample_ts":sample文件是否包含第一列时间戳，可选项: "yes" 和 "no", 默认 "no"。(注意：若为yes，则disorder_ratio 和 disorder_range失效)
+"use_sample_ts":sample 文件是否包含第一列时间戳，可选项: "yes" 和 "no", 默认 "no"。(注意：若为 yes，则 disorder_ratio 和 disorder_range 失效)
 
-"tags_file": 子表tags值文件，只能是csv文件格式，且必须与超级表的tags保持一致。当该项为非空时，表示子表的tags值从文件中获取；为空时，实例随机生成。可选项，缺省是空。
+"tags_file": 子表 tags 值文件，只能是 CSV 文件格式，且必须与超级表的tags保持一致。当该项为非空时，表示子表的tags值从文件中获取；为空时，实例随机生成。可选项，缺省是空。
 
-"columns": [{ 超级表的column列表，最大支持1024列（指所有普通列+超级列总和）。默认的第一列为时间类型，程序自动添加，不需要手工添加。
+"columns": [{ 超级表的 column 列表，最大支持 4096 列（指所有普通列+超级列总和）。默认的第一列为时间类型，程序自动添加，不需要手工添加。
 
 "type": 该列的数据类型 ，必选项。
 
-"len": 该列的长度，只有type是BINARY或NCHAR时有效，可选项，缺省值是8。
+"len": 该列的长度，只有 type 是 BINARY 或 NCHAR 时有效，可选项，缺省值是 8。
 
-"count":该类型的连续列个数，可选项，缺省是1。
+"count":该类型的连续列个数，可选项，缺省是 1。
 
 }],
 
-"tags": [{ 超级表的tags列表，type不能是timestamp类型， 最大支持128个。
+"tags": [{ 超级表的 tags 列表，type不能是 TIMESTAMP 类型， 最大支持 128 个。
 
 "type": 该列的数据类型 ，必选项。
 
-"len": 该列的长度，只有type是BINARY或NCHAR时有效，可选项，缺省值是8。
+"len": 该列的长度，只有 type 是 BINARY 或 NCHAR 时有效，可选项，缺省值是 8。
 
-"count":该类型的连续列个数，可选项，缺省是1。
+"count":该类型的连续列个数，可选项，缺省是 1。
 
 }]
 

@@ -645,8 +645,6 @@ public class BlockResultSet extends AbstractWSResultSet {
         }
         if (value instanceof Float)
             return (float) value;
-        if (value instanceof Double)
-            return (float) (double) value;
 
         int taosType = fields.get(columnIndex - 1).getTaosType();
         switch (taosType) {
@@ -669,6 +667,12 @@ public class BlockResultSet extends AbstractWSResultSet {
                 if (tmp.compareTo(new BigDecimal(Float.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Float.MAX_VALUE)) > 0)
                     throwRangeException(value.toString(), columnIndex, Types.FLOAT);
                 return tmp.floatValue();
+            }
+            case TSDB_DATA_TYPE_DOUBLE:{
+                Double tmp = (double) value;
+                if (tmp < Float.MIN_VALUE || tmp > Float.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.FLOAT);
+                return Float.parseFloat(String.valueOf(tmp));
             }
 
             case TSDB_DATA_TYPE_NCHAR:
@@ -700,7 +704,7 @@ public class BlockResultSet extends AbstractWSResultSet {
         if (value instanceof Double)
             return (double) value;
         if (value instanceof Float)
-            return (float) value;
+            return Double.parseDouble(String.valueOf(value));
 
         int taosType = fields.get(columnIndex - 1).getTaosType();
         switch (taosType) {
@@ -763,9 +767,6 @@ public class BlockResultSet extends AbstractWSResultSet {
             return Shorts.toByteArray((short) value);
         if (value instanceof Byte)
             return new byte[]{(byte) value};
-        if (value instanceof Timestamp) {
-            return Utils.formatTimestamp((Timestamp) value).getBytes();
-        }
 
         return value.toString().getBytes();
     }

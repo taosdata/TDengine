@@ -93,3 +93,94 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 在 2.3.3.0 及以上版本，您可以导入 TDinsight Dashboard (Grafana Dashboard ID： [15167](https://grafana.com/grafana/dashboards/15167)) 作为 TDengine 集群的监控可视化工具。安装和使用说明请见 [TDinsight 用户手册](https://www.taosdata.com/cn/documentation/tools/insight)。
 
+## <a class="anchor" id="matlab"></a>Matlab
+
+MatLab 可以通过安装包内提供的 JDBC Driver 直接连接到 TDengine 获取数据到本地工作空间。
+
+### MatLab 的 JDBC 接口适配
+
+MatLab 的适配有下面几个步骤，下面以 Windows10 上适配 MatLab2017a 为例：
+
+- 从 (maven.org)[https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/] 或其他 maven 镜像网站下载 TDengine JDBC 驱动程序 JDBCDriver-x.x.x-dist.jar 拷贝到 ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
+- 将 TDengine 安装包内的 taos.lib 文件拷贝至${matlab_ root _dir}\MATLAB\R2017a\lib\win64
+- 将新添加的驱动 jar 包加入 MatLab 的 classpath。在 ${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt 文件中添加下面一行
+
+```
+$matlabroot/java/jar/toolbox/JDBCDriver-x.x.x-dist.jar
+```
+
+- 在${user_home}\AppData\Roaming\MathWorks\MATLAB\R2017a\下添加一个文件 javalibrarypath.txt, 并在该文件中添加 taos.dll 的路径，比如您的 taos.dll 是在安装时拷贝到了 C:\Windows\System32 下，那么就应该在 javalibrarypath.txt 中添加如下一行：
+
+```
+C:\Windows\System32
+```
+
+### 在 MatLab 中连接 TDengine 获取数据
+
+在成功进行了上述配置后，打开 MatLab。
+
+- 创建一个连接：
+
+```matlab
+conn = database(‘db’, ‘root’, ‘taosdata’, ‘com.taosdata.jdbc.TSDBDriver’, ‘jdbc:TSDB://127.0.0.1:0/’)
+```
+
+- 执行一次查询：
+
+```matlab
+sql0 = [‘select * from tb’]
+data = select(conn, sql0);
+```
+
+- 插入一条记录:
+
+```matlab
+sql1 = [‘insert into tb values (now, 1)’]
+exec(conn, sql1)
+```
+
+更多例子细节请参考安装包内 examples\Matlab\TDengineDemo.m 文件。
+
+## <a class="anchor" id="r"></a>R
+
+R 语言支持通过 JDBC 接口来连接 TDengine 数据库。首先需要安装 R 语言的 JDBC 包，下载 RJDBC 的时候，还会自动下载 RJDBC 依赖的 DBI 和 rJava 这两个package。启动 R 语言环境，然后执行以下命令安装 R 语言的 JDBC 支持库：
+
+```R
+install.packages('RJDBC', repos='http://cran.us.r-project.org')
+```
+
+安装完成以后，通过执行`library()`命令加载 DBI、rJava 和 _RJDBC_ 包：
+
+```R
+library('DBI')
+library('rJava')
+library('RJDBC')
+```
+
+然后加载 TDengine 的 JDBC 驱动：
+
+```R
+drv<-JDBC("com.taosdata.jdbc.TSDBDriver","JDBCDriver-2.0.0-dist.jar", identifier.quote="\"")
+```
+
+如果执行成功，不会出现任何错误信息。之后通过以下命令尝试连接数据库：
+
+```R
+conn<-dbConnect(drv,"jdbc:TSDB://127.0.0.1:0/?user=root&password=taosdata","root","taosdata")
+```
+
+也可以使用 RESTful 来连接 TDengine。
+
+```R
+conn<-dbConnect(drv,"jdbc:TAOS-RS://127.0.0.1:6041/test?user=root&password=taosdata","root","taosdata")
+```
+
+注意将上述命令中的IP地址替换成正确的IP地址。如果没有任务错误的信息，则连接数据库成功，否则需要根据错误提示调整连接的命令。TDengine 支持以下的 _RJDBC_ 包中函数：
+
+-	dbWriteTable(conn, "test", iris, overwrite=FALSE, append=TRUE)：将数据框 iris 写入表 test 中，overwrite 必须设置为 false，append 必须设为 TRUE，且数据框 iris 要与表 test 的结构一致。
+-	dbGetQuery(conn, "select count(*) from test")：查询语句
+-	dbSendUpdate(conn, "use db")：执行任何非查询 SQL 语句。例如 dbSendUpdate(conn, "use db")， 写入数据 dbSendUpdate(conn, "insert into t1 values(now, 99)") 等。
+-	dbReadTable(conn, "test")：读取表 test 中数据
+-	dbDisconnect(conn)：关闭连接
+-	dbRemoveTable(conn, "test")：删除表 test
+

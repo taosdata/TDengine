@@ -48,6 +48,7 @@ beforeAll(() => {
 // Jest will wait for this promise to resolve before running tests.
 afterAll(() => {
   executeUpdate("drop database if exists node_test_db;");
+  c1.close();
   conn.close();
 });
 
