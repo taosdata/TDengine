@@ -83,6 +83,9 @@ public class TestAll {
     public void testSchemaless() throws SQLException {
         LineProtocolExample.main(args);
         TelnetLineProtocolExample.main(args);
+        // for json protocol, tags may be double type. but for telnet protocol tag must be nchar type.
+        // To avoid type mismatch, we delete database test.
+        dropDB("test");
         JSONProtocolExample.main(args);
     }
 }
