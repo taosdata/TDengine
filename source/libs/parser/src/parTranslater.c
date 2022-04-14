@@ -2291,7 +2291,6 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
       return TSDB_INFORMATION_SCHEMA_DB;
-    case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
@@ -2333,7 +2332,6 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_SNODES;
     case QUERY_NODE_SHOW_LICENCE_STMT:
       return TSDB_INS_TABLE_LICENCES;
-    case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
       // todo
@@ -2859,7 +2857,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
-    case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
       code = rewriteShow(pCxt, pQuery);
