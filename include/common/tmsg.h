@@ -332,6 +332,7 @@ int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(void* buf, SEpSet* pEp);
 
 typedef struct {
+  int8_t  connType;
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
@@ -342,12 +343,13 @@ int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 int32_t tDeserializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 
 typedef struct {
-  int32_t  acctId;
-  int64_t  clusterId;
+  int32_t acctId;
+  int64_t clusterId;
   uint32_t connId;
-  int8_t   superUser;
-  SEpSet   epSet;
-  char     sVersion[128];
+  int8_t  superUser;
+  int8_t  connType;
+  SEpSet  epSet;
+  char    sVersion[128];
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);

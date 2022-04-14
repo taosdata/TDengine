@@ -325,6 +325,8 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
   if (pToken->type == TK_NOW) {
     ts = taosGetTimestamp(timePrec);
+  } else if (pToken->type == TK_TODAY) {
+    ts = taosGetTimestampToday(timePrec);
   } else if (pToken->type == TK_NK_INTEGER) {
     bool isSigned = false;
     toInteger(pToken->z, pToken->n, 10, &ts, &isSigned);
@@ -389,8 +391,8 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 }
 
 static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
-  if ((pToken->type != TK_NOW && pToken->type != TK_NK_INTEGER && pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
-       pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN) ||
+  if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER && pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT &&
+       pToken->type != TK_NK_BOOL && pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }

@@ -24,6 +24,8 @@ static SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 
+static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
+
 static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
@@ -417,11 +419,10 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
-
 void hbMgrInitMqHbHandle() {
   clientHbMgr.reqHandle[HEARTBEAT_TYPE_QUERY] = hbQueryHbReqHandle;
   clientHbMgr.reqHandle[HEARTBEAT_TYPE_MQ] = hbMqHbReqHandle;
+
   clientHbMgr.rspHandle[HEARTBEAT_TYPE_QUERY] = hbQueryHbRspHandle;
   clientHbMgr.rspHandle[HEARTBEAT_TYPE_MQ] = hbMqHbRspHandle;
 }
@@ -564,7 +565,7 @@ static int32_t hbCreateThread() {
   if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
- }
+  }
   taosThreadAttrDestroy(&thAttr);
   return 0;
 }
@@ -694,7 +695,7 @@ int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *
 int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, int32_t hbType) {
   SClientHbKey connKey = {
       .tscRid = tscRefId,
-      .hbType = HEARTBEAT_TYPE_QUERY,
+      .hbType = hbType,
   };
   SHbConnInfo info = {0};
 
@@ -704,16 +705,14 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
       *pClusterId = clusterId;
 
       info.param = pClusterId;
-      break;
+      return hbRegisterConnImpl(pAppHbMgr, connKey, &info);
     }
     case HEARTBEAT_TYPE_MQ: {
-      break;
+      return 0;
     }
     default:
-      break;
+      return 0;
   }
-
-  return hbRegisterConnImpl(pAppHbMgr, connKey, &info);
 }
 
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {

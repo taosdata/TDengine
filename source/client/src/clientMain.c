@@ -90,7 +90,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pass = TSDB_DEFAULT_PASS;
   }
 
-  return taos_connect_internal(ip, user, pass, NULL, db, port);
+  return taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
 }
 
 void taos_close(TAOS *taos) {
@@ -127,8 +127,10 @@ const char *taos_errstr(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
-  SRequestObj *pRequest = (SRequestObj *)res;
-  destroyRequest(pRequest);
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    destroyRequest(pRequest);
+  }
 }
 
 int taos_field_count(TAOS_RES *res) {
@@ -171,7 +173,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
-    return doFetchRow(pRequest, true, true);
+    return doFetchRows(pRequest, true, true);
 
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *msg = ((SMqRspObj *)res);
@@ -437,7 +439,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-    doFetchRow(pRequest, false, true);
+    doFetchRows(pRequest, false, true);
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -472,7 +474,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
       return 0;
     }
 
-    doFetchRow(pRequest, false, true);
+    doFetchRows(pRequest, false, false);
 
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
