@@ -91,7 +91,7 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
 }
 
 static void dndGenerateGrant() {
-  grantParseParameter();
+  parseGrantParameter();
 }
 
 static void dndPrintVersion() {
