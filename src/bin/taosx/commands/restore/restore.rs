@@ -179,28 +179,25 @@ async fn restore_tags(filelist: Vec<String>, db: String) {
                     } else {
                         match value {
                             Value::Null => sql += "NULL,",
-                            Value::Bool(_) => todo!(),
-                            Value::TinyInt(_) => todo!(),
-                            Value::SmallInt(_) => todo!(),
+                            Value::Bool(v) => sql += format!("{},", v).as_str(),
+                            Value::TinyInt(v) => sql += format!("{},", v).as_str(),
+                            Value::SmallInt(v) => sql += format!("{},", v).as_str(),
                             Value::Int(v) => sql += format!("{},", v).as_str(),
-                            Value::BigInt(_) => todo!(),
+                            Value::BigInt(v) => sql += format!("{},", v).as_str(),
                             Value::Float(v) => sql += format!("{},", v).as_str(),
-                            Value::Double(_) => todo!(),
+                            Value::Double(v) => sql += format!("{},", v).as_str(),
                             Value::Binary(v) => {
                                 sql +=
                                     format!("\'{}\',", std::str::from_utf8(&v).unwrap()).as_str();
                             }
-                            Value::Timestamp(_) => todo!(),
-                            Value::NChar(_) => todo!(),
-                            Value::UTinyInt(_) => todo!(),
-                            Value::USmallInt(_) => todo!(),
-                            Value::UInt(_) => todo!(),
-                            Value::UBigInt(_) => todo!(),
-                            Value::Json(_) => todo!(),
-                            Value::VarChar(_) => todo!(),
-                            Value::VarBinary(_) => todo!(),
-                            Value::Decimal(_) => todo!(),
-                            Value::Blob(_) => todo!(),
+                            Value::Timestamp(v) => sql += format!("{},", v.as_raw_i64()).as_str(),
+                            Value::NChar(v) => sql += format!("\'{}\',", v).as_str(),
+                            Value::UTinyInt(v) => sql += format!("{},", v).as_str(),
+                            Value::USmallInt(v) => sql += format!("{},", v).as_str(),
+                            Value::UInt(v) => sql += format!("{},", v).as_str(),
+                            Value::UBigInt(v) => sql += format!("{},", v).as_str(),
+                            Value::Json(v) => sql += format!("{},", v).as_str(),
+                            _ => todo!(),
                         }
                     }
                 }
