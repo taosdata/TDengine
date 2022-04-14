@@ -6,6 +6,7 @@ target_sources(
     # vnode
     "src/vnd/vnodeArenaMAImpl.c"
     "src/vnd/vnodeBufferPool.c"
+    # "src/vnd/vnodeBufferPool2.c"
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeInt.c"
@@ -14,7 +15,7 @@ target_sources(
     "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeWrite.c"
     "src/vnd/vnodeModule.c"
-    # "src/vnd/vnodeMgr.c"
+    "src/vnd/vnodeSvr.c"
 
     # meta
     # "src/meta/metaBDBImpl.c"
