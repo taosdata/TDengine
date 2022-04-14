@@ -152,11 +152,6 @@ typedef struct SOperatorCostInfo {
   uint64_t totalCost;
 } SOperatorCostInfo;
 
-typedef struct SOrder {
-  uint32_t order;
-  SColumn  col;
-} SOrder;
-
 // The basic query information extracted from the SQueryInfo tree to support the
 // execution of query in a data node.
 typedef struct STaskAttr {
@@ -170,7 +165,6 @@ typedef struct STaskAttr {
   bool            diffQuery;          // is diff query
   bool            pointInterpQuery;      // point interpolation query
   int32_t         havingNum;  // having expr number
-  SOrder          order;
   int16_t         numOfCols;
   int16_t         numOfTags;
   STimeWindow     window;
