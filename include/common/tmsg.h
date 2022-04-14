@@ -1885,7 +1885,6 @@ typedef struct {
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CGROUP_LEN];
   char*   sql;
-  char*   logicalPlan;
   char*   physicalPlan;
   char*   qmsg;
 } SMqSetCVgReq;
@@ -1899,7 +1898,6 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->topicName);
   tlen += taosEncodeString(buf, pReq->cgroup);
   tlen += taosEncodeString(buf, pReq->sql);
-  tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeString(buf, pReq->qmsg);
   return tlen;
@@ -1913,7 +1911,6 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeStringTo(buf, pReq->topicName);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeString(buf, &pReq->sql);
-  buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
   buf = taosDecodeString(buf, &pReq->qmsg);
   return buf;

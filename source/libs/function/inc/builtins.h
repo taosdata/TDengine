@@ -40,14 +40,14 @@ extern "C" {
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
-typedef int32_t (*FCheckAndGetResultType)(SFunctionNode* pFunc);
+typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 typedef struct SBuiltinFuncDefinition {
   char name[FUNCTION_NAME_MAX_LENGTH];
   EFunctionType type;
   uint64_t classification;
-  FCheckAndGetResultType checkFunc;
+  FTranslateFunc translateFunc;
   FFuncDataRequired dataRequiredFunc;
   FExecGetEnv getEnvFunc;
   FExecInit initFunc;

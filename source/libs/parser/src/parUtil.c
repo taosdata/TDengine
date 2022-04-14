@@ -31,10 +31,6 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid value type : %s";
     case TSDB_CODE_PAR_INVALID_FUNTION:
       return "Invalid function name : %s";
-    case TSDB_CODE_PAR_FUNTION_PARA_NUM:
-      return "Invalid number of arguments : %s";
-    case TSDB_CODE_PAR_FUNTION_PARA_TYPE:
-      return "Inconsistent datatypes : %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:

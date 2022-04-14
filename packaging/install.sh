@@ -460,14 +460,14 @@ function install_service_on_systemd() {
 }
 
 function install_service() {
-    if ((${service_mod}==0)); then
-        install_service_on_systemd
-    elif ((${service_mod}==1)); then
-        install_service_on_sysvinit
-    else
-        # must manual stop taosd
+    # if ((${service_mod}==0)); then
+    #     install_service_on_systemd
+    # elif ((${service_mod}==1)); then
+    #     install_service_on_sysvinit
+    # else
+    #     # must manual stop taosd
         kill_process taosd
-    fi
+    # fi
 }
 
 function install_TDengine() {

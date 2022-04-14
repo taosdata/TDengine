@@ -99,7 +99,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, SArray* pIndexMap, int32_t
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo  = pSortInfo;
   pSortHandle->pIndexMap  = pIndexMap;
-  pSortHandle->pDataBlock = createOneDataBlock(pBlock);
+  pSortHandle->pDataBlock = createOneDataBlock(pBlock, false);
 
   pSortHandle->pOrderedSource     = taosArrayInit(4, POINTER_BYTES);
   pSortHandle->cmpParam.orderInfo = pSortInfo;
@@ -206,7 +206,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   blockDataCleanup(pDataBlock);
 
-  SSDataBlock* pBlock = createOneDataBlock(pDataBlock);
+  SSDataBlock* pBlock = createOneDataBlock(pDataBlock, false);
   return doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
 }
 
@@ -488,7 +488,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       tMergeTreeDestroy(pHandle->pMergeTree);
       pHandle->numOfCompletedSources = 0;
 
-      SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock);
+      SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
       code = doAddNewExternalMemSource(pHandle->pBuf, pResList, pBlock, &pHandle->sourceId);
       if (code != 0) {
         return code;
@@ -531,7 +531,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       }
 
       if (pHandle->pDataBlock == NULL) {
-        pHandle->pDataBlock = createOneDataBlock(pBlock);
+        pHandle->pDataBlock = createOneDataBlock(pBlock, false);
       }
 
       int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock, pHandle->pIndexMap);

@@ -18,10 +18,15 @@
 #include "taoserror.h"
 #include "mndGrant.h"
 #include "mndInt.h"
+#include "mndShow.h"
 
 #ifndef _GRANT
+static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) { return TSDB_CODE_OPS_NOT_SUPPORT; }
 
-int32_t mndInitGrant(SMnode *pMnode) { return TSDB_CODE_SUCCESS; }
+int32_t mndInitGrant(SMnode *pMnode) {
+    mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
+    return TSDB_CODE_SUCCESS; 
+}
 void    mndCleanupGrant() {}
 void    grantParseParameter() { mError("can't parsed parameter k"); }
 int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
