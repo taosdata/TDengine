@@ -7,6 +7,8 @@ taosadapter >> /dev/null 2>&1 &
 
 cd ../../docs-examples/go
 
+go mod tidy
+
 go run ./connect/restexample/main.go
 
 taos -s "drop database if exists power"
