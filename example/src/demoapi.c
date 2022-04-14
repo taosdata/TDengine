@@ -65,22 +65,30 @@ static void prepare_data(TAOS* taos) {
     usleep(100000);
     taos_select_db(taos, "test");
 
-    res = taos_query(taos, "create table meters(ts timestamp, f float, n int, b binary(20)) tags(area int, localtion binary(20));");
+    res = taos_query(taos, "create table meters(ts timestamp, f float, n int, b binary(20), c nchar(20)) tags(area int, city binary(20), dist nchar(20));");
     taos_free_result(res);
 
     char command[1024] = {0};
     for (int64_t i = 0; i < g_num_of_tb; i ++) {
-        sprintf(command, "create table t%"PRId64" using meters tags(%"PRId64", '%s');",
-                i, i, (i%2)?"beijing":"shanghai");
+        sprintf(command, "create table t%"PRId64" using meters tags(%"PRId64", '%s', '%s');",
+                i, i, (i%2)?"beijing":"shanghai", (i%2)?"朝阳区":"黄浦区");
         res = taos_query(taos,  command);
+        if ((res) && (0 == taos_errno(res))) {
+            okPrint("t%" PRId64 " created\n", i);
+        } else {
+            errorPrint("%s() LN%d: %s\n",
+                    __func__, __LINE__, taos_errstr(res));
+        }
         taos_free_result(res);
 
         int64_t j = 0;
         int64_t total = 0;
         int64_t affected;
         for (; j < g_num_of_rec -1; j ++) {
-            sprintf(command, "insert into t%"PRId64" values(%" PRId64 ", %f, %"PRId64", '%c%d')",
-                    i, 1650000000000+j, (float)j, j, 'a'+(int)j%10, rand());
+            sprintf(command, "insert into t%"PRId64" "
+                    "values(%" PRId64 ", %f, %"PRId64", '%c%d', '%c%d')",
+                    i, 1650000000000+j, (float)j, j, 'a'+(int)j%25, rand(),
+                    'z' - (int)j%25, rand());
             res = taos_query(taos,  command);
             if ((res) && (0 == taos_errno(res))) {
                 affected = taos_affected_rows(res);
