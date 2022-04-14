@@ -3424,5 +3424,4 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
-  taosMemoryFreeClear(pReq->ast);
-}
+  taosMemoryFreeClear(pReq->ast)

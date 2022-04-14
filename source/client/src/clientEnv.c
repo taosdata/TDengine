@@ -122,7 +122,7 @@ void closeAllRequests(SHashObj *pRequests) {
 void destroyTscObj(void *pObj) {
   STscObj *pTscObj = pObj;
 
-  SClientHbKey connKey = {.tscRid = pTscObj->id, .hbType = pTscObj->connType};
+  SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
