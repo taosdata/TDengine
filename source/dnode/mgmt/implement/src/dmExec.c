@@ -148,6 +148,12 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     dInfo("node:%s, not start in parent process", pWrapper->name);
   } else if (pWrapper->procType == DND_PROC_CHILD) {
     dInfo("node:%s, start in child process", pWrapper->name);
+    if (pWrapper->ntype != DNODE) {
+      if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
+        dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+    }
   } else {
     if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
