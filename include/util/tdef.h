@@ -117,6 +117,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
 #define TSDB_INS_TABLE_BNODES                 "bnodes"
 #define TSDB_INS_TABLE_SNODES                 "snodes"
+#define TSDB_INS_TABLE_LICENCES               "grants"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"

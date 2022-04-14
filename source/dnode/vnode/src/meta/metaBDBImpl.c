@@ -16,10 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #include "db.h"
 
-#include "metaDef.h"
-
-#include "tcoding.h"
-#include "thash.h"
+#include "vnodeInt.h"
 
 #define IMPL_WITH_LOCK 1
 // #if IMPL_WITH_LOCK
@@ -262,7 +259,7 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
   return 0;
 }
 
-int metaRemoveSmaFromDb(SMeta *pMeta,  int64_t indexUid) {
+int metaRemoveSmaFromDb(SMeta *pMeta, int64_t indexUid) {
   // TODO
 #if 0
   DBT key = {0};
@@ -668,7 +665,7 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
 }
 
 void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
-  STSma *  pCfg = NULL;
+  STSma   *pCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
   DBT      value = {0};
@@ -711,9 +708,9 @@ static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_
   int             ret;
   void           *pBuf;
   // SSchema        *pSchema;
-  SSchemaKey      schemaKey = {uid, sver, 0};
-  DBT             key = {0};
-  DBT             value = {0};
+  SSchemaKey schemaKey = {uid, sver, 0};
+  DBT        key = {0};
+  DBT        value = {0};
 
   // Set key/value properties
   key.data = &schemaKey;
@@ -761,14 +758,14 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 }
 
 int metaGetTbNum(SMeta *pMeta) {
-  SMetaDB    *pDB = pMeta->pDB;
+  SMetaDB *pDB = pMeta->pDB;
 
   DB_BTREE_STAT *sp1;
   pDB->pTbDB->stat(pDB->pNtbIdx, NULL, &sp1, 0);
-  
+
   DB_BTREE_STAT *sp2;
   pDB->pTbDB->stat(pDB->pCtbIdx, NULL, &sp2, 0);
-  
+
   return sp1->bt_nkeys + sp2->bt_nkeys;
 }
 

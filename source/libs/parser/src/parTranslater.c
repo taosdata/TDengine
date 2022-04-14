@@ -2363,7 +2363,6 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
-    case QUERY_NODE_SHOW_LICENCE_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -2551,6 +2550,8 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_BNODES;
     case QUERY_NODE_SHOW_SNODES_STMT:
       return TSDB_INS_TABLE_SNODES;
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+      return TSDB_INS_TABLE_LICENCES;
     default:
       break;
   }
@@ -3058,6 +3059,7 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_SHOW_LICENCE_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:

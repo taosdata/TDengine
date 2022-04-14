@@ -13,9 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tcompare.h"
-#include "tdatablock.h"
-#include "tstream.h"
 #include "vnodeInt.h"
 
 int32_t tqInit() { return tqPushMgrInit(); }
@@ -82,7 +79,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
   memcpy(data, msg, msgLen);
 
   if (msgType == TDMT_VND_SUBMIT) {
-    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg) != 0) {
+    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, version) != 0) {
       return -1;
     }
   }
@@ -551,30 +548,40 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       rspV2.rspOffset = fetchOffset;
 
       int32_t blockSz = taosArrayGetSize(pRes);
-      int32_t tlen = 0;
+      int32_t dataBlockStrLen = 0;
       for (int32_t i = 0; i < blockSz; i++) {
         SSDataBlock* pBlock = taosArrayGet(pRes, i);
-        tlen += sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+        dataBlockStrLen += sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
       }
 
-      void* data = taosMemoryMalloc(tlen);
-      if (data == NULL) {
+      void* dataBlockBuf = taosMemoryMalloc(dataBlockStrLen);
+      if (dataBlockBuf == NULL) {
         pMsg->code = -1;
         taosMemoryFree(pHead);
       }
 
-      rspV2.blockData = data;
+      rspV2.blockData = dataBlockBuf;
 
-      void*   dataBlockBuf = data;
       int32_t pos;
+      rspV2.blockPos = taosArrayInit(blockSz, sizeof(int32_t));
       for (int32_t i = 0; i < blockSz; i++) {
         pos = 0;
-        SSDataBlock* pBlock = taosArrayGet(pRes, i);
-        blockCompressEncode(pBlock, dataBlockBuf, &pos, pBlock->info.numOfCols, false);
+        SSDataBlock*       pBlock = taosArrayGet(pRes, i);
+        SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)dataBlockBuf;
+        pRetrieve->useconds = 0;
+        pRetrieve->precision = 0;
+        pRetrieve->compressed = 0;
+        pRetrieve->completed = 1;
+        pRetrieve->numOfRows = htonl(pBlock->info.rows);
+        blockCompressEncode(pBlock, pRetrieve->data, &pos, pBlock->info.numOfCols, false);
         taosArrayPush(rspV2.blockPos, &rspV2.dataLen);
-        rspV2.dataLen += pos;
-        dataBlockBuf = POINTER_SHIFT(dataBlockBuf, pos);
+
+        int32_t totLen = sizeof(SRetrieveTableRsp) + pos;
+        pRetrieve->compLen = htonl(totLen);
+        rspV2.dataLen += totLen;
+        dataBlockBuf = POINTER_SHIFT(dataBlockBuf, totLen);
       }
+      ASSERT(POINTER_DISTANCE(dataBlockBuf, rspV2.blockData) <= dataBlockStrLen);
 
       int32_t msgLen = sizeof(SMqRspHead) + tEncodeSMqPollRspV2(NULL, &rspV2);
       void*   buf = rpcMallocCont(msgLen);
@@ -590,7 +597,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
       /*taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);*/
       pMsg->pCont = buf;
-      pMsg->contLen = tlen;
+      pMsg->contLen = msgLen;
       pMsg->code = 0;
       vDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", pTq->pVnode->vgId, fetchOffset,
              pHead->msgType, consumerId, pReq->epoch);

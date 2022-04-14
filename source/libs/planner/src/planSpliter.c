@@ -18,6 +18,7 @@
 #define SPLIT_FLAG_MASK(n)    (1 << n)
 
 #define SPLIT_FLAG_STS SPLIT_FLAG_MASK(0)
+#define SPLIT_FLAG_CTJ SPLIT_FLAG_MASK(1)
 
 #define SPLIT_FLAG_SET_MASK(val, mask) (val) |= (mask)
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
@@ -39,43 +40,14 @@ typedef struct SStsInfo {
   SLogicSubplan* pSubplan;
 } SStsInfo;
 
-static SLogicNode* stsMatchByNode(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
-      NULL != ((SScanLogicNode*)pNode)->pVgroupList && ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > 1) {
-    return pNode;
-  }
-  SNode* pChild;
-  FOREACH(pChild, pNode->pChildren) {
-    SLogicNode* pSplitNode = stsMatchByNode((SLogicNode*)pChild);
-    if (NULL != pSplitNode) {
-      return pSplitNode;
-    }
-  }
-  return NULL;
-}
+typedef struct SCtjInfo {
+  SScanLogicNode* pScan;
+  SLogicSubplan* pSubplan;
+} SCtjInfo;
 
-static void stsFindSplitNode(SLogicSubplan* pSubplan, SStsInfo* pInfo) {
-  SLogicNode* pSplitNode = stsMatchByNode(pSubplan->pNode);
-  if (NULL != pSplitNode) {
-    pInfo->pScan = (SScanLogicNode*)pSplitNode;
-    pInfo->pSubplan = pSubplan;
-  }
-}
-static void stsMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan, SStsInfo* pInfo) {
-  if (!SPLIT_FLAG_TEST_MASK(pSubplan->splitFlag, SPLIT_FLAG_STS)) {
-    stsFindSplitNode(pSubplan, pInfo);
-  }
-  SNode* pChild;
-  FOREACH(pChild, pSubplan->pChildren) {
-    stsMatch(pCxt, (SLogicSubplan*)pChild, pInfo);
-    if (NULL != pInfo->pScan) {
-      break;
-    }
-  }
-  return;
-}
+typedef bool (*FSplFindSplitNode)(SLogicSubplan* pSubplan, SStsInfo* pInfo);
 
-static SLogicSubplan* stsCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* pScan) {
+static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* pScan, int32_t flag) {
   SLogicSubplan* pSubplan = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   if (NULL == pSubplan) {
     return NULL;
@@ -84,11 +56,11 @@ static SLogicSubplan* stsCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* 
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = (SLogicNode*)nodesCloneNode(pScan);
   TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pSubplan->pNode)->pVgroupList, SVgroupsInfo*);
-  SPLIT_FLAG_SET_MASK(pSubplan->splitFlag, SPLIT_FLAG_STS);
+  SPLIT_FLAG_SET_MASK(pSubplan->splitFlag, flag);
   return pSubplan;
 }
 
-static int32_t stsCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan) {
+static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan, ESubplanType subplanType) {
   SExchangeLogicNode* pExchange = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE);
   if (NULL == pExchange) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -119,10 +91,48 @@ static int32_t stsCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   return TSDB_CODE_FAILED;
 }
 
+static bool splMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan, int32_t flag, FSplFindSplitNode func, void* pInfo) {
+  if (!SPLIT_FLAG_TEST_MASK(pSubplan->splitFlag, flag)) {
+    if (func(pSubplan, pInfo)) {
+      return true;
+    }
+  }
+  SNode* pChild;
+  FOREACH(pChild, pSubplan->pChildren) {
+    if (splMatch(pCxt, (SLogicSubplan*)pChild, flag, func, pInfo)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static SLogicNode* stsMatchByNode(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
+      NULL != ((SScanLogicNode*)pNode)->pVgroupList && ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > 1) {
+    return pNode;
+  }
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) {
+    SLogicNode* pSplitNode = stsMatchByNode((SLogicNode*)pChild);
+    if (NULL != pSplitNode) {
+      return pSplitNode;
+    }
+  }
+  return NULL;
+}
+
+static bool stsFindSplitNode(SLogicSubplan* pSubplan, SStsInfo* pInfo) {
+  SLogicNode* pSplitNode = stsMatchByNode(pSubplan->pNode);
+  if (NULL != pSplitNode) {
+    pInfo->pScan = (SScanLogicNode*)pSplitNode;
+    pInfo->pSubplan = pSubplan;
+  }
+  return NULL != pSplitNode;
+}
+
 static int32_t stsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   SStsInfo info = {0};
-  stsMatch(pCxt, pSubplan, &info);
-  if (NULL == info.pScan) {
+  if (!splMatch(pCxt, pSubplan, SPLIT_FLAG_STS, stsFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
   if (NULL == info.pSubplan->pChildren) {
@@ -131,9 +141,61 @@ static int32_t stsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  int32_t code = nodesListStrictAppend(info.pSubplan->pChildren, stsCreateScanSubplan(pCxt, info.pScan));
+  int32_t code = nodesListStrictAppend(info.pSubplan->pChildren, splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_STS));
   if (TSDB_CODE_SUCCESS == code) {
-    code = stsCreateExchangeNode(pCxt, info.pSubplan, info.pScan);
+    code = splCreateExchangeNode(pCxt, info.pSubplan, info.pScan, SUBPLAN_TYPE_MERGE);
+  }
+  ++(pCxt->groupId);
+  pCxt->split = true;
+  return code;
+}
+
+static bool ctjIsSingleTable(int8_t tableType) {
+  return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
+}
+
+static SLogicNode* ctjMatchByNode(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) {
+    SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) && ctjIsSingleTable(((SScanLogicNode*)pLeft)->pMeta->tableType) &&
+        QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) && ctjIsSingleTable(((SScanLogicNode*)pRight)->pMeta->tableType)) {
+      return pRight;
+    }
+  }
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) {
+    SLogicNode* pSplitNode = ctjMatchByNode((SLogicNode*)pChild);
+    if (NULL != pSplitNode) {
+      return pSplitNode;
+    }
+  }
+  return NULL;
+}
+
+static bool ctjFindSplitNode(SLogicSubplan* pSubplan, SStsInfo* pInfo) {
+  SLogicNode* pSplitNode = ctjMatchByNode(pSubplan->pNode);
+  if (NULL != pSplitNode) {
+    pInfo->pScan = (SScanLogicNode*)pSplitNode;
+    pInfo->pSubplan = pSubplan;
+  }
+  return NULL != pSplitNode;
+}
+
+static int32_t ctjSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  SCtjInfo info = {0};
+  if (!splMatch(pCxt, pSubplan, SPLIT_FLAG_CTJ, ctjFindSplitNode, &info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == info.pSubplan->pChildren) {
+    info.pSubplan->pChildren = nodesMakeList();
+    if (NULL == info.pSubplan->pChildren) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  int32_t code = nodesListStrictAppend(info.pSubplan->pChildren, splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_CTJ));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = splCreateExchangeNode(pCxt, info.pSubplan, info.pScan, info.pSubplan->subplanType);
   }
   ++(pCxt->groupId);
   pCxt->split = true;
@@ -141,7 +203,8 @@ static int32_t stsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 }
 
 static const SSplitRule splitRuleSet[] = {
-  { .pName = "SuperTableScan", .splitFunc = stsSplit }
+  { .pName = "SuperTableScan", .splitFunc = stsSplit },
+  { .pName = "ChildTableJoin", .splitFunc = ctjSplit },
 };
 
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));

@@ -26,15 +26,6 @@ const STsdbCfg defautlTsdbOptions = {.precision = 0,
                                      .update = 0,
                                      .compression = TWO_STAGE_COMP};
 
-int tsdbOptionsInit(STsdbCfg *pTsdbOptions) {
-  // TODO
-  return 0;
-}
-
-void tsdbOptionsClear(STsdbCfg *pTsdbOptions) {
-  // TODO
-}
-
 int tsdbValidateOptions(const STsdbCfg *pTsdbOptions) {
   // TODO
   return 0;

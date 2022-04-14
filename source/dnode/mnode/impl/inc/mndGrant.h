@@ -36,14 +36,15 @@ typedef enum {
   TSDB_GRANT_CPU_CORES,
 } EGrantType;
 
-int32_t grantInit();
-void    grantCleanUp();
+int32_t mndInitGrant();
+void    mndCleanupGrant();
 void    grantParseParameter();
 int32_t grantCheck(EGrantType grant);
 void    grantReset(EGrantType grant, uint64_t value);
 void    grantAdd(EGrantType grant, uint64_t value);
 void    grantRestore(EGrantType grant, uint64_t value);
 
+void parseGrantParameter();
 #ifdef __cplusplus
 }
 #endif
