@@ -5481,7 +5481,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   int32_t leftTbIdx = 0;
   int32_t rightTbIdx = 0;
 
-  if (!isLogicalOperator(*pExpr)) {
+  if (isLogicalOperator(*pExpr)) {
     ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, type ? &leftType : NULL, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft, joinQuery, delData);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
