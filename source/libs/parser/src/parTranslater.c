@@ -1366,6 +1366,25 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   return checkDatabaseOptions(pCxt, pStmt->pOptions);
 }
 
+typedef int32_t (*FSerializeFunc)(void *pBuf, int32_t bufLen, void *pReq);
+
+static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeFunc func, void* pReq) {
+  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = msgType;
+  pCxt->pCmdMsg->msgLen = func(NULL, 0, pReq);
+  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  func(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, pReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt) {
   SCreateDbReq createReq = {0};
 
@@ -1375,18 +1394,7 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-    if (NULL == pCxt->pCmdMsg) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-    pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_DB;
-    pCxt->pCmdMsg->msgLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
-    pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-    if (NULL == pCxt->pCmdMsg->pMsg) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    tSerializeSCreateDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_DB, (FSerializeFunc)tSerializeSCreateDbReq, &createReq);
   }
 
   return code;
@@ -1394,25 +1402,12 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
 
 static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt* pStmt) {
   SDropDbReq dropReq = {0};
-  SName      name = {0};
+  SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, dropReq.db);
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_DB;
-  pCxt->pCmdMsg->msgLen = tSerializeSDropDbReq(NULL, 0, &dropReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSDropDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
 }
 
 static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, SAlterDbReq* pReq) {
@@ -1440,20 +1435,7 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   SAlterDbReq alterReq = {0};
   buildAlterDbReq(pCxt, pStmt, &alterReq);
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_DB;
-  pCxt->pCmdMsg->msgLen = tSerializeSAlterDbReq(NULL, 0, &alterReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSAlterDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
 }
 
 static int32_t calcTypeBytes(SDataType dt) {
@@ -1615,23 +1597,9 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   strcpy(tableName.tname, pStmt->tableName);
   tNameExtractFullName(&tableName, createReq.name);
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    tFreeSMCreateStbReq(&createReq);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_STB;
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    tFreeSMCreateStbReq(&createReq);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMCreateStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
-
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_STB, (FSerializeFunc)tSerializeSMCreateStbReq, &createReq);
   tFreeSMCreateStbReq(&createReq);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* pTableName, bool ignoreNotExists) {
@@ -1639,20 +1607,7 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
   tNameExtractFullName(pTableName, dropReq.name);
   dropReq.igNotExists = ignoreNotExists;
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_STB;
-  pCxt->pCmdMsg->msgLen = tSerializeSMDropStbReq(NULL, 0, &dropReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMDropStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_STB, (FSerializeFunc)tSerializeSMDropStbReq, &dropReq);
 }
 
 static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt) {
@@ -1736,20 +1691,7 @@ static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pSt
     }
   }
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_STB;
-  pCxt->pCmdMsg->msgLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMAlterStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_STB, (FSerializeFunc)tSerializeSMAlterStbReq, &alterReq);
 }
 
 static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* pStmt) {
@@ -1758,24 +1700,10 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameExtractFullName(&name, usedbReq.db);
   int32_t code = getDBVgVersion(pCxt, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_USE_DB, (FSerializeFunc)tSerializeSUseDbReq, &usedbReq);
   }
-
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_USE_DB;
-  pCxt->pCmdMsg->msgLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSUseDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &usedbReq);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
@@ -1785,20 +1713,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.superUser = 0;
   strcpy(createReq.pass, pStmt->password);
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_USER;
-  pCxt->pCmdMsg->msgLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSCreateUserReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
 }
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
@@ -1811,40 +1726,14 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     strcpy(alterReq.dbname, pCxt->pParseCxt->db);
   }
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_USER;
-  pCxt->pCmdMsg->msgLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSAlterUserReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
 }
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
   strcpy(dropReq.user, pStmt->useName);
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_USER;
-  pCxt->pCmdMsg->msgLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSDropUserReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
 }
 
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
@@ -1852,20 +1741,7 @@ static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* p
   strcpy(createReq.fqdn, pStmt->fqdn);
   createReq.port = pStmt->port;
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_DNODE;
-  pCxt->pCmdMsg->msgLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSCreateDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_CREATE_DNODE, (FSerializeFunc)tSerializeSCreateDnodeReq, &createReq);
 }
 
 static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt) {
@@ -1874,20 +1750,7 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   strcpy(dropReq.fqdn, pStmt->fqdn);
   dropReq.port = pStmt->port;
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_DNODE;
-  pCxt->pCmdMsg->msgLen = tSerializeSDropDnodeReq(NULL, 0, &dropReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSDropDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_DNODE, (FSerializeFunc)tSerializeSDropDnodeReq, &dropReq);
 }
 
 static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
@@ -1896,20 +1759,7 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   strcpy(cfgReq.config, pStmt->config);
   strcpy(cfgReq.value, pStmt->value);
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CONFIG_DNODE;
-  pCxt->pCmdMsg->msgLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMCfgDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &cfgReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
 }
 
 static int32_t nodeTypeToShowType(ENodeType nt) {
@@ -1936,21 +1786,7 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
 
 static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
   SShowReq showReq = {.type = nodeTypeToShowType(nodeType(pStmt))};
-
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_SHOW;
-  pCxt->pCmdMsg->msgLen = tSerializeSShowReq(NULL, 0, &showReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSShowReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &showReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_SHOW, (FSerializeFunc)tSerializeSShowReq, &showReq);
 }
 
 static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, char* pTableName, int32_t* pVgId) {
@@ -2070,61 +1906,25 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
   }
 
   SMCreateSmaReq createSmaReq = {0};
-
   int32_t code = buildCreateSmaReq(pCxt, pStmt, &createSmaReq);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_SMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &createSmaReq);
   }
-
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, &createSmaReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMCreateSmaReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createSmaReq);
   tFreeSMCreateSmaReq(&createSmaReq);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 static int32_t buildCreateFullTextReq(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SMCreateFullTextReq* pReq) {
   // impl later
   return 0;
 }
 static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
-  if (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval) ||
-      (NULL != pStmt->pOptions->pOffset &&
-       DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pOffset)) ||
-      (NULL != pStmt->pOptions->pSliding &&
-       DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pSliding))) {
-    return pCxt->errCode;
-  }
   SMCreateFullTextReq createFTReq = {0};
-
   int32_t code = buildCreateFullTextReq(pCxt, pStmt, &createFTReq);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSMCreateFullTextReq, &createFTReq);
   }
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_INDEX;
-  pCxt->pCmdMsg->msgLen = tSerializeSMCreateFullTextReq(NULL, 0, &createFTReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMCreateFullTextReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createFTReq);
   tFreeSMCreateFullTextReq(&createFTReq);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
@@ -2132,7 +1932,6 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
     return translateCreateSmaIndex(pCxt, pStmt);
   } else if (INDEX_TYPE_FULLTEXT == pStmt->indexType) {
     return translateCreateFullTextIndex(pCxt, pStmt);
-    // todo fulltext index
   }
   return TSDB_CODE_FAILED;
 }
@@ -2176,21 +1975,7 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
 
 static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = {.dnodeId = pStmt->dnodeId};
-
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = getCreateComponentNodeMsgType(nodeType(pStmt));
-  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSCreateDropMQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)), (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &createReq);
 }
 
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
@@ -2211,21 +1996,7 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
 
 static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = {.dnodeId = pStmt->dnodeId};
-
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = getDropComponentNodeMsgType(nodeType(pStmt));
-  pCxt->pCmdMsg->msgLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSCreateDropMQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)), (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &dropReq);
 }
 
 static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt) {
@@ -2255,21 +2026,9 @@ static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* p
   tNameExtractFullName(&name, createReq.name);
   createReq.igExists = pStmt->ignoreExists;
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_TOPIC;
-  pCxt->pCmdMsg->msgLen = tSerializeSCMCreateTopicReq(NULL, 0, &createReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSCMCreateTopicReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOPIC, (FSerializeFunc)tSerializeSCMCreateTopicReq, &createReq);
   tFreeSCMCreateTopicReq(&createReq);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt) {
@@ -2281,20 +2040,7 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
   tNameExtractFullName(&name, dropReq.name);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
-  pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
-  if (NULL == pCxt->pCmdMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_TOPIC;
-  pCxt->pCmdMsg->msgLen = tSerializeSMDropTopicReq(NULL, 0, &dropReq);
-  pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
-  if (NULL == pCxt->pCmdMsg->pMsg) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tSerializeSMDropTopicReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
-
-  return TSDB_CODE_SUCCESS;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
 }
 
 static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pStmt) {
@@ -2312,6 +2058,19 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
   return getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
 }
+
+static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillConnReq killReq = {0};
+  killReq.connId = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_CONN, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
+}
+
+static int32_t translateKillQuery(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillQueryReq killReq = {0};
+  killReq.queryId = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
+}
+
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2406,6 +2165,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DESCRIBE_STMT:
       code = translateDescribe(pCxt, (SDescribeStmt*)pNode);
+      break;
+    case QUERY_NODE_KILL_CONNECTION_STMT:
+      code = translateKillConnection(pCxt, (SKillStmt*)pNode);
+      break;
+    case QUERY_NODE_KILL_QUERY_STMT:
+      code = translateKillQuery(pCxt, (SKillStmt*)pNode);
       break;
     default:
       break;
@@ -2520,6 +2285,34 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   taosHashCleanup(pCxt->pTables);
 }
 
+static const char* getSysDbName(ENodeType type) {
+  switch (type) {
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_STABLES_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_DNODES_STMT:
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_MODULES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+    case QUERY_NODE_SHOW_INDEXES_STMT:
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+      return TSDB_INFORMATION_SCHEMA_DB;
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+      return TSDB_PERFORMANCE_SCHEMA_DB;
+    default:
+      break;
+  }
+  return NULL;
+}
+
 static const char* getSysTableName(ENodeType type) {
   switch (type) {
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -2552,6 +2345,10 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_SNODES;
     case QUERY_NODE_SHOW_LICENCE_STMT:
       return TSDB_INS_TABLE_LICENCES;
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+      // todo
     default:
       break;
   }
@@ -2570,7 +2367,7 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
     nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB);
+  strcpy(pTable->table.dbName, getSysDbName(showType));
   strcpy(pTable->table.tableName, getSysTableName(showType));
   strcpy(pTable->table.tableAlias, pTable->table.tableName);
   pSelect->pFromTable = (SNode*)pTable;
@@ -3074,6 +2871,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
