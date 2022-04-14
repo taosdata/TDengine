@@ -652,24 +652,26 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pB
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
     char name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->bytes[cols]);
 
     colDataAppend(pColInfo, numOfRows, (const char*) name, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
     const char* src = pUser->superUser? "super":"normal";
     char b[10+VARSTR_HEADER_SIZE] = {0};
     STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, (const char*) b, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataAppend(pColInfo, numOfRows, (const char*) &pUser->createdTime, false);
 
+    cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->acct, pShow->bytes[cols]);
     colDataAppend(pColInfo, numOfRows, (const char*) name, false);

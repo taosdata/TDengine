@@ -87,7 +87,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pass = TSDB_DEFAULT_PASS;
   }
 
-  return taos_connect_internal(ip, user, pass, NULL, db, port);
+  return taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
 }
 
 void taos_close(TAOS *taos) {
@@ -124,8 +124,10 @@ const char *taos_errstr(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
-  SRequestObj *pRequest = (SRequestObj *)res;
-  destroyRequest(pRequest);
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    destroyRequest(pRequest);
+  }
 }
 
 int taos_field_count(TAOS_RES *res) {
