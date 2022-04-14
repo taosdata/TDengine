@@ -41,8 +41,7 @@ extern "C" {
 typedef int32_t (*MndMsgFp)(SNodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowMetaFp)(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 
 typedef struct SMnodeLoad {
@@ -98,7 +97,7 @@ typedef struct {
   int64_t timeseriesAllowed;
 } SGrantInfo;
 
-typedef struct SMnode {
+struct SMnode {
   int32_t           selfId;
   int64_t           clusterId;
   int8_t            replica;
@@ -122,7 +121,7 @@ typedef struct SMnode {
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
   SMsgCb            msgCb;
-} SMnode;
+};
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(char *name, int32_t len);

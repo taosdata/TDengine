@@ -18,13 +18,6 @@
 const SVnodeCfg defaultVnodeOptions = {
     .wsize = 96 * 1024 * 1024, .ssize = 1 * 1024 * 1024, .lsize = 1024, .walCfg = {.level = TAOS_WAL_WRITE}}; /* TODO */
 
-void vnodeOptionsInit(SVnodeCfg *pVnodeOptions) { /* TODO */
-  vnodeOptionsCopy(pVnodeOptions, &defaultVnodeOptions);
-}
-
-void vnodeOptionsClear(SVnodeCfg *pVnodeOptions) { /* TODO */
-}
-
 int vnodeValidateOptions(const SVnodeCfg *pVnodeOptions) {
   // TODO
   return 0;
@@ -36,14 +29,14 @@ void vnodeOptionsCopy(SVnodeCfg *pDest, const SVnodeCfg *pSrc) {
 
 int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
   uint32_t hashValue = 0;
-  
+
   switch (pVnodeOptions->hashMethod) {
     default:
       hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
       break;
   }
 
-  // TODO OPEN THIS !!!!!!!
+    // TODO OPEN THIS !!!!!!!
 #if 0
   if (hashValue < pVnodeOptions->hashBegin || hashValue > pVnodeOptions->hashEnd) {
     terrno = TSDB_CODE_VND_HASH_MISMATCH;
@@ -53,5 +46,3 @@ int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-

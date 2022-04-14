@@ -23,13 +23,14 @@
 #include "tglobal.h"
 #include "version.h"
 
-#define QUERY_ID_SIZE 20
-#define QUERY_OBJ_ID_SIZE 18
+#define QUERY_ID_SIZE      20
+#define QUERY_OBJ_ID_SIZE  18
 #define SUBQUERY_INFO_SIZE 6
-#define QUERY_SAVE_SIZE 20
+#define QUERY_SAVE_SIZE    20
 
 typedef struct {
   int32_t     id;
+  int8_t      connType;
   char        user[TSDB_USER_LEN];
   char        app[TSDB_APP_NAME_LEN];  // app name that invokes taosc
   int64_t     appStartTimeMs;          // app start time
@@ -44,8 +45,8 @@ typedef struct {
   SQueryDesc *pQueries;
 } SConnObj;
 
-static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, uint32_t ip, uint16_t port, int32_t pid,
-                               const char *app, int64_t startTime);
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
+                               int32_t pid, const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
@@ -77,9 +78,9 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
+//  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
+//  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndCancelGetNextQuery);
 
   return 0;
@@ -93,8 +94,8 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
-static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, uint32_t ip, uint16_t port, int32_t pid,
-                               const char *app, int64_t startTime) {
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
+                               int32_t pid, const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   int32_t connId = atomic_add_fetch_32(&pMgmt->connId, 1);
@@ -102,6 +103,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, uint32_t ip, ui
   if (startTime == 0) startTime = taosGetTimestampMs();
 
   SConnObj connObj = {.id = connId,
+                      .connType = connType,
                       .appStartTimeMs = startTime,
                       .pid = pid,
                       .ip = ip,
@@ -159,8 +161,8 @@ static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
 }
 
 void *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter) {
-  SConnObj* pConn = NULL;
-  bool hasNext = taosCacheIterNext(pIter);
+  SConnObj *pConn = NULL;
+  bool      hasNext = taosCacheIterNext(pIter);
   if (hasNext) {
     size_t dataLen = 0;
     pConn = taosCacheIterGetData(pIter, &dataLen);
@@ -210,8 +212,8 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
     }
   }
 
-  pConn =
-      mndCreateConn(pMnode, pReq->user, pReq->clientIp, pReq->clientPort, connReq.pid, connReq.app, connReq.startTime);
+  pConn = mndCreateConn(pMnode, pReq->user, connReq.connType, pReq->clientIp, pReq->clientPort, connReq.pid,
+                        connReq.app, connReq.startTime);
   if (pConn == NULL) {
     mError("user:%s, failed to login from %s while create connection since %s", pReq->user, ip, terrstr());
     goto CONN_OVER;
@@ -222,6 +224,7 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
   connectRsp.superUser = pUser->superUser;
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
+  connectRsp.connType = connReq.connType;
 
   snprintf(connectRsp.sVersion, sizeof(connectRsp.sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
            gitinfo);
@@ -343,7 +346,6 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
     return -1;
   }
 
-  
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
@@ -685,7 +687,7 @@ static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int
     numOfRows++;
   }
 
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
 
   return numOfRows;
 }
@@ -903,8 +905,7 @@ static int32_t mndRetrieveQueries(SNodeMsg *pReq, SShowObj *pShow, char *data, i
     }
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

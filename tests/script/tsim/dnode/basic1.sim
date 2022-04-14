@@ -85,7 +85,7 @@ sql create database d1 vgroups 4;
 sql create database d2;
 
 sql show databases
-if $rows != 3 then 
+if $rows != 4 then
   return -1
 endi
 

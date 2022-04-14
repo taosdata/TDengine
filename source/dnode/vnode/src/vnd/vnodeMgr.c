@@ -14,7 +14,6 @@
  */
 
 #include "vnodeInt.h"
-#include "tglobal.h"
 
 SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED};
 

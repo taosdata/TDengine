@@ -228,6 +228,12 @@ function install_header() {
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+# temp install taosBenchmark
+function install_taosTools() {
+    cd ${script_dir}/taos-tools/
+    tar xvf taosTools-1.4.1-Linux-x64.tar.gz && cd  taosTools-1.4.1/ && ./install-taostools.sh
+}
+
 function add_newHostname_to_hosts() {
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
@@ -473,6 +479,7 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
+    install_taosTools
 
     if [ -z $1 ]; then # install service and client
         # For installing new

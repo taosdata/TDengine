@@ -14,11 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#ifndef _GRANT
 #include "os.h"
 #include "taoserror.h"
 #include "mndGrant.h"
 #include "mndInt.h"
+
+#ifndef _GRANT
 
 int32_t mndInitGrant(SMnode *pMnode) { return TSDB_CODE_SUCCESS; }
 void    mndCleanupGrant() {}
@@ -29,3 +30,5 @@ void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
 
 #endif
+
+void parseGrantParameter() { grantParseParameter(); }
