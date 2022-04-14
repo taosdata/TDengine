@@ -275,19 +275,24 @@ static void dmProcessProcHandle(void *handle) {
 }
 
 static void dmWatchNodes(SDnode *pDnode) {
+  taosThreadMutexLock(&pDnode->mutex);
   if (pDnode->ptype == DND_PROC_PARENT) {
     for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
       SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
       if (!pWrapper->required) continue;
+      if (pWrapper->procType != DND_PROC_PARENT) continue;
       if (pDnode->ntype == NODE_END) continue;
 
       if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
         dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
-        taosProcCloseHandles(pWrapper->procObj, dmProcessProcHandle);
+        if (pWrapper->procObj) {
+          taosProcCloseHandles(pWrapper->procObj, dmProcessProcHandle);
+        }
         dmNewNodeProc(pWrapper, n);
       }
     }
   }
+  taosThreadMutexUnlock(&pDnode->mutex);
 }
 
 int32_t dmRun(SDnode *pDnode) {

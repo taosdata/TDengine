@@ -48,7 +48,7 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   }
 
   taosInitRWLatch(&pDnode->data.latch);
-  taosInitRWLatch(&pDnode->wrapperLock);
+  taosThreadMutexInit(&pDnode->mutex, NULL);
   return 0;
 }
 
@@ -67,6 +67,8 @@ static void dmClearVars(SDnode *pDnode) {
   taosMemoryFreeClear(pDnode->data.firstEp);
   taosMemoryFreeClear(pDnode->data.secondEp);
   taosMemoryFreeClear(pDnode->data.dataDir);
+  taosThreadMutexDestroy(&pDnode->mutex);
+  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
   taosMemoryFree(pDnode);
   dDebug("dnode memory is cleared, data:%p", pDnode);
 }

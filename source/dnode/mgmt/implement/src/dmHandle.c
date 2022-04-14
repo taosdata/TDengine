@@ -116,7 +116,7 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     return -1;
   }
 
-  taosWLockLatch(&pDnode->wrapperLock);
+  taosThreadMutexLock(&pDnode->mutex);
   pWrapper = &pDnode->wrappers[ntype];
 
   if (taosMkDir(pWrapper->path) != 0) {
@@ -132,10 +132,11 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     dDebug("node:%s, has been created", pWrapper->name);
     pWrapper->required = true;
     pWrapper->deployed = true;
+    pWrapper->procType = pDnode->ptype;
     (void)dmOpenNode(pWrapper);
   }
 
-  taosWUnLockLatch(&pDnode->wrapperLock);
+  taosThreadMutexUnlock(&pDnode->mutex);
   return code;
 }
 
@@ -147,24 +148,24 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
     return -1;
   }
 
-  taosWLockLatch(&pWrapper->latch);
+  taosThreadMutexLock(&pDnode->mutex);
 
   int32_t code = (*pWrapper->fp.dropFp)(pWrapper, pMsg);
   if (code != 0) {
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
   } else {
     dDebug("node:%s, has been dropped", pWrapper->name);
-    pWrapper->required = false;
-    pWrapper->deployed = false;
-    taosRemoveDir(pWrapper->path);
   }
 
-  taosWUnLockLatch(&pWrapper->latch);
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
     dmCloseNode(pWrapper);
+    pWrapper->required = false;
+    pWrapper->deployed = false;
+    taosRemoveDir(pWrapper->path);
   }
+  taosThreadMutexUnlock(&pDnode->mutex);
   return code;
 }
 

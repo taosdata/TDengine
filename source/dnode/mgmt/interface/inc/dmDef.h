@@ -140,7 +140,7 @@ typedef struct SDnode {
   SStartupReq   startup;
   SDnodeTrans   trans;
   SDnodeData    data;
-  SRWLatch      wrapperLock;
+  TdThreadMutex mutex;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
 
