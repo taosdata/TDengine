@@ -47,6 +47,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
 }
 
 static void trimEscape(SToken* pName) {
+  // todo need to deal with `ioo``ii` -> ioo`ii
   if (NULL != pName && pName->n > 1 && '`' == pName->z[0]) {
     pName->z += 1;
     pName->n -= 2;

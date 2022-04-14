@@ -365,7 +365,7 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
   *maxIndex = 0;
 }
 
-tDataTypeDescriptor tDataTypes[15] = {
+tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_NULL, 6, 1, "NOTYPE", 0, 0, NULL, NULL, NULL},
     {TSDB_DATA_TYPE_BOOL, 4, CHAR_BYTES, "BOOL", false, true, tsCompressBool, tsDecompressBool, getStatics_bool},
     {TSDB_DATA_TYPE_TINYINT, 7, CHAR_BYTES, "TINYINT", INT8_MIN, INT8_MAX, tsCompressTinyint, tsDecompressTinyint,
@@ -388,6 +388,7 @@ tDataTypeDescriptor tDataTypes[15] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt, getStatics_u32},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint,
      getStatics_u64},
+    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString, getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {

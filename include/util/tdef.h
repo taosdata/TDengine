@@ -254,6 +254,14 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAGS           128
 #define TSDB_MAX_TAG_CONDITIONS 1024
 
+#define TSDB_MAX_JSON_TAG_LEN   16384
+#define TSDB_JSON_PLACEHOLDER      0x7F
+#define TSDB_JSON_null             0x00
+#define TSDB_JSON_KEY_NULL         0x00
+#define TSDB_JSON_NOT_NULL         0x01
+#define TSDB_JSON_NULL             0x00
+
+
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129

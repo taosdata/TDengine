@@ -57,7 +57,7 @@ OptrStr gOptrStr[] = {
   {OP_TYPE_IS_NOT_UNKNOWN,                 "not unknown"},
 
   // json operator
-  {OP_TYPE_JSON_GET_VALUE,                 "json get"},
+  {OP_TYPE_JSON_GET_VALUE,                 "->"},
   {OP_TYPE_JSON_CONTAINS,                  "json contains"}
 };
 

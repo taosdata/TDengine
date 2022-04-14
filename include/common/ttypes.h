@@ -252,7 +252,7 @@ typedef struct tDataTypeDescriptor {
                      int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypes[15];
+extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
 
 bool isValidDataType(int32_t type);
 

@@ -276,3 +276,4 @@ int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void
 }
 
 SJson* tjsonParse(const char* pStr) { return cJSON_Parse(pStr); }
+bool tjsonIsObject(const SJson* pJson) { return cJSON_IsObject(pJson); }

@@ -47,65 +47,6 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
-int32_t strRmquote(char *z, int32_t len) {
-  // delete escape character: \\, \', \"
-  char delim = z[0];
-  if (delim != '\'' && delim != '\"') {
-    return len;
-  }
-
-  int32_t cnt = 0;
-  int32_t j = 0;
-  for (uint32_t k = 1; k < len - 1; ++k) {
-    if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-      if (z[k] == '\\' && z[k + 1] == '_') {
-        // match '_' self
-      } else {
-        z[j] = z[k + 1];
-        cnt++;
-        j++;
-        k++;
-        continue;
-      }
-    }
-
-    z[j] = z[k];
-    j++;
-  }
-
-  z[j] = 0;
-
-  return len - 2 - cnt;
-}
-
-int32_t strndequote(char *dst, const char *z, int32_t len) {
-  assert(dst != NULL);
-  if (z == NULL || len == 0) {
-    return 0;
-  }
-
-  int32_t quote = z[0];
-  int32_t i = 1, j = 0;
-
-  while (z[i] != 0) {
-    if (z[i] == quote) {
-      if (z[i + 1] == quote) {
-        dst[j++] = (char)quote;
-        i++;
-      } else {
-        dst[j++] = 0;
-        return (j - 1);
-      }
-    } else {
-      dst[j++] = z[i];
-    }
-
-    i++;
-  }
-
-  return j + 1;  // only one quote, do nothing
-}
-
 size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;

@@ -14,6 +14,7 @@
  */
 
 #include "parUtil.h"
+#include "cJSON.h"
 
 static char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {
@@ -95,6 +96,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid option %s unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
       return "Invalid option keep unit: %c, %c, %c, only m, h, d allowed";
+    case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
+      return "Only one tag if there is a json tag";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -195,24 +198,180 @@ STableComInfo getTableInfo(const STableMeta* pTableMeta) {
 }
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
-  // delete escape character: \\, \', \"
+  if (len <=0 || dlen <= 0) return 0;
+
   char delim = src[0];
-  int32_t cnt = 0;
   int32_t j = 0;
   for (uint32_t k = 1; k < len - 1; ++k) {
     if (j >= dlen) {
-      break;
+      dst[j - 1] = '\0';
+      return j;
     }
-    if (src[k] == '\\' || (src[k] == delim && src[k + 1] == delim)) {
+    if (src[k] == delim && src[k + 1] == delim) {   // deal with "", ''
       dst[j] = src[k + 1];
-      cnt++;
       j++;
       k++;
       continue;
     }
+
+    if (src[k] == '\\') {   // deal with escape character
+      if(src[k+1] == 'n'){
+        dst[j] = '\n';
+      }else if(src[k+1] == 'r'){
+        dst[j] = '\r';
+      }else if(src[k+1] == 't'){
+        dst[j] = '\t';
+      }else if(src[k+1] == '\\'){
+        dst[j] = '\\';
+      }else if(src[k+1] == '\''){
+        dst[j] = '\'';
+      }else if(src[k+1] == '"'){
+        dst[j] = '"';
+      }else if(src[k+1] == '%' || src[k+1] == '_'){
+        dst[j++] = src[k];
+        dst[j] = src[k+1];
+      }else{
+        dst[j] = src[k+1];
+      }
+      j++;
+      k++;
+      continue;
+    }
+
     dst[j] = src[k];
     j++;
   }
   dst[j] = '\0';
   return j;
+}
+
+static bool isValidateTag(char *input) {
+  if (!input) return false;
+  for (size_t i = 0; i < strlen(input); ++i) {
+    if (isprint(input[i]) == 0) return false;
+  }
+  return true;
+}
+
+int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* pMsgBuf, int16_t startColId){
+  // set json NULL data
+  uint8_t jsonKeyNULL = TSDB_JSON_KEY_NULL;
+  uint8_t jsonNULL = TSDB_JSON_NULL;
+  int jsonIndex = startColId + 1;
+  tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonKeyNULL, CHAR_BYTES);   // add json null type
+  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNULL, CHAR_BYTES);   // add json null value
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // set json real data
+  cJSON *root = cJSON_Parse(json);
+  if (root == NULL){
+    return buildSyntaxErrMsg(pMsgBuf, "json parse error", json);
+  }
+
+  int size = cJSON_GetArraySize(root);
+  if(!cJSON_IsObject(root)){
+    return buildSyntaxErrMsg(pMsgBuf, "json error invalide value", json);
+  }
+
+  int retCode = 0;
+  SHashObj* keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+  for(int i = 0; i < size; i++) {
+    cJSON* item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      qError("json inner error:%d", i);
+      return buildSyntaxErrMsg(pMsgBuf, "json inner error", json);
+      goto end;
+    }
+
+    char *jsonKey = item->string;
+    if(!isValidateTag(jsonKey)){
+      retCode =  buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
+      goto end;
+    }
+//    if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){
+//      tscError("json key too long error");
+//      retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);
+//      goto end;
+//    }
+    size_t keyLen = strlen(jsonKey);
+    if(keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL){
+      continue;
+    }
+
+    if(taosHashGetSize(keyHash) == 0){
+      uint8_t jsonNotNULL = TSDB_JSON_NOT_NULL;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNotNULL, CHAR_BYTES);   // add json type
+    }
+    // json key encode by binary
+    void *tagKey = taosMemoryCalloc(keyLen + VARSTR_HEADER_SIZE, 1);
+    if(!tagKey) {
+      retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto end;
+    }
+    strncpy(varDataVal(tagKey), jsonKey, keyLen);
+    taosHashPut(keyHash, jsonKey, keyLen, &keyLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
+
+    varDataSetLen(tagKey, keyLen);
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKey, varDataTLen(tagKey));   // add json key
+    taosMemoryFree(tagKey);
+
+    if(item->type == cJSON_String){     // add json value  format: type|data
+      char *jsonValue = item->valuestring;
+      int32_t valLen = (int32_t)strlen(jsonValue);
+      char *tagVal = taosMemoryCalloc(valLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE + CHAR_BYTES, 1);
+      if(!tagVal) {
+        retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        goto end;
+      } ;
+      tagVal[0] = TSDB_DATA_TYPE_NCHAR;
+      char* tagData = POINTER_SHIFT(tagVal, CHAR_BYTES);
+      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)varDataVal(tagData),
+                                                  (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
+        qError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue, strerror(errno));
+        retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
+        taosMemoryFree(tagVal);
+        goto end;
+      }
+
+      varDataSetLen(tagData, valLen);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, CHAR_BYTES + varDataTLen(tagData));
+      taosMemoryFree(tagVal);
+    }else if(item->type == cJSON_Number){
+      if(!isfinite(item->valuedouble)){
+        qError("json value is invalidate");
+        retCode =  buildSyntaxErrMsg(pMsgBuf, "json value number is illegal", json);
+        goto end;
+      }
+      char tagVal[LONG_BYTES + CHAR_BYTES] = {0};
+      tagVal[0] = (item->valuedouble - (int64_t)(item->valuedouble) == 0) ? TSDB_DATA_TYPE_BIGINT
+                                                                        : TSDB_DATA_TYPE_DOUBLE;
+      char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
+      if(tagVal[0]== TSDB_DATA_TYPE_DOUBLE) *((double *)tagData) = item->valuedouble;
+      else if(tagVal[0] == TSDB_DATA_TYPE_BIGINT) *((int64_t *)tagData) = item->valueint;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, LONG_BYTES + CHAR_BYTES);
+    }else if(item->type == cJSON_True || item->type == cJSON_False){
+      char tagVal[CHAR_BYTES + CHAR_BYTES] = {0};
+      tagVal[0] = TSDB_DATA_TYPE_BOOL;
+      tagVal[1] = (char)(item->valueint);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, CHAR_BYTES + CHAR_BYTES);
+    }else if(item->type == cJSON_NULL){
+      char tagVal[CHAR_BYTES] = {TSDB_DATA_TYPE_NULL};
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, CHAR_BYTES);
+    }
+    else{
+      retCode = buildSyntaxErrMsg(pMsgBuf, "invalidate json value", json);
+      goto end;
+    }
+  }
+
+  if(taosHashGetSize(keyHash) == 0){  // set json NULL true
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNULL, CHAR_BYTES);
+  }
+
+end:
+  taosHashCleanup(keyHash);
+  cJSON_Delete(root);
+  return retCode;
 }

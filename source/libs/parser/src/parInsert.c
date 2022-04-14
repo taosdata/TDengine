@@ -377,35 +377,15 @@ static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, cha
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
 
-  if (IS_NUMERIC_TYPE(type) && pToken->n == 0) {
-    return buildSyntaxErrMsg(pMsgBuf, "invalid numeric data", pToken->z);
-  }
-
   // Remove quotation marks
   if (TK_NK_STRING == pToken->type) {
     if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
       return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
     }
 
-    // delete escape character: \\, \', \"
-    char delim = pToken->z[0];
-    int32_t cnt = 0;
-    int32_t j = 0;
-    for (uint32_t k = 1; k < pToken->n - 1; ++k) {
-      if (pToken->z[k] == '\\' || (pToken->z[k] == delim && pToken->z[k + 1] == delim)) {
-        tmpTokenBuf[j] = pToken->z[k + 1];
-        cnt++;
-        j++;
-        k++;
-        continue;
-      }
-      tmpTokenBuf[j] = pToken->z[k];
-      j++;
-    }
-
-    tmpTokenBuf[j] = 0;
+    int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
     pToken->z = tmpTokenBuf;
-    pToken->n -= 2 + cnt;
+    pToken->n = len;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -582,6 +562,13 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       return func(pMsgBuf, pToken->z, pToken->n, param);
     }
 
+    case TSDB_DATA_TYPE_JSON: {
+      if(pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+        return buildSyntaxErrMsg(pMsgBuf, "json string too long than 4095", pToken->z);
+      }
+      return func(pMsgBuf, pToken->z, pToken->n, param);
+    }
+
     case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t tmpVal;
       if (parseTime(end, pToken, timePrec, &tmpVal, pMsgBuf) != TSDB_CODE_SUCCESS) {
@@ -702,8 +689,10 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
 
-  memset(&pColList->boundColumns[pColList->numOfBound], 0,
-         sizeof(col_id_t) * (pColList->numOfCols - pColList->numOfBound));
+  if(pColList->numOfCols > pColList->numOfBound){
+    memset(&pColList->boundColumns[pColList->numOfBound], 0,
+           sizeof(col_id_t) * (pColList->numOfCols - pColList->numOfBound));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -720,22 +709,31 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, voi
   int8_t  type = pa->schema->type;
   int16_t colId = pa->schema->colId;
 
+  if(TSDB_DATA_TYPE_JSON == type){
+    return parseJsontoTagData(value, pa->builder, pMsgBuf, colId);
+  }
+
+  if (value == NULL) {  // it is a null data
+    // tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset, pa->colIdx);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSDB_DATA_TYPE_BINARY == type) {
     STR_WITH_SIZE_TO_VARSTR(pa->buf, value, len);
-    tdAddColToKVRow(pa->builder, colId, type, pa->buf);
+    tdAddColToKVRow(pa->builder, colId, pa->buf, varDataTLen(pa->buf));
   } else if (TSDB_DATA_TYPE_NCHAR == type) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t output = 0;
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       char buf[512] = {0};
       snprintf(buf, tListLen(buf), "%s", strerror(errno));
-      return buildSyntaxErrMsg(pMsgBuf, buf, value);;
+      return buildSyntaxErrMsg(pMsgBuf, buf, value);
     }
 
     varDataSetLen(pa->buf, output);
-    tdAddColToKVRow(pa->builder, colId, type, pa->buf);
+    tdAddColToKVRow(pa->builder, colId, varDataTLen(pa->buf));
   } else {
-    tdAddColToKVRow(pa->builder, colId, type, value);
+    tdAddColToKVRow(pa->builder, colId, value, TYPE_BYTES[type]);
   }
 
   return TSDB_CODE_SUCCESS;
