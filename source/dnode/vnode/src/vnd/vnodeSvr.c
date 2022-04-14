@@ -15,7 +15,11 @@
 
 #include "vnodeInt.h"
 
-void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
+static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq);
+static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg **pRsp);
+static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
+
+void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
   SRpcMsg  *pRpc;
 
@@ -36,14 +40,9 @@ void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   }
 
   walFsync(pVnode->pWal, false);
-
-  // TODO: Integrate RAFT module here
-
-  // No results are returned because error handling is difficult
-  // return 0;
 }
 
-int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   void *ptr = NULL;
 
   if (pVnode->config.streamMode == 0) {
@@ -64,108 +63,16 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   }
 
   switch (pMsg->msgType) {
-    case TDMT_VND_CREATE_STB: {
-      SVCreateTbReq vCreateTbReq = {0};
-      tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
-      if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
-        // TODO: handle error
-      }
-
-      // TODO: to encapsule a free API
-      taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
-      taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
-      if (vCreateTbReq.stbCfg.pRSmaParam) {
-        taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
-        taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
-      }
-      taosMemoryFree(vCreateTbReq.dbFName);
-      taosMemoryFree(vCreateTbReq.name);
-      break;
-    }
-    case TDMT_VND_CREATE_TABLE: {
-      SVCreateTbBatchReq vCreateTbBatchReq = {0};
-      SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
-      tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
-      int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
-      for (int i = 0; i < reqNum; i++) {
-        SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
-
-        char      tableFName[TSDB_TABLE_FNAME_LEN];
-        SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
-        sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
-
-        int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
-        if (code) {
-          SVCreateTbRsp rsp;
-          rsp.code = code;
-
-          taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
-        }
-
-        if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
-          // TODO: handle error
-          vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
-        }
-        // TODO: to encapsule a free API
-        taosMemoryFree(pCreateTbReq->name);
-        taosMemoryFree(pCreateTbReq->dbFName);
-        if (pCreateTbReq->type == TD_SUPER_TABLE) {
-          taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
-          taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
-          if (pCreateTbReq->stbCfg.pRSmaParam) {
-            taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
-            taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
-          }
-        } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
-          taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
-        } else {
-          taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
-          if (pCreateTbReq->ntbCfg.pRSmaParam) {
-            taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam->pFuncIds);
-            taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
-          }
-        }
-      }
-
-      vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
-      taosArrayDestroy(vCreateTbBatchReq.pArray);
-      if (vCreateTbBatchRsp.rspList) {
-        int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
-        void   *msg = rpcMallocCont(contLen);
-        tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
-        taosArrayDestroy(vCreateTbBatchRsp.rspList);
-
-        *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
-        (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
-        (*pRsp)->pCont = msg;
-        (*pRsp)->contLen = contLen;
-        (*pRsp)->handle = pMsg->handle;
-        (*pRsp)->ahandle = pMsg->ahandle;
-      }
-      break;
-    }
-    case TDMT_VND_ALTER_STB: {
-      SVCreateTbReq vAlterTbReq = {0};
-      vTrace("vgId:%d, process alter stb req", pVnode->vgId);
-      tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
-      // TODO: to encapsule a free API
-      taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
-      taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
-      if (vAlterTbReq.stbCfg.pRSmaParam) {
-        taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
-        taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
-      }
-      taosMemoryFree(vAlterTbReq.dbFName);
-      taosMemoryFree(vAlterTbReq.name);
-      break;
-    }
+    case TDMT_VND_CREATE_STB:
+      return vnodeProcessCreateStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
+    case TDMT_VND_CREATE_TABLE:
+      return vnodeProcessCreateTbReq(pVnode, pMsg, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pRsp);
+    case TDMT_VND_ALTER_STB:
+      return vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
     case TDMT_VND_DROP_STB:
       vTrace("vgId:%d, process drop stb req", pVnode->vgId);
       break;
     case TDMT_VND_DROP_TABLE:
-      // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
-      //   // TODO: handle error
-      // }
       break;
     case TDMT_VND_SUBMIT:
       /*printf("vnode %d write data %ld\n", pVnode->vgId, ver);*/
@@ -199,32 +106,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-#if 0
 
-      SSmaCfg vCreateSmaReq = {0};
-      if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        vWarn("vgId:%d TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId,
-              terrstr(terrno));
-        return -1;
-      }
-      vDebug("vgId:%d TDMT_VND_CREATE_SMA msg received for %s:%" PRIi64, pVnode->config.vgId,
-             vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid);
-
-      // record current timezone of server side
-      vCreateSmaReq.tSma.timezoneInt = tsTimezone;
-
-      if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
-        // TODO: handle error
-        tdDestroyTSma(&vCreateSmaReq.tSma);
-        return -1;
-      }
-
-      tsdbTSmaAdd(pVnode->pTsdb, 1);
-
-      tdDestroyTSma(&vCreateSmaReq.tSma);
-      // TODO: return directly or go on follow steps?
-#endif
       if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO
       }
@@ -235,33 +117,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       //   if (tsdbDropTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       //     // TODO
       //   }
-#if 0    
-      tsdbTSmaSub(pVnode->pTsdb, 1);
-      SVDropTSmaReq vDropSmaReq = {0};
-      if (tDeserializeSVDropTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vDropSmaReq) == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
-      }
 
-      // TODO: send msg to stream computing to drop tSma
-      // if ((send msg to stream computing) < 0) {
-      //   tdDestroyTSma(&vCreateSmaReq);
-      //   return -1;
-      // }
-      // 
-
-      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexUid) < 0) {
-        // TODO: handle error
-        return -1;
-      }
-
-      if(tsdbDropTSmaData(pVnode->pTsdb, vDropSmaReq.indexUid) < 0) {
-        // TODO: handle error
-        return -1;
-      }
-
-      // TODO: return directly or go on follow steps?
-#endif
     } break;
     default:
       ASSERT(0);
@@ -340,5 +196,105 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   /*vInfo("sync message is processed");*/
+  return 0;
+}
+
+static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
+  SVCreateTbReq vCreateTbReq = {0};
+  tDeserializeSVCreateTbReq(pReq, &vCreateTbReq);
+  if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
+    // TODO
+    return -1;
+  }
+
+  taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
+  taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
+  if (vCreateTbReq.stbCfg.pRSmaParam) {
+    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
+    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
+  }
+  taosMemoryFree(vCreateTbReq.dbFName);
+  taosMemoryFree(vCreateTbReq.name);
+
+  return 0;
+}
+
+static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg **pRsp) {
+  SVCreateTbBatchReq vCreateTbBatchReq = {0};
+  SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
+  tDeserializeSVCreateTbBatchReq(pReq, &vCreateTbBatchReq);
+  int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
+  for (int i = 0; i < reqNum; i++) {
+    SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+
+    char      tableFName[TSDB_TABLE_FNAME_LEN];
+    SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
+    sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
+
+    int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
+    if (code) {
+      SVCreateTbRsp rsp;
+      rsp.code = code;
+
+      taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
+    }
+
+    if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
+      // TODO: handle error
+      vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
+    }
+    // TODO: to encapsule a free API
+    taosMemoryFree(pCreateTbReq->name);
+    taosMemoryFree(pCreateTbReq->dbFName);
+    if (pCreateTbReq->type == TD_SUPER_TABLE) {
+      taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
+      taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
+      if (pCreateTbReq->stbCfg.pRSmaParam) {
+        taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
+        taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
+      }
+    } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
+      taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
+    } else {
+      taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
+      if (pCreateTbReq->ntbCfg.pRSmaParam) {
+        taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam->pFuncIds);
+        taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
+      }
+    }
+  }
+
+  vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
+  taosArrayDestroy(vCreateTbBatchReq.pArray);
+  if (vCreateTbBatchRsp.rspList) {
+    int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
+    void   *msg = rpcMallocCont(contLen);
+    tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
+    taosArrayDestroy(vCreateTbBatchRsp.rspList);
+
+    *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
+    (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
+    (*pRsp)->pCont = msg;
+    (*pRsp)->contLen = contLen;
+    (*pRsp)->handle = pMsg->handle;
+    (*pRsp)->ahandle = pMsg->ahandle;
+  }
+
+  return 0;
+}
+
+static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
+  SVCreateTbReq vAlterTbReq = {0};
+  vTrace("vgId:%d, process alter stb req", pVnode->vgId);
+  tDeserializeSVCreateTbReq(pReq, &vAlterTbReq);
+  // TODO: to encapsule a free API
+  taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
+  taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
+  if (vAlterTbReq.stbCfg.pRSmaParam) {
+    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
+    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
+  }
+  taosMemoryFree(vAlterTbReq.dbFName);
+  taosMemoryFree(vAlterTbReq.name);
   return 0;
 }
