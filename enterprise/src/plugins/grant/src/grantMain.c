@@ -53,7 +53,7 @@ static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
 #if 0
 // static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 #endif
-static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 
@@ -81,11 +81,15 @@ SGrantStatus grantStatus = {
   GRANT_CPU_LIMITS
 };
 
+static int32_t mndProcessGetGrant(SNodeMsg *pReq) {
+  return 0;
+}
 int32_t mndInitGrant(SMnode *pMnode) {
   char cfgFile[PATH_MAX] = {0};
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
 
+  mndSetMsgHandle(pMnode, TDMT_MND_GRANT, mndProcessGetGrant);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
 #if 0
@@ -642,7 +646,139 @@ static void grantCheckGrantInfo(void *p1, void *p2) {
   }
 }
 
-static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+  printf("%s(%d) %s rows=%d\n", __FILE__, __LINE__,__func__,rows);
+  int32_t numOfRows = 0;
+  char *  pWrite;
+  int32_t cols = 0;
+  char    tmp[32];
+  char    tmp1[32];
+
+  if (pShow->numOfRows < 1) {
+    cols = 0;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    const char* src = grantStatus.officialVersion? "official" : "trial";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    char       expire[22] = {0};
+    time_t     tt = grantStatus.expireTimeSec;
+    struct tm *ptm = localtime(&tt);
+    strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
+    src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME? expire : "unlimited";
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, pShow->bytes[cols]);
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = grantStatus.expired? "true" : "false";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if ((uint32_t)(grantStatus.limitStorage / (int64_t)1073741824) != GRANT_STORAGE_LIMITS) {
+      sprintf(tmp1, "%u/%u", (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
+              (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (grantStatus.limitTimeSeries != GRANT_TIME_SERIES_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (grantStatus.limitDbs != GRANT_DATABASE_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantGetCulsterCurDbs(), grantStatus.limitDbs);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (grantStatus.limitUsers != GRANT_USER_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantGetCulsterCurUsers(), grantStatus.limitUsers);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (grantStatus.limitAccts != GRANT_ACCT_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantGetCulsterCurAccts(), grantStatus.limitAccts);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+    
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (grantStatus.limitDnodes != GRANT_DNODE_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantGetCulsterCurDnodes(), grantStatus.limitDnodes);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+    
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "unlimited";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "unlimited";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "unlimited";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "unlimited";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "unlimited";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    numOfRows++;
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
   // char cfgFile[PATH_MAX] = {0};
   // sprintf(cfgFile, "%s/taos.cfg", configDir);
   // grantActiveSystem(cfgFile);
@@ -757,153 +893,153 @@ static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
 
 int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
-  char *  pWrite;
-  int32_t cols = 0;
-  char    tmp[32];
+  // char *  pWrite;
+  // int32_t cols = 0;
+  // char    tmp[32];
 
-  if (pShow->numOfReads < 1) {
-    cols = 0;
+  // if (pShow->numOfReads < 1) {
+  //   cols = 0;
 
-    char       expire[22] = {0};
-    time_t     tt = grantStatus.expireTimeSec;
-    struct tm *ptm = localtime(&tt);
-    strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
+  //   char       expire[22] = {0};
+  //   time_t     tt = grantStatus.expireTimeSec;
+  //   struct tm *ptm = localtime(&tt);
+  //   strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.officialVersion) {
-      strcpy(tmp, "official");
-    } else {
-      strcpy(tmp, "trial");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.officialVersion) {
+  //     strcpy(tmp, "official");
+  //   } else {
+  //     strcpy(tmp, "trial");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.expireTimeSec != GRANT_EXPIRE_TIME) {  // 2100-01-01
-      strncpy(tmp, expire, 21);
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.expireTimeSec != GRANT_EXPIRE_TIME) {  // 2100-01-01
+  //     strncpy(tmp, expire, 21);
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.expired) {  // 2100-01-01
-      strcpy(tmp, "true");
-    } else {
-      strcpy(tmp, "false");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.expired) {  // 2100-01-01
+  //     strcpy(tmp, "true");
+  //   } else {
+  //     strcpy(tmp, "false");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if ((uint32_t)(grantStatus.limitStorage / (int64_t)1073741824) != GRANT_STORAGE_LIMITS) {
-      sprintf(tmp, "%u/%u", (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
-              (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if ((uint32_t)(grantStatus.limitStorage / (int64_t)1073741824) != GRANT_STORAGE_LIMITS) {
+  //     sprintf(tmp, "%u/%u", (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
+  //             (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.limitTimeSeries != GRANT_TIME_SERIES_LIMITS) {
-      sprintf(tmp, "%u/%u", grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.limitTimeSeries != GRANT_TIME_SERIES_LIMITS) {
+  //     sprintf(tmp, "%u/%u", grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.limitDbs != GRANT_DATABASE_LIMITS) {
-      sprintf(tmp, "%u/%u", grantGetCulsterCurDbs(), grantStatus.limitDbs);
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.limitDbs != GRANT_DATABASE_LIMITS) {
+  //     sprintf(tmp, "%u/%u", grantGetCulsterCurDbs(), grantStatus.limitDbs);
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.limitUsers != GRANT_USER_LIMITS) {
-      sprintf(tmp, "%u/%u", grantGetCulsterCurUsers(), grantStatus.limitUsers);
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.limitUsers != GRANT_USER_LIMITS) {
+  //     sprintf(tmp, "%u/%u", grantGetCulsterCurUsers(), grantStatus.limitUsers);
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.limitAccts != GRANT_ACCT_LIMITS) {
-      sprintf(tmp, "%u/%u", grantGetCulsterCurAccts(), grantStatus.limitAccts);
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.limitAccts != GRANT_ACCT_LIMITS) {
+  //     sprintf(tmp, "%u/%u", grantGetCulsterCurAccts(), grantStatus.limitAccts);
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (grantStatus.limitDnodes != GRANT_DNODE_LIMITS) {
-      sprintf(tmp, "%u/%u", grantGetCulsterCurDnodes(), grantStatus.limitDnodes);
-    } else {
-      strcpy(tmp, "unlimited");
-    }
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   if (grantStatus.limitDnodes != GRANT_DNODE_LIMITS) {
+  //     sprintf(tmp, "%u/%u", grantGetCulsterCurDnodes(), grantStatus.limitDnodes);
+  //   } else {
+  //     strcpy(tmp, "unlimited");
+  //   }
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // if (grantStatus.limitConns != GRANT_CONNECTION_LIMITS) {
-    //  sprintf(pWrite, "%u/%u", grantGetCulsterCurConns(), grantStatus.limitConns);
-    //}
-    // else {
-    strcpy(tmp, "unlimited");
-    //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   // if (grantStatus.limitConns != GRANT_CONNECTION_LIMITS) {
+  //   //  sprintf(pWrite, "%u/%u", grantGetCulsterCurConns(), grantStatus.limitConns);
+  //   //}
+  //   // else {
+  //   strcpy(tmp, "unlimited");
+  //   //}
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // if (grantStatus.limitStreams != GRANT_STREAM_LIMITS) {
-    //  sprintf(pWrite, "%u/%u", grantGetCulsterCurStreams(), grantStatus.limitStreams);
-    //}
-    // else {
-    strcpy(tmp, "unlimited");
-    //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   // if (grantStatus.limitStreams != GRANT_STREAM_LIMITS) {
+  //   //  sprintf(pWrite, "%u/%u", grantGetCulsterCurStreams(), grantStatus.limitStreams);
+  //   //}
+  //   // else {
+  //   strcpy(tmp, "unlimited");
+  //   //}
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // if (grantStatus.limitCpuCores != GRANT_CPU_LIMITS) {
-    //  sprintf(pWrite, "%u/%u", grantGetCulsterCurCpuCores(), grantStatus.limitCpuCores);
-    //}
-    // else {
-    strcpy(tmp, "unlimited");
-    //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   // if (grantStatus.limitCpuCores != GRANT_CPU_LIMITS) {
+  //   //  sprintf(pWrite, "%u/%u", grantGetCulsterCurCpuCores(), grantStatus.limitCpuCores);
+  //   //}
+  //   // else {
+  //   strcpy(tmp, "unlimited");
+  //   //}
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // if (grantStatus.limitSpeed != GRANT_WRITING_SPEED_LIMITS) {
-    //  sprintf(pWrite, "%u/%u", grantStatus.curSpeed, grantStatus.limitSpeed);
-    //}
-    // else {
-    strcpy(tmp, "unlimited");
-    //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   // if (grantStatus.limitSpeed != GRANT_WRITING_SPEED_LIMITS) {
+  //   //  sprintf(pWrite, "%u/%u", grantStatus.curSpeed, grantStatus.limitSpeed);
+  //   //}
+  //   // else {
+  //   strcpy(tmp, "unlimited");
+  //   //}
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // if (grantStatus.limitQueryTime != GRANT_QUERY_TIME_LIMITS) {
-    //  sprintf(pWrite, "%u/%u", grantStatus.curQueryTime, grantStatus.limitQueryTime);
-    //}
-    // else {
-    strcpy(tmp, "unlimited");
-    //}
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
-    cols++;
+  //   pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+  //   // if (grantStatus.limitQueryTime != GRANT_QUERY_TIME_LIMITS) {
+  //   //  sprintf(pWrite, "%u/%u", grantStatus.curQueryTime, grantStatus.limitQueryTime);
+  //   //}
+  //   // else {
+  //   strcpy(tmp, "unlimited");
+  //   //}
+  //   STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+  //   cols++;
 
-    numOfRows++;
-  }
+  //   numOfRows++;
+  // }
 
-  pShow->numOfReads += numOfRows;
+  // pShow->numOfReads += numOfRows;
   return numOfRows;
 }
