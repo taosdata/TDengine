@@ -17,7 +17,7 @@
 #include "mndAcct.h"
 #include "mndShow.h"
 
-#define TSDB_ACCT_VER_NUMBER 1
+#define TSDB_ACCT_VER_NUMBER   1
 #define TSDB_ACCT_RESERVE_SIZE 128
 
 static int32_t  mndCreateDefaultAcct(SMnode *pMnode);
@@ -80,32 +80,32 @@ static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, TSDB_ACCT_VER_NUMBER, sizeof(SAcctObj) + TSDB_ACCT_RESERVE_SIZE);
-  if (pRaw == NULL) goto ACCT_ENCODE_OVER;
+  if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, ACCT_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pAcct->createdTime, ACCT_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pAcct->updateTime, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->acctId, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->status, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxUsers, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxDbs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStbs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTbs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTimeSeries, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxFuncs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConsumers, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConns, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTopics, ACCT_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState, ACCT_ENCODE_OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, ACCT_ENCODE_OVER)
-  SDB_SET_DATALEN(pRaw, dataPos, ACCT_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->createdTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->updateTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->acctId, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->status, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxUsers, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxDbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTimeSeries, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxFuncs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConsumers, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConns, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTopics, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, _OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
 
-ACCT_ENCODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("acct:%s, failed to encode to raw:%p since %s", pAcct->acct, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -120,42 +120,42 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto ACCT_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
   if (sver != TSDB_ACCT_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto ACCT_DECODE_OVER;
+    goto _OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SAcctObj));
-  if (pRow == NULL) goto ACCT_DECODE_OVER;
+  if (pRow == NULL) goto _OVER;
 
   SAcctObj *pAcct = sdbGetRowObj(pRow);
-  if (pAcct == NULL) goto ACCT_DECODE_OVER;
+  if (pAcct == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, ACCT_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pAcct->createdTime, ACCT_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pAcct->updateTime, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->acctId, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->status, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxUsers, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxDbs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStbs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTbs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTimeSeries, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStreams, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxFuncs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConsumers, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConns, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTopics, ACCT_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pAcct->cfg.maxStorage, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.accessState, ACCT_DECODE_OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, ACCT_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pAcct->createdTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pAcct->updateTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->acctId, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->status, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxUsers, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxDbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTimeSeries, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStreams, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxFuncs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConsumers, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConns, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTopics, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pAcct->cfg.maxStorage, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.accessState, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-ACCT_DECODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("acct:%s, failed to decode from raw:%p since %s", pAcct->acct, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
