@@ -46,7 +46,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_fun_str9"
+    db = "stable_cast"
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
