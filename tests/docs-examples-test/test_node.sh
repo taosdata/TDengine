@@ -8,6 +8,9 @@ pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 cd ../../docs-examples/node
 
 npm install
+cd restexample;
+
+node connect.js
 
 cd nativeexample
 
