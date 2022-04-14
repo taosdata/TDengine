@@ -9,6 +9,50 @@ local config = {
    max_packet_size = 1024 * 1024 
 }
 
+function dump(obj)
+    local getIndent, quoteStr, wrapKey, wrapVal, dumpObj
+    getIndent = function(level)
+        return string.rep("\t", level)
+    end
+    quoteStr = function(str)
+        return '"' .. string.gsub(str, '"', '\\"') .. '"'
+    end
+    wrapKey = function(val)
+        if type(val) == "number" then
+            return "[" .. val .. "]"
+        elseif type(val) == "string" then
+            return "[" .. quoteStr(val) .. "]"
+        else
+            return "[" .. tostring(val) .. "]"
+        end
+    end
+    wrapVal = function(val, level)
+        if type(val) == "table" then
+            return dumpObj(val, level)
+        elseif type(val) == "number" then
+            return val
+        elseif type(val) == "string" then
+            return quoteStr(val)
+        else
+            return tostring(val)
+        end
+    end
+    dumpObj = function(obj, level)
+        if type(obj) ~= "table" then
+            return wrapVal(obj)
+        end
+        level = level + 1
+        local tokens = {}
+        tokens[#tokens + 1] = "{"
+        for k, v in pairs(obj) do
+            tokens[#tokens + 1] = getIndent(level) .. wrapKey(k) .. " = " .. wrapVal(v, level) .. ","
+        end
+        tokens[#tokens + 1] = getIndent(level - 1) .. "}"
+        return table.concat(tokens, "\n")
+    end
+    return dumpObj(obj, 0)
+end
+
 local conn
 local res = driver.connect(config)
 if res.code ~=0 then
@@ -75,14 +119,14 @@ else
 
 end
 
-res = driver.query(conn,"CREATE TABLE thermometer (ts timestamp, degree double) TAGS(location binary(20), type int)")
+res = driver.query(conn,"create table thermometer (ts timestamp, degree double) tags(location binary(20), type int)")
 if res.code ~=0 then
    print(res.error)
    return
 else
    print("create super table--- pass")
 end
-res = driver.query(conn,"CREATE TABLE therm1 USING thermometer TAGS ('beijing', 1)")
+res = driver.query(conn,"create table therm1 using thermometer tags ('beijing', 1)")
 if res.code ~=0 then
    print(res.error)
    return
@@ -90,7 +134,7 @@ else
    print("create table--- pass")
 end
 
-res = driver.query(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.001', 20),('2019-09-01 00:00:00.002', 21)")
+res = driver.query(conn,"insert into therm1 values ('2019-09-01 00:00:00.001', 20),('2019-09-01 00:00:00.002', 21)")
 
 if res.code ~=0 then
    print(res.error)
@@ -103,7 +147,7 @@ else
    end 
 end
 
-res = driver.query(conn,"SELECT COUNT(*) count, AVG(degree) AS av, MAX(degree), MIN(degree) FROM thermometer WHERE location='beijing' or location='tianjin' GROUP BY location, type")
+res = driver.query(conn,"select count(*) count, avg(degree) as av, max(degree), min(degree) from thermometer where location='beijing' or location='tianjin' group by location, type")
 if res.code ~=0 then
    print("select from super table--- failed:"..res.error)
    return
@@ -129,33 +173,16 @@ function async_query_callback(res)
    end
 end
 
-driver.query_a(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
+driver.query_a(conn,"insert into therm1 values ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
 
+res = driver.query(conn, "create table avg_degree as select avg(degree) from thermometer where ts > now and ts <= now + 1m interval(5s) sliding(1s)")
 
-function stream_callback(t)
-   print("------------------------")
-   print("continuous query result:")
-   for key, value in pairs(t) do
-      print("key:"..key..", value:"..value)
-   end
-end
-
-local stream
-res = driver.open_stream(conn,"SELECT COUNT(*) as count, AVG(degree) as avg, MAX(degree) as max, MIN(degree) as min FROM thermometer interval(2s) sliding(2s);)",0, stream_callback)
-if res.code ~=0 then
-   print("open stream--- failed:"..res.error)
-   return
-else
-   print("open stream--- pass")
-   stream = res.stream
-end
-
-print("From now on we start continous insert in an definite (infinite if you want) loop.")
+print("From now on we start continous insertion in an definite (infinite if you want) loop.")
 local loop_index = 0
 while loop_index < 30 do
    local t = os.time()*1000
    local v = loop_index
-   res = driver.query(conn,string.format("INSERT INTO therm1 VALUES (%d, %d)",t,v))
+   res = driver.query(conn,string.format("insert into therm1 values (%d, %d)",t,v))
 
    if res.code ~=0 then
       print("continous insertion--- failed:" .. res.error)
@@ -163,10 +190,17 @@ while loop_index < 30 do
    else
       --print("insert successfully, affected:"..res.affected)
    end
+   local res1 = driver.query(conn, string.format("select last(*) from avg_degree"))
+   if res1.code ~=0 then
+      print("select failed: "..res1.error)
+      return
+   else
+--      print(dump(res1))
+      if(#res1.item > 0) then print("avg_degree: " .. res1.item[1]["last(avg_degree_)"]) end
+   end
+
    os.execute("sleep " .. 1)
    loop_index = loop_index + 1
 end
-
-driver.close_stream(stream)
 
 driver.close(conn)

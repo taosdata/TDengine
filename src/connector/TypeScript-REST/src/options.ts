@@ -10,7 +10,7 @@ export interface User {
 }
 
 export interface Uri {
-    host: '127.0.0.1';
+    host: '127.0.0.1'|string;
     path: "/rest/sqlt" | '/rest/sqlutc' | '/rest/sql';
     port: 6041;
 }

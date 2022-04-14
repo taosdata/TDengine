@@ -5,7 +5,8 @@ namespace TDengineExample
 {
     public class AsyncQueryExample
     {
-        static void Main() { 
+        static void Main()
+        {
             IntPtr conn = GetConnection();
             QueryAsyncCallback queryAsyncCallback = new QueryAsyncCallback(QueryCallback);
             TDengine.QueryAsync(conn, "select * from meters", queryAsyncCallback, IntPtr.Zero);
