@@ -110,43 +110,6 @@ int  vnodeScheduleTask(SVnodeTask* task);
 int  vnodeQueryOpen(SVnode* pVnode);
 void vnodeQueryClose(SVnode* pVnode);
 
-#define vFatal(...)                                              \
-  do {                                                           \
-    if (vDebugFlag & DEBUG_FATAL) {                              \
-      taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                            \
-  } while (0)
-#define vError(...)                                              \
-  do {                                                           \
-    if (vDebugFlag & DEBUG_ERROR) {                              \
-      taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                            \
-  } while (0)
-#define vWarn(...)                                             \
-  do {                                                         \
-    if (vDebugFlag & DEBUG_WARN) {                             \
-      taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                          \
-  } while (0)
-#define vInfo(...)                                        \
-  do {                                                    \
-    if (vDebugFlag & DEBUG_INFO) {                        \
-      taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                     \
-  } while (0)
-#define vDebug(...)                                                  \
-  do {                                                               \
-    if (vDebugFlag & DEBUG_DEBUG) {                                  \
-      taosPrintLog("VND ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); \
-    }                                                                \
-  } while (0)
-#define vTrace(...)                                                  \
-  do {                                                               \
-    if (vDebugFlag & DEBUG_TRACE) {                                  \
-      taosPrintLog("VND ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); \
-    }                                                                \
-  } while (0)
-
 // vnodeCfg.h
 extern const SVnodeCfg defaultVnodeOptions;
 
@@ -217,6 +180,8 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t wo
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+
+#include "vnd.h"
 
 #include "meta.h"
 

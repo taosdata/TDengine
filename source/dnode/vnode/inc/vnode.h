@@ -113,9 +113,6 @@ int     tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockIn
 SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
 
 // need to reposition
-typedef struct SMgmtWrapper SMgmtWrapper;
-
-int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg);
 
 // structs
 struct SMetaCfg {
