@@ -160,9 +160,9 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
   // set vgroup epset
   SNewVgroupInfo vgroupInfo = {0};
   taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pVgroupMsg->vgId, sizeof(pVgroupMsg->vgId), NULL, &vgroupInfo);
-  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pNew->epSet, &vgroupInfo);
 
-  tscInfo("0x%"PRIx64":CDEL new sub delete for vgroup id:%d pSql->epSet.inUse=%d fqdn=%s", pSql->self, pVgroupMsg->vgId, pSql->epSet.inUse, pSql->epSet.fqdn[pSql->epSet.inUse]);
+  tscInfo("0x%"PRIx64":CDEL new sub delete for vgroup id:%d pSql->epSet.inUse=%d fqdn=%s", pSql->self, pVgroupMsg->vgId, pNew->epSet.inUse, pNew->epSet.fqdn[pNew->epSet.inUse]);
   return pNew;
 }
 
