@@ -57,7 +57,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
 
-        targetPath = buildPath + "/../tests/examples/lua"
+        targetPath = buildPath + "/../examples/lua"
         tdLog.info(targetPath)
         currentPath = os.getcwd()
         os.chdir(targetPath)
