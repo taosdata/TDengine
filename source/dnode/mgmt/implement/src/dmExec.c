@@ -25,7 +25,7 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
   return required;
 }
 
-static int32_t dmInitNodeProc(SMgmtWrapper *pWrapper) {
+static int32_t dmInitParentProc(SMgmtWrapper *pWrapper) {
   int32_t shmsize = tsMnodeShmSize;
   if (pWrapper->ntype == VNODE) {
     shmsize = tsVnodeShmSize;
@@ -82,20 +82,37 @@ static int32_t dmNewNodeProc(SMgmtWrapper *pWrapper, EDndNodeType n) {
   return 0;
 }
 
-static int32_t dmRunNodeProc(SMgmtWrapper *pWrapper) {
+static int32_t dmRunParentProc(SMgmtWrapper *pWrapper) {
   if (pWrapper->pDnode->ntype == NODE_END) {
-    dInfo("node:%s, should be started manually", pWrapper->name);
+    dInfo("node:%s, should be started manually in child process", pWrapper->name);
   } else {
     if (dmNewNodeProc(pWrapper, pWrapper->ntype) != 0) {
       return -1;
     }
   }
-
   if (taosProcRun(pWrapper->procObj) != 0) {
     dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
     return -1;
   }
+  return 0;
+}
 
+static int32_t dmInitChildProc(SMgmtWrapper *pWrapper) {
+  SProcCfg cfg = dmGenProcCfg(pWrapper);
+  cfg.isChild = true;
+  pWrapper->procObj = taosProcInit(&cfg);
+  if (pWrapper->procObj == NULL) {
+    dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
+    return -1;
+  }
+  return 0;
+}
+
+static int32_t dmRunChildProc(SMgmtWrapper *pWrapper) {
+  if (taosProcRun(pWrapper->procObj) != 0) {
+    dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
+    return -1;
+  }
   return 0;
 }
 
@@ -111,23 +128,16 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
     }
-
+    if (pWrapper->procType == DND_PROC_CHILD) {
+      if (dmInitChildProc(pWrapper) != 0) return -1;
+      if (dmRunChildProc(pWrapper) != 0) return -1;
+    }
     dDebug("node:%s, has been opened", pWrapper->name);
     pWrapper->deployed = true;
   } else {
-    if (dmInitNodeProc(pWrapper) != 0) return -1;
+    if (dmInitParentProc(pWrapper) != 0) return -1;
     if (dmWriteShmFile(pWrapper) != 0) return -1;
-    if (dmRunNodeProc(pWrapper) != 0) return -1;
-  }
-
-  if (pWrapper->procType == DND_PROC_CHILD) {
-    SProcCfg cfg = dmGenProcCfg(pWrapper);
-    cfg.isChild = true;
-    pWrapper->procObj = taosProcInit(&cfg);
-    if (pWrapper->procObj == NULL) {
-      dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
-      return -1;
-    }
+    if (dmRunParentProc(pWrapper) != 0) return -1;
   }
 
   return 0;
@@ -138,10 +148,6 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     dInfo("node:%s, not start in parent process", pWrapper->name);
   } else if (pWrapper->procType == DND_PROC_CHILD) {
     dInfo("node:%s, start in child process", pWrapper->name);
-    if (taosProcRun(pWrapper->procObj) != 0) {
-      dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
-      return -1;
-    }
   } else {
     if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());

@@ -78,10 +78,11 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
   if (pWrapper->procType == DND_PROC_SINGLE) {
-    dTrace("msg:%p, is created, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
+    dTrace("msg:%p, is created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
     code = (*msgFp)(pWrapper, pMsg);
   } else if (pWrapper->procType == DND_PROC_PARENT) {
-    dTrace("msg:%p, is created and put into child queue, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
+    dTrace("msg:%p, is created and put into child queue, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType),
+           pRpc->handle, pMsg->user);
     code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, pRpc->handle,
                                PROC_FUNC_REQ);
   } else {
@@ -97,7 +98,7 @@ _OVER:
       rpcFreeCont(pRpc->pCont);
     }
   } else {
-    dError("msg:%p, failed to process since 0x%04x:%s", pMsg, code & 0XFFFF, terrstr());
+    dError("msg:%p, type:%s failed to process since 0x%04x:%s", pMsg, TMSG_INFO(msgType), code & 0XFFFF, terrstr());
     if (msgType & 1U) {
       if (terrno != 0) code = terrno;
       if (code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_NODE_OFFLINE) {

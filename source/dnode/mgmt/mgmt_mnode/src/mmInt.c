@@ -98,53 +98,6 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
   return 0;
 }
 
-static int32_t mmOpenImp(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq) {
-  SMnodeOpt option = {0};
-  if (pReq != NULL) {
-    if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
-      return -1;
-    }
-  } else {
-    bool deployed = false;
-    if (mmReadFile(pMgmt, &deployed) != 0) {
-      dError("failed to read file since %s", terrstr());
-      return -1;
-    }
-
-    if (!deployed) {
-      dInfo("mnode start to deploy");
-      if (pMgmt->pWrapper->procType == DND_PROC_CHILD) {
-        pMgmt->pDnode->data.dnodeId = 1;
-      }
-      mmBuildOptionForDeploy(pMgmt, &option);
-    } else {
-      dInfo("mnode start to open");
-      mmBuildOptionForOpen(pMgmt, &option);
-    }
-  }
-
-  pMgmt->pMnode = mndOpen(pMgmt->path, &option);
-  if (pMgmt->pMnode == NULL) {
-    dError("failed to open mnode since %s", terrstr());
-    return -1;
-  }
-
-  if (mmStartWorker(pMgmt) != 0) {
-    dError("failed to start mnode worker since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-static void mmCloseImp(SMnodeMgmt *pMgmt) {
-  if (pMgmt->pMnode != NULL) {
-    mmStopWorker(pMgmt);
-    mndClose(pMgmt->pMnode);
-    pMgmt->pMnode = NULL;
-  }
-}
-
 int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
   SMnodeOpt option = {0};
   if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
@@ -153,37 +106,23 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
   return mndAlter(pMgmt->pMnode, &option);
 }
 
-int32_t mmDrop(SMgmtWrapper *pWrapper) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return 0;
-
-  dInfo("mnode-mgmt start to drop");
-  // bool deployed = false;
-  // if (mmWriteFile(pMgmt, deployed) != 0) {
-  //   dError("failed to drop mnode since %s", terrstr());
-  //   return -1;
-  // }
-
-  mmCloseImp(pMgmt);
-  taosRemoveDir(pMgmt->path);
-  pWrapper->pMgmt = NULL;
-  taosMemoryFree(pMgmt);
-  dInfo("mnode-mgmt is dropped");
-  return 0;
-}
-
 static void mmClose(SMgmtWrapper *pWrapper) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
   dInfo("mnode-mgmt start to cleanup");
-  mmCloseImp(pMgmt);
+  if (pMgmt->pMnode != NULL) {
+    mmStopWorker(pMgmt);
+    mndClose(pMgmt->pMnode);
+    pMgmt->pMnode = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("mnode-mgmt is cleaned up");
 }
 
-int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq) {
+static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   dInfo("mnode-mgmt start to init");
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
@@ -201,18 +140,41 @@ int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq) {
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
 
-  int32_t code = mmOpenImp(pMgmt, pReq);
-  if (code != 0) {
-    dError("failed to init mnode-mgmt since %s", terrstr());
+  bool deployed = false;
+  if (mmReadFile(pMgmt, &deployed) != 0) {
+    dError("failed to read file since %s", terrstr());
     mmClose(pWrapper);
-  } else {
-    dInfo("mnode-mgmt is initialized");
+    return -1;
   }
 
-  return code;
-}
+  SMnodeOpt option = {0};
+  if (!deployed) {
+    dInfo("mnode start to deploy");
+    if (pWrapper->procType == DND_PROC_CHILD) {
+      pWrapper->pDnode->data.dnodeId = 1;
+    }
+    mmBuildOptionForDeploy(pMgmt, &option);
+  } else {
+    dInfo("mnode start to open");
+    mmBuildOptionForOpen(pMgmt, &option);
+  }
 
-static int32_t mmOpen(SMgmtWrapper *pWrapper) { return mmOpenFromMsg(pWrapper, NULL); }
+  pMgmt->pMnode = mndOpen(pMgmt->path, &option);
+  if (pMgmt->pMnode == NULL) {
+    dError("failed to open mnode since %s", terrstr());
+    mmClose(pWrapper);
+    return -1;
+  }
+
+  if (mmStartWorker(pMgmt) != 0) {
+    dError("failed to start mnode worker since %s", terrstr());
+    mmClose(pWrapper);
+    return -1;
+  }
+
+  dInfo("mnode-mgmt is initialized");
+  return 0;
+}
 
 static int32_t mmStart(SMgmtWrapper *pWrapper) {
   dDebug("mnode-mgmt start to run");

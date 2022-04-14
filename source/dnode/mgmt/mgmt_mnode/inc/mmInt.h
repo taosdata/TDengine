@@ -44,8 +44,6 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
 int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deployed);
 
 // mmInt.c
-int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq);
-int32_t mmDrop(SMgmtWrapper *pWrapper);
 int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq);
 
 // mmHandle.c
