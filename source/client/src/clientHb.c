@@ -648,7 +648,7 @@ int hbMgrInit() {
   hbMgrInitHandle();
 
   // init backgroud thread
-  hbCreateThread();
+  //hbCreateThread();
 
   return 0;
 }
