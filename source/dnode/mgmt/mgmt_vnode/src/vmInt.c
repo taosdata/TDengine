@@ -299,7 +299,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     goto _OVER;
   }
 
-  if (vnodeInit() != 0) {
+  if (vnodeInit(tsNumOfCommitThreads) != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;
   }

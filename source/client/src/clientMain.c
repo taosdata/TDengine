@@ -463,25 +463,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   if (res == NULL) {
     return 0;
   }
-  if (TD_RES_QUERY(res)) {
-    SRequestObj *pRequest = (SRequestObj *)res;
-
-    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
-        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      return 0;
-    }
-
-    doFetchRows(pRequest, false, false);
-
-    SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
-
-    pResultInfo->current = pResultInfo->numOfRows;
-    (*numOfRows) = pResultInfo->numOfRows;
-    (*pData) = (void *)pResultInfo->pData;
-
-    return 0;
-
-  } else if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
     if (pResultInfo == NULL) return -1;
 
@@ -489,11 +471,24 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     (*numOfRows) = pResultInfo->numOfRows;
     (*pData) = (void *)pResultInfo->pData;
     return 0;
-
-  } else {
-    ASSERT(0);
-    return -1;
   }
+
+  SRequestObj *pRequest = (SRequestObj *)res;
+
+  if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+    return 0;
+  }
+
+  doFetchRows(pRequest, false, false);
+
+  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  pResultInfo->current = pResultInfo->numOfRows;
+  (*numOfRows) = pResultInfo->numOfRows;
+  (*pData) = (void *)pResultInfo->pData;
+
+  return 0;
 }
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
