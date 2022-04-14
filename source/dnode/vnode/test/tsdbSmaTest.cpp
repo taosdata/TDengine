@@ -409,7 +409,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   EXPECT_EQ(tdScanAndConvertSubmitMsg(pMsg), TSDB_CODE_SUCCESS);
 
-  EXPECT_EQ(tsdbUpdateSmaWindow(pTsdb, pMsg), 0);
+  EXPECT_EQ(tsdbUpdateSmaWindow(pTsdb, pMsg, 0), 0);
 
   // init
   const int32_t  tSmaGroupSize = 4;
