@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sync.h"
 #include "vnodeInt.h"
 // #include "vnodeInt.h"
 

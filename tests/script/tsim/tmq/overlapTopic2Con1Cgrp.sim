@@ -84,7 +84,7 @@ endi
 
 print =============== create child table
 $tbPrefix = ct
-$tbNum = 100
+$tbNum = 10
 
 $i = 0
 while $i < $tbNum
@@ -101,7 +101,7 @@ print =============== 1. columns from stb/ctb/ntb; 2. * from ctb/ntb; 3. functio
 print =============== will support: * from stb
 
 sql create topic topic_stb_column as select ts, c1, c3 from stb
-#sql create topic topic_stb_all as select * from stb
+sql create topic topic_stb_all as select sqrt(c1) from stb
 sql create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb
 
 sql create topic topic_ctb_column as select ts, c1, c3 from ct0
@@ -113,46 +113,37 @@ sql create topic topic_ntb_all as select * from ntb
 sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb
 
 sql show tables
-if $rows != 101 then 
+if $rows != 11 then 
   return -1
 endi
 
-print =============== run_back insert data
+print =============== insert data
+$rowNum = 100
+$tstart = 1640966400000  # 2022-01-01 00:00:00.000
 
-if $loop_cnt == 0 then 
-  run_back tsim/tmq/insertFixedDataV2.sim
-else
-  run_back tsim/tmq/insertFixedDataV4.sim
-endi
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
 
-#sleep 1000
+  $x = 0
+  while $x < $rowNum
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
 
-#$rowNum = 1000
-#$tstart = 1640966400000  # 2022-01-01 00:00:00.000
-#
-#$i = 0
-#while $i < $tbNum
-#  $tb = $tbPrefix . $i
-#
-#  $x = 0
-#  while $x < $rowNum
-#    $c = $x / 10
-#    $c = $c * 10
-#    $c = $x - $c
-#
-#    $binary = ' . binary
-#    $binary = $binary . $c
-#    $binary = $binary . '
-#
-#    sql insert into $tb values ($tstart , $c , $x , $binary )
-#    sql insert into ntb values ($tstart , $c , $x , $binary )
-#    $tstart = $tstart + 1
-#    $x = $x + 1
-#  endw
-#
-#  $i = $i + 1
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    sql insert into $tb values ($tstart , $c , $x , $binary )
+    sql insert into ntb values ($tstart , $c , $x , $binary )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
 #  $tstart = 1640966400000
-#endw
+endw
 
 #root@trd02 /home $ tmq_sim --help                                                                          
 # -c      Configuration directory, default is 
@@ -162,16 +153,14 @@ endi
 # -g      showMsgFlag, default is 0
 #        
 
-$tbNum = 10
-$consumeDelay = 5
-$expectMsgCntFromCtb = 1000
-$expectMsgCntFromNtb = 1000
-$expectMsgCntFromStb = $expectMsgCntFromCtb * $tbNum
-print consumeDelay: $consumeDelay
-print insert data child num: $tbNum
-print expectMsgCntFromCtb: $expectMsgCntFromCtb 
-print expectMsgCntFromStb: $expectMsgCntFromStb 
+$consumeDelay = 2
 
+$expectMsgCntFromCtb = $rowNum
+$expectMsgCntFromStb = $rowNum * $tbNum
+$expectMsgCntFromNtb = $rowNum * $tbNum
+print expectMsgCntFromCtb: $expectMsgCntFromCtb
+print expectMsgCntFromStb: $expectMsgCntFromStb
+print expectMsgCntFromNtb: $expectMsgCntFromNtb
 
 # supported key:
 # group.id:<xxx>
@@ -182,54 +171,63 @@ print expectMsgCntFromStb: $expectMsgCntFromStb
 # td.connect.pass:taosdata
 # td.connect.port:6030
 # td.connect.db:db
-
-$numOfTopics = 2
-$expectMsgCntFromStb = $expectMsgCntFromStb * $numOfTopics
-$expect_result = @{consume success: @
-$expect_result = $expect_result . $expectMsgCntFromStb
-$expect_result = $expect_result . @, @ 
-$expect_result = $expect_result . 0}
-print expect_result----> $expect_result
-#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
-#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
-print cmd result----> $system_content
-#if $system_content != @{consume success: 20000, 0}@ then
-if $system_content != $expect_result then
-  return -1
-endi
-
+ 
 $numOfTopics = 3
-$expectMsgCntFromCtb = $expectMsgCntFromCtb * $numOfTopics
+$totalMsgCntOfmultiTopics = $expectMsgCntFromStb * $numOfTopics
 $expect_result = @{consume success: @
-$expect_result = $expect_result . $expectMsgCntFromCtb
+$expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg2" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 2
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg2" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 2
 print cmd result----> $system_content
-#if $system_content != @{consume success: 300, 0}@ then
-if $system_content != $expect_result then
+if $system_content != success then
   return -1
 endi
 
-$numOfTopics = 3
-$expectMsgCntFromNtb = $expectMsgCntFromNtb * $tbNum
-$expectMsgCntFromNtb = $expectMsgCntFromNtb * $numOfTopics
-$expect_result = @{consume success: @
-$expect_result = $expect_result . $expectMsgCntFromNtb
-$expect_result = $expect_result . @, @ 
-$expect_result = $expect_result . 0}
-print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg1" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 3
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg1" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 3
 print cmd result----> $system_content
-#if $system_content != @{consume success: 30000, 0}@ then
-if $system_content != $expect_result then
+if $system_content != success then
   return -1
 endi
+
+#$numOfTopics = 3
+#$totalMsgCntOfmultiTopics = $rowNum * $numOfTopics
+#$expect_result = @{consume success: @
+#$expect_result = $expect_result . $totalMsgCntOfmultiTopics
+#$expect_result = $expect_result . @, @ 
+#$expect_result = $expect_result . 0}
+#print expect_result----> $expect_result
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 4
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 4
+print cmd result----> $system_content
+if $system_content != success then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function" -k "group.id:tg1" -t "topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 3
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function" -k "group.id:tg1" -t "topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 3
+print cmd result----> $system_content
+if $system_content != success then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 4
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 4
+print cmd result----> $system_content
+if $system_content != success then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function" -k "group.id:tg1" -t "topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 3
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function" -k "group.id:tg1" -t "topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 3
+print cmd result----> $system_content
+if $system_content != success then
+  return -1
+endi
+
 
 if $loop_cnt == 0 then
   $loop_cnt = 1

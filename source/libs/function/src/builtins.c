@@ -424,6 +424,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "timediff",
+    .type = FUNCTION_TYPE_TIMEDIFF,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .checkFunc    = checkAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = timeDiffFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -649,6 +659,10 @@ int32_t checkAndGetResultType(SFunctionNode* pFunc) {
     }
     case FUNCTION_TYPE_TIMETRUNCATE: {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+      break;
+    }
+    case FUNCTION_TYPE_TIMEDIFF: {
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
       break;
     }
 

@@ -485,7 +485,7 @@ typedef struct {
   char    intervalUnit;
   char    slidingUnit;
   char
-          offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -2366,11 +2366,10 @@ typedef struct {
 } SMqSubVgEp;
 
 typedef struct {
-  char        topic[TSDB_TOPIC_FNAME_LEN];
-  int8_t      isSchemaAdaptive;
-  SArray*     vgs;  // SArray<SMqSubVgEp>
-  int32_t     numOfFields;
-  TAOS_FIELD* fields;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t         isSchemaAdaptive;
+  SArray*        vgs;  // SArray<SMqSubVgEp>
+  SSchemaWrapper schema;
 } SMqSubTopicEp;
 
 typedef struct {
@@ -2384,6 +2383,53 @@ typedef struct {
   SSchemaWrapper* schema;
   SArray*         pBlockData;  // SArray<SSDataBlock>
 } SMqPollRsp;
+
+typedef struct {
+  SMqRspHead head;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  int32_t    dataLen;
+  SArray*    blockPos;   // beginning pos for each SRetrieveTableRsp
+  void*      blockData;  // serialized batched SRetrieveTableRsp
+} SMqPollRspV2;
+
+static FORCE_INLINE int32_t tEncodeSMqPollRspV2(void** buf, const SMqPollRspV2* pRsp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
+  tlen += taosEncodeFixedI32(buf, pRsp->dataLen);
+  if (pRsp->dataLen != 0) {
+    int32_t sz = taosArrayGetSize(pRsp->blockPos);
+    tlen += taosEncodeFixedI32(buf, sz);
+    for (int32_t i = 0; i < sz; i++) {
+      int32_t blockPos = *(int32_t*)taosArrayGet(pRsp->blockPos, i);
+      tlen += taosEncodeFixedI32(buf, blockPos);
+    }
+    tlen += taosEncodeBinary(buf, pRsp->blockData, pRsp->dataLen);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqPollRspV2(const void* buf, SMqPollRspV2* pRsp) {
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
+  buf = taosDecodeFixedI32(buf, &pRsp->dataLen);
+  if (pRsp->dataLen != 0) {
+    int32_t sz;
+    buf = taosDecodeFixedI32(buf, &sz);
+    pRsp->blockPos = taosArrayInit(sz, sizeof(int32_t));
+    for (int32_t i = 0; i < sz; i++) {
+      int32_t blockPos;
+      buf = taosDecodeFixedI32(buf, &blockPos);
+      taosArrayPush(pRsp->blockPos, &blockPos);
+    }
+    buf = taosDecodeBinary(buf, &pRsp->blockData, pRsp->dataLen);
+  }
+  return (void*)buf;
+}
 
 typedef struct {
   SMqRspHead head;
@@ -2422,8 +2468,7 @@ static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp
     SMqSubVgEp* pVgEp = (SMqSubVgEp*)taosArrayGet(pTopicEp->vgs, i);
     tlen += tEncodeSMqSubVgEp(buf, pVgEp);
   }
-  tlen += taosEncodeFixedI32(buf, pTopicEp->numOfFields);
-  // tlen += taosEncodeBinary(buf, pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
+  tlen += taosEncodeSSchemaWrapper(buf, &pTopicEp->schema);
   return tlen;
 }
 
@@ -2441,8 +2486,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
     buf = tDecodeSMqSubVgEp(buf, &vgEp);
     taosArrayPush(pTopicEp->vgs, &vgEp);
   }
-  buf = taosDecodeFixedI32(buf, &pTopicEp->numOfFields);
-  // buf = taosDecodeBinary(buf, (void**)&pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
+  buf = taosDecodeSSchemaWrapper(buf, &pTopicEp->schema);
   return buf;
 }
 

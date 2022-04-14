@@ -171,20 +171,24 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doFetchRow(pRequest, true, true);
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj      *msg = ((SMqRspObj *)res);
+    SMqRspObj *msg = ((SMqRspObj *)res);
+    if (msg->resIter == -1) msg->resIter++;
     SReqResultInfo *pResultInfo = taosArrayGet(msg->res, msg->resIter);
-
-    doSetOneRowPtr(pResultInfo);
-    pResultInfo->current += 1;
-
-    if (pResultInfo->row == NULL) {
-      msg->resIter++;
-      pResultInfo = taosArrayGet(msg->res, msg->resIter);
+    if (pResultInfo->current < pResultInfo->numOfRows) {
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
+      return pResultInfo->row;
+    } else {
+      msg->resIter++;
+      if (msg->resIter < taosArrayGetSize(msg->res)) {
+        pResultInfo = taosArrayGet(msg->res, msg->resIter);
+        doSetOneRowPtr(pResultInfo);
+        pResultInfo->current += 1;
+        return pResultInfo->row;
+      } else {
+        return NULL;
+      }
     }
-
-    return pResultInfo->row;
 
   } else {
     // assert to avoid uninitialization error
@@ -465,7 +469,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
       return 0;
     }
 
-    doFetchRow(pRequest, false, false);
+    doFetchRow(pRequest, false, true);
 
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 

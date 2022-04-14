@@ -14,7 +14,6 @@
  */
 
 #include "vnodeInt.h"
-#include "tcoding.h"
 
 int metaValidateTbCfg(SMeta *pMeta, const STbCfg *pTbOptions) {
   // TODO
