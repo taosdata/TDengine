@@ -87,7 +87,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pass = TSDB_DEFAULT_PASS;
   }
 
-  return taos_connect_internal(ip, user, pass, NULL, db, port);
+  return taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
 }
 
 void taos_close(TAOS *taos) {
@@ -124,8 +124,10 @@ const char *taos_errstr(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
-  SRequestObj *pRequest = (SRequestObj *)res;
-  destroyRequest(pRequest);
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    destroyRequest(pRequest);
+  }
 }
 
 int taos_field_count(TAOS_RES *res) {
@@ -465,26 +467,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   if (res == NULL) {
     return 0;
   }
-
-  if (TD_RES_QUERY(res)) {
-    SRequestObj *pRequest = (SRequestObj *)res;
-
-    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
-        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      return 0;
-    }
-
-    doFetchRows(pRequest, false, false);
-
-    SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
-
-    pResultInfo->current = pResultInfo->numOfRows;
-    (*numOfRows) = pResultInfo->numOfRows;
-    (*pData) = (void *)pResultInfo->pData;
-
-    return 0;
-
-  } else if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
     if (pResultInfo == NULL) return -1;
 
@@ -492,11 +475,24 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     (*numOfRows) = pResultInfo->numOfRows;
     (*pData) = (void *)pResultInfo->pData;
     return 0;
-
-  } else {
-    ASSERT(0);
-    return -1;
   }
+
+  SRequestObj *pRequest = (SRequestObj *)res;
+
+  if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+    return 0;
+  }
+
+  doFetchRows(pRequest, false, false);
+
+  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  pResultInfo->current = pResultInfo->numOfRows;
+  (*numOfRows) = pResultInfo->numOfRows;
+  (*pData) = (void *)pResultInfo->pData;
+
+  return 0;
 }
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {

@@ -11,7 +11,7 @@
 #include "tref.h"
 
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
-static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
+static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest, int8_t connType);
 static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
@@ -40,10 +40,10 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
 }
 
 static STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
-                                SAppInstInfo* pAppInfo);
+                                SAppInstInfo* pAppInfo, int connType);
 
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
-                            uint16_t port) {
+                            uint16_t port, int connType) {
   if (taos_init() != TSDB_CODE_SUCCESS) {
     return NULL;
   }
@@ -111,7 +111,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   taosThreadMutexUnlock(&appInfo.mutex);
 
   taosMemoryFreeClear(key);
-  return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst);
+  return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
 }
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest) {
@@ -418,7 +418,7 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
 }
 
 STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
-                         SAppInstInfo* pAppInfo) {
+                         SAppInstInfo* pAppInfo, int connType) {
   STscObj* pTscObj = createTscObj(user, auth, db, pAppInfo);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -432,7 +432,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return NULL;
   }
 
-  SMsgSendInfo* body = buildConnectMsg(pRequest);
+  SMsgSendInfo* body = buildConnectMsg(pRequest, connType);
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
@@ -455,7 +455,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   return pTscObj;
 }
 
-static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
+static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest, int8_t connType) {
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -478,6 +478,7 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   }
   taosMemoryFreeClear(db);
 
+  connectReq.connType = connType;
   connectReq.pid = htonl(appInfo.pid);
   connectReq.startTime = htobe64(appInfo.startTime);
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
@@ -563,7 +564,7 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     return NULL;
   }
 
-  return taos_connect_internal(ip, user, NULL, auth, db, port);
+  return taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
 }
 
 TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
@@ -595,12 +596,15 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
         pResultInfo->row[i] = varDataVal(pStart);
       } else {
         pResultInfo->row[i] = NULL;
+        pResultInfo->length[i] = 0;
       }
     } else {
       if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
         pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
+        pResultInfo->length[i] = bytes;
       } else {
         pResultInfo->row[i] = NULL;
+        pResultInfo->length[i] = 0;
       }
     }
   }
