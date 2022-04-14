@@ -18,11 +18,6 @@
 const SMetaCfg defaultMetaOptions = {.lruSize = 0};
 
 /* ------------------------ EXPOSED METHODS ------------------------ */
-void metaOptionsInit(SMetaCfg *pMetaOptions) { metaOptionsCopy(pMetaOptions, &defaultMetaOptions); }
-
-void metaOptionsClear(SMetaCfg *pMetaOptions) {
-  // TODO
-}
 
 int metaValidateOptions(const SMetaCfg *pMetaOptions) {
   // TODO

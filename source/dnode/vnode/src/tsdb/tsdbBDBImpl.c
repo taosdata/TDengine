@@ -16,9 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #include "db.h"
 
-#include "taoserror.h"
-#include "tcoding.h"
-#include "thash.h"
+#include "vnodeInt.h"
 
 #define IMPL_WITH_LOCK 1
 
@@ -139,7 +137,7 @@ int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *key, uint32_t keySize, void *data, 
   return 0;
 }
 
-void *tsdbGetSmaDataByKey(SDBFile *pDBF, void* key, uint32_t keySize, uint32_t *valueSize) {
+void *tsdbGetSmaDataByKey(SDBFile *pDBF, void *key, uint32_t keySize, uint32_t *valueSize) {
   void *result = NULL;
   DBT   key1 = {0};
   DBT   value1 = {0};

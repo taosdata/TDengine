@@ -14,13 +14,13 @@
  */
 #include "vnodeInt.h"
 // TODO:replace by an abstract file layer
-#include <fcntl.h>
-#include <string.h>
-#include <unistd.h>
-#include "osDir.h"
+// #include <fcntl.h>
+// #include <string.h>
+// #include <unistd.h>
+// #include "osDir.h"
 
 #define TQ_META_NAME "tq.meta"
-#define TQ_IDX_NAME "tq.idx"
+#define TQ_IDX_NAME  "tq.idx"
 
 static int32_t tqHandlePutCommitted(STqMetaStore*, int64_t key, void* value);
 static void*   tqHandleGetUncommitted(STqMetaStore*, int64_t key);

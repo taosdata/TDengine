@@ -2370,11 +2370,10 @@ typedef struct {
 } SMqSubVgEp;
 
 typedef struct {
-  char        topic[TSDB_TOPIC_FNAME_LEN];
-  int8_t      isSchemaAdaptive;
-  SArray*     vgs;  // SArray<SMqSubVgEp>
-  int32_t     numOfFields;
-  TAOS_FIELD* fields;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t         isSchemaAdaptive;
+  SArray*        vgs;  // SArray<SMqSubVgEp>
+  SSchemaWrapper schema;
 } SMqSubTopicEp;
 
 typedef struct {
@@ -2473,8 +2472,7 @@ static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp
     SMqSubVgEp* pVgEp = (SMqSubVgEp*)taosArrayGet(pTopicEp->vgs, i);
     tlen += tEncodeSMqSubVgEp(buf, pVgEp);
   }
-  tlen += taosEncodeFixedI32(buf, pTopicEp->numOfFields);
-  // tlen += taosEncodeBinary(buf, pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
+  tlen += taosEncodeSSchemaWrapper(buf, &pTopicEp->schema);
   return tlen;
 }
 
@@ -2492,8 +2490,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
     buf = tDecodeSMqSubVgEp(buf, &vgEp);
     taosArrayPush(pTopicEp->vgs, &vgEp);
   }
-  buf = taosDecodeFixedI32(buf, &pTopicEp->numOfFields);
-  // buf = taosDecodeBinary(buf, (void**)&pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
+  buf = taosDecodeSSchemaWrapper(buf, &pTopicEp->schema);
   return buf;
 }
 
