@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "taos-error",
+  "taos-macros",
   "taos-sys",
   "taos",
 ]
@@ -18,17 +19,17 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bitvec_simd = "0.20.5"
 chrono-tz = { version = "0.6.1", features = ["serde"] }
 clap = { version = "3.1.6", features = ["derive", "env"] }
-serde = { version = "1", features = ["derive"] }
-url = { version = "2", features = ["serde"] }
-tokio = { version = "1", features = ["full"] }
-taos = { path = "taos" }
-taos-sys = { path = "taos-sys"}
 futures = "0.3.21"
-libtaos = "*"
-parquet = "11.0.0"
 glob = "0.3.0"
-bitvec_simd = "0.20.5"
+libtaos = "*"
 log = "0.4.16"
+parquet = "11.0.0"
+serde = { version = "1", features = ["derive"] }
 simple_logger = "2.1.0"
+taos = { path = "taos" }
+taos-sys = { path = "taos-sys" }
+tokio = { version = "1", features = ["full"] }
+url = { version = "2", features = ["serde"] }

@@ -87,7 +87,7 @@ impl<'query> QueryFuture<'query> {
         unsafe {
             taos_query_a(
                 taos.0,
-                sql.into_c_str().as_ptr(),
+                dbg!(sql.into_c_str()).as_ptr(),
                 async_query_callback as _,
                 Box::into_raw(Box::new(shared_state.clone())) as *mut _,
             );

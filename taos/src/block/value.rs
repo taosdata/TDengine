@@ -1,14 +1,4 @@
-use std::{
-    any::type_name,
-    borrow::Borrow,
-    fmt::{self, Binary, Debug},
-    ops::Deref,
-};
-
-use serde::{
-    de::{VariantAccess, Visitor},
-    Deserialize,
-};
+use serde::Deserialize;
 use taos_sys::{TaosDataType, TSDB_DATA_TYPE_BINARY};
 
 use crate::{timestamp::TimestampValue, Error};
@@ -85,7 +75,7 @@ impl<'block> BorrowedValue<'block> {
         match self {
             Null => err!("expect string but value is null"),
             Binary(v) | Json(v) => std::str::from_utf8(v)
-                .map_err(|err| err!(custom, err))
+                .map_err(|err| err!(custom err))
                 .map(|s| s.to_string()),
             NChar(v) => Ok(v.to_string()),
             TinyInt(v) => Ok(format!("{v}")),
