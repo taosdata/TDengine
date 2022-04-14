@@ -60,34 +60,15 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
 
 // meta
-typedef struct SMeta       SMeta;        // todo: remove
-typedef struct SMTbCursor  SMTbCursor;   // todo: remove
-typedef struct SMCtbCursor SMCtbCursor;  // todo: remove
-typedef struct SMSmaCursor SMSmaCursor;  // todo: remove
-
-#define META_SUPER_TABLE  TD_SUPER_TABLE
-#define META_CHILD_TABLE  TD_CHILD_TABLE
-#define META_NORMAL_TABLE TD_NORMAL_TABLE
+typedef struct SMeta      SMeta;  // todo: remove
+typedef struct SMTbCursor SMTbCursor;
 
 typedef SVCreateTbReq   STbCfg;
 typedef SVCreateTSmaReq SSmaCfg;
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
-STSchema       *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
-void           *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode);
-STSmaWrapper   *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid);
-SArray         *metaGetSmaTbUids(SMeta *pMeta, bool isDup);
-int             metaGetTbNum(SMeta *pMeta);
-SMTbCursor     *metaOpenTbCursor(SMeta *pMeta);
-void            metaCloseTbCursor(SMTbCursor *pTbCur);
-char           *metaTbCursorNext(SMTbCursor *pTbCur);
-SMCtbCursor    *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid);
-void            metaCloseCtbCurosr(SMCtbCursor *pCtbCur);
-tb_uid_t        metaCtbCursorNext(SMCtbCursor *pCtbCur);
-
-SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid);
-void         metaCloseSmaCursor(SMSmaCursor *pSmaCur);
-int64_t      metaSmaCursorNext(SMSmaCursor *pSmaCur);
+SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
+void        metaCloseTbCursor(SMTbCursor *pTbCur);
+char       *metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 typedef struct STsdb          STsdb;
@@ -98,18 +79,7 @@ typedef void                 *tsdbReaderT;
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
-#define TABLE_TID(t)                (t)->tid
-#define TABLE_UID(t)                (t)->uid
-STsdb  *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta,
-                 STfs *pTfs);
-void    tsdbClose(STsdb *);
-void    tsdbRemove(const char *path);
-int     tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
-int     tsdbPrepareCommit(STsdb *pTsdb);
-int     tsdbCommit(STsdb *pTsdb);
-int32_t tsdbInitSma(STsdb *pTsdb);
-int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg);
-int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
+
 tsdbReaderT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
                              uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId,
@@ -127,18 +97,8 @@ SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumn
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 int32_t      tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
-void         tsdbCleanupReadHandle(tsdbReaderT queryHandle);
-int32_t      tsdbUpdateSmaWindow(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
-int32_t      tsdbInsertTSmaData(STsdb *pTsdb, int64_t indexUid, const char *msg);
-int32_t      tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
-int32_t      tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
 
 // tq
-enum {
-  TQ_STREAM_TOKEN__DATA = 1,
-  TQ_STREAM_TOKEN__WATERMARK,
-  TQ_STREAM_TOKEN__CHECKPOINT,
-};
 
 typedef struct STqReadHandle STqReadHandle;
 
@@ -202,21 +162,6 @@ struct SVnodeCfg {
   int8_t   hashMethod;
 };
 
-struct STqReadHandle {
-  int64_t           ver;
-  int64_t           tbUid;
-  SHashObj         *tbIdHash;
-  const SSubmitReq *pMsg;
-  SSubmitBlk       *pBlock;
-  SSubmitMsgIter    msgIter;
-  SSubmitBlkIter    blkIter;
-  SMeta            *pVnodeMeta;
-  SArray           *pColIdList;  // SArray<int32_t>
-  int32_t           sver;
-  SSchemaWrapper   *pSchemaWrapper;
-  STSchema         *pSchema;
-};
-
 struct SDataStatis {
   int16_t colId;
   int16_t maxIndex;
@@ -240,22 +185,6 @@ typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
-
-typedef struct STable {
-  uint64_t  tid;
-  uint64_t  uid;
-  STSchema *pSchema;
-} STable;
-
-typedef struct {
-  int8_t type;
-  int8_t reserved[7];
-  union {
-    void   *data;
-    int64_t wmTs;
-    int64_t checkpointId;
-  };
-} STqStreamToken;
 
 #ifdef __cplusplus
 }

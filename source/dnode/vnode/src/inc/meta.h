@@ -20,20 +20,48 @@
 extern "C" {
 #endif
 
-typedef struct SMetaCache SMetaCache;
-typedef struct SMetaIdx   SMetaIdx;
-typedef struct SMetaDB    SMetaDB;
+typedef struct SMetaCache  SMetaCache;
+typedef struct SMetaIdx    SMetaIdx;
+typedef struct SMetaDB     SMetaDB;
+typedef struct SMCtbCursor SMCtbCursor;
+typedef struct SMSmaCursor SMSmaCursor;
 
-SMeta*  metaOpen(const char* path, const SMetaCfg* pMetaCfg, SMemAllocatorFactory* pMAF);
-void    metaClose(SMeta* pMeta);
-void    metaRemove(const char* path);
-int     metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg);
-int     metaDropTable(SMeta* pMeta, tb_uid_t uid);
-int     metaCommit(SMeta* pMeta);
-int32_t metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
-int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
-STbCfg* metaGetTbInfoByUid(SMeta* pMeta, tb_uid_t uid);
-STbCfg* metaGetTbInfoByName(SMeta* pMeta, char* tbname, tb_uid_t* uid);
+// metaDebug ==================
+// clang-format off
+#define metaFatal(...) do { if (metaDebugFlag & DEBUG_FATAL) { taosPrintLog("META FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define metaError(...) do { if (metaDebugFlag & DEBUG_ERROR) { taosPrintLog("META ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define metaWarn(...)  do { if (metaDebugFlag & DEBUG_WARN)  { taosPrintLog("META WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define metaInfo(...)  do { if (metaDebugFlag & DEBUG_INFO)  { taosPrintLog("META ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define metaDebug(...) do { if (metaDebugFlag & DEBUG_DEBUG) { taosPrintLog("META ", DEBUG_DEBUG, metaDebugFlag, __VA_ARGS__); }} while(0)
+#define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("META ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
+
+#define META_SUPER_TABLE  TD_SUPER_TABLE
+#define META_CHILD_TABLE  TD_CHILD_TABLE
+#define META_NORMAL_TABLE TD_NORMAL_TABLE
+
+SMeta*          metaOpen(const char* path, const SMetaCfg* pMetaCfg, SMemAllocatorFactory* pMAF);
+void            metaClose(SMeta* pMeta);
+void            metaRemove(const char* path);
+int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg);
+int             metaDropTable(SMeta* pMeta, tb_uid_t uid);
+int             metaCommit(SMeta* pMeta);
+int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
+int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
+STbCfg*         metaGetTbInfoByUid(SMeta* pMeta, tb_uid_t uid);
+STbCfg*         metaGetTbInfoByName(SMeta* pMeta, char* tbname, tb_uid_t* uid);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
+STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
+void*           metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid, bool isDecode);
+STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid);
+SArray*         metaGetSmaTbUids(SMeta* pMeta, bool isDup);
+int             metaGetTbNum(SMeta* pMeta);
+SMSmaCursor*    metaOpenSmaCursor(SMeta* pMeta, tb_uid_t uid);
+void            metaCloseSmaCursor(SMSmaCursor* pSmaCur);
+int64_t         metaSmaCursorNext(SMSmaCursor* pSmaCur);
+SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
+void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
+tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
 
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);

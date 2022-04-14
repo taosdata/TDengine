@@ -20,48 +20,21 @@
 extern "C" {
 #endif
 
-// tqInt.h
-#define tqFatal(...)                                             \
-  {                                                              \
-    if (tqDebugFlag & DEBUG_FATAL) {                             \
-      taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                            \
-  }
+// tqDebug ===================
+// clang-format off
+#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
 
-#define tqError(...)                                             \
-  {                                                              \
-    if (tqDebugFlag & DEBUG_ERROR) {                             \
-      taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                            \
-  }
-
-#define tqWarn(...)                                            \
-  {                                                            \
-    if (tqDebugFlag & DEBUG_WARN) {                            \
-      taosPrintLog("TQ  WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                          \
-  }
-
-#define tqInfo(...)                                       \
-  {                                                       \
-    if (tqDebugFlag & DEBUG_INFO) {                       \
-      taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                     \
-  }
-
-#define tqDebug(...)                                               \
-  {                                                                \
-    if (tqDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); \
-    }                                                              \
-  }
-
-#define tqTrace(...)                                               \
-  {                                                                \
-    if (tqDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); \
-    }                                                              \
-  }
+enum {
+  TQ_STREAM_TOKEN__DATA = 1,
+  TQ_STREAM_TOKEN__WATERMARK,
+  TQ_STREAM_TOKEN__CHECKPOINT,
+};
 
 #define TQ_BUFFER_SIZE 4
 
@@ -104,6 +77,31 @@ typedef enum { TQ_ITEM_READY, TQ_ITEM_PROCESS, TQ_ITEM_EMPTY } STqItemStatus;
 
 typedef struct STqOffsetCfg   STqOffsetCfg;
 typedef struct STqOffsetStore STqOffsetStore;
+
+struct STqReadHandle {
+  int64_t           ver;
+  int64_t           tbUid;
+  SHashObj*         tbIdHash;
+  const SSubmitReq* pMsg;
+  SSubmitBlk*       pBlock;
+  SSubmitMsgIter    msgIter;
+  SSubmitBlkIter    blkIter;
+  SMeta*            pVnodeMeta;
+  SArray*           pColIdList;  // SArray<int32_t>
+  int32_t           sver;
+  SSchemaWrapper*   pSchemaWrapper;
+  STSchema*         pSchema;
+};
+
+typedef struct {
+  int8_t type;
+  int8_t reserved[7];
+  union {
+    void*   data;
+    int64_t wmTs;
+    int64_t checkpointId;
+  };
+} STqStreamToken;
 
 typedef struct {
   int16_t ver;
@@ -247,7 +245,6 @@ typedef struct {
 } STqPushMgmt;
 
 static STqPushMgmt tqPushMgmt;
-
 
 int32_t tqSerializeConsumer(const STqConsumer*, STqSerializedHead**);
 int32_t tqDeserializeConsumer(STQ*, const STqSerializedHead*, STqConsumer**);
