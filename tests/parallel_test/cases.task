@@ -198,6 +198,7 @@
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim 
 37,,script,./test.sh -f general/table/delete_reuse1.sim 
 37,,script,./test.sh -f general/db/delete_reuse2.sim 
+36,,docs-examples-test,./test_rust.sh
 36,,script,./test.sh -f unique/stable/replica3_vnode3.sim 
 36,,script,./test.sh -f unique/stable/dnode2_stop.sim 
 36,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim 
@@ -557,6 +558,7 @@
 11,,pytest,python3 test.py -f import_merge/importLastHPO.py 
 11,,pytest,python3 test.py -f import_merge/importDataTO.py 
 11,,pytest,python3 test.py -f import_merge/importBlock1Sub.py
+10,,docs-examples-test,./test_python.sh
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-otherPara.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-autoCreate.py
@@ -591,6 +593,7 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
 8,,pytest,python3 test.py -f update/update2.py
+7,,docs-examples-test,./test_node.sh
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
 7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 

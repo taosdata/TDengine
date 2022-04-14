@@ -12,7 +12,7 @@ cd restexample;
 
 node connect.js
 
-cd nativeexample
+cd ../nativeexample
 
 node connect.js
 
