@@ -22,13 +22,13 @@
 extern "C" {
 #endif
 
-typedef enum { PROC_REQ = 1, PROC_RSP, PROC_REGIST, PROC_RELEASE } ProcFuncType;
+typedef enum { PROC_FUNC_REQ = 1, PROC_FUNC_RSP, PROC_FUNC_REGIST, PROC_FUNC_RELEASE } EProcFuncType;
 
 typedef struct SProcObj SProcObj;
 typedef void *(*ProcMallocFp)(int32_t contLen);
 typedef void *(*ProcFreeFp)(void *pCont);
 typedef void (*ProcConsumeFp)(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
-                               ProcFuncType ftype);
+                              EProcFuncType ftype);
 
 typedef struct {
   ProcConsumeFp childConsumeFp;
@@ -53,11 +53,11 @@ int32_t   taosProcRun(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
 
 int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                            void *handle, ProcFuncType ftype);
+                            void *handle, EProcFuncType ftype);
 void    taosProcRemoveHandle(SProcObj *pProc, void *handle);
 void    taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle));
 void    taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                             ProcFuncType ftype);
+                             EProcFuncType ftype);
 
 #ifdef __cplusplus
 }

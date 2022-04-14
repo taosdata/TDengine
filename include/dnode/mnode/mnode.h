@@ -68,6 +68,7 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
  * @param pMnode The mnode object.
  */
 int32_t mndStart(SMnode *pMnode);
+void    mndStop(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.
@@ -101,6 +102,12 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndProcessMsg(SNodeMsg *pMsg);
+
+/**
+ * @brief Generate machine code
+ *
+ */
+void mndGenerateMachineCode();
 
 #ifdef __cplusplus
 }

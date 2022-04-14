@@ -354,7 +354,7 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
 
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
-  bool    dnodeChanged = (statusReq.dver != sdbGetTableVer(pMnode->pSdb, SDB_DNODE));
+  bool    dnodeChanged = (statusReq.dnodeVer != sdbGetTableVer(pMnode->pSdb, SDB_DNODE));
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
 
@@ -405,7 +405,7 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
 
     SStatusRsp statusRsp = {0};
-    statusRsp.dver = sdbGetTableVer(pMnode->pSdb, SDB_DNODE);
+    statusRsp.dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE);
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
     statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));

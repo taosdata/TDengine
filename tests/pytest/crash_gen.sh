@@ -35,11 +35,11 @@ CURR_DIR=`pwd`
 IN_TDINTERNAL="community"
 if [[ "$CURR_DIR" == *"$IN_TDINTERNAL"* ]]; then
   TAOS_DIR=$CURR_DIR/../../..
-  TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
+  TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep debug|head -n1`
   LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6,7|rev`/lib
 else
   TAOS_DIR=$CURR_DIR/../..
-  TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
+  TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep debug|head -n1`
   LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
 fi
 

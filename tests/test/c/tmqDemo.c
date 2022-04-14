@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define ALLOW_FORBID_FUNC
-
 #include <assert.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -36,7 +34,12 @@
 #define MAX_SQL_STR_LEN (1024 * 1024)
 #define MAX_ROW_STR_LEN (16 * 1024)
 
-enum _RUN_MODE { TMQ_RUN_INSERT_AND_CONSUME, TMQ_RUN_ONLY_INSERT, TMQ_RUN_ONLY_CONSUME, TMQ_RUN_MODE_BUTT };
+enum _RUN_MODE {
+  TMQ_RUN_INSERT_AND_CONSUME,
+  TMQ_RUN_ONLY_INSERT,
+  TMQ_RUN_ONLY_CONSUME,
+  TMQ_RUN_MODE_BUTT,
+};
 
 typedef struct {
   char    dbName[32];
@@ -338,6 +341,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
   tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
+  assert(tmq);
   tmq_conf_destroy(conf);
   return tmq;
 }
@@ -596,7 +600,7 @@ void printParaIntoFile() {
   g_fp = pFile;
 
   time_t    tTime = taosGetTimestampSec();
-  struct tm tm = *localtime(&tTime);
+  struct tm tm = *taosLocalTime(&tTime, NULL);
 
   taosFprintfFile(pFile, "###################################################################\n");
   taosFprintfFile(pFile, "# configDir:                %s\n", configDir);
