@@ -10,7 +10,7 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1"
 quote = "1.0.18"
-syn = "1"
+syn = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 taos = { path = "../taos", features = ["test"] }

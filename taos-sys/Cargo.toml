@@ -12,6 +12,8 @@ num_enum = "0.5.7"
 serde = { version = "1", features = ["derive"], optional = true }
 serde_repr = { version = "0.1.7", optional = true }
 taos-error = { path = "../taos-error" }
+taos-macros = { path = "../taos-macros" }
+
 [build-dependencies]
 dotenv = "0.15.0"
 libloading = "0.7.3"

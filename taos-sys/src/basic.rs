@@ -143,6 +143,7 @@ impl TaosDataType {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> serde::de::VariantAccess<'de> for TaosDataType {
     type Error = taos_error::Error;
 

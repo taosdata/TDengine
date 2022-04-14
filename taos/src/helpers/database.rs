@@ -196,7 +196,7 @@ pub enum Precision {
 }
 
 impl Precision {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         use Precision::*;
         match self {
             Milliseconds => "ms",
@@ -205,12 +205,19 @@ impl Precision {
         }
     }
 
-    fn from_u8(precision: u8) -> Self {
+    pub const fn as_u8(&self) -> u8 {
+        match self {
+            Self::Milliseconds => 0,
+            Self::Microseconds => 1,
+            Self::Nanoseconds => 2
+        }
+    }
+    pub const fn from_u8(precision: u8) -> Self {
         match precision {
             0 => Self::Milliseconds,
             1 => Self::Microseconds,
             2 => Self::Nanoseconds,
-            _ => unreachable!("precision integer only allow 0/1/2"),
+            _ => panic!("precision integer only allow 0/1/2"),
         }
     }
 }
@@ -238,5 +245,17 @@ impl FromStr for Precision {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::deserialize(serde::de::IntoDeserializer::into_deserializer(s))
+    }
+}
+
+impl PartialEq<str> for Precision {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<u8> for Precision {
+    fn eq(&self, other: &u8) -> bool {
+        self.as_u8() == *other
     }
 }
