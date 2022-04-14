@@ -2257,57 +2257,6 @@ static int32_t doTSJoinFilter(STaskRuntimeEnv* pRuntimeEnv, TSKEY key, bool ascQ
   return TS_JOIN_TS_EQUAL;
 }
 
-bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t numOfRows, int8_t* p) {
-  bool all = true;
-
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    bool qualified = false;
-
-    for (int32_t k = 0; k < numOfFilterCols; ++k) {
-      char* pElem = (char*)pFilterInfo[k].pData + pFilterInfo[k].info.bytes * i;
-
-      qualified = false;
-      for (int32_t j = 0; j < pFilterInfo[k].numOfFilters; ++j) {
-        SColumnFilterElem* pFilterElem = NULL;
-        //        SColumnFilterElem* pFilterElem = &pFilterInfo[k].pFilters[j];
-
-        bool isnull = isNull(pElem, pFilterInfo[k].info.type);
-        if (isnull) {
-          //          if (pFilterElem->fp == isNullOperator) {
-          //            qualified = true;
-          //            break;
-          //          } else {
-          //            continue;
-          //          }
-        } else {
-          //          if (pFilterElem->fp == notNullOperator) {
-          //            qualified = true;
-          //            break;
-          //          } else if (pFilterElem->fp == isNullOperator) {
-          //            continue;
-          //          }
-        }
-
-        if (pFilterElem->fp(pFilterElem, pElem, pElem, pFilterInfo[k].info.type)) {
-          qualified = true;
-          break;
-        }
-      }
-
-      if (!qualified) {
-        break;
-      }
-    }
-
-    p[i] = qualified ? 1 : 0;
-    if (!qualified) {
-      all = false;
-    }
-  }
-
-  return all;
-}
-
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
   int32_t len = 0;
   int32_t start = 0;
@@ -2355,49 +2304,6 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
       pBlock->info.window.ekey = *(int64_t*)(pColumnInfoData->pData + TSDB_KEYSIZE * (start - 1));
     }
   }
-}
-
-void filterRowsInDataBlock(STaskRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols,
-                           SSDataBlock* pBlock, bool ascQuery) {
-  int32_t numOfRows = pBlock->info.rows;
-
-  int8_t* p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
-  bool    all = true;
-#if 0
-  if (pRuntimeEnv->pTsBuf != NULL) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-
-    TSKEY* k = (TSKEY*) pColInfoData->pData;
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      int32_t offset = ascQuery? i:(numOfRows - i - 1);
-      int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], ascQuery);
-      if (ret == TS_JOIN_TAG_NOT_EQUALS) {
-        break;
-      } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
-        all = false;
-        continue;
-      } else {
-        assert(ret == TS_JOIN_TS_EQUAL);
-        p[offset] = true;
-      }
-
-      if (!tsBufNextPos(pRuntimeEnv->pTsBuf)) {
-        break;
-      }
-    }
-
-    // save the cursor status
-    pRuntimeEnv->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
-  } else {
-    all = doFilterDataBlock(pFilterInfo, numOfFilterCols, numOfRows, p);
-  }
-#endif
-
-  if (!all) {
-    doCompactSDataBlock(pBlock, numOfRows, p);
-  }
-
-  taosMemoryFreeClear(p);
 }
 
 void filterColRowsInDataBlock(STaskRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock, bool ascQuery) {
@@ -3509,22 +3415,22 @@ static void doOperatorExecProfOnce(SOperatorStackItem* item, SQueryProfEvent* ev
   }
 }
 
-void calculateOperatorProfResults(SQInfo* pQInfo) {
-  if (pQInfo->summary.queryProfEvents == NULL) {
-    // qDebug("QInfo:0x%"PRIx64" query prof events array is null", pQInfo->qId);
-    return;
-  }
-
-  if (pQInfo->summary.operatorProfResults == NULL) {
-    // qDebug("QInfo:0x%"PRIx64" operator prof results hash is null", pQInfo->qId);
-    return;
-  }
+void calculateOperatorProfResults(void) {
+//  if (pQInfo->summary.queryProfEvents == NULL) {
+//    // qDebug("QInfo:0x%"PRIx64" query prof events array is null", pQInfo->qId);
+//    return;
+//  }
+//
+//  if (pQInfo->summary.operatorProfResults == NULL) {
+//    // qDebug("QInfo:0x%"PRIx64" operator prof results hash is null", pQInfo->qId);
+//    return;
+//  }
 
   SArray* opStack = taosArrayInit(32, sizeof(SOperatorStackItem));
   if (opStack == NULL) {
     return;
   }
-
+#if 0
   size_t    size = taosArrayGetSize(pQInfo->summary.queryProfEvents);
   SHashObj* profResults = pQInfo->summary.operatorProfResults;
 
@@ -3547,7 +3453,7 @@ void calculateOperatorProfResults(SQInfo* pQInfo) {
       }
     }
   }
-
+#endif
   taosArrayDestroy(opStack);
 }
 
@@ -4505,13 +4411,6 @@ static void destroySortedMergeOperatorInfo(void* param, int32_t numOfOutput) {
 
   blockDataDestroy(pInfo->binfo.pRes);
   cleanupAggSup(&pInfo->aggSup);
-}
-
-static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
-  SSLimitOperatorInfo* pInfo = (SSLimitOperatorInfo*)param;
-  taosArrayDestroy(pInfo->orderColumnList);
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
-  taosMemoryFreeClear(pInfo->prevRow);
 }
 
 static void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {

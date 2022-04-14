@@ -1100,6 +1100,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SSubmitRsp *rsp = (SSubmitRsp *)msg;
         SCH_ERR_JRET(rsp->code);
       }
+
       SCH_ERR_JRET(rspCode);
 
       SSubmitRsp *rsp = (SSubmitRsp *)msg;
@@ -1298,7 +1299,6 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
-
   if (pJob) {
     schReleaseJob(pParam->refId);
   }
