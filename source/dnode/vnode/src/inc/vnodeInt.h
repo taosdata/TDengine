@@ -35,8 +35,9 @@
 #include "tstream.h"
 #include "ttime.h"
 #include "ttimer.h"
-#include "vnode.h"
 #include "wal.h"
+
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -156,27 +157,6 @@ void            vmaReset(SVMemAllocator* pVMA);
 void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
-
-// init once
-int  tqInit();
-void tqCleanUp();
-
-// open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig,
-            SMemAllocatorFactory* allocFac);
-void tqClose(STQ*);
-
-// required by vnode
-int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
-int tqCommit(STQ*);
-
-int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-int32_t tqProcessRebReq(STQ* pTq, char* msg);
-int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
