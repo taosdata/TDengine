@@ -23,54 +23,54 @@
 //!!!! Note: only APPEND columns in below tables, NO insert !!!!
 static const SInfosTableSchema dnodesSchema[] = {
     {.name = "id", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
-    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "max_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
-    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "note", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "note", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema mnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "role", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "role", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "role_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema modulesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = 134, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "module", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = 134, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "module", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema qnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema snodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema bnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema clusterSchema[] = {
     {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 static const SInfosTableSchema userDBSchema[] = {
-    {.name = "name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "vgroups", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "ntables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "replica", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
-    {.name = "quorum", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
+    {.name = "replica", .bytes = 2, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "quorum", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "days", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "cache", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "blocks", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "minrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -79,61 +79,61 @@ static const SInfosTableSchema userDBSchema[] = {
     {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "stream_mode", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     //                                                 {.name = "update",           .bytes = 1,   .type =
     //                                                 TSDB_DATA_TYPE_TINYINT},  // disable update
 };
 static const SInfosTableSchema userFuncSchema[] = {
-    {.name = "name", .bytes = 32, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "name", .bytes = 32, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "ntables", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "precision", .bytes = 2, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "status", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "precision", .bytes = 2, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema userIdxSchema[] = {
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_type", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "index_extensions", .bytes = 256, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "index_database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "index_type", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "index_extensions", .bytes = 256, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema userStbsSchema[] = {
-    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "columns", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "tags", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "last_update", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "table_comment", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_INT},
+    {.name = "table_comment", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema userStreamsSchema[] = {
-    {.name = "stream_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "user_name", .bytes = 23, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "dest_table", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "stream_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "user_name", .bytes = 23, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "dest_table", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema userTblsSchema[] = {
-    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "columns", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "table_comment", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 static const SInfosTableSchema userTblDistSchema[] = {
-    {.name = "db_name", .bytes = 32, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "table_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "distributed_histogram", .bytes = 500, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "db_name", .bytes = 32, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "distributed_histogram", .bytes = 500, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "min_of_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "max_of_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "avg_of_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -146,10 +146,10 @@ static const SInfosTableSchema userTblDistSchema[] = {
     {.name = "seek_header_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 static const SInfosTableSchema userUsersSchema[] = {
-    {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "account", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "account", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 static const SInfosTableSchema grantsSchema[] = {
     {.name = "version", .bytes = 8 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
@@ -169,16 +169,16 @@ static const SInfosTableSchema grantsSchema[] = {
 };
 static const SInfosTableSchema vgroupsSchema[] = {
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "tables", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "onlines", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "v1_dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "v1_status", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "v1_status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "v2_dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "v2_status", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "v2_status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "v3_dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "v3_status", .bytes = 10, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "v3_status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "compacting", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "nfiles", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -186,16 +186,16 @@ static const SInfosTableSchema vgroupsSchema[] = {
 
 // TODO put into perf schema
 static const SInfosTableSchema topicSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
 static const SInfosTableSchema consumerSchema[] = {
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "status", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     // ep
@@ -204,10 +204,10 @@ static const SInfosTableSchema consumerSchema[] = {
 };
 
 static const SInfosTableSchema subscribeSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableMeta infosMeta[] = {
@@ -303,7 +303,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
 }
 
 int32_t mndInitInfos(SMnode *pMnode) {
-  pMnode->infosMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pMnode->infosMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pMnode->infosMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

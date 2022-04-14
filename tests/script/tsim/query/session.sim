@@ -256,7 +256,7 @@ endi
 # $data0-11 !=  1
 # $data1-11 !=  14
 
-print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
+#print ====> select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
 #sql select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)
 #if $rows != 2 then
 #  return -1

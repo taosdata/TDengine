@@ -4007,10 +4007,9 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO if only one or two columnss required, how to extract data?
-int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows,
-                                         char* pData, int32_t compLen, int32_t numOfOutput, int64_t startTs,
-                                         uint64_t* total, SArray* pColList) {
+// TODO if only one or two columns required, how to extract data?
+int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
+                                  int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total, SArray* pColList) {
   blockDataEnsureCapacity(pRes, numOfRows);
 
   if (pColList == NULL) {  // data from other sources
@@ -4040,18 +4039,70 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
     }
   } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
+    char* pStart = pData;
+
+    int32_t numOfCols = htonl(*(int32_t*)pStart);
+    pStart += sizeof(int32_t);
+
+    SSysTableSchema* pSchema = (SSysTableSchema*)pStart;
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SSysTableSchema* p = (SSysTableSchema*)pStart;
+
+      p->colId = htons(p->colId);
+      p->bytes = htonl(p->bytes);
+      pStart += sizeof(SSysTableSchema);
+    }
+
+    SSDataBlock block = {.pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData)), .info.numOfCols = numOfCols};
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData idata = {0};
+      idata.info.type = pSchema[i].type;
+      idata.info.bytes = pSchema[i].bytes;
+      idata.info.colId = pSchema[i].colId;
+
+      taosArrayPush(block.pDataBlock, &idata);
+      if (IS_VAR_DATA_TYPE(idata.info.type)) {
+        block.info.hasVarCol = true;
+      }
+    }
+
+    blockDataEnsureCapacity(&block, numOfRows);
+
+    int32_t* colLen = (int32_t*) pStart;
+    pStart += sizeof(int32_t) * numOfCols;
+
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      colLen[i] = htonl(colLen[i]);
+      ASSERT(colLen[i] >= 0);
+
+      SColumnInfoData* pColInfoData = taosArrayGet(block.pDataBlock, i);
+      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        pColInfoData->varmeta.length = colLen[i];
+        pColInfoData->varmeta.allocLen = colLen[i];
+
+        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
+        pStart += sizeof(int32_t) * numOfRows;
+
+        pColInfoData->pData = taosMemoryMalloc(colLen[i]);
+      } else {
+        memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
+        pStart += BitmapLen(numOfRows);
+      }
+
+      memcpy(pColInfoData->pData, pStart, colLen[i]);
+      pStart += colLen[i];
+    }
 
     // data from mnode
-    for (int32_t i = 0; i < numOfOutput; ++i) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pSrc = taosArrayGet(block.pDataBlock, i);
+
       for (int32_t j = 0; j < numOfOutput; ++j) {
         int16_t colIndex = *(int16_t*)taosArrayGet(pColList, j);
+
         if (colIndex - 1 == i) {
           SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, j);
-
-          for (int32_t k = 0; k < numOfRows; ++k) {
-            colDataAppend(pColInfoData, k, pData, false);
-            pData += pColInfoData->info.bytes;
-          }
+          colDataAssign(pColInfoData, pSrc, numOfRows);
           break;
         }
       }

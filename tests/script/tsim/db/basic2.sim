@@ -33,15 +33,15 @@ sql show databases
 print rows: $rows 
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 
-if $data00 != d1 then 
+if $data20 != d1 then
   return -1
 endi
 
-if $data02 != 2 then  # vgroups 
+if $data22 != 2 then  # vgroups
   return -1
 endi
 
@@ -62,7 +62,7 @@ sql create table t2 (ts timestamp, i int);
 sql create table t3 (ts timestamp, i int);
 
 sql show databases
-if $rows != 3 then 
+if $rows != 4 then
   return -1
 endi
 
