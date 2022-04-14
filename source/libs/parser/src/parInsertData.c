@@ -506,6 +506,28 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize) {
+  size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
+  uint32_t nAllocSizeOld = pDataBlock->nAllocSize;
+  
+  // expand the allocated size
+  if (remain < allSize) {
+    pDataBlock->nAllocSize = (pDataBlock->size + allSize) * 1.5;
+
+    char *tmp = taosMemoryRealloc(pDataBlock->pData, (size_t)pDataBlock->nAllocSize);
+    if (tmp != NULL) {
+      pDataBlock->pData = tmp;
+      memset(pDataBlock->pData + pDataBlock->size, 0, pDataBlock->nAllocSize - pDataBlock->size);
+    } else {
+      // do nothing, if allocate more memory failed
+      pDataBlock->nAllocSize = nAllocSizeOld;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows) {
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
   const int factor = 5;

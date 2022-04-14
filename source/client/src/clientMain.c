@@ -569,56 +569,6 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
   return stmtInit(taos);
 }
 
-int taos_stmt_close(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtClose(stmt);
-}
-
-int taos_stmt_execute(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtExec(stmt);
-}
-
-char *taos_stmt_errstr(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
-  }
-
-  return stmtErrstr(stmt);
-}
-
-int taos_stmt_affected_rows(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return 0;
-  }
-
-  return stmtAffectedRows(stmt);
-}
-
-int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
-  if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtBind(stmt, bind);
-}
-
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (stmt == NULL || sql == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -649,6 +599,52 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   return stmtSetTbNameTags(stmt, name, NULL);
 }
 
+int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBind(stmt, bind);
+}
+
+int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (bind->num <= 0 || bind->num > INT16_MAX) {
+    tscError("invalid bind num %d", bind->num);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBindBatch(stmt, bind);
+}
+
+int taos_stmt_add_batch(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtAddBatch(stmt);
+}
+
+int taos_stmt_execute(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtExec(stmt);
+}
+
 int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
   if (stmt == NULL || insert == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -669,16 +665,6 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   return stmtGetParamNum(stmt, nums);
 }
 
-int taos_stmt_add_batch(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtAddBatch(stmt);
-}
-
 TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -689,14 +675,37 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   return stmtUseResult(stmt);
 }
 
-int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  if (stmt == NULL || bind == NULL) {
+char *taos_stmt_errstr(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  return stmtErrstr(stmt);
+}
+
+int taos_stmt_affected_rows(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return 0;
+  }
+
+  return stmtAffectedRows(stmt);
+}
+
+
+
+
+int taos_stmt_close(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtBindBatch(stmt, bind);
+  return stmtClose(stmt);
 }
 
 

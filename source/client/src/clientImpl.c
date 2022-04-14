@@ -143,7 +143,7 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
@@ -156,6 +156,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
       .pMsg = pRequest->msgBuf,
       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
       .pTransporter = pTscObj->pAppInfo->pTransporter,
+      .pStmtCb = pStmtCb,
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -289,7 +290,7 @@ SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
 
   int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseSql(pRequest, false, &pQuery);
+    code = parseSql(pRequest, false, &pQuery, NULL);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

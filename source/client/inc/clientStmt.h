@@ -26,20 +26,50 @@ typedef enum {
   STMT_TYPE_QUERY,
 } STMT_TYPE;
 
+typedef enum {
+  STMT_INIT = 1,
+  STMT_PREPARE,
+  STMT_SETTBNAME,
+  STMT_BIND,
+  STMT_BIND_COL,
+  STMT_ADD_BATCH,
+  STMT_EXECUTE
+} STMT_STATUS;
+
 typedef struct STscStmt {
-  STMT_TYPE type;
-  //int16_t  last;
-  //STscObj* taos;
-  //SSqlObj* pSql;
+  STMT_TYPE    type;
+  STMT_STATUS  status;
+  STscObj*     taos;
+  SRequestObj* pRequest;
+  SQuery*      pQuery;
+  char*        sql;
+  int32_t      sqlLen;
+  char*        tbName;
+  TAOS_BIND*   bindTags;
   //SMultiTbStmt mtb;
   //SNormalStmt normal;
 
   //int numOfRows;
 } STscStmt;
 
+
 #define STMT_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define STMT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define STMT_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
+#define STMT_CHK_STATUS(_stmt, _status, _v) do {
+  switch (_status) {
+    case STMT_INIT:
+      if ((_stmt)->status != 0) return (_v);
+      break;
+    case STMT_PREPARE:
+      if ((_stmt)->status != STMT_INIT) STMT_ERR_RET(_v);
+      break;
+    case STMT_SETTBNAME:
+      break;
+  }
+} while (0)
+
 
 TAOS_STMT *stmtInit(TAOS *taos);
 int stmtClose(TAOS_STMT *stmt);

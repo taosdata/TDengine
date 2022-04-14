@@ -51,6 +51,98 @@ int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
+int32_t qBindStmtData(SQuery* pQuery, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen) {
+  SVnodeModifOpStmt *modifyNode = (SVnodeModifOpStmt *)pQuery->pRoot;
+  SStmtDataCtx *pCtx = &modifyNode->stmtCtx;
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pCtx->pTableBlockHashObj, (const char*)&pCtx->tbUid, sizeof(pCtx->tbUid));
+  if (NULL == pDataBlock) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
+  int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
+  SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;
+  SRowBuilder*        pBuilder = &pDataBlock->rowBuilder;
+  SMemParam param = {.rb = pBuilder};
+  SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
+
+  CHECK_CODE(allocateMemForSize(pDataBlock, extendedRowSize * bind->num);
+  
+  for (int32_t r = 0; r < bind->num; ++r) {
+    STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
+    tdSRowResetBuf(pBuilder, row);
+    
+    // 1. set the parsed value from sql string
+    for (int c = 0; c < spd->numOfBound; ++c) {
+      SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
+      
+      param.schema = pColSchema;
+      getSTSRowAppendInfo(pBuilder->rowType, spd, c, &param.toffset, &param.colIdx);
+
+      if (bind[c].is_null && bind[c].is_null[r]) {
+        CHECK_CODE(MemRowAppend(&pBuf, NULL, 0, &param));
+      } else {
+        int32_t colLen = pColSchema->bytes;
+        if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+          colLen = bind[c].length[r];
+        }
+        
+        CHECK_CODE(MemRowAppend(&pBuf, (char *)bind[c].buffer + bind[c].buffer_length * r, colLen, &param));
+      }
+    
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
+        TSKEY tsKey = TD_ROW_KEY(row);
+        checkTimestamp(pDataBlock, (const char *)&tsKey);
+      }
+    }
+    
+    // set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
+      for (int32_t i = 0; i < spd->numOfCols; ++i) {
+        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
+          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
+                                spd->cols[i].toffset);
+        }
+      }
+    }
+    
+    pDataBlock->size += extendedRowSize;
+  }
+  
+  SSubmitBlk *pBlocks = (SSubmitBlk *)(pDataBlock->pData);
+  if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, pDataBlock, bind->num)) {
+    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than 32767");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qBuildStmtOutput(SQuery* pQuery) {
+  SVnodeModifOpStmt *modifyNode = (SVnodeModifOpStmt *)pQuery->pRoot;
+  SStmtDataCtx *pCtx = &modifyNode->stmtCtx;
+  int32_t code = 0;
+  SInsertParseContext insertCtx = {
+    .pVgroupsHashObj = pCtx->pVgroupsHashObj;
+    .pTableBlockHashObj = pCtx->pTableBlockHashObj;
+    .pSubTableHashObj = pCtx->pSubTableHashObj;
+    .pTableDataBlocks = pCtx->pTableDataBlocks;
+  };
+  
+  // merge according to vgId
+  if (taosHashGetSize(pCtx->pTableBlockHashObj) > 0) {
+    CHECK_CODE_GOTO(mergeTableDataBlocks(pCtx->pTableBlockHashObj, modifyNode->payloadType, &insertCtx.pVgDataBlocks), _return);
+  }
+  
+  code = buildOutput(&insertCtx);
+
+_return:
+
+  destroyInsertParseContext(&insertCtx);
+
+  return code;
+}
+
+
 void qDestroyQuery(SQuery* pQueryNode) {
   if (NULL == pQueryNode) {
     return;

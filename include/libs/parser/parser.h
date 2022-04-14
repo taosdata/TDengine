@@ -22,6 +22,11 @@ extern "C" {
 
 #include "querynodes.h"
 
+typedef struct SStmtCallback {
+  TAOS_STMT* pStmt;
+  int32_t (*getTbNameFn)(TAOS_STMT*, char**);      
+} SStmtCallback;
+
 typedef struct SParseContext {
   uint64_t         requestId;
   int32_t          acctId;
@@ -34,6 +39,7 @@ typedef struct SParseContext {
   char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
   int32_t          msgLen;         // max length of the msg
   struct SCatalog *pCatalog;
+  SStmtCallback   *pStmtCb;
 } SParseContext;
 
 typedef struct SCmdMsgInfo {

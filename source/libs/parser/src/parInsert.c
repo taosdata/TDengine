@@ -63,6 +63,7 @@ typedef struct SInsertParseContext {
   SArray* pVgDataBlocks;        // global
   int32_t totalNum;
   SVnodeModifOpStmt* pOutput;
+  SStmtCallback* pStmtCb;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void *value, int32_t len, void *param);
@@ -453,8 +454,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
   if (isNullStr(pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      int64_t tmpVal = 0;
-      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
+      return buildSyntaxErrMsg(pMsgBuf, "primary timestamp should not be null", pToken->z);
     }
 
     return func(pMsgBuf, NULL, 0, param);
@@ -872,8 +872,22 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
     SSchema* pSchema = &schema[spd->boundColumns[i] - 1];
+
+    if (sToken.type == TK_NK_QUESTION) {
+      isParseBindParam = true;
+      if (NULL == pCxt->pStmtCb) {
+        return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", sToken.z);
+      }
+
+      continue;
+    }
+
+    if (isParseBindParam) {
+      return buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
+    }
+    
     param.schema = pSchema;
-    getSTSRowAppendInfo(schema, pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
+    getSTSRowAppendInfo(pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
@@ -1005,11 +1019,15 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
 static int32_t parseInsertBody(SInsertParseContext* pCxt) {
+  int32_t tbNum = 0;
+  
   // for each table
   while (1) {
     destroyInsertParseContextForTable(pCxt);
 
     SToken sToken;
+    char *tbName = NULL;
+
     // pSql -> tb_name ...
     NEXT_TOKEN(pCxt->pSql, sToken);
 
@@ -1021,6 +1039,21 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       break;
     }
 
+    if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && tbNum > 0) {
+      return buildInvalidOperationMsg(&pCxt->msg, "single table allowed in one stmt");;
+    }
+
+    if (TK_NK_QUESTION == sToken.type) {
+      if (pCxt->pStmtCb) {
+        CHECK_CODE((*pCxt->pStmtCb->getTbNameFn)(pCxt->pStmtCb->pStmt, &tbName));
+        
+        sToken.z = tbName;
+        sToken.n = strlen(tbName);
+      } else {
+        return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", sToken.z);
+      }
+    }
+    
     SToken tbnameToken = sToken;
     NEXT_TOKEN(pCxt->pSql, sToken);
 
@@ -1046,6 +1079,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       // pSql -> (field1_value, ...) [(field1_value2, ...) ...]
       CHECK_CODE(parseValuesClause(pCxt, dataBuf));
       pCxt->pOutput->insertType = TSDB_QUERY_TYPE_INSERT;
+
+      tbNum++;
       continue;
     }
 
@@ -1058,13 +1093,31 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       }
       // todo
       pCxt->pOutput->insertType = TSDB_QUERY_TYPE_FILE_INSERT;
+
+      tbNum++;
       continue;
     }
 
     return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", sToken.z);
   }
+  
+  if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
+    pCxt->pOutput->stmtCtx.tbUid = pCxt->pTableMeta->uid;
+    pCxt->pOutput->stmtCtx.pVgroupsHashObj = pCxt->pVgroupsHashObj;
+    pCxt->pOutput->stmtCtx.pTableBlockHashObj = pCxt->pTableBlockHashObj;
+    pCxt->pOutput->stmtCtx.pSubTableHashObj = pCxt->pSubTableHashObj;
+    pCxt->pOutput->stmtCtx.pTableDataBlocks = pCxt->pTableDataBlocks;
+
+    pCxt->pVgroupsHashObj = NULL;
+    pCxt->pTableBlockHashObj = NULL;
+    pCxt->pSubTableHashObj = NULL;
+    pCxt->pTableDataBlocks = NULL;
+    
+    return TSDB_CODE_SUCCESS;
+  }
+  
   // merge according to vgId
-  if (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCxt->pTableBlockHashObj) > 0) {
+  if (taosHashGetSize(pCxt->pTableBlockHashObj) > 0) {
     CHECK_CODE(mergeTableDataBlocks(pCxt->pTableBlockHashObj, pCxt->pOutput->payloadType, &pCxt->pVgDataBlocks));
   }
   return buildOutput(pCxt);
@@ -1086,12 +1139,17 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, false),
     .totalNum = 0,
-    .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT)
+    .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT),
+    .pStmtCb = pContext->pStmtCb
   };
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj ||
       NULL == context.pSubTableHashObj || NULL == context.pOutput) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  if (pContext->pStmtCb) {
+    TSDB_QUERY_SET_TYPE(context.pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT);
   }
 
   *pQuery = taosMemoryCalloc(1, sizeof(SQuery));

@@ -89,7 +89,7 @@ static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
          (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
 }
 
-static FORCE_INLINE void getSTSRowAppendInfo(SSchema *pSchema, uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx,
+static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx,
                                              int32_t *toffset, col_id_t *colIdx) {
   col_id_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {

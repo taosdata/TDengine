@@ -280,13 +280,22 @@ typedef struct SVgDataBlocks {
   char       *pData;        // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
+typedef struct SStmtDataCtx {
+  uint64_t  tbUid;
+  SHashObj* pVgroupsHashObj;    // global
+  SHashObj* pTableBlockHashObj; // global
+  SHashObj* pSubTableHashObj;   // global
+  SArray* pTableDataBlocks;     // global
+} SStmtDataCtx;
+
 typedef struct SVnodeModifOpStmt {
-  ENodeType   nodeType;
-  ENodeType   sqlNodeType;
-  SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
-  uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
-  const char* sql;                 // current sql statement position
+  ENodeType    nodeType;
+  ENodeType    sqlNodeType;
+  SArray*      pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
+  uint8_t      payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+  uint32_t     insertType;          // insert data from [file|sql statement| bound statement]
+  const char*  sql;                 // current sql statement position
+  SStmtDataCtx stmtCtx;
 } SVnodeModifOpStmt;
 
 typedef struct SExplainOptions {
