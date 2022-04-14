@@ -36,12 +36,6 @@ sql connect
 $dbNamme = d0
 print =============== create database , vgroup 1
 sql create database $dbNamme vgroups 1
-sql show databases
-print $data00 $data01 $data02
-if $rows != 2 then 
-  return -1
-endi
-
 sql use $dbNamme
 
 print =============== create super table

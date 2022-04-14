@@ -279,7 +279,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-void*   doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
+void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
                          bool convertUcs4);

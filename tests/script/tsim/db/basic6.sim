@@ -20,31 +20,31 @@ sql show databases
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1 $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
-if $data00 != $db then 
+if $data20 != $db then
   return -1
 endi
-if $data02 != 8 then 
+if $data22 != 8 then
   return -1
 endi
-if $data03 != 0 then 
+if $data23 != 0 then
   return -1
 endi
-if $data04 != 1 then 
+if $data24 != 1 then
   return -1
 endi
-if $data06 != 2880 then 
+if $data26 != 2880 then
   return -1
 endi
-if $data07 != 3650,3650,3650 then 
+if $data27 != 3650,3650,3650 then
   return -1
 endi
-if $data08 != 32 then 
+if $data28 != 32 then
   return -1
 endi
-if $data09 != 12 then 
+if $data29 != 12 then
   return -1
 endi
  
@@ -52,14 +52,14 @@ print =============== step2
 sql_error create database $db
 sql create database if not exists $db
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 
 print =============== step3
 sql drop database $db
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then
   return -1
 endi 
 
@@ -70,16 +70,16 @@ print =============== step5
 sql create database $db replica 1 days 21600 keep 2160000
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
-if $data00 != $db then 
+if $data20 != $db then
   return -1
 endi
-if $data03 != 0 then 
+if $data23 != 0 then
   return -1
 endi
-if $data04 != 1 then 
+if $data24 != 1 then
   return -1
 endi
-if $data06 != 21600 then 
+if $data26 != 21600 then
   return -1
 endi
 
@@ -314,7 +314,7 @@ endi
 
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then
   return -1
 endi
 
