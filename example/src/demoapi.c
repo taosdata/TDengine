@@ -66,7 +66,6 @@ static void prepare_data(TAOS* taos) {
     taos_select_db(taos, "test");
 
     res = taos_query(taos, "create table meters(ts timestamp, f float, n int, b binary(20), c nchar(20)) tags(area int, city binary(20), dist nchar(20));");
-    //res = taos_query(taos, "create table meters(ts timestamp, f float, n int, b binary(20), c nchar(20)) tags(area int, city binary(20));");
     taos_free_result(res);
 
     char command[1024] = {0};
@@ -124,6 +123,10 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
     int         num_fields = taos_num_fields(res);
     TAOS_FIELD* fields = taos_fetch_fields(res);
 
+    for (int f = 0; f < num_fields; f++) {
+        printf("fields[%d].name=%s, fields[%d].type=%d, fields[%d].bytes=%d\n",
+                f, fields[f].name, f, fields[f].type, f, fields[f].bytes);
+    }
     if (block) {
         warnPrint("%s() LN%d, call taos_fetch_block()\n", __func__, __LINE__);
         int rows = 0;
@@ -138,9 +141,6 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
             puts(temp);
             num_rows ++;
 
-            for (int f = 0; f < num_fields; f ++) {
-                // TODO
-            }
             int* lengths = taos_fetch_lengths(res);
             if (lengths) {
                 for (int c = 0; c < num_fields; c++) {
