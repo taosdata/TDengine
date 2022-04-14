@@ -110,7 +110,16 @@ typedef void                 *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 #define TABLE_TID(t)                (t)->tid
 #define TABLE_UID(t)                (t)->uid
-
+STsdb  *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta,
+                 STfs *pTfs);
+void    tsdbClose(STsdb *);
+void    tsdbRemove(const char *path);
+int     tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
+int     tsdbPrepareCommit(STsdb *pTsdb);
+int     tsdbCommit(STsdb *pTsdb);
+int32_t tsdbInitSma(STsdb *pTsdb);
+int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg);
+int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
 tsdbReaderT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
                              uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId,
@@ -129,6 +138,10 @@ void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 int32_t      tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
 void         tsdbCleanupReadHandle(tsdbReaderT queryHandle);
+int32_t      tsdbUpdateSmaWindow(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
+int32_t      tsdbInsertTSmaData(STsdb *pTsdb, int64_t indexUid, const char *msg);
+int32_t      tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
+int32_t      tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
 
 // tq
 enum {
@@ -149,7 +162,9 @@ bool    tqNextDataBlock(STqReadHandle *pHandle);
 int     tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
 SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
 
-// need to remove
+// need to reposition
+typedef struct SMgmtWrapper SMgmtWrapper;
+
 int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg);
 
 // structs
@@ -212,11 +227,6 @@ struct STqReadHandle {
   STSchema         *pSchema;
 };
 
-// ---------------------------- OLD ----------------------------
-typedef struct SMgmtWrapper SMgmtWrapper;
-
-// Types exported
-
 struct SDataStatis {
   int16_t colId;
   int16_t maxIndex;
@@ -247,8 +257,6 @@ typedef struct STable {
   STSchema *pSchema;
 } STable;
 
-/* ------------------------ FOR COMPILE ------------------------ */
-
 typedef struct {
   int8_t type;
   int8_t reserved[7];
@@ -258,63 +266,6 @@ typedef struct {
     int64_t checkpointId;
   };
 } STqStreamToken;
-
-// meta.h
-
-// Options
-void metaOptionsInit(SMetaCfg *pMetaCfg);
-void metaOptionsClear(SMetaCfg *pMetaCfg);
-
-// query condition to build multi-table data block iterator
-// STsdb
-STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta,
-                STfs *pTfs);
-void   tsdbClose(STsdb *);
-void   tsdbRemove(const char *path);
-int    tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
-int    tsdbPrepareCommit(STsdb *pTsdb);
-int    tsdbCommit(STsdb *pTsdb);
-
-int32_t tsdbInitSma(STsdb *pTsdb);
-int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg);
-int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
-/**
- * @brief When submit msg received, update the relative expired window synchronously.
- *
- * @param pTsdb
- * @param pMsg
- * @param version
- * @return int32_t
- */
-int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
-
-/**
- * @brief Insert tSma(Time-range-wise SMA) data from stream computing engine
- *
- * @param pTsdb
- * @param indexUid
- * @param msg
- * @return int32_t
- */
-int32_t tsdbInsertTSmaData(STsdb *pTsdb, int64_t indexUid, const char *msg);
-
-/**
- * @brief Drop tSma data and local cache.
- *
- * @param pTsdb
- * @param indexUid
- * @return int32_t
- */
-int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
-
-/**
- * @brief Insert RSma(Rollup SMA) data.
- *
- * @param pTsdb
- * @param msg
- * @return int32_t
- */
-int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
 
 #ifdef __cplusplus
 }
