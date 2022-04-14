@@ -898,6 +898,7 @@ static int32_t mndRetrieveQueries(SNodeMsg *pReq, SShowObj *pShow, char *data, i
   }
 
   pShow->numOfRows += numOfRows;
+#endif  
   return numOfRows;
 }
 
