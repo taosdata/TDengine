@@ -48,8 +48,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_TABLEGROUP(q, _index) ((SArray*)taosArrayGetP((q)->tableqinfoGroupInfo.pGroupList, (_index)))
 
-#define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL ? 0 : ((_r)->outputBuf)->info.rows)
-
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
 
 enum {
@@ -83,21 +81,6 @@ typedef struct SResultInfo { // TODO refactor
   int32_t capacity;       // capacity of current result output buffer
   int32_t threshold;      // result size threshold in rows.
 } SResultInfo;
-
-typedef struct SColumnFilterElem {
-  int16_t           bytes;  // column length
-  __filter_func_t   fp;
-  SColumnFilterInfo filterInfo;
-  void*             q;
-} SColumnFilterElem;
-
-typedef struct SSingleColumnFilterInfo {
-  void*              pData;
-  void*              pData2;  // used for nchar column
-  int32_t            numOfFilters;
-  SColumnInfo        info;
-  SColumnFilterElem* pFilters;
-} SSingleColumnFilterInfo;
 
 typedef struct STableQueryInfo {
   TSKEY          lastKey;     // last check ts
@@ -169,66 +152,36 @@ typedef struct SOperatorCostInfo {
   uint64_t totalCost;
 } SOperatorCostInfo;
 
-typedef struct SOrder {
-  uint32_t order;
-  SColumn  col;
-} SOrder;
-
 // The basic query information extracted from the SQueryInfo tree to support the
 // execution of query in a data node.
 typedef struct STaskAttr {
-  SLimit limit;
-  SLimit slimit;
+  SLimit          limit;
+  SLimit          slimit;
+  bool            stableQuery;        // super table query or not
+  bool            topBotQuery;        // TODO used bitwise flag
+  bool            groupbyColumn;      // denote if this is a groupby normal column query
+  bool            timeWindowInterpo;  // if the time window start/end required interpolation
+  bool            tsCompQuery;        // is tscomp query
+  bool            diffQuery;          // is diff query
+  bool            pointInterpQuery;      // point interpolation query
+  int32_t         havingNum;  // having expr number
+  int16_t         numOfCols;
+  int16_t         numOfTags;
+  STimeWindow     window;
+  SInterval       interval;
+  int16_t         precision;
+  int16_t         numOfOutput;
+  int16_t         fillType;
+  int32_t         resultRowSize;
+  int32_t         tagLen;  // tag value length of current query
 
-  // todo comment it
-  bool    stableQuery;        // super table query or not
-  bool    topBotQuery;        // TODO used bitwise flag
-  bool    groupbyColumn;      // denote if this is a groupby normal column query
-  bool    hasTagResults;      // if there are tag values in final result or not
-  bool    timeWindowInterpo;  // if the time window start/end required interpolation
-  bool    queryBlockDist;     // if query data block distribution
-  bool    stabledev;          // super table stddev query
-  bool    tsCompQuery;        // is tscomp query
-  bool    diffQuery;          // is diff query
-  bool    simpleAgg;
-  bool    pointInterpQuery;      // point interpolation query
-  bool    needReverseScan;       // need reverse scan
-  bool    distinct;              // distinct  query or not
-  bool    stateWindow;           // window State on sub/normal table
-  bool    createFilterOperator;  // if filter operator is needed
-  bool    multigroupResult;      // multigroup result can exist in one SSDataBlock
-  int32_t interBufSize;          // intermediate buffer sizse
-
-  int32_t havingNum;  // having expr number
-
-  SOrder  order;
-  int16_t numOfCols;
-  int16_t numOfTags;
-
-  STimeWindow    window;
-  SInterval      interval;
-  int16_t        precision;
-  int16_t        numOfOutput;
-  int16_t        fillType;
-
-  int32_t       srcRowSize;  // todo extract struct
-  int32_t       resultRowSize;
-  int32_t       intermediateResultRowSize;  // intermediate result row size, in case of top-k query.
-  int32_t       maxTableColumnWidth;
-  int32_t       tagLen;  // tag value length of current query
-
-  SExprInfo* pExpr1;
-
-  SColumnInfo*         tableCols;
-  SColumnInfo*         tagColList;
-  int32_t              numOfFilterCols;
-  int64_t*             fillVal;
-
-  SSingleColumnFilterInfo* pFilterInfo;
+  SExprInfo      *pExpr1;
+  SColumnInfo*    tagColList;
+  int32_t         numOfFilterCols;
+  int64_t*        fillVal;
   void*           tsdb;
   STableGroupInfo tableGroupInfo;  // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t         vgId;
-  SArray*         pUdfInfo;  // no need to free
 } STaskAttr;
 
 struct SOperatorInfo;
@@ -252,7 +205,6 @@ typedef struct STaskIdInfo {
 
 typedef struct SExecTaskInfo {
   STaskIdInfo     id;
-  char*           content;
   uint32_t        status;
   STimeWindow     window;
   STaskCostInfo   cost;
@@ -262,7 +214,7 @@ typedef struct SExecTaskInfo {
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   char*           sql;                  // query sql string
   jmp_buf         env;                  // jump to this position when error happens.
-  EOPTR_EXEC_MODEL execModel;            // operator execution model [batch model|stream model]
+  EOPTR_EXEC_MODEL execModel;           // operator execution model [batch model|stream model]
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
@@ -297,7 +249,7 @@ typedef struct STaskRuntimeEnv {
   int64_t         currentOffset;  // dynamic offset value
 
   STableQueryInfo* current;
-  SResultInfo   resultInfo;
+  SResultInfo      resultInfo;
   SHashObj*        pTableRetrieveTsMap;
   struct SUdfInfo* pUdfInfo;
 } STaskRuntimeEnv;
@@ -338,25 +290,6 @@ typedef struct {
   int32_t      numOfCols;
   SColumnInfo* colList;
 } SQueriedTableInfo;
-
-typedef struct SQInfo {
-  void*    signature;
-  uint64_t qId;
-  int32_t  code;   // error code to returned to client
-  int64_t  owner;  // if it is in execution
-
-  STaskRuntimeEnv runtimeEnv;
-  STaskAttr       query;
-  void*           pBuf;  // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
-
-  TdThreadMutex lock;  // used to synchronize the rsp/query threads
-  tsem_t          ready;
-  int32_t         dataReady;    // denote if query result is ready or not
-  void*           rspContext;   // response context
-  int64_t         startExecTs;  // start to exec timestamp
-  char*           sql;          // query sql string
-  STaskCostInfo   summary;
-} SQInfo;
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
@@ -451,13 +384,13 @@ typedef struct SSysTableScanInfo {
 
   int32_t             accountId;
   bool                showRewrite;
-  SNode*              pCondition; // db_name filter condition, to discard data that are not in current database
+  SNode              *pCondition; // db_name filter condition, to discard data that are not in current database
   void               *pCur;       // cursor for iterate the local table meta store.
   SArray             *scanCols;   // SArray<int16_t> scan column id list
 
   int32_t             type;       // show type, TODO remove it
   SName               name;
-  SSDataBlock*        pRes;
+  SSDataBlock        *pRes;
   int32_t             capacity;
   int64_t             numOfBlocks;  // extract basic running information.
   SLoadRemoteDataInfo loadInfo;
@@ -523,24 +456,6 @@ typedef struct SProjectOperatorInfo {
   int64_t        curOutput;
 } SProjectOperatorInfo;
 
-typedef struct SSLimitOperatorInfo {
-  int64_t            groupTotal;
-  int64_t            currentGroupOffset;
-  int64_t            rowsTotal;
-  int64_t            currentOffset;
-  SLimit             limit;
-  SLimit             slimit;
-  char**             prevRow;
-  SArray*            orderColumnList;
-  bool               hasPrev;
-  bool               ignoreCurrentGroup;
-  bool               multigroupResult;
-  SSDataBlock*       pRes;  // result buffer
-  SSDataBlock*       pPrevBlock;
-  int64_t            capacity;
-  int64_t            threshold;
-} SSLimitOperatorInfo;
-
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
   SSDataBlock*      pRes;
@@ -553,10 +468,10 @@ typedef struct SFillOperatorInfo {
 } SFillOperatorInfo;
 
 typedef struct {
-  char   *pData;
-  bool    isNull;
-  int16_t type;
-  int32_t bytes;
+  char             *pData;
+  bool              isNull;
+  int16_t           type;
+  int32_t           bytes;
 } SGroupKeys, SStateKeys;
 
 typedef struct SGroupbyOperatorInfo {
@@ -582,19 +497,19 @@ typedef struct SDataGroupInfo {
 
 // The sort in partition may be needed later.
 typedef struct SPartitionOperatorInfo {
-  SOptrBasicInfo binfo;
-  SArray*        pGroupCols;
-  SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
-  char*          keyBuf;        // group by keys for hash
-  int32_t        groupKeyLen;   // total group by column width
-  SHashObj*      pGroupSet;     // quick locate the window object for each result
+  SOptrBasicInfo   binfo;
+  SArray*          pGroupCols;
+  SArray*          pGroupColVals; // current group column values, SArray<SGroupKeys>
+  char*            keyBuf;        // group by keys for hash
+  int32_t          groupKeyLen;   // total group by column width
+  SHashObj*        pGroupSet;     // quick locate the window object for each result
 
-  SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
-  int32_t        rowCapacity;   // maximum number of rows for each buffer page
-  int32_t*       columnOffset;  // start position for each column data
+  SDiskbasedBuf*   pBuf;          // query result buffer based on blocked-wised disk file
+  int32_t          rowCapacity;   // maximum number of rows for each buffer page
+  int32_t*         columnOffset;  // start position for each column data
 
-  void*          pGroupIter;    // group iterator
-  int32_t        pageIndex;     // page index of current group
+  void*            pGroupIter;    // group iterator
+  int32_t          pageIndex;     // page index of current group
 } SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
@@ -633,26 +548,21 @@ typedef struct SStateWindowOperatorInfo {
 } SStateWindowOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
-  SOptrBasicInfo     binfo;
-  bool               hasVarCol;
+  SOptrBasicInfo   binfo;
+  bool             hasVarCol;
   
-  SArray*            pSortInfo;
-  int32_t            numOfSources;
-
-  SSortHandle       *pSortHandle;
-
-  int32_t            bufPageSize;
-  uint32_t           sortBufSize;  // max buffer size for in-memory sort
-
-  int32_t            resultRowFactor;
-  bool               hasGroupVal;
-
-  SDiskbasedBuf     *pTupleStore;  // keep the final results
-  int32_t            numOfResPerPage;
-
-  char**             groupVal;
-  SArray            *groupInfo;
-  SAggSupporter      aggSup;
+  SArray*          pSortInfo;
+  int32_t          numOfSources;
+  SSortHandle     *pSortHandle;
+  int32_t          bufPageSize;
+  uint32_t         sortBufSize;  // max buffer size for in-memory sort
+  int32_t          resultRowFactor;
+  bool             hasGroupVal;
+  SDiskbasedBuf   *pTupleStore;  // keep the final results
+  int32_t          numOfResPerPage;
+  char**           groupVal;
+  SArray          *groupInfo;
+  SAggSupporter    aggSup;
 } SSortedMergeOperatorInfo;
 
 typedef struct SSortOperatorInfo {
@@ -680,8 +590,7 @@ int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInf
 void toSDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, int32_t* rowCellOffset);
 void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
-int32_t setGroupResultOutputBuf_rv(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type,
-                                   int16_t bytes, int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
+int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes, int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
 void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
 int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows,
                                          char* pData, int32_t compLen, int32_t numOfOutput, int64_t startTs,
@@ -748,7 +657,6 @@ void   setTaskKilled(SExecTaskInfo* pTaskInfo);
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
 void publishQueryAbortEvent(SExecTaskInfo* pTaskInfo, int32_t code);
 
-void calculateOperatorProfResults(SQInfo* pQInfo);
 void queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo);

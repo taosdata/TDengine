@@ -213,7 +213,7 @@ typedef struct {
   int32_t maxConsumers;
   int32_t maxConns;
   int32_t maxTopics;
-  int64_t maxStorage;   // In unit of GB
+  int64_t maxStorage;
   int32_t accessState;  // Configured only by command
 } SAcctCfg;
 
@@ -379,20 +379,20 @@ typedef struct {
 } SFuncObj;
 
 typedef struct {
-  int64_t id;
-  int8_t  type;
-  int8_t  replica;
-  int16_t numOfColumns;
-  int32_t rowSize;
-  int32_t numOfRows;
-  int32_t numOfReads;
-  int32_t payloadLen;
-  void*   pIter;
-  SMnode* pMnode;
-  char    db[TSDB_DB_FNAME_LEN];
-  int16_t offset[TSDB_MAX_COLUMNS];
-  int32_t bytes[TSDB_MAX_COLUMNS];
-  char    payload[];
+  int64_t        id;
+  int8_t         type;
+  int8_t         replica;
+  int16_t        numOfColumns;
+  int32_t        rowSize;
+  int32_t        numOfRows;
+  int32_t        payloadLen;
+  void*          pIter;
+  SMnode*        pMnode;
+  STableMetaRsp* pMeta;
+  bool           sysDbRsp;
+  char           db[TSDB_DB_FNAME_LEN];
+  int16_t        offset[TSDB_MAX_COLUMNS];
+  int32_t        bytes[TSDB_MAX_COLUMNS];
 } SShowObj;
 
 typedef struct {
@@ -625,14 +625,14 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
-    //taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
-    // taosArrayDestroy(pSub->consumers);
+    // taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
+    //  taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
-    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
-    // taosArrayDestroy(pSub->unassignedVg);
+    // taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    //  taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
 }
@@ -647,8 +647,9 @@ typedef struct {
   int32_t        version;
   SRWLatch       lock;
   int32_t        sqlLen;
+  int32_t        astLen;
   char*          sql;
-  char*          logicalPlan;
+  char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
 } SMqTopicObj;

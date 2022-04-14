@@ -40,8 +40,7 @@ static int32_t  mndProcessMCreateSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessVCreateSmaRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVDropSmaRsp(SNodeMsg *pRsp);
-static int32_t  mndGetSmaMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSma(SMnode *pMnode) {
@@ -725,54 +724,12 @@ static int32_t mndProcessVDropSmaRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndGetSmaMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pNode;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
-
-  pShow->bytes[cols] = TSDB_INDEX_NAME_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "stb");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pMeta->numOfColumns = cols;
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = sdbGetSize(pSdb, SDB_SMA);
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
-  return 0;
-}
-
-static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->pNode;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   SSmaObj *pSma = NULL;
   int32_t  cols = 0;
-  char    *pWrite;
-  char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
   SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
   if (pDb == NULL) return 0;
@@ -790,27 +747,32 @@ static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
 
     SName smaName = {0};
     tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, (char *)tNameGetTableName(&smaName));
-    cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pSma->createdTime;
+    char n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(n, (char *)tNameGetTableName(&smaName));
     cols++;
 
     SName stbName = {0};
     tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, (char *)tNameGetTableName(&stbName));
-    cols++;
+
+    char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(n1, (char *)tNameGetTableName(&stbName));
+
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char*) n, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)n1, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);
   }
 
   mndReleaseDb(pMnode, pDb);
-  pShow->numOfReads += numOfRows;
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

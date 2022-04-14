@@ -86,30 +86,31 @@ enum {
 
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
-  TSDB_MGMT_TABLE_ACCT,
-  TSDB_MGMT_TABLE_USER,
-  TSDB_MGMT_TABLE_DB,
-  TSDB_MGMT_TABLE_TABLE,
   TSDB_MGMT_TABLE_DNODE,
   TSDB_MGMT_TABLE_MNODE,
+  TSDB_MGMT_TABLE_MODULE,
   TSDB_MGMT_TABLE_QNODE,
   TSDB_MGMT_TABLE_SNODE,
   TSDB_MGMT_TABLE_BNODE,
-  TSDB_MGMT_TABLE_VGROUP,
-  TSDB_MGMT_TABLE_STB,
-  TSDB_MGMT_TABLE_MODULE,
-  TSDB_MGMT_TABLE_QUERIES,
-  TSDB_MGMT_TABLE_STREAMS,
-  TSDB_MGMT_TABLE_VARIABLES,
-  TSDB_MGMT_TABLE_CONNS,
-  TSDB_MGMT_TABLE_TRANS,
-  TSDB_MGMT_TABLE_GRANTS,
-  TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_CLUSTER,
-  TSDB_MGMT_TABLE_STREAMTABLES,
-  TSDB_MGMT_TABLE_TP,
+  TSDB_MGMT_TABLE_DB,
   TSDB_MGMT_TABLE_FUNC,
   TSDB_MGMT_TABLE_INDEX,
+  TSDB_MGMT_TABLE_STB,
+  TSDB_MGMT_TABLE_STREAMS,
+  TSDB_MGMT_TABLE_TABLE,
+  TSDB_MGMT_TABLE_USER,
+  TSDB_MGMT_TABLE_GRANTS,
+  TSDB_MGMT_TABLE_VGROUP,
+  TSDB_MGMT_TABLE_TOPICS,
+  TSDB_MGMT_TABLE_CONSUMERS,
+  TSDB_MGMT_TABLE_SUBSCRIBES,
+  TSDB_MGMT_TABLE_TRANS,
+  TSDB_MGMT_TABLE_SMAS,
+  TSDB_MGMT_TABLE_CONFIGS,
+  TSDB_MGMT_TABLE_CONNS,
+  TSDB_MGMT_TABLE_QUERIES,
+  TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -332,6 +333,7 @@ int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(void* buf, SEpSet* pEp);
 
 typedef struct {
+  int8_t  connType;
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
@@ -346,6 +348,7 @@ typedef struct {
   int64_t clusterId;
   int32_t connId;
   int8_t  superUser;
+  int8_t  connType;
   SEpSet  epSet;
   char    sVersion[128];
 } SConnectRsp;
@@ -361,7 +364,7 @@ typedef struct {
   int32_t maxTimeSeries;
   int32_t maxStreams;
   int32_t accessState;  // Configured only by command
-  int64_t maxStorage;   // In unit of GB
+  int64_t maxStorage;
 } SCreateAcctReq, SAlterAcctReq;
 
 int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
@@ -745,8 +748,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t     sver;  // software version
-  int64_t     dver;  // dnode table version in sdb
+  int32_t     sver;      // software version
+  int64_t     dnodeVer;  // dnode table version in sdb
   int32_t     dnodeId;
   int64_t     clusterId;
   int64_t     rebootTime;
@@ -760,6 +763,7 @@ typedef struct {
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
+void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -773,7 +777,7 @@ typedef struct {
 } SDnodeEp;
 
 typedef struct {
-  int64_t   dver;
+  int64_t   dnodeVer;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
 } SStatusRsp;
@@ -953,8 +957,13 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
-  int8_t  free;
 } SRetrieveTableReq;
+
+typedef struct SSysTableSchema {
+  int8_t   type;
+  col_id_t colId;
+  int32_t  bytes;
+} SSysTableSchema;
 
 int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
@@ -1876,7 +1885,6 @@ typedef struct {
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CGROUP_LEN];
   char*   sql;
-  char*   logicalPlan;
   char*   physicalPlan;
   char*   qmsg;
 } SMqSetCVgReq;
@@ -1890,7 +1898,6 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->topicName);
   tlen += taosEncodeString(buf, pReq->cgroup);
   tlen += taosEncodeString(buf, pReq->sql);
-  tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeString(buf, pReq->qmsg);
   return tlen;
@@ -1904,7 +1911,6 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeStringTo(buf, pReq->topicName);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeString(buf, &pReq->sql);
-  buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
   buf = taosDecodeString(buf, &pReq->qmsg);
   return buf;

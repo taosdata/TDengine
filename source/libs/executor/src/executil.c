@@ -337,11 +337,11 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
 
 void orderTheResultRows(STaskRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
-  if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
-    fn = tsAscOrder;
-  } else {
-    fn = tsDescOrder;
-  }
+//  if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
+//    fn = tsAscOrder;
+//  } else {
+//    fn = tsDescOrder;
+//  }
 
   taosArraySort(pRuntimeEnv->pResultRowArrayList, fn);
 }
@@ -377,7 +377,7 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
 
 static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
     int32_t* rowCellInfoOffset) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
+  bool ascQuery = true;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -413,7 +413,8 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
     goto _end;
   }
 
-  SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQueryAttr->order.order};
+  int32_t order = TSDB_ORDER_ASC;
+  SCompSupporter cs = {pTableQueryInfoList, posList, order};
 
   int32_t ret = tMergeTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
   if (ret != TSDB_CODE_SUCCESS) {

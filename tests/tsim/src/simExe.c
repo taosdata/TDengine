@@ -340,6 +340,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
   }
 
+  if (useValgrind) {
+    simReplaceStr(buf, "exec.sh", "exec.sh -v");
+  }
+
   simLogSql(buf, true);
   int32_t code = system(buf);
   int32_t repeatTimes = 0;
@@ -678,7 +682,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               if (tt < 0) tt = 0;
 #endif
 
-              tp = localtime(&tt);
+              tp = taosLocalTime(&tt, NULL);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));

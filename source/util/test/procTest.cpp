@@ -89,7 +89,7 @@ TEST_F(UtilTesProc, 00_Init_Cleanup) {
   taosDropShm(&shm);
 }
 
-void ConsumeChild1(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, ProcFuncType ftype) {
+void ConsumeChild1(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, EProcFuncType ftype) {
   STestMsg msg;
   memcpy(&msg, pHead, headLen);
   char body[2000] = {0};
@@ -120,20 +120,20 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
   SProcObj *cproc = taosProcInit(&cfg);
   ASSERT_NE(cproc, nullptr);
 
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_RSP), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_REGIST), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_RELEASE), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, NULL, 12, body, 0, 0, PROC_REQ), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_REQ), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, shm.size, body, 0, 0, PROC_REQ), 0);
-  ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, shm.size, 0, PROC_REQ), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_FUNC_RSP), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_FUNC_REGIST), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_FUNC_RELEASE), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, NULL, 12, body, 0, 0, PROC_FUNC_REQ), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, 0, body, 0, 0, PROC_FUNC_REQ), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, shm.size, body, 0, 0, PROC_FUNC_REQ), 0);
+  ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, shm.size, 0, PROC_FUNC_REQ), 0);
 
   for (int32_t j = 0; j < 1000; j++) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
-      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, 0, PROC_REQ), 0);
+      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, 0, PROC_FUNC_REQ), 0);
     }
-    ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, 0, PROC_REQ), 0);
+    ASSERT_NE(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, 0, PROC_FUNC_REQ), 0);
 
     cfg.isChild = true;
     cfg.name = "1235_p";
@@ -147,7 +147,7 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
   taosDropShm(&shm);
 }
 
-void ConsumeParent1(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, ProcFuncType ftype) {
+void ConsumeParent1(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, EProcFuncType ftype) {
   STestMsg msg;
   memcpy(&msg, pHead, headLen);
   char body[2000] = {0};
@@ -186,7 +186,7 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
   for (int32_t j = 0; j < 1000; j++) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
-      taosProcPutToParentQ(pproc, &head, sizeof(STestMsg), body, i, PROC_REQ);
+      taosProcPutToParentQ(pproc, &head, sizeof(STestMsg), body, i, PROC_FUNC_REQ);
     }
 
     taosProcRun(cproc);
@@ -198,7 +198,7 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
   taosDropShm(&shm);
 }
 
-void ConsumeChild3(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, ProcFuncType ftype) {
+void ConsumeChild3(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen, EProcFuncType ftype) {
   STestMsg msg;
   memcpy(&msg, pHead, headLen);
   char body[2000] = {0};
@@ -236,7 +236,7 @@ TEST_F(UtilTesProc, 03_Handle) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
       head.handle = (void *)((int64_t)i);
-      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), PROC_REQ), 0);
+      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), PROC_FUNC_REQ), 0);
     }
 
     cfg.isChild = true;

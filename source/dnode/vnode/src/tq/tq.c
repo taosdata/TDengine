@@ -126,8 +126,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
 int tqCommit(STQ* pTq) { return tqStorePersist(pTq->tqMeta); }
 
 int32_t tqGetTopicHandleSize(const STqTopic* pTopic) {
-  return strlen(pTopic->topicName) + strlen(pTopic->sql) + strlen(pTopic->logicalPlan) + strlen(pTopic->physicalPlan) +
-         strlen(pTopic->qmsg) + sizeof(int64_t) * 3;
+  return strlen(pTopic->topicName) + strlen(pTopic->sql) + strlen(pTopic->physicalPlan) + strlen(pTopic->qmsg) +
+         sizeof(int64_t) * 3;
 }
 
 int32_t tqGetConsumerHandleSize(const STqConsumer* pConsumer) {
@@ -144,7 +144,6 @@ static FORCE_INLINE int32_t tEncodeSTqTopic(void** buf, const STqTopic* pTopic) 
   int32_t tlen = 0;
   tlen += taosEncodeString(buf, pTopic->topicName);
   /*tlen += taosEncodeString(buf, pTopic->sql);*/
-  /*tlen += taosEncodeString(buf, pTopic->logicalPlan);*/
   /*tlen += taosEncodeString(buf, pTopic->physicalPlan);*/
   tlen += taosEncodeString(buf, pTopic->qmsg);
   /*tlen += taosEncodeFixedI64(buf, pTopic->persistedOffset);*/
@@ -156,7 +155,6 @@ static FORCE_INLINE int32_t tEncodeSTqTopic(void** buf, const STqTopic* pTopic) 
 static FORCE_INLINE const void* tDecodeSTqTopic(const void* buf, STqTopic* pTopic) {
   buf = taosDecodeStringTo(buf, pTopic->topicName);
   /*buf = taosDecodeString(buf, &pTopic->sql);*/
-  /*buf = taosDecodeString(buf, &pTopic->logicalPlan);*/
   /*buf = taosDecodeString(buf, &pTopic->physicalPlan);*/
   buf = taosDecodeString(buf, &pTopic->qmsg);
   /*buf = taosDecodeFixedI64(buf, &pTopic->persistedOffset);*/
@@ -722,7 +720,6 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   }
   strcpy(pTopic->topicName, req.topicName);
   pTopic->sql = req.sql;
-  pTopic->logicalPlan = req.logicalPlan;
   pTopic->physicalPlan = req.physicalPlan;
   pTopic->qmsg = req.qmsg;
   /*pTopic->committedOffset = -1;*/

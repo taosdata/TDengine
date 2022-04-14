@@ -100,11 +100,13 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_NANO_DIGITS  19
 
 #define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
+#define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
 #define TSDB_INS_TABLE_DNODES                 "dnodes"
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
 #define TSDB_INS_TABLE_QNODES                 "qnodes"
 #define TSDB_INS_TABLE_BNODES                 "bnodes"
+#define TSDB_INS_TABLE_SNODES                 "snodes"
 #define TSDB_INS_TABLE_CLUSTER                "cluster"
 #define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
@@ -114,10 +116,17 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_TABLES            "user_tables"
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
-#define TSDB_INS_TABLE_VGROUPS                "vgroups"
-#define TSDB_INS_TABLE_BNODES                 "bnodes"
-#define TSDB_INS_TABLE_SNODES                 "snodes"
 #define TSDB_INS_TABLE_LICENCES               "grants"
+#define TSDB_INS_TABLE_VGROUPS                "vgroups"
+#define TSDB_INS_TABLE_TOPICS                 "topics"
+#define TSDB_INS_TABLE_CONSUMERS              "consumers"
+#define TSDB_INS_TABLE_SUBSCRIBES             "subscribes"
+#define TSDB_INS_TABLE_TRANS                  "trans"
+#define TSDB_INS_TABLE_SMAS                   "smas"
+#define TSDB_INS_TABLE_CONFIGS                "configs"
+#define TSDB_INS_TABLE_CONNS                  "connections"
+#define TSDB_INS_TABLE_QUERIES                "queries"
+#define TSDB_INS_TABLE_VNODES                 "vnodes"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
@@ -496,6 +505,15 @@ enum {
 #define MNODE_HANDLE -1
 #define QNODE_HANDLE 1
 #define DEFAULT_HANDLE 0
+
+#define TSDB_CONFIG_OPTION_LEN  16
+#define TSDB_CONIIG_VALUE_LEN   48
+#define TSDB_CONFIG_NUMBER      8
+
+#define QUERY_ID_SIZE      20
+#define QUERY_OBJ_ID_SIZE  18
+#define SUBQUERY_INFO_SIZE 6
+#define QUERY_SAVE_SIZE    20
 
 #define MAX_NUM_STR_SIZE 40
 
