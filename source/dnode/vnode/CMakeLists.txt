@@ -18,7 +18,6 @@ target_sources(
 
     # meta
     # "src/meta/metaBDBImpl.c"
-    "src/meta/metaCache.c"
     "src/meta/metaCfg.c"
     "src/meta/metaIdx.c"
     "src/meta/metaMain.c"

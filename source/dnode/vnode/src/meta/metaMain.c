@@ -94,13 +94,6 @@ static void metaFree(SMeta *pMeta) {
 }
 
 static int metaOpenImpl(SMeta *pMeta) {
-  // Open meta cache
-  if (metaOpenCache(pMeta) < 0) {
-    // TODO: handle error
-    metaCloseImpl(pMeta);
-    return -1;
-  }
-
   // Open meta db
   if (metaOpenDB(pMeta) < 0) {
     // TODO: handle error
@@ -129,5 +122,4 @@ static void metaCloseImpl(SMeta *pMeta) {
   metaCloseUidGnrt(pMeta);
   metaCloseIdx(pMeta);
   metaCloseDB(pMeta);
-  metaCloseCache(pMeta);
 }
