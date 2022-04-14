@@ -44,6 +44,7 @@ void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
 
 int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   void *ptr = NULL;
+  int   ret;
 
   if (pVnode->config.streamMode == 0) {
     ptr = vnodeMalloc(pVnode, pMsg->contLen);
@@ -64,7 +65,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB:
-      return vnodeProcessCreateStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
+      ret = vnodeProcessCreateStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
+      return 0;
     case TDMT_VND_CREATE_TABLE:
       return vnodeProcessCreateTbReq(pVnode, pMsg, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pRsp);
     case TDMT_VND_ALTER_STB:
