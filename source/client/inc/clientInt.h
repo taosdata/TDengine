@@ -194,12 +194,12 @@ enum {
 #define TD_RES_QUERY(res) (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)   (*(int8_t*)res == RES_TYPE__TMQ)
 
-typedef struct SMqRspObj {
+typedef struct {
   int8_t  resType;
   char*   topic;
-  void*   vg;
   SArray* res;  // SArray<SReqResultInfo>
   int32_t resIter;
+  int32_t vgId;
 } SMqRspObj;
 
 typedef struct SRequestObj {

@@ -543,7 +543,7 @@ EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
       char*       dbName = nodesGetValueFromNode(node);
       strncpy(pContext, varDataVal(dbName), varDataLen(dbName));
       *((char*)pContext + varDataLen(dbName)) = 0;
-      return DEAL_RES_ERROR;  // stop walk
+      return DEAL_RES_END;  // stop walk
     }
     default:
       break;
@@ -685,6 +685,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
 
     int64_t startTs = taosGetTimestampUs();
 
+    _retry:
     pInfo->req.type = pInfo->type;
     strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
     if (pInfo->showRewrite) {
@@ -738,7 +739,12 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     setSDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pTableRsp->numOfRows, pTableRsp->data, pTableRsp->compLen,
                               pOperator->numOfOutput, startTs, NULL, pInfo->scanCols);
 
-    return doFilterResult(pInfo);
+    doFilterResult(pInfo);
+    if (pInfo->pRes->info.rows == 0) {
+      goto _retry;
+    }
+
+    return pInfo->pRes;
   }
 
   return NULL;
@@ -756,12 +762,12 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     return NULL;
   }
 
-  pInfo->accountId = accountId;
+  pInfo->accountId   = accountId;
   pInfo->showRewrite = showRewrite;
-  pInfo->pRes = pResBlock;
-  pInfo->capacity = 4096;
-  pInfo->pCondition = pCondition;
-  pInfo->scanCols = colList;
+  pInfo->pRes        = pResBlock;
+  pInfo->capacity    = 4096;
+  pInfo->pCondition  = pCondition;
+  pInfo->scanCols    = colList;
 
   // TODO remove it
   int32_t     tableType = 0;
@@ -772,6 +778,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_DNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_MNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, tListLen(pName->tname)) == 0) {
@@ -796,6 +804,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, tListLen(pName->tname)) == 0) {
     //    tableType = TSDB_MGMT_TABLE_DIST;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CLUSTER;
   } else {
     ASSERT(0);
   }
@@ -833,15 +843,15 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
 #endif
   }
 
-  pOperator->name = "SysTableScanOperator";
+  pOperator->name         = "SysTableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfOutput = pResBlock->info.numOfCols;
-  pOperator->getNextFn = doSysTableScan;
-  pOperator->closeFn = destroySysScanOperator;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = pResBlock->info.numOfCols;
+  pOperator->getNextFn    = doSysTableScan;
+  pOperator->closeFn      = destroySysScanOperator;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   return pOperator;
 }
