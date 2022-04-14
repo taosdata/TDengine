@@ -51,7 +51,7 @@ else
 fi
 
 TOP_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
+TAOSD_DIR=`find . -name "taosd"|grep debug|head -n1`
 
 if [[ "$OS_TYPE" != "Darwin" ]]; then
   cut_opt="--field="
