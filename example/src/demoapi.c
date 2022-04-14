@@ -66,12 +66,15 @@ static void prepare_data(TAOS* taos) {
     taos_select_db(taos, "test");
 
     res = taos_query(taos, "create table meters(ts timestamp, f float, n int, b binary(20), c nchar(20)) tags(area int, city binary(20), dist nchar(20));");
+    //res = taos_query(taos, "create table meters(ts timestamp, f float, n int, b binary(20), c nchar(20)) tags(area int, city binary(20));");
     taos_free_result(res);
 
     char command[1024] = {0};
     for (int64_t i = 0; i < g_num_of_tb; i ++) {
+//        sprintf(command, "create table t%"PRId64" using meters tags(%"PRId64", '%s', '%s');",
+//                i, i, (i%2)?"beijing":"shanghai", (i%2)?"朝阳区":"黄浦区");
         sprintf(command, "create table t%"PRId64" using meters tags(%"PRId64", '%s', '%s');",
-                i, i, (i%2)?"beijing":"shanghai", (i%2)?"朝阳区":"黄浦区");
+                i, i, (i%2)?"beijing":"shanghai", (i%2)?"chaoyang":"huangpu");
         res = taos_query(taos,  command);
         if ((res) && (0 == taos_errno(res))) {
             okPrint("t%" PRId64 " created\n", i);
@@ -99,7 +102,7 @@ static void prepare_data(TAOS* taos) {
             }
             taos_free_result(res);
         }
-        sprintf(command, "insert into t%"PRId64" values(%" PRId64 ", NULL, NULL, NULL)",
+        sprintf(command, "insert into t%"PRId64" values(%" PRId64 ", NULL, NULL, NULL, NULL)",
                 i, 1650000000000+j+1);
         res = taos_query(taos,  command);
         if ((res) && (0 == taos_errno(res))) {
@@ -115,7 +118,7 @@ static void prepare_data(TAOS* taos) {
     }
 }
 
-static int print_result(TAOS_RES* res, int block) {
+static int print_result(char *tbname, TAOS_RES* res, int block) {
     int64_t num_rows = 0;
     TAOS_ROW    row = NULL;
     int         num_fields = taos_num_fields(res);
@@ -134,6 +137,19 @@ static int print_result(TAOS_RES* res, int block) {
             taos_print_row(temp, row, fields, num_fields);
             puts(temp);
             num_rows ++;
+
+            for (int f = 0; f < num_fields; f ++) {
+                // TODO
+            }
+            int* lengths = taos_fetch_lengths(res);
+            if (lengths) {
+                for (int c = 0; c < num_fields; c++) {
+                    printf("length of column %d is %d\n", c, lengths[c]);
+                }
+            } else {
+                errorPrint("%s() LN%d: %s's lengths is NULL\n",
+                        __func__, __LINE__, tbname);
+            }
         }
     }
 
@@ -142,28 +158,21 @@ static int print_result(TAOS_RES* res, int block) {
 
 static void verify_query(TAOS* taos) {
     // TODO: select count(tbname) from stable once stable query work
+    //
+    char tbname[193] = {0};
     char command[1024] = {0};
 
     for (int64_t i = 0; i < g_num_of_tb; i++) {
-        sprintf(command, "select * from t%"PRId64"", i);
+        sprintf(tbname, "t%"PRId64"", i);
+        sprintf(command, "select * from %s", tbname);
         TAOS_RES* res = taos_query(taos, command);
 
         if (res) {
             if (0 == taos_errno(res)) {
                 int field_count = taos_field_count(res);
                 printf("field_count: %d\n", field_count);
-                int* lengths = taos_fetch_lengths(res);
-                if (lengths) {
-                for (int c = 0; c < field_count; c++) {
-                    printf("length of column %d is %d\n", c, lengths[c]);
-                }
-                } else {
-                    errorPrint("%s() LN%d: t%"PRId64"'s lengths is NULL\n",
-                            __func__, __LINE__, i);
-                }
-
-               int64_t rows = print_result(res, i % 2);
-               printf("rows is: %"PRId64"\n", rows);
+                int64_t rows = print_result(tbname, res, i % 2);
+                printf("rows is: %"PRId64"\n", rows);
 
             } else {
                 errorPrint("%s() LN%d: %s\n",
