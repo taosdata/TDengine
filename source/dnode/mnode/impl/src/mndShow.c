@@ -115,6 +115,7 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
 static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   SMnode    *pMnode = pReq->pNode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
+  SShowObj  *pShow = NULL;
   int32_t    rowsToRead = SHOW_STEP_SIZE;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
@@ -124,8 +125,6 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
-  SShowObj* pShow = NULL;
 
   if (retrieveReq.showId == 0) {
     SShowReq req = {0};
@@ -143,7 +142,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
     pShow->numOfColumns = pShow->pMeta->numOfColumns;
     int32_t offset = 0;
 
-    for(int32_t i = 0; i < pShow->pMeta->numOfColumns; ++i) {
+    for (int32_t i = 0; i < pShow->pMeta->numOfColumns; ++i) {
       pShow->offset[i] = offset;
 
       int32_t bytes = pShow->pMeta->pSchemas[i].bytes;
@@ -162,26 +161,25 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
-    mndReleaseShowObj((SShowObj*) pShow, false);
+    mndReleaseShowObj(pShow, false);
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
     return -1;
   }
 
-  mDebug("show:0x%" PRIx64 ", start retrieve data, type:%s", pShow->id, mndShowStr(pShow->type));
+  mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
 
-  int32_t numOfCols = pShow->pMeta->numOfColumns;
-
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  int32_t      numOfCols = pShow->pMeta->numOfColumns;
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   pBlock->info.numOfCols = numOfCols;
 
-  for(int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
-    SSchema* p = &pShow->pMeta->pSchemas[i];
+    SSchema        *p = &pShow->pMeta->pSchemas[i];
 
     idata.info.bytes = p->bytes;
-    idata.info.type  = p->type;
+    idata.info.type = p->type;
     idata.info.colId = p->colId;
 
     taosArrayPush(pBlock->pDataBlock, &idata);
@@ -191,15 +189,15 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   }
 
   blockDataEnsureCapacity(pBlock, rowsToRead);
-  if (mndCheckRetrieveFinished((SShowObj*) pShow)) {
+  if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
     rowsRead = 0;
   } else {
-    rowsRead = (*retrieveFp)(pReq, (SShowObj *)pShow, pBlock, rowsToRead);
+    rowsRead = (*retrieveFp)(pReq, pShow, pBlock, rowsToRead);
     if (rowsRead < 0) {
       terrno = rowsRead;
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
-      mndReleaseShowObj((SShowObj *)pShow, true);
+      mndReleaseShowObj(pShow, true);
       return -1;
     }
 
@@ -207,13 +205,12 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
     mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d numOfRows:%d", pShow->id, rowsRead, pShow->numOfRows);
   }
 
-  // numOfCols + sizeof(SSysTableSchema) * numOfCols + data payload
-  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns + blockDataGetSize(pBlock)
-      + blockDataGetSerialMetaSize(pBlock);
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock);
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mndReleaseShowObj((SShowObj*) pShow, false);
+    mndReleaseShowObj(pShow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
     blockDataDestroy(pBlock);
@@ -222,9 +219,8 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
   pRsp->handle = htobe64(pShow->id);
 
-  // if free flag is set, client wants to clean the resources
   if (rowsRead > 0) {
-    char *   pStart = pRsp->data;
+    char    *pStart = pRsp->data;
     SSchema *ps = pShow->pMeta->pSchemas;
 
     *(int32_t *)pStart = htonl(pShow->pMeta->numOfColumns);
@@ -245,75 +241,20 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
-  pReq->pRsp      = pRsp;
-  pReq->rspLen    = size;
+  pReq->pRsp = pRsp;
+  pReq->rspLen = size;
 
   if (rowsRead == 0 || rowsRead < rowsToRead) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
-    mndReleaseShowObj((SShowObj*) pShow, true);
+    mndReleaseShowObj(pShow, true);
   } else {
     mDebug("show:0x%" PRIx64 ", retrieve not completed yet", pShow->id);
-    mndReleaseShowObj((SShowObj*) pShow, false);
+    mndReleaseShowObj(pShow, false);
   }
 
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
-}
-
-char *mndShowStr(int32_t showType) {
-  switch (showType) {
-    case TSDB_MGMT_TABLE_ACCT:
-      return "show accounts";
-    case TSDB_MGMT_TABLE_USER:
-      return "show users";
-    case TSDB_MGMT_TABLE_DB:
-      return "show databases";
-    case TSDB_MGMT_TABLE_TABLE:
-      return "show tables";
-    case TSDB_MGMT_TABLE_DNODE:
-      return "show dnodes";
-    case TSDB_MGMT_TABLE_MNODE:
-      return "show mnodes";
-    case TSDB_MGMT_TABLE_QNODE:
-      return "show qnodes";
-    case TSDB_MGMT_TABLE_SNODE:
-      return "show snodes";
-    case TSDB_MGMT_TABLE_BNODE:
-      return "show bnodes";
-    case TSDB_MGMT_TABLE_VGROUP:
-      return "show vgroups";
-    case TSDB_MGMT_TABLE_STB:
-      return "show stables";
-    case TSDB_MGMT_TABLE_MODULE:
-      return "show modules";
-    case TSDB_MGMT_TABLE_QUERIES:
-      return "show queries";
-    case TSDB_MGMT_TABLE_STREAMS:
-      return "show streams";
-    case TSDB_MGMT_TABLE_VARIABLES:
-      return "show configs";
-    case TSDB_MGMT_TABLE_CONNS:
-      return "show connections";
-    case TSDB_MGMT_TABLE_TRANS:
-      return "show trans";
-    case TSDB_MGMT_TABLE_GRANTS:
-      return "show grants";
-    case TSDB_MGMT_TABLE_VNODES:
-      return "show vnodes";
-    case TSDB_MGMT_TABLE_CLUSTER:
-      return "show cluster";
-    case TSDB_MGMT_TABLE_STREAMTABLES:
-      return "show streamtables";
-    case TSDB_MGMT_TABLE_TP:
-      return "show topics";
-    case TSDB_MGMT_TABLE_FUNC:
-      return "show functions";
-      case TSDB_MGMT_TABLE_INDEX:
-      return "show indexes";
-    default:
-      return "undefined";
-  }
 }
 
 static bool mndCheckRetrieveFinished(SShowObj *pShow) {
@@ -321,14 +262,6 @@ static bool mndCheckRetrieveFinished(SShowObj *pShow) {
     return true;
   }
   return false;
-}
-
-void mndVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
-  if (rows < capacity) {
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
-    }
-  }
 }
 
 void mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp) {

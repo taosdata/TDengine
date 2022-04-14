@@ -24,9 +24,6 @@
 
 #define TSDB_DNODE_VER_NUMBER   1
 #define TSDB_DNODE_RESERVE_SIZE 64
-#define TSDB_CONFIG_OPTION_LEN  16
-#define TSDB_CONIIG_VALUE_LEN   48
-#define TSDB_CONFIG_NUMBER      8
 
 static const char *offlineReason[] = {
     "",
@@ -55,7 +52,6 @@ static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessStatusReq(SNodeMsg *pReq);
 
-static int32_t mndGetConfigMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
@@ -636,37 +632,6 @@ static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq) {
 static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp) {
   mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t mndGetConfigMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
-
-  pShow->bytes[cols] = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "value");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pMeta->numOfColumns = cols;
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = TSDB_CONFIG_NUMBER;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
-  return 0;
 }
 
 static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {

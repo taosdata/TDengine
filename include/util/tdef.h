@@ -119,6 +119,11 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_BNODES                 "bnodes"
 #define TSDB_INS_TABLE_SNODES                 "snodes"
 #define TSDB_INS_TABLE_LICENCES               "grants"
+#define TSDB_INS_TABLE_TRANS                  "trans"
+#define TSDB_INS_TABLE_SMAS                   "smas"
+#define TSDB_INS_TABLE_CONFIGS                "configs"
+#define TSDB_INS_TABLE_CONNS                  "connections"
+#define TSDB_INS_TABLE_QUERIES                "queries"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
@@ -497,6 +502,15 @@ enum {
 #define MNODE_HANDLE -1
 #define QNODE_HANDLE 1
 #define DEFAULT_HANDLE 0
+
+#define TSDB_CONFIG_OPTION_LEN  16
+#define TSDB_CONIIG_VALUE_LEN   48
+#define TSDB_CONFIG_NUMBER      8
+
+#define QUERY_ID_SIZE      20
+#define QUERY_OBJ_ID_SIZE  18
+#define SUBQUERY_INFO_SIZE 6
+#define QUERY_SAVE_SIZE    20
 
 #define MAX_NUM_STR_SIZE 40
 

@@ -20,7 +20,6 @@
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
-//!!!! Note: only APPEND columns in below tables, NO insert !!!!
 static const SInfosTableSchema dnodesSchema[] = {
     {.name = "id", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -225,6 +224,54 @@ static const SInfosTableSchema subscribeSchema[] = {
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
+static const SInfosTableSchema smaSchema[] = {
+    {.name = "sma_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
+static const SInfosTableSchema transSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "created_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "stage", .bytes = TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "type", .bytes = TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "last_exec_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "last_error", .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
+static const SInfosTableSchema configSchema[] = {
+    {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "value", .bytes = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
+static const SInfosTableSchema connSchema[] = {
+    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "program", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "ip:port", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "login_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+};
+
+static const SInfosTableSchema querySchema[] = {
+    {.name = "queryId", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "ip:port", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "qid", .bytes = 22 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "created_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "time", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "sql_obj_id", .bytes = QUERY_OBJ_ID_SIZE + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "ep", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "stable_query", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
+    {.name = "sub_queries", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "sub_query_info", .bytes = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
 static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema)},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
@@ -243,6 +290,11 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
+    {TSDB_INS_TABLE_TRANS, transSchema, tListLen(transSchema)},
+    {TSDB_INS_TABLE_SMAS, smaSchema, tListLen(smaSchema)},
+    {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema)},
+    {TSDB_INS_TABLE_CONNS, connSchema, tListLen(connSchema)},
+    {TSDB_INS_TABLE_QUERIES, querySchema, tListLen(querySchema)},
 };
 
 static int32_t mndInitInfosTableSchema(const SInfosTableSchema *pSrc, int32_t colNum, SSchema **pDst) {
