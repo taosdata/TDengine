@@ -16,13 +16,17 @@
 #ifndef TDENGINE_TUDF_H
 #define TDENGINE_TUDF_H
 
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "tmsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //======================================================================================
 //begin API to taosd and qworker
-#define TSDB_UDF_MAX_COLUMNS 4
 
 enum {
   UDFC_CODE_STOPPING = -1,
@@ -41,35 +45,6 @@ int32_t startUdfService();
  */
 int32_t stopUdfService();
 
-enum {
-  TSDB_UDF_TYPE_SCALAR = 0,
-  TSDB_UDF_TYPE_AGGREGATE = 1
-};
-
-enum {
-  TSDB_UDF_SCRIPT_BIN_LIB = 0,
-  TSDB_UDF_SCRIPT_LUA = 1,
-};
-
-typedef struct SUdfColumnMeta {
-  int16_t type;
-  int32_t bytes; // <0 var length, others fixed length bytes
-  uint8_t precision;
-  uint8_t scale;
-} SUdfColumnMeta;
-
-typedef struct SUdfInfo {
-  char   *udfName;        // function name
-  int32_t udfType;    // scalar function or aggregate function
-  int8_t    scriptType;
-  char *path;
-
-  // known info between qworker and udf
-  //  struct SUdfColumnMeta resultMeta;
-  //  int32_t bufSize;     //interbuf size
-
-} SUdfInfo;
-
 typedef void *UdfHandle;
 
 /**
@@ -78,8 +53,14 @@ typedef void *UdfHandle;
  * @param handle, out
  * @return error code
  */
-int32_t setupUdf(SUdfInfo* udf, UdfHandle *handle);
+int32_t setupUdf(char udfName[], SEpSet epSet, UdfHandle *handle);
 
+typedef struct SUdfColumnMeta {
+  int16_t type;
+  int32_t bytes; // <0 var length, others fixed length bytes
+  uint8_t precision;
+  uint8_t scale;
+} SUdfColumnMeta;
 
 typedef struct SUdfColumnData {
   int32_t numOfRows;
@@ -108,7 +89,7 @@ typedef struct SUdfColumn {
 typedef struct SUdfDataBlock {
   int32_t numOfRows;
   int32_t numOfCols;
-  SUdfColumn udfCols[TSDB_UDF_MAX_COLUMNS];
+  SUdfColumn **udfCols;
 } SUdfDataBlock;
 
 typedef struct SUdfInterBuf {
@@ -138,13 +119,17 @@ int32_t teardownUdf(UdfHandle handle);
 // begin API to UDF writer.
 
 // dynamic lib init and destroy
-typedef int32_t (*TUdfInitFunc)();
-typedef int32_t (*TUdfDestroyFunc)();
+typedef int32_t (*TUdfSetupFunc)();
+typedef int32_t (*TUdfTeardownFunc)();
+
+typedef int32_t (*TUdfFreeUdfColumnDataFunc)(SUdfColumnData* columnData);
 
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumnData *resultData);
-typedef int32_t (*TUdfAggInit)(SUdfInterBuf *buf);
-typedef int32_t (*TUdfAggProcess)(SUdfDataBlock block, SUdfInterBuf *interBuf);
-typedef int32_t (*TUdfAggFinalize)(SUdfInterBuf buf, SUdfColumnData *resultData);
+typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);
+typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock block, SUdfInterBuf *interBuf);
+typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf buf, SUdfColumnData *resultData);
+
+
 // end API to UDF writer
 //=======================================================================================================================
 

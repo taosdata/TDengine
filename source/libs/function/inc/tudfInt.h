@@ -15,7 +15,6 @@
 
 #ifndef TDENGINE_TUDF_INT_H
 #define TDENGINE_TUDF_INT_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,11 +36,8 @@ enum {
 };
 
 typedef struct SUdfSetupRequest {
-  char udfName[16]; //
-  int8_t scriptType; // 0:c, 1: lua, 2:js
-  int8_t udfType; //udaf, udf
-  int16_t pathSize;
-  char *path;
+  char udfName[TSDB_FUNC_NAME_LEN];
+  SEpSet epSet;
 } SUdfSetupRequest;
 
 typedef struct SUdfSetupResponse {
@@ -100,6 +96,10 @@ int32_t decodeRequest(char *buf, int32_t bufLen, SUdfRequest *pRequest);
 int32_t encodeRequest(char **buf, int32_t *bufLen, SUdfRequest *request);
 int32_t decodeResponse(char *buf, int32_t bufLen, SUdfResponse *pResponse);
 int32_t encodeResponse(char **buf, int32_t *bufLen, SUdfResponse *response);
+
+void freeUdfColumnData(SUdfColumnData *data);
+void freeUdfColumn(SUdfColumn* col);
+void freeUdfDataDataBlock(SUdfDataBlock *block);
 
 #ifdef __cplusplus
 }

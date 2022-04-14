@@ -254,25 +254,30 @@ int32_t deserializeUdfColumnData(SUdfColumnData* pData, char* buf) {
     pData->nullBitmapLen = *(int32_t*)buf;
     buf += sizeof(int32_t);
 
-    pData->nullBitmap = buf;
+    //TODO: optimize for less memory copy
+    pData->nullBitmap = taosMemoryMalloc(pData->nullBitmapLen);
+    memcpy(pData->nullBitmap, buf, pData->nullBitmapLen);
     buf += pData->nullBitmapLen;
 
     pData->dataLen = *(int32_t*)buf;
     buf += sizeof(int32_t);
 
-    pData->data = buf;
+    pData->data = taosMemoryMalloc(pData->dataLen);
+    memcpy(pData->data, buf, pData->dataLen);
     buf += pData->dataLen;
   } else {
     pData->varOffsetsLen = *(int32_t*)buf;
     buf += sizeof(int32_t);
 
-    pData->varOffsets = buf;
+    pData->varOffsets = taosMemoryMalloc(pData->varOffsetsLen);
+    memcpy(pData->varOffsets, buf, pData->varOffsetsLen);
     buf += pData->varOffsetsLen;
 
     pData->payloadLen = *(int32_t*)buf;
     buf += sizeof(int32_t);
 
-    pData->payload = buf;
+    pData->payload = taosMemoryMalloc(pData->payloadLen);
+    memcpy(pData->payload, buf, pData->payloadLen);
     buf += pData->payloadLen;
   }
   int32_t len = buf - bufBeg;
@@ -333,7 +338,7 @@ int32_t serializeUdfDataBlock(SUdfDataBlock *block, char *pBuf) {
   pBuf += sizeof(int32_t);
 
   for (int32_t i = 0; i < block->numOfCols; ++i) {
-    SUdfColumn* col = block->udfCols + i;
+    SUdfColumn* col = block->udfCols[i];
     int32_t l = serializeUdfColumn(col, pBuf);
     pBuf += l;
   }
@@ -342,7 +347,7 @@ int32_t serializeUdfDataBlock(SUdfDataBlock *block, char *pBuf) {
   return totalLen;
 }
 
-int32_t deserailizeUdfDataBlock(SUdfDataBlock *pBlock, char *buf) {
+int32_t deserializeUdfDataBlock(SUdfDataBlock *pBlock, char *buf) {
   char *bufBegin = buf;
 
   pBlock->numOfRows = *(int32_t*)buf;
@@ -351,8 +356,10 @@ int32_t deserailizeUdfDataBlock(SUdfDataBlock *pBlock, char *buf) {
   pBlock->numOfCols = *(int32_t*)buf;
   buf += sizeof(int32_t);
 
+  pBlock->udfCols = taosMemoryMalloc(sizeof(SUdfColumn*) * pBlock->numOfCols);
   for (int32_t i = 0; i < pBlock->numOfCols; ++i) {
-    int32_t l = deserializeUdfColumn(pBlock->udfCols + i, buf);
+    pBlock->udfCols[i] = taosMemoryMalloc(sizeof(SUdfColumn));
+    int32_t l = deserializeUdfColumn(pBlock->udfCols[i], buf);
     buf += l;
   }
 
@@ -369,14 +376,16 @@ int32_t serializeUdfInterBuf(SUdfInterBuf *state, char *pBuf) {
   memcpy(pBuf, state->buf, state->bufLen);
   pBuf += state->bufLen;
 
-  return pBuf-bufBegin;
+  return pBuf - bufBegin;
 }
 
 int32_t deserializeUdfInterBuf(SUdfInterBuf *pState, char *buf) {
   char* bufBegin = buf;
   pState->bufLen = *(int32_t*)buf;
   buf += sizeof(int32_t);
-  pState->buf = buf;
+
+  pState->buf = taosMemoryMalloc(pState->bufLen);
+  memcpy(pState->buf, buf, pState->bufLen);
   buf += pState->bufLen;
   return buf - bufBegin;
 }
@@ -384,16 +393,11 @@ int32_t deserializeUdfInterBuf(SUdfInterBuf *pState, char *buf) {
 int32_t serializeUdfSetupRequest(SUdfSetupRequest *setup, char *buf) {
   char *bufBegin = buf;
 
-  memcpy(buf, setup->udfName, 16);
-  buf += 16;
-  *(int8_t *) buf = setup->scriptType;
-  buf += sizeof(int8_t);
-  *(int8_t *) buf = setup->udfType;
-  buf += sizeof(int8_t);
-  *(int16_t *) buf = setup->pathSize;
-  buf += sizeof(int16_t);
-  memcpy(buf, setup->path, setup->pathSize);
-  buf += setup->pathSize;
+  memcpy(buf, setup->udfName, TSDB_FUNC_NAME_LEN);
+  buf += TSDB_FUNC_NAME_LEN;
+
+  memcpy(buf, &setup->epSet, sizeof(SEpSet));
+  buf += sizeof(SEpSet);
 
   return buf - bufBegin;
 };
@@ -401,17 +405,11 @@ int32_t serializeUdfSetupRequest(SUdfSetupRequest *setup, char *buf) {
 int32_t deserializeUdfSetupRequest(SUdfSetupRequest *setup, char *buf) {
   char* bufBegin = buf;
 
-  memcpy(setup->udfName, buf, 16);
-  buf += 16;
-  setup->scriptType = *(int8_t *) buf;
-  buf += sizeof(int8_t);
-  setup->udfType = *(int8_t *) buf;
-  buf += sizeof(int8_t);
-  setup->pathSize = *(int16_t *) buf;
-  buf += sizeof(int16_t);
-  setup->path = buf;
-  buf += setup->pathSize;
+  memcpy(setup->udfName, buf, TSDB_FUNC_NAME_LEN);
+  buf += TSDB_FUNC_NAME_LEN;
 
+  memcpy(&setup->epSet, buf, sizeof(SEpSet));
+  buf += sizeof(SEpSet);
   return buf - bufBegin;
 }
 
@@ -479,7 +477,7 @@ int32_t deserializeUdfCallRequest(SUdfCallRequest *call, char *buf) {
   call->callType = *(int8_t *) buf;
   buf += sizeof(int8_t);
   int32_t l = 0;
-  l = deserailizeUdfDataBlock(&call->block, buf);
+  l = deserializeUdfDataBlock(&call->block, buf);
   buf += l;
   l = deserializeUdfInterBuf(&call->interBuf, buf);
   buf += l;
@@ -633,11 +631,11 @@ int32_t deserializeUdfResponse(SUdfResponse *rsp, char *buf) {
 int32_t estimateUdfRequestLen(SUdfRequest *request) {
   // a larger estimated is generated
   int32_t size = sizeof(SUdfRequest);
-  if (request->type == UDF_TASK_SETUP) {
-    size += request->setup.pathSize;
-  } else if (request->type == UDF_TASK_CALL) {
+  if (request->type == UDF_TASK_CALL) {
+    size += request->call.block.numOfCols * sizeof(SUdfColumn*);
     for (int32_t i = 0; i < request->call.block.numOfCols; ++i) {
-      SUdfColumn* col = request->call.block.udfCols + i;
+      size += sizeof(SUdfColumn);
+      SUdfColumn* col = request->call.block.udfCols[i];
       if (col->colData.varLengthColumn) {
         size += col->colData.varOffsetsLen;
         size += col->colData.payloadLen;
@@ -715,6 +713,39 @@ int32_t decodeResponse(char *bufMsg, int32_t bufLen, SUdfResponse *rsp) {
   char *buf = bufMsg;
   deserializeUdfResponse(rsp, buf);
   return 0;
+}
+
+void freeUdfColumnData(SUdfColumnData *data) {
+  if (data->varLengthColumn) {
+    taosMemoryFree(data->varOffsets);
+    data->varOffsets = NULL;
+    taosMemoryFree(data->payload);
+    data->payload = NULL;
+  } else {
+    taosMemoryFree(data->nullBitmap);
+    data->nullBitmap = NULL;
+    taosMemoryFree(data->data);
+    data->data = NULL;
+  }
+}
+
+void freeUdfColumn(SUdfColumn* col) {
+  freeUdfColumnData(&col->colData);
+}
+
+void freeUdfDataDataBlock(SUdfDataBlock *block) {
+  for (int32_t i = 0; i < block->numOfCols; ++i) {
+    freeUdfColumn(block->udfCols[i]);
+    taosMemoryFree(block->udfCols[i]);
+    block->udfCols[i] = NULL;
+  }
+  taosMemoryFree(block->udfCols);
+  block->udfCols = NULL;
+}
+
+void freeUdfInterBuf(SUdfInterBuf *buf) {
+  taosMemoryFree(buf->buf);
+  buf->buf = NULL;
 }
 
 void onUdfcPipeClose(uv_handle_t *handle) {
@@ -1168,7 +1199,7 @@ int32_t udfcRunUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   return task->errCode;
 }
 
-int32_t setupUdf(SUdfInfo *udfInfo, UdfHandle *handle) {
+int32_t setupUdf(char udfName[TSDB_FUNC_NAME_LEN], UdfHandle *handle) {
   debugPrint("%s", "client setup udf");
   SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1176,11 +1207,7 @@ int32_t setupUdf(SUdfInfo *udfInfo, UdfHandle *handle) {
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
-  memcpy(req->udfName, udfInfo->udfName, 16);
-  req->path = udfInfo->path;
-  req->pathSize = strlen(req->path) + 1;
-  req->udfType = udfInfo->udfType;
-  req->scriptType = udfInfo->scriptType;
+  memcpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
 
   int32_t errCode = udfcRunUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
