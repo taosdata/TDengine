@@ -39,7 +39,6 @@ public class TestAll {
         }
     }
 
-
     @Test
     public void testJNIConnect() throws SQLException {
         JNIConnectExample.main(args);
@@ -54,10 +53,6 @@ public class TestAll {
     public void testRestInsert() throws SQLException {
         dropDB("power");
         RestInsertExample.main(args);
-    }
-
-    @Test
-    public void testQuery() throws SQLException {
         RestQueryExample.main(args);
     }
 
@@ -70,7 +65,7 @@ public class TestAll {
     @Test
     public void testSubscribe() {
 
-        Thread thread = new Thread(()-> {
+        Thread thread = new Thread(() -> {
             try {
                 Thread.sleep(1000);
                 insertData();

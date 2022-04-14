@@ -8,6 +8,7 @@ taosadapter >> /dev/null 2>&1 &
 cd ../../docs-examples/python
 
 # 1
+taos -s "create database log if not exists"
 python3 connect_exmaple.py
 
 # 2
