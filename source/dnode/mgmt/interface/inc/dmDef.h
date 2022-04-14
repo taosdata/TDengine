@@ -36,6 +36,7 @@
 #include "tworker.h"
 
 #include "dnode.h"
+#include "mnode.h"
 #include "monitor.h"
 
 #ifdef __cplusplus

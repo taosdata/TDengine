@@ -103,6 +103,12 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
  */
 int32_t mndProcessMsg(SNodeMsg *pMsg);
 
+/**
+ * @brief Generate machine code
+ *
+ */
+void mndGenerateMachineCode();
+
 #ifdef __cplusplus
 }
 #endif
