@@ -916,7 +916,7 @@ class TDCreateData():
             if str(data).split(".")[0] == str(value).split(".")[0]:  
                 self.logger.debug(f"TO_ISO8601（时间对比=.）checkEqual success, elm={data} expect_elm={value}")                 
                 return True                 
-            elif float(chazhi)<2:  
+            elif float(chazhi)<100:  #差值100s
                 self.logger.debug(f"TO_ISO8601（时间对比差值=:）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -930,8 +930,8 @@ class TDCreateData():
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()                                    
-            #有的机器有8个小时时差，因此增加8个小时28800s
-            if float(chazhi) < 28810:  
+            #有的机器有8个小时时差，因此增加8个小时28800s+100s
+            if float(chazhi) < 28900:  
                 self.logger.debug(f"SYS_TO_ISO8601（时间对比差值=:）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
