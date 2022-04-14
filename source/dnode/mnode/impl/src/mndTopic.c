@@ -26,7 +26,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_TOPIC_VER_NUMBER 1
+#define MND_TOPIC_VER_NUMBER   1
 #define MND_TOPIC_RESERVE_SIZE 64
 
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);
@@ -52,7 +52,7 @@ int32_t mndInitTopic(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndProcessDropTopicInRsp);
 
-//  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TP, mndRetrieveTopic);
+  //  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TP, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TP, mndCancelGetNextTopic);
 
   return sdbSetTable(pMnode->pSdb, table);
@@ -63,11 +63,10 @@ void mndCleanupTopic(SMnode *pMnode) {}
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t logicalPlanLen = strlen(pTopic->logicalPlan) + 1;
   int32_t physicalPlanLen = strlen(pTopic->physicalPlan) + 1;
-  int32_t swLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
+  int32_t schemaLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
   int32_t size =
-      sizeof(SMqTopicObj) + logicalPlanLen + physicalPlanLen + pTopic->sqlLen + swLen + MND_TOPIC_RESERVE_SIZE;
+      sizeof(SMqTopicObj) + physicalPlanLen + pTopic->sqlLen + pTopic->astLen + schemaLen + MND_TOPIC_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, MND_TOPIC_VER_NUMBER, size);
   if (pRaw == NULL) goto TOPIC_ENCODE_OVER;
 
@@ -81,19 +80,19 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT32(pRaw, dataPos, pTopic->version, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_ENCODE_OVER);
-  SDB_SET_INT32(pRaw, dataPos, logicalPlanLen, TOPIC_ENCODE_OVER);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->logicalPlan, logicalPlanLen, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, pTopic->astLen, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->ast, pTopic->astLen, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, physicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->physicalPlan, physicalPlanLen, TOPIC_ENCODE_OVER);
 
-  void *swBuf = taosMemoryMalloc(swLen);
+  void *swBuf = taosMemoryMalloc(schemaLen);
   if (swBuf == NULL) {
     goto TOPIC_ENCODE_OVER;
   }
   void *aswBuf = swBuf;
   taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema);
-  SDB_SET_INT32(pRaw, dataPos, swLen, TOPIC_ENCODE_OVER);
-  SDB_SET_BINARY(pRaw, dataPos, swBuf, swLen, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, schemaLen, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
@@ -137,23 +136,25 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pTopic->uid, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->dbUid, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
+
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
-
-  pTopic->sql = taosMemoryCalloc(pTopic->sqlLen + 1, sizeof(char));
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
-
-  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->logicalPlan = taosMemoryCalloc(len + 1, sizeof(char));
-  if (pTopic->logicalPlan == NULL) {
+  pTopic->sql = taosMemoryCalloc(pTopic->sqlLen, sizeof(char));
+  if (pTopic->sql == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
   }
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
 
+  SDB_GET_INT32(pRaw, dataPos, &pTopic->astLen, TOPIC_DECODE_OVER);
+  pTopic->ast = taosMemoryCalloc(pTopic->astLen, sizeof(char));
+  if (pTopic->ast == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto TOPIC_DECODE_OVER;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->ast, pTopic->astLen, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->physicalPlan = taosMemoryCalloc(len + 1, sizeof(char));
+  pTopic->physicalPlan = taosMemoryCalloc(len, sizeof(char));
   if (pTopic->physicalPlan == NULL) {
-    taosMemoryFree(pTopic->logicalPlan);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
   }
@@ -257,6 +258,7 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   return 0;
 }
 
+#if 0
 static int32_t mndGetPlanString(const SCMCreateTopicReq *pCreate, char **pStr) {
   if (NULL == pCreate->ast) {
     return TSDB_CODE_SUCCESS;
@@ -279,6 +281,7 @@ static int32_t mndGetPlanString(const SCMCreateTopicReq *pCreate, char **pStr) {
   terrno = code;
   return code;
 }
+#endif
 
 static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
   mDebug("topic:%s to create", pCreate->name);
@@ -290,32 +293,39 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
-  topicObj.sql = pCreate->sql;
-  topicObj.physicalPlan = "";
-  topicObj.logicalPlan = "";
-  topicObj.sqlLen = strlen(pCreate->sql);
-
-  char *pPlanStr = NULL;
-  if (TSDB_CODE_SUCCESS != mndGetPlanString(pCreate, &pPlanStr)) {
-    mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
-    return -1;
-  }
-  if (NULL != pPlanStr) {
-    topicObj.physicalPlan = pPlanStr;
-  }
+  topicObj.sql = strdup(pCreate->sql);
+  topicObj.sqlLen = strlen(pCreate->sql) + 1;
+  topicObj.ast = strdup(pCreate->ast);
+  topicObj.astLen = strlen(pCreate->ast) + 1;
 
   SNode *pAst = NULL;
-  if (nodesStringToNode(pCreate->ast, &pAst) < 0) {
+  if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
+    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
+
+  SQueryPlan *pPlan = NULL;
+
+  SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
+  if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
+    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    return -1;
+  }
+
   if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
+    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    return -1;
+  }
+
+  if (nodesNodeToString(pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
+    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    taosMemoryFreeClear(pPlanStr);
+    taosMemoryFreeClear(topicObj.physicalPlan);
     return -1;
   }
   mDebug("trans:%d, used to create topic:%s", pTrans->id, pCreate->name);
@@ -323,7 +333,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   SSdbRaw *pRedoRaw = mndTopicActionEncode(&topicObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    taosMemoryFreeClear(pPlanStr);
+    taosMemoryFreeClear(topicObj.physicalPlan);
     mndTransDrop(pTrans);
     return -1;
   }
@@ -331,12 +341,12 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    taosMemoryFreeClear(pPlanStr);
+    taosMemoryFreeClear(topicObj.physicalPlan);
     mndTransDrop(pTrans);
     return -1;
   }
 
-  taosMemoryFreeClear(pPlanStr);
+  taosMemoryFreeClear(topicObj.physicalPlan);
   mndTransDrop(pTrans);
   return 0;
 }
