@@ -40,7 +40,7 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-  dndInit();
+  dmInit();
 
   char fqdn[] = "localhost";
   char firstEp[TSDB_EP_LEN] = {0};
@@ -62,7 +62,7 @@ void Testbase::Cleanup() {
   client.Cleanup();
   taosMsleep(10);
   server.Stop();
-  dndCleanup();
+  dmCleanup();
 }
 
 void Testbase::Restart() {

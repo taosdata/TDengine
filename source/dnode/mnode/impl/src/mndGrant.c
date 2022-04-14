@@ -31,4 +31,4 @@ void    grantRestore(EGrantType grant, uint64_t value) {}
 
 #endif
 
-void parseGrantParameter() { grantParseParameter(); }
+void mndGenerateMachineCode() { grantParseParameter(); }

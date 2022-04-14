@@ -154,7 +154,7 @@ static void taosProcCleanupQueue(SProcQueue *pQueue) {
 }
 
 static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char *pHead, int16_t rawHeadLen,
-                                 const char *pBody, int32_t rawBodyLen, int64_t handle, ProcFuncType ftype) {
+                                 const char *pBody, int32_t rawBodyLen, int64_t handle, EProcFuncType ftype) {
   if (rawHeadLen == 0 || pHead == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
@@ -171,7 +171,7 @@ static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char
     return -1;
   }
 
-  if (handle != 0 && ftype == PROC_REQ) {
+  if (handle != 0 && ftype == PROC_FUNC_REQ) {
     if (taosHashPut(pProc->hash, &handle, sizeof(int64_t), &handle, sizeof(int64_t)) != 0) {
       taosThreadMutexUnlock(&pQueue->mutex);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -232,7 +232,7 @@ static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char
 }
 
 static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHeadLen, void **ppBody, int32_t *pBodyLen,
-                                ProcFuncType *pFuncType, ProcMallocFp mallocHeadFp, ProcFreeFp freeHeadFp,
+                                EProcFuncType *pFuncType, ProcMallocFp mallocHeadFp, ProcFreeFp freeHeadFp,
                                 ProcMallocFp mallocBodyFp, ProcFreeFp freeBodyFp) {
   tsem_wait(&pQueue->sem);
 
@@ -309,7 +309,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
   *ppBody = pBody;
   *pHeadLen = rawHeadLen;
   *pBodyLen = rawBodyLen;
-  *pFuncType = (ProcFuncType)ftype;
+  *pFuncType = (EProcFuncType)ftype;
 
   uTrace("proc:%s, pop msg at pos:%d ftype:%d remain:%d, head:%d %p body:%d %p", pQueue->name, pos, ftype,
          pQueue->items, rawHeadLen, pHead, rawBodyLen, pBody);
@@ -364,7 +364,7 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
 static void taosProcThreadLoop(SProcObj *pProc) {
   void         *pHead, *pBody;
   int16_t       headLen;
-  ProcFuncType  ftype;
+  EProcFuncType ftype;
   int32_t       bodyLen;
   SProcQueue   *pQueue;
   ProcConsumeFp consumeFp;
@@ -454,8 +454,8 @@ void taosProcCleanup(SProcObj *pProc) {
 }
 
 int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                            void *handle, ProcFuncType ftype) {
-  if (ftype != PROC_REQ) {
+                            void *handle, EProcFuncType ftype) {
+  if (ftype != PROC_FUNC_REQ) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
@@ -482,7 +482,7 @@ void taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle)) {
 }
 
 void taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                          ProcFuncType ftype) {
+                          EProcFuncType ftype) {
   int32_t retry = 0;
   while (taosProcQueuePush(pProc, pProc->pParentQueue, pHead, headLen, pBody, bodyLen, 0, ftype) != 0) {
     uWarn("proc:%s, failed to put to queue:%p since %s, retry:%d", pProc->name, pProc->pParentQueue, terrstr(), retry);
