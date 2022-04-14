@@ -24,16 +24,10 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   vnodeWaitCommit(pVnode);
 
   vnodeBufPoolSwitch(pVnode);
-  SVnodeTask *pTask = (SVnodeTask *)taosMemoryMalloc(sizeof(*pTask));
-
-  pTask->execute = vnodeCommit;  // TODO
-  pTask->arg = pVnode;           // TODO
-
   tsdbPrepareCommit(pVnode->pTsdb);
-  // metaPrepareCommit(pVnode->pMeta);
-  // walPreapareCommit(pVnode->pWal);
 
-  vnodeScheduleTask(pTask);
+  vnodeScheduleTask(vnodeCommit, pVnode);
+
   return 0;
 }
 

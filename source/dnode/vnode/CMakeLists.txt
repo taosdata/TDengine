@@ -10,21 +10,17 @@ target_sources(
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeInt.c"
     "src/vnd/vnodeMain.c"
-    "src/vnd/vnodeMgr.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeWrite.c"
+    "src/vnd/vnodeModule.c"
+    # "src/vnd/vnodeMgr.c"
 
     # meta
     # "src/meta/metaBDBImpl.c"
-    "src/meta/metaCache.c"
-    "src/meta/metaCfg.c"
     "src/meta/metaIdx.c"
     "src/meta/metaMain.c"
-    "src/meta/metaQuery.c"
     "src/meta/metaTable.c"
-    "src/meta/metaTbCfg.c"
-    "src/meta/metaTbTag.c"
     "src/meta/metaTbUid.c"
     "src/meta/metaTDBImpl.c"
 
