@@ -97,11 +97,12 @@ class InsertTest(TDCase):
             result_file_name = self.run_log_dir + '/perf_report.txt'
             f = open(result_file_name, 'a')
             f.write(
-                "-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
+                "-------- \tinsert\t" + str(cases) + ":\tcreate tables result--------\n")
             f.close()
             timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             # run taosBenchmark
-            result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name)
+            taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+            result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name,taosBenchmark_env_setting)
             timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
             # get insert result

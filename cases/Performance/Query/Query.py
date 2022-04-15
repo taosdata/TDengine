@@ -55,7 +55,8 @@ class QueryTest(TDCase):
             f.close()
             # run taosBenchmark and get result file
             timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-            result_filename = Query_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name)
+            taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+            result_filename = Query_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name,taosBenchmark_env_setting)
             timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
             # get query result
