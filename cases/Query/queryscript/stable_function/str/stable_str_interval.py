@@ -69,10 +69,8 @@ class TDTestQuery(TDCase):
     # 同理，list_intervals是20种interval的组合，在queryutil.where.time_window_new中说明
     list_strs = [1,2,3,4,5,6,7,8,9,10,11,12]
     list_str = random.sample(list_strs,3) 
-    print(list_str)
     list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
     list_interval = random.sample(list_intervals,3) 
-    print(list_interval)
     
 
     def case_common(self):
