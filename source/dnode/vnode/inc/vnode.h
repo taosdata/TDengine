@@ -42,11 +42,12 @@ typedef struct STsdbCfg  STsdbCfg;  // todo: remove
 typedef struct STqCfg    STqCfg;    // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
 
-int     vnodeInit();
+int     vnodeInit(int nthreads);
 void    vnodeCleanup();
+int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
+void    vnodeDestroy(const char *path);
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
 void    vnodeClose(SVnode *pVnode);
-void    vnodeDestroy(const char *path);
 void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);
 int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);

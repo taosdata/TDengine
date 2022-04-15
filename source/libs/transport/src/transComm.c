@@ -292,7 +292,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 
 void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
-  queue->freeFunc = freeFunc;
+  queue->freeFunc = (void (*)(const void*))freeFunc;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
   if (queue->q == NULL) {

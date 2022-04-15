@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndInfoSchema.h"
+#include "mndInt.h"
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)

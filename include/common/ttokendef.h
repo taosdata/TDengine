@@ -181,9 +181,9 @@
 #define TK_NULL                           163
 #define TK_FIRST                          164
 #define TK_LAST                           165
-#define TK_CAST                           166
-#define TK_NOW                            167
-#define TK_TODAY                          168
+#define TK_NOW                            166
+#define TK_TODAY                          167
+#define TK_CAST                           168
 #define TK_ROWTS                          169
 #define TK_TBNAME                         170
 #define TK_QSTARTTS                       171
