@@ -57,6 +57,7 @@ target_include_directories(
             "${TD_SOURCE_DIR}/contrib/libuv/include"
             "${TD_SOURCE_DIR}/include/util"
             "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/libs/transport"
             "${TD_SOURCE_DIR}/include/client"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )

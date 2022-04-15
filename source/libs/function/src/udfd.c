@@ -20,6 +20,10 @@
 #include "tudf.h"
 #include "tudfInt.h"
 
+#include "tdataformat.h"
+#include "tglobal.h"
+#include "tmsg.h"
+#include "trpc.h"
 
 static uv_loop_t *loop;
 
@@ -319,6 +323,76 @@ void removeListeningPipe(int sig) {
     exit(0);
 }
 
+typedef struct SServerContext {
+  void *clientRpc;
+} SUdfdContext;
+
+
+void udfdProcessRpcRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet)  {
+
+  return;
+}
+
+int32_t fetchUdfFuncInfo(void *clientRpc, SEpSet* pEpSet, char* udfNames[], int32_t numOfUdfs) {
+  SRetrieveFuncReq retrieveReq = {0};
+  retrieveReq.numOfFuncs = 1;
+  retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+  for (int32_t i = 0; i < numOfUdfs; ++i) {
+    taosArrayPush(retrieveReq.pFuncNames, udfNames[i]);
+  }
+
+  int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+  taosArrayDestroy(retrieveReq.pFuncNames);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = contLen;
+  rpcMsg.msgType = TDMT_MND_RETRIEVE_FUNC;
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(clientRpc, pEpSet, &rpcMsg, &rpcRsp);
+  SRetrieveFuncRsp retrieveRsp = {0};
+  tDeserializeSRetrieveFuncRsp(rpcRsp.pCont, rpcRsp.contLen, &retrieveRsp);
+
+  SFuncInfo* pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 0);
+
+  taosArrayDestroy(retrieveRsp.pFuncInfos);
+
+  rpcFreeCont(rpcRsp.pCont);
+  return 0;
+}
+
+int32_t openUdfdClientRpc(SUdfdContext *ctx) {
+  char *pass = "taosdata";
+  char *user = "root";
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t*)pass, strlen(pass), secretEncrypt);
+  SRpcInit rpcInit = {0};
+  rpcInit.label = (char*)"UDFD";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = udfdProcessRpcRsp;
+  rpcInit.sessions = 1024;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.idleTime = 30 * 1000;
+  rpcInit.parent = ctx;
+
+  rpcInit.user = (char*)user;
+  rpcInit.ckey = (char*)"key";
+  rpcInit.secret = (char*)secretEncrypt;
+  rpcInit.spi = 1;
+
+  ctx->clientRpc = rpcOpen(&rpcInit);
+
+  return 0;
+}
+
+int32_t closeUdfdClientRpc(SUdfdContext *ctx) {
+  rpcClose(ctx->clientRpc);
+
+  return 0;
+}
 int main() {
     debugPrint("libuv version: %x", UV_VERSION_HEX);
 
