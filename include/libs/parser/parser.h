@@ -57,6 +57,7 @@ typedef struct SQuery {
   SNode* pRoot;
   int32_t numOfResCols;
   SSchema* pResSchema;
+  int8_t   precision;
   SCmdMsgInfo* pCmdMsg;
   int32_t msgType;
   SArray* pDbList;

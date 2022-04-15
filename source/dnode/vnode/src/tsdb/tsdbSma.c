@@ -106,7 +106,8 @@ struct SSmaStat {
 
 // expired window
 static int32_t  tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
-static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version);
+static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey,
+                                     int64_t version);
 static int32_t  tsdbInitSmaStat(SSmaStat **pSmaStat);
 static void    *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
 static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat);
@@ -197,7 +198,7 @@ static SPoolMem *openPool() {
 
 static void clearPool(SPoolMem *pPool) {
   if (!pPool) return;
-  
+
   SPoolMem *pMem;
 
   do {
@@ -544,7 +545,8 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
   return TSDB_CODE_SUCCESS;
 };
 
-static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version) {
+static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey,
+                                    int64_t version) {
   SSmaStatItem *pItem = taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
   if (pItem == NULL) {
     // TODO: use TSDB_SMA_STAT_EXPIRED and update by stream computing later
@@ -946,7 +948,7 @@ static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, int64_t indexUid, int32_t
  */
 static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLevel) {
   STsdbCfg *pCfg = REPO_CFG(pTsdb);
-  int32_t   daysPerFile = pCfg->daysPerFile;
+  int32_t   daysPerFile = pCfg->days;
 
   if (storageLevel == SMA_STORAGE_LEVEL_TSDB) {
     int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerDay[pCfg->precision]);

@@ -58,9 +58,9 @@ void functionFinalize(SqlFunctionCtx *pCtx) {
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
-    return FUNC_DATA_REQUIRED_NO_NEEDED;
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
   }
-  return FUNC_DATA_REQUIRED_STATIS_NEEDED;
+  return FUNC_DATA_REQUIRED_STATIS_LOAD;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

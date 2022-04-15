@@ -797,6 +797,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "now",
+    .type = FUNCTION_TYPE_NOW,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = nowFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "today",
+    .type = FUNCTION_TYPE_TODAY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = todayFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -861,16 +881,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_WDURATION,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .translateFunc = translateWduration,
-    .getEnvFunc   = getTimePseudoFuncEnv,
-    .initFunc     = NULL,
-    .sprocessFunc = winDurFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "now",
-    .type = FUNCTION_TYPE_NOW,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = winDurFunction,

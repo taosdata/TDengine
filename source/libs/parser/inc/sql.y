@@ -592,8 +592,6 @@ expression_list(A) ::= expression_list(B) NK_COMMA expression(C).               
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
-pseudo_column(A) ::= NOW(B).                                                      { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::= TODAY(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= ROWTS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TBNAME(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= QSTARTTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
@@ -605,6 +603,12 @@ pseudo_column(A) ::= WDURATION(B).                                              
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= CAST(B) NK_LP expression(C) AS type_name(D) NK_RP(E).  { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+function_expression(A) ::= noarg_func(B) NK_LP NK_RP(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
+
+%type noarg_func                                                                  { SToken }
+%destructor noarg_func                                                            { }
+noarg_func(A) ::= NOW(B).                                                         { A = B; }
+noarg_func(A) ::= TODAY(B).                                                       { A = B; }
 
 %type star_func                                                                   { SToken }
 %destructor star_func                                                             { }

@@ -78,10 +78,10 @@ int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
-    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   if (NULL == funcMgtBuiltins[pFunc->funcId].dataRequiredFunc) {
-    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }

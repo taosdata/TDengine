@@ -1128,6 +1128,8 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
 
       if (taosArrayGetSize(usedbRsp.pVgroupInfos) <= 0) {
         terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      } else {
+        code = 0;
       }
     } else {
       usedbRsp.vgVersion = usedbReq.vgVersion;
@@ -1340,7 +1342,7 @@ SYNC_DB_OVER:
   return code;
 }
 
-char *mnGetDbStr(char *src) {
+char *mndGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
 
@@ -1355,7 +1357,7 @@ static void dumpDbInfoData(SSDataBlock* pBlock, SDbObj *pDb, SShowObj *pShow, in
   int32_t cols = 0;
 
   char* buf = taosMemoryMalloc(pShow->bytes[cols]);
-  char *name = mnGetDbStr(pDb->name);
+  char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {
     STR_WITH_MAXSIZE_TO_VARSTR(buf, name, pShow->bytes[cols]);
   } else {

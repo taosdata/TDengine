@@ -23,6 +23,7 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndInfoSchema.h"
+#include "mndPerfSchema.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
 #include "mndProfile.h"
@@ -210,6 +211,7 @@ static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitSma, mndCleanupSma) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (deploy) {
