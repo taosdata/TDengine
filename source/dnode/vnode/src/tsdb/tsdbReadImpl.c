@@ -606,9 +606,10 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
         if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), zsize) < 0) return -1;
       }
 
-      if (tsdbCheckAndDecodeColumnData(pDataCol, POINTER_SHIFT(pBlockData, tsize + toffset), tlen, pBlockCol->blen,
-                                       pBlock->algorithm, pBlock->numOfRows, tLenBitmap, pDataCols->maxPoints,
-                                       TSDB_READ_COMP_BUF(pReadh), (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
+      if (tsdbCheckAndDecodeColumnData(pDataCol, POINTER_SHIFT(pBlockData, tsize + toffset), tlen,
+                                       pBlockCol ? pBlockCol->blen : 0, pBlock->algorithm, pBlock->numOfRows,
+                                       tLenBitmap, pDataCols->maxPoints, TSDB_READ_COMP_BUF(pReadh),
+                                       (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
         tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
                   TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
         return -1;
@@ -747,6 +748,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
     if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
       TD_SET_COL_ROWS_NORM(&blockCol);  // default is NORM for the primary key column
+      blockCol.blen = 0;
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
       blockCol.offset = TSDB_KEY_COL_OFFSET;
