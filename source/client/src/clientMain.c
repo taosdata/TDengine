@@ -193,7 +193,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
   } else {
-    // assert to avoid uninitialization error
+    // assert to avoid un-initialization error
     ASSERT(0);
   }
   return NULL;
@@ -355,6 +355,7 @@ int taos_result_precision(TAOS_RES *res) {
   if (res == NULL) {
     return TSDB_TIME_PRECISION_MILLI;
   }
+
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     return pRequest->body.resInfo.precision;
@@ -467,6 +468,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   if (res == NULL) {
     return 0;
   }
+
   if (TD_RES_TMQ(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
     if (pResultInfo == NULL) {

@@ -6815,6 +6815,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
   }
 
+  SOperatorInfo* pOptr = NULL;
   if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
     SProjectPhysiNode* pProjPhyNode = (SProjectPhysiNode*) pPhyNode;
     SExprInfo*   pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &num);
@@ -6822,7 +6823,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
     SLimit limit = {.limit = pProjPhyNode->limit, .offset = pProjPhyNode->offset};
     SLimit slimit = {.limit = pProjPhyNode->slimit, .offset = pProjPhyNode->soffset};
-    return createProjectOperatorInfo(ops[0], pExprInfo, num, pResBlock, &limit, &slimit, pTaskInfo);
+    pOptr = createProjectOperatorInfo(ops[0], pExprInfo, num, pResBlock, &limit, &slimit, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_AGG == type) {
     SAggPhysiNode* pAggNode = (SAggPhysiNode*)pPhyNode;
     SExprInfo*     pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
@@ -6836,9 +6837,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         pScalarExprInfo = createExprInfo(pAggNode->pExprs, NULL, &numOfScalarExpr);
       }
 
-      return createGroupOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pAggNode->node.pConditions, pScalarExprInfo, numOfScalarExpr, pTaskInfo, NULL);
+      pOptr = createGroupOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pAggNode->node.pConditions, pScalarExprInfo, numOfScalarExpr, pTaskInfo, NULL);
     } else {
-      return createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pTaskInfo, pTableGroupInfo);
+      pOptr = createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pTaskInfo, pTableGroupInfo);
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
@@ -6856,39 +6857,39 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     };
 
     int32_t primaryTsSlotId = ((SColumnNode*) pIntervalPhyNode->window.pTspk)->slotId;
-    return createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, primaryTsSlotId, pTableGroupInfo, pTaskInfo);
+    pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, primaryTsSlotId, pTableGroupInfo, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     SSortPhysiNode* pSortPhyNode = (SSortPhysiNode*)pPhyNode;
 
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
     SArray*      info = createSortInfo(pSortPhyNode->pSortKeys, pSortPhyNode->pTargets);
     SArray*      slotMap = createIndexMap(pSortPhyNode->pTargets);
-    return createSortOperatorInfo(ops[0], pResBlock, info, slotMap, pTaskInfo);
+    pOptr = createSortOperatorInfo(ops[0], pResBlock, info, slotMap, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
 
     SExprInfo*   pExprInfo = createExprInfo(pSessionNode->window.pFuncs, NULL, &num);
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
-    return createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, pTaskInfo);
+    pOptr = createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     SPartitionPhysiNode* pPartNode = (SPartitionPhysiNode*) pPhyNode;
     SArray* pColList = extractPartitionColInfo(pPartNode->pPartitionKeys);
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
 
     SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &num);
-    return createPartitionOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pTaskInfo, NULL);
+    pOptr = createPartitionOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pTaskInfo, NULL);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == type) {
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*) pPhyNode;
 
     SExprInfo* pExprInfo = createExprInfo(pStateNode->window.pFuncs, NULL, &num);
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
-    return createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, pTaskInfo);
+    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_JOIN == type) {
     SJoinPhysiNode* pJoinNode = (SJoinPhysiNode*) pPhyNode;
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
 
     SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &num);
-    return createJoinOperatorInfo(ops, size, pExprInfo, num, pResBlock, pJoinNode->pOnConditions, pTaskInfo);
+    pOptr = createJoinOperatorInfo(ops, size, pExprInfo, num, pResBlock, pJoinNode->pOnConditions, pTaskInfo);
   } else {
     ASSERT(0);
   } /*else if (pPhyNode->info.type == OP_MultiTableAggregate) {
@@ -6901,7 +6902,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
        return createMultiTableAggOperatorInfo(op, pPhyNode->pTargets, pTaskInfo, pTableGroupInfo);
      }
    }*/
-  return NULL;
+
+  taosMemoryFree(ops);
+  return pOptr;
 }
 
 static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STableGroupInfo* pGroupInfo,

@@ -33,7 +33,7 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
-static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
+static TdThreadOnce   tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t      tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
@@ -188,7 +188,6 @@ static void doDestroyRequest(void *p) {
 
   taosMemoryFreeClear(pRequest->msgBuf);
   taosMemoryFreeClear(pRequest->sqlstr);
-  taosMemoryFreeClear(pRequest->pInfo);
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
@@ -196,10 +195,6 @@ static void doDestroyRequest(void *p) {
 
   if (pRequest->body.queryJob != 0) {
     schedulerFreeJob(pRequest->body.queryJob);
-  }
-
-  if (pRequest->body.showInfo.pArray != NULL) {
-    taosArrayDestroy(pRequest->body.showInfo.pArray);
   }
 
   taosArrayDestroy(pRequest->tableList);
