@@ -114,7 +114,7 @@ run 2>&1 | tee -a $log_file
 
 echo "====================================================================="
 echo "log file: $log_file"
-if [ $ret -ne 0 ]; then
+if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file
 else
