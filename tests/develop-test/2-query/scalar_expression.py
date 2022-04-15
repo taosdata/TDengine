@@ -3,7 +3,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
-from math import inf
+from math import inf,nan
 
 class TDTestCase:
     def caseDescription(self):
@@ -481,7 +481,7 @@ class TDTestCase:
 
         tdSql.query('select sin(pow(c1,log(c2,2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1;')
         tdSql.checkRows(100)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, nan)
         tdSql.checkData(1, 0, 0.9092974268256817)
         tdSql.checkData(2, 0, -0.27941549819892586)
         tdSql.checkData(3, 0, 0.8433250578156978)
@@ -584,7 +584,7 @@ class TDTestCase:
 
         tdSql.query('select sin(pow(c1,log(c2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1;')
         tdSql.checkRows(100)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, nan)
         tdSql.checkData(1, 0, 0.9092974268256817)
         tdSql.checkData(2, 0, -0.618143416955856)
         tdSql.checkData(3, 0, -0.2212557848433586)
