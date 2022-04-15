@@ -914,7 +914,7 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
 }
 
 static bool isCountStar(SNode* pNode) {
-  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode) || 1 != LIST_LENGTH(((SFunctionNode*)pNode)->pParameterList)) {
     return false;
   }
   SNode* pPara = nodesListGetNode(((SFunctionNode*)pNode)->pParameterList, 0);
