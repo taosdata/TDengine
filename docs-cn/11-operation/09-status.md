@@ -36,7 +36,7 @@ KILL QUERY <query-id>;
 
 其中 query-id 是 SHOW QUERIES 中显示的 connection-id:query-no 字串，如“105:2”，拷贝粘贴即可。
 
-## 显示流式计算
+## 显示连续查询
 
 ```sql
 SHOW STREAMS;
@@ -44,7 +44,7 @@ SHOW STREAMS;
 
 其中第一列显示的以冒号隔开的两个数字为 stream-id, 为启动该 stream 应用连接的 connection-id 和发起 stream 的次数。
 
-## 强制关闭流式计算
+## 强制关闭连续查询
 
 ```sql
 KILL STREAM <stream-id>;
