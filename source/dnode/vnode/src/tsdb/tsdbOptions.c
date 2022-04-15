@@ -20,9 +20,9 @@ const STsdbCfg defautlTsdbOptions = {.precision = 0,
                                      .days = 10,
                                      .minRows = 100,
                                      .maxRows = 4096,
-                                     .keep = 3650,
-                                     .keep1 = 3650,
                                      .keep2 = 3650,
+                                     .keep0 = 3650,
+                                     .keep1 = 3650,
                                      .update = 0,
                                      .compression = TWO_STAGE_COMP};
 

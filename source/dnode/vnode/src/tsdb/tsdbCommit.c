@@ -217,9 +217,9 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   TSKEY     minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
-  minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
-  midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
-  maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
+  minKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
+  midKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
+  maxKey = now - pCfg->keep0 * tsTickPerDay[pCfg->precision];
 
   pRtn->minKey = minKey;
   pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->days, pCfg->precision));

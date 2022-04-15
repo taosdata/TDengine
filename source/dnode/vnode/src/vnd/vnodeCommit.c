@@ -154,9 +154,9 @@ static int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep0) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
 
   return 0;
@@ -181,9 +181,9 @@ static int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep0) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
 
   return 0;

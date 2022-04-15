@@ -314,7 +314,7 @@ static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
   STsdbCfg* pCfg = &pTsdb->config;
 
   int64_t now = taosGetTimestamp(pCfg->precision);
-  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep) + 1;  // needs to add one tick
+  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
 }
 
 static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, STsdbQueryCond* pCond) {

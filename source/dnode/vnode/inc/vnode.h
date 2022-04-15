@@ -127,9 +127,9 @@ struct STsdbCfg {
   int32_t  days;
   int32_t  minRows;
   int32_t  maxRows;
-  int32_t  keep;
-  int32_t  keep1;
   int32_t  keep2;
+  int32_t  keep0;
+  int32_t  keep1;
   uint64_t lruCacheSize;
   SArray  *retentions;
 };
