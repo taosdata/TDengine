@@ -45,6 +45,11 @@ extern "C" {
 
 #define HEARTBEAT_INTERVAL 1500  // ms
 
+enum {
+  CONN_TYPE__QUERY = 1,
+  CONN_TYPE__TMQ,
+};
+
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
@@ -132,9 +137,9 @@ typedef struct STscObj {
   char          pass[TSDB_PASSWORD_LEN];
   char          db[TSDB_DB_FNAME_LEN];
   char          ver[128];
+  int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;
-  int32_t       connType;
   uint64_t      id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
@@ -194,12 +199,12 @@ enum {
 #define TD_RES_QUERY(res) (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)   (*(int8_t*)res == RES_TYPE__TMQ)
 
-typedef struct SMqRspObj {
+typedef struct {
   int8_t  resType;
   char*   topic;
-  void*   vg;
   SArray* res;  // SArray<SReqResultInfo>
   int32_t resIter;
+  int32_t vgId;
 } SMqRspObj;
 
 typedef struct SRequestObj {
@@ -272,14 +277,14 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 void initMsgHandleFp();
 
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
-                            uint16_t port);
+                            uint16_t port, int connType);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery);
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-void*   doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
+void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
                          bool convertUcs4);

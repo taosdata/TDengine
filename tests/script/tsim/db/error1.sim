@@ -42,19 +42,19 @@ re-create1:
 sql create database d1 vgroups 2 -x re-create1
 
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 
-if $data00 != d1 then 
+if $data20 != d1 then
   return -1
 endi
 
-if $data02 != 2 then 
+if $data22 != 2 then
   return -1
 endi
 
-if $data03 != 0 then 
+if $data23 != 0 then
   return -1
 endi
 
@@ -62,7 +62,7 @@ print ========== stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
 sleep 1000
-print =============== create database
+print =============== drop database
 sql_error drop database d1
 
 print ========== start dnode2
@@ -81,19 +81,19 @@ re-create2:
 sql create database d1 vgroups 5 -x re-create2
 
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 
-if $data00 != d1 then 
+if $data20 != d1 then
   return -1
 endi
 
-if $data02 != 5 then 
+if $data22 != 5 then
   return -1
 endi
 
-if $data03 != 0 then 
+if $data23 != 0 then
   return -1
 endi
 

@@ -42,36 +42,6 @@ $dbNamme  = d0
 loop_vgroups:
 print =============== create database $dbNamme vgroups $vgroups
 sql create database $dbNamme vgroups $vgroups
-sql show databases
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
-print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
-
-if $loop_cnt == 0 then 
-  if $rows != 2 then 
-    return -1
-  endi
-  if $data02 != 1 then  # vgroups
-    print vgroups: $data02
-    return -1
-  endi
-else
-  if $rows != 3 then 
-    return -1
-  endi
-  if $data00 == d1 then 
-    if $data02 != 4 then  # vgroups
-      print vgroups: $data02
-      return -1
-    endi
-  else  
-    if $data12 != 4 then  # vgroups
-      print vgroups: $data12
-      return -1
-    endi
-  endi
-endi
-
 sql use $dbNamme
 
 print =============== create super table
@@ -120,9 +90,9 @@ endi
 print =============== run_back insert data
 
 if $loop_cnt == 0 then 
-  run_back tsim/tmq/insertDataV1.sim
+  run_back tsim/tmq/insertFixedDataV2.sim
 else
-  run_back tsim/tmq/insertDataV4.sim
+  run_back tsim/tmq/insertFixedDataV4.sim
 endi
 
 #sleep 1000
@@ -162,9 +132,15 @@ endi
 # -g      showMsgFlag, default is 0
 #        
 
-$consumeDelay = 50
-$expectConsumeMsgCnt = 1000
-print expectConsumeMsgCnt: $expectConsumeMsgCnt , consumeDelay: $consumeDelay
+$tbNum = 10
+$consumeDelay = 5
+$expectMsgCntFromCtb = 1000
+$expectMsgCntFromStb = $expectMsgCntFromCtb * $tbNum
+print consumeDelay: $consumeDelay
+print insert data child num: $tbNum
+print expectMsgCntFromCtb: $expectMsgCntFromCtb 
+print expectMsgCntFromStb: $expectMsgCntFromStb 
+
 
 # supported key:
 # group.id:<xxx>
@@ -177,82 +153,82 @@ print expectConsumeMsgCnt: $expectConsumeMsgCnt , consumeDelay: $consumeDelay
 # td.connect.db:db
 
 $expect_result = @{consume success: @
-$expect_result = $expect_result . $expectConsumeMsgCnt
+$expect_result = $expect_result . $expectMsgCntFromStb
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
-#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
+#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
 #print cmd result----> $system_content
 ##if $system_content != @{consume success: 10000, 0}@ then
-#if $system_content < $expectConsumeMsgCnt then
+#if $system_content != $expect_result then
 #  return -1
 #endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb
 print cmd result----> $system_content
 #if $system_content != @{consume success: 10000, 0}@ then
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
 $expect_result = @{consume success: @
-$expect_result = $expect_result . $rowNum
+$expect_result = $expect_result . $expectMsgCntFromCtb
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
 $expect_result = @{consume success: @
-$expect_result = $expect_result . $totalMsgCnt
+$expect_result = $expect_result . $expectMsgCntFromStb
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectConsumeMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb
 print cmd result----> $system_content
-if $system_content < $expectConsumeMsgCnt then
+if $system_content != $expect_result then
   return -1
 endi
 

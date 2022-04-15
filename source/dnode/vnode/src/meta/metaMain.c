@@ -25,17 +25,6 @@ static void   metaCloseImpl(SMeta *pMeta);
 SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF) {
   SMeta *pMeta = NULL;
 
-  // Set default options
-  if (pMetaCfg == NULL) {
-    pMetaCfg = &defaultMetaOptions;
-  }
-
-  // // Validate the options
-  // if (metaValidateOptions(pMetaCfg) < 0) {
-  //   // TODO: deal with error
-  //   return NULL;
-  // }
-
   // Allocate handle
   pMeta = metaNew(path, pMetaCfg, pMAF);
   if (pMeta == NULL) {
@@ -80,9 +69,6 @@ static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorF
     return NULL;
   }
 
-  metaOptionsCopy(&(pMeta->options), pMetaCfg);
-  pMeta->pmaf = pMAF;
-
   return pMeta;
 };
 
@@ -94,13 +80,6 @@ static void metaFree(SMeta *pMeta) {
 }
 
 static int metaOpenImpl(SMeta *pMeta) {
-  // Open meta cache
-  if (metaOpenCache(pMeta) < 0) {
-    // TODO: handle error
-    metaCloseImpl(pMeta);
-    return -1;
-  }
-
   // Open meta db
   if (metaOpenDB(pMeta) < 0) {
     // TODO: handle error
@@ -129,5 +108,4 @@ static void metaCloseImpl(SMeta *pMeta) {
   metaCloseUidGnrt(pMeta);
   metaCloseIdx(pMeta);
   metaCloseDB(pMeta);
-  metaCloseCache(pMeta);
 }

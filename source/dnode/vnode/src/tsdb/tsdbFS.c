@@ -13,9 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <regex.h>
 #include "vnodeInt.h"
-#include "os.h"
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
@@ -97,8 +95,8 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
   return tlen;
 }
 
-static void *tsdbDecodeDFileSetArray(STsdb*pRepo, void *buf, SArray *pArray) {
-  uint64_t  nset = 0;
+static void *tsdbDecodeDFileSetArray(STsdb *pRepo, void *buf, SArray *pArray) {
+  uint64_t nset = 0;
 
   taosArrayClear(pArray);
 
@@ -122,7 +120,7 @@ static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   return tlen;
 }
 
-static void *tsdbDecodeFSStatus(STsdb*pRepo, void *buf, SFSStatus *pStatus) {
+static void *tsdbDecodeFSStatus(STsdb *pRepo, void *buf, SFSStatus *pStatus) {
   tsdbResetFSStatus(pStatus);
 
   // pStatus->pmf = &(pStatus->mf);
@@ -407,8 +405,8 @@ int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFil
 
 static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
   SFSHeader fsheader;
-  void *    pBuf = NULL;
-  void *    ptr;
+  void     *pBuf = NULL;
+  void     *ptr;
   char      hbuf[TSDB_FILE_HEAD_SIZE] = "\0";
   char      tfname[TSDB_FILENAME_LEN] = "\0";
   char      cfname[TSDB_FILENAME_LEN] = "\0";
@@ -592,7 +590,7 @@ void tsdbFSIterSeek(SFSIter *pIter, int fid) {
 }
 
 SDFileSet *tsdbFSIterNext(SFSIter *pIter) {
-  STsdbFS *  pfs = pIter->pfs;
+  STsdbFS   *pfs = pIter->pfs;
   SDFileSet *pSet;
 
   if (pIter->index < 0) {
@@ -651,12 +649,12 @@ static void tsdbGetTxnFname(STsdb *pRepo, TSDB_TXN_FILE_T ftype, char fname[]) {
 }
 
 static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
-  STsdbFS * pfs = REPO_FS(pRepo);
+  STsdbFS  *pfs = REPO_FS(pRepo);
   TdFilePtr pFile = NULL;
-  void *    buffer = NULL;
+  void     *buffer = NULL;
   SFSHeader fsheader;
   char      current[TSDB_FILENAME_LEN] = "\0";
-  void *    ptr;
+  void     *ptr;
 
   tsdbGetTxnFname(pRepo, TSDB_TXN_CURR_FILE, current);
 
@@ -746,7 +744,7 @@ _err:
 
 // Scan and try to fix incorrect files
 static int tsdbScanAndTryFixFS(STsdb *pRepo) {
-  STsdbFS *  pfs = REPO_FS(pRepo);
+  STsdbFS   *pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
 
   // if (tsdbScanAndTryFixMFile(pRepo) < 0) {
@@ -908,9 +906,9 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 // }
 
 static int tsdbScanRootDir(STsdb *pRepo) {
-  char         rootDir[TSDB_FILENAME_LEN];
-  char         bname[TSDB_FILENAME_LEN];
-  STsdbFS *    pfs = REPO_FS(pRepo);
+  char            rootDir[TSDB_FILENAME_LEN];
+  char            bname[TSDB_FILENAME_LEN];
+  STsdbFS        *pfs = REPO_FS(pRepo);
   const STfsFile *pf;
 
   tsdbGetRootDir(REPO_ID(pRepo), rootDir);
@@ -942,9 +940,9 @@ static int tsdbScanRootDir(STsdb *pRepo) {
 }
 
 static int tsdbScanDataDir(STsdb *pRepo) {
-  char         dataDir[TSDB_FILENAME_LEN];
-  char         bname[TSDB_FILENAME_LEN];
-  STsdbFS *    pfs = REPO_FS(pRepo);
+  char            dataDir[TSDB_FILENAME_LEN];
+  char            bname[TSDB_FILENAME_LEN];
+  STsdbFS        *pfs = REPO_FS(pRepo);
   const STfsFile *pf;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
@@ -1107,14 +1105,14 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const STfsFile *pf) {
 // }
 
 static int tsdbRestoreDFileSet(STsdb *pRepo) {
-  char         dataDir[TSDB_FILENAME_LEN];
-  char         bname[TSDB_FILENAME_LEN];
-  STfsDir *       tdir = NULL;
+  char            dataDir[TSDB_FILENAME_LEN];
+  char            bname[TSDB_FILENAME_LEN];
+  STfsDir        *tdir = NULL;
   const STfsFile *pf = NULL;
-  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last|smad|smal)(-ver[0-9]+)?$";
-  SArray *     fArray = NULL;
-  regex_t      regex;
-  STsdbFS *    pfs = REPO_FS(pRepo);
+  const char     *pattern = "^v[0-9]+f[0-9]+\\.(head|data|last|smad|smal)(-ver[0-9]+)?$";
+  SArray         *fArray = NULL;
+  regex_t         regex;
+  STsdbFS        *pfs = REPO_FS(pRepo);
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
 
@@ -1327,7 +1325,7 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
 }
 
 static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired) {
-  STsdbFS *  pfs = REPO_FS(pRepo);
+  STsdbFS   *pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
   SDFInfo    info;
 

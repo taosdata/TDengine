@@ -27,8 +27,9 @@ while $m < 128
   $filter = ' . $tb
   $filter = $filter . '
   sql show stables like $filter
-  # print sql : show stables like $filter  ==> $rows
+  print sql : show stables like $filter
   if $rows != 1 then
+    print expect 1, actual: $rows
     return -1
   endi
   $m = $m + 1

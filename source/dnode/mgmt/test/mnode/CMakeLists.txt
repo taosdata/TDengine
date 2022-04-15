@@ -1,8 +1,7 @@
-aux_source_directory(. DMTEST_SRC)
-add_executable(dmnodeTest ${DMTEST_SRC})
+aux_source_directory(. DND_MNODE_TEST_SRC)
+add_executable(dmnodeTest ${DND_MNODE_TEST_SRC})
 target_link_libraries(
-    dmnodeTest
-    PUBLIC sut
+    dmnodeTest sut
 )
 
 add_test(

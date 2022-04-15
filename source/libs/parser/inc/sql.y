@@ -538,13 +538,7 @@ expression(A) ::= column_reference(B).                                          
 expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).             { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 expression(A) ::= function_name(B) NK_LP NK_STAR(C) NK_RP(D).                     { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, createNodeList(pCxt, createColumnNode(pCxt, NULL, &C)))); }
 expression(A) ::= function_name(B) NK_LP NK_RP(D).                                { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNodeNoParam(pCxt, &B)); }
-//for CAST function CAST(expr AS type_name)
-expression(A) ::= function_name(B) NK_LP expression(C) AS type_name(D) NK_RP(E).  {
-                                                                                    SNodeList *p = createNodeList(pCxt, releaseRawExprNode(pCxt, C));
-                                                                                    p = addValueNodeFromTypeToList(pCxt, D, p);
-                                                                                    A = createRawExprNodeExt(pCxt, &B, &E, createFunctionNode(pCxt, &B, p));
-                                                                                  }
-//expression(A) ::= cast_expression(B).                                             { A = B; }
+expression(A) ::= CAST(B) NK_LP expression(C) AS type_name(D) NK_RP(E).           { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
 //expression(A) ::= case_expression(B).                                             { A = B; }
 expression(A) ::= subquery(B).                                                    { A = B; }
 expression(A) ::= NK_LP(B) expression(C) NK_RP(D).                                { A = createRawExprNodeExt(pCxt, &B, &D, releaseRawExprNode(pCxt, C)); }
