@@ -10,6 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from http import client
 import random
 import threading
 import time
@@ -36,98 +37,153 @@ class Case8(ClusterCase):
         i = random.randint(0, len(self.slave_nodes) - 1)
         self.slave_node = self.slave_nodes[i]
         self.logger.info("slave: %s", self.slave_node)
-        
-        # set alter schema params
-        self.params = {"_ts" : 1420041600000 , "_ts_step":1 ,"_row_nums":2 ,"_col_nums":12 ,  "tables_of_per_stable":2 ,"_tags_nums" : 10 , "_replica" :3 }
-        self.db_nums = 100 
-        self.stable_nums = 100
-        self.table_nums = 100
-        self.time_sleep = 0
-    def check_result_db(self, db, stb):
-        client_0 = self.get_spec_conn(self.slave_node)
-        # use database
-        sql = "use %s" % (db)
-        self.logger.info(sql)
-        client_0.execute(sql)
-        # query
-        sql = "select count(*) from %s"  % (stb)
-        self.logger.info(sql)
-        i = 0
-        while i < 10:
-            result = client_0.query(sql)
-            data = result.fetch_all()
-            self.logger.info("result: %s", str(data[0][0]))
-            if data[0][0] == 5000000:
-                break
-            i = i + 1
-            time.sleep(2)
-        # total row = self.table_num * self.row_num = 5000000
-        if data[0][0] != 5000000:
-            self.logger.error("row not match")
-            self.error_msg = "row not match"
-            self._status = False
-            return
-        # check data
-        '''c1 = 0
-        i = 0;
-        while i < 10000:
-            sql = "select count(*) from %s where c1 = %d"  % (self.stb, c1)
-            # self.logger.info(sql)
-            result = client_0.query(sql)
-            data = result.fetch_all()
-            # self.logger.info("result: %s", str(data[0][0]))
-            if data[0][0] != 500:
-                self.logger.error("row not match c1 = %d", c1)
-                self.error_msg = f"row not match c1 = {c1}"
-                self.status = False
-            c1 = c1 + 50
-            i = i + 1'''
 
-    def check_result(self):
-        i = 0
-        while i < self.thread_num:
-            db = f"{self.db_name}_{i}"
-            stb = f"{self.stable_name}_{i}"
-            self.check_result_db(db, stb)
-            i = i + 1
+    def drop_dnode(self, end_point:str ,interval_check_status,conn_end_point):
 
-    def drop_dnode(self, end_point:str):
+        def get_drop_status(dnodes_data):
+            status_done = False
+            end_points = []
+            for dnode in dnodes_data:
+                end_points.append(dnode[1])
+
+            try:
+                end_point_index = end_points.index(end_point)
+                if dnodes_data[end_point_index][4]=="dropping":
+                    self.logger.info(" {} is dropping ".format(end_point))
+                else:
+                    self.logger.info(" {}  current status is {}  ".format(end_point ,dnodes_data[end_point_index][4] ))
+                status_done = False
+            except ValueError as e :
+                self.logger.info(" {} has dropping done   ".format(end_point ))
+                status_done = True
+            return status_done
+
         host = end_point.split(":")[0]
-        
-        
+        cfgPath = self.envMgr.getCfg(end_point, "taosd", {"config_dir": ""})[
+            "config_dir"]    
+
+        # check drop dnode success util drop done! 
+        client_local = self.tdSql.get_connection(None, conn_end_point)
+        client_local.execute("drop dnode '{}' ;".format(end_point))
+       
+        while  True :
+            time.sleep(interval_check_status)
+            result = client_local.query("show dnodes")
+            dnodes_data = result.fetch_all()
+            status_done = get_drop_status(dnodes_data)
+            if status_done:
+                break
+        # directly add dnode which has been dropping , it not work 
+        client_local.execute("create dnode '{}' ;".format(end_point))
+        time.sleep(3)
+
+        # check status should be status not received
+        result = client_local.query("show dnodes")
+        dnodes_data = result.fetch_all()
+        for dnode in dnodes_data:
+            if dnode[1] == end_point and dnode[4] =="status not received":
+                self.logger.info(" {} is dropping  , directly create {} status is 'status not received' ".format(end_point,end_point))
+                self.logger.info(" {} work as expected , it will be remove again ".format(end_point))
+            elif dnode[1] == end_point and dnode[4] !="status not received":
+                self.logger.error(" {} work not as expected , it will be remove again ".format(end_point))
+            else:
+                pass
+        client_local.execute("drop dnode '{}' ;".format(end_point))
+        # clear all datas of this dropping dnodes , and set it as an new taosd service
+
+        self.envMgr.stopDnode(end_point)
+        time.sleep(5)
+
+        # clear data
+        config = self.envMgr.getCfg(end_point, "taosd", {"config": ""})[
+            "config"]
+        dataDir = config['dataDir']
+        logDir = config['logDir']
+        self.envMgr._remote.cmd(host , ["rm -rf {}".format(dataDir)])
+        self.envMgr._remote.cmd(host , ["rm -rf {}".format(logDir)])
+        self.envMgr.startDnode(end_point)
+
+        # create endpoint again ,it will work 
+        client_local.execute("create dnode '{}' ;".format(end_point))
+        time.sleep(3)
+
+        # check status should be status not received
+        result = client_local.query("show dnodes")
+        dnodes_data = result.fetch_all()
+        for dnode in dnodes_data:
+            if dnode[1] == end_point and dnode[4] =="ready":
+                self.logger.info(" {} is dropping  , directly create {} status is 'ready' ".format(end_point,end_point))
+            elif dnode[1] == end_point and dnode[4] !="ready":
+                self.logger.error(" {} work not as expected , this is an error ".format(end_point))
+
 
     def cleanup(self):
         pass
-
+    
     def run(self):
-        # insert into database thread
-        mthreads = []
+        
+        db_name = self.db_name 
+        replicas = self.replicas 
+        stable_name = self.stable_name 
+        table_name = self.table_name 
+        table_num = self.table_num 
+        row_num = self.row_num 
+        
+        client_0 = self.tdSql.get_connection(None, self.master_node)
+        # clean
+        sql = "drop database if exists %s" % (db_name)
+        self.logger.info(sql)
+        client_0.execute(sql)
+        # create database
+        sql = "create database %s replica %d" % (db_name, replicas)
+        self.logger.info(sql)
+        client_0.execute(sql)
+        # use database
+        sql = "use %s" % (db_name)
+        self.logger.info(sql)
+        client_0.execute(sql)
+        # create table
+        sql = "create stable %s (ts timestamp, c1 int) tags(t1 int)" % (stable_name)
+        self.logger.info(sql)
+        client_0.execute(sql)
         i = 0
-        while i < self.thread_num:
-            db = f"{self.db_name}_{i}"
-            stb = f"{self.stable_name}_{i}"
-            tb = f"{self.table_name}_{i}"
-            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas, self.slave_node))
-            mthreads.append(mthread)
-            mthread.start()
+        while i < table_num:
+            tb = f"{table_name}_{i}"
+            # create table
+            sql = "create table %s using %s tags( %d )" % (tb, stable_name, i)
+            self.logger.info(sql)
+            client_0.execute(sql)
             i = i + 1
+            j = 0
+            while j < row_num:
+                ts = self.ts + j
+                k = 0
+                n = 50
+                if row_num - j < n:
+                    n = row_num - j
+                value_statement = ""
+                while k < n:
+                    value_statement = f"{value_statement} ({ts}+{k}a, {j})"
+                    k = k + 1
+                j = j + n
+                sql = f"insert into {tb} values {value_statement}"
 
-        # start alter schema task (self, db_nums , stable_nums,table_nums , time_sleep)
+                if j>=10000 and j %10000 ==0:
+                    self.drop_dnode(self.slave_node ,1,self.master_node)
 
-        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params, self.slave_node, True ))
-        taskthread.start()
-        # wait thread
+                    self.logger.info(sql)
+                client_0.execute(sql)
 
-        taskthread.join()
-        i = 0
-        while i < self.thread_num:
-            mthread = mthreads[i]
-            mthread.join()
-            i = i + 1
-        self.logger.info("checking result ...")
-        # check result
-        self.check_result()
-       
+        result = client_0.query("select count(*) from {}.{}".format(db_name , stable_name))
+        query_data = result.fetch_all() 
+        if query_data[0][0] ==self.row_num*self.table_num:
+            self.logger.info(" expect {} rows , real {} rows ,check pass ".format(self.row_num*self.table_num ,query_data[0][0] ))
+        else:
+            self.logger.info(" expect {} rows , real {} rows ,check failed ".format(self.row_num*self.table_num ,query_data[0][0] ))
+
+        client_0.close()
+        self.logger.info("write thread exit")
+
         
 
     def cleanup(self):
