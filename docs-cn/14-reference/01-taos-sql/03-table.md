@@ -127,4 +127,4 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ```
 ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
 ```
-
+如果表是通过超级表创建，可以使用此指令修改其标签值
