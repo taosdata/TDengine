@@ -157,6 +157,7 @@ typedef struct {
 
 struct STsdb {
   int32_t               vgId;
+  SVnode               *pVnode;
   bool                  repoLocked;
   TdThreadMutex         mutex;
   char                 *path;
@@ -953,6 +954,43 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
 //   }
 //   return 0;
 // }
+
+typedef struct SSmaKey SSmaKey;
+
+struct SSmaKey {
+  TSKEY   skey;
+  int64_t groupId;
+};
+
+typedef struct SDBFile SDBFile;
+
+struct SDBFile {
+  int32_t fid;
+  TDB    *pDB;
+  char   *path;
+};
+
+int32_t tsdbOpenDBEnv(TENV **ppEnv, const char *path);
+int32_t tsdbCloseDBEnv(TENV *pEnv);
+int32_t tsdbOpenDBF(TENV *pEnv, SDBFile *pDBF);
+int32_t tsdbCloseDBF(SDBFile *pDBF);
+int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn);
+void   *tsdbGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_t *valLen);
+
+void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
+void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
+#if 0
+int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
+int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
+#endif
+
+// internal func
+static FORCE_INLINE int32_t tsdbEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void **pData) {
+  int32_t len = 0;
+  len += taosEncodeFixedI64(pData, tsKey);
+  len += taosEncodeFixedI64(pData, groupId);
+  return len;
+}
 
 #ifdef __cplusplus
 }

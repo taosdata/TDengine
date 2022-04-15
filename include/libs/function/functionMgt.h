@@ -123,7 +123,7 @@ void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc);
+int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);

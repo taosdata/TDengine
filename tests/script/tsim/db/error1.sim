@@ -62,7 +62,7 @@ print ========== stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
 sleep 1000
-print =============== create database
+print =============== drop database
 sql_error drop database d1
 
 print ========== start dnode2

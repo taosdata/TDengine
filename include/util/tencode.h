@@ -18,7 +18,6 @@
 
 #include "tcoding.h"
 #include "tfreelist.h"
-#include "tmacro.h"
 
 #ifdef __cplusplus
 extern "C" {

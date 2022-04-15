@@ -469,7 +469,10 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   }
   if (TD_RES_TMQ(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
-    if (pResultInfo == NULL) return -1;
+    if (pResultInfo == NULL) {
+      (*numOfRows) = 0;
+      return 0;
+    }
 
     pResultInfo->current = pResultInfo->numOfRows;
     (*numOfRows) = pResultInfo->numOfRows;
