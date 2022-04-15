@@ -360,6 +360,39 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   return (SNode*)func;
 }
 
+SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncName) {
+  SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_OUT_OF_MEM(func);
+  char buf[64] = {0};
+
+  int32_t dataType;
+  switch (pFuncName->type) {
+    case TK_NOW: {
+      int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+      snprintf(buf, sizeof(buf), "%"PRId64, ts);
+      dataType = TSDB_DATA_TYPE_BIGINT;
+      break;
+    }
+    case TK_TODAY: {
+      int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
+      snprintf(buf, sizeof(buf), "%"PRId64, ts);
+      dataType = TSDB_DATA_TYPE_BIGINT;
+      break;
+    }
+    //case TK_TIMEZONE: {
+    //  strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
+    //  dataType = TSDB_DATA_TYPE_BINARY;
+    //  break;
+    //}
+  }
+  SToken token = {.type = pFuncName->type, .n = strlen(buf), .z = buf};
+
+  SNodeList *pParameterList = createNodeList(pCxt, createValueNode(pCxt, dataType, &token));
+  strncpy(func->functionName, pFuncName->z, pFuncName->n);
+  func->pParameterList = pParameterList;
+  return (SNode*)func;
+}
+
 SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt) {
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);

@@ -4,5 +4,5 @@ if [ "$lua_header_installed" = "0" ]; then
   sudo apt install -y liblua5.3-dev
 fi
 
-gcc -std=c99 lua_connector.c -fPIC -shared -o luaconnector.so -Wall -ltaos -I/usr/include/lua5.3
+gcc -std=c99 lua_connector.c -fPIC -shared -o luaconnector.so -Wall -ltaos -I/usr/include/lua5.3 -I../../include/client
 
