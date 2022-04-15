@@ -264,7 +264,7 @@ private:
   }
 
   std::string ftToString(int16_t colid, int16_t numOfColumns) const {
-    return (0 == colid ? "column" : (colid <= numOfColumns ? "tag" : "column"));
+    return (0 == colid ? "column" : (colid < numOfColumns ? "column" : "tag"));
   }
 
   STableMeta* getTableSchemaMeta(const std::string& db, const std::string& tbname) const {

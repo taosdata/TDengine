@@ -137,6 +137,7 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
+bool fmIsMultiResFunc(int32_t funcId);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

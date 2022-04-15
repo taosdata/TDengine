@@ -272,6 +272,33 @@ typedef struct SKillStmt {
   int32_t targetId;
 } SKillStmt;
 
+typedef enum EStreamTriggerType {
+  STREAM_TRIGGER_AT_ONCE = 1,
+  STREAM_TRIGGER_WINDOW_CLOSE
+} EStreamTriggerType;
+
+typedef struct SStreamOptions {
+  ENodeType type;
+  EStreamTriggerType triggerType;
+  SNode* pWatermark;
+} SStreamOptions;
+
+typedef struct SCreateStreamStmt {
+  ENodeType type;
+  char streamName[TSDB_TABLE_NAME_LEN];
+  char targetDbName[TSDB_DB_NAME_LEN];
+  char targetTabName[TSDB_TABLE_NAME_LEN];
+  bool ignoreExists;
+  SStreamOptions* pOptions;
+  SNode* pQuery;
+} SCreateStreamStmt;
+
+typedef struct SDropStreamStmt {
+  ENodeType type;
+  char streamName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropStreamStmt;
+
 #ifdef __cplusplus
 }
 #endif
