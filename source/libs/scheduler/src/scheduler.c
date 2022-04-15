@@ -2734,11 +2734,14 @@ void schedulerFreeTaskList(SArray *taskList) {
 void schedulerDestroy(void) {
   if (schMgmt.jobRef) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
-
+    int64_t refId = 0;
+    
     while (pJob) {
+      refId = pJob->refId;
+      
       taosRemoveRef(schMgmt.jobRef, pJob->refId);
 
-      pJob = taosIterateRef(schMgmt.jobRef, pJob);
+      pJob = taosIterateRef(schMgmt.jobRef, refId);
     }
 
     taosCloseRef(schMgmt.jobRef);
