@@ -799,9 +799,9 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   strcpy(pFunc->functionName, pSrcFunc->functionName);
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
   } else {
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
   }
 
   return (SNode*)pFunc;
