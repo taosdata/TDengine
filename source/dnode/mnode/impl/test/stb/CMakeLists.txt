@@ -1,7 +1,7 @@
-aux_source_directory(. STB_SRC)
-add_executable(mnode_test_stb ${STB_SRC})
+aux_source_directory(. MNODE_STB_TEST_SRC)
+add_executable(stbTest ${MNODE_STB_TEST_SRC})
 target_link_libraries(
-    mnode_test_stb
+    stbTest
     PUBLIC sut
 )
 

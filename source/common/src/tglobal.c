@@ -495,7 +495,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
   tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
   tsRpcForceTcp = cfgGetItem(pCfg, "rpcForceTcp")->i32;
-  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->bval;
+  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
   tsMaxWildCardsLen = cfgGetItem(pCfg, "maxWildCardsLength")->i32;
