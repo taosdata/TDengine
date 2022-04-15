@@ -1,3 +1,4 @@
+#!/bin/bash
 lua_header_installed=`apt-cache policy liblua5.3-dev|grep Installed|grep none > /dev/null; echo $?`
 if [ "$lua_header_installed" = "0" ]; then
   echo "If need, please input root password to install liblua5.3-dev for build the connector.."
