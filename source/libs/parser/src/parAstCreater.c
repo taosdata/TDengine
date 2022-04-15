@@ -911,18 +911,6 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, S
   return (SNode*)pStmt;
 }
 
-SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_SHOW_CREATE_DATABASE_STMT);
-  CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
-}
-
-SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
-  SNode* pStmt = nodesMakeNode(type);
-  CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
-}
-
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword) {
   char password[TSDB_USET_PASSWORD_LEN] = {0};
   if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
