@@ -89,6 +89,8 @@ int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pD
  */
 int32_t schedulerFetchRows(int64_t job, void **data);
 
+int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
+
 
 /**
  * Cancel query job
