@@ -64,7 +64,7 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (NULL == pNode->pParent || 
-      (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode->pParent))) {
+      (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) && QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent))) {
     return false;
   }
   return true;

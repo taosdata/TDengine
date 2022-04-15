@@ -51,6 +51,7 @@ static SKeyword keywordTable[] = {
     {"BY",            TK_BY},
     {"CACHE",         TK_CACHE},
     {"CACHELAST",     TK_CACHELAST},
+    {"CAST",          TK_CAST},
     {"COLUMN",        TK_COLUMN},
     {"COMMENT",       TK_COMMENT},
     {"COMP",          TK_COMP},

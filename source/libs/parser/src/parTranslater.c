@@ -807,31 +807,32 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   return (SNode*)pFunc;
 }
 
-static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, SNodeList** pOutput) {
-  if (NULL == *pOutput) {
-    *pOutput = nodesMakeList();
-  }
-  if (NULL == *pOutput) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
-  }
-  bool foundTable = false;
+static int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput) {
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    if (0 == strcmp(pTable->tableAlias, pCol->tableAlias)) {
-      int32_t code = createColumnNodeByTable(pCxt, pTable, *pOutput);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-      foundTable = true;
-      break;
+    if (NULL == pTableAlias || 0 == strcmp(pTable->tableAlias, pTableAlias)) {
+      *pOutput = pTable;
+      return TSDB_CODE_SUCCESS;
     }
   }
-  if (!foundTable) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, pCol->tableAlias);
+  return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, pTableAlias);
+}
+
+static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, SNodeList** pOutput) {
+  STableNode* pTable = NULL;
+  int32_t code = findTable(pCxt, pCol->tableAlias, &pTable);
+  if (TSDB_CODE_SUCCESS == code && NULL == *pOutput) {
+    *pOutput = nodesMakeList();
+    if (NULL == *pOutput) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnNodeByTable(pCxt, pTable, *pOutput);
+  }
+  return code;
 }
 
 static bool isStar(SNode* pNode) {
@@ -909,6 +910,24 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
   return code;
 }
 
+static bool isCountStar(SNode* pNode) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return false;
+  }
+  SNode* pPara = nodesListGetNode(((SFunctionNode*)pNode)->pParameterList, 0);
+  return (QUERY_NODE_COLUMN == nodeType(pPara) && 0 == strcmp(((SColumnNode*)pPara)->colName, "*"));
+}
+
+static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) {
+  SColumnNode* pCol = nodesListGetNode(pCount->pParameterList, 0);
+  STableNode* pTable = NULL;
+  int32_t code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
+  }
+  return code;
+}
+
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pProjectionList) {  // select * ...
     return createAllColumns(pCxt, &pSelect->pProjectionList);
@@ -931,6 +950,11 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
         INSERT_LIST(pSelect->pProjectionList, pCols);
         ERASE_NODE(pSelect->pProjectionList);
         continue;
+      } else if (isCountStar(pNode)) {
+        int32_t code = rewriteCountStar(pCxt, (SFunctionNode*)pNode);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
       WHERE_NEXT;
     }
