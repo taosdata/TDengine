@@ -131,6 +131,13 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
     req.type = retrieveReq.type;
     strncpy(req.db, retrieveReq.db, tListLen(req.db));
 
+    STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb) + 1);
+    if (pMeta == NULL) {
+      terrno = TSDB_CODE_MND_INVALID_INFOS_TBL;
+      mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
+      return -1;
+    }
+
     pShow = mndCreateShowObj(pMnode, &req);
     if (pShow == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -138,7 +145,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
       return -1;
     }
 
-    pShow->pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb) + 1);
+    pShow->pMeta = pMeta;
     pShow->numOfColumns = pShow->pMeta->numOfColumns;
     int32_t offset = 0;
 
