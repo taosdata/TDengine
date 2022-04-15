@@ -133,7 +133,8 @@ typedef struct STaskCostInfo {
   uint32_t totalBlocks;
   uint32_t loadBlocks;
   uint32_t loadBlockStatis;
-  uint32_t discardBlocks;
+  uint32_t skipBlocks;
+  uint32_t filterOutBlocks;
   uint64_t elapsedTime;
   uint64_t firstStageMergeTime;
   uint64_t winInfoSize;

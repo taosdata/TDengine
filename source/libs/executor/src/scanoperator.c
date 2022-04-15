@@ -16,6 +16,7 @@
 #include "tglobal.h"
 #include "filter.h"
 #include "function.h"
+#include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tname.h"
@@ -71,31 +72,80 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
   STaskCostInfo* pCost = &pTaskInfo->cost;
 
   pCost->totalBlocks += 1;
-  pCost->loadBlocks  += 1;
-
   pCost->totalRows += pBlock->info.rows;
-  pCost->totalCheckedRows += pBlock->info.rows;
 
   *status = pInfo->dataBlockLoadFlag;
-
-  SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
-  if (pCols == NULL) {
-    return terrno;
+  if (pTableScanInfo->pFilterNode != NULL) {
+    (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
-  int32_t numOfCols = pBlock->info.numOfCols;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pCols, i);
-    SColMatchInfo*   pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
-    if (!pColMatchInfo->output) {
-      continue;
+  SDataBlockInfo* pBlockInfo = &pBlock->info;
+
+  if (*status == FUNC_DATA_REQUIRED_FILTEROUT) {
+    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+    pCost->filterOutBlocks += 1;
+    return TSDB_CODE_SUCCESS;
+  } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+    pCost->skipBlocks += 1;
+    return TSDB_CODE_SUCCESS;
+  } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
+    pCost->loadBlockStatis += 1;
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pBlock->pBlockAgg);
+
+    // failed to load the block sma data, data block statistics does not exist, load data block instead
+    if (pBlock->pBlockAgg == NULL) {
+      pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
+      pCost->totalCheckedRows += pBlock->info.rows;
+      pCost->loadBlocks += 1;
     }
 
-    ASSERT(pColMatchInfo->colId == p->info.colId);
-    taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (*status == FUNC_DATA_REQUIRED_DATA_LOAD) {
+    // todo filter data block according to the block sma data firstly
+#if 0
+    if (!doFilterByBlockStatistics(pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
+      pCost->filterOutBlocks += 1;
+      qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+             pBlockInfo->window.ekey, pBlockInfo->rows);
+      (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
+      return TSDB_CODE_SUCCESS;
+    }
+#endif
+
+    pCost->totalCheckedRows += pBlock->info.rows;
+    pCost->loadBlocks += 1;
+
+    SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
+    if (pCols == NULL) {
+      return terrno;
+    }
+
+    // relocated the column data into the correct slotId
+    int32_t numOfCols = pBlock->info.numOfCols;
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* p = taosArrayGet(pCols, i);
+      SColMatchInfo*   pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
+      if (!pColMatchInfo->output) {
+        continue;
+      }
+
+      ASSERT(pColMatchInfo->colId == p->info.colId);
+      taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
+    }
   }
 
   doFilter(pTableScanInfo->pFilterNode, pBlock);
+  if (pBlock->info.rows == 0) {
+    pCost->filterOutBlocks += 1;
+    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -114,7 +164,6 @@ static void setupEnvForReverseScan(STableScanInfo* pTableScanInfo, SqlFunctionCt
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
   STableScanInfo* pTableScanInfo = pOperator->info;
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
   SSDataBlock*     pBlock = pTableScanInfo->pResBlock;
   STableGroupInfo* pTableGroupInfo = &pOperator->pTaskInfo->tableqinfoGroupInfo;
@@ -141,15 +190,15 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     //    }
 
     // this function never returns error?
-    uint32_t status = BLK_DATA_DATA_LOAD;
+    uint32_t status = FUNC_DATA_REQUIRED_NOT_LOAD;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
 
-    // current block is ignored according to filter result by block statistics data, continue load the next block
-    if (status == BLK_DATA_FILTEROUT || pBlock->info.rows == 0) {
+    // current block is filter out according to filter condition, continue load the next block
+    if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
     }
 
