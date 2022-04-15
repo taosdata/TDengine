@@ -21,9 +21,9 @@ echo "script_dir: ${script_dir}"
 echo "top_dir: ${top_dir}"
 
 cd ${top_dir}
-git checkout -- .
-git checkout 3.0
-git pull || :
+# git checkout -- .
+# git checkout 3.0
+# git pull || :
 
 echo "curr_dir: ${curr_dir}"
 
@@ -39,7 +39,7 @@ cd ${compile_dir}
 
 echo "compile_dir: ${compile_dir}"
 
-cmake ..
+cmake .. -DBUILD_TOOLS=true
 make -j32
 
 release_dir="${top_dir}/release"
@@ -55,7 +55,6 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/bin
 mkdir -p ${install_dir}/lib
 mkdir -p ${install_dir}/inc
-mkdir -p ${install_dir}/taos-tools
 
 install_files="${script_dir}/install.sh"
 chmod a+x ${script_dir}/install.sh || :
@@ -64,13 +63,14 @@ cp ${install_files} ${install_dir}
 header_files="${top_dir}/include/client/taos.h ${top_dir}/include/util/taoserror.h"
 cp ${header_files} ${install_dir}/inc
  
-bin_files="${compile_dir}/source/dnode/mgmt/taosd ${compile_dir}/tools/shell/taos  ${compile_dir}/tests/test/c/create_table ${compile_dir}/tests/test/c/tmq_sim ${script_dir}/remove.sh"
-cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
+bin_files="${compile_dir}/source/dnode/mgmt/taosd ${compile_dir}/tools/shell/taos  ${compile_dir}/tests/test/c/create_table ${compile_dir}/tests/test/c/tmq_sim ${script_dir}/remove.sh ${compile_dir}/build/bin/taosBenchmark   ${compile_dir}/build/bin/taosdump"
+cp -rf ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 
-cp ${compile_dir}/source/client/libtaos.so  ${install_dir}/lib/
-cp ${compile_dir}/source/libs/tdb/libtdb.so ${install_dir}/lib/
-taostoolfile="${top_dir}/tools/taosTools-1.4.1-Linux-x64.tar.gz"
-cp ${taostoolfile} ${install_dir}/taos-tools 
+cp -rf ${compile_dir}/source/client/libtaos.so  ${install_dir}/lib/
+cp -rf ${compile_dir}/source/libs/tdb/libtdb.so ${install_dir}/lib/
+cp -rf ${compile_dir}/build/lib/libavro* ${install_dir}/lib/ > /dev/null || echo -e "failed to copy avro libraries"
+cp -rf ${compile_dir}/build/lib/pkgconfig  ${install_dir}/lib/ > /dev/null || echo -e "failed to copy pkgconfig directory"
+
 
 #cp ${compile_dir}/source/dnode/mnode/impl/libmnode.so ${install_dir}/lib/
 #cp ${compile_dir}/source/dnode/qnode/libqnode.so ${install_dir}/lib/
