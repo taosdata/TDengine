@@ -188,9 +188,13 @@ class TDSql:
                     if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
                         tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
-                elif (len(data) >= 28):
+                elif (not isinstance(data, datetime.datetime) and len(data) >= 28):
                     if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
                         tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
+                            (self.sql, row, col, self.queryResult[row][col], data))
+                elif (isinstance(data, datetime.datetime)):
+                    if self.queryResult[row][col] == data:
+                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 else:
                     if self.queryResult[row][col] == _parse_datetime(data):
