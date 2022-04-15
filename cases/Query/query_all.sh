@@ -32,3 +32,9 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/sta
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_interval.py --keep
+
+#stable_fun_math_query
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_interval.py --keep
+
+#stable_fun_numeric_query
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interval --keep
