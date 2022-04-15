@@ -124,12 +124,12 @@ struct STsdbCfg {
   int8_t   precision;
   int8_t   update;
   int8_t   compression;
-  int32_t  daysPerFile;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
-  int32_t  keep;
-  int32_t  keep1;
+  int32_t  days;
+  int32_t  minRows;
+  int32_t  maxRows;
   int32_t  keep2;
+  int32_t  keep0;
+  int32_t  keep1;
   uint64_t lruCacheSize;
   SArray  *retentions;
 };
