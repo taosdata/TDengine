@@ -21,15 +21,17 @@ import shutil
 import pandas as pd
 from util.log import *
 
+
 def _parse_datetime(timestr):
     try:
-        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
+        return datetime.datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S.%f")
     except ValueError:
         pass
     try:
-        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
+        return datetime.datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S")
     except ValueError:
         pass
+
 
 class TDSql:
     def __init__(self):
@@ -40,7 +42,7 @@ class TDSql:
     def init(self, cursor, log=False):
         self.cursor = cursor
 
-        if (log):
+        if log:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             self.cursor.log(caller.filename + ".sql")
 
@@ -49,13 +51,13 @@ class TDSql:
 
     def prepare(self):
         tdLog.info("prepare database:db")
-        s = 'reset query cache'
+        s = "reset query cache"
         self.cursor.execute(s)
-        s = 'drop database if exists db'
+        s = "drop database if exists db"
         self.cursor.execute(s)
-        s = 'create database db'
+        s = "create database db"
         self.cursor.execute(s)
-        s = 'use db'
+        s = "use db"
         self.cursor.execute(s)
 
     def error(self, sql):
@@ -66,7 +68,10 @@ class TDSql:
             expectErrNotOccured = False
         if expectErrNotOccured:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
+            tdLog.exit(
+                "%s(%d) failed: sql:%s, expect error not occured"
+                % (caller.filename, caller.lineno, sql)
+            )
         else:
             self.queryRows = 0
             self.queryCols = 0
@@ -90,11 +95,11 @@ class TDSql:
         return self.queryRows
 
     def getVariable(self, search_attr):
-        '''
-            get variable of search_attr access "show variables"
-        '''
+        """
+        get variable of search_attr access "show variables"
+        """
         try:
-            sql = 'show variables'
+            sql = "show variables"
             param_list = self.query(sql, row_tag=True)
             for param in param_list:
                 if param[0] == search_attr:
@@ -125,7 +130,10 @@ class TDSql:
         return col_name_list
 
     def waitedQuery(self, sql, expectRows, timeout):
-        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
+        tdLog.info(
+            "sql: %s, try to retrieve %d rows in %d seconds"
+            % (sql, expectRows, timeout)
+        )
         self.sql = sql
         try:
             for i in range(timeout):
@@ -133,7 +141,10 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
-                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
+                tdLog.info(
+                    "sql: %s, try to retrieve %d rows,get %d rows"
+                    % (sql, expectRows, self.queryRows)
+                )
                 if self.queryRows >= expectRows:
                     return (self.queryRows, i)
                 time.sleep(1)
@@ -146,18 +157,36 @@ class TDSql:
 
     def checkRows(self, expectRows):
         if self.queryRows == expectRows:
-            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+            tdLog.info(
+                "sql:%s, queryRows:%d == expect:%d"
+                % (self.sql, self.queryRows, expectRows)
+            )
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
+            args = (
+                caller.filename,
+                caller.lineno,
+                self.sql,
+                self.queryRows,
+                expectRows,
+            )
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
     def checkCols(self, expectCols):
         if self.queryCols == expectCols:
-            tdLog.info("sql:%s, queryCols:%d == expect:%d" % (self.sql, self.queryCols, expectCols))
+            tdLog.info(
+                "sql:%s, queryCols:%d == expect:%d"
+                % (self.sql, self.queryCols, expectCols)
+            )
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.queryCols, expectCols)
+            args = (
+                caller.filename,
+                caller.lineno,
+                self.sql,
+                self.queryCols,
+                expectCols,
+            )
             tdLog.exit("%s(%d) failed: sql:%s, queryCols:%d != expect:%d" % args)
 
     def checkRowCol(self, row, col):
@@ -170,10 +199,14 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
         if row > self.queryRows:
             args = (caller.filename, caller.lineno, self.sql, row, self.queryRows)
-            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+            tdLog.exit(
+                "%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args
+            )
         if col > self.queryCols:
             args = (caller.filename, caller.lineno, self.sql, col, self.queryCols)
-            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
+            tdLog.exit(
+                "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
+            )
 
     def checkDataType(self, row, col, dataType):
         self.checkRowCol(row, col)
@@ -185,47 +218,90 @@ class TDSql:
             if self.cursor.istype(col, "TIMESTAMP"):
                 # suppose user want to check nanosecond timestamp if a longer data passed
                 if isinstance(data, int) or isinstance(data, float):
-                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
-                elif (len(data) >= 28):
-                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(
+                        data
+                    ):
+                        tdLog.info(
+                            "sql:%s, row:%d col:%d data:%d == expect:%s"
+                            % (self.sql, row, col, self.queryResult[row][col], data)
+                        )
+                elif not isinstance(data, datetime.datetime) and len(data) >= 28:
+                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(
+                        data
+                    ):
+                        tdLog.info(
+                            "sql:%s, row:%d col:%d data:%d == expect:%s"
+                            % (self.sql, row, col, self.queryResult[row][col], data)
+                        )
+                elif isinstance(data, datetime.datetime):
+                    if self.queryResult[row][col] == data:
+                        tdLog.info(
+                            "sql:%s, row:%d col:%d data:%s == expect:%s"
+                            % (self.sql, row, col, self.queryResult[row][col], data)
+                        )
                 else:
                     if self.queryResult[row][col] == _parse_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                        tdLog.info(
+                            "sql:%s, row:%d col:%d data:%s == expect:%s"
+                            % (self.sql, row, col, self.queryResult[row][col], data)
+                        )
                 return
 
             if str(self.queryResult[row][col]) == str(data):
-                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                tdLog.info(
+                    "sql:%s, row:%d col:%d data:%s == expect:%s"
+                    % (self.sql, row, col, self.queryResult[row][col], data)
+                )
                 return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
-                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+            elif (
+                isinstance(data, float)
+                and abs(self.queryResult[row][col] - data) <= 0.000001
+            ):
+                tdLog.info(
+                    "sql:%s, row:%d col:%d data:%f == expect:%f"
+                    % (self.sql, row, col, self.queryResult[row][col], data)
+                )
                 return
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
-                args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
-                tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                args = (
+                    caller.filename,
+                    caller.lineno,
+                    self.sql,
+                    row,
+                    col,
+                    self.queryResult[row][col],
+                    data,
+                )
+                tdLog.exit(
+                    "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args
+                )
 
         if data is None:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+            tdLog.info(
+                "sql:%s, row:%d col:%d data:%s == expect:%s"
+                % (self.sql, row, col, self.queryResult[row][col], data)
+            )
         elif isinstance(data, str):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+            tdLog.info(
+                "sql:%s, row:%d col:%d data:%s == expect:%s"
+                % (self.sql, row, col, self.queryResult[row][col], data)
+            )
         elif isinstance(data, datetime.date):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+            tdLog.info(
+                "sql:%s, row:%d col:%d data:%s == expect:%s"
+                % (self.sql, row, col, self.queryResult[row][col], data)
+            )
         elif isinstance(data, float):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+            tdLog.info(
+                "sql:%s, row:%d col:%d data:%s == expect:%s"
+                % (self.sql, row, col, self.queryResult[row][col], data)
+            )
         else:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+            tdLog.info(
+                "sql:%s, row:%d col:%d data:%s == expect:%d"
+                % (self.sql, row, col, self.queryResult[row][col], data)
+            )
 
     def checkDeviaRation(self, row, col, data, deviation=0.001):
         self.checkRowCol(row, col)
@@ -233,35 +309,59 @@ class TDSql:
             self.checkData(row, col, None)
             return
         caller = inspect.getframeinfo(inspect.stack()[1][0])
-        if data is not None and len(self.queryResult)==0:
-            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, data:{data}, "
-                       f"expect result is not None but it is")
+        if data is not None and len(self.queryResult) == 0:
+            tdLog.exit(
+                f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, data:{data}, "
+                f"expect result is not None but it is"
+            )
         args = (
-            caller.filename, caller.lineno, self.sql, data, type(data),
-            deviation, type(deviation), self.queryResult[row][col], type(self.queryResult[row][col])
+            caller.filename,
+            caller.lineno,
+            self.sql,
+            data,
+            type(data),
+            deviation,
+            type(deviation),
+            self.queryResult[row][col],
+            type(self.queryResult[row][col]),
         )
 
-        if not(isinstance(data,int) or isinstance(data, float)):
-            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, data:{args[3]}, "
-                       f"expect type: int or float, actual type: {args[4]}")
-        if not(isinstance(deviation,int) or isinstance(deviation, float)) or  type(data)==type(True):
-            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, deviation:{args[5]}, "
-                       f"expect type: int or float, actual type: {args[6]}")
-        if not(isinstance(self.queryResult[row][col], int) or isinstance(self.queryResult[row][col], float)):
-            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, result:{args[7]}, "
-                       f"expect type: int or float, actual type: {args[8]}")
+        if not (isinstance(data, int) or isinstance(data, float)):
+            tdLog.exit(
+                f"{args[0]}({args[1]}) failed: sql:{args[2]}, data:{args[3]}, "
+                f"expect type: int or float, actual type: {args[4]}"
+            )
+        if not (isinstance(deviation, int) or isinstance(deviation, float)) or type(
+            data
+        ) == type(True):
+            tdLog.exit(
+                f"{args[0]}({args[1]}) failed: sql:{args[2]}, deviation:{args[5]}, "
+                f"expect type: int or float, actual type: {args[6]}"
+            )
+        if not (
+            isinstance(self.queryResult[row][col], int)
+            or isinstance(self.queryResult[row][col], float)
+        ):
+            tdLog.exit(
+                f"{args[0]}({args[1]}) failed: sql:{args[2]}, result:{args[7]}, "
+                f"expect type: int or float, actual type: {args[8]}"
+            )
 
         if data == 0:
             devia = abs(self.queryResult[row][col])
         else:
-            devia = abs((data - self.queryResult[row][col])/data)
+            devia = abs((data - self.queryResult[row][col]) / data)
         if devia <= deviation:
-            tdLog.info(f"sql:{args[2]}, row:{row}, col:{col}, result data:{args[7]}, expect data:{args[3]}, "
-                       f"actual deviation:{devia} <= expect deviation:{args[5]}")
+            tdLog.info(
+                f"sql:{args[2]}, row:{row}, col:{col}, result data:{args[7]}, expect data:{args[3]}, "
+                f"actual deviation:{devia} <= expect deviation:{args[5]}"
+            )
         else:
-            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, row:{row}, col:{col}, "
-                       f"result data:{args[7]}, expect data:{args[3]},"
-                       f"actual deviation:{devia} > expect deviation:{args[5]}")
+            tdLog.exit(
+                f"{args[0]}({args[1]}) failed: sql:{args[2]}, row:{row}, col:{col}, "
+                f"result data:{args[7]}, expect data:{args[3]},"
+                f"actual deviation:{devia} > expect deviation:{args[5]}"
+            )
         pass
 
     def getData(self, row, col):
@@ -280,7 +380,6 @@ class TDSql:
             raise Exception(repr(e))
         return self.queryResult
 
-        
     def executeTimes(self, sql, times):
         for i in range(times):
             try:
@@ -303,18 +402,39 @@ class TDSql:
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.affectedRows, expectAffectedRows)
+            args = (
+                caller.filename,
+                caller.lineno,
+                self.sql,
+                self.affectedRows,
+                expectAffectedRows,
+            )
             tdLog.exit("%s(%d) failed: sql:%s, affectedRows:%d != expect:%d" % args)
 
-        tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
+        tdLog.info(
+            "sql:%s, affectedRows:%d == expect:%d"
+            % (self.sql, self.affectedRows, expectAffectedRows)
+        )
 
     def checkColNameList(self, col_name_list, expect_col_name_list):
         if col_name_list == expect_col_name_list:
-            tdLog.info("sql:%s, col_name_list:%s == expect_col_name_list:%s" % (self.sql, col_name_list, expect_col_name_list))
+            tdLog.info(
+                "sql:%s, col_name_list:%s == expect_col_name_list:%s"
+                % (self.sql, col_name_list, expect_col_name_list)
+            )
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
-            tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
+            args = (
+                caller.filename,
+                caller.lineno,
+                self.sql,
+                col_name_list,
+                expect_col_name_list,
+            )
+            tdLog.exit(
+                "%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s"
+                % args
+            )
 
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
@@ -348,46 +468,49 @@ class TDSql:
             pl = psutil.pids()
             for pid in pl:
                 try:
-                    if psutil.Process(pid).name() == 'taosd':
-                        print('have already started')
+                    if psutil.Process(pid).name() == "taosd":
+                        print("have already started")
                         pstate = 1
                         break
                 except psutil.NoSuchProcess:
                     pass
-            if pstate == state :break
+            if pstate == state:
+                break
             if state or pstate:
                 tdLog.sleep(1)
                 continue
             pstate = 0
             break
 
-        args=(pstate,state)
+        args = (pstate, state)
         if pstate == state:
-            tdLog.info("taosd state is %d == expect:%d" %args)
+            tdLog.info("taosd state is %d == expect:%d" % args)
         else:
-            tdLog.exit("taosd state is %d != expect:%d" %args)
+            tdLog.exit("taosd state is %d != expect:%d" % args)
         pass
 
     def haveFile(self, dir, state):
         if os.path.exists(dir) and os.path.isdir(dir):
             if not os.listdir(dir):
-                if state :
-                    tdLog.exit("dir: %s is empty, expect: not empty" %dir)
+                if state:
+                    tdLog.exit("dir: %s is empty, expect: not empty" % dir)
                 else:
-                    tdLog.info("dir: %s is empty, expect: empty" %dir)
+                    tdLog.info("dir: %s is empty, expect: empty" % dir)
             else:
-                if state :
-                    tdLog.info("dir: %s is not empty, expect: not empty" %dir)
+                if state:
+                    tdLog.info("dir: %s is not empty, expect: not empty" % dir)
                 else:
-                    tdLog.exit("dir: %s is not empty, expect: empty" %dir)
+                    tdLog.exit("dir: %s is not empty, expect: empty" % dir)
         else:
-            tdLog.exit("dir: %s doesn't exist" %dir)
+            tdLog.exit("dir: %s doesn't exist" % dir)
+
     def createDir(self, dir):
         if os.path.exists(dir):
             shutil.rmtree(dir)
-            tdLog.info("dir: %s is removed" %dir)
-        os.makedirs( dir, 755 )
-        tdLog.info("dir: %s is created" %dir)
+            tdLog.info("dir: %s is removed" % dir)
+        os.makedirs(dir, 755)
+        tdLog.info("dir: %s is created" % dir)
         pass
+
 
 tdSql = TDSql()
