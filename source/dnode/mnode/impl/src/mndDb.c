@@ -1128,6 +1128,8 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
 
       if (taosArrayGetSize(usedbRsp.pVgroupInfos) <= 0) {
         terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      } else {
+        code = 0;
       }
     } else {
       usedbRsp.vgVersion = usedbReq.vgVersion;
