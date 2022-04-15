@@ -34,7 +34,9 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 具体的安装方法，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/cn/getting-started/install) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
-**请点击[这里](https://github.com/taosdata/TDengine/releases)查看 release notes。**
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击 [这里](https://www.taosdata.com/cn/all-downloads/)
+
+**请点击 [这里](https://github.com/taosdata/TDengine/releases) 查看 Release Notes。**
 
 ### 使用 apt-get 安装
 
@@ -58,8 +60,6 @@ sudo apt-get install tdengine
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
 如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
-
-**下载其他组件、最新 Beta 版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)**
 
 ## <a class="anchor" id="start"></a>轻松启动
 
