@@ -46,7 +46,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 
   EXPECT_EQ(connectRsp.acctId, 1);
   EXPECT_GT(connectRsp.clusterId, 0);
-  EXPECT_EQ(connectRsp.connId, 1);
+  EXPECT_NE(connectRsp.connId, 0);
   EXPECT_EQ(connectRsp.superUser, 1);
 
   EXPECT_EQ(connectRsp.epSet.inUse, 0);
@@ -82,7 +82,8 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   SClientHbBatchReq batchReq = {0};
   batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
   SClientHbReq req = {0};
-  req.connKey = {.connId = 123, .hbType = CONN_TYPE__TMQ};
+  req.connKey.tscRid = 123;
+  req.connKey.connType = CONN_TYPE__TMQ;
   req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
   SKv kv = {0};
   kv.key = 123;
