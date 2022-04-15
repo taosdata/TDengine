@@ -21,10 +21,9 @@
 #include "tsclient.h"
 #include "tscDelete.h"
 #include "tscSubquery.h"
-#include "hash.h"
 
 
-void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SNewVgroupInfo *pVgroupInfo);
+void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupMsg* pVgroupInfo);
 
 //
 // handle error
@@ -156,13 +155,11 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
 
   tsem_init(&pNew->rspSem, 0, 0);
   registerSqlObj(pNew);
+  tscDebug("0x%"PRIx64":CDEL new sub insertion: %p", pSql->self, pNew);
 
-  // set vgroup epset
-  SNewVgroupInfo vgroupInfo = {0};
-  taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pVgroupMsg->vgId, sizeof(pVgroupMsg->vgId), NULL, &vgroupInfo);
-  tscDumpEpSetFromVgroupInfo(&pNew->epSet, &vgroupInfo);
+  // set vnode epset
+  tscSetDnodeEpSet(&pNew->epSet, pVgroupMsg);
 
-  tscInfo("0x%"PRIx64":CDEL new sub delete for vgroup id:%d pSql->epSet.inUse=%d fqdn=%s", pSql->self, pVgroupMsg->vgId, pNew->epSet.inUse, pNew->epSet.fqdn[pNew->epSet.inUse]);
   return pNew;
 }
 
