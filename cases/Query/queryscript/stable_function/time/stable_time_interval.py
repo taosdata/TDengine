@@ -62,14 +62,12 @@ class TDTestQuery(TDCase):
     # elif i == 7:time_diff_1()   
     # elif i == 8:time_diff_2()   
     # elif i == 9:time_elapsed()  因此elapsed支持interval，因此在elapsed里单独写
-    # list_strs代表遍历时候选择的字符串函数。
+    # list_times代表遍历时候选择的time函数。
     # 同理，list_intervals是20种interval的组合，在queryutil.where.time_window_new中说明
     list_times = [1,2,3,4,5,6,7,8]
     list_time = random.sample(list_times,2) 
-    print(list_time)
     list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
     list_interval = random.sample(list_intervals,3) 
-    print(list_interval)
     
 
     def case_common(self):
