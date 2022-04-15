@@ -655,7 +655,7 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
-  hbStopThread();
+  //hbStopThread();
 
   // destroy all appHbMgr
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
