@@ -18,6 +18,7 @@
 static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg **pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
+static int vnodeProcessSubmitReq(SVnode *pVnode, SRpcMsg *pMsg, SSubmitReq *pReq, SRpcMsg **pRsp);
 
 void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
@@ -79,9 +80,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_SUBMIT:
       /*printf("vnode %d write data %ld\n", pVnode->vgId, ver);*/
       if (pVnode->config.streamMode == 0) {
-        if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
-          // TODO: handle error
-        }
+        return vnodeProcessSubmitReq(pVnode, pMsg, (SSubmitReq *)ptr, pRsp);
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
@@ -299,4 +298,28 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   taosMemoryFree(vAlterTbReq.dbFName);
   taosMemoryFree(vAlterTbReq.name);
   return 0;
+}
+
+static int vnodeProcessSubmitReq(SVnode *pVnode, SRpcMsg *pMsg, SSubmitReq *pReq, SRpcMsg **pRsp) {
+  SSubmitRsp *pSubmitRsp = NULL;
+
+  *pRsp = taosMemoryMalloc(sizeof(SRpcMsg));
+  if (*pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pSubmitRsp = rpcMallocCont(sizeof(*pSubmitRsp));
+  if (pSubmitRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  (*pRsp)->msgType = TDMT_VND_SUBMIT_RSP;
+  (*pRsp)->pCont = pSubmitRsp;
+  (*pRsp)->contLen = sizeof(*pSubmitRsp);
+  (*pRsp)->handle = pMsg->handle;
+  (*pRsp)->ahandle = pMsg->ahandle;
+
+  return tsdbInsertData(pVnode->pTsdb, pReq, pSubmitRsp);
 }
