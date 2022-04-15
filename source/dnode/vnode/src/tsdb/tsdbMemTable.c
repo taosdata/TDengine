@@ -375,6 +375,8 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
+  (*pAffectedRows) += pBlock->numOfRows;
+
   // STSRow* lastRow = NULL;
   // int64_t osize = SL_SIZE(pTableData->pData);
   // tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow);

@@ -603,12 +603,15 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
         pResultInfo->row[i] = varDataVal(pStart);
       } else {
         pResultInfo->row[i] = NULL;
+        pResultInfo->length[i] = 0;
       }
     } else {
       if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
         pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
+        pResultInfo->length[i] = bytes;
       } else {
         pResultInfo->row[i] = NULL;
+        pResultInfo->length[i] = 0;
       }
     }
   }

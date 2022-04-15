@@ -981,7 +981,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   // status
   if (tEncodeI32(&encoder, pReq->sver) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->dver) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->dnodeVer) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->clusterId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->rebootTime) < 0) return -1;
@@ -1026,7 +1026,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   // status
   if (tDecodeI32(&decoder, &pReq->sver) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->dver) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->dnodeVer) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->clusterId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->rebootTime) < 0) return -1;
@@ -1071,6 +1071,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   return 0;
 }
 
+void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
+
 int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -1078,7 +1080,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   if (tStartEncode(&encoder) < 0) return -1;
 
   // status
-  if (tEncodeI64(&encoder, pRsp->dver) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->dnodeVer) < 0) return -1;
 
   // dnode cfg
   if (tEncodeI32(&encoder, pRsp->dnodeCfg.dnodeId) < 0) return -1;
@@ -1109,7 +1111,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   if (tStartDecode(&decoder) < 0) return -1;
 
   // status
-  if (tDecodeI64(&decoder, &pRsp->dver) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->dnodeVer) < 0) return -1;
 
   // cluster cfg
   if (tDecodeI32(&decoder, &pRsp->dnodeCfg.dnodeId) < 0) return -1;
@@ -2293,7 +2295,6 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->showId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->type) < 0) return -1;
-//  if (tEncodeI8(&encoder, pReq->free) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
   tEndEncode(&encoder);
@@ -2310,7 +2311,6 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->showId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->type) < 0) return -1;
-//  if (tDecodeI8(&decoder, &pReq->free) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
   tEndDecode(&decoder);

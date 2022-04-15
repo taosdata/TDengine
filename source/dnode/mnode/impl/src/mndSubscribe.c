@@ -469,6 +469,7 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
           ASSERT(pConsumerEp != NULL);
           ASSERT(pConsumerEp->consumerId == pSubConsumer->consumerId);
           taosArrayPush(pSub->unassignedVg, pConsumerEp);
+          mDebug("mq rebalance: vg %d push to unassignedVg", pConsumerEp->vgId);
         }
 
         SMqConsumerObj *pRebConsumer = mndAcquireConsumer(pMnode, pSubConsumer->consumerId);
@@ -512,6 +513,7 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
 
           while (taosArrayGetSize(pSubConsumer->vgInfo) < vgThisConsumerAfterRb) {
             SMqConsumerEp *pConsumerEp = taosArrayPop(pSub->unassignedVg);
+            mDebug("mq rebalance: vg %d pop from unassignedVg", pConsumerEp->vgId);
             ASSERT(pConsumerEp != NULL);
 
             pConsumerEp->oldConsumerId = pConsumerEp->consumerId;
@@ -570,7 +572,6 @@ static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqT
       .vgId = vgId,
       .consumerId = pConsumerEp->consumerId,
       .sql = pTopic->sql,
-      .logicalPlan = pTopic->logicalPlan,
       .physicalPlan = pTopic->physicalPlan,
       .qmsg = pConsumerEp->qmsg,
   };

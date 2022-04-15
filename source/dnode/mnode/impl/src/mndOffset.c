@@ -201,6 +201,7 @@ static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset) {
 
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOldOffset, SMqOffsetObj *pNewOffset) {
   mTrace("offset:%s, perform update action", pOldOffset->key);
+  pOldOffset->offset = pNewOffset->offset;
   return 0;
 }
 
