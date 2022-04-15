@@ -1,5 +1,5 @@
 ---
-sidebar_label: UDF
+sidebar_label: 用户定义函数
 title: UDF（用户定义函数）
 ---
 

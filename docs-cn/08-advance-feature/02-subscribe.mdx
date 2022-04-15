@@ -14,7 +14,7 @@ import Node from "./_sub_node.mdx";
 import CSharp from "./_sub_cs.mdx";
 import CDemo from "./_sub_c.mdx";
 
-基于数据天然的时间序列特性，TDengine 的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine 在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine 中里每一张表均可视为一个标准的消息队列。
+基于数据天然的时间序列特性，TDengine 的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine 在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine 中每一张表均可视为一个标准的消息队列。
 
 TDengine 内嵌支持轻量级的消息订阅与推送服务。使用系统提供的 API，用户可使用普通查询语句订阅数据库中的一张或多张表。订阅的逻辑和操作状态的维护均是由客户端完成，客户端定时轮询服务器是否有新的记录到达，有新的记录到达就会将结果反馈到客户。
 
@@ -206,7 +206,7 @@ Query OK, 5 row(s) in set (0.004896s)
   <TabItem label="Java" value="java">
       <Java/>
   </TabItem>
-  <TabItem label="Python" value="Python">
+  {/* <TabItem label="Python" value="Python">
       <Python/>
   </TabItem>
   <TabItem label="Go" value="go">
@@ -223,7 +223,7 @@ Query OK, 5 row(s) in set (0.004896s)
   </TabItem>
   <TabItem label="C" value="c">
       <CDemo/>
-  </TabItem>
+  </TabItem> */}
 </Tabs>
 
 ### 运行示例程序
