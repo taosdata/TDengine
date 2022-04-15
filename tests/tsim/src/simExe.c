@@ -22,7 +22,7 @@ void simLogSql(char *sql, bool useSharp) {
   sprintf(filename, "%s/sim.sql", simScriptDir);
   if (pFile == NULL) {
     // fp = fopen(filename, "w");
-    pFile = taosOpenFile(filename, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+    pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
     if (pFile == NULL) {
       fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
       return;
@@ -338,6 +338,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 
   if (useMultiProcess) {
     simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
+  }
+
+  if (useValgrind) {
+    simReplaceStr(buf, "exec.sh", "exec.sh -v");
   }
 
   simLogSql(buf, true);
@@ -678,7 +682,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               if (tt < 0) tt = 0;
 #endif
 
-              tp = localtime(&tt);
+              tp = taosLocalTime(&tt, NULL);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
@@ -773,7 +777,7 @@ bool simExecuteRestfulCmd(SScript *script, char *rest) {
   char  filename[256];
   sprintf(filename, "%s/tmp.sql", simScriptDir);
   // fp = fopen(filename, "w");
-  pFile = taosOpenFile(filename, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
     return false;

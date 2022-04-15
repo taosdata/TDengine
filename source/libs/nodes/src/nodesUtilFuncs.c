@@ -146,20 +146,29 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDescribeStmt));
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return makeNode(type, sizeof(SNode));
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-    case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
-    case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
+    case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
-    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
+    case QUERY_NODE_SHOW_TRANS_STMT:
+    case QUERY_NODE_SHOW_SMAS_STMT:
+    case QUERY_NODE_SHOW_CONFIGS_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_VNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
@@ -252,6 +261,7 @@ static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pExprs);
   nodesDestroyList(pNode->pFuncs);
+  nodesDestroyNode(pNode->pTspk);
 }
 
 static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
@@ -593,7 +603,6 @@ void nodesDestroyNode(SNodeptr pNode) {
       SIntervalPhysiNode* pPhyNode = (SIntervalPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pFill);
-      nodesDestroyNode(pPhyNode->pTspk);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -692,6 +701,17 @@ int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode) {
     }
   }
   return nodesListAppend(*pList, pNode);
+}
+
+int32_t nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode) {
+  if (NULL == *pList) {
+    *pList = nodesMakeList();
+    if (NULL == *pList) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListStrictAppend(*pList, pNode);
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {

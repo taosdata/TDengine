@@ -189,7 +189,7 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
     tsDiskCfgNum = 1;
     taosAddDataDir(0, pItem->str, 0, 1);
     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
-    if (taosMkDir(tsDataDir) != 0) {
+    if (taosMulMkDir(tsDataDir) != 0) {
       uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
       return -1;
     }
@@ -200,12 +200,12 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
-        if (taosMkDir(tsDataDir) != 0) {
+        if (taosMulMkDir(tsDataDir) != 0) {
           uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
           return -1;
         }
       }
-      if (taosMkDir(pCfg->dir) != 0) {
+      if (taosMulMkDir(pCfg->dir) != 0) {
         uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
         return -1;
       }
@@ -256,7 +256,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   return 0;
 }
 
-static int32_t taosAddClientLogCfg(SConfig *pCfg) {
+int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "logDir", tsLogDir, 1) != 0) return -1;
@@ -486,7 +486,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
-  if (taosMkDir(tsTempDir) != 0) {
+  if (taosMulMkDir(tsTempDir) != 0) {
     uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
     return -1;
   }
@@ -495,7 +495,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
   tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
   tsRpcForceTcp = cfgGetItem(pCfg, "rpcForceTcp")->i32;
-  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->bval;
+  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
   tsMaxWildCardsLen = cfgGetItem(pCfg, "maxWildCardsLength")->i32;
@@ -616,7 +616,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 
-  if (taosMkDir(tsLogDir) != 0) {
+  if (taosMulMkDir(tsLogDir) != 0) {
     uError("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;

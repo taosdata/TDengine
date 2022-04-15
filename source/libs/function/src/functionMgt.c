@@ -69,11 +69,21 @@ int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncTyp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc) {
+int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
-  return funcMgtBuiltins[pFunc->funcId].checkFunc(pFunc);
+  return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pErrBuf, len);
+}
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
+    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+  }
+  if (NULL == funcMgtBuiltins[pFunc->funcId].dataRequiredFunc) {
+    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+  }
+  return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
@@ -120,6 +130,13 @@ bool fmIsNonstandardSQLFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_NONSTANDARD_SQL_FUNC);
 }
 
+bool fmIsSpecialDataRequiredFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_SPECIAL_DATA_REQUIRED);
+}
+
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_DYNAMIC_SCAN_OPTIMIZED);
+}
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;

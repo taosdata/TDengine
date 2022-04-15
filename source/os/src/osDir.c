@@ -76,6 +76,47 @@ int32_t taosMkDir(const char *dirname) {
   return code;
 }
 
+int32_t taosMulMkDir(const char *dirname) {
+  if (dirname == NULL) return -1;
+  char *temp = strdup(dirname);
+  char *pos = temp;
+  int32_t code = 0;
+
+  if (strncmp(temp, "/", 1) == 0) {
+    pos += 1;
+  } else if (strncmp(temp, "./", 2) == 0) {
+    pos += 2;
+  }
+  
+  for ( ; *pos != '\0'; pos++) {
+    if (*pos == '/') {
+      *pos = '\0';
+      code = mkdir(temp, 0755);
+      if (code < 0 && errno != EEXIST) {
+        free(temp);
+        return code;
+      }
+      *pos = '/';
+    }
+  }
+  
+  if (*(pos - 1) != '/') {
+    code = mkdir(temp, 0755);
+    if (code < 0 && errno != EEXIST) {
+      free(temp);
+      return code;
+    }
+  }
+  free(temp);
+
+  // int32_t code = mkdir(dirname, 0755);
+  if (code < 0 && errno == EEXIST) {
+    return 0;
+  }
+
+  return code;
+}
+
 void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
   DIR *dir = opendir(dirname);
   if (dir == NULL) return;

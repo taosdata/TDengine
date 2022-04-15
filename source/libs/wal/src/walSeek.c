@@ -56,13 +56,13 @@ int walSetWrite(SWal* pWal) {
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
-  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
-  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -102,14 +102,14 @@ int walChangeWrite(SWal* pWal, int64_t ver) {
 
   int64_t fileFirstVer = pFileInfo->firstVer;
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
-  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     pWal->pWriteIdxTFile = NULL;
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
-  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     taosCloseFile(&pIdxTFile);
     terrno = TAOS_SYSTEM_ERROR(errno);

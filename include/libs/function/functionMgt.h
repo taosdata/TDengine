@@ -85,8 +85,8 @@ typedef enum EFunctionType {
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
   FUNCTION_TYPE_TO_ISO8601,
+  FUNCTION_TYPE_TO_UNIXTIMESTAMP,
   FUNCTION_TYPE_TO_JSON,
-  FUNCTION_TYPE_UNIXTIMESTAMP,
 
   // date and time function
   FUNCTION_TYPE_NOW = 2500,
@@ -123,7 +123,7 @@ void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc);
+int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -135,8 +135,17 @@ bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsSpecialDataRequiredFunc(int32_t funcId);
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 
-int32_t fmFuncScanType(int32_t funcId);
+typedef enum EFuncDataRequired {
+  FUNC_DATA_REQUIRED_ALL_NEEDED = 1,
+  FUNC_DATA_REQUIRED_STATIS_NEEDED,
+  FUNC_DATA_REQUIRED_NO_NEEDED,
+  FUNC_DATA_REQUIRED_DISCARD
+} EFuncDataRequired;
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);

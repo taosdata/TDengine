@@ -44,7 +44,7 @@ extern "C" {
 
 typedef struct TdFile *TdFilePtr;
  
-#define TD_FILE_CTEATE    0x0001
+#define TD_FILE_CREATE    0x0001
 #define TD_FILE_WRITE     0x0002
 #define TD_FILE_READ      0x0004
 #define TD_FILE_TRUNC     0x0008
@@ -79,7 +79,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
 void    taosFprintfFile(TdFilePtr pFile, const char *format, ...);
 
-int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf);
+int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict ptrBuf);
 
 int32_t taosEOFFile(TdFilePtr pFile);
  

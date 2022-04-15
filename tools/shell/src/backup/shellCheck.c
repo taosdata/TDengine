@@ -116,7 +116,7 @@ static void *shellCheckThreadFp(void *arg) {
   char file[32] = {0};
   snprintf(file, 32, "tb%d.txt", pThread->threadIndex);
 
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!fp) {
     fprintf(stdout, "failed to open %s, reason:%s", file, strerror(errno));
     return NULL;

@@ -92,7 +92,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     ctx->file.readOnly = readOnly;
     if (readOnly == false) {
       // ctx->file.pFile = open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
-      ctx->file.pFile = taosOpenFile(path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+      ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
       taosFtruncateFile(ctx->file.pFile, 0);
       int64_t file_size;
       taosStatFile(path, &file_size, NULL);

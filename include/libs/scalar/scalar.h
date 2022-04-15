@@ -31,8 +31,8 @@ pNode will be freed in API;
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 
-/* 
-pDst need to freed in caller 
+/*
+pDst need to freed in caller
 */
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst);
 
@@ -69,6 +69,15 @@ int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t rtrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+/* Conversion functions */
+int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+/* Time related functions */
+int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 bool getTimePseudoFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 

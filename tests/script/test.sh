@@ -51,7 +51,7 @@ else
 fi
 
 TOP_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
+TAOSD_DIR=`find . -name "taosd"|grep debug|head -n1`
 
 if [[ "$OS_TYPE" != "Darwin" ]]; then
   cut_opt="--field="
@@ -125,8 +125,8 @@ ulimit -c unlimited
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"
   if [ $VALGRIND -eq 1 ]; then
-    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
-    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
+    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
   else
     if [[ $MULTIPROCESS -eq 1 ]];then
       echo "ExcuteCmd(multiprocess):" $PROGRAM -m -c $CFG_DIR -f $FILE_NAME  

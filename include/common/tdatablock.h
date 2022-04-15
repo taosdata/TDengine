@@ -136,7 +136,8 @@ static FORCE_INLINE void colDataAppendInt8(SColumnInfoData* pColumnInfoData, uin
 }
 
 static FORCE_INLINE void colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
+         pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int16_t*)p = *(int16_t*)v;
 }
@@ -198,27 +199,30 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
-void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
-void    blockDataCleanup(SSDataBlock* pDataBlock);
+void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void blockDataCleanup(SSDataBlock* pDataBlock);
 
-size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
-void*   blockDataDestroy(SSDataBlock* pBlock);
+size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
-SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
+SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
 void blockDebugShowData(const SArray* dataBlocks);
 
+static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
+  return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);
+}
+
 static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data,
-                                            int8_t compressed) {
+                                                 int8_t compressed) {
   int32_t colSize = colDataGetLength(pColRes, numOfRows);
   return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
                                                       colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
 static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
-                                       int8_t needCompress) {
+                                             int8_t needCompress) {
   int32_t* colSizes = (int32_t*)data;
 
   data += numOfCols * sizeof(int32_t);

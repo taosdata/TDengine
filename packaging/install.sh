@@ -157,7 +157,7 @@ function install_main_path() {
     ${csudo} mkdir -p ${install_main_dir}/cfg
     ${csudo} mkdir -p ${install_main_dir}/bin
     ${csudo} mkdir -p ${install_main_dir}/connector
-    ${csudo} mkdir -p ${install_main_dir}/driver
+    ${csudo} mkdir -p ${install_main_dir}/lib
     ${csudo} mkdir -p ${install_main_dir}/examples
     ${csudo} mkdir -p ${install_main_dir}/include
     ${csudo} mkdir -p ${install_main_dir}/init.d
@@ -198,6 +198,10 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
+    ${csudo} rm -f ${lib_link_dir}/libtdb.*         || :
+    ${csudo} rm -f ${lib64_link_dir}/libtdb.*       || :
+
+    ${csudo} cp -rf ${script_dir}/lib/* ${install_main_dir}/lib && ${csudo} chmod 777 ${install_main_dir}/lib/*
 
     ${csudo} ln -s ${install_main_dir}/lib/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
@@ -222,6 +226,12 @@ function install_header() {
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
 #    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+}
+
+# temp install taosBenchmark
+function install_taosTools() {
+    cd ${script_dir}/taos-tools/
+    tar xvf taosTools-1.4.1-Linux-x64.tar.gz && cd  taosTools-1.4.1/ && ./install-taostools.sh
 }
 
 function add_newHostname_to_hosts() {
@@ -450,14 +460,14 @@ function install_service_on_systemd() {
 }
 
 function install_service() {
-    if ((${service_mod}==0)); then
-        install_service_on_systemd
-    elif ((${service_mod}==1)); then
-        install_service_on_sysvinit
-    else
-        # must manual stop taosd
+    # if ((${service_mod}==0)); then
+    #     install_service_on_systemd
+    # elif ((${service_mod}==1)); then
+    #     install_service_on_sysvinit
+    # else
+    #     # must manual stop taosd
         kill_process taosd
-    fi
+    # fi
 }
 
 function install_TDengine() {
@@ -469,6 +479,7 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
+    install_taosTools
 
     if [ -z $1 ]; then # install service and client
         # For installing new

@@ -48,24 +48,24 @@ print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $d
 print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
 
 if $loop_cnt == 0 then 
-  if $rows != 2 then 
+  if $rows != 3 then
     return -1
   endi
-  if $data02 != 1 then  # vgroups
+  if $data22 != 1 then  # vgroups
     print vgroups: $data02
     return -1
   endi
 else
-  if $rows != 3 then 
+  if $rows != 4 then
     return -1
   endi
-  if $data00 == d1 then 
-    if $data02 != 4 then  # vgroups
+  if $data20 == d1 then
+    if $data22 != 4 then  # vgroups
       print vgroups: $data02
       return -1
     endi
   else  
-    if $data12 != 4 then  # vgroups
+    if $data32 != 4 then  # vgroups
       print vgroups: $data12
       return -1
     endi

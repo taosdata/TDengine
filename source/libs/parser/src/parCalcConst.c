@@ -45,7 +45,7 @@ static EDealRes calcConstOperator(SOperatorNode** pNode, void* pContext) {
 
 static EDealRes calcConstFunction(SFunctionNode** pNode, void* pContext) {
   SFunctionNode* pFunc = *pNode;
-  if (fmIsPseudoColumnFunc(pFunc->funcId)) {
+  if (!fmIsScalarFunc(pFunc->funcId)) {
     return DEAL_RES_CONTINUE;
   }
   SNode* pParam = NULL;
@@ -61,6 +61,7 @@ static EDealRes calcConstLogicCond(SLogicConditionNode** pNode, void* pContext) 
   SLogicConditionNode* pCond = *pNode;
   SNode* pParam = NULL;
   FOREACH(pParam, pCond->pParameterList) {
+    // todo calc "true and c1 > 10"
     if (QUERY_NODE_VALUE != nodeType(pParam)) {
       return DEAL_RES_CONTINUE;
     }
@@ -142,7 +143,7 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
     if (TSDB_CODE_SUCCESS == pCxt->code) {
       pCxt->code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
     }
-    if (TSDB_CODE_SUCCESS == pCxt->code) {
+    if (TSDB_CODE_SUCCESS == pCxt->code && NULL != pJoin->pOnCond) {
       pCxt->code = rewriteCondition(pCxt, &pJoin->pOnCond);
     }
   }

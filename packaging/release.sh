@@ -55,6 +55,7 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/bin
 mkdir -p ${install_dir}/lib
 mkdir -p ${install_dir}/inc
+mkdir -p ${install_dir}/taos-tools
 
 install_files="${script_dir}/install.sh"
 chmod a+x ${script_dir}/install.sh || :
@@ -68,6 +69,8 @@ cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 
 cp ${compile_dir}/source/client/libtaos.so  ${install_dir}/lib/
 cp ${compile_dir}/source/libs/tdb/libtdb.so ${install_dir}/lib/
+taostoolfile="${top_dir}/tools/taosTools-1.4.1-Linux-x64.tar.gz"
+cp ${taostoolfile} ${install_dir}/taos-tools 
 
 #cp ${compile_dir}/source/dnode/mnode/impl/libmnode.so ${install_dir}/lib/
 #cp ${compile_dir}/source/dnode/qnode/libqnode.so ${install_dir}/lib/

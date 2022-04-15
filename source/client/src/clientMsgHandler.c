@@ -69,9 +69,9 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
-  pTscObj->connType = HEARTBEAT_TYPE_QUERY;
+  pTscObj->connType = connectRsp.connType;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connectRsp.connId, connectRsp.clusterId, HEARTBEAT_TYPE_QUERY);
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connectRsp.connId, connectRsp.clusterId, connectRsp.connType);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
@@ -90,148 +90,11 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
   pMsgSendInfo->param           = pRequest;
   pMsgSendInfo->msgType         = pRequest->type;
 
-  if (pRequest->type == TDMT_MND_SHOW_RETRIEVE || pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
-    if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
-      SRetrieveTableReq retrieveReq = {0};
-      retrieveReq.showId = pRequest->body.showInfo.execId;
-
-      int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
-      void*   pReq = taosMemoryMalloc(contLen);
-      tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
-      pMsgSendInfo->msgInfo.pData = pReq;
-      pMsgSendInfo->msgInfo.len = contLen;
-      pMsgSendInfo->msgInfo.handle = NULL;
-    } else {
-      SVShowTablesFetchReq* pFetchMsg = taosMemoryCalloc(1, sizeof(SVShowTablesFetchReq));
-      if (pFetchMsg == NULL) {
-        return NULL;
-      }
-
-      pFetchMsg->id = htobe64(pRequest->body.showInfo.execId);
-      pFetchMsg->head.vgId = htonl(pRequest->body.showInfo.vgId);
-
-      pMsgSendInfo->msgInfo.pData = pFetchMsg;
-      pMsgSendInfo->msgInfo.len = sizeof(SVShowTablesFetchReq);
-      pMsgSendInfo->msgInfo.handle = NULL;
-    }
-  } else {
-    assert(pRequest != NULL);
-    pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
-  }
+  assert(pRequest != NULL);
+  pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
 
   pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)? genericRspCallback:handleRequestRspFp[TMSG_INDEX(pRequest->type)];
   return pMsgSendInfo;
-}
-
-int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  SRequestObj* pRequest = param;
-  if (code != TSDB_CODE_SUCCESS) {
-    setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
-  }
-
-  SShowRsp showRsp = {0};
-  tDeserializeSShowRsp(pMsg->pData, pMsg->len, &showRsp);
-  STableMetaRsp *pMetaMsg = &showRsp.tableMeta;
-
-  taosMemoryFreeClear(pRequest->body.resInfo.pRspMsg);
-  pRequest->body.resInfo.pRspMsg = pMsg->pData;
-  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-
-  if (pResInfo->fields == NULL) {
-    TAOS_FIELD* pFields = taosMemoryCalloc(pMetaMsg->numOfColumns, sizeof(TAOS_FIELD));
-    for (int32_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
-      SSchema* pSchema = &pMetaMsg->pSchemas[i];
-      tstrncpy(pFields[i].name, pSchema->name, tListLen(pFields[i].name));
-      pFields[i].type = pSchema->type;
-      pFields[i].bytes = pSchema->bytes;
-    }
-
-    pResInfo->fields = pFields;
-  }
-
-  pResInfo->numOfCols = pMetaMsg->numOfColumns;
-  pRequest->body.showInfo.execId = showRsp.showId;
-  tFreeSShowRsp(&showRsp);
-
-  // todo
-  if (pRequest->type == TDMT_VND_SHOW_TABLES) {
-    SShowReqInfo* pShowInfo = &pRequest->body.showInfo;
-
-    int32_t index = pShowInfo->currentIndex;
-    SVgroupInfo* pInfo = taosArrayGet(pShowInfo->pArray, index);
-    pShowInfo->vgId = pInfo->vgId;
-  }
-
-  tsem_post(&pRequest->body.rspSem);
-  return 0;
-}
-
-int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  SRequestObj    *pRequest = param;
-  SReqResultInfo *pResInfo = &pRequest->body.resInfo;
-  taosMemoryFreeClear(pResInfo->pRspMsg);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
-  }
-
-  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
-
-  SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *) pMsg->pData;
-  pRetrieve->numOfRows  = htonl(pRetrieve->numOfRows);
-  pRetrieve->precision  = htons(pRetrieve->precision);
-
-  pResInfo->pRspMsg   = pMsg->pData;
-  pResInfo->numOfRows = pRetrieve->numOfRows;
-  pResInfo->pData     = pRetrieve->data;
-  pResInfo->completed = pRetrieve->completed;
-
-  pResInfo->current = 0;
-  setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);
-
-  tscDebug("0x%"PRIx64" numOfRows:%d, complete:%d, qId:0x%"PRIx64, pRequest->self, pRetrieve->numOfRows,
-           pRetrieve->completed, pRequest->body.showInfo.execId);
-
-  tsem_post(&pRequest->body.rspSem);
-  return 0;
-}
-
-int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  SRequestObj* pRequest = param;
-
-  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-  taosMemoryFreeClear(pResInfo->pRspMsg);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
-  }
-
-  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
-
-  pResInfo->pRspMsg    = pMsg->pData;
-
-  SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *) pMsg->pData;
-  pFetchRsp->numOfRows  = htonl(pFetchRsp->numOfRows);
-  pFetchRsp->precision  = htons(pFetchRsp->precision);
-
-  pResInfo->pRspMsg   = pMsg->pData;
-  pResInfo->numOfRows = pFetchRsp->numOfRows;
-  pResInfo->pData     = pFetchRsp->data;
-
-  pResInfo->current = 0;
-  setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);
-
-  tscDebug("0x%"PRIx64" numOfRows:%d, complete:%d, qId:0x%"PRIx64, pRequest->self, pFetchRsp->numOfRows,
-           pFetchRsp->completed, pRequest->body.showInfo.execId);
-
-  tsem_post(&pRequest->body.rspSem);
-  return 0;
 }
 
 int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
@@ -256,13 +119,14 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     if (usedbRsp.vgVersion >= 0) {
       int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
       if (code != TSDB_CODE_SUCCESS) {
-        tscWarn("catalogGetHandle failed, clusterId:%"PRIx64", error:%s", pRequest->pTscObj->pAppInfo->clusterId, tstrerror(code));
+        tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
+                tstrerror(code));
       } else {
         catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
       }
     }
 
-    tFreeSUsedbRsp(&usedbRsp);    
+    tFreeSUsedbRsp(&usedbRsp);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -276,7 +140,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   SName name = {0};
-  tNameFromString(&name, usedbRsp.db, T_NAME_ACCT|T_NAME_DB);
+  tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB);
 
   SUseDbOutput output = {0};
   code = queryBuildUseDbOutput(&output, &usedbRsp);
@@ -288,11 +152,12 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
     tscError("failed to build use db output since %s", terrstr());
   } else {
-    struct SCatalog *pCatalog = NULL;
-    
+    struct SCatalog* pCatalog = NULL;
+
     int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
-      tscWarn("catalogGetHandle failed, clusterId:%"PRIx64", error:%s", pRequest->pTscObj->pAppInfo->clusterId, tstrerror(code));
+      tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
+              tstrerror(code));
     } else {
       catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
     }
@@ -420,13 +285,8 @@ void initMsgHandleFp() {
 #endif
 
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CONNECT)]       = processConnectRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_SHOW)]          = processShowRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_SHOW_RETRIEVE)] = processRetrieveMnodeRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_DB)]     = processCreateDbRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_USE_DB)]        = processUseDbRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_STB)]    = processCreateTableRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_DROP_DB)]       = processDropDbRsp;
-
-  handleRequestRspFp[TMSG_INDEX(TDMT_VND_SHOW_TABLES)]   = processShowRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_VND_SHOW_TABLES_FETCH)]   = processRetrieveVndRsp;
 }

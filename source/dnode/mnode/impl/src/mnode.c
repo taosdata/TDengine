@@ -40,6 +40,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndQuery.h"
+#include "mndGrant.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000
@@ -197,6 +198,7 @@ static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   if (mndAllocStep(pMnode, "mnode-qnode", mndInitBnode, mndCleanupBnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stream", mndInitStream, mndCleanupStream) != 0) return -1;
@@ -220,7 +222,6 @@ static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   if (mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-timer", NULL, mndCleanupTimer) != 0) return -1;
 
   return 0;
 }
@@ -345,6 +346,8 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
 }
 
 int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
+
+void mndStop(SMnode *pMnode) { return mndCleanupTimer(pMnode); }
 
 int32_t mndProcessMsg(SNodeMsg *pMsg) {
   SMnode  *pMnode = pMsg->pNode;

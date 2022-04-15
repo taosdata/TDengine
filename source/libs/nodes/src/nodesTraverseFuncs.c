@@ -46,7 +46,7 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
       res = walkNode(pOpNode->pLeft, order, walker, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pOpNode->pRight, order, walker, pContext);
       }
       break;
@@ -63,10 +63,10 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
       res = walkNode(pJoinTableNode->pLeft, order, walker, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pJoinTableNode->pRight, order, walker, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pJoinTableNode->pOnCond, order, walker, pContext);
       }
       break;
@@ -77,13 +77,18 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_ORDER_BY_EXPR:
       res = walkNode(((SOrderByExprNode*)pNode)->pExpr, order, walker, pContext);
       break;
-    case QUERY_NODE_STATE_WINDOW:
-      res = walkNode(((SStateWindowNode*)pNode)->pExpr, order, walker, pContext);
+    case QUERY_NODE_STATE_WINDOW: {
+      SStateWindowNode* pState = (SStateWindowNode*)pNode;
+      res = walkNode(pState->pExpr, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkNode(pState->pCol, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
       res = walkNode(pSession->pCol, order, walker, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pSession->pGap, order, walker, pContext);
       }
       break;
@@ -91,16 +96,16 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = walkNode(pInterval->pInterval, order, walker, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pInterval->pOffset, order, walker, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pInterval->pSliding, order, walker, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pInterval->pFill, order, walker, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkNode(pInterval->pCol, order, walker, pContext);
       }
       break;
@@ -121,7 +126,7 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
       break;
   }
 
-  if (DEAL_RES_ERROR != res && TRAVERSAL_POSTORDER == order) {
+  if (DEAL_RES_ERROR != res && DEAL_RES_END != res && TRAVERSAL_POSTORDER == order) {
     res = walker(pNode, pContext);
   }
 
@@ -131,8 +136,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
 static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalker walker, void* pContext) {
   SNode* node;
   FOREACH(node, pNodeList) {
-    if (DEAL_RES_ERROR == walkNode(node, order, walker, pContext)) {
-      return DEAL_RES_ERROR;
+    EDealRes res = walkNode(node, order, walker, pContext);
+    if (DEAL_RES_ERROR == res || DEAL_RES_END == res) {
+      return res;
     }
   }
   return DEAL_RES_CONTINUE;
@@ -180,7 +186,7 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
       res = rewriteNode(&(pOpNode->pLeft), order, rewriter, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pOpNode->pRight), order, rewriter, pContext);
       }
       break;
@@ -197,10 +203,10 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
       res = rewriteNode(&(pJoinTableNode->pLeft), order, rewriter, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pJoinTableNode->pRight), order, rewriter, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pJoinTableNode->pOnCond), order, rewriter, pContext);
       }
       break;
@@ -211,25 +217,35 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_ORDER_BY_EXPR:
       res = rewriteNode(&(((SOrderByExprNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
-    case QUERY_NODE_STATE_WINDOW:
-      res = rewriteNode(&(((SStateWindowNode*)pNode)->pExpr), order, rewriter, pContext);
+    case QUERY_NODE_STATE_WINDOW: {
+      SStateWindowNode* pState = (SStateWindowNode*)pNode;
+      res = rewriteNode(&pState->pExpr, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteNode(&pState->pCol, order, rewriter, pContext);
+      }
       break;
-    case QUERY_NODE_SESSION_WINDOW:
-      res = rewriteNode(&(((SSessionWindowNode*)pNode)->pCol), order, rewriter, pContext);
+    }
+    case QUERY_NODE_SESSION_WINDOW: {
+      SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
+      res = rewriteNode(&pSession->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteNode(&pSession->pGap, order, rewriter, pContext);
+      }
       break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = rewriteNode(&(pInterval->pInterval), order, rewriter, pContext);
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pInterval->pOffset), order, rewriter, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pInterval->pSliding), order, rewriter, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pInterval->pFill), order, rewriter, pContext);
       }
-      if (DEAL_RES_ERROR != res) {
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteNode(&(pInterval->pCol), order, rewriter, pContext);
       }
       break;
@@ -250,7 +266,7 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
   }
 
-  if (DEAL_RES_ERROR != res && TRAVERSAL_POSTORDER == order) {
+  if (DEAL_RES_ERROR != res && DEAL_RES_END != res && TRAVERSAL_POSTORDER == order) {
     res = rewriter(pRawNode, pContext);
   }
 
@@ -260,8 +276,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
 static EDealRes rewriteList(SNodeList* pNodeList, ETraversalOrder order, FNodeRewriter rewriter, void* pContext) {
   SNode** pNode;
   FOREACH_FOR_REWRITE(pNode, pNodeList) {
-    if (DEAL_RES_ERROR == rewriteNode(pNode, order, rewriter, pContext)) {
-      return DEAL_RES_ERROR;
+    EDealRes res = rewriteNode(pNode, order, rewriter, pContext);
+    if (DEAL_RES_ERROR == res || DEAL_RES_END == res) {
+      return res;
     }
   }
   return DEAL_RES_CONTINUE;

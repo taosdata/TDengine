@@ -194,9 +194,9 @@ int32_t tDecodeSMonVgroupInfo(SCoder *decoder, SMonVgroupInfo *pInfo) {
     if (tDecodeCStrTo(decoder, desc.database_name) < 0) return -1;
     if (tDecodeCStrTo(decoder, desc.status) < 0) return -1;
     for (int32_t j = 0; j < TSDB_MAX_REPLICA; ++j) {
-      SMonVnodeDesc vdesc = {0};
-      if (tDecodeI32(decoder, &vdesc.dnode_id) < 0) return -1;
-      if (tDecodeCStrTo(decoder, vdesc.vnode_role) < 0) return -1;
+      SMonVnodeDesc *pVDesc = &desc.vnodes[j];
+      if (tDecodeI32(decoder, &pVDesc->dnode_id) < 0) return -1;
+      if (tDecodeCStrTo(decoder, pVDesc->vnode_role) < 0) return -1;
     }
     taosArrayPush(pInfo->vgroups, &desc);
   }
@@ -205,15 +205,15 @@ int32_t tDecodeSMonVgroupInfo(SCoder *decoder, SMonVgroupInfo *pInfo) {
 
 int32_t tEncodeSMonGrantInfo(SCoder *encoder, const SMonGrantInfo *pInfo) {
   if (tEncodeI32(encoder, pInfo->expire_time) < 0) return -1;
-  if (tEncodeI32(encoder, pInfo->timeseries_used) < 0) return -1;
-  if (tEncodeI32(encoder, pInfo->timeseries_total) < 0) return -1;
+  if (tEncodeI64(encoder, pInfo->timeseries_used) < 0) return -1;
+  if (tEncodeI64(encoder, pInfo->timeseries_total) < 0) return -1;
   return 0;
 }
 
 int32_t tDecodeSMonGrantInfo(SCoder *decoder, SMonGrantInfo *pInfo) {
   if (tDecodeI32(decoder, &pInfo->expire_time) < 0) return -1;
-  if (tDecodeI32(decoder, &pInfo->timeseries_used) < 0) return -1;
-  if (tDecodeI32(decoder, &pInfo->timeseries_total) < 0) return -1;
+  if (tDecodeI64(decoder, &pInfo->timeseries_used) < 0) return -1;
+  if (tDecodeI64(decoder, &pInfo->timeseries_total) < 0) return -1;
   return 0;
 }
 

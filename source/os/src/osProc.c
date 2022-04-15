@@ -24,7 +24,7 @@ int32_t taosNewProc(char **args) {
   if (pid == 0) {
     args[0] = tsProcPath;
     // close(STDIN_FILENO);
-    close(STDOUT_FILENO);
+    // close(STDOUT_FILENO);
     // close(STDERR_FILENO);
     return execvp(tsProcPath, args);
   } else {

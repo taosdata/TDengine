@@ -400,7 +400,7 @@ TEST(testCase, show_vgroup_Test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
+
 
 TEST(testCase, create_multiple_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -459,11 +459,10 @@ TEST(testCase, create_multiple_tables) {
 
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 25000; ++i) {
+  for (int32_t i = 0; i < 500; i += 2) {
     char sql[512] = {0};
     snprintf(sql, tListLen(sql),
-             "create table t_x_%d using st1 tags(2) t_x_%d using st1 tags(5) t_x_%d using st1 tags(911)", i,
-             (i + 1) * 30, (i + 2) * 40);
+             "create table t_x_%d using st1 tags(2) t_x_%d using st1 tags(5)", i, i + 1);
     TAOS_RES* pres = taos_query(pConn, sql);
     if (taos_errno(pres) != 0) {
       printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
@@ -654,6 +653,8 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
+#endif
+
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -661,7 +662,7 @@ TEST(testCase, agg_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select count(*) from tu");
+  pRes = taos_query(pConn, "select * from test_block_raw.all_type");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -672,10 +673,21 @@ TEST(testCase, agg_query_tables) {
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   int32_t     numOfFields = taos_num_fields(pRes);
 
+  int32_t n = 0;
+  void* data = NULL;
+  int32_t code = taos_fetch_raw_block(pRes, &n, &data);
+
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t* length = taos_fetch_lengths(pRes);
+    for(int32_t i = 0; i < numOfFields; ++i) {
+      printf("(%d):%d " , i, length[i]);
+    }
+    printf("\n");
+
     int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
     printf("%s\n", str);
+    memset(str, 0, sizeof(str));
   }
 
   taos_free_result(pRes);

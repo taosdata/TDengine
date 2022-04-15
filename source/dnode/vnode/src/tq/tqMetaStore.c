@@ -14,13 +14,13 @@
  */
 #include "vnodeInt.h"
 // TODO:replace by an abstract file layer
-#include <fcntl.h>
-#include <string.h>
-#include <unistd.h>
-#include "osDir.h"
+// #include <fcntl.h>
+// #include <string.h>
+// #include <unistd.h>
+// #include "osDir.h"
 
 #define TQ_META_NAME "tq.meta"
-#define TQ_IDX_NAME "tq.idx"
+#define TQ_IDX_NAME  "tq.idx"
 
 static int32_t tqHandlePutCommitted(STqMetaStore*, int64_t key, void* value);
 static void*   tqHandleGetUncommitted(STqMetaStore*, int64_t key);
@@ -95,7 +95,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
     tqError("failed to create dir:%s since %s ", name, terrstr());
   }
   strcat(name, "/" TQ_IDX_NAME);
-  TdFilePtr pIdxFile = taosOpenFile(name, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pIdxFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ);
   if (pIdxFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tqError("failed to open file:%s since %s ", name, terrstr());
@@ -113,7 +113,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
 
   strcpy(name, path);
   strcat(name, "/" TQ_META_NAME);
-  TdFilePtr pFile = taosOpenFile(name, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tqError("failed to open file:%s since %s", name, terrstr());

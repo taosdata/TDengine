@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
   tInfo("RPC server is running, ctrl-c to exit");
 
   if (commit) {
-    pDataFile = taosOpenFile(dataName, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    pDataFile = taosOpenFile(dataName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
   qhandle = taosOpenQueue();

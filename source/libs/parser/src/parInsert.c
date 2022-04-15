@@ -312,6 +312,8 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
   if (pToken->type == TK_NOW) {
     ts = taosGetTimestamp(timePrec);
+  } else if (pToken->type == TK_TODAY) {
+    ts = taosGetTimestampToday(timePrec);
   } else if (pToken->type == TK_NK_INTEGER) {
     bool isSigned = false;
     toInteger(pToken->z, pToken->n, 10, &ts, &isSigned);
@@ -325,6 +327,11 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
   for (int k = pToken->n; pToken->z[k] != '\0'; k++) {
     if (pToken->z[k] == ' ' || pToken->z[k] == '\t') continue;
+    if (pToken->z[k] == '(' && pToken->z[k + 1] == ')') { //for insert NOW()/TODAY()
+      *end = pTokenEnd = &pToken->z[k + 2];
+      k++;
+      continue;
+    }
     if (pToken->z[k] == ',') {
       *end = pTokenEnd;
       *time = ts;
@@ -371,8 +378,8 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 }
 
 static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
-  if ((pToken->type != TK_NOW && pToken->type != TK_NK_INTEGER && pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
-       pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN) ||
+  if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER && pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT &&
+       pToken->type != TK_NK_BOOL && pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
@@ -605,6 +612,12 @@ typedef struct SMemParam {
 static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param) {
   SMemParam*   pa = (SMemParam*)param;
   SRowBuilder* rb = pa->rb;
+
+  if (value == NULL) {  // it is a null data
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset, pa->colIdx);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSDB_DATA_TYPE_BINARY == pa->schema->type) {
     const char* rowEnd = tdRowEnd(rb->pBuf);
     STR_WITH_SIZE_TO_VARSTR(rowEnd, value, len);
@@ -621,14 +634,9 @@ static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, in
     varDataSetLen(rowEnd, output);
     tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
   } else {
-    if (value == NULL) {  // it is a null data
-      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset,
-                          pa->colIdx);
-    } else {
-      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset,
-                          pa->colIdx);
-    }
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset, pa->colIdx);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
