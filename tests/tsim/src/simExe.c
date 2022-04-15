@@ -340,6 +340,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
   }
 
+  if (useValgrind) {
+    simReplaceStr(buf, "exec.sh", "exec.sh -v");
+  }
+
   simLogSql(buf, true);
   int32_t code = system(buf);
   int32_t repeatTimes = 0;

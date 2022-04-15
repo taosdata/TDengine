@@ -26,22 +26,22 @@ int32_t mndInitAuth(SMnode *pMnode) {
 
 void mndCleanupAuth(SMnode *pMnode) {}
 
-int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SUserObj *pUser = mndAcquireUser(pMnode, user);
+static int32_t mndRetriveAuth(SMnode *pMnode, SAuthRsp *pRsp) {
+  SUserObj *pUser = mndAcquireUser(pMnode, pRsp->user);
   if (pUser == NULL) {
-    *secret = 0;
-    mError("user:%s, failed to auth user since %s", user, terrstr());
+    *pRsp->secret = 0;
+    mError("user:%s, failed to auth user since %s", pRsp->user, terrstr());
     return -1;
   }
 
-  *spi = 1;
-  *encrypt = 0;
-  *ckey = 0;
+  pRsp->spi = 1;
+  pRsp->encrypt = 0;
+  *pRsp->ckey = 0;
 
-  memcpy(secret, pUser->pass, TSDB_PASSWORD_LEN);
+  memcpy(pRsp->secret, pUser->pass, TSDB_PASSWORD_LEN);
   mndReleaseUser(pMnode, pUser);
 
-  mDebug("user:%s, auth info is returned", user);
+  mDebug("user:%s, auth info is returned", pRsp->user);
   return 0;
 }
 
@@ -55,14 +55,19 @@ static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
   SAuthReq authRsp = {0};
   memcpy(authRsp.user, authReq.user, TSDB_USER_LEN);
 
-  int32_t code =
-      mndRetriveAuth(pReq->pNode, authRsp.user, &authRsp.spi, &authRsp.encrypt, authRsp.secret, authRsp.ckey);
+  int32_t code = mndRetriveAuth(pReq->pNode, &authRsp);
   mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->user, authRsp.spi, authRsp.encrypt,
          authRsp.user);
 
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authRsp);
   void   *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   tSerializeSAuthReq(pRsp, contLen, &authRsp);
+
   pReq->pRsp = pRsp;
   pReq->rspLen = contLen;
   return code;
@@ -95,11 +100,11 @@ int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb,
     }
   }
 
-    if (pAlter->alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
-      if (pOperUser->superUser) {
-        return 0;
-      }
+  if (pAlter->alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
+    if (pOperUser->superUser) {
+      return 0;
     }
+  }
 
   if (pAlter->alterType == TSDB_ALTER_USER_ADD_READ_DB || pAlter->alterType == TSDB_ALTER_USER_REMOVE_READ_DB ||
       pAlter->alterType == TSDB_ALTER_USER_ADD_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {

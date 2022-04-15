@@ -31,5 +31,5 @@ int tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
       return -1;
     }
   }
-  return tsdbMemTableInsert(pTsdb, pTsdb->mem, pMsg, NULL);
+  return tsdbMemTableInsert(pTsdb, pTsdb->mem, pMsg, pRsp);
 }

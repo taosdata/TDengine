@@ -217,7 +217,7 @@ int32_t ctgPushRmDBMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId)
   }
 
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -304,7 +304,7 @@ int32_t ctgPushUpdateVgMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t d
   }
 
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -336,7 +336,7 @@ int32_t ctgPushUpdateTblMsgInQueue(SCatalog* pCtg, STableMetaOutput *output, boo
   }
 
   char *p = strchr(output->dbFName, '.');
-  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
     memmove(output->dbFName, p + 1, strlen(p + 1));
   }
 
@@ -410,7 +410,7 @@ void ctgWReleaseVgInfo(SCtgDBCache *dbCache) {
 
 int32_t ctgAcquireDBCacheImpl(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache, bool acquire) {
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -688,7 +688,7 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
   }
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  if (CTG_FLAG_IS_INF_DB(flag)) {
+  if (CTG_FLAG_IS_SYS_DB(flag)) {
     strcpy(dbFName, pTableName->dbname);
   } else {
     tNameGetFullDbName(pTableName, dbFName);
@@ -1721,7 +1721,7 @@ int32_t ctgRefreshTblMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
   SVgroupInfo vgroupInfo = {0};
   int32_t code = 0;
 
-  if (!CTG_FLAG_IS_INF_DB(flag)) {
+  if (!CTG_FLAG_IS_SYS_DB(flag)) {
     CTG_ERR_RET(catalogGetTableHashVgroup(pCtg, pTrans, pMgmtEps, pTableName, &vgroupInfo));
   }
 
@@ -1732,7 +1732,7 @@ int32_t ctgRefreshTblMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
-  if (CTG_FLAG_IS_INF_DB(flag)) {
+  if (CTG_FLAG_IS_SYS_DB(flag)) {
     ctgDebug("will refresh tbmeta, supposed in information_schema, tbName:%s", tNameGetTableName(pTableName));
 
     CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCtg, pTrans, pMgmtEps, (char *)pTableName->dbname, (char *)pTableName->tname, output));
@@ -1820,8 +1820,8 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
   uint64_t suid = 0;
   STableMetaOutput *output = NULL;
 
-  if (CTG_IS_INF_DBNAME(pTableName->dbname)) {
-    CTG_FLAG_SET_INF_DB(flag);
+  if (CTG_IS_SYS_DBNAME(pTableName->dbname)) {
+    CTG_FLAG_SET_SYS_DB(flag);
   }
 
   CTG_ERR_RET(ctgGetTableMetaFromCache(pCtg, pTableName, pTableMeta, &inCache, flag, &dbId));
@@ -1829,7 +1829,7 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
   int32_t tbType = 0;
 
   if (inCache) {
-    if (CTG_FLAG_MATCH_STB(flag, (*pTableMeta)->tableType) && ((!CTG_FLAG_IS_FORCE_UPDATE(flag)) || (CTG_FLAG_IS_INF_DB(flag)))) {
+    if (CTG_FLAG_MATCH_STB(flag, (*pTableMeta)->tableType) && ((!CTG_FLAG_IS_FORCE_UPDATE(flag)) || (CTG_FLAG_IS_SYS_DB(flag)))) {
       goto _return;
     }
 
@@ -1885,7 +1885,7 @@ _return:
 
   if (CTG_TABLE_NOT_EXIST(code) && inCache) {
     char dbFName[TSDB_DB_FNAME_LEN] = {0};
-    if (CTG_FLAG_IS_INF_DB(flag)) {
+    if (CTG_FLAG_IS_SYS_DB(flag)) {
       strcpy(dbFName, pTableName->dbname);
     } else {
       tNameGetFullDbName(pTableName, dbFName);
@@ -2633,7 +2633,7 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgm
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  if (CTG_IS_INF_DBNAME(pTableName->dbname)) {
+  if (CTG_IS_SYS_DBNAME(pTableName->dbname)) {
     ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
@@ -2666,7 +2666,7 @@ _return:
 int32_t catalogGetTableHashVgroup(SCatalog *pCtg, void *pTrans, const SEpSet *pMgmtEps, const SName *pTableName, SVgroupInfo *pVgroup) {
   CTG_API_ENTER();
 
-  if (CTG_IS_INF_DBNAME(pTableName->dbname)) {
+  if (CTG_IS_SYS_DBNAME(pTableName->dbname)) {
     ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }

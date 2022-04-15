@@ -132,30 +132,52 @@ const char* nodesNodeName(ENodeType type) {
       return "DropTopicStmt";
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return "AlterLocalStmt";
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-      return "ShowDatabaseStmt";
-    case QUERY_NODE_SHOW_TABLES_STMT:
-      return "ShowTablesStmt";
-    case QUERY_NODE_SHOW_STABLES_STMT:
-      return "ShowStablesStmt";
-    case QUERY_NODE_SHOW_USERS_STMT:
-      return "ShowUsersStmt";
     case QUERY_NODE_SHOW_DNODES_STMT:
       return "ShowDnodesStmt";
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-      return "ShowVgroupsStmt";
     case QUERY_NODE_SHOW_MNODES_STMT:
       return "ShowMnodesStmt";
     case QUERY_NODE_SHOW_MODULES_STMT:
       return "ShowModulesStmt";
     case QUERY_NODE_SHOW_QNODES_STMT:
       return "ShowQnodesStmt";
+    case QUERY_NODE_SHOW_SNODES_STMT:
+      return "ShowSnodesStmt";
+    case QUERY_NODE_SHOW_BNODES_STMT:
+      return "ShowBnodesStmt";
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      return "ShowDatabaseStmt";
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
       return "ShowFunctionsStmt";
     case QUERY_NODE_SHOW_INDEXES_STMT:
       return "ShowIndexesStmt";
+    case QUERY_NODE_SHOW_STABLES_STMT:
+      return "ShowStablesStmt";
     case QUERY_NODE_SHOW_STREAMS_STMT:
       return "ShowStreamsStmt";
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      return "ShowTablesStmt";
+    case QUERY_NODE_SHOW_USERS_STMT:
+      return "ShowUsersStmt";
+    case QUERY_NODE_SHOW_LICENCE_STMT:
+      return "ShowGrantsStmt";
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      return "ShowVgroupsStmt";
+    case QUERY_NODE_SHOW_TOPICS_STMT:
+      return "ShowTopicsStmt";
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+      return "ShowConsumersStmt";
+    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
+      return "ShowSubscribesStmt";
+    case QUERY_NODE_SHOW_TRANS_STMT:
+      return "ShowTransStmt";
+    case QUERY_NODE_SHOW_SMAS_STMT:
+      return "ShowSmasStmt";
+    case QUERY_NODE_SHOW_CONFIGS_STMT:
+      return "ShowConfigsStmt";
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+      return "ShowQueriesStmt";
+    case QUERY_NODE_SHOW_VNODES_STMT:
+      return "ShowVnodeStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:

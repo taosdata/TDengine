@@ -206,6 +206,14 @@ SArray* taosArrayDup(const SArray* pSrc);
 void taosArrayClear(SArray* pArray);
 
 /**
+ * clear the array (remove all element)
+ * @param pArray
+ * @param fp
+ */
+void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
+
+
+/**
  * destroy array list
  * @param pArray
  */
