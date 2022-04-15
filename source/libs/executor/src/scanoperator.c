@@ -64,16 +64,19 @@ static void setupQueryRangeForReverseScan(STableScanInfo* pTableScanInfo) {
 #endif
 }
 
-int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
+int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STableScanInfo* pInfo = pOperator->info;
+
   STaskCostInfo* pCost = &pTaskInfo->cost;
 
   pCost->totalBlocks += 1;
+  pCost->loadBlocks  += 1;
+
   pCost->totalRows += pBlock->info.rows;
-
   pCost->totalCheckedRows += pBlock->info.rows;
-  pCost->loadBlocks += 1;
 
-  *status = BLK_DATA_DATA_LOAD;
+  *status = pInfo->dataBlockLoadFlag;
 
   SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
   if (pCols == NULL) {
@@ -139,7 +142,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
 
     // this function never returns error?
     uint32_t status = BLK_DATA_DATA_LOAD;
-    int32_t  code = loadDataBlock(pTaskInfo, pTableScanInfo, pBlock, &status);
+    int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
@@ -217,7 +220,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   return p;
 }
 
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
                                            int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
                                            SNode* pCondition, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
@@ -232,6 +235,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
     return NULL;
   }
 
+  pInfo->dataBlockLoadFlag= dataLoadFlag;
   pInfo->pResBlock        = pResBlock;
   pInfo->pFilterNode      = pCondition;
   pInfo->dataReader       = pTsdbReadHandle;

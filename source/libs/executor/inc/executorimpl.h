@@ -38,8 +38,6 @@ extern "C" {
 #include "tpagedbuf.h"
 #include "tmsg.h"
 
-struct SColumnFilterElem;
-
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
 #define IS_QUERY_KILLED(_q) ((_q)->code == TSDB_CODE_TSC_QUERY_CANCELLED)
@@ -225,8 +223,6 @@ typedef struct STaskRuntimeEnv {
   void*           qinfo;
   uint8_t         scanFlag;  // denotes reversed scan of data or not
   void*           pTsdbReadHandle;
-
-  int32_t         prevGroupId;  // previous executed group id
   bool            enableGroupData;
   SDiskbasedBuf*  pResultBuf;           // query result buffer based on blocked-wised disk file
   SHashObj*       pResultRowHashTable;  // quick locate the window object for each result
@@ -241,8 +237,6 @@ typedef struct STaskRuntimeEnv {
 
   char*           tagVal;  // tag value of current data block
   struct SScalarFunctionSupport* scalarSup;
-
-  SSDataBlock*    outputBuf;
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo* proot;
   SGroupResInfo   groupResInfo;
@@ -250,7 +244,6 @@ typedef struct STaskRuntimeEnv {
 
   STableQueryInfo* current;
   SResultInfo      resultInfo;
-  SHashObj*        pTableRetrieveTsMap;
   struct SUdfInfo* pUdfInfo;
 } STaskRuntimeEnv;
 
@@ -350,6 +343,7 @@ typedef struct STableScanInfo {
   int64_t         elapsedTime;
   int32_t         prevGroupId;  // previous table group id
   int32_t         scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t         dataBlockLoadFlag;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -616,7 +610,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowCellInfoOffset);
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t dataLoadFlag, int32_t repeatTime,
                                            int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
