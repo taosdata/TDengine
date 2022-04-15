@@ -1,22 +1,23 @@
-import sys 
+import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
-from math import inf,nan
+from math import inf, nan
+
 
 class TDTestCase:
     def caseDescription(self):
-        '''
+        """
         case1<shenglian zhou>: [TD-14122]: fix failed test on arm64 by converting from sim tst to python test to overcome NaN value and its string representation
-        ''' 
+        """
         return
-    
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
-        
+
     def restartTaosd(self, index=1, dbname="db"):
         tdDnodes.stop(index)
         tdDnodes.startWithoutSleep(index)
@@ -26,23 +27,36 @@ class TDTestCase:
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists db0")
         tdSql.execute("create database if not exists db0")
-        tdSql.execute('use db0')
-        tdSql.execute('create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);')
+        tdSql.execute("use db0")
+        tdSql.execute(
+            "create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);"
+        )
 
-        tdSql.execute('create table ct0 using st0 tags( 0 );')
-        tdSql.execute('insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
+        tdSql.execute("create table ct0 using st0 tags( 0 );")
+        tdSql.execute(
+            "insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );"
+        )
         for i in range(1, 50):
-            tdSql.execute('insert into ct0 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});'.format(1601481600000 + i * 60000,
-                i , i , i , i , i , i , i , i , i ))
+            tdSql.execute(
+                "insert into ct0 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});".format(
+                    1601481600000 + i * 60000, i, i, i, i, i, i, i, i, i
+                )
+            )
 
-        tdSql.execute('create table ct1 using st0 tags( 1 );')
-        tdSql.execute('insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
+        tdSql.execute("create table ct1 using st0 tags( 1 );")
+        tdSql.execute(
+            "insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );"
+        )
         for i in range(1, 50):
-            tdSql.execute('insert into ct1 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});'.format(1601481600000 + i * 60000,
-                i , i , i , i , i , i , i , i , i ))
+            tdSql.execute(
+                "insert into ct1 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});".format(
+                    1601481600000 + i * 60000, i, i, i, i, i, i, i, i, i
+                )
+            )
 
-
-        tdSql.query('select c1, sin(c1), cos(c1), tan(c1), asin(c1), acos(c1), atan(c1) from ct1;')
+        tdSql.query(
+            "select c1, sin(c1), cos(c1), tan(c1), asin(c1), acos(c1), atan(c1) from ct1;"
+        )
         tdSql.checkRows(50)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.0)
@@ -395,7 +409,9 @@ class TDTestCase:
         tdSql.checkData(49, 5, nan)
         tdSql.checkData(49, 6, 1.5503909961083586)
 
-        tdSql.query('select c1, sin(c2)+2, cos(c2)+2, cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from ct1 where ts == 1601481600000;')
+        tdSql.query(
+            "select c1, sin(c2)+2, cos(c2)+2, cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from ct1 where ts == 1601481600000;"
+        )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 2.2474039592545227)
@@ -405,7 +421,9 @@ class TDTestCase:
         tdSql.checkData(0, 5, 0.0)
         tdSql.checkData(0, 6, nan)
 
-        tdSql.query('select c1, sin(c2), cos(c1+2), tan(c2+2)+2, sin(c2+3)+cos(c3+2)+tan(c5+2) as v4, sin(c4+4.5)+tan(c3+2), sin(c1+2)+cos(c3+4)+acos(c6+2.8)+2 as v6 from st0 where ts == 1601481600000;')
+        tdSql.query(
+            "select c1, sin(c2), cos(c1+2), tan(c2+2)+2, sin(c2+3)+cos(c3+2)+tan(c5+2) as v4, sin(c4+4.5)+tan(c3+2), sin(c1+2)+cos(c3+4)+acos(c6+2.8)+2 as v6 from st0 where ts == 1601481600000;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.24740395925452294)
@@ -422,7 +440,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, -3.162569980926616)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select c1, tan(c2+ 2), sin(pow(c1,2)), cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from st0 where c1 == 0;')
+        tdSql.query(
+            "select c1, tan(c2+ 2), sin(pow(c1,2)), cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from st0 where c1 == 0;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.2386276162240966)
@@ -439,7 +459,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select c1, atan(c2+2), asin(c1+2), acos(c2+c1)+2, acos(c2+c3)+asin(c3+c2)+pow(c5,2) as v4, acos(c4/4.5)+asin(c3-2), asin(c1/2)+log(c3,c4)+pow(c6, 2.8)+2 as v6 from st0 where c1 == 0;')
+        tdSql.query(
+            "select c1, atan(c2+2), asin(c1+2), acos(c2+c1)+2, acos(c2+c3)+asin(c3+c2)+pow(c5,2) as v4, acos(c4/4.5)+asin(c3-2), asin(c1/2)+log(c3,c4)+pow(c6, 2.8)+2 as v6 from st0 where c1 == 0;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 1.1525719972156676)
@@ -456,7 +478,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, nan)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select c1, cos(c2+2), cos(ceil(pow(c1,2))), sin(floor(pow(c2,2)+2)), sin(ceil(c2)+floor(c3+c2)+round(c5+c2)) as v4, atan(pow(c4, 4.5)+pow(c3, 2)), tan(log(c1,2)+cos(c3+4)+pow(c6,2.8)+2) as v6 from st0 order by ts desc;')
+        tdSql.query(
+            "select c1, cos(c2+2), cos(ceil(pow(c1,2))), sin(floor(pow(c2,2)+2)), sin(ceil(c2)+floor(c3+c2)+round(c5+c2)) as v4, atan(pow(c4, 4.5)+pow(c3, 2)), tan(log(c1,2)+cos(c3+4)+pow(c6,2.8)+2) as v6 from st0 order by ts desc;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 49)
         tdSql.checkData(0, 1, 0.7421541968137826)
@@ -1159,7 +1183,9 @@ class TDTestCase:
         tdSql.checkData(99, 5, 0.0)
         tdSql.checkData(99, 6, nan)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5+c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from ct1 order by ts limit 2;;')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5+c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from ct1 order by ts limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.7780731968879212)
@@ -1176,7 +1202,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.17204223631998083)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6  from (select * from st0 order by ts desc);')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6  from (select * from st0 order by ts desc);"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 49)
         tdSql.checkData(0, 1, 0.6702291758433747)
@@ -1879,7 +1907,9 @@ class TDTestCase:
         tdSql.checkData(99, 5, 0.02246988233490299)
         tdSql.checkData(99, 6, nan)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 order by ts limit 2);;')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 order by ts limit 2);;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.7780731968879212)
@@ -1896,7 +1926,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.17204223631998083)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 ) order by ts desc;')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 ) order by ts desc;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 49)
         tdSql.checkData(0, 1, 0.6702291758433747)
@@ -2599,7 +2631,9 @@ class TDTestCase:
         tdSql.checkData(99, 5, 0.02246988233490299)
         tdSql.checkData(99, 6, nan)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 );')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 );"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.7780731968879212)
@@ -3302,7 +3336,9 @@ class TDTestCase:
         tdSql.checkData(99, 5, 0.7136182821549459)
         tdSql.checkData(99, 6, -0.7462904241496138)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) order by ts limit 2;;')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) order by ts limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.7780731968879212)
@@ -3319,7 +3355,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.17204223631998083)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) limit 2;;')
+        tdSql.query(
+            "select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.7780731968879212)
@@ -3336,7 +3374,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.17204223631998083)
         tdSql.checkData(1, 6, nan)
 
-        tdSql.query('select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from st0 order by ts desc);')
+        tdSql.query(
+            "select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from st0 order by ts desc);"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 49)
         tdSql.checkData(0, 1, 0.6702291758433747)
@@ -4139,7 +4179,9 @@ class TDTestCase:
         tdSql.checkData(99, 6, nan)
         tdSql.checkData(99, 7, datetime.datetime(2020, 10, 1, 0, 0))
 
-        tdSql.query('select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from ct1 order by ts limit 2);;')
+        tdSql.query(
+            "select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from ct1 order by ts limit 2);;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, 0.7780731968879212)
@@ -4158,10 +4200,12 @@ class TDTestCase:
         tdSql.checkData(1, 6, nan)
         tdSql.checkData(1, 7, datetime.datetime(2020, 10, 1, 0, 1))
 
-        tdSql.execute('drop database db0')
+        tdSql.execute("drop database db0")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
