@@ -21,9 +21,9 @@ echo "script_dir: ${script_dir}"
 echo "top_dir: ${top_dir}"
 
 cd ${top_dir}
-# git checkout -- .
-# git checkout 3.0
-# git pull || :
+git checkout -- .
+git checkout 3.0
+git pull || :
 
 echo "curr_dir: ${curr_dir}"
 
