@@ -46,7 +46,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 
   EXPECT_EQ(connectRsp.acctId, 1);
   EXPECT_GT(connectRsp.clusterId, 0);
-  EXPECT_EQ(connectRsp.connId, 1);
+  EXPECT_NE(connectRsp.connId, 0);
   EXPECT_EQ(connectRsp.superUser, 1);
 
   EXPECT_EQ(connectRsp.epSet.inUse, 0);
@@ -74,32 +74,16 @@ TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
 }
 
 TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_CONNS, "");
-  CHECK_META("show connections", 7);
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "connId");
-  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "user");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_BINARY, TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, "program");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_INT, 4, "pid");
-  CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, "ip:port");
-  CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "login_time");
-  CHECK_SCHEMA(6, TSDB_DATA_TYPE_TIMESTAMP, 8, "last_access");
-
-  test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 1);
-  CheckInt32(1);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("mnode_test_profile", TSDB_APP_NAME_LEN);
-  CheckInt32(1234);
-  IgnoreBinary(TSDB_IPv4ADDR_LEN + 6);
-  CheckTimestamp();
-  CheckTimestamp();
+  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "connections", "");
+  EXPECT_EQ(test.GetShowRows(), 0);
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   SClientHbBatchReq batchReq = {0};
   batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
   SClientHbReq req = {0};
-  req.connKey = {.connId = 123, .hbType = CONN_TYPE__TMQ};
+  req.connKey.tscRid = 123;
+  req.connKey.connType = CONN_TYPE__TMQ;
   req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
   SKv kv = {0};
   kv.key = 123;
@@ -311,24 +295,6 @@ TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {
 }
 
 TEST_F(MndTestProfile, 09_KillQueryMsg) {
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_QUERIES, "");
-  CHECK_META("show queries", 14);
-
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "queryId");
-  CHECK_SCHEMA(1, TSDB_DATA_TYPE_INT, 4, "connId");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "user");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, "ip:port");
-  CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, 22 + VARSTR_HEADER_SIZE, "qid");
-  CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "created_time");
-  CHECK_SCHEMA(6, TSDB_DATA_TYPE_BIGINT, 8, "time");
-  CHECK_SCHEMA(7, TSDB_DATA_TYPE_BINARY, 18 + VARSTR_HEADER_SIZE, "sql_obj_id");
-  CHECK_SCHEMA(8, TSDB_DATA_TYPE_INT, 4, "pid");
-  CHECK_SCHEMA(9, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "ep");
-  CHECK_SCHEMA(10, TSDB_DATA_TYPE_BOOL, 1, "stable_query");
-  CHECK_SCHEMA(11, TSDB_DATA_TYPE_INT, 4, "sub_queries");
-  CHECK_SCHEMA(12, TSDB_DATA_TYPE_BINARY, TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, "sub_query_info");
-  CHECK_SCHEMA(13, TSDB_DATA_TYPE_BINARY, TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, "sql");
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_QUERIES, "queries", "");
   EXPECT_EQ(test.GetShowRows(), 0);
 }

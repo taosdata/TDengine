@@ -95,11 +95,13 @@ static const SInfosTableSchema userDBSchema[] = {
 };
 
 static const SInfosTableSchema userFuncSchema[] = {
-    {.name = "name", .bytes = 32, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "name", .bytes = TSDB_FUNC_NAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "comment", .bytes = PATH_MAX - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "aggregate", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "comment", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "ntables", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "precision", .bytes = 2, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "code_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "bufsize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
 static const SInfosTableSchema userIdxSchema[] = {
