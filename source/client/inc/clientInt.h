@@ -46,6 +46,14 @@ extern "C" {
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL 1500  // ms
 
+enum {
+  RES_TYPE__QUERY = 1,
+  RES_TYPE__TMQ,
+};
+
+#define TD_RES_QUERY(res) (*(int8_t*)res == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)   (*(int8_t*)res == RES_TYPE__TMQ)
+
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {

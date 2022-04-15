@@ -2004,7 +2004,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
   bool hasFirstLastFunc = false;
   bool hasOtherFunc = false;
 
-  if (status == BLK_DATA_ALL_NEEDED || status == BLK_DATA_DISCARD) {
+  if (status == BLK_DATA_DATA_LOAD || status == BLK_DATA_FILTEROUT) {
     return status;
   }
 
@@ -2023,11 +2023,11 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
     }
   }
 
-  if (hasFirstLastFunc && status == BLK_DATA_NO_NEEDED) {
+  if (hasFirstLastFunc && status == BLK_DATA_NOT_LOAD) {
     if (!hasOtherFunc) {
-      return BLK_DATA_DISCARD;
+      return BLK_DATA_FILTEROUT;
     } else {
-      return BLK_DATA_ALL_NEEDED;
+      return BLK_DATA_DATA_LOAD;
     }
   }
 
@@ -2360,7 +2360,7 @@ static void         doSetTagValueInParam(void* pTable, int32_t tagColId, SVarian
 
 static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   SqlFunctionCtx* pCtx = pTableScanInfo->pCtx;
-  uint32_t        status = BLK_DATA_NO_NEEDED;
+  uint32_t        status = BLK_DATA_NOT_LOAD;
 
   int32_t numOfOutput = pTableScanInfo->numOfOutput;
   for (int32_t i = 0; i < numOfOutput; ++i) {
@@ -2369,11 +2369,11 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
 
     // group by + first/last should not apply the first/last block filter
     if (functionId < 0) {
-      status |= BLK_DATA_ALL_NEEDED;
+      status |= BLK_DATA_DATA_LOAD;
       return status;
     } else {
       //      status |= aAggs[functionId].dataReqFunc(&pTableScanInfo->pCtx[i], &pBlock->info.window, colId);
-      //      if ((status & BLK_DATA_ALL_NEEDED) == BLK_DATA_ALL_NEEDED) {
+      //      if ((status & BLK_DATA_DATA_LOAD) == BLK_DATA_DATA_LOAD) {
       //        return status;
       //      }
     }
@@ -2384,7 +2384,7 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
 
 int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                               uint32_t* status) {
-  *status = BLK_DATA_NO_NEEDED;
+  *status = BLK_DATA_NOT_LOAD;
 
   pBlock->pDataBlock = NULL;
   pBlock->pBlockAgg = NULL;
@@ -2397,36 +2397,15 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
   pCost->totalBlocks += 1;
   pCost->totalRows += pBlock->info.rows;
 #if 0
-  if (pRuntimeEnv->pTsBuf != NULL) {
-    (*status) = BLK_DATA_ALL_NEEDED;
-
-    if (pQueryAttr->stableQuery) {  // todo refactor
-      SExprInfo*   pExprInfo = &pTableScanInfo->pExpr[0];
-      int16_t      tagId = (int16_t)pExprInfo->base.param[0].i;
-      SColumnInfo* pColInfo = doGetTagColumnInfoById(pQueryAttr->tagColList, pQueryAttr->numOfTags, tagId);
-
-      // compare tag first
-      SVariant t = {0};
-      doSetTagValueInParam(pRuntimeEnv->current->pTable, tagId, &t, pColInfo->type, pColInfo->bytes);
-      setTimestampListJoinInfo(pRuntimeEnv, &t, pRuntimeEnv->current);
-
-      STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
-      if (!tsBufIsValidElem(&elem) || (tsBufIsValidElem(&elem) && (taosVariantCompare(&t, elem.tag) != 0))) {
-        (*status) = BLK_DATA_DISCARD;
-        return TSDB_CODE_SUCCESS;
-      }
-    }
-  }
-
   // Calculate all time windows that are overlapping or contain current data block.
   // If current data block is contained by all possible time window, do not load current data block.
   if (/*pQueryAttr->pFilters || */pQueryAttr->groupbyColumn || pQueryAttr->sw.gap > 0 ||
       (QUERY_IS_INTERVAL_QUERY(pQueryAttr) && overlapWithTimeWindow(pTaskInfo, &pBlock->info))) {
-    (*status) = BLK_DATA_ALL_NEEDED;
+    (*status) = BLK_DATA_DATA_LOAD;
   }
 
   // check if this data block is required to load
-  if ((*status) != BLK_DATA_ALL_NEEDED) {
+  if ((*status) != BLK_DATA_DATA_LOAD) {
     bool needFilter = true;
 
     // the pCtx[i] result is belonged to previous time window since the outputBuf has not been set yet,
@@ -2458,18 +2437,18 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
     if (needFilter) {
       (*status) = doFilterByBlockTimeWindow(pTableScanInfo, pBlock);
     } else {
-      (*status) = BLK_DATA_ALL_NEEDED;
+      (*status) = BLK_DATA_DATA_LOAD;
     }
   }
 
   SDataBlockInfo* pBlockInfo = &pBlock->info;
 //  *status = updateBlockLoadStatus(pRuntimeEnv->pQueryAttr, *status);
 
-  if ((*status) == BLK_DATA_NO_NEEDED || (*status) == BLK_DATA_DISCARD) {
+  if ((*status) == BLK_DATA_NOT_LOAD || (*status) == BLK_DATA_FILTEROUT) {
     //qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
 //           pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->discardBlocks += 1;
-  } else if ((*status) == BLK_DATA_STATIS_NEEDED) {
+  } else if ((*status) == BLK_DATA_SMA_LOAD) {
     // this function never returns error?
     pCost->loadBlockStatis += 1;
 //    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pTsdbReadHandle, &pBlock->pBlockAgg);
@@ -2479,7 +2458,7 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
       pCost->totalCheckedRows += pBlock->info.rows;
     }
   } else {
-    assert((*status) == BLK_DATA_ALL_NEEDED);
+    assert((*status) == BLK_DATA_DATA_LOAD);
 
     // load the data block statistics to perform further filter
     pCost->loadBlockStatis += 1;
@@ -2511,7 +2490,7 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
             pCost->discardBlocks += 1;
             //qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId,
 //                   pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-            (*status) = BLK_DATA_DISCARD;
+            (*status) = BLK_DATA_FILTEROUT;
             return TSDB_CODE_SUCCESS;
           }
         }
@@ -2523,7 +2502,7 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
 //      pCost->discardBlocks += 1;
 //      qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
 //             pBlockInfo->window.ekey, pBlockInfo->rows);
-//      (*status) = BLK_DATA_DISCARD;
+//      (*status) = BLK_DATA_FILTEROUT;
 //      return TSDB_CODE_SUCCESS;
 //    }
 
