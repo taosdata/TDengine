@@ -156,7 +156,7 @@ void *taosMemoryStrDup(void *ptr) {
 }
 
 
-void taosMemoryFree(const void *ptr) {
+void taosMemoryFree(void *ptr) {
   if (ptr == NULL) return;
 
 #ifdef USE_TD_MEMORY
@@ -166,10 +166,10 @@ void taosMemoryFree(const void *ptr) {
     // memset(pTdMemoryInfo, 0, sizeof(TdMemoryInfo));
     free(pTdMemoryInfo);
   } else {
-    free((void*)ptr);
+    free(ptr);
   }
 #else
-  return free((void*)ptr);
+  return free(ptr);
 #endif
 }
 
