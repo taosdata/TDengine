@@ -81,9 +81,9 @@ typedef struct SResultInfo { // TODO refactor
 } SResultInfo;
 
 typedef struct STableQueryInfo {
-  TSKEY          lastKey;     // last check ts
+  TSKEY          lastKey;     // last check ts, todo remove it later
   uint64_t       uid;         // table uid
-  int32_t        groupIndex;  // group id in table list
+//  int32_t        groupIndex;  // group id in table list
 //  SVariant       tag;
   SResultRowInfo resInfo;     // result info
 } STableQueryInfo;
@@ -645,8 +645,6 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOf
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                         SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                                           SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTagScanOperatorInfo(SReaderHandle* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput);
 #endif
 
