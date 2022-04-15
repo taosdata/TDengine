@@ -81,7 +81,7 @@ static const SInfosTableSchema userDBSchema[] = {
     {.name = "blocks", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "minrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "maxrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "wallevel", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
