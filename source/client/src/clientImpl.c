@@ -283,15 +283,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   return pRequest->code;
 }
 
-SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
-  SRequestObj* pRequest = NULL;
-  SQuery*      pQuery = NULL;
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code) {
   SArray*      pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-
-  int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = parseSql(pRequest, false, &pQuery, NULL);
-  }
 
   if (TSDB_CODE_SUCCESS == code) {
     switch (pQuery->execMode) {
@@ -322,6 +315,19 @@ SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   }
 
   return pRequest;
+}
+
+
+SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
+  SRequestObj* pRequest = NULL;
+  SQuery*      pQuery = NULL;
+
+  int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseSql(pRequest, false, &pQuery, NULL);
+  }
+
+  return launchQueryImpl(pRequest, pQuery, code);
 }
 
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
@@ -368,7 +374,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   int32_t      code = 0;
 
   while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
-    pRequest = execQueryImpl(pTscObj, sql, sqlLen);
+    pRequest = launchQuery(pTscObj, sql, sqlLen);
     if (TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }

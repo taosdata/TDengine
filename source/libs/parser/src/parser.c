@@ -51,6 +51,33 @@ int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
+int32_t qCreateSName(SName* pName, char* pTableName, int32_t acctId, char* dbName, char *msgBuf, int32_t msgBufLen) {
+  SMsgBuf msg = {.buf = msgBuf, .len =msgBufLen};
+  SToken sToken;
+  int32_t code = 0;
+  char *tbName = NULL;
+  
+  NEXT_TOKEN(pTableName, sToken);
+  
+  if (sToken.n == 0) {
+    return buildInvalidOperationMsg(&msg, "empty table name");
+  }
+
+  code = createSName(pName, &sToken, acctId, dbName, &msg);
+  if (code) {
+    return code;
+  }
+
+  NEXT_TOKEN(pTableName, sToken);
+
+  if (SToken.n > 0) {
+    return buildInvalidOperationMsg(&msg, "table name format is wrong");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qBindStmtData(SQuery* pQuery, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen) {
   SVnodeModifOpStmt *modifyNode = (SVnodeModifOpStmt *)pQuery->pRoot;
   SStmtDataCtx *pCtx = &modifyNode->stmtCtx;
@@ -122,10 +149,8 @@ int32_t qBuildStmtOutput(SQuery* pQuery) {
   SStmtDataCtx *pCtx = &modifyNode->stmtCtx;
   int32_t code = 0;
   SInsertParseContext insertCtx = {
-    .pVgroupsHashObj = pCtx->pVgroupsHashObj;
-    .pTableBlockHashObj = pCtx->pTableBlockHashObj;
-    .pSubTableHashObj = pCtx->pSubTableHashObj;
-    .pTableDataBlocks = pCtx->pTableDataBlocks;
+    .pVgroupsHashObj = pCtx->pVgroupsHashObj,
+    .pTableBlockHashObj = pCtx->pTableBlockHashObj,
   };
   
   // merge according to vgId
@@ -142,6 +167,66 @@ _return:
   return code;
 }
 
+int32_t buildBoundFields(SParsedDataColInfo *boundInfo, SSchema *pSchema, int32_t *fieldNum, TAOS_FIELD** fields) {
+  *fields = taosMemoryCalloc(boundInfo->numOfBound, sizeof(TAOS_FIELD));
+  if (NULL == *fields) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < boundInfo->numOfBound; ++i) {
+    SSchema* pTagSchema = &pSchema[boundInfo->boundColumns[i] - 1];
+    strcpy((*fields)[i].name, pTagSchema->name);
+    (*fields)[i].type = pTagSchema->type;
+    (*fields)[i].bytes = pTagSchema->bytes;
+  }
+
+  *fieldNum = boundInfo->numOfBound;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qBuildStmtTagFields(SQuery* pQuery, int32_t *fieldNum, TAOS_FIELD** fields) {
+  SVnodeModifOpStmt *modifyNode = (SVnodeModifOpStmt *)pQuery->pRoot;
+  SStmtDataCtx *pCtx = &modifyNode->stmtCtx;
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pCtx->pTableBlockHashObj, (const char*)&pCtx->tbUid, sizeof(pCtx->tbUid));
+  if (NULL == pDataBlock) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);  
+  if (pCtx->tags.numOfBound <= 0) {
+    *fieldNum = 0;
+    *fields = NULL;
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CHECK_CODE(buildBoundFields(&pCtx->tags, pSchema, fieldNum, fields));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qBuildStmtColFields(SQuery* pQuery, int32_t *fieldNum, TAOS_FIELD** fields) {
+  SVnodeModifOpStmt *modifyNode = (SVnodeModifOpStmt *)pQuery->pRoot;
+  SStmtDataCtx *pCtx = &modifyNode->stmtCtx;
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pCtx->pTableBlockHashObj, (const char*)&pCtx->tbUid, sizeof(pCtx->tbUid));
+  if (NULL == pDataBlock) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);  
+  if (pCtx->tags.numOfBound <= 0) {
+    *fieldNum = 0;
+    *fields = NULL;
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CHECK_CODE(buildBoundFields(&pDataBlock->boundColumnInfo, pSchema, fieldNum, fields));
+  
+  return TSDB_CODE_SUCCESS;
+}
 
 void qDestroyQuery(SQuery* pQueryNode) {
   if (NULL == pQueryNode) {

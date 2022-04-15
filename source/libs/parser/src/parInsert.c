@@ -59,7 +59,6 @@ typedef struct SInsertParseContext {
   SHashObj* pVgroupsHashObj;    // global
   SHashObj* pTableBlockHashObj; // global
   SHashObj* pSubTableHashObj;   // global
-  SArray* pTableDataBlocks;     // global
   SArray* pVgDataBlocks;        // global
   int32_t totalNum;
   SVnodeModifOpStmt* pOutput;
@@ -164,7 +163,7 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, char* dbName, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
   const char* msg2 = "invalid database name";
   const char* msg3 = "db is not specified";
@@ -180,7 +179,7 @@ static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pPar
     strncpy(name, pTableName->z, dbLen);
     dbLen = strdequote(name);
 
-    code = tNameSetDbName(pName, pParseCtx->acctId, name, dbLen);
+    code = tNameSetDbName(pName, acctId, name, dbLen);
     if (code != TSDB_CODE_SUCCESS) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
@@ -205,11 +204,11 @@ static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pPar
     strncpy(name, pTableName->z, pTableName->n);
     strdequote(name);
 
-    if (pParseCtx->db == NULL) {
+    if (dbName == NULL) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
     }
 
-    code = tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
+    code = tNameSetDbName(pName, acctId, dbName, strlen(dbName));
     if (code != TSDB_CODE_SUCCESS) {
       code = buildInvalidOperationMsg(pMsgBuf, msg2);
       return code;
@@ -227,7 +226,7 @@ static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pPar
 static int32_t getTableMetaImpl(SInsertParseContext* pCxt, SToken* pTname, bool isStb) {
   SParseContext* pBasicCtx = pCxt->pComCxt;
   SName name = {0};
-  createSName(&name, pTname, pBasicCtx, &pCxt->msg);  
+  createSName(&name, pTname, pBasicCtx->acctId, pBasicCtx->db, &pCxt->msg);  
   if (isStb) {
     CHECK_CODE(catalogGetSTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &pCxt->pTableMeta));
   } else {
@@ -812,7 +811,7 @@ static int32_t storeTableMeta(SHashObj* pHash, const char* pName, int32_t len, S
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
 static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken) {
   SName name;
-  createSName(&name, pTbnameToken, pCxt->pComCxt, &pCxt->msg);
+  createSName(&name, pTbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
   char tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(&name, tbFName);
   int32_t len = strlen(tbFName);
@@ -1009,7 +1008,6 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   taosHashCleanup(pCxt->pVgroupsHashObj);
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
-  destroyBlockArrayList(pCxt->pTableDataBlocks);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
 }
 
@@ -1103,15 +1101,16 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   
   if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
     pCxt->pOutput->stmtCtx.tbUid = pCxt->pTableMeta->uid;
+    pCxt->pOutput->stmtCtx.tbSuid = pCxt->pTableMeta->suid;
+    pCxt->pOutput->stmtCtx.tbType = pCxt->pTableMeta->tableType;
+    
     pCxt->pOutput->stmtCtx.pVgroupsHashObj = pCxt->pVgroupsHashObj;
     pCxt->pOutput->stmtCtx.pTableBlockHashObj = pCxt->pTableBlockHashObj;
-    pCxt->pOutput->stmtCtx.pSubTableHashObj = pCxt->pSubTableHashObj;
-    pCxt->pOutput->stmtCtx.pTableDataBlocks = pCxt->pTableDataBlocks;
+    pCxt->pOutput->stmtCtx.tags = pCxt->tags;
 
     pCxt->pVgroupsHashObj = NULL;
     pCxt->pTableBlockHashObj = NULL;
-    pCxt->pSubTableHashObj = NULL;
-    pCxt->pTableDataBlocks = NULL;
+    memset(&pCxt->tags, 0, sizeof(pCxt->tags));
     
     return TSDB_CODE_SUCCESS;
   }
@@ -1152,14 +1151,17 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     TSDB_QUERY_SET_TYPE(context.pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT);
   }
 
-  *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
   if (NULL == *pQuery) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
+    if (NULL == *pQuery) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
+    (*pQuery)->haveResultSet = false;
+    (*pQuery)->msgType = TDMT_VND_SUBMIT;
+    (*pQuery)->pRoot = (SNode*)context.pOutput;
   }
-  (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  (*pQuery)->haveResultSet = false;
-  (*pQuery)->msgType = TDMT_VND_SUBMIT;
-  (*pQuery)->pRoot = (SNode*)context.pOutput;
+  
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context);

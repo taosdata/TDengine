@@ -282,10 +282,12 @@ typedef struct SVgDataBlocks {
 
 typedef struct SStmtDataCtx {
   uint64_t  tbUid;
-  SHashObj* pVgroupsHashObj;    // global
-  SHashObj* pTableBlockHashObj; // global
-  SHashObj* pSubTableHashObj;   // global
-  SArray* pTableDataBlocks;     // global
+  uint64_t  tbSuid;
+  int8_t    tbType;
+  SParsedDataColInfo tags;
+  
+  SHashObj* pVgroupsHashObj;
+  SHashObj* pTableBlockHashObj;
 } SStmtDataCtx;
 
 typedef struct SVnodeModifOpStmt {

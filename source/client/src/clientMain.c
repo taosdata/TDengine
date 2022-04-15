@@ -580,13 +580,22 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
 }
 
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags) {
-  if (stmt == NULL || name == NULL || tags == NULL) {
+  if (stmt == NULL || name == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtSetTbNameTags(stmt, name, tags);
+  int32_t code = stmtSetTbName(stmt, name);
+  if (code) {
+    return code;
+  }
+
+  if (tags) {
+    return stmtSetTbTags(stmt, tags);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
@@ -596,7 +605,7 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
     return terrno;
   }
 
-  return stmtSetTbNameTags(stmt, name, NULL);
+  return stmtSetTbName(stmt, name);
 }
 
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {

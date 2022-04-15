@@ -27,6 +27,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, char* dbName, SMsgBuf* pMsgBuf);
 
 #ifdef __cplusplus
 }

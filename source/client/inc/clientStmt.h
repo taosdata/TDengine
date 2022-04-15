@@ -30,22 +30,36 @@ typedef enum {
   STMT_INIT = 1,
   STMT_PREPARE,
   STMT_SETTBNAME,
+  STMT_FETCH_TAG_FIELDS,
+  STMT_FETCH_COL_FIELDS,
   STMT_BIND,
   STMT_BIND_COL,
   STMT_ADD_BATCH,
   STMT_EXECUTE
 } STMT_STATUS;
 
+
+
 typedef struct STscStmt {
   STMT_TYPE    type;
   STMT_STATUS  status;
+  bool         autoCreate;
+  uint64_t     runTimes;
   STscObj*     taos;
+  SCatalog*    pCatalog;
+  SHashObj*    pTableDataBlocks;
+  SHashObj*    pVgList;
+
+  bool         tbNeedParse;
+  bool         tbReuse;
   SRequestObj* pRequest;
   SQuery*      pQuery;
   char*        sql;
   int32_t      sqlLen;
   char*        tbName;
+  SName        sname;
   TAOS_BIND*   bindTags;
+  
   //SMultiTbStmt mtb;
   //SNormalStmt normal;
 
