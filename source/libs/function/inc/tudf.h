@@ -99,13 +99,16 @@ typedef struct SUdfInterBuf {
 
 // input: block, initFirst
 // output: interbuf
-int32_t callUdfAggProcess(SUdfDataBlock block, SUdfInterBuf *interBuf, bool initFirst);
+int32_t callUdfAggProcess(SUdfDataBlock *block, SUdfInterBuf *interBuf, bool initFirst);
 // input: interBuf
 // output: resultData
-int32_t callUdfAggFinalize(SUdfInterBuf interBuf, SUdfColumnData* resultData);
+int32_t callUdfAggFinalize(SUdfInterBuf *interBuf, SUdfColumnData *resultData);
+// input: interbuf1, interbuf2
+// output: resultBuf
+int32_t callUdfAggMerge(SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalaProcess(SUdfDataBlock block, SUdfColumnData* resultData);
+int32_t callUdfScalaProcess(SUdfDataBlock *block, SUdfColumnData *resultData);
 
 /**
  * tearn down udf
