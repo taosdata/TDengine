@@ -132,11 +132,10 @@ tests/examples/c/stream
 tests/examples/c/subscribe
 cmake-build-debug/
 .vscode/
-grant/
-grant.make
+# grant/
+
 mirror.make
-taosGrant.make
-taosGrant.c
+
 release_mirror.sh
 install_mirror.sh
 temp.sql

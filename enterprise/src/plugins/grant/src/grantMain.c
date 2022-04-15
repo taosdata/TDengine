@@ -30,7 +30,7 @@
 #include "mndDnode.h"
 // #include "mnodeTable.h"
 #include "mndMnode.h"
-// #include "mnodeSdb.h"
+#include "sdb.h"
 #include "mndShow.h"
 #include "mndAcct.h"
 #include "mndUser.h"
