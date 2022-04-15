@@ -25,7 +25,7 @@ class Case7(ClusterCase):
     def init(self):
         super().init()
         self.regular_table_num = 10
-        self.row_num = 500000  # row number per table
+        self.row_num = 5000000  # row number per table
        
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
