@@ -16,5 +16,8 @@
 #include "filter.h"
 #include "tglobal.h"
 
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+SIdxFltStatus idxGetFltStatus(SNode *pFilterNode);
 // construct tag filter operator later
 int32_t doFilterTag(const SNode *pFilterNode, SArray *resutl);

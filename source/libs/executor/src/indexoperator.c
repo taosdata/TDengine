@@ -188,3 +188,11 @@ int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
 
   return code;
 }
+
+SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {
+  if (pFilterNode == NULL) {
+    return SFLT_NOT_INDEX;
+  }
+  // impl later
+  return SFLT_ACCURATE_INDEX;
+}
