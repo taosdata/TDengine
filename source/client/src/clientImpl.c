@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "clientInt.h"
 #include "clientLog.h"
@@ -168,6 +182,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     if ((*pQuery)->haveResultSet) {
       setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+      setResPrecision(&pRequest->body.resInfo, (*pQuery)->precision);
     }
 
     TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
@@ -222,7 +237,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
-  assert(pSchema != NULL && numOfCols > 0);
+  ASSERT(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
@@ -244,6 +259,14 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
     tstrncpy(pResInfo->userFields[i].name, pSchema[i].name, tListLen(pResInfo->userFields[i].name));
   }
+}
+
+void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
+  if (precision != TSDB_TIME_PRECISION_MILLI && precision != TSDB_TIME_PRECISION_MICRO && precision != TSDB_TIME_PRECISION_NANO) {
+    return;
+  }
+
+  pResInfo->precision = precision;
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {

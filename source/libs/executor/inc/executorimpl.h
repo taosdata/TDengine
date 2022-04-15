@@ -549,8 +549,6 @@ typedef struct SStateWindowOperatorInfo {
 
 typedef struct SSortedMergeOperatorInfo {
   SOptrBasicInfo   binfo;
-  bool             hasVarCol;
-  
   SArray*          pSortInfo;
   int32_t          numOfSources;
   SSortHandle     *pSortHandle;
@@ -581,6 +579,24 @@ typedef struct SSortOperatorInfo {
   uint64_t           totalRows;     // total number of rows
   uint64_t           totalElapsed;  // total elapsed time
 } SSortOperatorInfo;
+
+typedef struct SJoinOperatorInfo {
+  SSDataBlock       *pRes;
+  int32_t            joinType;
+
+  SSDataBlock       *pLeft;
+  int32_t            leftPos;
+  SColumnInfo        leftCol;
+
+  SSDataBlock       *pRight;
+  int32_t            rightPos;
+  SColumnInfo        rightCol;
+
+  SNode             *pOnCondition;
+//  SJoinStatus       *status;
+//  int32_t            numOfUpstream;
+//  SRspResultInfo     resultInfo;
+} SJoinOperatorInfo;
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void operatorDummyCloseFn(void* param, int32_t numOfCols);
@@ -628,6 +644,8 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo);
 
+SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition, SExecTaskInfo* pTaskInfo);
+
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
@@ -635,9 +653,6 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntim
 SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                            SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTagScanOperatorInfo(SReaderHandle* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput);
-
-SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
-                                      int32_t numOfOutput);
 #endif
 
 void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList);

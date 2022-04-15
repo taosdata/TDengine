@@ -557,14 +557,14 @@ static void count_func_merge(SqlFunctionCtx *pCtx) {
  */
 int32_t countRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   } else {
-    return BLK_DATA_STATIS_NEEDED;
+    return BLK_DATA_SMA_LOAD;
   }
 }
 
 int32_t noDataRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_NO_NEEDED;
+  return BLK_DATA_NOT_LOAD;
 }
 #define LIST_ADD_N_DOUBLE_FLOAT(x, ctx, p, t, numOfElem, tsdbType)              \
   do {                                                                \
@@ -743,76 +743,76 @@ static void sum_func_merge(SqlFunctionCtx *pCtx) {
 }
 
 static int32_t statisRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_STATIS_NEEDED;
+  return BLK_DATA_SMA_LOAD;
 }
 
 static int32_t dataBlockRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_ALL_NEEDED;
+  return BLK_DATA_DATA_LOAD;
 }
 
 // todo: if column in current data block are null, opt for this case
 static int32_t firstFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
   
   // no result for first query, data block is required
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 }
 
 static int32_t lastFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
   
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 }
 
 static int32_t firstDistFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 
   // not initialized yet, it is the first block, load it.
   if (pCtx->pOutput == NULL) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   }
 
   // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->pOutput is
   // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
   SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->pOutput + pCtx->inputBytes);
   if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= w->skey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts <= w->skey) ? BLK_DATA_NOT_LOAD : BLK_DATA_DATA_LOAD;
   }
 }
 
 static int32_t lastDistFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 
   // not initialized yet, it is the first block, load it.
   if (pCtx->pOutput == NULL) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   }
 
   // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->pOutput is
   // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
   SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->pOutput + pCtx->inputBytes);
   if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {
-    return (pInfo->ts > w->ekey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts > w->ekey) ? BLK_DATA_NOT_LOAD : BLK_DATA_DATA_LOAD;
   }
 }
 

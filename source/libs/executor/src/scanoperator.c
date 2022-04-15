@@ -73,7 +73,7 @@ int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, 
   pCost->totalCheckedRows += pBlock->info.rows;
   pCost->loadBlocks += 1;
 
-  *status = BLK_DATA_ALL_NEEDED;
+  *status = BLK_DATA_DATA_LOAD;
 
   SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
   if (pCols == NULL) {
@@ -138,7 +138,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     //    }
 
     // this function never returns error?
-    uint32_t status = BLK_DATA_ALL_NEEDED;
+    uint32_t status = BLK_DATA_DATA_LOAD;
     int32_t  code = loadDataBlock(pTaskInfo, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
@@ -146,7 +146,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     }
 
     // current block is ignored according to filter result by block statistics data, continue load the next block
-    if (status == BLK_DATA_DISCARD || pBlock->info.rows == 0) {
+    if (status == BLK_DATA_FILTEROUT || pBlock->info.rows == 0) {
       continue;
     }
 
