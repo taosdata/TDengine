@@ -18,7 +18,7 @@
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
-static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, uint8_t **ppData, int *len);
+static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int  vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo);
 static int  vnodeStartCommit(SVnode *pVnode);
 static int  vnodeEndCommit(SVnode *pVnode);
@@ -28,16 +28,14 @@ static void vnodeWaitCommit(SVnode *pVnode);
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   char      fname[TSDB_FILENAME_LEN];
   TdFilePtr pFile;
-  uint8_t  *data;
-  int       len;
+  char     *data;
 
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   // encode info
   data = NULL;
-  len = 0;
 
-  if (vnodeEncodeInfo(pInfo, &data, &len) < 0) {
+  if (vnodeEncodeInfo(pInfo, &data) < 0) {
     return -1;
   }
 
@@ -48,7 +46,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  if (taosWriteFile(pFile, data, len) < 0) {
+  if (taosWriteFile(pFile, data, strlen(data)) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -137,12 +135,131 @@ static int vnodeEndCommit(SVnode *pVnode) {
 
 static FORCE_INLINE void vnodeWaitCommit(SVnode *pVnode) { tsem_wait(&pVnode->canCommit); }
 
-static int vnodeEncodeInfo(const SVnodeInfo *pInfo, uint8_t **ppData, int *len) {
-  // TODO
+static int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
+  const SVnodeCfg *pCfg = (SVnodeCfg *)pObj;
+
+  if (tjsonAddIntegerToObject(pJson, "vgId", pCfg->vgId) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "wsize", pCfg->wsize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "ssize", pCfg->ssize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "lsize", pCfg->lsize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "ttl", pCfg->ttl) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep", pCfg->keep) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.daysPerFile) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRowsPerFileBlock) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRowsPerFileBlock) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
+
   return 0;
 }
 
-static int vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo) {
-  // TODO
+static int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
+  SVnodeCfg *pCfg = (SVnodeCfg *)pObj;
+
+  if (tjsonGetNumberValue(pJson, "vgId", pCfg->vgId) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "dbId", pCfg->dbId) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "wsize", pCfg->wsize) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "ssize", pCfg->ssize) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "lsize", pCfg->lsize) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "ttl", pCfg->ttl) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep", pCfg->keep) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.daysPerFile) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRowsPerFileBlock) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRowsPerFileBlock) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
+
   return 0;
+}
+
+static int vnodeEncodeState(const void *pObj, SJson *pJson) {
+  const SVState *pState = (SVState *)pObj;
+
+  if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
+
+  return 0;
+}
+
+static int vnodeDecodeState(const SJson *pJson, void *pObj) {
+  SVState *pState = (SVState *)pObj;
+
+  if (tjsonGetNumberValue(pJson, "commit version", pState->committed) < 0) return -1;
+
+  return 0;
+}
+
+static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
+  SJson *pJson;
+  char  *pData;
+
+  *ppData = NULL;
+
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    return -1;
+  }
+
+  if (tjsonAddObject(pJson, "config", vnodeEncodeConfig, (void *)&pInfo->config) < 0) {
+    goto _err;
+  }
+
+  if (tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state) < 0) {
+    goto _err;
+  }
+
+  pData = tjsonToString(pJson);
+  if (pData == NULL) {
+    goto _err;
+  }
+
+  tjsonDelete(pJson);
+
+  *ppData = pData;
+  return 0;
+
+_err:
+  tjsonDelete(pJson);
+  return -1;
+}
+
+static int vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo) {
+  SJson *pJson = NULL;
+
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    return -1;
+  }
+
+  if (tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config) < 0) {
+    goto _err;
+  }
+
+  if (tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state) < 0) {
+    goto _err;
+  }
+
+  tjsonDelete(pJson);
+
+  return 0;
+
+_err:
+  tjsonDelete(pJson);
+  return -1;
 }

@@ -27,6 +27,7 @@
 #include "tdbInt.h"
 #include "tfs.h"
 #include "tglobal.h"
+#include "tjson.h"
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tlosertree.h"

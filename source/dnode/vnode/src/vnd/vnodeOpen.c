@@ -46,6 +46,8 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
     return -1;
   }
 
+  vInfo("vgId: %d vnode is created", pCfg->vgId);
+
   return 0;
 }
 
