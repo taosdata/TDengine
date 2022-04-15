@@ -156,14 +156,14 @@ TEST_F(TransCtxEnv, mergeTest) {
     STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = (void (*)(const void*))taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = (void (*)(const void*))taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
@@ -176,14 +176,14 @@ TEST_F(TransCtxEnv, mergeTest) {
     STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = (void (*)(const void*))taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = (void (*)(const void*))taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
@@ -198,7 +198,7 @@ TEST_F(TransCtxEnv, mergeTest) {
     STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = (void (*)(const void*))taosMemoryFree};
       val1.val = taosMemoryCalloc(1, 11);
       memcpy(val1.val, val.c_str(), val.size());
 
@@ -206,7 +206,7 @@ TEST_F(TransCtxEnv, mergeTest) {
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .clone = NULL, .freeFunc = (void (*)(const void*))taosMemoryFree};
       val1.val = taosMemoryCalloc(1, 11);
       memcpy(val1.val, val.c_str(), val.size());
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));

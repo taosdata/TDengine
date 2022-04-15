@@ -99,7 +99,7 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   SClientHbBatchReq batchReq = {0};
   batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
   SClientHbReq req = {0};
-  req.connKey = {.connId = 123, .hbType = HEARTBEAT_TYPE_MQ};
+  req.connKey = {.connId = 123, .hbType = CONN_TYPE__TMQ};
   req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
   SKv kv = {0};
   kv.key = 123;
