@@ -16,7 +16,7 @@ import time
 
 from taostest import ClusterCase
 
-class Case3(ClusterCase):
+class Case6(ClusterCase):
 
     def init(self):
         super().init()
@@ -103,19 +103,19 @@ class Case3(ClusterCase):
             db = f"{self.db_name}_{i}"
             stb = f"{self.stable_name}_{i}"
             tb = f"{self.table_name}_{i}"
-            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas, self.slave_node))
+            mthread=threading.Thread(target=self.insert_into_table,args=(db, stb, tb, self.table_num, self.row_num, self.replicas, self.master_node))
             mthreads.append(mthread)
             mthread.start()
             i = i + 1
 
         # start alter schema task (self, db_nums , stable_nums,table_nums , time_sleep)
 
-        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params, self.slave_node, True ))
+        taskthread = threading.Thread(target=self.basic_alter_shema_task,args=( self.db_nums ,  self.stable_nums ,self.db_nums , self.time_sleep, self.params, self.master_node, True ))
         taskthread.start()
         # wait thread
         
         # restart slave dnode thread
-        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.master_node, self.max_restart_interval, self.restart_times, self.slave_node))
+        dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.slave_node, self.max_restart_interval, self.restart_times, self.master_node))
         # start thread
         dthread.start()
         # wait thread
@@ -151,6 +151,6 @@ class Case3(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.7 alter schema task and constantly insert task  with stop master mnode ... ;
+            [test]<wenzhouwww> test case for cluster about 1.6 alter schema task and constantly insert task  ... ;
         '''
         return case_description
