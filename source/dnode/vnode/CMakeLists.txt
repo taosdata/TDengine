@@ -4,13 +4,13 @@ target_sources(
     vnode
     PRIVATE
     # vnode
+    "src/vnd/vnodeOpen.c"
     "src/vnd/vnodeArenaMAImpl.c"
     "src/vnd/vnodeBufferPool.c"
     # "src/vnd/vnodeBufferPool2.c"
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeInt.c"
-    "src/vnd/vnodeOpen.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeWrite.c"

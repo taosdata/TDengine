@@ -30,6 +30,10 @@ extern "C" {
 #define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
 // clang-format on
 
+// vnodeCfg ====================
+int vnodeSaveCfg(const char* dir, const SVnodeCfg* pCfg);
+int vnodeCommitCfg(const char* dir);
+
 // vnodeModule ====================
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
 
@@ -75,9 +79,9 @@ void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
 
 // vnodeCfg.h
-extern const SVnodeCfg defaultVnodeOptions;
+extern const SVnodeCfg vnodeCfgDefault;
 
-int  vnodeValidateOptions(const SVnodeCfg*);
+int  vnodeCheckCfg(const SVnodeCfg*);
 void vnodeOptionsCopy(SVnodeCfg* pDest, const SVnodeCfg* pSrc);
 
 // For commit
