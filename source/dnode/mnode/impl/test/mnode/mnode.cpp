@@ -39,7 +39,7 @@ Testbase   MndTestMnode::test;
 TestServer MndTestMnode::server2;
 
 TEST_F(MndTestMnode, 01_ShowDnode) {
-  test.SendShowReq(TSDB_MGMT_TABLE_MNODE, "mnodes","");
+  test.SendShowReq(TSDB_MGMT_TABLE_MNODE, "mnodes", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -106,7 +106,7 @@ TEST_F(MndTestMnode, 04_Create_Mnode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_MNODE, "mnodes","");
+    test.SendShowReq(TSDB_MGMT_TABLE_MNODE, "mnodes", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -123,7 +123,7 @@ TEST_F(MndTestMnode, 04_Create_Mnode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_MNODE, "mnodes","");
+    test.SendShowReq(TSDB_MGMT_TABLE_MNODE, "mnodes", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
