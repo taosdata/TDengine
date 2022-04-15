@@ -43,7 +43,7 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.numOfVgroups = 2;
   createReq.cacheBlockSize = 16;
   createReq.totalBlocks = 10;
-  createReq.daysPerFile = 10;
+  createReq.daysPerFile = 1000;
   createReq.daysToKeep0 = 3650;
   createReq.daysToKeep1 = 3650;
   createReq.daysToKeep2 = 3650;
@@ -314,19 +314,8 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    CHECK_META("show stables", 4);
-    CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, "name");
-    CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-    CHECK_SCHEMA(2, TSDB_DATA_TYPE_INT, 4, "columns");
-    CHECK_SCHEMA(3, TSDB_DATA_TYPE_INT, 4, "tags");
-
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(3);
   }
 
   // ----- meta ------
@@ -407,15 +396,8 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   test.Restart();
 
   {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    CHECK_META("show stables", 4);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(3);
   }
 
   {
@@ -432,9 +414,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    CHECK_META("show stables", 4);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
@@ -496,13 +476,7 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
-    EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(4);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
   }
 
   {
@@ -542,13 +516,8 @@ TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(2);
   }
 
   {
@@ -611,13 +580,8 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagName) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(3);
   }
 
   {
@@ -668,13 +632,8 @@ TEST_F(MndTestStb, 05_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(3);
   }
 
   {
@@ -734,13 +693,8 @@ TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(3);
-    CheckInt32(3);
   }
 
   {
@@ -799,13 +753,8 @@ TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(3);
   }
 
   {
@@ -862,13 +811,8 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
-    CheckTimestamp();
-    CheckInt32(2);
-    CheckInt32(3);
   }
 
   {

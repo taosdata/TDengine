@@ -39,6 +39,7 @@ static SKeyword keywordTable[] = {
     {"APPS",          TK_APPS},
     {"AS",            TK_AS},
     {"ASC",           TK_ASC},
+    {"AT_ONCE",       TK_AT_ONCE},
     {"BETWEEN",       TK_BETWEEN},
     {"BINARY",        TK_BINARY},
     {"BIGINT",        TK_BIGINT},
@@ -50,6 +51,7 @@ static SKeyword keywordTable[] = {
     {"BY",            TK_BY},
     {"CACHE",         TK_CACHE},
     {"CACHELAST",     TK_CACHELAST},
+    {"CAST",          TK_CAST},
     {"COLUMN",        TK_COLUMN},
     {"COMMENT",       TK_COMMENT},
     {"COMP",          TK_COMP},
@@ -57,6 +59,7 @@ static SKeyword keywordTable[] = {
     {"CONNS",         TK_CONNS},
     {"CONNECTION",    TK_CONNECTION},
     {"CONNECTIONS",   TK_CONNECTIONS},
+    {"COUNT",         TK_COUNT},
     {"CREATE",        TK_CREATE},
     {"DATABASE",      TK_DATABASE},
     {"DATABASES",     TK_DATABASES},
@@ -100,6 +103,7 @@ static SKeyword keywordTable[] = {
     {"KEEP",          TK_KEEP},
     {"KILL",          TK_KILL},
     {"LAST",          TK_LAST},
+    {"LAST_ROW",      TK_LAST_ROW},
     {"LICENCE",       TK_LICENCE},
     {"LIKE",          TK_LIKE},
     {"LIMIT",         TK_LIMIT},
@@ -132,10 +136,8 @@ static SKeyword keywordTable[] = {
     {"PRECISION",     TK_PRECISION},
     {"PRIVILEGE",     TK_PRIVILEGE},
     {"PREV",          TK_PREV},
-    {"_QENDTS",       TK_QENDTS},
     {"QNODE",         TK_QNODE},
     {"QNODES",        TK_QNODES},
-    {"_QSTARTTS",     TK_QSTARTTS},
     {"QTIME",         TK_QTIME},
     {"QUERIES",       TK_QUERIES},
     {"QUERY",         TK_QUERY},
@@ -145,7 +147,6 @@ static SKeyword keywordTable[] = {
     {"RESET",         TK_RESET},
     {"RETENTIONS",    TK_RETENTIONS},
     {"ROLLUP",        TK_ROLLUP},
-    {"_ROWTS",        TK_ROWTS},
     {"SCORES",        TK_SCORES},
     {"SELECT",        TK_SELECT},
     {"SESSION",       TK_SESSION},
@@ -178,6 +179,7 @@ static SKeyword keywordTable[] = {
     {"TODAY",         TK_TODAY},
     {"TOPIC",         TK_TOPIC},
     {"TOPICS",        TK_TOPICS},
+    {"TRIGGER",       TK_TRIGGER},
     {"TSERIES",       TK_TSERIES},
     {"TTL",           TK_TTL},
     {"UNION",         TK_UNION},
@@ -194,9 +196,14 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",       TK_VGROUPS},
     {"VNODES",        TK_VNODES},
     {"WAL",           TK_WAL},
+    {"WATERMARK",     TK_WATERMARK},
+    {"WHERE",         TK_WHERE},
+    {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
+    {"_QENDTS",       TK_QENDTS},
+    {"_QSTARTTS",     TK_QSTARTTS},
+    {"_ROWTS",        TK_ROWTS},
     {"_WDURATION",    TK_WDURATION},
     {"_WENDTS",       TK_WENDTS},
-    {"WHERE",         TK_WHERE},
     {"_WSTARTTS",     TK_WSTARTTS},
     // {"ID",           TK_ID},
     // {"STRING",       TK_STRING},
@@ -260,7 +267,6 @@ static SKeyword keywordTable[] = {
     // {"RESTRICT",     TK_RESTRICT},
     // {"ROW",          TK_ROW},
     // {"STATEMENT",    TK_STATEMENT},
-    // {"TRIGGER",      TK_TRIGGER},
     // {"VIEW",         TK_VIEW},
     // {"SEMI",         TK_SEMI},
     // {"PARTITIONS",   TK_PARTITIONS},
@@ -345,6 +351,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_NK_COMMENT;
         return i;
+      } else if (z[1] == '>') {
+        *tokenId = TK_NK_ARROW;
+        return 2;
       }
       *tokenId = TK_NK_MINUS;
       return 1;

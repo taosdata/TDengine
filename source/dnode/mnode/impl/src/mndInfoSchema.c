@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndInfoSchema.h"
+#include "mndInt.h"
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -81,7 +82,7 @@ static const SInfosTableSchema userDBSchema[] = {
     {.name = "blocks", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "minrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "maxrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "wallevel", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
@@ -94,11 +95,13 @@ static const SInfosTableSchema userDBSchema[] = {
 };
 
 static const SInfosTableSchema userFuncSchema[] = {
-    {.name = "name", .bytes = 32, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "name", .bytes = TSDB_FUNC_NAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "comment", .bytes = PATH_MAX - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "aggregate", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "comment", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "ntables", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "precision", .bytes = 2, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "code_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "bufsize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
 static const SInfosTableSchema userIdxSchema[] = {

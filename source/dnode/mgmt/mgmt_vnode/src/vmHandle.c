@@ -91,9 +91,9 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->keep = pCreate->daysToKeep0;
   pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
-  pCfg->tsdbCfg.keep = pCreate->daysToKeep0;
-  pCfg->tsdbCfg.keep1 = pCreate->daysToKeep2;
   pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
+  pCfg->tsdbCfg.keep0 = pCreate->daysToKeep2;
+  pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
   pCfg->metaCfg.lruSize = pCreate->cacheBlockSize;
@@ -121,6 +121,8 @@ static void vmGenerateWrapperCfg(SVnodesMgmt *pMgmt, SCreateVnodeReq *pCreate, S
 int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SRpcMsg        *pReq = &pMsg->rpcMsg;
   SCreateVnodeReq createReq = {0};
+  char            path[TSDB_FILENAME_LEN];
+
   if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -140,6 +142,14 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     dDebug("vgId:%d, already exist", createReq.vgId);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    return -1;
+  }
+
+  // create vnode
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
+  if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
+    tFreeSCreateVnodeReq(&createReq);
+    dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
     return -1;
   }
 

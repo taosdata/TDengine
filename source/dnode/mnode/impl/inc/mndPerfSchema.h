@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
+#ifndef _TD_MND_PERF_SCHEMA_H_
+#define _TD_MND_PERF_SCHEMA_H_
 
 #include "mndInt.h"
 
@@ -22,16 +22,24 @@
 extern "C" {
 #endif
 
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, const char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
-char   *mndGetDbStr(char *src);
-int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
+typedef struct SPerfsTableSchema {
+  char   *name;
+  int32_t type;
+  int32_t bytes;
+} SPerfsTableSchema;
+
+typedef struct SPerfsTableMeta {
+  char                    *name;
+  const SPerfsTableSchema *schema;
+  int32_t                  colNum;
+} SPerfsTableMeta;
+
+int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
+int32_t mndInitPerfs(SMnode *pMnode);
+void mndCleanupPerfs(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_DATABASE_H_*/
+#endif /*_TD_MND_PERF_SCHEMA_H_*/
