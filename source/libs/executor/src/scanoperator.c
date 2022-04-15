@@ -142,7 +142,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
 
     // this function never returns error?
     uint32_t status = BLK_DATA_DATA_LOAD;
-    int32_t  code = loadDataBlock(pTaskInfo, pTableScanInfo, pBlock, &status);
+    int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
