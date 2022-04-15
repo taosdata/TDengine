@@ -303,7 +303,7 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
 static int vnodeProcessSubmitReq(SVnode *pVnode, SRpcMsg *pMsg, SSubmitReq *pReq, SRpcMsg **pRsp) {
   SSubmitRsp *pSubmitRsp = NULL;
 
-  *pRsp = taosMemoryMalloc(sizeof(SRpcMsg));
+  *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
   if (*pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
