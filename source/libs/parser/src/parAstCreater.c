@@ -260,7 +260,8 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   CHECK_OUT_OF_MEM(val);
   if (NULL != pLiteral) {
     val->literal = strndup(pLiteral->z, pLiteral->n);
-    if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+    if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
+       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
       trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
     }
     CHECK_OUT_OF_MEM(val->literal);
@@ -379,11 +380,11 @@ SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncNam
       dataType = TSDB_DATA_TYPE_BIGINT;
       break;
     }
-    //case TK_TIMEZONE: {
-    //  strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
-    //  dataType = TSDB_DATA_TYPE_BINARY;
-    //  break;
-    //}
+    case TK_TIMEZONE: {
+      strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
+      dataType = TSDB_DATA_TYPE_BINARY;
+      break;
+    }
   }
   SToken token = {.type = pFuncName->type, .n = strlen(buf), .z = buf};
 

@@ -505,6 +505,7 @@ function_name(A) ::= FIRST(B).                                                  
 function_name(A) ::= LAST(B).                                                     { A = B; }
 function_name(A) ::= NOW(B).                                                      { A = B; }
 function_name(A) ::= TODAY(B).                                                    { A = B; }
+function_name(A) ::= TIMEZONE(B).                                                 { A = B; }
 
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { }
