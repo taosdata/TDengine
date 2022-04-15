@@ -462,7 +462,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   pConn->inType = 0;
 
   // response message is released until new response is sent
-  //rpcFreeMsg(pConn->pRspMsg); 
+  rpcFreeMsg(pConn->pRspMsg); 
   pConn->pRspMsg = msg;
   pConn->rspMsgLen = msgLen;
   if (pMsg->code == TSDB_CODE_RPC_ACTION_IN_PROGRESS) pConn->inTranId--;
@@ -481,11 +481,6 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
-  // immediately free memory
-  printf(" pConn=%p free pRsp =%p rspMsgLen=%d \n", pConn, pConn->pRspMsg, pConn->rspMsgLen);
-  rpcFreeMsg(pConn->pRspMsg);
-  pConn->pRspMsg = NULL;
-  pConn->rspMsgLen = 0;
 
 
   rpcUnlockConn(pConn);
