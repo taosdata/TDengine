@@ -2132,6 +2132,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
   uint32_t *colIdx = malloc(info->fields[FLD_TYPE_COLUMN].num * sizeof(uint32_t));
   uint32_t colIdxi = 0;
   uint32_t gResIdx = 0;
+  bool hasExpr = false;
   
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup* g = info->groups + i;
@@ -2146,6 +2147,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
       SFilterUnit* u = FILTER_GROUP_UNIT(info, g, j);
       if(u->left.type == FLD_TYPE_EXPR) {
         gRes[gResIdx]->hasExpr = true;
+        hasExpr = true;
         continue;
       }
       uint32_t cidx = FILTER_UNIT_COL_IDX(u);
@@ -2194,6 +2196,9 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     ++gResIdx;
   }
 
+  if (hasExpr) {
+    FILTER_CLR_FLAG(info->status, FI_STATUS_REWRITE);
+  }
   tfree(colIdx);
 
   *gResNum = gResIdx;
