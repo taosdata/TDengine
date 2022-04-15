@@ -856,6 +856,8 @@ int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockI
     } else {
       pTable->lastRow = lastRow;
     }
+  } else {
+    taosTZfree(lastRow);
   }
 
   TSDB_WUNLOCK_TABLE(pTable);
