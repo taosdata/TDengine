@@ -928,7 +928,7 @@ class Case6(ClusterCase):
             for stable in stables:
                 alter_tags(db , stable, 1)  # alter tags will auto reset db and stables
                 # restart slave dnode
-                thread_regular_task3=threading.Thread(target=self.insert_into_table,args=("dbtask3", "stb", "task3_tb", self.regular_table_num, self.row_num, self.params["_replica"], conn_endpoint))
+                thread_regular_task3=threading.Thread(target=self.insert_into_table,args=("dbtask4", "stb", "task4_tb", self.regular_table_num, self.row_num, self.params["_replica"], conn_endpoint))
                 thread_regular_task3.start()
                 time.sleep(3)
 

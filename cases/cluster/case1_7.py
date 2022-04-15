@@ -25,7 +25,7 @@ class Case7(ClusterCase):
     def init(self):
         super().init()
         self.regular_table_num = 10
-        self.row_num = 5000000  # row number per table
+        self.row_num = 500000  # row number per table
        
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
@@ -888,7 +888,7 @@ class Case7(ClusterCase):
             self.logger.info("drop database  if exists {}".format(db)) 
             thread_regular_task2=threading.Thread(target=self.insert_into_table,args=("dbtask2", "stb", "task2_tb", self.regular_table_num, self.row_num, self.params["_replica"], conn_endpoint))
             thread_regular_task2.start()
-            time.sleep(3)
+            time.sleep(10)
 
             # restart slave dnode
             self.repeatedly_restart_dnode(restart_endpoint , time_sleep , 1 , conn_endpoint)
@@ -901,7 +901,7 @@ class Case7(ClusterCase):
             # restart slave dnode
             thread_regular_task3=threading.Thread(target=self.insert_into_table,args=("dbtask3", "stb", "task3_tb", self.regular_table_num, self.row_num, self.params["_replica"], conn_endpoint))
             thread_regular_task3.start()
-            time.sleep(3)
+            time.sleep(10)
 
             self.repeatedly_restart_dnode(restart_endpoint , time_sleep , 1 , conn_endpoint)
 
@@ -928,9 +928,9 @@ class Case7(ClusterCase):
             for stable in stables:
                 alter_tags(db , stable, 1)  # alter tags will auto reset db and stables
                 # restart slave dnode
-                thread_regular_task3=threading.Thread(target=self.insert_into_table,args=("dbtask3", "stb", "task3_tb", self.regular_table_num, self.row_num, self.params["_replica"], conn_endpoint))
+                thread_regular_task3=threading.Thread(target=self.insert_into_table,args=("dbtask4", "stb", "task4_tb", self.regular_table_num, self.row_num, self.params["_replica"], conn_endpoint))
                 thread_regular_task3.start()
-                time.sleep(3)
+                time.sleep(10)
 
                 self.repeatedly_restart_dnode(restart_endpoint , time_sleep , 1 , conn_endpoint)
 
@@ -970,6 +970,6 @@ class Case7(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.7 alter schema task and sample insert  ... ;
+            [test]<wenzhouwww> test case for cluster about 1.6 alter schema task and sample insert  ... ;
         '''
         return case_description
