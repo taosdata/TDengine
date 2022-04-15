@@ -16,7 +16,6 @@
 #include "vnodeInt.h"
 
 const STsdbCfg defautlTsdbOptions = {.precision = 0,
-                                     .lruCacheSize = 0,
                                      .days = 10,
                                      .minRows = 100,
                                      .maxRows = 4096,

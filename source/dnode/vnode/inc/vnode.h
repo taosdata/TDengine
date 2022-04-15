@@ -37,7 +37,6 @@ extern "C" {
 
 // vnode
 typedef struct SVnode    SVnode;
-typedef struct SMetaCfg  SMetaCfg;  // todo: remove
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
 typedef struct STqCfg    STqCfg;    // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
@@ -46,7 +45,7 @@ int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 void    vnodeDestroy(const char *path);
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
 void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);
 int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
@@ -116,22 +115,17 @@ SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
 // need to reposition
 
 // structs
-struct SMetaCfg {
-  uint64_t lruSize;
-};
-
 struct STsdbCfg {
-  int8_t   precision;
-  int8_t   update;
-  int8_t   compression;
-  int32_t  days;
-  int32_t  minRows;
-  int32_t  maxRows;
-  int32_t  keep2;
-  int32_t  keep0;
-  int32_t  keep1;
-  uint64_t lruCacheSize;
-  SArray  *retentions;
+  int8_t  precision;
+  int8_t  update;
+  int8_t  compression;
+  int32_t days;
+  int32_t minRows;
+  int32_t maxRows;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
+  SArray *retentions;
 };
 
 struct STqCfg {
@@ -141,7 +135,6 @@ struct STqCfg {
 struct SVnodeCfg {
   int32_t  vgId;
   uint64_t dbId;
-  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -151,10 +144,7 @@ struct SVnodeCfg {
   int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
-  SMetaCfg metaCfg;
-  STqCfg   tqCfg;
   SWalCfg  walCfg;
-  SMsgCb   msgCb;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;

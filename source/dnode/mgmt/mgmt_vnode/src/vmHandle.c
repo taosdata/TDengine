@@ -94,9 +94,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep0 = pCreate->daysToKeep2;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
-  pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
-  pCfg->metaCfg.lruSize = pCreate->cacheBlockSize;
   pCfg->walCfg.fsyncPeriod = pCreate->fsyncPeriod;
   pCfg->walCfg.level = pCreate->walLevel;
   pCfg->walCfg.retentionPeriod = 10;
@@ -160,10 +158,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
   msgCb.qsizeFp = vmGetQueueSize;
 
-  vnodeCfg.msgCb = msgCb;
-  vnodeCfg.pTfs = pMgmt->pTfs;
-  vnodeCfg.dbId = wrapperCfg.dbUid;
-  SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
+  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
   if (pImpl == NULL) {
     tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());

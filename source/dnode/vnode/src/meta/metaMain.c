@@ -17,16 +17,16 @@
 
 #include "vnodeInt.h"
 
-static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
+static SMeta *metaNew(const char *path, SMemAllocatorFactory *pMAF);
 static void   metaFree(SMeta *pMeta);
 static int    metaOpenImpl(SMeta *pMeta);
 static void   metaCloseImpl(SMeta *pMeta);
 
-SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF) {
+SMeta *metaOpen(const char *path, SMemAllocatorFactory *pMAF) {
   SMeta *pMeta = NULL;
 
   // Allocate handle
-  pMeta = metaNew(path, pMetaCfg, pMAF);
+  pMeta = metaNew(path, pMAF);
   if (pMeta == NULL) {
     // TODO: handle error
     return NULL;
@@ -54,7 +54,7 @@ void metaClose(SMeta *pMeta) {
 void metaRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF) {
+static SMeta *metaNew(const char *path, SMemAllocatorFactory *pMAF) {
   SMeta *pMeta;
   size_t psize = strlen(path);
 
