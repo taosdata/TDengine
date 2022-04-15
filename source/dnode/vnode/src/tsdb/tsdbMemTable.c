@@ -97,8 +97,9 @@ int tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitReq *pMsg,
   }
 
   if (pRsp != NULL) {
-    pRsp->affectedRows = htonl(affectedrows);
-    pRsp->numOfRows = htonl(numOfRows);
+    pRsp->code = 0;
+    pRsp->affectedRows = affectedrows;
+    pRsp->numOfRows = numOfRows;
   }
 
   return 0;
