@@ -2978,7 +2978,7 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
 int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols, bool* all) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     if(info->cunits[i].expr) {
-      goto _return;
+      return 1;
     }
   }
   if (statis && numOfRows >= FILTER_RM_UNIT_MIN_ROWS) {    
