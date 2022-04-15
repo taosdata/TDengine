@@ -31,8 +31,6 @@ extern "C" {
 // clang-format on
 
 // vnodeCfg ====================
-int vnodeSaveCfg(const char* dir, const SVnodeCfg* pCfg);
-int vnodeCommitCfg(const char* dir);
 
 // vnodeModule ====================
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
@@ -41,6 +39,10 @@ int vnodeScheduleTask(int (*execute)(void*), void* arg);
 int  vnodeQueryOpen(SVnode* pVnode);
 void vnodeQueryClose(SVnode* pVnode);
 int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+
+// vnodeCommit ====================
+int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
+int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 
 #if 1
 // SVBufPool

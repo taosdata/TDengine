@@ -15,10 +15,85 @@
 
 #include "vnodeInt.h"
 
+#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME_TMP "vnode_tmp.json"
+
+static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, uint8_t **ppData, int *len);
+static int  vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo);
 static int  vnodeStartCommit(SVnode *pVnode);
 static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommit(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
+
+int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
+  char      fname[TSDB_FILENAME_LEN];
+  TdFilePtr pFile;
+  uint8_t  *data;
+  int       len;
+
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
+
+  // encode info
+  data = NULL;
+  len = 0;
+
+  if (vnodeEncodeInfo(pInfo, &data, &len) < 0) {
+    return -1;
+  }
+
+  // save info to a vnode_tmp.json
+  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosWriteFile(pFile, data, len) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosFsyncFile(pFile) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  taosCloseFile(&pFile);
+
+  // free info binary
+  taosMemoryFree(data);
+
+  vInfo("vgId: %d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+
+  return 0;
+
+_err:
+  taosCloseFile(&pFile);
+  taosMemoryFree(data);
+  return -1;
+}
+
+int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
+  char fname[TSDB_FILENAME_LEN];
+  char tfname[TSDB_FILENAME_LEN];
+
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
+  snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
+
+  if (taosRenameFile(tfname, fname) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  vInfo("vgId: %d vnode info is committed", pInfo->config.vgId);
+
+  return 0;
+}
+
+int vnodeLoadInfo(const char *dir) {
+  // TODO
+  return 0;
+}
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   vnodeWaitCommit(pVnode);
@@ -61,3 +136,13 @@ static int vnodeEndCommit(SVnode *pVnode) {
 }
 
 static FORCE_INLINE void vnodeWaitCommit(SVnode *pVnode) { tsem_wait(&pVnode->canCommit); }
+
+static int vnodeEncodeInfo(const SVnodeInfo *pInfo, uint8_t **ppData, int *len) {
+  // TODO
+  return 0;
+}
+
+static int vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo) {
+  // TODO
+  return 0;
+}
