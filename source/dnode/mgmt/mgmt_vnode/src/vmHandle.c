@@ -84,8 +84,8 @@ int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize * 1024 * 1024;
-  pCfg->ssize = pCreate->cacheBlockSize * 1024 * 1024;
-  pCfg->lsize = pCreate->cacheBlockSize * 1024 * 1024;
+  pCfg->ssize = 0;
+  pCfg->lsize = 0;
   pCfg->isHeapAllocator = true;
   pCfg->ttl = 4;
   pCfg->keep = pCreate->daysToKeep0;
