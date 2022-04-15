@@ -2198,6 +2198,10 @@ static int32_t extractSelectResultSchema(const SSelectStmt* pSelect, int32_t* nu
   return TSDB_CODE_SUCCESS;
 }
 
+static int8_t extractResultTsPrecision(const SSelectStmt* pSelect) {
+  return pSelect->precision;
+}
+
 static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 1;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -2219,19 +2223,19 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = DESCRIBE_RESULT_FIELD_LEN;
-  strcpy((*pSchema)[0].name, "Field");
+  strcpy((*pSchema)[0].name, "field");
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = DESCRIBE_RESULT_TYPE_LEN;
-  strcpy((*pSchema)[1].name, "Type");
+  strcpy((*pSchema)[1].name, "type");
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_INT;
   (*pSchema)[2].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  strcpy((*pSchema)[2].name, "Length");
+  strcpy((*pSchema)[2].name, "length");
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
-  strcpy((*pSchema)[3].name, "Note");
+  strcpy((*pSchema)[3].name, "note");
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2912,6 +2916,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+
+    pQuery->precision = extractResultTsPrecision((SSelectStmt*) pQuery->pRoot);
   }
 
   if (NULL != pCxt->pDbs) {
