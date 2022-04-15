@@ -19,7 +19,7 @@
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
-static int  vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo);
+static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
 static int  vnodeStartCommit(SVnode *pVnode);
 static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommit(void *arg);
@@ -88,9 +88,53 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
   return 0;
 }
 
-int vnodeLoadInfo(const char *dir) {
-  // TODO
+int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
+  char      fname[TSDB_FILENAME_LEN];
+  TdFilePtr pFile = NULL;
+  char     *pData = NULL;
+  int64_t   size;
+
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
+
+  // read info
+  pFile = taosOpenFile(fname, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  pData = taosMemoryMalloc(size);
+  if (pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  if (taosReadFile(pFile, pData, size) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  taosCloseFile(&pFile);
+
+  // decode info
+  if (vnodeDecodeInfo(pData, pInfo) < 0) {
+    taosMemoryFree(pData);
+    return -1;
+  }
+
+  taosMemoryFree(pData);
+
   return 0;
+
+_err:
+  taosCloseFile(&pFile);
+  taosMemoryFree(pData);
+  return -1;
 }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
@@ -154,9 +198,9 @@ static int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep0) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep1) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
 
   return 0;
@@ -181,9 +225,9 @@ static int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep0) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep1) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
 
   return 0;
@@ -239,7 +283,7 @@ _err:
   return -1;
 }
 
-static int vnodeDecodeInfo(uint8_t *pData, int len, SVnodeInfo *pInfo) {
+static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   SJson *pJson = NULL;
 
   pJson = tjsonCreateObject();

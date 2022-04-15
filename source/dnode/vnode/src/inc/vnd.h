@@ -43,6 +43,7 @@ int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 // vnodeCommit ====================
 int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 
 #if 1
 // SVBufPool
