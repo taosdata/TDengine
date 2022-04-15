@@ -1164,6 +1164,7 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     // super table
     ret = tsdbQuerySTableByTagCond(pRepo, pBlock->uid, pCtlData->win.skey, pCtlData->tagCond, pCtlData->tagCondLen, &tableGroupInfo, NULL, 0);
     if (ret != TSDB_CODE_SUCCESS) {
+      tsdbDestroyTableGroup(&tableGroupInfo);
       tsdbError(":SDEL vgId:%d failed to get child tables id from stable with tag condition. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
       return ret;
     }
@@ -1183,6 +1184,7 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
     ret = tsem_init(*ppSem, 0, 0);
     if(ret != 0) {
+      tsdbDestroyTableGroup(&tableGroupInfo);
       return TAOS_SYSTEM_ERROR(ret);
     }
   }
@@ -1219,6 +1221,6 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     }
     tfree(pNew);
   }
-
+  tsdbDestroyTableGroup(&tableGroupInfo);
   return ret;
 }
