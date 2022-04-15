@@ -229,7 +229,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
-  assert(pSchema != NULL && numOfCols > 0);
+  ASSERT(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
