@@ -1,23 +1,24 @@
-import sys 
+import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
-from math import inf,nan
+from math import inf, nan
+
 
 class TDTestCase:
     def caseDescription(self):
-        '''
+        """
         case1<shenglian zhou>: [TD-14123]: fix failed test on arm64 by converting from sim tst to python test to overcome NaN value and its string representation
         case2<shenglian zhou>: [TD-14565]: log function default base param e
-        ''' 
+        """
         return
-    
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
-        
+
     def restartTaosd(self, index=1, dbname="db"):
         tdDnodes.stop(index)
         tdDnodes.startWithoutSleep(index)
@@ -27,43 +28,61 @@ class TDTestCase:
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists db0")
         tdSql.execute("create database if not exists db0")
-        tdSql.execute('use db0')
-        tdSql.execute('create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);')
+        tdSql.execute("use db0")
+        tdSql.execute(
+            "create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);"
+        )
 
-        tdSql.execute('create table ct0 using st0 tags( 0 );')
+        tdSql.execute("create table ct0 using st0 tags( 0 );")
 
-        tdSql.execute('insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );"
+        )
         for i in range(1, 50):
-            tdSql.execute('insert into ct0 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});'.format(1601481600000 + i * 60000,
-                i , i , i , i , i , i , i , i , i ))
+            tdSql.execute(
+                "insert into ct0 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});".format(
+                    1601481600000 + i * 60000, i, i, i, i, i, i, i, i, i
+                )
+            )
 
-        tdSql.execute('create table ct1 using st0 tags( 1 );')
+        tdSql.execute("create table ct1 using st0 tags( 1 );")
 
-        tdSql.execute('insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );"
+        )
         for i in range(1, 50):
-            tdSql.execute('insert into ct1 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});'.format(1601481600000 + i * 60000,
-                i , i , i , i , i , i , i , i , i ))
+            tdSql.execute(
+                "insert into ct1 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});".format(
+                    1601481600000 + i * 60000, i, i, i, i, i, i, i, i, i
+                )
+            )
 
-        tdSql.execute('insert into ct1 values (1601484420000 , 47 , 47 , 47 , 47 , 47 , 47 , 47 , 47 , 47 );')
+        tdSql.execute(
+            "insert into ct1 values (1601484420000 , 47 , 47 , 47 , 47 , 47 , 47 , 47 , 47 , 47 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601484480000 , 48 , 48 , 48 , 48 , 48 , 48 , 48 , 48 , 48 );')
+        tdSql.execute(
+            "insert into ct1 values (1601484480000 , 48 , 48 , 48 , 48 , 48 , 48 , 48 , 48 , 48 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601484540000 , 49 , 49 , 49 , 49 , 49 , 49 , 49 , 49 , 49 );')
+        tdSql.execute(
+            "insert into ct1 values (1601484540000 , 49 , 49 , 49 , 49 , 49 , 49 , 49 , 49 , 49 );"
+        )
 
-        tdSql.query('select floor(3.0)+ceil(4.0) from  ct0;')
+        tdSql.query("select floor(3.0)+ceil(4.0) from  ct0;")
         tdSql.checkRows(50)
         for i in range(0, 50):
             tdSql.checkData(i, 0, 7.0)
 
-        tdSql.query('select sum(c1)+3.0+4.0 from st0;')
+        tdSql.query("select sum(c1)+3.0+4.0 from st0;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2457.0)
 
-        tdSql.query('select sin(log(avg(c1))+3)%4 from st0;')
+        tdSql.query("select sin(log(avg(c1))+3)%4 from st0;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, -0.08441162350373656)
 
-        tdSql.query('select sin(log(avg(c1),sum(c2))+3)%4 from st0;')
+        tdSql.query("select sin(log(avg(c1),sum(c2))+3)%4 from st0;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, -0.26507428560248714)
 
@@ -273,7 +292,9 @@ class TDTestCase:
         tdSql.checkData(98, 0, 1.3862943611198906)
         tdSql.checkData(99, 0, 1.3862943611198906)
 
-        tdSql.query("select round(log(pow(length(concat('3','4')),2),c2)+floor(c3))+2 from st0;")
+        tdSql.query(
+            "select round(log(pow(length(concat('3','4')),2),c2)+floor(c3))+2 from st0;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 1.0)
         tdSql.checkData(1, 0, inf)
@@ -376,7 +397,9 @@ class TDTestCase:
         tdSql.checkData(98, 0, 50.0)
         tdSql.checkData(99, 0, 51.0)
 
-        tdSql.query("select round(log(pow(length(concat('3','4')),2))+floor(c3))+2 from st0;")
+        tdSql.query(
+            "select round(log(pow(length(concat('3','4')),2))+floor(c3))+2 from st0;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 3.0)
         tdSql.checkData(1, 0, 4.0)
@@ -479,7 +502,9 @@ class TDTestCase:
         tdSql.checkData(98, 0, 51.0)
         tdSql.checkData(99, 0, 52.0)
 
-        tdSql.query('select sin(pow(c1,log(c2,2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1;')
+        tdSql.query(
+            "select sin(pow(c1,log(c2,2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, nan)
         tdSql.checkData(1, 0, 0.9092974268256817)
@@ -582,7 +607,9 @@ class TDTestCase:
         tdSql.checkData(98, 0, 2306.5731210183926)
         tdSql.checkData(99, 0, 2400.9686738603973)
 
-        tdSql.query('select sin(pow(c1,log(c2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1;')
+        tdSql.query(
+            "select sin(pow(c1,log(c2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, nan)
         tdSql.checkData(1, 0, 0.9092974268256817)
@@ -685,15 +712,15 @@ class TDTestCase:
         tdSql.checkData(98, 0, 2306.5731210183926)
         tdSql.checkData(99, 0, 2400.9686738603973)
 
-        tdSql.query('select asin(c1) from st0 limit 1;')
+        tdSql.query("select asin(c1) from st0 limit 1;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.0)
 
-        tdSql.query('select pow(c1,2) from st0 limit 1 offset 2;;')
+        tdSql.query("select pow(c1,2) from st0 limit 1 offset 2;;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4.0)
 
-        tdSql.query('select cos(c1) from db0.ct0, db0.ct1 where ct0.ts==ct1.ts;')
+        tdSql.query("select cos(c1) from db0.ct0, db0.ct1 where ct0.ts==ct1.ts;")
         tdSql.checkRows(50)
         tdSql.checkData(0, 0, 1.0)
         tdSql.checkData(1, 0, 0.5403023058681398)
@@ -746,7 +773,9 @@ class TDTestCase:
         tdSql.checkData(48, 0, -0.6401443394691997)
         tdSql.checkData(49, 0, 0.3005925437436371)
 
-        tdSql.query('select sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(c1)))))))))))))))) from st0;')
+        tdSql.query(
+            "select sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(c1)))))))))))))))) from st0;"
+        )
         tdSql.checkRows(100)
         tdSql.checkData(0, 0, 0.0)
         tdSql.checkData(1, 0, 0.38515571309652635)
@@ -849,13 +878,12 @@ class TDTestCase:
         tdSql.checkData(98, 0, -0.3782246656581614)
         tdSql.checkData(99, 0, -0.392935768393244)
 
+        tdSql.execute("drop database db0")
 
-
-
-        tdSql.execute('drop database db0')
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
