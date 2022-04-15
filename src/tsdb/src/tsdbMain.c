@@ -814,7 +814,6 @@ out:
 }
 
 int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx, bool onlyKey) {
-  ASSERT(pTable->lastRow == NULL);
   if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
   }
