@@ -18,10 +18,10 @@ int main(int argc, char *argv[]) {
     }
     fprintf(stdout, "current working directory:%s\n", path);
     strcat(path, "/libudf1.so");
-    SUdfInfo udfInfo = {.udfName="udf1", .path=path};
 
     UdfHandle handle;
-    setupUdf(&udfInfo, &handle);
+    SEpSet epSet;
+    setupUdf("udf1", &epSet, &handle);
 
     //char state[5000000] = "state";
     //char input[5000000] = "input";
@@ -31,13 +31,7 @@ int main(int argc, char *argv[]) {
     if (argc > 2) callCount = atoi(argv[2]);
     char *state = taosMemoryMalloc(dataSize);
     char *input = taosMemoryMalloc(dataSize);
-    SUdfDataBlock blockInput = {.data = input, .size = dataSize};
-    SUdfDataBlock blockOutput;
-    char* newState;
-    int32_t newStateSize;
-    for (int l = 0; l < callCount; ++l) {
-        callUdf(handle, 0, state, dataSize, blockInput, &newState, &newStateSize, &blockOutput);
-    }
+    //todo: call udf
     taosMemoryFree(state);
     taosMemoryFree(input);
     teardownUdf(handle);

@@ -53,7 +53,7 @@ typedef void *UdfHandle;
  * @param handle, out
  * @return error code
  */
-int32_t setupUdf(char udfName[], SEpSet epSet, UdfHandle *handle);
+int32_t setupUdf(char udfName[], SEpSet *epSet, UdfHandle *handle);
 
 typedef struct SUdfColumnMeta {
   int16_t type;

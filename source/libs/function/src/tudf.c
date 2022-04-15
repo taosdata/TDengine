@@ -1199,7 +1199,7 @@ int32_t udfcRunUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   return task->errCode;
 }
 
-int32_t setupUdf(char udfName[TSDB_FUNC_NAME_LEN], UdfHandle *handle) {
+int32_t setupUdf(char udfName[], SEpSet *epSet, UdfHandle *handle) {
   debugPrint("%s", "client setup udf");
   SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
