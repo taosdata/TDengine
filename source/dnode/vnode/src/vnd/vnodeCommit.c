@@ -151,9 +151,9 @@ static int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.daysPerFile) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRowsPerFileBlock) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRowsPerFileBlock) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
@@ -178,9 +178,9 @@ static int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.daysPerFile) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRowsPerFileBlock) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRowsPerFileBlock) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
