@@ -1,1 +1,2 @@
 taostest --use=empty.yaml --case=helloworld/hellocase.py --keep
+taostest --setup=common_insert.yaml --group-dir=taosc_insert --keep --containers
