@@ -18,12 +18,11 @@ target_sources(
     "src/vnd/vnodeSvr.c"
 
     # meta
-    # "src/meta/metaBDBImpl.c"
+    "src/meta/metaOpen.c"
     "src/meta/metaIdx.c"
-    "src/meta/metaMain.c"
     "src/meta/metaTable.c"
-    "src/meta/metaTbUid.c"
     "src/meta/metaTDBImpl.c"
+    # "src/meta/metaBDBImpl.c"
 
     # tsdb
     "src/tsdb/tsdbTDBImpl.c"
