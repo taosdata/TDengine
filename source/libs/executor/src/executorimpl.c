@@ -1093,13 +1093,6 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, 
     //          }
     //        }
 
-    // in case of the block distribution query, the inputBytes is not a constant value.
-    //pCtx[i].input.pData[0]  = taosArrayGet(pBlock->pDataBlock, slotId);
-    //pCtx[i].input.totalRows = pBlock->info.rows;
-    //pCtx[i].input.numOfRows = pBlock->info.rows;
-    //pCtx[i].input.startRowIndex = 0;
-
-
     //        uint32_t status = aAggs[pCtx[i].functionId].status;
     //        if ((status & (FUNCSTATE_SELECTIVITY | FUNCSTATE_NEED_TS)) != 0) {
     //          SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
@@ -1754,6 +1747,10 @@ void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock*
         pInput->colDataAggIsSet = true;
         pInput->numOfRows = pBlock->info.rows;
         pInput->totalRows = pBlock->info.rows;
+
+        // Here we set the column info data since the data type for each column data is required, but
+        // the data in the corresponding SColumnInfoData will not be used.
+        pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
       }
     }
   } else {
