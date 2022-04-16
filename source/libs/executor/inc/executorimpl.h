@@ -83,7 +83,6 @@ typedef struct SResultInfo {  // TODO refactor
 typedef struct STableQueryInfo {
   TSKEY              lastKey;     // last check ts, todo remove it later
   SResultRowPosition pos;       // current active time window
-//  uint64_t       uid;         // table uid
 //  int32_t        groupIndex;  // group id in table list
 //  SVariant       tag;
 //  SResultRowInfo resInfo;     // result info
@@ -433,10 +432,9 @@ typedef struct STableIntervalOperatorInfo {
 
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo     binfo;
-  SDiskbasedBuf     *pResultBuf;           // query result buffer based on blocked-wised disk file
   SAggSupporter      aggSup;
   STableQueryInfo   *current;
-  uint32_t           groupId;
+  uint64_t           groupId;
   SGroupResInfo      groupResInfo;
   STableQueryInfo   *pTableQueryInfo;
 
@@ -633,7 +631,6 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
                                            int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SExecTaskInfo* pTaskInfo);
 SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pIndexMap, SExecTaskInfo* pTaskInfo);

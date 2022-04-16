@@ -65,6 +65,21 @@ static void setupQueryRangeForReverseScan(STableScanInfo* pTableScanInfo) {
 #endif
 }
 
+// relocated the column data according to the slotId
+static void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
+  int32_t numOfCols = pBlock->info.numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pCols, i);
+    SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, i);
+    if (!pmInfo->output) {
+      continue;
+    }
+
+    ASSERT(pmInfo->colId == p->info.colId);
+    taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
+  }
+}
+
 int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   STableScanInfo* pInfo = pOperator->info;
@@ -110,49 +125,35 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
         }
         pBlock->pBlockAgg[pColMatchInfo->targetSlotId] = pColAgg[i];
       }
-    } else {
-      // failed to load the block sma data, data block statistics does not exist, load data block instead
-      pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
-      pCost->totalCheckedRows += pBlock->info.rows;
-      pCost->loadBlocks += 1;
+
+      return TSDB_CODE_SUCCESS;
+    } else { // failed to load the block sma data, data block statistics does not exist, load data block instead
+      *status = FUNC_DATA_REQUIRED_DATA_LOAD;
     }
+  }
+
+  ASSERT (*status == FUNC_DATA_REQUIRED_DATA_LOAD);
+
+  // todo filter data block according to the block sma data firstly
+#if 0
+  if (!doFilterByBlockStatistics(pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
+    pCost->filterOutBlocks += 1;
+    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+    (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
     return TSDB_CODE_SUCCESS;
   }
-
-  if (*status == FUNC_DATA_REQUIRED_DATA_LOAD) {
-    // todo filter data block according to the block sma data firstly
-#if 0
-    if (!doFilterByBlockStatistics(pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
-      pCost->filterOutBlocks += 1;
-      qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
-             pBlockInfo->window.ekey, pBlockInfo->rows);
-      (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
-      return TSDB_CODE_SUCCESS;
-    }
 #endif
 
-    pCost->totalCheckedRows += pBlock->info.rows;
-    pCost->loadBlocks += 1;
+  pCost->totalCheckedRows += pBlock->info.rows;
+  pCost->loadBlocks += 1;
 
-    SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
-    if (pCols == NULL) {
-      return terrno;
-    }
-
-    // relocated the column data into the correct slotId
-    int32_t numOfCols = pBlock->info.numOfCols;
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* p = taosArrayGet(pCols, i);
-      SColMatchInfo*   pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
-      if (!pColMatchInfo->output) {
-        continue;
-      }
-
-      ASSERT(pColMatchInfo->colId == p->info.colId);
-      taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
-//      taosArraySet(pBlock->pBlockAgg)
-    }
+  SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
+  if (pCols == NULL) {
+    return terrno;
   }
+
+  relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
 
   doFilter(pTableScanInfo->pFilterNode, pBlock);
   if (pBlock->info.rows == 0) {

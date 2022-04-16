@@ -386,19 +386,24 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
       GET_TYPED_DATA(prev, uint64_t, type, buf);
 
       uint64_t val = GET_UINT64_VAL(tval);
-      UPDATE_DATA(pCtx, prev, val, numOfElems, isMinFunc, key);
+      if ((prev < val) ^ isMinFunc) {
+        *(uint64_t*) buf = val;
+        for (int32_t i = 0; i < (pCtx)->subsidiaryRes.numOfCols; ++i) {
+          SqlFunctionCtx* __ctx = pCtx->subsidiaryRes.pCtx[i];
+          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
+            __ctx->tag.i = key;
+            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+          }
+
+          __ctx->fpSet.process(__ctx);
+        }
+      }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      double prev = 0;
-      GET_TYPED_DATA(prev, double, type, buf);
-
       double  val = GET_DOUBLE_VAL(tval);
-      UPDATE_DATA(pCtx, prev, val, numOfElems, isMinFunc, key);
+      UPDATE_DATA(pCtx, *(double*) buf, val, numOfElems, isMinFunc, key);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
-      float prev = 0;
-      GET_TYPED_DATA(prev, float, type, buf);
-
       double val = GET_DOUBLE_VAL(tval);
-      UPDATE_DATA(pCtx, prev, (float)val, numOfElems, isMinFunc, key);
+      UPDATE_DATA(pCtx, *(float*) buf, val, numOfElems, isMinFunc, key);
     }
 
     return numOfElems;

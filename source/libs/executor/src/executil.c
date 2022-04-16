@@ -114,7 +114,6 @@ void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
   
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    ASSERT(0);
 //    SResultRow* pRow = pResultRowInfo->pResult[i];
 //    if (pRow->closed) {
 //      continue;
