@@ -1179,8 +1179,8 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     tnum = 1;
   }
 
-  // INIT SEM FOR ASYNC WAIT COMMIT RESULT
-  if (ppSem) {
+  // if need response (pRsp not null) , malloc ppSem for async wait response
+  if (ppSem && pRsp) {
     *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
     ret = tsem_init(*ppSem, 0, 0);
     if(ret != 0) {
