@@ -117,8 +117,10 @@ echo "log file: $log_file"
 if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file
+    ret=1
 else
     echo -e "\e[32m TEST SUCCESS\e[0m"
+    ret=0
 fi
 exit $ret
 
