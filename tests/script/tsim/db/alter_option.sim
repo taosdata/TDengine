@@ -350,4 +350,6 @@ sql_error alter database db precision 'ns'
 sql_error alter database db precision 'ys'
 sql_error alter database db prec 'xs'
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
