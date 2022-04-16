@@ -47,9 +47,6 @@ void      *taosAllocateQitem(int size);
 void       taosFreeQitem(void *item);
 int        taosWriteQitem(taos_queue, int type, void *item);
 int        taosReadQitem(taos_queue, int *type, void **pitem);
-// special type search Qitem
-int        taosSearchQitem(taos_queue, int type, void **pitem);
-
 
 taos_qall  taosAllocateQall();
 void       taosFreeQall(taos_qall);
