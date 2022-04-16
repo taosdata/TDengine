@@ -44,6 +44,7 @@ ENDIF ()
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
+include(${TD_SUPPORT_DIR}/cmake.install)
 
 IF (TD_WINDOWS OR TD_DARWIN) 
   SET(TD_SOMODE_STATIC TRUE)
