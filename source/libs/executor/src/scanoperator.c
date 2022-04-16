@@ -205,7 +205,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     //    }
 
     // this function never returns error?
-    uint32_t status = FUNC_DATA_REQUIRED_NOT_LOAD;
+    uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
@@ -256,9 +256,9 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
     pTableScanInfo->scanFlag = REPEAT_SCAN;
 
-    if (pResultRowInfo->size > 0) {
-      pResultRowInfo->curPos = 0;
-    }
+//    if (pResultRowInfo->size > 0) {
+//      pResultRowInfo->curPos = 0;
+//    }
 
     qDebug("%s start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_TASKID(pTaskInfo), pTaskInfo->window.skey, pTaskInfo->window.ekey);
@@ -275,7 +275,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
            GET_TASKID(pTaskInfo), pTaskInfo->window.skey, pTaskInfo->window.ekey);
 
     if (pResultRowInfo->size > 0) {
-      pResultRowInfo->curPos = pResultRowInfo->size - 1;
+//      pResultRowInfo->curPos = pResultRowInfo->size - 1;
     }
 
     p = doTableScanImpl(pOperator, newgroup);

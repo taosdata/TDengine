@@ -81,11 +81,12 @@ typedef struct SResultInfo {  // TODO refactor
 } SResultInfo;
 
 typedef struct STableQueryInfo {
-  TSKEY          lastKey;     // last check ts, todo remove it later
-  uint64_t       uid;         // table uid
+  TSKEY              lastKey;     // last check ts, todo remove it later
+  SResultRowPosition pos;       // current active time window
+//  uint64_t       uid;         // table uid
 //  int32_t        groupIndex;  // group id in table list
 //  SVariant       tag;
-  SResultRowInfo resInfo;     // result info
+//  SResultRowInfo resInfo;     // result info
 } STableQueryInfo;
 
 typedef enum {

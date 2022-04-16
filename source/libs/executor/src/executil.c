@@ -52,11 +52,11 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
 }
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
-  pResultRowInfo->size     = 0;
-  pResultRowInfo->curPos   = -1;
-  pResultRowInfo->capacity = size;
+  pResultRowInfo->size       = 0;
+  pResultRowInfo->capacity   = size;
+  pResultRowInfo->cur.pageId = -1;
+  
   pResultRowInfo->pPosition = taosMemoryCalloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
-
   if (pResultRowInfo->pPosition == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -378,7 +378,7 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
 static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
     int32_t* rowCellInfoOffset) {
   bool ascQuery = true;
-
+#if 0
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t *posList = NULL;
@@ -402,16 +402,16 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
   int32_t numOfTables = 0;
   for (int32_t i = 0; i < size; ++i) {
     STableQueryInfo *item = taosArrayGetP(pTableList, i);
-    if (item->resInfo.size > 0) {
-      pTableQueryInfoList[numOfTables++] = item;
-    }
+//    if (item->resInfo.size > 0) {
+//      pTableQueryInfoList[numOfTables++] = item;
+//    }
   }
 
   // there is no data in current group
   // no need to merge results since only one table in each group
-  if (numOfTables == 0) {
-    goto _end;
-  }
+//  if (numOfTables == 0) {
+//    goto _end;
+//  }
 
   int32_t order = TSDB_ORDER_ASC;
   SCompSupporter cs = {pTableQueryInfoList, posList, order};
@@ -498,6 +498,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  int64_t elapsedTime = taosGetTimestampUs() - st;
 //  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_TASKID(pRuntimeEnv),
 //         pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
