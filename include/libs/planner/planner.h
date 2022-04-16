@@ -30,6 +30,8 @@ typedef struct SPlanContext {
   bool topicQuery;
   bool streamQuery;
   bool showRewrite;
+  int8_t triggerType;
+  int64_t watermark;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
