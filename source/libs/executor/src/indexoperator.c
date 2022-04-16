@@ -22,35 +22,170 @@ typedef struct SIFCtx {
   SHashObj *pRes; /* element is SScalarParam */
 } SIFCtx;
 
+#define SIF_ERR_RET(c)                \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+#define SIF_RET(c)                    \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+#define SIF_ERR_JRET(c)              \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
 typedef struct SIFParam {
   SArray *  result;
   SHashObj *pFilter;
 } SIFParam;
+
+typedef int32_t (*sif_func_t)(SNode *left, SNode *rigth, SIFParam *output);
 // construct tag filter operator later
-static void destroyTagFilterOperatorInfo(void *param) {
-  STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param;
-}
+static void destroyTagFilterOperatorInfo(void *param) { STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param; }
 
 static void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
   taosArrayDestroy(param->result);
 }
 
-int32_t sifInitOperParams(SIFParam *params, SOperatorNode *node, SIFCtx *ctx) {
-  int32_t code = 0;
-  return code;
+static int32_t sifGetOperParamNum(EOperatorType ty) {
+  if (OP_TYPE_IS_NULL == ty || OP_TYPE_IS_NOT_NULL == ty || OP_TYPE_IS_TRUE == ty || OP_TYPE_IS_NOT_TRUE == ty || OP_TYPE_IS_FALSE == ty ||
+      OP_TYPE_IS_NOT_FALSE == ty || OP_TYPE_IS_UNKNOWN == ty || OP_TYPE_IS_NOT_UNKNOWN == ty || OP_TYPE_MINUS == ty) {
+    return 1;
+  }
+  return 2;
 }
+static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
+  switch (nodeType(node)) {
+    case QUERY_NODE_VALUE: {
+      SValueNode *vn = (SValueNode *)node;
+
+      break;
+    }
+    case QUERY_NODE_COLUMN: {
+      SColumnNode *cn = (SColumnNode *)node;
+
+      break;
+    }
+    case QUERY_NODE_NODE_LIST: {
+      SNodeListNode *nl = (SNodeListNode *)node;
+      if (LIST_LENGTH(nl->pNodeList) <= 0) {
+        qError("invalid length for node:%p, length: %d", node, LIST_LENGTH(nl->pNodeList));
+        SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
+
+      if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
+        taosHashCleanup(param->pFilter);
+        qError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
+        SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+      break;
+    }
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SIFParam *res = (SIFParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
+      if (NULL == res) {
+        qError("no result for node, type:%d, node:%p", nodeType(node), node);
+        SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      }
+      *param = *res;
+      break;
+    }
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx *ctx) {
+  int32_t code = 0;
+  int32_t nParam = sifGetOperParamNum(node->opType);
+  if (NULL == node->pLeft || (nParam == 2 && NULL == node->pRight)) {
+    qError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
+    SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
+  if (NULL == paramList) {
+    SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
+  if (nParam > 1) {
+    SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[0], ctx));
+  }
+  *params = paramList;
+  SIF_RET(TSDB_CODE_SUCCESS);
+_return:
+  taosMemoryFree(paramList);
+  SIF_RET(code);
+}
+// int32_t sifInitOperParams(SIFParam *params, SOperatorNode *node, SIFCtx *ctx) {
+//  int32_t code = 0;
+//  return code;
+//}
 static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *output) {
   qError("index-filter not support buildin function");
+  return TSDB_CODE_QRY_INVALID_INPUT;
+}
+
+static int32_t sifLessThanFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
   return TSDB_CODE_SUCCESS;
+}
+static int32_t sifDefaultFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // add more except
+  return TSDB_CODE_QRY_INVALID_INPUT;
+}
+
+static sif_func_t sifGetOperFn(int32_t funcId) {
+  // impl later
+  switch (funcId) {
+    case OP_TYPE_LOWER_THAN:
+      return sifLessThanFunc;
+    default:
+      return sifDefaultFunc;
+  }
+  return sifDefaultFunc;
 }
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
+  int32_t   code = 0;
   SIFParam *params = NULL;
+  SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
-  return TSDB_CODE_SUCCESS;
+  int32_t nParam = sifGetOperParamNum(node->opType);
+  if (nParam <= 1) {
+    SIF_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  sif_func_t operFn = sifGetOperFn(node->opType);
+
+  return operFn(node->pLeft, node->pRight, output);
+_return:
+  taosMemoryFree(params);
+  SIF_RET(code);
 }
 
-static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *output) { return TSDB_CODE_SUCCESS; }
+static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *output) {
+  if (NULL == node->pParameterList || node->pParameterList->length <= 0) {
+    qError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList, node->pParameterList ? node->pParameterList->length : 0);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
 
 static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   // impl later
@@ -104,8 +239,7 @@ static EDealRes sifWalkOper(SNode *pNode, void *context) {
 }
 
 EDealRes sifCalcWalker(SNode *node, void *context) {
-  if (QUERY_NODE_VALUE == nodeType(node) || QUERY_NODE_NODE_LIST == nodeType(node) ||
-      QUERY_NODE_COLUMN == nodeType(node)) {
+  if (QUERY_NODE_VALUE == nodeType(node) || QUERY_NODE_NODE_LIST == nodeType(node) || QUERY_NODE_COLUMN == nodeType(node)) {
     return DEAL_RES_CONTINUE;
   }
   SIFCtx *ctx = (SIFCtx *)context;
