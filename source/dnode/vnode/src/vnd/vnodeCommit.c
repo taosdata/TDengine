@@ -288,7 +288,7 @@ _err:
 static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   SJson *pJson = NULL;
 
-  pJson = tjsonCreateObject();
+  pJson = tjsonParse(pData);
   if (pJson == NULL) {
     return -1;
   }
