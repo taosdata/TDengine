@@ -318,4 +318,4 @@ endi
 #sql select count(*) from car where ts > '2019-05-14 00:00:00' interval(1y, 5d)
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
