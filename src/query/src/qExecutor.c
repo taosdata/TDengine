@@ -884,18 +884,34 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
 
   switch (type) {
     case TSDB_UDF_FUNC_NORMAL:
+      if (pCtx->pUdfInput[0] == NULL) {
+        break;
+      }
+
       if (pUdfInfo->isScript) {
-        (*(scriptNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
-          (char *)pCtx->pUdfInput[0], pCtx->udfInputType[0], pCtx->udfInputBytes[0], (char *)pCtx->pUdfInput[1], pCtx->udfInputType[1], pCtx->udfInputBytes[1],
-          pCtx->size, pCtx->ptsList, pCtx->startTs, pCtx->pOutput, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
+        if (pCtx->pUdfInput[1] == NULL) {
+          (*(scriptNormalFunc1)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
+            (char *)pCtx->pUdfInput[0], pCtx->udfInputType[0], pCtx->udfInputBytes[0],
+            pCtx->size, pCtx->ptsList, pCtx->startTs, pCtx->pOutput, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
+        } else {
+          (*(scriptNormalFunc2)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
+            (char *)pCtx->pUdfInput[0], pCtx->udfInputType[0], pCtx->udfInputBytes[0], (char *)pCtx->pUdfInput[1], pCtx->udfInputType[1], pCtx->udfInputBytes[1],
+            pCtx->size, pCtx->ptsList, pCtx->startTs, pCtx->pOutput, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
+        }
       } else {
         SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
         void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
 
-        (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pUdfInput[0], pCtx->udfInputType[0], pCtx->udfInputBytes[0], (char *)pCtx->pUdfInput[1],
-          pCtx->udfInputType[1], pCtx->udfInputBytes[1], pCtx->size, pCtx->ptsList, pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType,
-          pCtx->outputBytes, &pUdfInfo->init);
+        if (pCtx->pUdfInput[1] == NULL) {
+          (*(udfNormalFunc1)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pUdfInput[0], pCtx->udfInputType[0], pCtx->udfInputBytes[0],
+            pCtx->size, pCtx->ptsList, pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType,
+            pCtx->outputBytes, &pUdfInfo->init);
+        } else {
+          (*(udfNormalFunc2)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pUdfInput[0], pCtx->udfInputType[0], pCtx->udfInputBytes[0], (char *)pCtx->pUdfInput[1],
+            pCtx->udfInputType[1], pCtx->udfInputBytes[1], pCtx->size, pCtx->ptsList, pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType,
+            pCtx->outputBytes, &pUdfInfo->init);
+        }
       }
 
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {

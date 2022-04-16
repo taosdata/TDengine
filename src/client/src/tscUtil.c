@@ -4989,7 +4989,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
           &pse->resBytes, &inter, 0, false, pUdfInfo);
       pse->colType[0]  = pse->resType;
       pse->colBytes[0] = pse->resBytes;
-
+      pse->numOfColumns = 1;
     } else {  // arithmetic expression
       for (int32_t n = 0; n < pSource->base.numOfColumns; ++n) {
         pse->colInfo[n].colId = pSource->base.colInfo[n].colId;
