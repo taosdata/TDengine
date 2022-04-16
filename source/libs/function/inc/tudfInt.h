@@ -51,6 +51,7 @@ typedef struct SUdfCallRequest {
 
   SUdfDataBlock block;
   SUdfInterBuf interBuf;
+  SUdfInterBuf interBuf2;
   bool initFirst;
 } SUdfCallRequest;
 

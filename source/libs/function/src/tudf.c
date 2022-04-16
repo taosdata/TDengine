@@ -372,7 +372,6 @@ int32_t serializeUdfInterBuf(SUdfInterBuf *state, char *pBuf) {
 
   *(int32_t*)pBuf = state->bufLen;
   pBuf += sizeof(int32_t);
-
   memcpy(pBuf, state->buf, state->bufLen);
   pBuf += state->bufLen;
 
@@ -462,6 +461,8 @@ int32_t serializeUdfCallRequest(SUdfCallRequest *call, char *buf) {
   l = serializeUdfDataBlock(&call->block, buf);
   buf += l;
   l = serializeUdfInterBuf(&call->interBuf, buf);
+  buf += l;
+  l = serializeUdfInterBuf(&call->interBuf2, buf);
   buf += l;
 
   *(bool*)buf = call->initFirst;
@@ -1252,8 +1253,6 @@ int32_t callUdf(UdfHandle handle, int8_t callType, SUdfDataBlock *input, SUdfInt
       break;
     }
   }
-
-
 
   udfcRunUvTask(task, UV_TASK_REQ_RSP);
 

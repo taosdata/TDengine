@@ -125,6 +125,11 @@ int32_t teardownUdf(UdfHandle handle);
 typedef int32_t (*TUdfSetupFunc)();
 typedef int32_t (*TUdfTeardownFunc)();
 
+//TODO: another way to manage memory is provide api for UDF to add data to SUdfColumnData and UDF framework will allocate memory.
+// then UDF framework will free the memory
+//typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
+//typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
+
 typedef int32_t (*TUdfFreeUdfColumnDataFunc)(SUdfColumnData* columnData);
 
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumnData *resultData);
