@@ -275,7 +275,7 @@ int32_t vnodeOpen(int32_t vgId) {
   pthread_mutex_init(&pVnode->statusMutex, NULL);
   vnodeSetInitStatus(pVnode);
   // wait thread init
-  tsem_init(&pVnode->semWait, 0, 0);
+  tsem_init(&pVnode->semWait, 0, 1);
   pVnode->waitThreads = tdListNew(sizeof(SWaitThread));
 
   tsdbIncCommitRef(pVnode->vgId);
@@ -645,9 +645,7 @@ void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
   waitThread.param       = param;
 
   // append
-  tsem_wait(&pVnode->semWait);
   tdListAppend(pVnode->waitThreads, &waitThread);
-  tsem_post(&pVnode->semWait);
   vInfo("vgId:%d :SDEL add wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
 }
 
