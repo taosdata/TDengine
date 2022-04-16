@@ -426,8 +426,7 @@ int32_t vnodeOpen(int32_t vgId) {
 
 #define LOOP_CNT 10
 void vnodeStopWaitingThread(SVnodeObj* pVnode) {
- // check wait thread empty
-  int type = 0;
+  // check wait thread empty
   SWaitThread* pWaitThread = NULL;
   vInfo("vgId:%d :SDEL stop waiting thread count=%d", pVnode->vgId, listNEles(pVnode->waitThreads));
   if(listNEles(pVnode->waitThreads) == 0) {
@@ -438,8 +437,11 @@ void vnodeStopWaitingThread(SVnodeObj* pVnode) {
   tsem_wait(&pVnode->semWait);
 
   // loop stop
-  SListNode * pNode = NULL;
-  while(pNode = tdListPopHead(pVnode->waitThreads)) {
+  while (1) {
+    SListNode * pNode = tdListPopHead(pVnode->waitThreads);
+    if(pNode == NULL)
+      break;
+
     // thread is running    
     pWaitThread = (SWaitThread *)pNode->data;
     int32_t loop = LOOP_CNT;
@@ -567,7 +569,7 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   pVnode->waitThreads = tdListFree(pVnode->waitThreads);
-  tsem_destroy(pVnode->semWait);
+  tsem_destroy(&pVnode->semWait);
   tsem_destroy(&pVnode->sem);
   pthread_mutex_destroy(&pVnode->statusMutex);
   free(pVnode);
@@ -653,12 +655,12 @@ void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
 void vnodeRemoveWait(void* vparam, void* param) {
     SVnodeObj* pVnode = (SVnodeObj* )vparam;
     SListIter iter = {0};
-    SListNode* pNode;
     
     tsem_wait(&pVnode->semWait);
     tdListInitIter(pVnode->waitThreads, &iter, TD_LIST_FORWARD);
 
-    while (pNode = tdListNext(&iter)) {
+    while (1) {
+      SListNode* pNode = tdListNext(&iter);
       SWaitThread * pWaitThread = (SWaitThread *)pNode->data;
       if (pWaitThread->param == param) {
         // found
