@@ -662,7 +662,7 @@ TEST(testCase, agg_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from test_block_raw.all_type");
+  pRes = taos_query(pConn, "select count(*) from tu");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -674,9 +674,6 @@ TEST(testCase, agg_query_tables) {
   int32_t     numOfFields = taos_num_fields(pRes);
 
   int32_t n = 0;
-  void* data = NULL;
-  int32_t code = taos_fetch_raw_block(pRes, &n, &data);
-
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
     int32_t* length = taos_fetch_lengths(pRes);

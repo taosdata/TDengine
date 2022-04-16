@@ -433,7 +433,7 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
   return buf;
 }
 
-void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock) {
+void tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, SBlock *pBlock) {
 #ifdef TD_REFACTOR_3
   SBlockData *pBlockData = pReadh->pBlkData;
 

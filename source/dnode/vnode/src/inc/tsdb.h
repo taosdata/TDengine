@@ -438,7 +438,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
 int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
-void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock);
+void  tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, SBlock *pBlock);
 
 static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
   void  *pBuf = *ppBuf;

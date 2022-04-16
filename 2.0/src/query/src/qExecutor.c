@@ -3144,7 +3144,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   if ((*status) == BLK_DATA_NO_NEEDED || (*status) == BLK_DATA_DISCARD) {
     qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
            pBlockInfo->window.ekey, pBlockInfo->rows);
-    pCost->discardBlocks += 1;
+    pCost->skipBlocks += 1;
   } else if ((*status) == BLK_DATA_STATIS_NEEDED) {
     // this function never returns error?
     pCost->loadBlockStatis += 1;
@@ -3184,7 +3184,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
           load = topbot_datablock_filter(&pTableScanInfo->pCtx[i], (char*)&(pBlock->pBlockStatis[i].min),
                                          (char*)&(pBlock->pBlockStatis[i].max));
           if (!load) { // current block has been discard due to filter applied
-            pCost->discardBlocks += 1;
+            pCost->skipBlocks += 1;
             qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId,
                    pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
             (*status) = BLK_DATA_DISCARD;
@@ -3196,7 +3196,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     // current block has been discard due to filter applied
     if (!doFilterByBlockStatistics(pRuntimeEnv, pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
-      pCost->discardBlocks += 1;
+      pCost->skipBlocks += 1;
       qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
              pBlockInfo->window.ekey, pBlockInfo->rows);
       (*status) = BLK_DATA_DISCARD;

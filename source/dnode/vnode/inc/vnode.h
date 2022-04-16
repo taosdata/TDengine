@@ -71,7 +71,6 @@ char       *metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 typedef struct STsdb          STsdb;
-typedef struct SDataStatis    SDataStatis;
 typedef struct STsdbQueryCond STsdbQueryCond;
 typedef void                 *tsdbReaderT;
 
@@ -91,7 +90,7 @@ int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, con
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SDataStatis **pBlockStatis);
+int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
@@ -148,16 +147,6 @@ struct SVnodeCfg {
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
-};
-
-struct SDataStatis {
-  int16_t colId;
-  int16_t maxIndex;
-  int16_t minIndex;
-  int16_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
 };
 
 struct STsdbQueryCond {

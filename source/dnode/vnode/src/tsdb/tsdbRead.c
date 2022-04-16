@@ -99,10 +99,10 @@ typedef struct SIOCostSummary {
 
 typedef struct STsdbReadHandle {
   STsdb*        pTsdb;
-  SQueryFilePos cur;  // current position
+  SQueryFilePos cur;       // current position
   int16_t       order;
-  STimeWindow   window;  // the primary query time window that applies to all queries
-  SDataStatis*  statis;  // query level statistics, only one table block statistics info exists at any time
+  STimeWindow   window;    // the primary query time window that applies to all queries
+  SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
   int32_t       numOfBlocks;
   SArray*       pColumns;  // column list, SColumnInfoData array list
   bool          locateStart;
@@ -377,7 +377,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
 
   if (pCond->numOfCols > 0) {
     // allocate buffer in order to load data blocks from file
-    pReadHandle->statis = taosMemoryCalloc(pCond->numOfCols, sizeof(SDataStatis));
+    pReadHandle->statis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
     if (pReadHandle->statis == NULL) {
       goto _end;
     }
@@ -477,7 +477,7 @@ void tsdbResetQueryHandle(tsdbReaderT queryHandle, STsdbQueryCond* pCond) {
   }
 
   // allocate buffer in order to load data blocks from file
-  memset(pTsdbReadHandle->statis, 0, sizeof(SDataStatis));
+  memset(pTsdbReadHandle->statis, 0, sizeof(SColumnDataAgg));
 
   tsdbInitDataBlockLoadInfo(&pTsdbReadHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pTsdbReadHandle->compBlockLoadInfo);
@@ -505,7 +505,7 @@ void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, STsdbQueryCond* pC
   }
 
   // allocate buffer in order to load data blocks from file
-  memset(pTsdbReadHandle->statis, 0, sizeof(SDataStatis));
+  memset(pTsdbReadHandle->statis, 0, sizeof(SColumnDataAgg));
 
   tsdbInitDataBlockLoadInfo(&pTsdbReadHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pTsdbReadHandle->compBlockLoadInfo);
@@ -3222,7 +3222,7 @@ void tsdbRetrieveDataBlockInfo(tsdbReaderT* pTsdbReadHandle, SDataBlockInfo* pDa
 /*
  * return null for mixed data block, if not a complete file data block, the statistics value will always return NULL
  */
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStatis** pBlockStatis) {
+int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SColumnDataAgg** pBlockStatis) {
   STsdbReadHandle* pHandle = (STsdbReadHandle*)pTsdbReadHandle;
 
   SQueryFilePos* c = &pHandle->cur;
@@ -3252,7 +3252,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
 
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
-  memset(pHandle->statis, 0, numOfCols * sizeof(SDataStatis));
+  memset(pHandle->statis, 0, numOfCols * sizeof(SColumnDataAgg));
   for (int32_t i = 0; i < numOfCols; ++i) {
     pHandle->statis[i].colId = colIds[i];
   }
@@ -3260,7 +3260,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
   tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols, pBlockInfo->compBlock);
 
   // always load the first primary timestamp column data
-  SDataStatis* pPrimaryColStatis = &pHandle->statis[0];
+  SColumnDataAgg* pPrimaryColStatis = &pHandle->statis[0];
   assert(pPrimaryColStatis->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
 
   pPrimaryColStatis->numOfNull = 0;
