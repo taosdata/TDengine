@@ -56,7 +56,7 @@ else
 fi
 
 TAOS_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep debug|head -n1`
+TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
 if [[ "$OS_TYPE" != "Darwin" ]]; then
   cut_opt="--field="
@@ -65,16 +65,16 @@ else
 fi
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
 else
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR
 
 SIM_DIR=$TAOS_DIR/sim
 NODE_DIR=$SIM_DIR/$NODE_NAME
-EXE_DIR=$BUILD_DIR/source/dnode/mgmt
+EXE_DIR=$BUILD_DIR/build/bin
 CFG_DIR=$NODE_DIR/cfg
 LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data
