@@ -162,38 +162,39 @@ typedef struct {
   int32_t  extendedRowSize;
 } SRowBuilder;
 
-#define TD_ROW_HEAD_LEN (sizeof(STSRow))
+#define TD_ROW_HEAD_LEN  (sizeof(STSRow))
 #define TD_ROW_NCOLS_LEN (sizeof(col_id_t))
 
-#define TD_ROW_INFO(r) ((r)->info)
-#define TD_ROW_TYPE(r) ((r)->type)
-#define TD_ROW_DELETE(r) ((r)->del)
-#define TD_ROW_ENDIAN(r) ((r)->endian)
-#define TD_ROW_SVER(r) ((r)->sver)
-#define TD_ROW_NCOLS(r) ((r)->data)  // only valid for SKvRow
-#define TD_ROW_DATA(r) ((r)->data)
-#define TD_ROW_LEN(r) ((r)->len)
-#define TD_ROW_KEY(r) ((r)->ts)
+#define TD_ROW_INFO(r)     ((r)->info)
+#define TD_ROW_TYPE(r)     ((r)->type)
+#define TD_ROW_DELETE(r)   ((r)->del)
+#define TD_ROW_ENDIAN(r)   ((r)->endian)
+#define TD_ROW_SVER(r)     ((r)->sver)
+#define TD_ROW_NCOLS(r)    ((r)->data)  // only valid for SKvRow
+#define TD_ROW_DATA(r)     ((r)->data)
+#define TD_ROW_LEN(r)      ((r)->len)
+#define TD_ROW_KEY(r)      ((r)->ts)
+#define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
 #define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
 
-#define TD_ROW_SET_INFO(r, i) (TD_ROW_INFO(r) = (i))
-#define TD_ROW_SET_TYPE(r, t) (TD_ROW_TYPE(r) = (t))
-#define TD_ROW_SET_DELETE(r) (TD_ROW_DELETE(r) = 1)
-#define TD_ROW_SET_SVER(r, v) (TD_ROW_SVER(r) = (v))
-#define TD_ROW_SET_LEN(r, l) (TD_ROW_LEN(r) = (l))
+#define TD_ROW_SET_INFO(r, i)  (TD_ROW_INFO(r) = (i))
+#define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))
+#define TD_ROW_SET_DELETE(r)   (TD_ROW_DELETE(r) = 1)
+#define TD_ROW_SET_SVER(r, v)  (TD_ROW_SVER(r) = (v))
+#define TD_ROW_SET_LEN(r, l)   (TD_ROW_LEN(r) = (l))
 #define TD_ROW_SET_NCOLS(r, n) (*(col_id_t *)TD_ROW_NCOLS(r) = (n))
 
 #define TD_ROW_IS_DELETED(r) (TD_ROW_DELETE(r) == 1)
-#define TD_IS_TP_ROW(r) (TD_ROW_TYPE(r) == TD_ROW_TP)
-#define TD_IS_KV_ROW(r) (TD_ROW_TYPE(r) == TD_ROW_KV)
-#define TD_IS_TP_ROW_T(t) ((t) == TD_ROW_TP)
-#define TD_IS_KV_ROW_T(t) ((t) == TD_ROW_KV)
+#define TD_IS_TP_ROW(r)      (TD_ROW_TYPE(r) == TD_ROW_TP)
+#define TD_IS_KV_ROW(r)      (TD_ROW_TYPE(r) == TD_ROW_KV)
+#define TD_IS_TP_ROW_T(t)    ((t) == TD_ROW_TP)
+#define TD_IS_KV_ROW_T(t)    ((t) == TD_ROW_KV)
 
-#define TD_BOOL_STR(b) ((b) ? "true" : "false")
+#define TD_BOOL_STR(b)       ((b) ? "true" : "false")
 #define isUtilizeKVRow(k, d) ((k) < ((d)*KVRatioConvert))
 
 #define TD_ROW_COL_IDX(r) POINTER_SHIFT(TD_ROW_DATA(r), sizeof(col_id_t))
