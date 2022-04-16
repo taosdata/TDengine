@@ -26,7 +26,7 @@ $ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdeng
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
-这条命令，启动一个运行了 TDengine server 的 docker 容器，并且将容器的 6030 到 6049 端口映射到宿主机的 6030 到 6049 端口上。如果宿主机已经运行了 TDengine server 并占用了相同端口，需要映射容器的端口到不同的未使用端口段。（详情参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）。为了支持 TDengine 客户端操作 TDengine server 服务， TCP 和 UDP 端口都需要打开。
+这条命令，启动一个运行了 TDengine server 的 docker 容器，并且将容器的 6030 到 6049 端口映射到宿主机的 6030 到 6049 端口上。如果宿主机已经运行了 TDengine server 并占用了相同端口，需要映射容器的端口到不同的未使用端口段。（详情参见 [TDengine 2.0 端口说明](/train-fqa/faq#port）。为了支持 TDengine 客户端操作 TDengine server 服务， TCP 和 UDP 端口都需要打开。
 
 - **docker run**：通过 Docker 运行一个容器
 - **-d**：让容器在后台运行
@@ -90,7 +90,7 @@ taos>
 
 TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息。如果失败，会有错误信息打印出来。
 
-在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](https://www.taosdata.com/cn/documentation/taos-sql)。
+在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](/reference/taos-sql/)。
 
 ### 在宿主机访问 Docker 容器中的 TDengine server
 
@@ -119,7 +119,7 @@ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 
 这条命令，通过 RESTful 接口访问 TDengine server，这时连接的是本机的 6041 端口，可见连接成功。
 
-TDengine RESTful 接口详情请参考[官方文档](https://www.taosdata.com/cn/documentation/connector#restful)。
+TDengine RESTful 接口详情请参考[官方文档](/reference/restful-api/)。
 
 ### 使用 Docker 容器运行 TDengine server 和 taosAdapter
 

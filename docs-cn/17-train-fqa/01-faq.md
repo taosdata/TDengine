@@ -199,7 +199,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 | TCP  | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。                                                                                                   |
 | TCP  | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。                                                                                                           |
 | TCP  | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。                                                                                                           |
-| TCP  | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。 |
+| TCP  | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。 |
 | TCP  | 6042      | Arbitrator 的服务端口。             | 随 Arbitrator 启动参数设置变化。                                                                                                   |
 | TCP  | 6043      | TaosKeeper 监控服务端口。           | 随 TaosKeeper 启动参数设置变化。                                                                                                   |
 | TCP  | 6044      | 支持 StatsD 的数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |

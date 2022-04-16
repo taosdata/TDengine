@@ -199,7 +199,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 说明：如果 `taos_stmt_execute` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare` 的解析结果，直接进行第 3 ～ 6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init` 步骤重新开始。
 
-除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
+除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](/reference/connector/java#通过参数绑定写入数据)。
 
 接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
@@ -277,7 +277,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 ## Schemaless 方式写入接口
 
-除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](/reference/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 

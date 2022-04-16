@@ -187,7 +187,7 @@ TDengine 分布式架构的逻辑结构图如下：
 - 集群数据节点对外提供 RESTful 服务占用一个 TCP 端口，是 serverPort+11。
 - 集群内数据节点与 Arbitrator 节点之间通讯占用一个 TCP 端口，是 serverPort+12。
 
-因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的 serverPort。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)
+因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的 serverPort。详细的端口情况请参见 [TDengine 2.0 端口说明](/train-fqa/faq#port)
 
 **集群对外连接：**TDengine 集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，连接需要提供的网络参数是一数据节点的 End Point（FQDN 加配置的端口号）。通过命令行 CLI 启动应用 taos 时，可以通过选项-h 来指定数据节点的 FQDN，-P 来指定其配置的端口号，如果端口不配置，将采用 TDengine 的系统配置参数 serverPort。
 
@@ -317,7 +317,7 @@ Vnode 会保持一个数据版本号（version），对内存数据进行持久�
 3. 在线的虚拟节点数过半，而且有虚拟节点是 slave 的话，该虚拟节点自动成为 master
 4. 对于 2 和 3，如果多个虚拟节点满足成为 master 的要求，那么虚拟节点组的节点列表里，最前面的选为 master
 
-更多的关于数据复制的流程，请见[《TDengine 2.0 数据复制模块设计》](https://www.taosdata.com/cn/documentation/architecture/replica/)。
+更多的关于数据复制的流程，请见[《TDengine 2.0 数据复制模块设计》](/tdinternal/replica/)。
 
 ### 同步复制
 

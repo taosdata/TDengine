@@ -113,7 +113,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 - libtaos.so 在 Linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
 - taos.dll 在 Windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
 
-**注意**：在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](https://www.taosdata.com/cn/getting-started/#快速上手) 连接远程 TDengine Server。
+**注意**：在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](/get-started/) 连接远程 TDengine Server。
 
 ### 通过 maven 获取 JDBC driver
 
@@ -190,7 +190,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 **注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
-> 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](https://www.taosdata.com/cn/getting-started/#%E5%AE%A2%E6%88%B7%E7%AB%AF) 连接远程 TDengine Server。
+> 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](/get-started/) 连接远程 TDengine Server。
 
 JDBC-JNI 的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
@@ -293,7 +293,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
 
-> 更多详细配置请参考[客户端配置](https://www.taosdata.com/cn/documentation/administrator/#client)
+> 更多详细配置请参考[客户端配置](/reference/server-config/#仅客户端适用)
 
 ### 创建数据库和表
 
@@ -640,7 +640,7 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 ### 无模式写入
 
-从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](https://www.taosdata.com/docs/cn/v2.0/insert#schemaless)。
+从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](/reference/schemaless/)。
 
 注意：
 
