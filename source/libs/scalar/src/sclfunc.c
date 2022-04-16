@@ -666,18 +666,14 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum!= 3) {
-    return TSDB_CODE_FAILED;
-  }
-
   int16_t inputType  = pInput[0].columnData->info.type;
-  int16_t outputType = *(int16_t *)pInput[1].columnData->pData;
+  int16_t outputType = pOutput[0].columnData->info.type;
   if (outputType != TSDB_DATA_TYPE_BIGINT && outputType != TSDB_DATA_TYPE_UBIGINT &&
       outputType != TSDB_DATA_TYPE_VARCHAR && outputType != TSDB_DATA_TYPE_NCHAR &&
       outputType != TSDB_DATA_TYPE_TIMESTAMP) {
     return TSDB_CODE_FAILED;
   }
-  int64_t outputLen = *(int64_t *)pInput[2].columnData->pData;
+  int64_t outputLen = pOutput[0].columnData->info.bytes;
 
   char *input = NULL;
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
