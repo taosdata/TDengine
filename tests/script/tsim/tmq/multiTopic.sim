@@ -173,10 +173,15 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
-#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
+
+system_content echo -n \$BUILD_DIR
+$tmq_sim = $system_content . /build/bin/tmq_sim
+$tsim_cfg = $system_content . /tsim/cfg
+
+#print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
+#system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
 print cmd result----> $system_content
 #if $system_content != @{consume success: 20000, 0}@ then
 if $system_content != $expect_result then
@@ -190,8 +195,8 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
 print cmd result----> $system_content
 #if $system_content != @{consume success: 300, 0}@ then
 if $system_content != $expect_result then
@@ -205,8 +210,8 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
 print cmd result----> $system_content
 #if $system_content != @{consume success: 30000, 0}@ then
 if $system_content != $expect_result then

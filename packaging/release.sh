@@ -64,11 +64,11 @@ cp ${install_files} ${install_dir}
 header_files="${top_dir}/include/client/taos.h ${top_dir}/include/util/taoserror.h"
 cp ${header_files} ${install_dir}/inc
  
-bin_files="${compile_dir}/source/dnode/mgmt/taosd ${compile_dir}/tools/shell/taos  ${compile_dir}/tests/test/c/create_table ${compile_dir}/tests/test/c/tmq_sim ${script_dir}/remove.sh"
+bin_files="${compile_dir}/build/bin/taosd ${compile_dir}/build/bin/taos  ${compile_dir}/build/bin/create_table ${compile_dir}/build/bin/tmq_sim ${script_dir}/remove.sh"
 cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 
-cp ${compile_dir}/source/client/libtaos.so  ${install_dir}/lib/
-cp ${compile_dir}/source/libs/tdb/libtdb.so ${install_dir}/lib/
+cp ${compile_dir}/build/lib/libtaos.so  ${install_dir}/lib/
+cp ${compile_dir}/build/lib/libtdb.so ${install_dir}/lib/
 taostoolfile="${top_dir}/tools/taosTools-1.4.1-Linux-x64.tar.gz"
 cp ${taostoolfile} ${install_dir}/taos-tools 
 

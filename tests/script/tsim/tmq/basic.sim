@@ -23,8 +23,8 @@ if $data04 != ready then
   goto check_dnode_ready
 endi
 
-#root@trd02 /data2/dnode $ tmq_demo --help                                                                          
-#Used to tmq_demo                                                                   
+#root@trd02 /data2/dnode $ tmq_sim --help                                                                          
+#Used to tmq_sim                                                                   
 #        -c      Configuration directory, default is                                                                
 #        -d      The name of the database to be created, default is tmqdb                                           
 #        -s      The name of the super table to be created, default is stb
@@ -41,8 +41,15 @@ endi
 #        -m      startTimestamp, default is 1640966400000 [2022-01-01 00:00:00]
 #        -g      showMsgFlag, default is 0
 #        
-print cmd===> system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
-system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
+
+system_content echo -n \$BUILD_DIR
+$tmq_demo = $system_content . /build/bin/tmq_demo
+system_content echo -n \$SIM_DIR
+$tsim_cfg = $system_content . /tsim/cfg
+$sim_wal = $system_content . /dnode1/data/vnode/vnode4/wal
+
+print cmd===> system_content $tmq_demo -sim 1 -b 100 -c $tsim_cfg -w $sim_wal
+system_content $tmq_demo -sim 1 -b 100 -c $tsim_cfg -w $sim_wal
 print cmd result----> $system_content
 if $system_content != @{consume success: 100}@ then
   return -1
