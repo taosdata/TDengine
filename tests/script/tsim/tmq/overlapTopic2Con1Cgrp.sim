@@ -39,6 +39,7 @@ sql connect
 $loop_cnt = 0
 $vgroups  = 1
 $dbNamme  = d0
+
 loop_vgroups:
 print =============== create database $dbNamme vgroups $vgroups
 sql create database $dbNamme vgroups $vgroups
@@ -48,15 +49,15 @@ print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $d
 print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
 
 if $loop_cnt == 0 then 
-  if $rows != 2 then 
+  if $rows != 3 then 
     return -1
   endi
-  if $data02 != 1 then  # vgroups
+  if $data22 != 1 then  # vgroups
     print vgroups: $data02
     return -1
   endi
 else
-  if $rows != 3 then 
+  if $rows != 4 then 
     return -1
   endi
   if $data00 == d1 then 
@@ -153,7 +154,7 @@ endw
 # -g      showMsgFlag, default is 0
 #        
 
-$consumeDelay = 2
+$consumeDelay = 3
 
 $expectMsgCntFromCtb = $rowNum
 $expectMsgCntFromStb = $rowNum * $tbNum
@@ -179,15 +180,30 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg2" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 2
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg2" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 2
+
+$check_mode = 0
+if $loop_cnt == 0 then 
+  $check_mode = 0
+else
+  $check_mode = 2
+endi
+
+$expectMsgCntFromStb0 = 2001
+$expectMsgCntFromStb1 = 2001
+
+system_content echo -n \$BUILD_DIR
+$tmq_sim = $system_content . /build/bin/tmq_sim
+$tsim_cfg = $system_content . /tsim/cfg
+
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg2" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb0 -m1 $expectMsgCntFromStb1 -j 2
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg2" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb0 -m1 $expectMsgCntFromStb1 -j 2
 print cmd result----> $system_content
 if $system_content != success then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg1" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 3
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg1" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 3
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg1" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 3
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t1 "topic_stb_column, topic_stb_function" -k1 "group.id:tg1" -t "topic_stb_function, topic_stb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromStb -j 3
 print cmd result----> $system_content
 if $system_content != success then
   return -1
@@ -200,29 +216,29 @@ endi
 #$expect_result = $expect_result . @, @ 
 #$expect_result = $expect_result . 0}
 #print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 4
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 4
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 4
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 4
 print cmd result----> $system_content
 if $system_content != success then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function" -k "group.id:tg1" -t "topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 3
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function" -k "group.id:tg1" -t "topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 3
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function" -k "group.id:tg1" -t "topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 3
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function" -k "group.id:tg1" -t "topic_ctb_function, topic_ctb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromCtb -j 3
 print cmd result----> $system_content
 if $system_content != success then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 4
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 4
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 4
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -t "topic_ntb_column, topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 4
 print cmd result----> $system_content
 if $system_content != success then
   return -1
 endi
 
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function" -k "group.id:tg1" -t "topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 3
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function" -k "group.id:tg1" -t "topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 3
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function" -k "group.id:tg1" -t "topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 3
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_function" -k "group.id:tg1" -t "topic_ntb_function, topic_ntb_all" -k "group.id:tg2" -y $consumeDelay -m $expectMsgCntFromNtb -j 3
 print cmd result----> $system_content
 if $system_content != success then
   return -1
@@ -237,4 +253,4 @@ if $loop_cnt == 0 then
 endi
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

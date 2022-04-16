@@ -106,6 +106,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow, DB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, DB_ENCODE_OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
+    TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
     SDB_SET_INT32(pRaw, dataPos, pRetension->freq, DB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pRetension->keep, DB_ENCODE_OVER)
@@ -1128,6 +1129,8 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
 
       if (taosArrayGetSize(usedbRsp.pVgroupInfos) <= 0) {
         terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      } else {
+        code = 0;
       }
     } else {
       usedbRsp.vgVersion = usedbReq.vgVersion;
@@ -1340,7 +1343,7 @@ SYNC_DB_OVER:
   return code;
 }
 
-char *mnGetDbStr(char *src) {
+char *mndGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
 
@@ -1355,7 +1358,7 @@ static void dumpDbInfoData(SSDataBlock* pBlock, SDbObj *pDb, SShowObj *pShow, in
   int32_t cols = 0;
 
   char* buf = taosMemoryMalloc(pShow->bytes[cols]);
-  char *name = mnGetDbStr(pDb->name);
+  char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {
     STR_WITH_MAXSIZE_TO_VARSTR(buf, name, pShow->bytes[cols]);
   } else {

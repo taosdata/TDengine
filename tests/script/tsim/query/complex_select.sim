@@ -577,4 +577,4 @@ if $data00 != 33 then
 endi
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

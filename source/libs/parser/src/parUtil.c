@@ -91,6 +91,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid option %s unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
       return "Invalid option keep unit: %c, %c, %c, only m, h, d allowed";
+    case TSDB_CODE_PAR_AGG_FUNC_NESTING:
+      return "Aggregate functions do not support nesting";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

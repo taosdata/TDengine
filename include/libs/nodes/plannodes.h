@@ -109,6 +109,8 @@ typedef struct SWindowLogicNode {
   int64_t sessionGap;
   SNode* pTspk;
   SNode* pStateExpr;
+  int8_t triggerType;
+  int64_t watermark;
 } SWindowLogicNode;
 
 typedef struct SSortLogicNode {
@@ -251,6 +253,8 @@ typedef struct SWinodwPhysiNode {
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
   SNode* pTspk; // timestamp primary key
+  int8_t triggerType;
+  int64_t watermark;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {

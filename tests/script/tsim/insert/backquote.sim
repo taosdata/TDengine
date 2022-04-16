@@ -353,4 +353,4 @@ while $dbCnt < 2
 endw
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

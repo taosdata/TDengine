@@ -110,7 +110,6 @@ typedef struct SFileBlockInfo {
 #define FUNCTION_COV          38
 
 typedef struct SResultRowEntryInfo {
-//  int8_t   hasResult:6;       // result generated, not NULL value
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
   uint8_t  isNullRes:6;       // the result is null
@@ -119,10 +118,10 @@ typedef struct SResultRowEntryInfo {
 
 // determine the real data need to calculated the result
 enum {
-  BLK_DATA_NO_NEEDED     = 0x0,
-  BLK_DATA_STATIS_NEEDED = 0x1,
-  BLK_DATA_ALL_NEEDED    = 0x3,
-  BLK_DATA_DISCARD       = 0x4,   // discard current data block since it is not qualified for filter
+  BLK_DATA_NOT_LOAD  = 0x0,
+  BLK_DATA_SMA_LOAD  = 0x1,
+  BLK_DATA_DATA_LOAD = 0x3,
+  BLK_DATA_FILTEROUT = 0x4,   // discard current data block since it is not qualified for filter
 };
 
 enum {
