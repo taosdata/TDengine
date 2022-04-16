@@ -128,7 +128,7 @@ pipeline {
   options { skipDefaultCheckout() } 
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDengine'
+      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
   stages {
       stage('pre_build'){
