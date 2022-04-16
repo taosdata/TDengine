@@ -232,4 +232,4 @@ if $loop_cnt == 0 then
   goto loop_vgroups
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

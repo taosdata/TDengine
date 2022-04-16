@@ -1104,6 +1104,8 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
 static const char* jkWindowPhysiPlanExprs = "Exprs";
 static const char* jkWindowPhysiPlanFuncs = "Funcs";
 static const char* jkWindowPhysiPlanTsPk = "TsPk";
+static const char* jkWindowPhysiPlanTriggerType = "TriggerType";
+static const char* jkWindowPhysiPlanWatermark = "Watermark";
 
 static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SWinodwPhysiNode* pNode = (const SWinodwPhysiNode*)pObj;
@@ -1117,6 +1119,12 @@ static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkWindowPhysiPlanTsPk, nodeToJson, pNode->pTspk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanTriggerType, pNode->triggerType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanWatermark, pNode->watermark);
   }
 
   return code;
@@ -1134,6 +1142,12 @@ static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkWindowPhysiPlanTsPk, (SNode**)&pNode->pTspk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkWindowPhysiPlanTriggerType, pNode->triggerType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkWindowPhysiPlanWatermark, pNode->watermark);
   }
 
   return code;

@@ -796,6 +796,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
     }
   }
 
+  pWindow->triggerType = pWindowLogicNode->triggerType;
+  pWindow->watermark = pWindowLogicNode->watermark;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pWindow;
   } else {

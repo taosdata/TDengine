@@ -106,6 +106,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow, DB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, DB_ENCODE_OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
+    TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
     SDB_SET_INT32(pRaw, dataPos, pRetension->freq, DB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pRetension->keep, DB_ENCODE_OVER)
