@@ -18,6 +18,7 @@
 #include "catalog.h"
 #include "parUtil.h"
 #include "querynodes.h"
+#include "parInt.h"
 
 #define IS_RAW_PAYLOAD(t) \
   (((int)(t)) == PAYLOAD_TYPE_RAW)  // 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
@@ -102,10 +103,12 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
   }
 }
 
-void destroyBoundColumnInfo(SParsedDataColInfo* pColList) {
-  if (NULL == pColList) {
+void destroyBoundColumnInfo(void* pBoundInfo) {
+  if (NULL == pBoundInfo) {
     return;
   }
+
+  SParsedDataColInfo* pColList = (SParsedDataColInfo*)pBoundInfo;
   
   taosMemoryFreeClear(pColList->boundColumns);
   taosMemoryFreeClear(pColList->cols);
@@ -567,3 +570,167 @@ int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo
                         pColInfo->boundNullLen);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qBindStmtTagsValue(STableDataBlocks *pDataBlock, void *boundTags, int64_t suid, SName *pName, TAOS_BIND *bind, char *msgBuf, int32_t msgBufLen){
+  SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
+  SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
+  if (NULL == tags) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  SKVRowBuilder tagBuilder;
+  if (tdInitKVRowBuilder(&tagBuilder) < 0) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
+  SKvParam param = {.builder = &tagBuilder};
+
+  for (int c = 0; c < tags->numOfBound; ++c) {
+    if (bind[c].is_null && bind[c].is_null[0]) {
+      KvRowAppend(&pBuf, NULL, 0, &param);
+      continue;
+    }
+    
+    SSchema* pTagSchema = &pSchema[tags->boundColumns[c] - 1]; // colId starts with 1
+    param.schema = pTagSchema;
+
+    int32_t colLen = pTagSchema->bytes;
+    if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      colLen = bind[c].length[0];
+    }
+    
+    CHECK_CODE(KvRowAppend(&pBuf, (char *)bind[c].buffer, colLen, &param));
+  }
+
+  SKVRow row = tdGetKVRowFromBuilder(&tagBuilder);
+  if (NULL == row) {
+    tdDestroyKVRowBuilder(&tagBuilder);
+    return buildInvalidOperationMsg(&pBuf, "tag value expected");
+  }
+  tdSortKVRowByColIdx(row);
+
+  SVCreateTbReq tbReq = {0};
+  CHECK_CODE(buildCreateTbReq(&tbReq, pName, row, suid));
+  CHECK_CODE(buildCreateTbMsg(pDataBlock, &tbReq));
+
+  destroyCreateSubTbReq(&tbReq);
+  tdDestroyKVRowBuilder(&tagBuilder);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qBindStmtColsValue(STableDataBlocks *pDataBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen) {
+  SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
+  int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
+  SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;
+  SRowBuilder*        pBuilder = &pDataBlock->rowBuilder;
+  SMemParam param = {.rb = pBuilder};
+  SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
+
+  CHECK_CODE(allocateMemForSize(pDataBlock, extendedRowSize * bind->num);
+  
+  for (int32_t r = 0; r < bind->num; ++r) {
+    STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
+    tdSRowResetBuf(pBuilder, row);
+    
+    // 1. set the parsed value from sql string
+    for (int c = 0; c < spd->numOfBound; ++c) {
+      SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
+      
+      param.schema = pColSchema;
+      getSTSRowAppendInfo(pBuilder->rowType, spd, c, &param.toffset, &param.colIdx);
+
+      if (bind[c].is_null && bind[c].is_null[r]) {
+        CHECK_CODE(MemRowAppend(&pBuf, NULL, 0, &param));
+      } else {
+        int32_t colLen = pColSchema->bytes;
+        if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+          colLen = bind[c].length[r];
+        }
+        
+        CHECK_CODE(MemRowAppend(&pBuf, (char *)bind[c].buffer + bind[c].buffer_length * r, colLen, &param));
+      }
+    
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
+        TSKEY tsKey = TD_ROW_KEY(row);
+        checkTimestamp(pDataBlock, (const char *)&tsKey);
+      }
+    }
+    
+    // set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
+      for (int32_t i = 0; i < spd->numOfCols; ++i) {
+        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
+          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
+                                spd->cols[i].toffset);
+        }
+      }
+    }
+    
+    pDataBlock->size += extendedRowSize;
+  }
+  
+  SSubmitBlk *pBlocks = (SSubmitBlk *)(pDataBlock->pData);
+  if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, pDataBlock, bind->num)) {
+    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than 32767");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t buildBoundFields(SParsedDataColInfo *boundInfo, SSchema *pSchema, int32_t *fieldNum, TAOS_FIELD** fields) {
+  *fields = taosMemoryCalloc(boundInfo->numOfBound, sizeof(TAOS_FIELD));
+  if (NULL == *fields) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < boundInfo->numOfBound; ++i) {
+    SSchema* pTagSchema = &pSchema[boundInfo->boundColumns[i] - 1];
+    strcpy((*fields)[i].name, pTagSchema->name);
+    (*fields)[i].type = pTagSchema->type;
+    (*fields)[i].bytes = pTagSchema->bytes;
+  }
+
+  *fieldNum = boundInfo->numOfBound;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qBuildStmtTagFields(STableDataBlocks *pDataBlock, void *boundTags, int32_t *fieldNum, TAOS_FIELD** fields) {
+  SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
+  if (NULL == tags) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);  
+  if (tags->numOfBound <= 0) {
+    *fieldNum = 0;
+    *fields = NULL;
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CHECK_CODE(buildBoundFields(tags, pSchema, fieldNum, fields));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qBuildStmtColFields(STableDataBlocks *pDataBlock, int32_t *fieldNum, TAOS_FIELD** fields) {
+  SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);  
+  if (pDataBlock->boundColumnInfo.numOfBound <= 0) {
+    *fieldNum = 0;
+    *fields = NULL;
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CHECK_CODE(buildBoundFields(&pDataBlock->boundColumnInfo, pSchema, fieldNum, fields));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+

@@ -40,14 +40,6 @@
     sToken = tStrGetToken(pSql, &index, false); \
   } while (0)
 
-#define CHECK_CODE(expr) \
-  do { \
-    int32_t code = expr; \
-    if (TSDB_CODE_SUCCESS != code) { \
-      return code; \
-    } \
-  } while (0)
-
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;       // input
   char          *pSql;          // input
@@ -163,7 +155,8 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, char* dbName, SMsgBuf* pMsgBuf) {
+
+int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, const char* dbName, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
   const char* msg2 = "invalid database name";
   const char* msg3 = "db is not specified";
@@ -720,13 +713,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SKvParam {
-  SKVRowBuilder *builder;
-  SSchema       *schema;
-  char           buf[TSDB_MAX_TAGS_LEN];
-} SKvParam;
-
-static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, void *param) {
+int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, void *param) {
   SKvParam* pa = (SKvParam*) param;
 
   int8_t  type = pa->schema->type;
@@ -1195,3 +1182,52 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   destroyInsertParseContext(&context);
   return code;
 }
+
+
+int32_t qCreateSName(SName* pName, char* pTableName, int32_t acctId, char* dbName, char *msgBuf, int32_t msgBufLen) {
+  SMsgBuf msg = {.buf = msgBuf, .len =msgBufLen};
+  SToken sToken;
+  int32_t code = 0;
+  char *tbName = NULL;
+  
+  NEXT_TOKEN(pTableName, sToken);
+  
+  if (sToken.n == 0) {
+    return buildInvalidOperationMsg(&msg, "empty table name");
+  }
+
+  code = createSName(pName, &sToken, acctId, dbName, &msg);
+  if (code) {
+    return code;
+  }
+
+  NEXT_TOKEN(pTableName, sToken);
+
+  if (SToken.n > 0) {
+    return buildInvalidOperationMsg(&msg, "table name format is wrong");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
+  SVnodeModifOpStmt *modifyNode = (SVnodeModifOpStmt *)pQuery->pRoot;
+  int32_t code = 0;
+  SInsertParseContext insertCtx = {
+    .pVgroupsHashObj = pVgHash,
+    .pTableBlockHashObj = pBlockHash,
+    .pOutput = pQuery->pRoot
+  };
+  
+  // merge according to vgId
+  if (taosHashGetSize(insertCtx.pTableBlockHashObj) > 0) {
+    CHECK_CODE_GOTO(mergeTableDataBlocks(insertCtx.pTableBlockHashObj, modifyNode->payloadType, &insertCtx.pVgDataBlocks), _return);
+  }
+
+  CHECK_CODE(buildOutput(&insertCtx));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+

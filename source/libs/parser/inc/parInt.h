@@ -21,13 +21,30 @@ extern "C" {
 #endif
 
 #include "parser.h"
+#include "parToken.h"
+#include "parUtil.h"
+
+typedef struct SKvParam {
+  SKVRowBuilder *builder;
+  SSchema       *schema;
+  char           buf[TSDB_MAX_TAGS_LEN];
+} SKvParam;
+
+#define CHECK_CODE(expr) \
+  do { \
+    int32_t code = expr; \
+    if (TSDB_CODE_SUCCESS != code) { \
+      return code; \
+    } \
+  } while (0)
 
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, char* dbName, SMsgBuf* pMsgBuf);
+int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, const char* dbName, SMsgBuf* pMsgBuf);
+int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, void *param);
 
 #ifdef __cplusplus
 }

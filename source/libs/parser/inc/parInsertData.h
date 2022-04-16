@@ -131,7 +131,7 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void    setBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_id_t numOfCols);
-void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
+void destroyBoundColumnInfo(void* pBoundInfo);
 void destroyBlockArrayList(SArray* pDataBlockList);
 void destroyBlockHashmap(SHashObj* pDataBlockHash);
 int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);

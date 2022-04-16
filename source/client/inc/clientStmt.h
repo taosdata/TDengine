@@ -23,7 +23,7 @@ extern "C" {
 typedef enum {
   STMT_TYPE_INSERT = 1,
   STMT_TYPE_MULTI_INSERT,
-  STMT_TYPE_QUERY,
+  STMT_TYPE_QUERY
 } STMT_TYPE;
 
 typedef enum {
@@ -84,21 +84,24 @@ typedef struct STscStmt {
 #define STMT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define STMT_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define STMT_SWITCH_STATUS(_stmt, _newstatus, _errcode) do {
-  switch (_newstatus) {
-    case STMT_INIT:
-      if ((_stmt)->status != 0) return (_errcode);
-      break;
-    case STMT_PREPARE:
-      if ((_stmt)->status != STMT_INIT) STMT_ERR_RET(_errcode);
-      break;
-    case STMT_SETTBNAME:
-      break;
-    default:
-      STMT_ERR_RET(_errcode);
-      break;
-  }
-} while (0)
+#define STMT_SWITCH_STATUS(_stmt, _newstatus, _errcode)               \
+  do {                                                                \
+    switch (_newstatus) {                                             \
+      case STMT_INIT:                                                 \
+        if ((_stmt)->sql.status != 0) return (_errcode);              \
+        break;                                                        \
+      case STMT_PREPARE:                                              \
+        if ((_stmt)->sql.status != STMT_INIT) STMT_ERR_RET(_errcode); \
+        break;                                                        \
+      case STMT_SETTBNAME:                                            \
+        break;                                                        \
+      default:                                                        \
+        STMT_ERR_RET(_errcode);                                       \
+        break;                                                        \
+    }                                                                 \
+                                                                      \
+    (_stmt)->sql.status = _newstatus;                                 \
+  } while (0)
 
 
 TAOS_STMT *stmtInit(TAOS *taos);
@@ -106,7 +109,6 @@ int stmtClose(TAOS_STMT *stmt);
 int stmtExec(TAOS_STMT *stmt);
 char *stmtErrstr(TAOS_STMT *stmt);
 int stmtAffectedRows(TAOS_STMT *stmt);
-int stmtBind(TAOS_STMT *stmt, TAOS_BIND *bind);
 int stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
 int stmtSetTbNameTags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags);
 int stmtIsInsert(TAOS_STMT *stmt, int *insert);

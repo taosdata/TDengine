@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "querynodes.h"
+#include "query.h"
 
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;

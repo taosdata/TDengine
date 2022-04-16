@@ -615,7 +615,15 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
     return terrno;
   }
 
-  return stmtBind(stmt, bind);
+  TAOS_MULTI_BIND mbind = {0};
+  mbind.buffer_type = bind->buffer_type;
+  mbind.buffer = bind->buffer;
+  mbind.buffer_length = bind->buffer_length;
+  mbind.length = bind->length;
+  mbind.is_null = bind->is_null;
+  mbind.num = 1;
+  
+  return stmtBindBatch(stmt, &mbind);
 }
 
 int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
@@ -632,6 +640,10 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   }
 
   return stmtBindBatch(stmt, bind);
+}
+
+int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
+  return stmtBindBatch(stmt, bind); /* TODO */
 }
 
 int taos_stmt_add_batch(TAOS_STMT *stmt) {
