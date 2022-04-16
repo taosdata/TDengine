@@ -144,8 +144,10 @@ _err:
 
 void vnodeClose(SVnode *pVnode) {
   vnodeSyncCommit(pVnode);
-  tqClose(pVnode->pTq);
+  // close vnode
+  vnodeQueryClose(pVnode);
   walClose(pVnode->pWal);
+  tqClose(pVnode->pTq);
   tsdbClose(pVnode->pTsdb);
   metaClose(pVnode->pMeta);
   vnodeCloseBufPool(pVnode);
