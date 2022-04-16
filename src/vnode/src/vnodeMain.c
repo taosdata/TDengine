@@ -428,10 +428,11 @@ int32_t vnodeOpen(int32_t vgId) {
 void vnodeStopWaitingThread(SVnodeObj* pVnode) {
   // check wait thread empty
   SWaitThread* pWaitThread = NULL;
-  vInfo("vgId:%d :SDEL stop waiting thread count=%d", pVnode->vgId, listNEles(pVnode->waitThreads));
+  vDebug("vgId:%d :SDEL stop waiting thread count=%d", pVnode->vgId, listNEles(pVnode->waitThreads));
   if(listNEles(pVnode->waitThreads) == 0) {
     return;
   }
+  vInfo("vgId:%d :SDEL stop waiting thread not zero. count=%d", pVnode->vgId, listNEles(pVnode->waitThreads));
 
   // get lock
   tsem_wait(&pVnode->semWait);
@@ -646,7 +647,7 @@ void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
 
   // append
   tdListAppend(pVnode->waitThreads, &waitThread);
-  vInfo("vgId:%d :SDEL add wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+  vDebug("vgId:%d :SDEL add wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
 }
 
 // called in wait thread
@@ -667,7 +668,7 @@ void vnodeRemoveWait(void* vparam, void* param) {
         // found , free SWaitThread memeber
         free(pWaitThread->pthread);
         tdListPopNode(pVnode->waitThreads, pNode);
-        vInfo("vgId:%d :SDEL removed wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+        vDebug("vgId:%d :SDEL removed wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
         // free pListNode self
         free(pNode);
         break;

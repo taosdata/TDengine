@@ -166,16 +166,15 @@ void* waitingResultThread(void* param) {
   SVWriteMsg* pWrite = (SVWriteMsg* )param;
 
   // wait AddWaitThread to list finished
-  dInfo(":SDEL pVnode:%p wait AddWaitThread finished... pWrite=%p", pWrite->pVnode, pWrite);
+  dDebug(":SDEL pVnode:%p wait AddWaitThread finished... pWrite=%p", pWrite->pVnode, pWrite);
   tsem_t* psem = vnodeSemWait(pWrite->pVnode);
   tsem_wait(psem);
   tsem_post(psem);
-  dInfo(":SDEL pVnode:%p wait AddWaitThread ok pWrite=%p", pWrite->pVnode, pWrite);
+  dDebug(":SDEL pVnode:%p wait AddWaitThread ok pWrite=%p", pWrite->pVnode, pWrite);
 
   // wait request deal finished
-  dInfo(":SDEL pVnode:%p wait request finished ... pWrite=%p", pWrite->pVnode, pWrite);
   int32_t ret = tsem_wait(pWrite->rspRet.psem);
-  dInfo(":SDEL pVnode:%p wait request ok pWrite=%p", pWrite->pVnode, pWrite);
+  dDebug(":SDEL pVnode:%p wait request ok pWrite=%p", pWrite->pVnode, pWrite);
   if(ret == 0) {
     // success
   }
@@ -230,7 +229,7 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
       pthread_t* thread = taosCreateThread(waitingResultThread, pWrite);
       // add to wait thread manager
       vnodeAddWait(pVnode, thread, pWrite->rspRet.psem, pWrite);
-      dInfo(":SDEL pVnode=%p vnode add wait %p ok, tsem_post.", pVnode, pWrite);
+      dDebug(":SDEL pVnode=%p vnode add wait %p ok, tsem_post.", pVnode, pWrite);
       tsem_post(psem);
     }
   }  
