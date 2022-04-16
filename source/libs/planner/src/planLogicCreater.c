@@ -463,6 +463,11 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow, SLogicNode** pLogicNode) {
   int32_t code = nodesCollectFuncs(pSelect, fmIsWindowClauseFunc, &pWindow->pFuncs);
 
+  if (pCxt->pPlanCxt->streamQuery) {
+    pWindow->triggerType = pCxt->pPlanCxt->triggerType;
+    pWindow->watermark = pCxt->pPlanCxt->watermark;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExpr(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }

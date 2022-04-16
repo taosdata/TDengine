@@ -272,14 +272,9 @@ typedef struct SKillStmt {
   int32_t targetId;
 } SKillStmt;
 
-typedef enum EStreamTriggerType {
-  STREAM_TRIGGER_AT_ONCE = 1,
-  STREAM_TRIGGER_WINDOW_CLOSE
-} EStreamTriggerType;
-
 typedef struct SStreamOptions {
   ENodeType type;
-  EStreamTriggerType triggerType;
+  int8_t triggerType;
   SNode* pWatermark;
 } SStreamOptions;
 
