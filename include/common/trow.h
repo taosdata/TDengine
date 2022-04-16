@@ -221,8 +221,10 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, T
 static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT valType);
 static FORCE_INLINE int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
 int32_t                     tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8_t bitmapMode);
-static FORCE_INLINE int32_t tdGetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT *pValType);
-static FORCE_INLINE int32_t tdGetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode);
+static FORCE_INLINE bool    tdIsBitmapValTypeNormII(const void *pBitmap, int16_t idx);
 int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t maxPoints,
                              int8_t bitmapMode);
 static FORCE_INLINE int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
@@ -324,7 +326,16 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
+static FORCE_INLINE bool tdIsBitmapValTypeNormII(const void *pBitmap, int16_t idx) {
+  TDRowValT valType = 0;
+  tdGetBitmapValTypeII(pBitmap, idx, &valType);
+  if (tdValTypeIsNorm(valType)) {
+    return true;
+  }
+  return false;
+}
+
+static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
   switch (bitmapMode) {
     case 0:
       tdGetBitmapValTypeII(pBitmap, colIdx, pValType);
@@ -349,7 +360,7 @@ static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TD
  * @param pValType
  * @return FORCE_INLINE
  */
-static FORCE_INLINE int32_t tdGetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
+static FORCE_INLINE int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
   if (!pBitmap || colIdx < 0) {
     TASSERT(0);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -448,7 +459,7 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, T
  * @param pValType
  * @return FORCE_INLINE
  */
-static FORCE_INLINE int32_t tdGetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
+static FORCE_INLINE int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
   if (!pBitmap || colIdx < 0) {
     TASSERT(0);
     terrno = TSDB_CODE_INVALID_PARA;
