@@ -96,6 +96,7 @@ tb_uid_t metaGenerateUid(SMeta* pMeta);
 
 struct SMeta {
   char*                 path;
+  SVnode*               pVnode;
   SMetaCfg              options;
   SMetaDB*              pDB;
   SMetaIdx*             pIdx;

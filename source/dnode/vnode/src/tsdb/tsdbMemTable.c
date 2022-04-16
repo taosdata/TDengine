@@ -19,9 +19,9 @@ static int      tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 static int      tsdbMemTableInsertTbData(STsdb *pRepo, SSubmitBlk *pBlock, int32_t *pAffectedRows);
 static STbData *tsdbNewTbData(tb_uid_t uid);
 static void     tsdbFreeTbData(STbData *pTbData);
-static char *   tsdbGetTsTupleKey(const void *data);
+static char    *tsdbGetTsTupleKey(const void *data);
 static int      tsdbTbDataComp(const void *arg1, const void *arg2);
-static char *   tsdbTbDataGetUid(const void *arg);
+static char    *tsdbTbDataGetUid(const void *arg);
 static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row);
 
 STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
@@ -74,7 +74,7 @@ void tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable) {
 }
 
 int tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
-  SSubmitBlk *   pBlock = NULL;
+  SSubmitBlk    *pBlock = NULL;
   SSubmitMsgIter msgIter = {0};
   int32_t        affectedrows = 0, numOfRows = 0;
 
@@ -119,12 +119,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
   ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
-  STSchema * pSchema = NULL;
+  STSchema  *pSchema = NULL;
   TSKEY      rowKey = 0;
   TSKEY      fKey = 0;
   bool       isRowDel = false;
   int        filterIter = 0;
-  STSRow *   row = NULL;
+  STSRow    *row = NULL;
   SMergeInfo mInfo;
 
   if (pMergeInfo == NULL) pMergeInfo = &mInfo;
@@ -259,12 +259,12 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
   SSubmitMsgIter msgIter = {0};
-  SSubmitBlk *   pBlock = NULL;
+  SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
-  STSRow *       row = NULL;
+  STSRow        *row = NULL;
   TSKEY          now = taosGetTimestamp(pTsdb->config.precision);
-  TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep;
-  TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.daysPerFile;
+  TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep2;
+  TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.days;
 
   terrno = TSDB_CODE_SUCCESS;
   pMsg->length = htonl(pMsg->length);
@@ -332,9 +332,9 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   // STable          *pTable = NULL;
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
-  void *         tptr;
-  STbData *      pTbData;
-  STSRow *       row;
+  void          *tptr;
+  STbData       *pTbData;
+  STSRow        *row;
   TSKEY          keyMin;
   TSKEY          keyMax;
 
@@ -374,6 +374,8 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   pMemTable->nRow += pBlock->numOfRows;
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
+
+  (*pAffectedRows) += pBlock->numOfRows;
 
   // STSRow* lastRow = NULL;
   // int64_t osize = SL_SIZE(pTableData->pData);
@@ -502,7 +504,7 @@ int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitReq *pMsg) {
 #include "tskiplist.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
-#define TSDB_MAX_INSERT_BATCH 512
+#define TSDB_MAX_INSERT_BATCH    512
 
 typedef struct {
   int32_t  totalLen;

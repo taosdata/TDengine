@@ -223,17 +223,30 @@ static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pPar
   return code;
 }
 
-static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
+static int32_t getTableMetaImpl(SInsertParseContext* pCxt, SToken* pTname, bool isStb) {
   SParseContext* pBasicCtx = pCxt->pComCxt;
   SName name = {0};
   createSName(&name, pTname, pBasicCtx, &pCxt->msg);  
-  CHECK_CODE(catalogGetTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &pCxt->pTableMeta));
+  if (isStb) {
+    CHECK_CODE(catalogGetSTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &pCxt->pTableMeta));
+  } else {
+    CHECK_CODE(catalogGetTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &pCxt->pTableMeta));
+  }
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
   
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
+  return getTableMetaImpl(pCxt, pTname, false);
+}
+
+static int32_t getSTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
+  return getTableMetaImpl(pCxt, pTname, true);
+}
+
 
 static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pSchema) {
   while (start < end) {
@@ -816,7 +829,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   SToken sToken;
   // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
-  CHECK_CODE(getTableMeta(pCxt, &sToken));
+  CHECK_CODE(getSTableMeta(pCxt, &sToken));
   if (TSDB_SUPER_TABLE != pCxt->pTableMeta->tableType) {
     return buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
   }

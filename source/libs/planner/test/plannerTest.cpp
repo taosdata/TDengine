@@ -180,11 +180,11 @@ TEST_F(PlannerTest, selectStableBasic) {
 TEST_F(PlannerTest, selectJoin) {
   setDatabase("root", "test");
 
-  // bind("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
-  // ASSERT_TRUE(run());
+  bind("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT t1.*, t2.* FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
-  // ASSERT_TRUE(run());
+  bind("SELECT t1.*, t2.* FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  ASSERT_TRUE(run());
 
   bind("SELECT t1.c1, t2.c1 FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1 and t1.c2 = 'abc' and t2.c2 = 'qwe'");
   ASSERT_TRUE(run());
@@ -196,14 +196,14 @@ TEST_F(PlannerTest, selectGroupBy) {
   bind("SELECT count(*) FROM t1");
   ASSERT_TRUE(run());
 
-  // bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
-  // ASSERT_TRUE(run());
+  bind("SELECT c1, max(c3), min(c3), count(*) FROM t1 GROUP BY c1");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
-  // ASSERT_TRUE(run());
+  bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
-  // ASSERT_TRUE(run());
+  bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, selectSubquery) {

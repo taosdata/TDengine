@@ -70,13 +70,11 @@ typedef uint16_t tmsg_t;
 #define TSDB_IE_TYPE_DNODE_EXT   6
 #define TSDB_IE_TYPE_DNODE_STATE 7
 
-typedef enum {
-  HEARTBEAT_TYPE_MQ = 0,
-  HEARTBEAT_TYPE_QUERY,
-  // types can be added here
-  //
-  HEARTBEAT_TYPE_MAX
-} EHbType;
+enum {
+  CONN_TYPE__QUERY = 1,
+  CONN_TYPE__TMQ,
+  CONN_TYPE__MAX
+};
 
 enum {
   HEARTBEAT_KEY_DBINFO = 1,
@@ -86,30 +84,31 @@ enum {
 
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
-  TSDB_MGMT_TABLE_ACCT,
-  TSDB_MGMT_TABLE_USER,
-  TSDB_MGMT_TABLE_DB,
-  TSDB_MGMT_TABLE_TABLE,
   TSDB_MGMT_TABLE_DNODE,
   TSDB_MGMT_TABLE_MNODE,
+  TSDB_MGMT_TABLE_MODULE,
   TSDB_MGMT_TABLE_QNODE,
   TSDB_MGMT_TABLE_SNODE,
   TSDB_MGMT_TABLE_BNODE,
-  TSDB_MGMT_TABLE_VGROUP,
-  TSDB_MGMT_TABLE_STB,
-  TSDB_MGMT_TABLE_MODULE,
-  TSDB_MGMT_TABLE_QUERIES,
-  TSDB_MGMT_TABLE_STREAMS,
-  TSDB_MGMT_TABLE_VARIABLES,
-  TSDB_MGMT_TABLE_CONNS,
-  TSDB_MGMT_TABLE_TRANS,
-  TSDB_MGMT_TABLE_GRANTS,
-  TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_CLUSTER,
-  TSDB_MGMT_TABLE_STREAMTABLES,
-  TSDB_MGMT_TABLE_TP,
+  TSDB_MGMT_TABLE_DB,
   TSDB_MGMT_TABLE_FUNC,
   TSDB_MGMT_TABLE_INDEX,
+  TSDB_MGMT_TABLE_STB,
+  TSDB_MGMT_TABLE_STREAMS,
+  TSDB_MGMT_TABLE_TABLE,
+  TSDB_MGMT_TABLE_USER,
+  TSDB_MGMT_TABLE_GRANTS,
+  TSDB_MGMT_TABLE_VGROUP,
+  TSDB_MGMT_TABLE_TOPICS,
+  TSDB_MGMT_TABLE_CONSUMERS,
+  TSDB_MGMT_TABLE_SUBSCRIBES,
+  TSDB_MGMT_TABLE_TRANS,
+  TSDB_MGMT_TABLE_SMAS,
+  TSDB_MGMT_TABLE_CONFIGS,
+  TSDB_MGMT_TABLE_CONNS,
+  TSDB_MGMT_TABLE_QUERIES,
+  TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -345,7 +344,7 @@ int32_t tDeserializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 typedef struct {
   int32_t acctId;
   int64_t clusterId;
-  int32_t connId;
+  uint32_t connId;
   int8_t  superUser;
   int8_t  connType;
   SEpSet  epSet;
@@ -363,7 +362,7 @@ typedef struct {
   int32_t maxTimeSeries;
   int32_t maxStreams;
   int32_t accessState;  // Configured only by command
-  int64_t maxStorage;   // In unit of GB
+  int64_t maxStorage;
 } SCreateAcctReq, SAlterAcctReq;
 
 int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
@@ -1048,40 +1047,6 @@ int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* 
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 
 typedef struct {
-  char    sql[TSDB_SHOW_SQL_LEN];
-  int32_t queryId;
-  int64_t useconds;
-  int64_t stime;
-  int64_t qId;
-  int64_t sqlObjId;
-  int32_t pid;
-  char    fqdn[TSDB_FQDN_LEN];
-  int8_t  stableQuery;
-  int32_t numOfSub;
-  char    subSqlInfo[TSDB_SHOW_SUBQUERY_LEN];  // include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
-} SQueryDesc;
-
-typedef struct {
-  int32_t connId;
-  int32_t pid;
-  int32_t numOfQueries;
-  int32_t numOfStreams;
-  char    app[TSDB_APP_NAME_LEN];
-  char    pData[];
-} SHeartBeatReq;
-
-typedef struct {
-  int32_t connId;
-  int32_t queryId;
-  int32_t streamId;
-  int32_t totalDnodes;
-  int32_t onlineDnodes;
-  int8_t  killConnection;
-  int8_t  align[3];
-  SEpSet  epSet;
-} SHeartBeatRsp;
-
-typedef struct {
   int32_t connId;
   int32_t queryId;
 } SKillQueryReq;
@@ -1683,13 +1648,48 @@ typedef struct {
 } SKv;
 
 typedef struct {
-  int32_t connId;
-  int32_t hbType;
+  int64_t tscRid;
+  int8_t  connType;
 } SClientHbKey;
 
 typedef struct {
-  SClientHbKey connKey;
-  SHashObj*    info;  // hash<Skv.key, Skv>
+  int64_t tid;
+  int32_t status;
+} SQuerySubDesc;
+
+typedef struct {
+  char     sql[TSDB_SHOW_SQL_LEN];
+  uint64_t queryId;
+  int64_t  useconds;
+  int64_t  stime;
+  int64_t  reqRid;
+  int32_t  pid;
+  char     fqdn[TSDB_FQDN_LEN];
+  int32_t  subPlanNum;
+  SArray*  subDesc;    // SArray<SQuerySubDesc>
+} SQueryDesc;
+
+typedef struct {
+  uint32_t   connId;
+  int32_t    pid;
+  char       app[TSDB_APP_NAME_LEN];
+  SArray*    queryDesc;   // SArray<SQueryDesc>
+} SQueryHbReqBasic;
+
+typedef struct {
+  uint32_t connId;
+  uint64_t killRid;
+  int32_t  totalDnodes;
+  int32_t  onlineDnodes;
+  int8_t   killConnection;
+  int8_t   align[3];
+  SEpSet   epSet;
+} SQueryHbRspBasic;
+
+typedef struct {
+  SClientHbKey      connKey;
+  SQueryHbReqBasic* query;
+  SHashObj*         info;  // hash<Skv.key, Skv>
 } SClientHbReq;
 
 typedef struct {
@@ -1698,9 +1698,10 @@ typedef struct {
 } SClientHbBatchReq;
 
 typedef struct {
-  SClientHbKey connKey;
-  int32_t      status;
-  SArray*      info;  // Array<Skv>
+  SClientHbKey      connKey;
+  int32_t           status;
+  SQueryHbRspBasic* query;
+  SArray*           info;  // Array<Skv>
 } SClientHbRsp;
 
 typedef struct {
@@ -1720,8 +1721,23 @@ static FORCE_INLINE void tFreeReqKvHash(SHashObj* info) {
   }
 }
 
+static FORCE_INLINE void tFreeClientHbQueryDesc(void* pDesc) {
+  SQueryDesc* desc = (SQueryDesc*)pDesc;
+  if (desc->subDesc) {
+    taosArrayDestroy(desc->subDesc);
+    desc->subDesc = NULL;
+  }
+}
+
 static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
+  if (req->query) {
+    if (req->query->queryDesc) {
+      taosArrayDestroyEx(req->query->queryDesc, tFreeClientHbQueryDesc);
+    }
+    taosMemoryFreeClear(req->query);
+  }
+  
   if (req->info) {
     tFreeReqKvHash(req->info);
     taosHashCleanup(req->info);
@@ -1750,6 +1766,7 @@ static FORCE_INLINE void tFreeClientKv(void* pKv) {
 
 static FORCE_INLINE void tFreeClientHbRsp(void* pRsp) {
   SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
+  taosMemoryFreeClear(rsp->query);
   if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
 }
 
@@ -1778,14 +1795,14 @@ static FORCE_INLINE int32_t tDecodeSKv(SCoder* pDecoder, SKv* pKv) {
 }
 
 static FORCE_INLINE int32_t tEncodeSClientHbKey(SCoder* pEncoder, const SClientHbKey* pKey) {
-  if (tEncodeI32(pEncoder, pKey->connId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pKey->hbType) < 0) return -1;
+  if (tEncodeI64(pEncoder, pKey->tscRid) < 0) return -1;
+  if (tEncodeI8(pEncoder, pKey->connType) < 0) return -1;
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSClientHbKey(SCoder* pDecoder, SClientHbKey* pKey) {
-  if (tDecodeI32(pDecoder, &pKey->connId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pKey->hbType) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pKey->tscRid) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pKey->connType) < 0) return -1;
   return 0;
 }
 
@@ -1884,7 +1901,6 @@ typedef struct {
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CGROUP_LEN];
   char*   sql;
-  char*   logicalPlan;
   char*   physicalPlan;
   char*   qmsg;
 } SMqSetCVgReq;
@@ -1898,7 +1914,6 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->topicName);
   tlen += taosEncodeString(buf, pReq->cgroup);
   tlen += taosEncodeString(buf, pReq->sql);
-  tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeString(buf, pReq->qmsg);
   return tlen;
@@ -1912,7 +1927,6 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeStringTo(buf, pReq->topicName);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeString(buf, &pReq->sql);
-  buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
   buf = taosDecodeString(buf, &pReq->qmsg);
   return buf;

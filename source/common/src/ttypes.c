@@ -377,7 +377,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
      getStatics_i64},
     {TSDB_DATA_TYPE_FLOAT, 5, FLOAT_BYTES, "FLOAT", 0, 0, tsCompressFloat, tsDecompressFloat, getStatics_f},
     {TSDB_DATA_TYPE_DOUBLE, 6, DOUBLE_BYTES, "DOUBLE", 0, 0, tsCompressDouble, tsDecompressDouble, getStatics_d},
-    {TSDB_DATA_TYPE_BINARY, 6, 0, "BINARY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
+    {TSDB_DATA_TYPE_VARCHAR, 6, 0, "VARCHAR", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
     {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES, "TIMESTAMP", INT64_MIN, INT64_MAX, tsCompressTimestamp,
      tsDecompressTimestamp, getStatics_i64},
     {TSDB_DATA_TYPE_NCHAR, 5, 8, "NCHAR", 0, 0, tsCompressString, tsDecompressString, getStatics_nchr},
@@ -403,7 +403,7 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_DOUBLE,  // TK_DOUBLE
     TSDB_DATA_TYPE_BINARY,  // TK_STRING
     TSDB_DATA_TYPE_BIGINT,  // TK_TIMESTAMP
-    TSDB_DATA_TYPE_BINARY,  // TK_BINARY
+    TSDB_DATA_TYPE_VARCHAR,  // TK_BINARY
     TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
 };
 

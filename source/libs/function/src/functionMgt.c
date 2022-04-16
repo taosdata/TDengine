@@ -69,19 +69,19 @@ int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncTyp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc) {
+int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
-  return funcMgtBuiltins[pFunc->funcId].checkFunc(pFunc);
+  return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pErrBuf, len);
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
-    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   if (NULL == funcMgtBuiltins[pFunc->funcId].dataRequiredFunc) {
-    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }
@@ -136,6 +136,10 @@ bool fmIsSpecialDataRequiredFunc(int32_t funcId) {
 
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_DYNAMIC_SCAN_OPTIMIZED);
+}
+
+bool fmIsMultiResFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC);
 }
 
 void fmFuncMgtDestroy() {

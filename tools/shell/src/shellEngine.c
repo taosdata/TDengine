@@ -308,6 +308,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
     atomic_store_64(&result, 0);
     freeResultWithRid(oresult);
+    taos_free_result(pSql);    
+    
     return;
   }
 

@@ -19,14 +19,377 @@
 #include "taoserror.h"
 #include "tdatablock.h"
 
-int32_t checkAndGetResultType(SFunctionNode* pFunc);
+static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
+  va_list vArgList;
+  va_start(vArgList, pFormat);
+  vsnprintf(pErrBuf, len, pFormat, vArgList);
+  va_end(vArgList);
+  return errCode;
+}
+
+static int32_t invaildFuncParaNumErrMsg(char* pErrBuf, int32_t len, const char* pFuncName) {
+  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_NUM, "Invalid number of arguments : %s", pFuncName);
+}
+
+static int32_t invaildFuncParaTypeErrMsg(char* pErrBuf, int32_t len, const char* pFuncName) {
+  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "Inconsistent datatypes : %s", pFuncName);
+}
+
+// There is only one parameter of numeric type, and the return type is parameter type
+static int32_t translateInOutNum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+  return TSDB_CODE_SUCCESS;
+}
+
+// There is only one parameter of numeric type, and the return type is double type
+static int32_t translateInNumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  return TSDB_CODE_SUCCESS;
+}
+
+// There are two parameters of numeric type, and the return type is double type
+static int32_t translateIn2NumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_NUMERIC_TYPE(para1Type) || !IS_NUMERIC_TYPE(para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  return TSDB_CODE_SUCCESS;
+}
+
+// There is only one parameter of string type, and the return type is parameter type
+static int32_t translateInOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  if (!IS_VAR_DATA_TYPE(pPara1->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = pPara1->resType.bytes, .type = pPara1->resType.type };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t resType = 0;
+  if (IS_SIGNED_NUMERIC_TYPE(paraType) || paraType == TSDB_DATA_TYPE_BOOL) {
+    resType = TSDB_DATA_TYPE_BIGINT;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
+    resType = TSDB_DATA_TYPE_UBIGINT;
+  } else if (IS_FLOAT_TYPE(paraType)) {
+    resType = TSDB_DATA_TYPE_DOUBLE;
+  }
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_NUMERIC_TYPE(para1Type) || (!IS_SIGNED_NUMERIC_TYPE(para2Type) &&  !IS_UNSIGNED_NUMERIC_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool validAperventileAlgo(const SValueNode* pVal) {
+  if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
+    return false;
+  }
+  return (0 == strcasecmp(varDataVal(pVal->datum.p), "default") || 0 == strcasecmp(varDataVal(pVal->datum.p), "t-digest"));
+}
+
+static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != paraNum && 3 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  if (3 == paraNum) {
+    SNode* pPara3 = nodesListGetNode(pFunc->pParameterList, 2);
+    if (QUERY_NODE_VALUE != nodeType(pPara3) || !validAperventileAlgo((SValueNode*)pPara3)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateBottom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // first(col_list) will be rewritten as first(col)
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "The parameters of first/last can only be columns");
+  }
+
+  uint8_t paraType = ((SExprNode*)pPara)->resType.type;
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (!IS_VAR_DATA_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes, .type = TSDB_DATA_TYPE_SMALLINT };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum, int32_t maxParaNum, int32_t primaryParaNo) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (paraNum < minParaNum || paraNum > maxParaNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t resultType = TSDB_DATA_TYPE_NCHAR;
+  int32_t resultBytes = 0;
+  int32_t sepBytes = 0;
+  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); ++i) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
+    uint8_t paraType = ((SExprNode*)pPara)->resType.type;
+    int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
+    if (!IS_VAR_DATA_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    if (i < primaryParaNo) {
+      sepBytes = paraBytes;
+      continue;
+    }
+    if (TSDB_DATA_TYPE_BINARY == paraType) {
+      resultType = TSDB_DATA_TYPE_BINARY;
+    }
+    resultBytes += paraBytes;
+  }
+  if (sepBytes > 0) {
+    resultBytes += sepBytes * (paraNum - 2);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = resultBytes, .type = resultType };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateConcat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateConcatImpl(pFunc, pErrBuf, len, 2, 8, 0);
+}
+
+static int32_t translateConcatWs(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateConcatImpl(pFunc, pErrBuf, len, 3, 9, 1);
+}
+
+static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != paraNum && 3 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_VAR_DATA_TYPE(pPara1->resType.type) || !IS_INTEGER_TYPE(para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  if (3 == paraNum) {
+    uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_INTEGER_TYPE(para3Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = pPara1->resType.bytes, .type = pPara1->resType.type };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // The number of parameters has been limited by the syntax definition
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  // The function return type has been set during syntax parsing
+  uint8_t para2Type = pFunc->node.resType.type;
+  if ((TSDB_DATA_TYPE_JSON == para1Type || TSDB_DATA_TYPE_BLOB == para1Type || TSDB_DATA_TYPE_MEDIUMBLOB == para1Type) ||
+      (TSDB_DATA_TYPE_JSON == para2Type || TSDB_DATA_TYPE_BLOB == para2Type || TSDB_DATA_TYPE_MEDIUMBLOB == para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_VAR_DATA_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (!IS_VAR_DATA_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((!IS_VAR_DATA_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != paraNum && 3 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((!IS_VAR_DATA_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) || 
+      (!IS_VAR_DATA_TYPE(para2Type) && TSDB_DATA_TYPE_TIMESTAMP != para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  if (3 == paraNum) {
+    if (!IS_INTEGER_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_VALUE != nodeType(pPara) || (!IS_VAR_DATA_TYPE(pPara->resType.type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_JSON].bytes, .type = TSDB_DATA_TYPE_JSON};
+  return TSDB_CODE_SUCCESS;
+}
 
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateCount,
     .dataRequiredFunc = countDataRequired,
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
@@ -37,7 +400,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateSum,
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
@@ -47,7 +410,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minFunctionSetup,
     .processFunc  = minFunction,
@@ -57,7 +420,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -67,7 +430,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "stddev",
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
@@ -77,7 +440,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "percentile",
     .type = FUNCTION_TYPE_PERCENTILE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translatePercentile,
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,
     .processFunc  = percentileFunction,
@@ -87,7 +450,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "apercentile",
     .type = FUNCTION_TYPE_APERCENTILE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateApercentile,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -97,7 +460,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTop,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -107,7 +470,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateBottom,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -117,7 +480,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "spread",
     .type = FUNCTION_TYPE_SPREAD,
     .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateSpread,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -126,8 +489,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
+    .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -136,8 +499,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
-    .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
+    .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
@@ -146,8 +509,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
+    .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
@@ -157,7 +520,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
     .processFunc  = diffFunction,
@@ -167,7 +530,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "abs",
     .type = FUNCTION_TYPE_ABS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = absFunction,
@@ -177,7 +540,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "log",
     .type = FUNCTION_TYPE_LOG,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateIn2NumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = logFunction,
@@ -187,7 +550,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "pow",
     .type = FUNCTION_TYPE_POW,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateIn2NumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = powFunction,
@@ -197,7 +560,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sqrt",
     .type = FUNCTION_TYPE_SQRT,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = sqrtFunction,
@@ -207,7 +570,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ceil",
     .type = FUNCTION_TYPE_CEIL,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = ceilFunction,
@@ -217,7 +580,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "floor",
     .type = FUNCTION_TYPE_FLOOR,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = floorFunction,
@@ -227,7 +590,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "round",
     .type = FUNCTION_TYPE_ROUND,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutNum,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = roundFunction,
@@ -237,7 +600,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sin",
     .type = FUNCTION_TYPE_SIN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = sinFunction,
@@ -247,7 +610,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "cos",
     .type = FUNCTION_TYPE_COS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = cosFunction,
@@ -257,7 +620,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "tan",
     .type = FUNCTION_TYPE_TAN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = tanFunction,
@@ -267,7 +630,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "asin",
     .type = FUNCTION_TYPE_ASIN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = asinFunction,
@@ -277,7 +640,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "acos",
     .type = FUNCTION_TYPE_ACOS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = acosFunction,
@@ -287,7 +650,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "atan",
     .type = FUNCTION_TYPE_ATAN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInNumOutDou,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = atanFunction,
@@ -297,7 +660,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "length",
     .type = FUNCTION_TYPE_LENGTH,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateLength,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = lengthFunction,
@@ -307,7 +670,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "char_length",
     .type = FUNCTION_TYPE_CHAR_LENGTH,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateLength,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = charLengthFunction,
@@ -317,7 +680,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateConcat,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = concatFunction,
@@ -327,7 +690,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "concat_ws",
     .type = FUNCTION_TYPE_CONCAT_WS,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateConcatWs,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = concatWsFunction,
@@ -337,7 +700,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "lower",
     .type = FUNCTION_TYPE_LOWER,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutStr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = lowerFunction,
@@ -347,7 +710,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "upper",
     .type = FUNCTION_TYPE_UPPER,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutStr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = upperFunction,
@@ -357,7 +720,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ltrim",
     .type = FUNCTION_TYPE_LTRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutStr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = ltrimFunction,
@@ -367,7 +730,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "rtrim",
     .type = FUNCTION_TYPE_RTRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateInOutStr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = rtrimFunction,
@@ -377,7 +740,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "substr",
     .type = FUNCTION_TYPE_SUBSTR,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateSubstr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = substrFunction,
@@ -387,7 +750,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "cast",
     .type = FUNCTION_TYPE_CAST,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateCast,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = castFunction,
@@ -397,7 +760,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "to_iso8601",
     .type = FUNCTION_TYPE_TO_ISO8601,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateToIso8601,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = toISO8601Function,
@@ -407,7 +770,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "to_unixtimestamp",
     .type = FUNCTION_TYPE_TO_UNIXTIMESTAMP,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateToUnixtimestamp,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = toUnixtimestampFunction,
@@ -417,7 +780,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "timetruncate",
     .type = FUNCTION_TYPE_TIMETRUNCATE,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimeTruncate,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = timeTruncateFunction,
@@ -427,17 +790,37 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "timediff",
     .type = FUNCTION_TYPE_TIMEDIFF,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimeDiff,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = timeDiffFunction,
     .finalizeFunc = NULL
   },
   {
+    .name = "now",
+    .type = FUNCTION_TYPE_NOW,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = nowFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "today",
+    .type = FUNCTION_TYPE_TODAY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = todayFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
@@ -447,7 +830,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = NULL,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
@@ -457,7 +840,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_qstartts",
     .type = FUNCTION_TYPE_QSTARTTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = qStartTsFunction,
@@ -467,7 +850,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_qendts",
     .type = FUNCTION_TYPE_QENDTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = qEndTsFunction,
@@ -477,7 +860,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_wstartts",
     .type = FUNCTION_TYPE_WSTARTTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = winStartTsFunction,
@@ -487,7 +870,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_wendts",
     .type = FUNCTION_TYPE_QENDTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = winEndTsFunction,
@@ -497,186 +880,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_wduration",
     .type = FUNCTION_TYPE_WDURATION,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
-    .checkFunc    = checkAndGetResultType,
+    .translateFunc = translateWduration,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = winDurFunction,
     .finalizeFunc = NULL
   },
   {
-    .name = "now",
-    .type = FUNCTION_TYPE_NOW,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .checkFunc    = checkAndGetResultType,
-    .getEnvFunc   = getTimePseudoFuncEnv,
+    .name = "to_json",
+    .type = FUNCTION_TYPE_TO_JSON,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateToJson,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = winDurFunction,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   }
 };
 
 const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFuncDefinition));
-
-int32_t checkAndGetResultType(SFunctionNode* pFunc) {
-  switch(pFunc->funcType) {
-    case FUNCTION_TYPE_WDURATION:
-    case FUNCTION_TYPE_COUNT: {
-      pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
-      break;
-    }
-
-    case FUNCTION_TYPE_SUM: {
-      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-      int32_t paraType = pParam->node.resType.type;
-
-      int32_t resType  = 0;
-      if (IS_SIGNED_NUMERIC_TYPE(paraType) || paraType == TSDB_DATA_TYPE_BOOL) {
-        resType = TSDB_DATA_TYPE_BIGINT;
-      } else if (IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
-        resType = TSDB_DATA_TYPE_UBIGINT;
-      } else if (IS_FLOAT_TYPE(paraType)) {
-        resType = TSDB_DATA_TYPE_DOUBLE;
-      } else {
-        ASSERT(0);
-      }
-
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType };
-      break;
-    }
-
-    case FUNCTION_TYPE_DIFF:
-    case FUNCTION_TYPE_FIRST:
-    case FUNCTION_TYPE_LAST:
-    case FUNCTION_TYPE_MIN:
-    case FUNCTION_TYPE_MAX: {
-      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-      int32_t paraType = pParam->node.resType.type;
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
-      break;
-    }
-
-    case FUNCTION_TYPE_ROWTS:
-    case FUNCTION_TYPE_QSTARTTS:
-    case FUNCTION_TYPE_QENDTS:
-    case FUNCTION_TYPE_WSTARTTS:
-    case FUNCTION_TYPE_WENDTS:{
-      pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
-      break;
-    }
-
-    case FUNCTION_TYPE_ABS:
-    case FUNCTION_TYPE_CEIL:
-    case FUNCTION_TYPE_FLOOR:
-    case FUNCTION_TYPE_ROUND: {
-      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-      int32_t paraType = pParam->node.resType.type;
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
-      break;
-    }
-
-    case FUNCTION_TYPE_PERCENTILE:
-    case FUNCTION_TYPE_STDDEV:
-    case FUNCTION_TYPE_SIN:
-    case FUNCTION_TYPE_COS:
-    case FUNCTION_TYPE_TAN:
-    case FUNCTION_TYPE_ASIN:
-    case FUNCTION_TYPE_ACOS:
-    case FUNCTION_TYPE_ATAN:
-    case FUNCTION_TYPE_SQRT:
-    case FUNCTION_TYPE_LOG:
-    case FUNCTION_TYPE_POW: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
-      break;
-    }
-
-    case FUNCTION_TYPE_LENGTH:
-    case FUNCTION_TYPE_CHAR_LENGTH: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes, .type = TSDB_DATA_TYPE_SMALLINT };
-      break;
-    }
-
-    case FUNCTION_TYPE_CONCAT:
-    case FUNCTION_TYPE_CONCAT_WS: {
-      int32_t paraType, paraBytes = 0;
-      bool typeSet = false;
-      for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
-        SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
-        if (pParam->node.type == QUERY_NODE_COLUMN) {
-          if (typeSet == false) {
-            paraType = pParam->node.resType.type;
-            typeSet = true;
-          } else {
-            //columns have to be the same type
-            if (paraType != pParam->node.resType.type) {
-              return TSDB_CODE_FAILED;
-            }
-          }
-          paraBytes += pParam->node.resType.bytes;
-        }
-      }
-
-      for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
-        SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
-        if (pParam->node.type == QUERY_NODE_VALUE) {
-          if (paraType == TSDB_DATA_TYPE_NCHAR) {
-            paraBytes += pParam->node.resType.bytes * TSDB_NCHAR_SIZE;
-          } else {
-            paraBytes += pParam->node.resType.bytes;
-          }
-        }
-      }
-      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
-      break;
-    }
-    case FUNCTION_TYPE_LOWER:
-    case FUNCTION_TYPE_UPPER:
-    case FUNCTION_TYPE_LTRIM:
-    case FUNCTION_TYPE_RTRIM:
-    case FUNCTION_TYPE_SUBSTR: {
-      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-      int32_t paraType  = pParam->node.resType.type;
-      int32_t paraBytes = pParam->node.resType.bytes;
-      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
-      break;
-    }
-    case FUNCTION_TYPE_CAST: {
-      //type
-      SValueNode* pParam = nodesListGetNode(pFunc->pParameterList, 1);
-      int32_t paraType = pParam->datum.i;
-      //bytes
-      pParam = nodesListGetNode(pFunc->pParameterList, 2);
-      int32_t paraBytes = pParam->datum.i;
-      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType};
-      break;
-    }
-    case FUNCTION_TYPE_TO_ISO8601: {
-      pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
-      break;
-    }
-    case FUNCTION_TYPE_TO_UNIXTIMESTAMP: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
-      break;
-    }
-    case FUNCTION_TYPE_TIMETRUNCATE: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
-      break;
-    }
-    case FUNCTION_TYPE_TIMEDIFF: {
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
-      break;
-    }
-
-    case FUNCTION_TYPE_TBNAME: {
-      // todo
-      break;
-    }
-
-    case FUNCTION_TYPE_NOW:
-      // todo
-      break;
-    default:
-      ASSERT(0); // to found the fault ASAP.
-  }
-
-  return TSDB_CODE_SUCCESS;
-}

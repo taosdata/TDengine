@@ -209,7 +209,9 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
   SNode* pExpr = pRawExpr->pNode;
   if (nodesIsExprNode(pExpr)) {
-    strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, pRawExpr->n);
+    int32_t len = TMIN(sizeof(((SExprNode*)pExpr)->aliasName) - 1, pRawExpr->n);
+    strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, len);
+    ((SExprNode*)pExpr)->aliasName[len] = '\0';
   }
   taosMemoryFreeClear(pNode);
   return pExpr;
@@ -252,33 +254,6 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   }
   strncpy(col->colName, pColumnName->z, pColumnName->n);
   return (SNode*)col;
-}
-
-SNodeList* addValueNodeFromTypeToList(SAstCreateContext* pCxt, SDataType dataType, SNodeList* pList) {
-  char buf[64] = {0};
-  //add value node for type
-  snprintf(buf, sizeof(buf), "%u", dataType.type);
-  SToken token = {.type = TSDB_DATA_TYPE_SMALLINT, .n = strlen(buf), .z = buf};
-  SNode* pNode = createValueNode(pCxt, token.type, &token);
-  addNodeToList(pCxt, pList, pNode);
-
-  //add value node for bytes
-  memset(buf, 0, sizeof(buf));
-  int32_t bytes;
-  if (IS_VAR_DATA_TYPE(dataType.type)) {
-    bytes = (dataType.type == TSDB_DATA_TYPE_NCHAR) ? dataType.bytes * TSDB_NCHAR_SIZE : dataType.bytes;
-    bytes += VARSTR_HEADER_SIZE;
-  } else {
-    bytes = dataType.bytes;
-  }
-  snprintf(buf, sizeof(buf), "%d", bytes);
-  token.type = TSDB_DATA_TYPE_BIGINT;
-  token.n = strlen(buf);
-  token.z = buf;
-  pNode = createValueNode(pCxt, token.type, &token);
-  addNodeToList(pCxt, pList, pNode);
-
-  return pList;
 }
 
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
@@ -328,6 +303,13 @@ SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   val->node.resType.type = TSDB_DATA_TYPE_BINARY;
   val->node.resType.bytes = strlen(val->literal);
   val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  return (SNode*)val;
+}
+
+SNode* createPlaceholderValueNode(SAstCreateContext* pCxt) {
+  SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  CHECK_OUT_OF_MEM(val);
+  // todo
   return (SNode*)val;
 }
 
@@ -383,6 +365,48 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   CHECK_OUT_OF_MEM(func);
   strncpy(func->functionName, pFuncName->z, pFuncName->n);
   func->pParameterList = pParameterList;
+  return (SNode*)func;
+}
+
+SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncName) {
+  SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_OUT_OF_MEM(func);
+  char buf[64] = {0};
+
+  int32_t dataType;
+  switch (pFuncName->type) {
+    case TK_NOW: {
+      int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+      snprintf(buf, sizeof(buf), "%"PRId64, ts);
+      dataType = TSDB_DATA_TYPE_BIGINT;
+      break;
+    }
+    case TK_TODAY: {
+      int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
+      snprintf(buf, sizeof(buf), "%"PRId64, ts);
+      dataType = TSDB_DATA_TYPE_BIGINT;
+      break;
+    }
+    //case TK_TIMEZONE: {
+    //  strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
+    //  dataType = TSDB_DATA_TYPE_BINARY;
+    //  break;
+    //}
+  }
+  SToken token = {.type = pFuncName->type, .n = strlen(buf), .z = buf};
+
+  SNodeList *pParameterList = createNodeList(pCxt, createValueNode(pCxt, dataType, &token));
+  strncpy(func->functionName, pFuncName->z, pFuncName->n);
+  func->pParameterList = pParameterList;
+  return (SNode*)func;
+}
+
+SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt) {
+  SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_OUT_OF_MEM(func);
+  strcpy(func->functionName, "cast");
+  func->node.resType = dt;
+  nodesListMakeAppend(&func->pParameterList, pExpr);
   return (SNode*)func;
 }
 
@@ -1171,16 +1195,34 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName) 
   return pStmt;
 }
 
-SNode* createCreateStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName, const SToken* pTableName, SNode* pQuery) {
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
-  CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+SNode* createStreamOptions(SAstCreateContext* pCxt) {
+  SStreamOptions* pOptions = nodesMakeNode(QUERY_NODE_STREAM_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->triggerType = STREAM_TRIGGER_AT_ONCE;
+  return (SNode*)pOptions;
 }
 
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, const SToken* pStreamName) {
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT);
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable, SNode* pOptions, SNode* pQuery) {
+  SCreateStreamStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  strncpy(pStmt->streamName, pStreamName->z, pStreamName->n);
+  if (NULL != pRealTable) {
+    strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
+    strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
+    nodesDestroyNode(pRealTable);
+  }
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pOptions = (SStreamOptions*)pOptions;
+  pStmt->pQuery = pQuery;
+  return (SNode*)pStmt;
+}
+
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pStreamName) {
+  SDropStreamStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->streamName, pStreamName->z, pStreamName->n);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
 }
 
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {

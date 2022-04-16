@@ -64,16 +64,19 @@ static void setupQueryRangeForReverseScan(STableScanInfo* pTableScanInfo) {
 #endif
 }
 
-int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
+int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STableScanInfo* pInfo = pOperator->info;
+
   STaskCostInfo* pCost = &pTaskInfo->cost;
 
   pCost->totalBlocks += 1;
+  pCost->loadBlocks  += 1;
+
   pCost->totalRows += pBlock->info.rows;
-
   pCost->totalCheckedRows += pBlock->info.rows;
-  pCost->loadBlocks += 1;
 
-  *status = BLK_DATA_ALL_NEEDED;
+  *status = pInfo->dataBlockLoadFlag;
 
   SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
   if (pCols == NULL) {
@@ -138,15 +141,15 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     //    }
 
     // this function never returns error?
-    uint32_t status = BLK_DATA_ALL_NEEDED;
-    int32_t  code = loadDataBlock(pTaskInfo, pTableScanInfo, pBlock, &status);
+    uint32_t status = BLK_DATA_DATA_LOAD;
+    int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
 
     // current block is ignored according to filter result by block statistics data, continue load the next block
-    if (status == BLK_DATA_DISCARD || pBlock->info.rows == 0) {
+    if (status == BLK_DATA_FILTEROUT || pBlock->info.rows == 0) {
       continue;
     }
 
@@ -217,7 +220,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   return p;
 }
 
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
                                            int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
                                            SNode* pCondition, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
@@ -232,6 +235,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
     return NULL;
   }
 
+  pInfo->dataBlockLoadFlag= dataLoadFlag;
   pInfo->pResBlock        = pResBlock;
   pInfo->pFilterNode      = pCondition;
   pInfo->dataReader       = pTsdbReadHandle;
@@ -767,24 +771,22 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   // TODO remove it
   int32_t     tableType = 0;
   const char* name = tNameGetTableName(pName);
-  if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_DB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_USER;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_DNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_MNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_QNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CLUSTER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_DB;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_FUNC;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, tListLen(pName->tname)) == 0) {
@@ -795,13 +797,33 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_TABLE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, tListLen(pName->tname)) == 0) {
     //    tableType = TSDB_MGMT_TABLE_DIST;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_CLUSTER;
-  } else {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_USER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_GRANTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_VGROUP;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_TOPICS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONSUMERS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CONSUMERS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIBES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SUBSCRIBES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_TRANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SMAS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SMAS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONFIGS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CONFIGS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONNS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CONNS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_QUERIES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_QUERIES;
+  }  else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_VNODES;
+  }else {
     ASSERT(0);
   }
 

@@ -20,11 +20,42 @@ static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
+int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN];
+
+  // TODO: check if directory exists
+
+  // check config
+  if (vnodeCheckCfg(pCfg) < 0) {
+    vError("vgId: %d failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+  // create vnode env
+  if (tfsMkdir(pTfs, path) < 0) {
+    vError("vgId: %d failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  info.config = *pCfg;
+
+  if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
+    vError("vgId: %d failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+  vInfo("vgId: %d vnode is created", pCfg->vgId);
+
+  return 0;
+}
+
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
   // Set default options
-  SVnodeCfg cfg = defaultVnodeOptions;
+  SVnodeCfg cfg = vnodeCfgDefault;
   if (pVnodeCfg != NULL) {
     cfg.vgId = pVnodeCfg->vgId;
     cfg.msgCb = pVnodeCfg->msgCb;
@@ -36,7 +67,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   }
 
   // Validate options
-  if (vnodeValidateOptions(&cfg) < 0) {
+  if (vnodeCheckCfg(&cfg) < 0) {
     // TODO
     return NULL;
   }
