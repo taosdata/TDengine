@@ -23,8 +23,8 @@ if $data04 != ready then
   goto check_dnode_ready
 endi
 
-#root@trd02 /data2/dnode $ tmq_sim --help                                                                          
-#Used to tmq_sim                                                                   
+#root@trd02 /data2/dnode $ tmq_demo --help                                                                          
+#Used to tmq_demo                                                                   
 #        -c      Configuration directory, default is                                                                
 #        -d      The name of the database to be created, default is tmqdb                                           
 #        -s      The name of the super table to be created, default is stb
