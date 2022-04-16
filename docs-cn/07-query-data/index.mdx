@@ -71,7 +71,7 @@ taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now -
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-TDengine 仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在 [TAOS SQL 的数据查询](https://www.taosdata.com/cn/documentation/taos-sql#select) 一章，查询类操作都会注明是否支持超级表。
+TDengine 仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在 [TAOS SQL 的数据查询](/reference/taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
 
 ### 降采样查询、插值
 

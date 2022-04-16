@@ -3,7 +3,7 @@ sidebar_label: Grafana
 title: Grafana
 ---
 
-TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/) 快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。关于 TDengine 插件的使用您可以在[GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md)中了解更多。
+TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/) 快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。关于 TDengine 插件的使用您可以在[GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md)中了解更多。
 
 ## 安装 Grafana
 
@@ -64,7 +64,7 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 ![img](/img/connections/add_datasource3.jpg)
 
-- Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041。注意：从 2.4 版本开始 RESTful 服务默认使用独立组件 taosAdapter 提供，请参考相关文档配置部署。
+- Host： TDengine 集群中提供 RESTful 服务 （在 2.4 之前由 taosd 提供， 从 2.4 开始由 taosAdapter 提供）的组件所在服务器的 IP 地址与 TDengine RESTful 服务的端口号(6041)，默认 http://localhost:6041。
 - User：TDengine 用户名。
 - Password：TDengine 用户密码。
 
@@ -92,4 +92,4 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 ### 导入 Dashboard
 
-在 2.3.3.0 及以上版本，您可以导入 TDinsight Dashboard (Grafana Dashboard ID： [15167](https://grafana.com/grafana/dashboards/15167)) 作为 TDengine 集群的监控可视化工具。安装和使用说明请见 [TDinsight 用户手册](https://www.taosdata.com/cn/documentation/tools/insight)。
+在 2.3.3.0 及以上版本，您可以导入 TDinsight Dashboard (Grafana Dashboard ID： [15167](https://grafana.com/grafana/dashboards/15167)) 作为 TDengine 集群的监控可视化工具。安装和使用说明请见 [TDinsight 用户手册](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight-CN.md)。

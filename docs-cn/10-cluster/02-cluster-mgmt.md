@@ -1,8 +1,6 @@
 ---
-title: 集群管理
+title: 数据节点管理
 ---
-
-## 数据节点管理
 
 上面已经介绍如何从零开始搭建集群。集群组建完后，还可以随时添加新的数据节点进行扩容，或删除数据节点，并检查集群当前状态。
 
@@ -14,7 +12,7 @@ title: 集群管理
 
 ## 添加数据节点
 
-执行 CLI 程序 taos，执行：
+启动 CLI 程序 taos，然后执行：
 
 ```sql
 CREATE DNODE "fqdn:port";
@@ -24,13 +22,13 @@ CREATE DNODE "fqdn:port";
 
 ## 删除数据节点
 
-执行 CLI 程序 taos，执行：
+启动 CLI 程序 taos，然后执行：
 
 ```sql
 DROP DNODE "fqdn:port | dnodeID";
 ```
 
-通过“fqdn:port”或“dnodeID”来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
+通过 “fqdn:port” 或 “dnodeID” 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
 
 :::warning
 
@@ -45,7 +43,7 @@ dnodeID 是集群自动分配的，不得人工指定。它在生成时是递增
 
 手动将某个 vnode 迁移到指定的 dnode。
 
-执行 CLI 程序 taos，执行：
+启动 CLI 程序 taos，然后执行：
 
 ```sql
 ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
@@ -63,7 +61,7 @@ ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
 
 ## 查看数据节点
 
-执行 CLI 程序 taos，执行：
+启动 CLI 程序 taos，然后执行：
 
 ```sql
 SHOW DNODES;
@@ -75,7 +73,7 @@ SHOW DNODES;
 
 为充分利用多核技术，并提供 scalability，数据需要分片处理。因此 TDengine 会将一个 DB 的数据切分成多份，存放在多个 vnode 里。这些 vnode 可能分布在多个数据节点 dnode 里，这样就实现了水平扩展。一个 vnode 仅仅属于一个 DB，但一个 DB 可以有多个 vnode。vnode 所在的数据节点是 mnode 根据当前系统资源的情况，自动进行分配的，无需任何人工干预。
 
-执行 CLI 程序 taos，执行：
+启动 CLI 程序 taos，然后执行：
 
 ```sql
 USE SOME_DATABASE;

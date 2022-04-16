@@ -5,9 +5,9 @@ title: Telegraf 写入
 
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
+TDengine 新版本（2.4.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
 
-配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username 和 password 填写 TDengine 实际值：
+配置方法，在 /etc/telegraf/telegraf.conf 增加如下配置，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server、cluster host、username 和 password 填写 TDengine 集群中的实际配置：
 
 ```
 [[outputs.http]]
