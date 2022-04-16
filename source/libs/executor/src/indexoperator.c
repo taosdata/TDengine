@@ -125,18 +125,37 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
 
   SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
   if (nParam > 1) {
-    SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[0], ctx));
+    SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
   }
   *params = paramList;
-  SIF_RET(TSDB_CODE_SUCCESS);
+  return TSDB_CODE_SUCCESS;
 _return:
   taosMemoryFree(paramList);
   SIF_RET(code);
 }
-// int32_t sifInitOperParams(SIFParam *params, SOperatorNode *node, SIFCtx *ctx) {
-//  int32_t code = 0;
-//  return code;
-//}
+static int32_t sifInitParamList(SIFParam **params, SNodeList *nodeList, SIFCtx *ctx) {
+  int32_t   code = 0;
+  SIFParam *tParams = taosMemoryCalloc(nodeList->length, sizeof(SIFParam));
+  if (tParams == NULL) {
+    qError("failed to calloc, nodeList: %p", nodeList);
+    SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  SListCell *cell = nodeList->pHead;
+  for (int32_t i = 0; i < nodeList->length; i++) {
+    if (NULL == cell || NULL == cell->pNode) {
+      SIF_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    SIF_ERR_JRET(sifInitParam(cell->pNode, &tParams[i], ctx));
+    cell = cell->pNext;
+  }
+  *params = tParams;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  taosMemoryFree(tParams);
+  SIF_RET(code);
+}
 static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *output) {
   qError("index-filter not support buildin function");
   return TSDB_CODE_QRY_INVALID_INPUT;
@@ -251,12 +270,27 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
     qError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList, node->pParameterList ? node->pParameterList->length : 0);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
-  // impl later
-  return TSDB_CODE_SUCCESS;
+
+  int32_t   code;
+  SIFParam *params = NULL;
+  SIF_ERR_RET(sifInitParamList(&params, node->pParameterList, ctx));
+
+  for (int32_t m = 0; m < node->pParameterList->length; m++) {
+    // add impl later
+    if (node->condType == LOGIC_COND_TYPE_AND) {
+      taosArrayAddAll(output->result, params[m].result);
+    } else if (node->condType == LOGIC_COND_TYPE_OR) {
+      taosArrayAddAll(output->result, params[m].result);
+    } else if (node->condType == LOGIC_COND_TYPE_NOT) {
+      taosArrayAddAll(output->result, params[m].result);
+    }
+  }
+_return:
+  taosMemoryFree(params);
+  SIF_RET(code);
 }
 
 static EDealRes sifWalkFunction(SNode *pNode, void *context) {
-  // impl later
   SFunctionNode *node = (SFunctionNode *)pNode;
   SIFParam       output = {0};
 
