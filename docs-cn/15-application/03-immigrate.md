@@ -397,4 +397,4 @@ FQDN、firstEp、secondEP、dataDir、logDir、tmpDir、serverPort。各参数�
 ## 附录 5：参考文章
 
 1. [使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统](/application/collectd/)
-2. [通过 collectd 将采集数据直接写入 TDengine](/collectd/)
+2. [通过 collectd 将采集数据直接写入 TDengine](/third-party/collectd/)
