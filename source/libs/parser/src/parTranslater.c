@@ -491,6 +491,14 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes haveAggFunction(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+    *((bool*)pContext) = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pFunc->functionName, &pFunc->funcId, &pFunc->funcType)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_FUNTION, pFunc->functionName);
@@ -501,6 +509,11 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
   }
   if (fmIsAggFunc(pFunc->funcId) && beforeHaving(pCxt->currClause)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  }
+  bool haveAggFunc = false;
+  nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
+  if (haveAggFunc) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   return DEAL_RES_CONTINUE;
 }
@@ -2181,6 +2194,14 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
     if (NULL == createReq.sql) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pOptions->pWatermark) {
+    code = (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pWatermark)) ? pCxt->errCode : TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    createReq.triggerType = pStmt->pOptions->triggerType;
+    createReq.watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -1209,12 +1209,17 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
+#define STREAM_TRIGGER_AT_ONCE      1
+#define STREAM_TRIGGER_WINDOW_CLOSE 2
+
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
   char   outputSTbName[TSDB_TABLE_FNAME_LEN];
   int8_t igExists;
   char*  sql;
   char*  ast;
+  int8_t triggerType;
+  int64_t watermark;
 } SCMCreateStreamReq;
 
 typedef struct {

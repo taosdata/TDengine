@@ -3900,7 +3900,7 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[-1].minor.yy652 = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
         break;
       case 234: /* cmd ::= CREATE STREAM not_exists_opt stream_name stream_options into_opt AS query_expression */
-{ pCxt->pRootNode = createCreateStreamStmt(pCxt, yymsp[-5].minor.yy649, &yymsp[-4].minor.yy537, yymsp[-3].minor.yy456, yymsp[-2].minor.yy456, yymsp[0].minor.yy456); }
+{ pCxt->pRootNode = createCreateStreamStmt(pCxt, yymsp[-5].minor.yy649, &yymsp[-4].minor.yy537, yymsp[-2].minor.yy456, yymsp[-3].minor.yy456, yymsp[0].minor.yy456); }
         break;
       case 235: /* cmd ::= DROP STREAM exists_opt stream_name */
 { pCxt->pRootNode = createDropStreamStmt(pCxt, yymsp[-1].minor.yy649, &yymsp[0].minor.yy537); }

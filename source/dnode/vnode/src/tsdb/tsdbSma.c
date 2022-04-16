@@ -314,8 +314,7 @@ static FORCE_INLINE void tsdbSmaStatSetDropped(SSmaStatItem *pStatItem) {
 }
 
 static void tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode%svnode%d%stsdb%s%s", TD_DIRSEP, vgId, TD_DIRSEP, TD_DIRSEP,
-           TSDB_SMA_DNAME[smaType]);
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s", TD_DIRSEP, vgId, TD_DIRSEP, TSDB_SMA_DNAME[smaType]);
 }
 
 static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did) {
