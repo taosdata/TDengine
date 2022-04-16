@@ -77,8 +77,57 @@ int32_t qCreateSName(SName* pName, char* pTableName, int32_t acctId, char* dbNam
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qBindStmtTagsValue(STableDataBlocks *pDataBlock, void *boundTags, int64_t suid, SName *pName, TAOS_BIND *bind, char *msgBuf, int32_t msgBufLen){
+  SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
+  SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
+  if (NULL == tags) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
 
-int32_t qBindStmtData(STableDataBlocks *pDataBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen) {
+  SKVRowBuilder tagBuilder;
+  if (tdInitKVRowBuilder(&tagBuilder) < 0) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
+  SKvParam param = {.builder = &tagBuilder};
+
+  for (int c = 0; c < tags->numOfBound; ++c) {
+    if (bind[c].is_null && bind[c].is_null[0]) {
+      KvRowAppend(&pBuf, NULL, 0, &param);
+      continue;
+    }
+    
+    SSchema* pTagSchema = &pSchema[tags->boundColumns[c] - 1]; // colId starts with 1
+    param.schema = pTagSchema;
+
+    int32_t colLen = pTagSchema->bytes;
+    if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      colLen = bind[c].length[0];
+    }
+    
+    CHECK_CODE(KvRowAppend(&pBuf, (char *)bind[c].buffer, colLen, &param));
+  }
+
+  SKVRow row = tdGetKVRowFromBuilder(&tagBuilder);
+  if (NULL == row) {
+    tdDestroyKVRowBuilder(&tagBuilder);
+    return buildInvalidOperationMsg(&pBuf, "tag value expected");
+  }
+  tdSortKVRowByColIdx(row);
+
+  SVCreateTbReq tbReq = {0};
+  CHECK_CODE(buildCreateTbReq(&tbReq, pName, row, suid));
+  CHECK_CODE(buildCreateTbMsg(pDataBlock, &tbReq));
+
+  destroyCreateSubTbReq(&tbReq);
+  tdDestroyKVRowBuilder(&tagBuilder);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qBindStmtColsValue(STableDataBlocks *pDataBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen) {
   SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
   SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;

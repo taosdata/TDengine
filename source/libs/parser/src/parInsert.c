@@ -753,14 +753,14 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void *value, int32_t len, voi
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildCreateTbReq(SInsertParseContext* pCxt, const SName* pName, SKVRow row) {
+static int32_t buildCreateTbReq(SVCreateTbReq *pTbReq, const SName* pName, SKVRow row, int64_t suid) {
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(pName, dbFName);
-  pCxt->createTblReq.type = TD_CHILD_TABLE;
-  pCxt->createTblReq.dbFName = strdup(dbFName);
-  pCxt->createTblReq.name = strdup(pName->tname);
-  pCxt->createTblReq.ctbCfg.suid = pCxt->pTableMeta->suid;
-  pCxt->createTblReq.ctbCfg.pTag = row;
+  pTbReq->type = TD_CHILD_TABLE;
+  pTbReq->dbFName = strdup(dbFName);
+  pTbReq->name = strdup(pName->tname);
+  pTbReq->ctbCfg.suid = suid;
+  pTbReq->ctbCfg.pTag = row;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -773,12 +773,31 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
 
   SKvParam param = {.builder = &pCxt->tagsBuilder};
   SToken sToken;
+  bool isParseBindParam = false;  
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
+
+    if (sToken.type == TK_NK_QUESTION) {
+      isParseBindParam = true;
+      if (NULL == pCxt->pStmtCb) {
+        return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", sToken.z);
+      }
+
+      continue;
+    }
+
+    if (isParseBindParam) {
+      return buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and tag values");
+    }
+    
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i] - 1]; // colId starts with 1
     param.schema = pTagSchema;
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pTagSchema, precision, tmpTokenBuf, KvRowAppend, &param, &pCxt->msg));
+  }
+
+  if (isParseBindParam) {
+    return TSDB_CODE_SUCCESS;
   }
 
   SKVRow row = tdGetKVRowFromBuilder(&pCxt->tagsBuilder);
@@ -787,7 +806,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
   }
   tdSortKVRowByColIdx(row);
 
-  return buildCreateTbReq(pCxt, pName, row);
+  return buildCreateTbReq(&pCxt->createTblReq, pName, row, pCxt->pTableMeta->suid);
 }
 
 static int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {

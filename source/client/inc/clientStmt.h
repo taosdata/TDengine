@@ -51,7 +51,6 @@ typedef struct SStmtBindInfo {
   void*        boundTags;  
   char*        tbName;
   SName        sname;
-  TAOS_BIND*   bindTags;
 } SStmtBindInfo;
 
 typedef struct SStmtExecInfo {
@@ -78,11 +77,6 @@ typedef struct STscStmt {
   SStmtSQLInfo  sql;
   SStmtExecInfo exec;
   SStmtBindInfo bind;
-  
-  //SMultiTbStmt mtb;
-  //SNormalStmt normal;
-
-  //int numOfRows;
 } STscStmt;
 
 
