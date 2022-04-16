@@ -80,7 +80,6 @@ struct SVnodeInfo {
 };
 
 struct SVnode {
-  int32_t    vgId;
   char*      path;
   SVnodeCfg  config;
   SVState    state;
@@ -95,6 +94,8 @@ struct SVnode {
   SMsgCb     msgCb;
   STfs*      pTfs;
 };
+
+#define TD_VID(PVNODE) (PVNODE)->config.vgId
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);

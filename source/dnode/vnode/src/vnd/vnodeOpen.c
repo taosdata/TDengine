@@ -70,8 +70,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   info.config.pTfs = pTfs;
   info.config.msgCb = msgCb;
-  // memset(&info.config.walCfg, 0, sizeof(SWalCfg));
-  // info.config.walCfg.level = TAOS_WAL_WRITE;
 
   // crate handle
   pVnode = vnodeNew(dir, &info.config);
@@ -106,7 +104,6 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
     return NULL;
   }
 
-  pVnode->vgId = pVnodeCfg->vgId;
   pVnode->msgCb = pVnodeCfg->msgCb;
   pVnode->pTfs = pVnodeCfg->pTfs;
   pVnode->path = strdup(path);
@@ -144,7 +141,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
   pVnode->pTsdb =
-      tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta, pVnode->pTfs);
+      tsdbOpen(dir, TD_VID(pVnode), &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta, pVnode->pTfs);
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
