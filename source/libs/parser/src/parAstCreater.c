@@ -499,8 +499,8 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
 SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap) {
   SSessionWindowNode* session = (SSessionWindowNode*)nodesMakeNode(QUERY_NODE_SESSION_WINDOW);
   CHECK_OUT_OF_MEM(session);
-  session->pCol = pCol;
-  session->pGap = pGap;
+  session->pCol = (SColumnNode*)pCol;
+  session->pGap = (SValueNode*)pGap;
   return (SNode*)session;
 }
 

@@ -6831,7 +6831,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         .intervalUnit = pIntervalPhyNode->intervalUnit,
         .slidingUnit  = pIntervalPhyNode->slidingUnit,
         .offset       = pIntervalPhyNode->offset,
-        .precision    = pIntervalPhyNode->precision
+        .precision    = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision
     };
 
     int32_t primaryTsSlotId = ((SColumnNode*) pIntervalPhyNode->window.pTspk)->slotId;
