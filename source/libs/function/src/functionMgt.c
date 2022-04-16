@@ -138,6 +138,10 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_DYNAMIC_SCAN_OPTIMIZED);
 }
 
+bool fmIsMultiResFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC);
+}
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {

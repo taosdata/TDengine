@@ -26,18 +26,7 @@ class MndTestFunc : public ::testing::Test {
 Testbase MndTestFunc::test;
 
 TEST_F(MndTestFunc, 01_Show_Func) {
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 7);
-
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN + VARSTR_HEADER_SIZE, "name");
-  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, PATH_MAX + VARSTR_HEADER_SIZE, "comment");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_INT, 4, "aggregate");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, TSDB_TYPE_STR_MAX_LEN + VARSTR_HEADER_SIZE, "outputtype");
-  CHECK_SCHEMA(4, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-  CHECK_SCHEMA(5, TSDB_DATA_TYPE_INT, 4, "code_len");
-  CHECK_SCHEMA(6, TSDB_DATA_TYPE_INT, 4, "bufsize");
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -194,19 +183,8 @@ TEST_F(MndTestFunc, 02_Create_Func) {
     }
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 7);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
-
-  CheckBinary("f1", TSDB_FUNC_NAME_LEN);
-  CheckBinaryByte('m', TSDB_FUNC_COMMENT_LEN);
-  CheckInt32(0);
-  CheckBinary("SMALLINT", TSDB_TYPE_STR_MAX_LEN);
-  CheckTimestamp();
-  CheckInt32(TSDB_FUNC_CODE_LEN);
-  CheckInt32(4);
 }
 
 TEST_F(MndTestFunc, 03_Retrieve_Func) {
@@ -331,10 +309,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-    CHECK_META("show functions", 7);
-
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -529,20 +504,12 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 7);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 
   // restart
   test.Restart();
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 7);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
-
-  CheckBinary("f2", TSDB_FUNC_NAME_LEN);
 }

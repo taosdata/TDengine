@@ -43,14 +43,14 @@ int tsdbInitReadH(SReadH *pReadh, STsdb *pRepo) {
     return -1;
   }
 
-  pReadh->pDCols[0] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[0] = tdNewDataCols(0, pCfg->maxRows);
   if (pReadh->pDCols[0] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
     return -1;
   }
 
-  pReadh->pDCols[1] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[1] = tdNewDataCols(0, pCfg->maxRows);
   if (pReadh->pDCols[1] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
@@ -276,8 +276,8 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   return 0;
 }
 
-int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds,
-                          int numOfColsIds, bool mergeBitmap) {
+int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
+                          bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   int8_t update = pReadh->pRepo->config.update;
 
@@ -513,7 +513,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
 
   tdResetDataCols(pDataCols);
 
-  if(tsdbIsSupBlock(pBlock)) {
+  if (tsdbIsSupBlock(pBlock)) {
     tdDataColsSetBitmapI(pDataCols);
   }
 
@@ -606,9 +606,10 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
         if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), zsize) < 0) return -1;
       }
 
-      if (tsdbCheckAndDecodeColumnData(pDataCol, POINTER_SHIFT(pBlockData, tsize + toffset), tlen, pBlockCol->blen,
-                                       pBlock->algorithm, pBlock->numOfRows, tLenBitmap, pDataCols->maxPoints,
-                                       TSDB_READ_COMP_BUF(pReadh), (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
+      if (tsdbCheckAndDecodeColumnData(pDataCol, POINTER_SHIFT(pBlockData, tsize + toffset), tlen,
+                                       pBlockCol ? pBlockCol->blen : 0, pBlock->algorithm, pBlock->numOfRows,
+                                       tLenBitmap, pDataCols->maxPoints, TSDB_READ_COMP_BUF(pReadh),
+                                       (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
         tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
                   TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
         return -1;
@@ -710,7 +711,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 
   tdResetDataCols(pDataCols);
 
-  if(tsdbIsSupBlock(pBlock)) {
+  if (tsdbIsSupBlock(pBlock)) {
     tdDataColsSetBitmapI(pDataCols);
   }
 
@@ -747,6 +748,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
     if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
       TD_SET_COL_ROWS_NORM(&blockCol);  // default is NORM for the primary key column
+      blockCol.blen = 0;
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
       blockCol.offset = TSDB_KEY_COL_OFFSET;
@@ -836,7 +838,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   }
 
   if (tsdbCheckAndDecodeColumnData(pDataCol, pReadh->pBuf, pBlockCol->len, pBlockCol->blen, pBlock->algorithm,
-                                   pBlock->numOfRows, tLenBitmap, pCfg->maxRowsPerFileBlock, pReadh->pCBuf,
+                                   pBlock->numOfRows, tLenBitmap, pCfg->maxRows, pReadh->pCBuf,
                                    (int32_t)taosTSizeof(pReadh->pCBuf)) < 0) {
     tsdbError("vgId:%d file %s is broken at column %d offset %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
               pBlockCol->colId, offset);

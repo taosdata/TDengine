@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 
+#include "parserTestUtil.h"
 #include "parInt.h"
 
 using namespace std;
@@ -44,7 +45,7 @@ protected:
     query_ = nullptr;
     bool res = runImpl(parseCode, translateCode);
     qDestroyQuery(query_);
-    if (1/*!res*/) {
+    if (!res || g_isDump) {
       dump();
     }
     return res;
@@ -57,7 +58,7 @@ private:
     int32_t code = parse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
       parseErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
-      return (terrno == parseCode);
+      return (code == parseCode);
     }
     if (TSDB_CODE_SUCCESS != parseCode) {
       return false;
@@ -66,7 +67,7 @@ private:
     code = translate(&cxt_, query_);
     if (code != TSDB_CODE_SUCCESS) {
       translateErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
-      return (terrno == translateCode);
+      return (code == translateCode);
     }
     translatedAstStr_ = toString(query_->pRoot);
     code = calculateConstant(&cxt_, query_);
@@ -240,6 +241,19 @@ TEST_F(ParserTest, selectPseudoColumn) {
   setDatabase("root", "test");
 
   bind("SELECT _wstartts, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, selectMultiResFunc) {
+  setDatabase("root", "test");
+
+  // bind("SELECT last(*), first(*), last_row(*) FROM t1");
+  // ASSERT_TRUE(run());
+
+  bind("SELECT last(c1, c2), first(t1.*), last_row(c3) FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT last(t2.*), first(t1.c1, t2.*), last_row(t1.*, t2.*) FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
   ASSERT_TRUE(run());
 }
 
@@ -723,6 +737,22 @@ TEST_F(ParserTest, dropTopic) {
   ASSERT_TRUE(run());
 
   bind("drop topic if exists tp1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createStream) {
+  setDatabase("root", "test");
+
+  bind("create stream s1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create stream if not exists s1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create stream s1 into st1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create stream if not exists s1 trigger window_close watermark 10s into st1 as select * from t1");
   ASSERT_TRUE(run());
 }
 
