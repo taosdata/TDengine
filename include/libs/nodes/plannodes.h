@@ -53,6 +53,11 @@ typedef struct SScanLogicNode {
   double ratio;
   SNodeList* pDynamicScanFuncs;
   int32_t dataRequired;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int8_t intervalUnit;
+  int8_t slidingUnit;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -208,6 +213,11 @@ typedef struct STableScanPhysiNode {
   double ratio;
   int32_t dataRequired;
   SNodeList* pDynamicScanFuncs;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int8_t intervalUnit;
+  int8_t slidingUnit;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -264,7 +274,6 @@ typedef struct SIntervalPhysiNode {
   int64_t    sliding;
   int8_t     intervalUnit;
   int8_t     slidingUnit;
-  uint8_t    precision;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 

@@ -67,9 +67,9 @@ cd ${projectDir}
 gitPullBranchInfo $TDengineBrVer
 compileTDengineVersion
 
-taos_dir=${projectDir}/debug/tools/shell
-taosd_dir=${projectDir}/debug/source/dnode/mgmt
-exec_process_dir=${projectDir}/debug/tests/test/c
+taos_dir=${projectDir}/debug/build/bin
+taosd_dir=${projectDir}/debug/build/bin
+exec_process_dir=${projectDir}/debug/build/bin
 
 rm -f /usr/bin/taos
 rm -f /usr/bin/taosd

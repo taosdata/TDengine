@@ -83,9 +83,9 @@ int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
-  pCfg->wsize = pCreate->cacheBlockSize;
-  pCfg->ssize = pCreate->cacheBlockSize;
-  pCfg->lsize = pCreate->cacheBlockSize;
+  pCfg->wsize = pCreate->cacheBlockSize * 1024 * 1024;
+  pCfg->ssize = 1024;
+  pCfg->lsize = 1024 * 1024;
   pCfg->isHeapAllocator = true;
   pCfg->ttl = 4;
   pCfg->keep = pCreate->daysToKeep0;
@@ -96,13 +96,12 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
-  pCfg->metaCfg.lruSize = pCreate->cacheBlockSize;
-  pCfg->walCfg.fsyncPeriod = pCreate->fsyncPeriod;
-  pCfg->walCfg.level = pCreate->walLevel;
-  pCfg->walCfg.retentionPeriod = 10;
-  pCfg->walCfg.retentionSize = 128;
-  pCfg->walCfg.rollPeriod = 128;
-  pCfg->walCfg.segSize = 128;
+  pCfg->walCfg.level = TAOS_WAL_WRITE;
+  pCfg->walCfg.fsyncPeriod = 0;
+  pCfg->walCfg.retentionPeriod = 0;
+  pCfg->walCfg.retentionSize = 0;
+  pCfg->walCfg.rollPeriod = 0;
+  pCfg->walCfg.segSize = 0;
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
@@ -160,13 +159,10 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
   msgCb.qsizeFp = vmGetQueueSize;
 
-  vnodeCfg.msgCb = msgCb;
-  vnodeCfg.pTfs = pMgmt->pTfs;
-  vnodeCfg.dbId = wrapperCfg.dbUid;
-  SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
+  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
   if (pImpl == NULL) {
-    tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    tFreeSCreateVnodeReq(&createReq);
     return -1;
   }
 
@@ -175,7 +171,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
     vnodeClose(pImpl);
-    vnodeDestroy(wrapperCfg.path);
+    vnodeDestroy(path, pMgmt->pTfs);
     terrno = code;
     return code;
   }
@@ -184,7 +180,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   if (code != 0) {
     tFreeSCreateVnodeReq(&createReq);
     vnodeClose(pImpl);
-    vnodeDestroy(wrapperCfg.path);
+    vnodeDestroy(path, pMgmt->pTfs);
     terrno = code;
     return code;
   }

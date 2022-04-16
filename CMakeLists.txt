@@ -17,6 +17,7 @@ include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
+include(${TD_SUPPORT_DIR}/cmake.install)
 
 # contrib
 add_subdirectory(contrib)
