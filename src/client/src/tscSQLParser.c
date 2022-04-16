@@ -7872,6 +7872,25 @@ static void updateTagPrjFunction(SQueryInfo* pQueryInfo) {
 }
 
 /*
+ retrun false : expr is not in groupbu column.
+ return true : expr is in groupby column.
+*/
+static bool check_expr_in_groupby_colum(SGroupbyExpr* pGroupbyExpr, SExprInfo* pExpr){
+  SColIndex* pIndex = NULL;
+  assert( pExpr);
+  if (NULL == pGroupbyExpr)
+    return false;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols ; ++k) {
+    pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (!strcmp(pIndex->name,&pExpr->base.colInfo.name[1])){ // notes:first char is dot, skip one char.
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/*
  * check for selectivity function + tags column function both exist.
  * 1. tagprj functions are not compatible with aggregated function when missing "group by" clause
  * 2. if selectivity function and tagprj function both exist, there should be only
@@ -7887,12 +7906,15 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   int16_t numOfAggregation = 0;
 
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+  SGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
     if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ ||
         (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
-      tagTsColExists = true;  // selectivity + ts/tag column
-      break;
+      if (false == check_expr_in_groupby_colum(pGroupbyExpr,pExpr)){
+        tagTsColExists = true;  // selectivity + ts/tag column
+        break;
+      }
     }
   }
 
