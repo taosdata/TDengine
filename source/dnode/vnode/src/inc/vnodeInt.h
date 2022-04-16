@@ -83,6 +83,8 @@ struct SVnode {
   char*      path;
   SVnodeCfg  config;
   SVState    state;
+  STfs*      pTfs;
+  SMsgCb     msgCb;
   SVBufPool* pBufPool;
   SMeta*     pMeta;
   STsdb*     pTsdb;
@@ -91,8 +93,6 @@ struct SVnode {
   SSink*     pSink;
   tsem_t     canCommit;
   SQHandle*  pQuery;
-  SMsgCb     msgCb;
-  STfs*      pTfs;
 };
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId

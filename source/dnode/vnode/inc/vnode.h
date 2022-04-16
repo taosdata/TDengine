@@ -135,7 +135,6 @@ struct STsdbCfg {
 struct SVnodeCfg {
   int32_t  vgId;
   uint64_t dbId;
-  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -146,7 +145,6 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
-  SMsgCb   msgCb;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
