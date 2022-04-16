@@ -507,12 +507,12 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       if (pUdfInfo->bufSize > 0) {
         *type = TSDB_DATA_TYPE_BINARY;
         *bytes = pUdfInfo->bufSize;
-        *interBytes = *bytes;
       } else {
         *type = pUdfInfo->resType;
         *bytes = pUdfInfo->resBytes;
-        *interBytes = *bytes;
       }
+
+      *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
     }
@@ -653,13 +653,14 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId < 0) {
     *type = pUdfInfo->resType;
-    *bytes = pUdfInfo->resBytes;
 
     if (pUdfInfo->bufSize > 0) {
-      *interBytes = pUdfInfo->bufSize;
+      *bytes = pUdfInfo->bufSize;
     } else {
-      *interBytes = *bytes;
+      *bytes = pUdfInfo->resBytes;
     }
+
+    *interBytes = *bytes;
 
     return TSDB_CODE_SUCCESS;
   }
@@ -3318,7 +3319,7 @@ static void date_col_output_function(SQLFunctionCtx *pCtx) {
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->colId <= TSDB_UD_COLUMN_INDEX && pCtx->colId > TSDB_RES_COL_ID) {    // user-specified constant value
+  if (pCtx->colId[0] <= TSDB_UD_COLUMN_INDEX && pCtx->colId[0] > TSDB_RES_COL_ID) {    // user-specified constant value
     return;
   }
 

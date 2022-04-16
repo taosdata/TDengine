@@ -365,7 +365,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
 
           int32_t functionId = pExprInfo->base.functionId;
 
-          if (pColIndex->colId == pExprInfo->base.colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ)) {
+          if (pColIndex->colId == pExprInfo->base.colInfo[0].colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ)) {
 
             orderColIndexList[i] = j;
             break;
@@ -388,7 +388,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
         size_t size = tscNumOfExprs(pQueryInfo);
         for (int32_t i = 0; i < size; ++i) {
           SExprInfo *pExpr = tscExprGet(pQueryInfo, i);
-          if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+          if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo[0].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
             orderColIndexList[0] = i;
           }
         }
@@ -598,7 +598,11 @@ static void setTagValueForMultipleRows(SQLFunctionCtx* pCtx, int32_t numOfOutput
 
 static void doMergeResultImpl(SOperatorInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
-    pCtx[j].pInput = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
+    if (pCtx[j].functionId < 0) {
+      pCtx[j].pUdfInput[0] = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
+    } else {
+      pCtx[j].pInput = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
+    }
   }
 
   for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -645,7 +649,11 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
 
   char** addrPtr = calloc(pBlock->info.numOfCols, POINTER_BYTES);
   for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    addrPtr[i] = pCtx[i].pInput;
+    if (pCtx[i].functionId < 0) {
+      addrPtr[i] = pCtx[i].pUdfInput[0];
+    } else {
+      addrPtr[i] = pCtx[i].pInput;
+    }
     pCtx[i].size = 1;
   }
 
@@ -692,7 +700,11 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
   }
 
   for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    pCtx[i].pInput = addrPtr[i];
+    if (pCtx[i].functionId < 0) {
+      pCtx[i].pUdfInput[0] = addrPtr[i];
+    } else {
+      pCtx[i].pInput = addrPtr[i];
+    }
   }
 
   tfree(addrPtr);

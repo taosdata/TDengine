@@ -621,7 +621,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     int16_t funcId = pExpr->base.functionId;
 
     // add the invisible timestamp column
-    if ((pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
+    if ((pExpr->base.colInfo[0].colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
         (funcId != TSDB_FUNC_TS && funcId != TSDB_FUNC_TS_DUMMY && funcId != TSDB_FUNC_PRJ)) {
 
       int16_t functionId = tscIsProjectionQuery(pQueryInfo)? TSDB_FUNC_PRJ : TSDB_FUNC_TS;
@@ -1918,7 +1918,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     size_t numOfSubExpr = taosArrayGetSize(pSubQueryInfo->exprList);
     for (int32_t k = 0; k < numOfSubExpr; ++k) {
       SExprInfo* pSubExpr = tscExprGet(pSubQueryInfo, k);
-      if (pExpr->base.functionId == pSubExpr->base.functionId && pExpr->base.colInfo.colId == pSubExpr->base.colInfo.colId) {
+      if (pExpr->base.functionId == pSubExpr->base.functionId && pExpr->base.colInfo[0].colId == pSubExpr->base.colInfo[0].colId) {
         pRes->pColumnIndex[i] = (SColumnIndex){.tableIndex = tableIndexOfSub, .columnIndex = k};
         break;
       }
@@ -2299,11 +2299,11 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
   TSKEY key = INT64_MIN;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag) || pExpr->base.functionId == TSDB_FUNC_PRJ) {
+    if (TSDB_COL_IS_TAG(pExpr->base.colInfo[0].flag) || pExpr->base.functionId == TSDB_FUNC_PRJ) {
       continue;
     }
 
-    if (pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    if (pExpr->base.colInfo[0].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       key = *(TSKEY*) row[i];
       continue;
     }
@@ -2315,7 +2315,7 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
       SET_DOUBLE_NULL(&v);
     }
 
-    int32_t id = pExpr->base.colInfo.colId;
+    int32_t id = pExpr->base.colInfo[0].colId;
     int32_t numOfQueriedCols = (int32_t) taosArrayGetSize(pInterResult->pResult);
 
     SArray* p = NULL;
@@ -2399,7 +2399,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
           SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
           // tag or group by column
-          if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag) || pExpr->base.functionId == TSDB_FUNC_PRJ) {
+          if (TSDB_COL_IS_TAG(pExpr->base.colInfo[0].flag) || pExpr->base.functionId == TSDB_FUNC_PRJ) {
             if (row[i] == NULL) {
               setNull(p + offset, pExpr->base.resType, pExpr->base.resBytes);
             } else {
@@ -2576,14 +2576,14 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       taosArrayPush(pSup->pColsInfo, &pExpr->base.resColId);
 
       SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-      SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo.colId);
+      SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo[0].colId);
 
       SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TS, &colIndex, schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
       p->base.resColId = pExpr->base.resColId;  // update the result column id
     } else if (pExpr->base.functionId == TSDB_FUNC_STDDEV_DST) {
       taosArrayPush(pSup->pColsInfo, &pExpr->base.resColId);
 
-      SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = pExpr->base.colInfo.colIndex};
+      SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = pExpr->base.colInfo[0].colIndex};
       SSchema schema = {.type = TSDB_DATA_TYPE_DOUBLE, .bytes = sizeof(double)};
       tstrncpy(schema.name, pExpr->base.aliasName, tListLen(schema.name));
 
@@ -2591,11 +2591,11 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       p->base.resColId = pExpr->base.resColId;  // update the result column id
     } else if (pExpr->base.functionId == TSDB_FUNC_TAG) {
       pSup->tagLen += pExpr->base.resBytes;
-      SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = pExpr->base.colInfo.colIndex};
+      SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = pExpr->base.colInfo[0].colIndex};
 
       SSchema* schema = NULL;
-      if (pExpr->base.colInfo.colId != TSDB_TBNAME_COLUMN_INDEX) {
-        schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo.colId);
+      if (pExpr->base.colInfo[0].colId != TSDB_TBNAME_COLUMN_INDEX) {
+        schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo[0].colId);
       } else {
         schema = tGetTbnameColumnSchema();
       }
@@ -2610,12 +2610,12 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       int32_t num = (int32_t) taosArrayGetSize(pNewQueryInfo->groupbyExpr.columnInfo);
       for(int32_t k = 0; k < num; ++k) {
         SColIndex* pIndex = taosArrayGet(pNewQueryInfo->groupbyExpr.columnInfo, k);
-        if (pExpr->base.colInfo.colId == pIndex->colId) {
+        if (pExpr->base.colInfo[0].colId == pIndex->colId) {
           pSup->tagLen += pExpr->base.resBytes;
           taosArrayPush(pSup->pColsInfo, &pExpr->base.resColId);
 
           SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = pIndex->colIndex};
-          SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo.colId);
+          SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo[0].colId);
 
           //doLimitOutputNormalColOfGroupby
           SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_PRJ, &colIndex, schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
@@ -2654,7 +2654,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   }
 
   tscInsertPrimaryTsSourceColumn(pNewQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
-  tscTansformFuncForSTableQuery(pNewQueryInfo);
+  tscTransformFuncForSTableQuery(pNewQueryInfo);
 
   tscDebug(
       "0x%"PRIx64" first round subquery:0x%"PRIx64" tableIndex:%d, vgroupIndex:%d, numOfVgroups:%d, type:%d, query to retrieve timestamps, "
@@ -3932,7 +3932,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
     pQueryAttr->resultRowSize += pEx[col].base.resBytes;
 
     // keep the tag length
-    if (TSDB_COL_IS_TAG(pEx[col].base.colInfo.flag)) {
+    if (TSDB_COL_IS_TAG(pEx[col].base.colInfo[0].flag)) {
       pQueryAttr->tagLen += pEx[col].base.resBytes;
     }
   }

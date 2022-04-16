@@ -452,7 +452,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 int tscProcessLocalCmd(SSqlObj *pSql);
 int tscCfgDynamicOptions(char *msg);
 
-int32_t tscTansformFuncForSTableQuery(SQueryInfo *pQueryInfo);
+int32_t tscTransformFuncForSTableQuery(SQueryInfo *pQueryInfo);
 void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);

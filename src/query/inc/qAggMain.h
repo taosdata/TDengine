@@ -183,10 +183,14 @@ typedef struct SExtTagsInfo {
 // sql function runtime context
 typedef struct SQLFunctionCtx {
   int32_t      size;      // number of rows
-  void *       pInput;    // input data buffer
+  void        *pInput;    // input data buffer
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int32_t      inputBytes;
+
+  void        *pUdfInput[2];
+  int16_t      udfInputType[2];
+  int32_t      udfInputBytes[2];
 
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type
@@ -195,7 +199,7 @@ typedef struct SQLFunctionCtx {
   bool         requireNull;   // require null in some function
   bool         stableQuery;
   int16_t      functionId;    // function id
-  char *       pOutput;       // final result output buffer, point to sdata->data
+  char        *pOutput;       // final result output buffer, point to sdata->data
   uint8_t      currentStage;  // record current running step, default: 0
   int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
   int64_t      endTs;
@@ -208,7 +212,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
-  int16_t      colId;         // used for user-specified constant value
+  int16_t      colId[2];       // used for user-specified constant value
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
@@ -244,6 +248,7 @@ int16_t getTimeWindowFunctionID(int16_t colIndex);
 bool isTimeWindowFunction(int32_t functionId);
 int32_t isValidFunction(const char* name, int32_t len);
 bool isValidStateOper(char *oper, int32_t len);
+char *getScalarExprColumnData(void *param, const char* name, int32_t colId);
 
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
