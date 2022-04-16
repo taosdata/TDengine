@@ -80,6 +80,7 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
   }
 
   SDataBlockInfo* pBlockInfo = &pBlock->info;
+  taosMemoryFreeClear(pBlock->pBlockAgg);
 
   if (*status == FUNC_DATA_REQUIRED_FILTEROUT) {
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
@@ -93,15 +94,28 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
-    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pBlock->pBlockAgg);
 
-    // failed to load the block sma data, data block statistics does not exist, load data block instead
-    if (pBlock->pBlockAgg == NULL) {
+    SColumnDataAgg* pColAgg = NULL;
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg);
+
+    if (pColAgg != NULL) {
+      int32_t numOfCols = pBlock->info.numOfCols;
+
+      // todo create this buffer during creating operator
+      pBlock->pBlockAgg = taosMemoryCalloc(numOfCols, sizeof(SColumnDataAgg));
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        SColMatchInfo* pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
+        if (!pColMatchInfo->output) {
+          continue;
+        }
+        pBlock->pBlockAgg[pColMatchInfo->targetSlotId] = pColAgg[i];
+      }
+    } else {
+      // failed to load the block sma data, data block statistics does not exist, load data block instead
       pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
       pCost->totalCheckedRows += pBlock->info.rows;
       pCost->loadBlocks += 1;
     }
-
     return TSDB_CODE_SUCCESS;
   }
 
@@ -136,6 +150,7 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
 
       ASSERT(pColMatchInfo->colId == p->info.colId);
       taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
+//      taosArraySet(pBlock->pBlockAgg)
     }
   }
 
