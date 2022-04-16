@@ -208,7 +208,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     EXPECT_EQ(retrieveRsp.numOfFuncs, 1);
     EXPECT_EQ(retrieveRsp.numOfFuncs, (int32_t)taosArrayGetSize(retrieveRsp.pFuncInfos));
 
-    * pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 0);
+    SFuncInfo* pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 0);
 
     EXPECT_STREQ(pFuncInfo->name, "f1");
     EXPECT_EQ(pFuncInfo->funcType, 1);
