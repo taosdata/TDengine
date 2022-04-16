@@ -269,6 +269,7 @@ typedef struct SOperatorInfo {
   SResultInfo             resultInfo;
   struct SOperatorInfo**  pDownstream;      // downstram pointer list
   int32_t                 numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
+  // todo extract struct
   __optr_open_fn_t        _openFn;          // DO NOT invoke this function directly
   __optr_fn_t             getNextFn;
   __optr_fn_t             getStreamResFn;   // execute the aggregate in the stream model.
@@ -433,6 +434,11 @@ typedef struct SAggOperatorInfo {
   uint32_t           groupId;
   SGroupResInfo      groupResInfo;
   STableQueryInfo   *pTableQueryInfo;
+
+  SExprInfo         *pScalarExprInfo;
+  int32_t            numOfScalarExpr;      // the number of scalar expression before the aggregate function can be applied
+  SqlFunctionCtx    *pScalarCtx;                 // scalar function requried sql function struct.
+  int32_t           *rowCellInfoOffset;  // offset value for each row result cell info
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -586,10 +592,7 @@ typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRight;
   int32_t            rightPos;
   SColumnInfo        rightCol;
-
   SNode             *pOnCondition;
-//  SJoinStatus       *status;
-//  int32_t            numOfUpstream;
 //  SRspResultInfo     resultInfo;
 } SJoinOperatorInfo;
 
@@ -613,8 +616,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t dataLoadFlag, int32_t repeatTime,
                                            int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
-                                           SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
+                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SExecTaskInfo* pTaskInfo);
