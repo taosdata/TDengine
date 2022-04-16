@@ -146,6 +146,52 @@ static int32_t sifLessThanFunc(SNode *left, SNode *rigth, SIFParam *output) {
   // impl later
   return TSDB_CODE_SUCCESS;
 }
+static int32_t sifLessEqualFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifGreaterThanFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifGreaterEqualFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sifEqualFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifNotEqualFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifInFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifNotInFunc(SNode *left, SNode *right, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifLikeFunc(SNode *left, SNode *right, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifNotLikeFunc(SNode *left, SNode *right, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sifMatchFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t sifNotMatchFunc(SNode *left, SNode *rigth, SIFParam *output) {
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t sifDefaultFunc(SNode *left, SNode *rigth, SIFParam *output) {
   // add more except
   return TSDB_CODE_QRY_INVALID_INPUT;
@@ -154,8 +200,30 @@ static int32_t sifDefaultFunc(SNode *left, SNode *rigth, SIFParam *output) {
 static sif_func_t sifGetOperFn(int32_t funcId) {
   // impl later
   switch (funcId) {
+    case OP_TYPE_GREATER_THAN:
+      return sifGreaterThanFunc;
+    case OP_TYPE_GREATER_EQUAL:
+      return sifGreaterEqualFunc;
     case OP_TYPE_LOWER_THAN:
       return sifLessThanFunc;
+    case OP_TYPE_LOWER_EQUAL:
+      return sifLessEqualFunc;
+    case OP_TYPE_EQUAL:
+      return sifEqualFunc;
+    case OP_TYPE_NOT_EQUAL:
+      return sifNotEqualFunc;
+    case OP_TYPE_IN:
+      return sifInFunc;
+    case OP_TYPE_NOT_IN:
+      return sifNotInFunc;
+    case OP_TYPE_LIKE:
+      return sifLikeFunc;
+    case OP_TYPE_NOT_LIKE:
+      return sifNotLikeFunc;
+    case OP_TYPE_MATCH:
+      return sifMatchFunc;
+    case OP_TYPE_NMATCH:
+      return sifNotMatchFunc;
     default:
       return sifDefaultFunc;
   }
