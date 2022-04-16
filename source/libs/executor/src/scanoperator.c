@@ -13,12 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tglobal.h"
+#include <common/ttime.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
+#include "tglobal.h"
 #include "tname.h"
 #include "vnode.h"
 
@@ -80,6 +81,96 @@ static void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo,
   }
 }
 
+static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  if (pInterval->intervalUnit != 'n' && pInterval->intervalUnit != 'y') {
+    tw->skey += pInterval->sliding * factor;
+    tw->ekey = tw->skey + pInterval->interval - 1;
+    return;
+  }
+
+  int64_t key = tw->skey, interval = pInterval->interval;
+  //convert key to second
+  key = convertTimePrecision(key, pInterval->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+
+  if (pInterval->intervalUnit == 'y') {
+    interval *= 12;
+  }
+
+  struct tm tm;
+  time_t t = (time_t)key;
+  taosLocalTime(&t, &tm);
+
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+
+  mon = (int)(mon + interval);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+  tw->ekey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+
+  tw->ekey -= 1;
+}
+
+static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo) {
+  STimeWindow w = {0};
+
+  // 0 by default, which means it is not a interval operator of the upstream operator.
+  if (pInterval->interval == 0) {
+    return false;
+  }
+
+  // todo handle the time range case
+  TSKEY sk = INT64_MIN;
+  TSKEY ek = INT64_MAX;
+//  TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+//  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+
+  if (true) {
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, sk, ek, &w);
+    assert(w.ekey >= pBlockInfo->window.skey);
+
+    if (w.ekey < pBlockInfo->window.ekey) {
+      return true;
+    }
+
+    while(1) { // todo handle the desc order scan case
+      getNextTimeWindow(pInterval, &w, TSDB_ORDER_ASC);
+      if (w.skey > pBlockInfo->window.ekey) {
+        break;
+      }
+
+      assert(w.ekey > pBlockInfo->window.ekey);
+      if (w.skey <= pBlockInfo->window.ekey && w.skey > pBlockInfo->window.skey) {
+        return true;
+      }
+    }
+  } else {
+//    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
+//    assert(w.skey <= pBlockInfo->window.ekey);
+//
+//    if (w.skey > pBlockInfo->window.skey) {
+//      return true;
+//    }
+//
+//    while(1) {
+//      getNextTimeWindow(pQueryAttr, &w);
+//      if (w.ekey < pBlockInfo->window.skey) {
+//        break;
+//      }
+//
+//      assert(w.skey < pBlockInfo->window.skey);
+//      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+//        return true;
+//      }
+//    }
+  }
+
+  return false;
+}
+
 int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   STableScanInfo* pInfo = pOperator->info;
@@ -90,7 +181,7 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
   pCost->totalRows += pBlock->info.rows;
 
   *status = pInfo->dataBlockLoadFlag;
-  if (pTableScanInfo->pFilterNode != NULL) {
+  if (pTableScanInfo->pFilterNode != NULL || overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info)) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
@@ -287,7 +378,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
 
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
                                            int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
-                                           SNode* pCondition, SExecTaskInfo* pTaskInfo) {
+                                           SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
@@ -300,6 +391,8 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
     return NULL;
   }
 
+  pInfo->interval         = *pInterval;
+  pInfo->sampleRatio      = sampleRatio;
   pInfo->dataBlockLoadFlag= dataLoadFlag;
   pInfo->pResBlock        = pResBlock;
   pInfo->pFilterNode      = pCondition;

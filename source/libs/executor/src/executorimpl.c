@@ -237,8 +237,6 @@ void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 static int32_t doCopyToSDataBlock(SSDataBlock* pBlock, int32_t rowCapacity, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
                                   int32_t orderType, int32_t* rowCellOffset);
 static void    initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
-static void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, int64_t keyFirst,
-                                       int64_t keyLast, STimeWindow* win);
 
 static void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo);
 static void setCtxTagForJoin(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable);
@@ -6603,8 +6601,16 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
       SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
 
-      return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pTableScanNode->dataRequired, pScanPhyNode->count,
-                                         pScanPhyNode->reverse, pColList, pResBlock, pScanPhyNode->node.pConditions, pTaskInfo);
+      SInterval interval = {
+          .interval     = pTableScanNode->interval,
+          .sliding      = pTableScanNode->sliding,
+          .intervalUnit = pTableScanNode->intervalUnit,
+          .slidingUnit  = pTableScanNode->slidingUnit,
+          .offset       = pTableScanNode->offset,
+      };
+
+      return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pTableScanNode->dataRequired,
+          pScanPhyNode->count, pScanPhyNode->reverse, pColList, pResBlock, pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock*        pResBlock = createResDataBlock(pExchange->node.pOutputDataBlockDesc);
