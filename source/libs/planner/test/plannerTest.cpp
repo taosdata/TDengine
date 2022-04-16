@@ -45,7 +45,7 @@ protected:
     int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] parser code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
+      cout << "sql:[" << cxt_.pSql << "] qParseQuerySql code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
       return false;
     }
 
