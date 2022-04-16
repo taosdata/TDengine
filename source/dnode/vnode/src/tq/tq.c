@@ -19,15 +19,13 @@ int32_t tqInit() { return tqPushMgrInit(); }
 
 void tqCleanUp() { tqPushMgrCleanUp(); }
 
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STqCfg* tqConfig,
-            SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, SMemAllocatorFactory* allocFac) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
   }
   pTq->path = strdup(path);
-  pTq->tqConfig = tqConfig;
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
   pTq->pVnodeMeta = pVnodeMeta;

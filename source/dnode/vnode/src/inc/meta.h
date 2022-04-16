@@ -40,7 +40,7 @@ typedef struct SMSmaCursor SMSmaCursor;
 #define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
 
-SMeta*          metaOpen(const char* path, const SMetaCfg* pMetaCfg, SMemAllocatorFactory* pMAF);
+SMeta*          metaOpen(const char* path, SMemAllocatorFactory* pMAF);
 void            metaClose(SMeta* pMeta);
 void            metaRemove(const char* path);
 int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg);
@@ -97,7 +97,6 @@ tb_uid_t metaGenerateUid(SMeta* pMeta);
 struct SMeta {
   char*                 path;
   SVnode*               pVnode;
-  SMetaCfg              options;
   SMetaDB*              pDB;
   SMetaIdx*             pIdx;
   SMetaCache*           pCache;

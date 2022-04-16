@@ -37,9 +37,7 @@ extern "C" {
 
 // vnode
 typedef struct SVnode    SVnode;
-typedef struct SMetaCfg  SMetaCfg;  // todo: remove
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct STqCfg    STqCfg;    // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
 
 int     vnodeInit(int nthreads);
@@ -134,10 +132,6 @@ struct STsdbCfg {
   SArray  *retentions;
 };
 
-struct STqCfg {
-  int32_t reserved;
-};
-
 struct SVnodeCfg {
   int32_t  vgId;
   uint64_t dbId;
@@ -151,8 +145,6 @@ struct SVnodeCfg {
   int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
-  SMetaCfg metaCfg;
-  STqCfg   tqCfg;
   SWalCfg  walCfg;
   SMsgCb   msgCb;
   uint32_t hashBegin;

@@ -132,7 +132,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
-  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg), vBufPoolGetMAF(pVnode));
+  pVnode->pMeta = metaOpen(dir, vBufPoolGetMAF(pVnode));
   if (pVnode->pMeta == NULL) {
     // TODO: handle error
     return -1;
@@ -157,7 +157,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open TQ
   sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, pVnode, pVnode->pWal, pVnode->pMeta, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
+  pVnode->pTq = tqOpen(dir, pVnode, pVnode->pWal, pVnode->pMeta, vBufPoolGetMAF(pVnode));
   if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;

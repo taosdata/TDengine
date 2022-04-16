@@ -96,7 +96,6 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
-  pCfg->metaCfg.lruSize = pCreate->cacheBlockSize;
   pCfg->walCfg.level = TAOS_WAL_WRITE;
   pCfg->walCfg.fsyncPeriod = 0;
   pCfg->walCfg.retentionPeriod = 0;
