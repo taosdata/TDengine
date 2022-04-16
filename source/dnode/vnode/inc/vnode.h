@@ -37,16 +37,14 @@ extern "C" {
 
 // vnode
 typedef struct SVnode    SVnode;
-typedef struct SMetaCfg  SMetaCfg;  // todo: remove
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct STqCfg    STqCfg;    // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
 
 int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
-void    vnodeDestroy(const char *path);
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
+void    vnodeDestroy(const char *path, STfs *pTfs);
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
 void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);
 int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
@@ -134,14 +132,9 @@ struct STsdbCfg {
   SArray  *retentions;
 };
 
-struct STqCfg {
-  int32_t reserved;
-};
-
 struct SVnodeCfg {
   int32_t  vgId;
   uint64_t dbId;
-  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -151,10 +144,7 @@ struct SVnodeCfg {
   int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
-  SMetaCfg metaCfg;
-  STqCfg   tqCfg;
   SWalCfg  walCfg;
-  SMsgCb   msgCb;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;

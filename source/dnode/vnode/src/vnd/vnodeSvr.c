@@ -36,7 +36,7 @@ void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
     if (walWrite(pVnode->pWal, ver, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
       // TODO: handle error
       /*ASSERT(false);*/
-      vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());
+      vError("vnode:%d  write wal error since %s", TD_VID(pVnode), terrstr());
     }
   }
 
@@ -73,12 +73,12 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_ALTER_STB:
       return vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
     case TDMT_VND_DROP_STB:
-      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      vTrace("vgId:%d, process drop stb req", TD_VID(pVnode));
       break;
     case TDMT_VND_DROP_TABLE:
       break;
     case TDMT_VND_SUBMIT:
-      /*printf("vnode %d write data %ld\n", pVnode->vgId, ver);*/
+      /*printf("vnode %d write data %ld\n", TD_VID(pVnode), ver);*/
       if (pVnode->config.streamMode == 0) {
         *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
         (*pRsp)->handle = pMsg->handle;
@@ -245,7 +245,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
 
     if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
       // TODO: handle error
-      vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
+      vError("vgId:%d, failed to create table: %s", TD_VID(pVnode), pCreateTbReq->name);
     }
     // TODO: to encapsule a free API
     taosMemoryFree(pCreateTbReq->name);
@@ -268,7 +268,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     }
   }
 
-  vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
+  vTrace("vgId:%d process create %" PRIzu " tables", TD_VID(pVnode), taosArrayGetSize(vCreateTbBatchReq.pArray));
   taosArrayDestroy(vCreateTbBatchReq.pArray);
   if (vCreateTbBatchRsp.rspList) {
     int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
@@ -289,7 +289,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
 
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   SVCreateTbReq vAlterTbReq = {0};
-  vTrace("vgId:%d, process alter stb req", pVnode->vgId);
+  vTrace("vgId:%d, process alter stb req", TD_VID(pVnode));
   tDeserializeSVCreateTbReq(pReq, &vAlterTbReq);
   // TODO: to encapsule a free API
   taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
