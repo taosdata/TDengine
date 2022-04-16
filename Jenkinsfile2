@@ -149,7 +149,7 @@ pipeline {
               ./test-all.sh b1fq
               '''
               sh'''
-              cd ${WKC}/debug
+              cd ${WK}/debug
               ctest
               '''
             }
