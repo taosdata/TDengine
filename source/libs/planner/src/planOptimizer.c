@@ -64,7 +64,7 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (NULL == pNode->pParent || 
-      (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode->pParent))) {
+      (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) && QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent))) {
     return false;
   }
   return true;
@@ -125,12 +125,12 @@ static int32_t osdMatch(SOptimizeContext* pCxt, SLogicNode* pLogicNode, SOsdInfo
 
 static EFuncDataRequired osdPromoteDataRequired(EFuncDataRequired l , EFuncDataRequired r) {
   switch (l) {
-    case FUNC_DATA_REQUIRED_ALL_NEEDED:
+    case FUNC_DATA_REQUIRED_DATA_LOAD:
       return l;
-    case FUNC_DATA_REQUIRED_STATIS_NEEDED:
-      return FUNC_DATA_REQUIRED_ALL_NEEDED == r ? r : l;
-    case FUNC_DATA_REQUIRED_NO_NEEDED:
-      return FUNC_DATA_REQUIRED_DISCARD == r ? l : r;
+    case FUNC_DATA_REQUIRED_STATIS_LOAD:
+      return FUNC_DATA_REQUIRED_DATA_LOAD == r ? r : l;
+    case FUNC_DATA_REQUIRED_NOT_LOAD:
+      return FUNC_DATA_REQUIRED_FILTEROUT == r ? l : r;
     default:
       break;
   }
@@ -139,9 +139,9 @@ static EFuncDataRequired osdPromoteDataRequired(EFuncDataRequired l , EFuncDataR
 
 static int32_t osdGetDataRequired(SNodeList* pFuncs) {
   if (NULL == pFuncs) {
-    return FUNC_DATA_REQUIRED_ALL_NEEDED;
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
-  EFuncDataRequired dataRequired = FUNC_DATA_REQUIRED_DISCARD;
+  EFuncDataRequired dataRequired = FUNC_DATA_REQUIRED_FILTEROUT;
   SNode* pFunc = NULL;
   FOREACH(pFunc, pFuncs) {
     dataRequired = osdPromoteDataRequired(dataRequired, fmFuncDataRequired((SFunctionNode*)pFunc, NULL));
