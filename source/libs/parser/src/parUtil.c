@@ -252,12 +252,10 @@ static bool isValidateTag(char *input) {
 
 int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* pMsgBuf, int16_t startColId){
   // set json NULL data
-  uint8_t jsonKeyNULL = TSDB_JSON_KEY_NULL;
   uint8_t jsonNULL = TSDB_JSON_NULL;
   int jsonIndex = startColId + 1;
-  tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonKeyNULL, CHAR_BYTES);   // add json null type
   if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0){
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNULL, CHAR_BYTES);   // add json null value
+    tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -273,6 +271,7 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
   }
 
   int retCode = 0;
+  char *tagKV = NULL;
   SHashObj* keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
   for(int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
@@ -296,66 +295,64 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
     if(keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL){
       continue;
     }
-
+    // key: keyLen + VARSTR_HEADER_SIZE, value type: CHAR_BYTES, value reserved: LONG_BYTES
+    tagKV = taosMemoryCalloc(keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + LONG_BYTES, 1);
+    if(!tagKV) {
+      retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto end;
+    }
+    strncpy(varDataVal(tagKV), jsonKey, keyLen);
+    varDataSetLen(tagKV, keyLen);
     if(taosHashGetSize(keyHash) == 0){
       uint8_t jsonNotNULL = TSDB_JSON_NOT_NULL;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNotNULL, CHAR_BYTES);   // add json type
     }
-    // json key encode by binary
-    void *tagKey = taosMemoryCalloc(keyLen + VARSTR_HEADER_SIZE, 1);
-    if(!tagKey) {
-      retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto end;
-    }
-    strncpy(varDataVal(tagKey), jsonKey, keyLen);
     taosHashPut(keyHash, jsonKey, keyLen, &keyLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
-
-    varDataSetLen(tagKey, keyLen);
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKey, varDataTLen(tagKey));   // add json key
-    taosMemoryFree(tagKey);
 
     if(item->type == cJSON_String){     // add json value  format: type|data
       char *jsonValue = item->valuestring;
       int32_t valLen = (int32_t)strlen(jsonValue);
-      char *tagVal = taosMemoryCalloc(valLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE + CHAR_BYTES, 1);
-      if(!tagVal) {
+      int32_t totalLen = keyLen + VARSTR_HEADER_SIZE + valLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE + CHAR_BYTES;
+      char *tmp = taosMemoryRealloc(tagKV, totalLen);
+      if(!tmp) {
         retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
         goto end;
-      } ;
-      tagVal[0] = TSDB_DATA_TYPE_NCHAR;
-      char* tagData = POINTER_SHIFT(tagVal, CHAR_BYTES);
-      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)varDataVal(tagData),
+      }
+      tagKV = tmp;
+      char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
+      char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
+      *valueType = TSDB_DATA_TYPE_NCHAR;
+      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)varDataVal(valueData),
                                                   (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
         qError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue, strerror(errno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
-        taosMemoryFree(tagVal);
         goto end;
       }
 
-      varDataSetLen(tagData, valLen);
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, CHAR_BYTES + varDataTLen(tagData));
-      taosMemoryFree(tagVal);
+      varDataSetLen(valueData, valLen);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, totalLen);
     }else if(item->type == cJSON_Number){
       if(!isfinite(item->valuedouble)){
         qError("json value is invalidate");
         retCode =  buildSyntaxErrMsg(pMsgBuf, "json value number is illegal", json);
         goto end;
       }
-      char tagVal[LONG_BYTES + CHAR_BYTES] = {0};
-      tagVal[0] = (item->valuedouble - (int64_t)(item->valuedouble) == 0) ? TSDB_DATA_TYPE_BIGINT
-                                                                        : TSDB_DATA_TYPE_DOUBLE;
-      char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
-      if(tagVal[0]== TSDB_DATA_TYPE_DOUBLE) *((double *)tagData) = item->valuedouble;
-      else if(tagVal[0] == TSDB_DATA_TYPE_BIGINT) *((int64_t *)tagData) = item->valueint;
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, LONG_BYTES + CHAR_BYTES);
+      char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
+      char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
+      *valueType = (item->valuedouble - (int64_t)(item->valuedouble) == 0) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_DOUBLE;
+      if(*valueType== TSDB_DATA_TYPE_DOUBLE) *((double *)valueData) = item->valuedouble;
+      else if(*valueType == TSDB_DATA_TYPE_BIGINT) *((int64_t *)valueData) = item->valueint;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES +LONG_BYTES);
     }else if(item->type == cJSON_True || item->type == cJSON_False){
-      char tagVal[CHAR_BYTES + CHAR_BYTES] = {0};
-      tagVal[0] = TSDB_DATA_TYPE_BOOL;
-      tagVal[1] = (char)(item->valueint);
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, CHAR_BYTES + CHAR_BYTES);
+      char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
+      char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
+      *valueType = TSDB_DATA_TYPE_BOOL;
+      *valueData = (char)(item->valueint);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + CHAR_BYTES);
     }else if(item->type == cJSON_NULL){
-      char tagVal[CHAR_BYTES] = {TSDB_DATA_TYPE_NULL};
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagVal, CHAR_BYTES);
+      char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
+      *valueType = TSDB_DATA_TYPE_NULL;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
     }
     else{
       retCode = buildSyntaxErrMsg(pMsgBuf, "invalidate json value", json);
@@ -364,10 +361,11 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
   }
 
   if(taosHashGetSize(keyHash) == 0){  // set json NULL true
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNULL, CHAR_BYTES);
+    tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
   }
 
 end:
+  taosMemoryFree(tagKV);
   taosHashCleanup(keyHash);
   cJSON_Delete(root);
   return retCode;

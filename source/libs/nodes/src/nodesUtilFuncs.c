@@ -1006,6 +1006,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_NOT_LIKE:
     case OP_TYPE_MATCH:
     case OP_TYPE_NMATCH:
+    case OP_TYPE_JSON_CONTAINS:
     case OP_TYPE_IS_NULL:
     case OP_TYPE_IS_NOT_NULL:
     case OP_TYPE_IS_TRUE:
@@ -1024,7 +1025,6 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
-    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;

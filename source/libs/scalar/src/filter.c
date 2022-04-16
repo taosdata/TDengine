@@ -170,7 +170,7 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
   setChkInBytes1, setChkInBytes2, setChkInBytes4, setChkInBytes8, compareStrRegexCompMatch, 
   compareStrRegexCompNMatch, setChkNotInBytes1, setChkNotInBytes2, setChkNotInBytes4, setChkNotInBytes8,
-  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
+  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch, compareJsonContainsKey
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -221,7 +221,12 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         assert(0);
     }
   }
-  
+
+  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
+    return 28;
+  }
+
+
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:   comparFn = 1;   break;

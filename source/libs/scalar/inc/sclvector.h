@@ -53,6 +53,8 @@ static FORCE_INLINE double getVectorDoubleValue_DOUBLE(void *src, int32_t index)
   return (double)*((double *)src + index);
 }
 
+double getVectorDoubleValue_JSON(void *src, int32_t index);
+
 static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
   _getDoubleValue_fn_t p = NULL;
   if (srcType == TSDB_DATA_TYPE_TINYINT) {
@@ -77,6 +79,8 @@ static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType)
     p = getVectorDoubleValue_DOUBLE;
   } else if (srcType == TSDB_DATA_TYPE_TIMESTAMP) {
     p = getVectorDoubleValue_BIGINT;
+  } else if (srcType == TSDB_DATA_TYPE_JSON) {
+    p = getVectorDoubleValue_JSON;
   } else {
     assert(0);
   }
