@@ -138,6 +138,12 @@ static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateTimezone(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType = (SDataType){.bytes = TD_TIMEZONE_LEN, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -399,7 +405,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateSum,
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
@@ -814,6 +820,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = todayFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "timezone",
+    .type = FUNCTION_TYPE_TIMEZONE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateTimezone,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = timezoneFunction,
     .finalizeFunc = NULL
   },
   {
