@@ -185,6 +185,53 @@ class Case8(ClusterCase):
                             break
                     if not status:
                         self.logger.info("master dnode {} has dead , this is an error ".format(self.master_node))
+                    
+                    # master mnode can be drop by stop first 
+                    self.envMgr.stopDnode(self.master_node)
+                    self.logger.info("stop dnode {}".format(self.master_node))
+                    time.sleep(5)
+                    result = client_0.query("show dnodes")
+                    dnodes_data = result.fetch_all()
+                    for dnode in dnodes_data:
+                        if dnode[1] == self.master_node and dnode[4] =="offline":
+                            self.logger.info(" {} is stopping  , directly create {} status is 'offline' ".format(self.master_node,self.master_node))
+                            self.logger.info(" {} work as expected , it will be remove again ".format(self.master_node))
+                        elif dnode[1] == self.master_node and dnode[4] !="offline":
+                            self.logger.error(" {} work not as expected , it will be remove again ".format(self.master_node))
+                        else:
+                            pass
+                    client_0.execute("drop dnode '{}' ;".format(self.master_node))
+                    self.logger.info("drop dnode {}".format(self.master_node))
+                    time.sleep(10)
+                    # clear data
+                    config = self.envMgr.getCfg(self.master_node, "taosd", {"config": ""})[
+                        "config"]
+                    dataDir = config['dataDir']
+                    logDir = config['logDir']
+                    
+                    self.envMgr._remote.cmd(self.master_node.split(":")[0] , ["rm -rf {}".format(dataDir)])
+                    self.envMgr._remote.cmd(self.master_node.split(":")[0] , ["rm -rf {}".format(logDir)])
+                    config_dir = self.envMgr.getCfg(self.master_node, "taosd", {"config_dir": ""})[
+                        "config_dir"]
+
+                    self.envMgr._remote.cmd(self.master_node.split(":")[0] , ["sed 's/firstEP dnode_1:6030/firstEP dnode_2:6030/g'  {}".format(config_dir)])
+                    self.logger.info("clear data of {}".format(self.master_node))
+                    time.sleep(10)
+                    self.envMgr.startDnode(self.master_node)
+                    self.logger.info("start dnode {}".format(self.master_node))
+                    time.sleep(2)
+                    # create endpoint again ,it will work 
+                    client_0.execute("create dnode '{}' ;".format(self.master_node))
+                    time.sleep(3)
+
+                    # check status should be status not received
+                    result = client_0.query("show dnodes")
+                    dnodes_data = result.fetch_all()
+                    for dnode in dnodes_data:
+                        if dnode[1] == self.master_node and dnode[4] =="ready":
+                            self.logger.info(" {} is created  , directly create {} status is 'ready' ".format(self.master_node,self.master_node))
+                        elif dnode[1] == self.master_node and dnode[4] !="ready":
+                            self.logger.error(" {} work not as expected , this is an error ".format(self.master_node))
 
                     self.logger.info(sql)
                 client_0.execute(sql)
@@ -218,6 +265,6 @@ class Case8(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.9 drop master dnode , it can't been drop  ... ;
+            [test]<wenzhouwww> test case for cluster about 1.8 drop dnode and add dnode again  ... ;
         '''
         return case_description
