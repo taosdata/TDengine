@@ -196,4 +196,4 @@ $dbNamme = d1
 sql create database $dbNamme vgroups 4
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
