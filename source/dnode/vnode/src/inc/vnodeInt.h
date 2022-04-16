@@ -52,6 +52,11 @@ typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
 typedef struct SQWorkerMgmt SQHandle;
 
+#define VNODE_META_DIR "meta"
+#define VNODE_TSDB_DIR "tsdb"
+#define VNODE_TQ_DIR   "tq"
+#define VNODE_WAL_DIR  "wal"
+
 typedef struct {
   int8_t  streamType;  // sma or other
   int8_t  dstType;
