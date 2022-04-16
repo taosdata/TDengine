@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "tmsg.h"
+#include "tcommon.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,18 +98,20 @@ typedef struct SUdfInterBuf {
   char* buf;
 } SUdfInterBuf;
 
+//TODO: translate these calls to callUdf
+int32_t callUdfAggInit(SUdfInterBuf *interBuf);
 // input: block, initFirst
 // output: interbuf
-int32_t callUdfAggProcess(SUdfDataBlock *block, SUdfInterBuf *interBuf, bool initFirst);
+int32_t callUdfAggProcess(SSDataBlock *block, SUdfInterBuf *interBuf);
 // input: interBuf
 // output: resultData
-int32_t callUdfAggFinalize(SUdfInterBuf *interBuf, SUdfColumnData *resultData);
+int32_t callUdfAggFinalize(SUdfInterBuf *interBuf, SSDataBlock *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
 int32_t callUdfAggMerge(SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalaProcess(SUdfDataBlock *block, SUdfColumnData *resultData);
+int32_t callUdfScalaProcess(SSDataBlock *block, SSDataBlock *resultData);
 
 /**
  * tearn down udf
@@ -125,6 +128,7 @@ int32_t teardownUdf(UdfHandle handle);
 typedef int32_t (*TUdfSetupFunc)();
 typedef int32_t (*TUdfTeardownFunc)();
 
+//TODO: add API to check function arguments type, number etc.
 //TODO: another way to manage memory is provide api for UDF to add data to SUdfColumnData and UDF framework will allocate memory.
 // then UDF framework will free the memory
 //typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);

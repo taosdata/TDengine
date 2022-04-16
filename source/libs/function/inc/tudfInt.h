@@ -30,9 +30,10 @@ enum {
 };
 
 enum {
-  TSDB_UDF_CALL_AGG_PROC = 0,
+  TSDB_UDF_CALL_AGG_INIT = 0,
+  TSDB_UDF_CALL_AGG_PROC,
   TSDB_UDF_CALL_AGG_MERGE,
-  TSDb_UDF_CALL_AGG_FIN,
+  TSDB_UDF_CALL_AGG_FIN,
   TSDB_UDF_CALL_SCALA_PROC,
 };
 
@@ -49,14 +50,15 @@ typedef struct SUdfCallRequest {
   int64_t udfHandle;
   int8_t callType;
 
-  SUdfDataBlock block;
+  SSDataBlock block;
   SUdfInterBuf interBuf;
   SUdfInterBuf interBuf2;
-  bool initFirst;
+  int8_t initFirst;
 } SUdfCallRequest;
 
 typedef struct SUdfCallResponse {
-  SUdfColumnData resultData;
+  int8_t callType;
+  SSDataBlock resultData;
   SUdfInterBuf interBuf;
 } SUdfCallResponse;
 
@@ -94,10 +96,11 @@ typedef struct SUdfResponse {
   };
 } SUdfResponse;
 
-int32_t decodeRequest(char *buf, int32_t bufLen, SUdfRequest *pRequest);
-int32_t encodeRequest(char **buf, int32_t *bufLen, SUdfRequest *request);
-int32_t decodeResponse(char *buf, int32_t bufLen, SUdfResponse *pResponse);
-int32_t encodeResponse(char **buf, int32_t *bufLen, SUdfResponse *response);
+int32_t encodeUdfRequest(void **buf, const SUdfRequest* request);
+void* decodeUdfRequest(const void *buf, SUdfRequest* request);
+
+int32_t encodeUdfResponse(void **buf, const SUdfResponse *response);
+void* decodeUdfResponse(const void* buf, SUdfResponse *response);
 
 void freeUdfColumnData(SUdfColumnData *data);
 void freeUdfColumn(SUdfColumn* col);

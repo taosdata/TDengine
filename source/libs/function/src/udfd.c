@@ -62,7 +62,7 @@ typedef struct SUdfHandle {
 void udfdProcessRequest(uv_work_t *req) {
     SUvUdfWork *uvUdf = (SUvUdfWork *) (req->data);
     SUdfRequest request = {0};
-    decodeRequest(uvUdf->input.base, uvUdf->input.len, &request);
+    decodeUdfRequest(uvUdf->input.base, &request);
 
     switch (request.type) {
         case UDF_TASK_SETUP: {
@@ -94,9 +94,10 @@ void udfdProcessRequest(uv_work_t *req) {
             rsp.type = request.type;
             rsp.code = 0;
             rsp.setupRsp.udfHandle = (int64_t) (handle);
-            char *buf;
-            int32_t len;
-            encodeResponse(&buf, &len, &rsp);
+            int32_t len = encodeUdfResponse(NULL, &rsp);
+            rsp.msgLen = len;
+            void *buf = taosMemoryMalloc(len);
+            encodeUdfResponse(&buf, &rsp);
 
             uvUdf->output = uv_buf_init(buf, len);
 
@@ -110,7 +111,8 @@ void udfdProcessRequest(uv_work_t *req) {
             SUdfHandle *handle = (SUdfHandle *) (call->udfHandle);
             SUdf *udf = handle->udf;
 
-            SUdfDataBlock input = call->block;
+            SUdfDataBlock input = {0};
+            //TODO: convertSDataBlockToUdfDataBlock(call->block, &input);
             SUdfColumnData output;
 	    //TODO: call different functions according to call type, for now just calar
             if (call->callType == TSDB_UDF_CALL_SCALA_PROC) {
@@ -124,12 +126,13 @@ void udfdProcessRequest(uv_work_t *req) {
               rsp->type = request.type;
               rsp->code = 0;
               SUdfCallResponse *subRsp = &rsp->callRsp;
-              subRsp->resultData = output;
+              //TODO: convertSUdfColumnDataToSSDataBlock(output, &subRsp->resultData);
             }
 
-            char *buf;
-            int32_t len;
-            encodeResponse(&buf, &len, rsp);
+            int32_t len = encodeUdfResponse(NULL, rsp);
+            rsp->msgLen = len;
+            void *buf = taosMemoryMalloc(len);
+            encodeUdfResponse(&buf, rsp);
             uvUdf->output = uv_buf_init(buf, len);
 
             //TODO: free
@@ -158,9 +161,10 @@ void udfdProcessRequest(uv_work_t *req) {
             rsp->type = request.type;
             rsp->code = 0;
             SUdfTeardownResponse *subRsp = &response.teardownRsp;
-            char *buf;
-            int32_t len;
-            encodeResponse(&buf, &len, rsp);
+            int32_t len = encodeUdfResponse(NULL, rsp);
+            void *buf = taosMemoryMalloc(len);
+            rsp->msgLen = len;
+            encodeUdfResponse(&buf, rsp);
             uvUdf->output = uv_buf_init(buf, len);
 
             taosMemoryFree(uvUdf->input.base);
