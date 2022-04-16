@@ -659,12 +659,17 @@ void vnodeRemoveWait(void* vparam, void* param) {
 
     while (1) {
       SListNode* pNode = tdListNext(&iter);
+      if (pNode == NULL)
+        break;
+
       SWaitThread * pWaitThread = (SWaitThread *)pNode->data;
       if (pWaitThread->param == param) {
-        // found
+        // found , free SWaitThread memeber
         free(pWaitThread->pthread);
         tdListPopNode(pVnode->waitThreads, pNode);
-        vInfo("vgId:%d :SDEL remove wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+        vInfo("vgId:%d :SDEL removed wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+        // free pListNode self
+        free(pNode);
         break;
       }
     }

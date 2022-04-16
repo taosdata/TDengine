@@ -230,6 +230,7 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
       pthread_t* thread = taosCreateThread(waitingResultThread, pWrite);
       // add to wait thread manager
       vnodeAddWait(pVnode, thread, pWrite->rspRet.psem, pWrite);
+      dInfo(":SDEL pVnode=%p vnode add wait %p ok, tsem_post.", pVnode, pWrite);
       tsem_post(psem);
     }
   }  
