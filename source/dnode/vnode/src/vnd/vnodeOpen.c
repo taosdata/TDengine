@@ -70,6 +70,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   info.config.pTfs = pTfs;
   info.config.msgCb = msgCb;
+  // memset(&info.config.walCfg, 0, sizeof(SWalCfg));
+  // info.config.walCfg.level = TAOS_WAL_WRITE;
 
   // crate handle
   pVnode = vnodeNew(dir, &info.config);
