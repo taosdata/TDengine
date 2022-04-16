@@ -15,14 +15,15 @@
 
 #include "vnodeInt.h"
 
-const SVnodeCfg defaultVnodeOptions = {
-    .wsize = 96 * 1024 * 1024, .ssize = 1 * 1024 * 1024, .lsize = 1024, .walCfg = {.level = TAOS_WAL_WRITE}}; /* TODO */
+const SVnodeCfg vnodeCfgDefault = {
+    .wsize = 96 * 1024 * 1024, .ssize = 1 * 1024 * 1024, .lsize = 1024, .walCfg = {.level = TAOS_WAL_WRITE}};
 
-int vnodeValidateOptions(const SVnodeCfg *pVnodeOptions) {
+int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
   return 0;
 }
 
+#if 1  //======================================================================
 void vnodeOptionsCopy(SVnodeCfg *pDest, const SVnodeCfg *pSrc) {
   memcpy((void *)pDest, (void *)pSrc, sizeof(SVnodeCfg));
 }
@@ -46,3 +47,5 @@ int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+#endif

@@ -13,25 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
+#include "filter.h"
+#include "tglobal.h"
 
-#include "mndInt.h"
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, const char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
-char   *mndGetDbStr(char *src);
-int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_DATABASE_H_*/
+SIdxFltStatus idxGetFltStatus(SNode *pFilterNode);
+// construct tag filter operator later
+int32_t doFilterTag(const SNode *pFilterNode, SArray *resutl);

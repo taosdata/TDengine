@@ -207,7 +207,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq = BuildCreateStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables",dbname);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
   }
@@ -216,7 +216,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq = BuildCreateTSmaReq(smaname, stbname, 0, "expr", "tagsFilter", "sql", "ast", &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_SMA, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_INDEX, dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_INDEX, dbname);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
   }
@@ -225,7 +225,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
   test.Restart();
 
   {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_INDEX, dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_INDEX, dbname);
     CHECK_META("show indexes", 3);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
@@ -239,7 +239,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
      pReq = BuildDropTSmaReq(smaname, 0, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_SMA, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_INDEX, dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_INDEX, dbname);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 0);
   }
@@ -263,10 +263,8 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateBSmaStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables",dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
-//    CheckBinary("bsmastb", TSDB_TABLE_NAME_LEN);
   }
 
   test.Restart();
@@ -281,8 +279,7 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildDropStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables",dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 

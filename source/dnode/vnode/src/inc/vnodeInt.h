@@ -27,6 +27,7 @@
 #include "tdbInt.h"
 #include "tfs.h"
 #include "tglobal.h"
+#include "tjson.h"
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tlosertree.h"
@@ -43,6 +44,7 @@
 extern "C" {
 #endif
 
+typedef struct SVnodeInfo   SVnodeInfo;
 typedef struct SMeta        SMeta;
 typedef struct STsdb        STsdb;
 typedef struct STQ          STQ;
@@ -70,6 +72,11 @@ struct SVState {
   int64_t processed;
   int64_t committed;
   int64_t applied;
+};
+
+struct SVnodeInfo {
+  SVnodeCfg config;
+  SVState   state;
 };
 
 struct SVnode {
