@@ -53,35 +53,30 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
 void vnodeDestroy(const char *path, STfs *pTfs) { tfsRmdir(pTfs, path); }
 
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
-  SVnode *pVnode = NULL;
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
+  SVnode    *pVnode = NULL;
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN];
+  int        ret;
 
-  // Set default options
-  SVnodeCfg cfg = vnodeCfgDefault;
-  if (pVnodeCfg != NULL) {
-    cfg.vgId = pVnodeCfg->vgId;
-    cfg.msgCb = pVnodeCfg->msgCb;
-    cfg.pTfs = pVnodeCfg->pTfs;
-    cfg.dbId = pVnodeCfg->dbId;
-    cfg.hashBegin = pVnodeCfg->hashBegin;
-    cfg.hashEnd = pVnodeCfg->hashEnd;
-    cfg.hashMethod = pVnodeCfg->hashMethod;
-  }
+  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
 
-  // Validate options
-  if (vnodeCheckCfg(&cfg) < 0) {
-    // TODO
+  // load vnode info
+  ret = vnodeLoadInfo(dir, &info);
+  if (ret < 0) {
+    vError("failed to open vnode from %s since %s", path, tstrerror(terrno));
     return NULL;
   }
 
-  // Create the handle
-  pVnode = vnodeNew(path, &cfg);
+  info.config.pTfs = pTfs;
+  info.config.msgCb = msgCb;
+
+  // crate handle
+  pVnode = vnodeNew(dir, &info.config);
   if (pVnode == NULL) {
     // TODO: handle error
     return NULL;
   }
-
-  taosMkDir(path);
 
   // Open the vnode
   if (vnodeOpenImpl(pVnode) < 0) {

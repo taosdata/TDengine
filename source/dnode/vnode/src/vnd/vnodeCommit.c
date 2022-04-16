@@ -108,7 +108,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
     goto _err;
   }
 
-  pData = taosMemoryMalloc(size);
+  pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -118,6 +118,8 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
+
+  pData[size] = '\0';
 
   taosCloseFile(&pFile);
 
