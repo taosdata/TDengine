@@ -101,8 +101,8 @@ if [ "$EXEC_OPTON" = "start" ]; then
   if [ "$VALGRIND_OPTION" = "true" ]; then 
     TT=`date +%s`
     #mkdir ${LOG_DIR}/${TT}
-    echo "nohup valgrind --log-file=${LOG_DIR}/valgrind-taosd-${TT}.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &"
-    nohup valgrind --log-file=${LOG_DIR}/valgrind-taosd-${TT}.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
+    echo "nohup valgrind --log-file=${LOG_DIR}/valgrind-taosd-${NODE_NAME}-${TT}.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &"
+    nohup valgrind --log-file=${LOG_DIR}/valgrind-taosd-${NODE_NAME}-${TT}.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
   else
     echo "nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &"
     nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
