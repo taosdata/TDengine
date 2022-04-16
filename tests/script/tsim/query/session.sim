@@ -288,7 +288,7 @@ endi
 
 print ================> syntax error check not active ================> reactive
 sql_error select * from dev_001 session(ts,1w)
-sql select count(*) from st session(ts,1w)
+sql_error select count(*) from st session(ts,1w)
 sql_error select count(*) from dev_001 group by tagtype session(ts,1w)
 sql select count(*) from dev_001 session(ts,1n)
 sql select count(*) from dev_001 session(ts,1y)
@@ -347,4 +347,4 @@ if $loop_test == 0 then
   goto loop_test_pos
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

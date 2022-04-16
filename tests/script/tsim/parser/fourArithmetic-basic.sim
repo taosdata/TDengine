@@ -138,4 +138,4 @@ if $loop_test == 0 then
   goto loop_test_pos
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

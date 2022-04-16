@@ -17,12 +17,12 @@
 
 const STsdbCfg defautlTsdbOptions = {.precision = 0,
                                      .lruCacheSize = 0,
-                                     .daysPerFile = 10,
-                                     .minRowsPerFileBlock = 100,
-                                     .maxRowsPerFileBlock = 4096,
-                                     .keep = 3650,
-                                     .keep1 = 3650,
+                                     .days = 10,
+                                     .minRows = 100,
+                                     .maxRows = 4096,
                                      .keep2 = 3650,
+                                     .keep0 = 3650,
+                                     .keep1 = 3650,
                                      .update = 0,
                                      .compression = TWO_STAGE_COMP};
 

@@ -1,11 +1,11 @@
-aux_source_directory(. TRANS_SRC)
-add_executable(mnode_test_trans ${TRANS_SRC})
+aux_source_directory(. MNODE_TRANS_TEST_SRC)
+add_executable(transTest ${MNODE_TRANS_TEST_SRC})
 target_link_libraries(
-    mnode_test_trans
+    transTest
     PUBLIC sut
 )
 
 add_test(
-    NAME mnode_test_trans
-    COMMAND mnode_test_trans
+    NAME transTest
+    COMMAND transTest
 )
