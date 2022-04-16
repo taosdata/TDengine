@@ -1165,12 +1165,16 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     ret = tsdbQuerySTableByTagCond(pRepo, pBlock->uid, pCtlData->win.skey, pCtlData->tagCond, pCtlData->tagCondLen, &tableGroupInfo, NULL, 0);
     if (ret != TSDB_CODE_SUCCESS) {
       tsdbError(":SDEL vgId:%d failed to get child tables id from stable with tag condition. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
+      if(tableGroupInfo.pGroupList)
+        tsdbDestroyTableGroup(&tableGroupInfo);
       return ret;
     }
 
     tnum = tsdbTableGroupInfo(&tableGroupInfo, NULL);
     if (tnum == 0) {
       tsdbWarn(":SDEL vgId:%d super table no child tables after filter by tag. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
+      if(tableGroupInfo.pGroupList)
+        tsdbDestroyTableGroup(&tableGroupInfo);
       return TSDB_CODE_SUCCESS;
     }
   } else {
@@ -1178,11 +1182,13 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     tnum = 1;
   }
 
-  // INIT SEM FOR ASYNC WAIT COMMIT RESULT
-  if (ppSem) {
+  // if need response (pRsp not null) , malloc ppSem for async wait response
+  if (ppSem && pRsp) {
     *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
     ret = tsem_init(*ppSem, 0, 0);
     if(ret != 0) {
+      if(tableGroupInfo.pGroupList)
+        tsdbDestroyTableGroup(&tableGroupInfo);
       return TAOS_SYSTEM_ERROR(ret);
     }
   }
@@ -1219,6 +1225,9 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     }
     tfree(pNew);
   }
+
+  if(tableGroupInfo.pGroupList)
+    tsdbDestroyTableGroup(&tableGroupInfo);
 
   return ret;
 }
