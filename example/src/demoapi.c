@@ -179,33 +179,77 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
         warnPrint("%s", "call taos_fetch_block()\n");
         int rows = 0;
         while ((rows = taos_fetch_block(res, &row))) {
+            int *lengths = taos_fetch_lengths(res);
             for (int f = 0; f < num_fields; f++) {
                 if ((fields[f].type != TSDB_DATA_TYPE_VARCHAR)
                         && (fields[f].type != TSDB_DATA_TYPE_NCHAR)
                         && (fields[f].type != TSDB_DATA_TYPE_JSON)) {
                     printf("col%d type is %d, no need get offset\n",
                             f, fields[f].type);
-                    continue;
-                }
+                    for (int64_t c = 0; c < rows; c++) {
+                        switch(fields[f].type) {
+                            case TSDB_DATA_TYPE_TIMESTAMP:
+                                if (taos_is_null(res, c, f)) {
+                                    printf("col%d, row: %"PRId64" "
+                                            "value: NULL\n", f, c);
+                                } else {
+                                    printf("col%d, row: %"PRId64", "
+                                            "value: %"PRId64"\n",
+                                            f, c,
+                                            *(int64_t*)(row[f]+c*sizeof(int64_t)));
+                                }
+                                break;
 
-                int *offsets = taos_get_column_data_offset(res, f);
-                if (offsets) {
-                    for (int c = 0; c < rows; c++) {
-                        if (offsets[c] != -1) {
-                            int length = *(int16_t*)(row[f] + offsets[c]);
-                            char *buf = calloc(1, length + 1);
-                            strncpy(buf, (char *)(row[f] + offsets[c] + 2), length);
-                            printf("row: %d, col: %d, offset: %d, length: %d, content: %s\n",
-                                    c, f, offsets[c], length, buf);
-                            free(buf);
-                        } else {
-                            printf("row: %d, col: %d, offset: -1, means content is NULL\n",
-                                    c, f);
+                            case TSDB_DATA_TYPE_INT:
+                                if (taos_is_null(res, c, f)) {
+                                    printf("col%d, row: %"PRId64" "
+                                            "value: NULL\n", f, c);
+                                } else {
+                                    printf("col%d, row: %"PRId64", "
+                                            "value: %d\n",
+                                            f, c,
+                                            *(int32_t*)(row[f]+c*sizeof(int32_t)));
+                                }
+                                break;
+
+                            case TSDB_DATA_TYPE_FLOAT:
+                                if (taos_is_null(res, c, f)) {
+                                    printf("col%d, row: %"PRId64" "
+                                            "value: NULL\n", f, c);
+                                } else {
+                                    printf("col%d, row: %"PRId64", "
+                                            "value: %f\n",
+                                            f, c,
+                                            *(float*)(row[f]+c*sizeof(float)));
+                                }
+                                break;
+
+                            default:
+                                printf("type: %d is not processed\n",
+                                        fields[f].type);
+                                break;
                         }
                     }
                 } else {
-                    errorPrint("%s() LN%d: col%d's lengths is NULL\n",
-                            __func__, __LINE__, f);
+                    int *offsets = taos_get_column_data_offset(res, f);
+                    if (offsets) {
+                        for (int c = 0; c < rows; c++) {
+                            if (offsets[c] != -1) {
+                                int length = *(int16_t*)(row[f] + offsets[c]);
+                                char *buf = calloc(1, length + 1);
+                                strncpy(buf, (char *)(row[f] + offsets[c] + 2), length);
+                                printf("row: %d, col: %d, offset: %d, length: %d, content: %s\n",
+                                        c, f, offsets[c], length, buf);
+                                free(buf);
+                            } else {
+                                printf("row: %d, col: %d, offset: -1, means content is NULL\n",
+                                        c, f);
+                            }
+                        }
+                    } else {
+                        errorPrint("%s() LN%d: col%d's offsets is NULL\n",
+                                __func__, __LINE__, f);
+                    }
                 }
             }
             num_rows += rows;
