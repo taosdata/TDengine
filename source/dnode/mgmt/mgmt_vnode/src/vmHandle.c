@@ -175,7 +175,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
     vnodeClose(pImpl);
-    vnodeDestroy(wrapperCfg.path);
+    vnodeDestroy(path, pMgmt->pTfs);
     terrno = code;
     return code;
   }
@@ -184,7 +184,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   if (code != 0) {
     tFreeSCreateVnodeReq(&createReq);
     vnodeClose(pImpl);
-    vnodeDestroy(wrapperCfg.path);
+    vnodeDestroy(path, pMgmt->pTfs);
     terrno = code;
     return code;
   }

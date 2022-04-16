@@ -84,6 +84,8 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 }
 
 void vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
+  char path[TSDB_FILENAME_LEN];
+
   taosWLockLatch(&pMgmt->latch);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosWUnLockLatch(&pMgmt->latch);
@@ -104,7 +106,8 @@ void vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
 
   if (pVnode->dropped) {
     dDebug("vgId:%d, vnode is destroyed for dropped:%d", pVnode->vgId, pVnode->dropped);
-    vnodeDestroy(pVnode->path);
+    snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
+    vnodeDestroy(path, pMgmt->pTfs);
   }
 
   taosMemoryFree(pVnode->path);

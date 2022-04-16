@@ -45,7 +45,7 @@ typedef struct SVnodeCfg SVnodeCfg;
 int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
-void    vnodeDestroy(const char *path);
+void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
 void    vnodeClose(SVnode *pVnode);
 void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);

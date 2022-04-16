@@ -51,6 +51,8 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   return 0;
 }
 
+void vnodeDestroy(const char *path, STfs *pTfs) { tfsRmdir(pTfs, path); }
+
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
@@ -96,8 +98,6 @@ void vnodeClose(SVnode *pVnode) {
     vnodeFree(pVnode);
   }
 }
-
-void vnodeDestroy(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
 static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
