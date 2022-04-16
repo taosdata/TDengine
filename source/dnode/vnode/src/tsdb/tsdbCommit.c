@@ -100,7 +100,7 @@ int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
 
   level = tsdbGetFidLevel(pSet->fid, pRtn);
 
-  if (tfsAllocDisk(pRepo->pTfs, level, &did) < 0) {
+  if (tfsAllocDisk(pRepo->pVnode->pTfs, level, &did) < 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
     return -1;
   }
@@ -427,7 +427,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
     pCommitIter->pTable->uid = pTbData->uid;
     pCommitIter->pTable->tid = pTbData->uid;
-    pCommitIter->pTable->pSchema = metaGetTbTSchema(pRepo->pMeta, pTbData->uid, 0);
+    pCommitIter->pTable->pSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
   }
 
   return 0;
@@ -459,7 +459,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
   STsdb     *pRepo = TSDB_COMMIT_REPO(pCommith);
   SDFileSet *pWSet = TSDB_COMMIT_WRITE_FSET(pCommith);
 
-  if (tfsAllocDisk(pRepo->pTfs, tsdbGetFidLevel(fid, &(pCommith->rtn)), &did) < 0) {
+  if (tfsAllocDisk(REPO_TFS(pRepo), tsdbGetFidLevel(fid, &(pCommith->rtn)), &did) < 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
     return -1;
   }
