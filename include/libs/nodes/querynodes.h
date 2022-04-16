@@ -280,16 +280,6 @@ typedef struct SVgDataBlocks {
   char       *pData;        // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
-typedef struct SStmtDataCtx {
-  uint64_t  tbUid;
-  uint64_t  tbSuid;
-  int8_t    tbType;
-  SParsedDataColInfo tags;
-  
-  SHashObj* pVgroupsHashObj;
-  SHashObj* pTableBlockHashObj;
-} SStmtDataCtx;
-
 typedef struct SVnodeModifOpStmt {
   ENodeType    nodeType;
   ENodeType    sqlNodeType;
@@ -297,7 +287,6 @@ typedef struct SVnodeModifOpStmt {
   uint8_t      payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t     insertType;          // insert data from [file|sql statement| bound statement]
   const char*  sql;                 // current sql statement position
-  SStmtDataCtx stmtCtx;
 } SVnodeModifOpStmt;
 
 typedef struct SExplainOptions {

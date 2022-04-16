@@ -103,6 +103,10 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
 }
 
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList) {
+  if (NULL == pColList) {
+    return;
+  }
+  
   taosMemoryFreeClear(pColList->boundColumns);
   taosMemoryFreeClear(pColList->cols);
   taosMemoryFreeClear(pColList->colIdxInfo);

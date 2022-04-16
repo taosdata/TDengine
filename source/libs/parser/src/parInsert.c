@@ -1100,17 +1100,17 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   }
   
   if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
-    pCxt->pOutput->stmtCtx.tbUid = pCxt->pTableMeta->uid;
-    pCxt->pOutput->stmtCtx.tbSuid = pCxt->pTableMeta->suid;
-    pCxt->pOutput->stmtCtx.tbType = pCxt->pTableMeta->tableType;
-    
-    pCxt->pOutput->stmtCtx.pVgroupsHashObj = pCxt->pVgroupsHashObj;
-    pCxt->pOutput->stmtCtx.pTableBlockHashObj = pCxt->pTableBlockHashObj;
-    pCxt->pOutput->stmtCtx.tags = pCxt->tags;
+    SParsedDataColInfo *tags = taosMemoryMalloc(sizeof(pCxt->tags));
+    if (NULL == tags) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
+    (*pCxt->pStmtCb->setBindInfoFn)(pCxt->pTableMeta, tags);
+    memset(&pCxt->tags, 0, sizeof(pCxt->tags));
 
+    (*pCxt->pStmtCb->setExecInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
     pCxt->pVgroupsHashObj = NULL;
     pCxt->pTableBlockHashObj = NULL;
-    memset(&pCxt->tags, 0, sizeof(pCxt->tags));
     
     return TSDB_CODE_SUCCESS;
   }
@@ -1134,14 +1134,19 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     .pSql = (char*) pContext->pSql,
     .msg = {.buf = pContext->pMsg, .len = pContext->msgLen},
     .pTableMeta = NULL,
-    .pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false),
-    .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, false),
     .totalNum = 0,
     .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT),
     .pStmtCb = pContext->pStmtCb
   };
 
+  if (pContext->pStmtCb && *pQuery) {
+    (*pContext->pStmtCb->getExecInfoFn)(pContext->pStmtCb->pStmt, &context.pVgroupsHashObj, &context.pTableBlockHashObj);
+  } else {
+    context.pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false),
+    context.pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
+  }
+  
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj ||
       NULL == context.pSubTableHashObj || NULL == context.pOutput) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;

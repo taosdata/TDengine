@@ -38,27 +38,46 @@ typedef enum {
   STMT_EXECUTE
 } STMT_STATUS;
 
+typedef struct SStmtTableCache {
+  STableDataBlocks* pDataBlock;
+  void*             boundTags;
+} SStmtTableCache;
 
+typedef struct SStmtBindInfo {
+  bool         needParse;
+  uint64_t     tbUid;
+  uint64_t     tbSuid;
+  int8_t       tbType;
+  void*        boundTags;  
+  char*        tbName;
+  SName        sname;
+  TAOS_BIND*   bindTags;
+} SStmtBindInfo;
 
-typedef struct STscStmt {
+typedef struct SStmtExecInfo {
+  SRequestObj* pRequest;
+  SHashObj*    pVgHash;
+  SHashObj*    pBlockHash;
+} SStmtExecInfo;
+
+typedef struct SStmtSQLInfo {
   STMT_TYPE    type;
   STMT_STATUS  status;
   bool         autoCreate;
   uint64_t     runTimes;
-  STscObj*     taos;
-  SCatalog*    pCatalog;
-  SHashObj*    pTableDataBlocks;
-  SHashObj*    pVgList;
-
-  bool         tbNeedParse;
-  bool         tbReuse;
-  SRequestObj* pRequest;
+  SHashObj*    pTableCache;   //SHash<SStmtTableCache>
   SQuery*      pQuery;
-  char*        sql;
+  char*        sqlStr;
   int32_t      sqlLen;
-  char*        tbName;
-  SName        sname;
-  TAOS_BIND*   bindTags;
+} SStmtSQLInfo;
+
+typedef struct STscStmt {
+  STscObj*      taos;
+  SCatalog*     pCatalog;
+
+  SStmtSQLInfo  sql;
+  SStmtExecInfo exec;
+  SStmtBindInfo bind;
   
   //SMultiTbStmt mtb;
   //SNormalStmt normal;
@@ -71,15 +90,18 @@ typedef struct STscStmt {
 #define STMT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define STMT_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define STMT_CHK_STATUS(_stmt, _status, _v) do {
-  switch (_status) {
+#define STMT_SWITCH_STATUS(_stmt, _newstatus, _errcode) do {
+  switch (_newstatus) {
     case STMT_INIT:
-      if ((_stmt)->status != 0) return (_v);
+      if ((_stmt)->status != 0) return (_errcode);
       break;
     case STMT_PREPARE:
-      if ((_stmt)->status != STMT_INIT) STMT_ERR_RET(_v);
+      if ((_stmt)->status != STMT_INIT) STMT_ERR_RET(_errcode);
       break;
     case STMT_SETTBNAME:
+      break;
+    default:
+      STMT_ERR_RET(_errcode);
       break;
   }
 } while (0)

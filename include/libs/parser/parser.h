@@ -24,7 +24,10 @@ extern "C" {
 
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
-  int32_t (*getTbNameFn)(TAOS_STMT*, char**);      
+  int32_t (*getTbNameFn)(TAOS_STMT*, char**);
+  int32_t (*setBindInfoFn)(TAOS_STMT*, STableMeta*, void*);
+  int32_t (*setExecInfoFn)(TAOS_STMT*, SHashObj*, SHashObj*);
+  int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
 typedef struct SParseContext {

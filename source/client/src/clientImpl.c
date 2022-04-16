@@ -283,7 +283,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   return pRequest->code;
 }
 
-SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code) {
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery) {
   SArray*      pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -309,7 +309,10 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
   }
 
   taosArrayDestroy(pNodeList);
-  qDestroyQuery(pQuery);
+  if (!keepQuery) {
+    qDestroyQuery(pQuery);
+  }
+  
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
@@ -327,7 +330,7 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
     code = parseSql(pRequest, false, &pQuery, NULL);
   }
 
-  return launchQueryImpl(pRequest, pQuery, code);
+  return launchQueryImpl(pRequest, pQuery, code, false);
 }
 
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
