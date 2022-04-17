@@ -14,21 +14,54 @@ import ConnCSNative from "./_connect_cs_native.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 
-TDengine 提高了多种编程语言的连接器方便用户开发应用程序。本节介绍如何使用连接器建立与 TDengine 的连接。
+TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [RESTful API](https://docs.taosdata.com/reference/restful-api/)。除RESTful之外，TDengine还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
 
 ## 连接器建立连接的方式
 
-连接器建立连接的方式，从本质上分为三种:
-  1. 通过 taosAdapter 组件提供的 RESTful API 建立连接。
-  2. 通过 taosAdapter 组件提供的 WebSocket API 建立连接（目前只有 Java 连接器支持）。
-  3. 通过客户端驱动程序直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“本地连接”。
+连接器建立连接的方式，TDengine提供两种:
+  1. 通过 taosAdapter 组件提供的 RESTful API 建立与 taosd 的连接，这种连接方式下文中简称" 
+  2. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“本地连接”。
 
-无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到太大差别。
+无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
 
 关键不同点在于：
-1. 使用 RESTful 方式，用户无需安装客户端驱动程序，具有跨平台和易用的优势。
-2. WebSocket 方式可以看作对 RESTful 方式的优化，在批量拉取大量数据的场景具有性能优势。
-3. 使用本地连接可以体验 TDengine 的全部功能，如[原生接口写入](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
+1. 使用 RESTful 方式，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降30%左右。
+2. 使用本地连接可以体验 TDengine 的全部功能，如[原生接口写入](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import InstallOnWindows from "../14-reference/03-connector/_linux_install.mdx";
+import InstallOnLinux from "../14-reference/03-connector/_windows_install.mdx";
+import VerifyWindows from "../14-reference/03-connector/_verify_linux.mdx";
+import VerifyLinux from "../14-reference/03-connector/_verify_windows.mdx";
+
+## 安装客户端驱动taosc
+
+如果选择本地连接，而且应用程序不在TDengine同一台服务器上运行，你需要先安装客户端驱动，否则可以跳过此一步。为避免客户端驱动和服务端不兼容，请使用一致的版本
+
+### 安装步骤
+
+<Tabs defaultValue="linux" groupId="os">
+  <TabItem value="linux" label="Linux">
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="windows" label="Windows">
+    <InstallOnLinux />
+  </TabItem>
+</Tabs>
+
+### 安装验证
+
+以上安装和配置完成后，并确认 TDengine 服务已经正常启动运行，此时可以执行 taos 客户端进行登录。
+
+<Tabs defaultValue="linux" groupId="os">
+  <TabItem value="linux" label="Linux">
+    <VerifyLinux />
+  </TabItem>
+  <TabItem value="windows" label="Windows">
+    <VerifyWindows />
+  </TabItem>
+</Tabs>
 
 ## 安装连接器
 
@@ -152,7 +185,7 @@ install.packages("RJDBC")
 
 ## 建立连接
 
-在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine。以下示例代码，都假设 TDengine 安装在本机，且 fqdn（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
+在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的FQDN配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
 
 <Tabs groupId="lang" defaultValue="java">
   <TabItem label="Java" value="java">
@@ -183,8 +216,7 @@ install.packages("RJDBC")
 </Tabs>
 
 :::tip
-在没有安装 TDengine 服务端程序的机器上建立本地连接，需要单独[安装客户端驱动](/reference/connector/#安装客户端驱动)。
-为避免客户端驱动和服务端不兼容，请尽量使用一致的版本。另外还要配置好[FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+如果建立连接失败，大部分情况下是FQDN的配置不正确，详细的排查方法请看[常见问题及反馈](https://docs.taosdata.com/train-fqa/faq)中的“遇到错误Unable to establish connection, 我怎么办？”
 
 :::
 
