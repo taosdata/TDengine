@@ -3804,6 +3804,10 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
 
+    if (pInfo->pExpr && pInfo->pExpr->base.functionId < 0) {
+      bytes = pInfo->pExpr->base.resBytes;
+    }
+
     if (pQueryInfo->isStddev && type == TSDB_DATA_TYPE_JSON){  // for json tag compare in the second round of stddev
       pRes->tsrow[j] = pRes->urow[i];
     }else if (!IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {

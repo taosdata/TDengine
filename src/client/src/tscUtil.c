@@ -888,7 +888,11 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
 
     pRes->urow[i] = pColData->pData;
-    pRes->length[i] = pInfo->field.bytes;
+    if (pInfo->pExpr && pInfo->pExpr->base.functionId < 0) {
+      pRes->length[i] = pInfo->pExpr->base.resBytes;
+    } else {
+      pRes->length[i] = pInfo->field.bytes;
+    }
 
     setResRawPtrImpl(pRes, pInfo, i, convertNchar, convertJson);
     /*

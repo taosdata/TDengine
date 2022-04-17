@@ -434,7 +434,11 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     SExprInfo *pExpr = tscExprGet(pQueryInfo, i);
 
     pSchema[i].bytes = pExpr->base.resBytes;
-    pSchema[i].type = (int8_t)pExpr->base.resType;
+    if (pExpr->base.functionId < 0 && pExpr->base.interBytes > 0) {
+      pSchema[i].type = TSDB_DATA_TYPE_BINARY;
+    } else {
+      pSchema[i].type = (int8_t)pExpr->base.resType;
+    }
     tstrncpy(pSchema[i].name, pExpr->base.aliasName, tListLen(pSchema[i].name));
 
     rlen += pExpr->base.resBytes;
