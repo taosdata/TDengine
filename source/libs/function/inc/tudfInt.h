@@ -59,7 +59,7 @@ typedef struct SUdfCallRequest {
 typedef struct SUdfCallResponse {
   int8_t callType;
   SSDataBlock resultData;
-  SUdfInterBuf interBuf;
+  SUdfInterBuf resultBuf;
 } SUdfCallResponse;
 
 
@@ -105,6 +105,9 @@ void* decodeUdfResponse(const void* buf, SUdfResponse *response);
 void freeUdfColumnData(SUdfColumnData *data);
 void freeUdfColumn(SUdfColumn* col);
 void freeUdfDataDataBlock(SUdfDataBlock *block);
+
+int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock);
+int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block);
 
 #ifdef __cplusplus
 }

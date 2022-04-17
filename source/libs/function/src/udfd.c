@@ -112,8 +112,8 @@ void udfdProcessRequest(uv_work_t *req) {
             SUdf *udf = handle->udf;
 
             SUdfDataBlock input = {0};
-            //TODO: convertSDataBlockToUdfDataBlock(call->block, &input);
-            SUdfColumnData output;
+            convertDataBlockToUdfDataBlock(&call->block, &input);
+            SUdfColumn output;
 	    //TODO: call different functions according to call type, for now just calar
             if (call->callType == TSDB_UDF_CALL_SCALA_PROC) {
               udf->scalarProcFunc(input, &output);
@@ -126,7 +126,7 @@ void udfdProcessRequest(uv_work_t *req) {
               rsp->type = request.type;
               rsp->code = 0;
               SUdfCallResponse *subRsp = &rsp->callRsp;
-              //TODO: convertSUdfColumnDataToSSDataBlock(output, &subRsp->resultData);
+              convertUdfColumnToDataBlock(&output, &subRsp->resultData);
             }
 
             int32_t len = encodeUdfResponse(NULL, rsp);

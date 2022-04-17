@@ -99,19 +99,20 @@ typedef struct SUdfInterBuf {
 } SUdfInterBuf;
 
 //TODO: translate these calls to callUdf
-int32_t callUdfAggInit(SUdfInterBuf *interBuf);
-// input: block, initFirst
-// output: interbuf
-int32_t callUdfAggProcess(SSDataBlock *block, SUdfInterBuf *interBuf);
+// output: interBuf
+int32_t callUdfAggInit(UdfHandle handle, SUdfInterBuf *interBuf);
+// input: block, state
+// output: newState
+int32_t callUdfAggProcess(UdfHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
 // input: interBuf
 // output: resultData
-int32_t callUdfAggFinalize(SUdfInterBuf *interBuf, SSDataBlock *resultData);
+int32_t callUdfAggFinalize(UdfHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t callUdfAggMerge(SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
+int32_t callUdfAggMerge(UdfHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalaProcess(SSDataBlock *block, SSDataBlock *resultData);
+int32_t callUdfScalaProcess(UdfHandle handle, SSDataBlock *block, SSDataBlock *resultData);
 
 /**
  * tearn down udf
@@ -134,12 +135,12 @@ typedef int32_t (*TUdfTeardownFunc)();
 //typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
 //typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
 
-typedef int32_t (*TUdfFreeUdfColumnDataFunc)(SUdfColumnData* columnData);
+typedef int32_t (*TUdfFreeUdfColumnDataFunc)(SUdfColumn* columnData);
 
-typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumnData *resultData);
+typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumn *resultCol);
 typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);
 typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock block, SUdfInterBuf *interBuf);
-typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf buf, SUdfColumnData *resultData);
+typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf buf, SUdfInterBuf *resultData);
 
 
 // end API to UDF writer
