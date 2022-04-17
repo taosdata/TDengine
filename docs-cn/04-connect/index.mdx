@@ -14,7 +14,7 @@ import ConnCSNative from "./_connect_cs_native.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 
-TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [RESTful API](https://docs.taosdata.com/reference/restful-api/)。除RESTful之外，TDengine还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
+TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [RESTful API](https://docs.taosdata.com/reference/restful-api/)。除 RESTful 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
 
 ## 连接器建立连接的方式
 
@@ -32,8 +32,8 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import InstallOnWindows from "../14-reference/03-connector/_linux_install.mdx";
 import InstallOnLinux from "../14-reference/03-connector/_windows_install.mdx";
-import VerifyWindows from "../14-reference/03-connector/_verify_linux.mdx";
-import VerifyLinux from "../14-reference/03-connector/_verify_windows.mdx";
+import VerifyWindows from "../14-reference/03-connector/_verify_windows.mdx";
+import VerifyLinux from "../14-reference/03-connector/_verify_linux.mdx";
 
 ## 安装客户端驱动taosc
 
@@ -52,7 +52,7 @@ import VerifyLinux from "../14-reference/03-connector/_verify_windows.mdx";
 
 ### 安装验证
 
-以上安装和配置完成后，并确认 TDengine 服务已经正常启动运行，此时可以执行 taos 客户端进行登录。
+以上安装和配置完成后，并确认 TDengine 服务已经正常启动运行，此时可以执行安装包里带有的 TDengine 命令行程序 taos 进行登录。
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
@@ -216,7 +216,7 @@ install.packages("RJDBC")
 </Tabs>
 
 :::tip
-如果建立连接失败，大部分情况下是FQDN的配置不正确，详细的排查方法请看[常见问题及反馈](https://docs.taosdata.com/train-fqa/faq)中的“遇到错误Unable to establish connection, 我怎么办？”
+如果建立连接失败，大部分情况下是FQDN或防火墙的配置不正确，详细的排查方法请看[《常见问题及反馈》](https://docs.taosdata.com/train-fqa/faq)中的“遇到错误Unable to establish connection, 我怎么办？”
 
 :::
 
