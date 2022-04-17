@@ -218,7 +218,7 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
+static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64_t watermark, char **pStr) {
   if (NULL == ast) {
     return TSDB_CODE_SUCCESS;
   }
@@ -232,6 +232,8 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
         .pAstRoot = pAst,
         .topicQuery = false,
         .streamQuery = true,
+        .triggerType = triggerType,
+        .watermark = watermark,
     };
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
   }
@@ -245,7 +247,7 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
   return code;
 }
 
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
+int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, int8_t triggerType, int64_t watermark, STrans *pTrans) {
   SNode *pAst = NULL;
 
   if (nodesStringToNode(ast, &pAst) < 0) {
@@ -265,7 +267,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
 
 #endif
 
-  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {
+  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, triggerType, watermark, &pStream->physicalPlan)) {
     mError("topic:%s, failed to get plan since %s", pStream->name, terrstr());
     return -1;
   }
@@ -313,7 +315,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   }
   mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
 
-  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) {
+  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pCreate->triggerType, pCreate->watermark, pTrans) != 0) {
     mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;

@@ -42,10 +42,6 @@
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
 
-struct SColumnFilterElem;
-
-typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
-
 typedef struct SGroupResInfo {
   int32_t totalGroup;
   int32_t currentGroup;
@@ -76,7 +72,8 @@ typedef struct SResultRowInfo {
   SResultRowPosition *pPosition;
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
-  int32_t      curPos;     // current active result row index of pResult list
+//  int32_t      curPos;     // current active result row index of pResult list
+  SResultRowPosition cur;
 } SResultRowInfo;
 
 struct STaskAttr;

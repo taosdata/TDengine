@@ -137,12 +137,13 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
+bool fmIsMultiResFunc(int32_t funcId);
 
 typedef enum EFuncDataRequired {
-  FUNC_DATA_REQUIRED_ALL_NEEDED = 1,
-  FUNC_DATA_REQUIRED_STATIS_NEEDED,
-  FUNC_DATA_REQUIRED_NO_NEEDED,
-  FUNC_DATA_REQUIRED_DISCARD
+  FUNC_DATA_REQUIRED_DATA_LOAD = 1,
+  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_NOT_LOAD,
+  FUNC_DATA_REQUIRED_FILTEROUT,
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);

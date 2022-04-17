@@ -12,8 +12,8 @@ target_link_libraries(
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(mnode grant)
 ENDIF ()
-IF (TD_USB_DONGLE)
-  TARGET_LINK_LIBRARIES(mnode usb_dongle)
+IF (TD_GRANT)
+  ADD_DEFINITIONS(-D_GRANT)
 ENDIF ()
 
 if(${BUILD_TEST})

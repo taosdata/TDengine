@@ -13,18 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "filter.h"
+#include "tglobal.h"
 
-int metaOpenUidGnrt(SMeta *pMeta) {
-  // Init a generator
-  pMeta->uidGnrt.nextUid = IVLD_TB_UID;
-  return 0;
-}
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
 
-void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
-}
-
-tb_uid_t metaGenerateUid(SMeta *pMeta) {
-  // Generate a new table UID
-  return tGenIdPI64();
-}
+SIdxFltStatus idxGetFltStatus(SNode *pFilterNode);
+// construct tag filter operator later
+int32_t doFilterTag(const SNode *pFilterNode, SArray *resutl);

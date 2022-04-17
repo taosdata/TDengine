@@ -55,7 +55,7 @@ typedef struct {
 #define TSDB_COMMIT_BUF(ch)          TSDB_READ_BUF(&((ch)->readh))
 #define TSDB_COMMIT_COMP_BUF(ch)     TSDB_READ_COMP_BUF(&((ch)->readh))
 #define TSDB_COMMIT_EXBUF(ch)        TSDB_READ_EXBUF(&((ch)->readh))
-#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock)
+#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRows)
 #define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static void tsdbStartCommit(STsdb *pRepo);
@@ -217,14 +217,14 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   TSKEY     minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
-  minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
-  midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
-  maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
+  minKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
+  midKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
+  maxKey = now - pCfg->keep0 * tsTickPerDay[pCfg->precision];
 
   pRtn->minKey = minKey;
-  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
-  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision));
-  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->days, pCfg->precision));
+  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->days, pCfg->precision));
+  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->days, pCfg->precision));
   tsdbDebug("vgId:%d now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
@@ -286,7 +286,7 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo) {
     return -1;
   }
 
-  pCommith->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
+  pCommith->pDataCols = tdNewDataCols(0, pCfg->maxRows);
   if (pCommith->pDataCols == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyCommitH(pCommith);
@@ -319,7 +319,7 @@ static int tsdbNextCommitFid(SCommitH *pCommith) {
     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
       continue;
     } else {
-      int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
+      int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->days, pCfg->precision));
       if (fid == TSDB_IVLD_FID || fid > tfid) {
         fid = tfid;
       }
@@ -346,7 +346,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   ASSERT(pSet == NULL || pSet->fid == fid);
 
   tsdbResetCommitFile(pCommith);
-  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &(pCommith->minKey), &(pCommith->maxKey));
+  tsdbGetFidKeyRange(pCfg->days, pCfg->precision, fid, &(pCommith->minKey), &(pCommith->maxKey));
 
   // Set and open files
   if (tsdbSetAndOpenCommitFile(pCommith, pSet, fid) < 0) {
@@ -1210,8 +1210,8 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   int64_t       offset = 0, offsetAggr = 0;
   int           rowsToWrite = pDataCols->numOfRows;
 
-  ASSERT(rowsToWrite > 0 && rowsToWrite <= pCfg->maxRowsPerFileBlock);
-  ASSERT((!isLast) || rowsToWrite < pCfg->minRowsPerFileBlock);
+  ASSERT(rowsToWrite > 0 && rowsToWrite <= pCfg->maxRows);
+  ASSERT((!isLast) || rowsToWrite < pCfg->minRows);
 
   // Make buffer space
   if (tsdbMakeRoom(ppBuf, tsdbBlockStatisSize(pDataCols->numOfCols, SBlockVerLatest)) < 0) {
@@ -1250,7 +1250,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
                                                &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
                                                &(pBlockCol->numOfNull));
 #endif
-      (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pAggrBlkCol->min), &(pAggrBlkCol->max),
+      (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pBitmap, pDataCol->pData, rowsToWrite, &(pAggrBlkCol->min), &(pAggrBlkCol->max),
                                                &(pAggrBlkCol->sum), &(pAggrBlkCol->minIndex), &(pAggrBlkCol->maxIndex),
                                                &(pAggrBlkCol->numOfNull));
 
@@ -1460,7 +1460,7 @@ static int tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLi
 
     if (pCommith->pDataCols->numOfRows <= 0) break;
 
-    if (toData || pCommith->pDataCols->numOfRows >= pCfg->minRowsPerFileBlock) {
+    if (toData || pCommith->pDataCols->numOfRows >= pCfg->minRows) {
       pDFile = TSDB_COMMIT_DATA_FILE(pCommith);
       isLast = false;
     } else {
@@ -1619,7 +1619,7 @@ static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols 
     if (pCommith->pDataCols->numOfRows == 0) break;
 
     if (isLastOneBlock) {
-      if (pCommith->pDataCols->numOfRows < pCfg->minRowsPerFileBlock) {
+      if (pCommith->pDataCols->numOfRows < pCfg->minRows) {
         pDFile = TSDB_COMMIT_LAST_FILE(pCommith);
         isLast = true;
       } else {
@@ -1667,7 +1667,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
           TASSERT(0);
         }
-        tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints, pTarget->bitmapMode);
+        tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
+                             pTarget->bitmapMode);
       }
 
       ++pTarget->numOfRows;
@@ -1774,11 +1775,11 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
 
   ASSERT(mergeRows > 0);
 
-  if (pBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && pInfo->nOperations <= pCfg->maxRowsPerFileBlock) {
+  if (pBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && pInfo->nOperations <= pCfg->maxRows) {
     if (pBlock->last) {
-      if (pCommith->isLFileSame && mergeRows < pCfg->minRowsPerFileBlock) return true;
+      if (pCommith->isLFileSame && mergeRows < pCfg->minRows) return true;
     } else {
-      if (pCommith->isDFileSame && mergeRows <= pCfg->maxRowsPerFileBlock) return true;
+      if (pCommith->isDFileSame && mergeRows <= pCfg->maxRows) return true;
     }
   }
 

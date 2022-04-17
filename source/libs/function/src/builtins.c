@@ -138,6 +138,12 @@ static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateTimezone(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType = (SDataType){.bytes = TD_TIMEZONE_LEN, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -203,9 +209,9 @@ static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // first(*)/first(col_list) has been rewritten as first(col)
+  // first(col_list) will be rewritten as first(col)
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
-    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    return TSDB_CODE_SUCCESS;
   }
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
@@ -370,6 +376,20 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_VALUE != nodeType(pPara) || (!IS_VAR_DATA_TYPE(pPara->resType.type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_JSON].bytes, .type = TSDB_DATA_TYPE_JSON};
+  return TSDB_CODE_SUCCESS;
+}
+
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
@@ -385,8 +405,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateSum,
+    .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
@@ -395,8 +416,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateInOutNum,
+    .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minFunctionSetup,
     .processFunc  = minFunction,
@@ -405,8 +427,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateInOutNum,
+    .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
@@ -475,7 +498,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
@@ -485,7 +508,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -495,7 +518,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -803,6 +826,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "timezone",
+    .type = FUNCTION_TYPE_TIMEZONE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateTimezone,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = timezoneFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "_rowts",
     .type = FUNCTION_TYPE_ROWTS,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
@@ -870,6 +903,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = winDurFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_json",
+    .type = FUNCTION_TYPE_TO_JSON,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateToJson,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   }
 };

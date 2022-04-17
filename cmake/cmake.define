@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
 
+#set output directory
+SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
+SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
+SET(TD_TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
+
+MESSAGE(STATUS "Project source directory: " ${PROJECT_SOURCE_DIR})
+MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
+MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
+MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
+
 if (NOT DEFINED TD_GRANT)
   SET(TD_GRANT FALSE)
 endif()
-if (NOT DEFINED TD_USB_DONGLE)
-  SET(TD_USB_DONGLE FALSE)
-endif()
-IF (TD_GRANT)
-  ADD_DEFINITIONS(-D_GRANT)
-ENDIF ()
 
 IF ("${BUILD_TOOLS}" STREQUAL "")
   IF (TD_LINUX)
