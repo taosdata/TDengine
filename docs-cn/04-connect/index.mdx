@@ -37,7 +37,7 @@ import VerifyLinux from "../14-reference/03-connector/_verify_windows.mdx";
 
 ## 安装客户端驱动taosc
 
-如果选择本地连接，而且应用程序不在TDengine同一台服务器上运行，你需要先安装客户端驱动，否则可以跳过此一步。
+如果选择本地连接，而且应用程序不在TDengine同一台服务器上运行，你需要先安装客户端驱动，否则可以跳过此一步。为避免客户端驱动和服务端不兼容，请使用一致的版本
 
 ### 安装步骤
 
@@ -185,7 +185,7 @@ install.packages("RJDBC")
 
 ## 建立连接
 
-在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine。以下示例代码，都假设 TDengine 安装在本机，且 fqdn（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
+在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的FQDN配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
 
 <Tabs groupId="lang" defaultValue="java">
   <TabItem label="Java" value="java">
@@ -216,9 +216,7 @@ install.packages("RJDBC")
 </Tabs>
 
 :::tip
-在没有安装 TDengine 服务端程序的机器上建立本地连接，需要单独[安装客户端驱动](/reference/connector/#安装客户端驱动)。
-为避免客户端驱动和服务端不兼容，请尽量使用一致的版本。另外还要配置好[FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
-
+如果建立连接失败，大部分情况下是FQDN的配置不正确，详细的排查方法请看[常见问题及反馈](https://docs.taosdata.com/train-fqa/faq)中的“遇到错误Unable to establish connection, 我怎么办？”
 :::
 
 
