@@ -23,13 +23,13 @@ TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过�
 ## 连接器建立连接的方式
 
 连接器建立连接的方式，TDengine提供两种:
-  1. 通过 taosAdapter 组件提供的 RESTful API 建立与 taosd 的连接，这种连接方式下文中简称" 
+  1. 通过 taosAdapter 组件提供的 RESTful API 建立与 taosd 的连接，这种连接方式下文中简称"RESTful 连接“ 
   2. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“本地连接”。
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
 
 关键不同点在于：
-1. 使用 RESTful 方式，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降30%左右。
+1. 使用 RESTful 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降30%左右。
 2. 使用本地连接可以体验 TDengine 的全部功能，如[原生接口写入](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
 
 import Tabs from "@theme/Tabs";
