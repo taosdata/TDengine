@@ -173,4 +173,4 @@ FQDN(fully qualified domain name,完全限定域名)是internet上特定计算�
 
 TDengine集群的每个节点是由End Point来唯一标识的，End Point是由 FQDN 外加 Port 组成，比如 h1.tdengine.com:6030。这样当IP发生变化的时候，我们依然可以使用 FQDN 来动态找到节点，不需要更改集群的任何配置。而且采用 FQDN，便于内网和外网对同一个集群的统一访问。
 
-TDengine 不建议采用直接的IP地址访问集群，不利于管理。不了解 FQDN 概念，请看博文《一篇文章说清楚 TDengine 的 FQDN》。
+TDengine 不建议采用直接的IP地址访问集群，不利于管理。不了解 FQDN 概念，请看博文[《一篇文章说清楚 TDengine 的 FQDN》 (https://www.taosdata.com/blog/2020/09/11/1824.html)。
