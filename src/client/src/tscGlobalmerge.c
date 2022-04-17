@@ -599,7 +599,7 @@ static void setTagValueForMultipleRows(SQLFunctionCtx* pCtx, int32_t numOfOutput
 static void doMergeResultImpl(SOperatorInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
     if (pCtx[j].functionId < 0) {
-      pCtx[j].pUdfInput[0] = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
+      pCtx[j].pUdfInput[0] = pDataPtr[j] + pCtx[j].udfInputBytes[0] * rowIndex;
     } else {
       pCtx[j].pInput = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
     }
