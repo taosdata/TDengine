@@ -166,3 +166,11 @@ TDengine 建议用数据采集点的名字（如上表中的 D1001）来做表�
 3. 超级表只定义一个模板，自身不存储任何数据或标签信息。因此，不能向一个超级表写入数据，只能将数据写入子表中。
 
 针对超级表的查询，TDengine将把所有子表中的数据视为一个整体数据集进行处理，会先把满足标签过滤条件的表从超级表中找出来，然后再扫描这些表的时序数据，进行聚合操作，这样需要扫描的数据集会大幅减少，从而显著提高查询的性能。本质上，TDengine通过对超级表查询的支持，实现了多个同类数据采集点的高效聚合。
+
+## FQDN & End Point
+
+FQDN(fully qualified domain name,完全限定域名)是internet上特定计算机或主机的完整域名。FQDN由两部分组成:主机名和域名。例如，假设邮件服务器的FQDN可能是mail.tdengine.com。主机名是mail，主机位于域名tdengine.com中。DNS(Domain Name System)，负责将FQDN翻译成IP，是互联网应用的寻址方式。对于没有DNS的系统，可以通过配置hosts文件来解决。
+
+TDengine集群的每个节点是由End Point来唯一标识的，End Point是由 FQDN 外加 Port 组成，比如 h1.tdengine.com:6030。这样当IP发生变化的时候，我们依然可以使用 FQDN 来动态找到节点，不需要更改集群的任何配置。而且采用 FQDN，便于内网和外网对同一个集群的统一访问。
+
+TDengine 不建议采用直接的IP地址访问集群，不利于管理。不了解 FQDN 概念，请看博文《一篇文章说清楚 TDengine 的 FQDN》。
