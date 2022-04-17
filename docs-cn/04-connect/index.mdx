@@ -28,6 +28,13 @@ TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过�
 1. 使用 RESTful 方式，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降30%左右。
 2. 使用本地连接可以体验 TDengine 的全部功能，如[原生接口写入](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import InstallOnWindows from "../14-reference/03-connector/_linux_install.mdx";
+import InstallOnLinux from "../14-reference/03-connector/_windows_install.mdx";
+import VerifyWindows from "../14-reference/03-connector/_verify_linux.mdx";
+import VerifyLinux from "../14-reference/03-connector/_verify_windows.mdx";
+
 ## 安装客户端驱动taosc
 
 如果选择本地连接，而且应用程序不在TDengine同一台服务器上运行，你需要先安装客户端驱动，否则可以跳过此一步。
