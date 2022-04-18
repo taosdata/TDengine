@@ -28,7 +28,7 @@ class Case12(ClusterCase):
         self.stable_name = "stb"
         self.table_name = "tb"
         self.table_num = 10000
-        self.row_num = 50000  # row number per table
+        self.row_num = 500000  # row number per table
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
         self.master_nodes = self.get_masters()
@@ -143,21 +143,6 @@ class Case12(ClusterCase):
                 sql = f"insert into {tb} values {value_statement}"
                 # self.logger.info(sql)
                 client_0.execute(sql)
-            if i>100 and i%100 ==0: 
-
-                self.stop_dnode(self.slave_node)
-                time.sleep(1)
-                self.start_dnode(self.slave_node)
-                time.sleep(3)
-
-                if i %200==0:
-                    alter_sql = "alter database {} replica 3".format(db_name)
-                    self.logger.info(alter_sql)
-                    self.check_replica_sync(db_name, 1, endpoint)
-                else:
-                    alter_sql = "alter database {} replica 2".format(db_name)
-                    self.logger.info(alter_sql)
-                    self.check_replica_sync(db_name, 1, endpoint)
 
         client_0.close()
         self.logger.info("write thread exit")
@@ -167,9 +152,18 @@ class Case12(ClusterCase):
         pass
 
     def run(self):
+        
         self.alter_database_replica( self.db_name, self.stable_name, self.table_name, self.table_num, self.row_num, self.replicas, self.master_node)
-    
-
+        
+        # check datas
+        client_0 = self.tdSql.get_connection(self.master_node)
+        result = client_0.query("select count(*) from {}.{}".format(self.db_name, self.stable_name))
+        query_data = result.fetch_all()
+        if query_data[0][0] ==self.row_num*self.table_num:
+            self.logger.info(" expect {} rows , real {} rows ,check pass ".format(self.row_num*self.table_num ,query_data[0][0] ))
+        else:
+            self.logger.info(" expect {} rows , real {} rows ,check failed ".format(self.row_num*self.table_num ,query_data[0][0] ))
+            
     def cleanup(self):
         pass
 
