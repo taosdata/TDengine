@@ -869,7 +869,11 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
 
     int64_t timeVal = 0;
-    convertStringToTimestamp(type, input, timePrec, &timeVal);
+    int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
+    if (ret != TSDB_CODE_SUCCESS) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
 
     colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
     input += varDataTLen(input);
@@ -904,7 +908,11 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     }
 
     if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-      convertStringToTimestamp(type, input, TSDB_TIME_PRECISION_NANO, &timeVal);
+      int32_t ret = convertStringToTimestamp(type, input, TSDB_TIME_PRECISION_NANO, &timeVal);
+      if (ret != TSDB_CODE_SUCCESS) {
+        colDataAppendNULL(pOutput->columnData, i);
+        continue;
+      }
       //If converted value is less than 10digits in second, use value in second instead
       int64_t timeValSec = timeVal / 1000000000;
       if (timeValSec < 1000000000) {
@@ -1100,7 +1108,11 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
       int32_t type = GET_PARAM_TYPE(&pInput[k]);
       if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-        convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
+        int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
+        if (ret != TSDB_CODE_SUCCESS) {
+          colDataAppendNULL(pOutput->columnData, i);
+          continue;
+        }
       } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k]);
         if (type == TSDB_DATA_TYPE_TIMESTAMP) {
