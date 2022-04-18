@@ -6,13 +6,13 @@ title: Java Connector
 
 ## 总体介绍
 
-`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
+`taos-jdbcdriver` 的实现包括 2 种形式： JDBC 本地连接和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC 本地连接通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
 ![tdengine-connector](/img/tdengine-jdbc-connector.png)
 
 上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
 
-- JDBC-JNI：Java 应用在物理节点 1（pnode1）上使用 JDBC-JNI 的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
+- JDBC 本地连接：Java 应用在物理节点 1（pnode1）上使用 JDBC 本地连接的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
 - RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 RESTful 连接器，再调用客户端驱动 API。
 - JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点 2 的 RESTful 连接器。
 
@@ -21,12 +21,12 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 - TDengine 目前不支持针对单条数据记录的删除操作。
 - 目前不支持事务操作。
 
-### JDBC-JNI 和 JDBC-RESTful 的对比
+### JDBC 本地连接和 JDBC-RESTful 的对比
 
 <table>
   <tr align="center">
     <th>对比项</th>
-    <th>JDBC-JNI</th>
+    <th>JDBC 本地连接</th>
     <th>JDBC-RESTful</th>
   </tr>
   <tr align="center">
@@ -46,17 +46,17 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
   </tr>
   <tr align="center">
     <td>写入性能</td>
-    <td colspan="2">JDBC-RESTful 是 JDBC-JNI 的 50%～90% </td>
+    <td colspan="2">JDBC-RESTful 是 JDBC 本地连接的 50%～90% </td>
   </tr>
   <tr align="center">
     <td>查询性能</td>
-    <td colspan="2">JDBC-RESTful 与 JDBC-JNI 没有差别</td>
+    <td colspan="2">JDBC-RESTful 与 JDBC 本地连接没有差别</td>
   </tr>
 </table>
 
 注意：
 
-- 与 JNI 方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 sql 中指定表、超级表的数据库名称。例如：
+- 与本地连接方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 SQL 中指定表、超级表的数据库名称。例如：
 
 ```sql
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
@@ -106,7 +106,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
 1. Linux 或 Windows 操作系统
 2. Java 1.8 以上运行时环境
-3. TDengine-client（使用 JDBC-JNI 时必须，使用 JDBC-RESTful 时非必须）
+3. TDengine-client（使用 JDBC 本地连接时必须，使用 JDBC-RESTful 时非必须）
 
 **注意**：由于 TDengine 的应用驱动是使用 C 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
@@ -161,7 +161,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用 **JDBC-RESTful** 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-使用 JDBC-RESTful 接口，不需要依赖本地函数库。与 JDBC-JNI 相比，仅需要：
+使用 JDBC-RESTful 接口，不需要依赖本地函数库。与 JDBC 本地连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
@@ -178,7 +178,7 @@ properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
 Connection connection = DriverManager.getConnection(url, properties);
 ```
 
-如果希望获得更好的写入和查询性能，Java 应用可以使用 **JDBC-JNI** 的 driver，如下所示：
+如果希望获得更好的写入和查询性能，Java 应用可以使用 **JDBC 本地连接** 的 driver，如下所示：
 
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -186,13 +186,13 @@ String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-以上示例，使用了 JDBC-JNI 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
+以上示例，使用了 JDBC 本地连接的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 本地连接的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 > 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](/get-started/) 连接远程 TDengine Server。
 
-JDBC-JNI 的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
+JDBC 本地连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
@@ -238,13 +238,13 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE：客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE：客户端使用的时区，默认值为系统当前时区。
-- TSDBDriver.PROPERTY_KEY_BATCH_LOAD: 仅在使用 JDBC-JNI 时生效。true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
+- TSDBDriver.PROPERTY_KEY_BATCH_LOAD: 仅在使用 JDBC 本地连接时生效。true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: 仅在使用 JDBC-RESTful 时生效. 'TIMESTAMP'：结果集中 timestamp 类型的字段为一个 long 值; 'UTC'：结果集中 timestamp 类型的字段为一个 UTC 时间格式的字符串; 'STRING'：结果集中 timestamp 类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 sql 执行失败，继续执行下面的 sq 了。false：不再执行失败 sql 后的任何语句。默认值为：false。
 
 #### 使用客户端配置文件建立连接
 
-当使用 JDBC-JNI 连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp 参数。如下所示：
+当使用 JDBC 本地连接连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp 参数。如下所示：
 
 1. 在 Java 应用中不指定 hostname 和 port
 
@@ -362,7 +362,7 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 
-JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间），JNI 方法的报错（错误码在 0x2351 到 0x2400 之间），TDengine 其他功能模块的报错。
+JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间），本地连接方法的报错（错误码在 0x2351 到 0x2400 之间），TDengine 其他功能模块的报错。
 
 具体的错误码请参考：
 
@@ -371,7 +371,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 ### 通过参数绑定写入数据
 
-从 2.1.2.0 版本开始，TDengine 的 JDBC-JNI 实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
+从 2.1.2.0 版本开始，TDengine 的 JDBC 本地连接实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
 注意：
 
 - JDBC-RESTful 实现并不提供参数绑定这种使用方式
@@ -680,7 +680,7 @@ public class SchemalessInsertTest {
 
 ### 设置客户端参数
 
-从 TDengine-2.3.5.0 版本开始，jdbc driver 支持在应用的第一次连接中，设置 TDengine 的客户端参数。Driver 支持 JDBC-JNI 方式中，通过 jdbcUrl 和 properties 两种方式设置 client parameter。
+从 TDengine-2.3.5.0 版本开始，jdbc driver 支持在应用的第一次连接中，设置 TDengine 的客户端参数。Driver 支持 JDBC 本地连接方式中，通过 jdbcUrl 和 properties 两种方式设置 client parameter。
 注意：
 
 - JDBC-RESTful 不支持设置 client parameter 的功能。
