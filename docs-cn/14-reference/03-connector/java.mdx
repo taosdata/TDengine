@@ -6,14 +6,14 @@ title: Java Connector
 
 ## 总体介绍
 
-`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
+`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
 ![tdengine-connector](/img/tdengine-jdbc-connector.png)
 
 上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
 
-- JDBC-JNI：Java 应用在物理节点 1（pnode1）上使用 JDBC-JNI 的 API ，直接调用客户端 API（libtaos.so 或 taos.dll）将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
-- RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 RESTful 连接器，再调用客户端 API（libtaos.so）。
+- JDBC-JNI：Java 应用在物理节点 1（pnode1）上使用 JDBC-JNI 的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
+- RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 RESTful 连接器，再调用客户端驱动 API。
 - JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点 2 的 RESTful 连接器。
 
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，导致 `taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
@@ -110,7 +110,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
 **注意**：由于 TDengine 的应用驱动是使用 C 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
-- libtaos.so 在 Linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
+- libtaos.so 在 Linux 系统中成功安装 TDengine 后，依赖的本地客户端驱动 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
 - taos.dll 在 Windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
 
 **注意**：在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](/get-started/) 连接远程 TDengine Server。
@@ -188,7 +188,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用了 JDBC-JNI 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 > 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](/get-started/) 连接远程 TDengine Server。
 
