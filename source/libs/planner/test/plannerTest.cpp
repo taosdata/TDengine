@@ -90,17 +90,16 @@ protected:
       return false;
     }
 
-    SQueryPlan* pPlan = nullptr;
-    code = createPhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
+    code = createPhysiPlan(&cxt, pLogicPlan, &plan_, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] createPhysiPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
   
     cout << "unformatted physical plan : " << endl;
-    cout << toString((const SNode*)pPlan, false) << endl;
+    cout << toString((const SNode*)plan_, false) << endl;
     SNode* pNode;
-    FOREACH(pNode, pPlan->pSubplans) {
+    FOREACH(pNode, plan_->pSubplans) {
       SNode* pSubplan;
       FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
         cout << "unformatted physical subplan : " << endl;
@@ -160,6 +159,7 @@ private:
   string sqlBuf_;
   SParseContext cxt_;
   SQuery* query_;
+  SQueryPlan* plan_;
 };
 
 TEST_F(PlannerTest, selectBasic) {
