@@ -155,13 +155,13 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  tb_uid_t   uid;
-  char       buf[512];
-  char       buf1[512];
-  void      *pBuf;
-  DBT        key1, value1;
-  DBT        key2, value2;
-  SSchemaEx *pSchema = NULL;
+  tb_uid_t     uid;
+  char         buf[512];
+  char         buf1[512];
+  void        *pBuf;
+  DBT          key1, value1;
+  DBT          key2, value2;
+  SSchema　　 *pSchema = NULL;
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     uid = pTbCfg->stbCfg.suid;
@@ -204,7 +204,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     key2.data = &schemaKey;
     key2.size = sizeof(schemaKey);
 
-    SSchemaWrapper sw = {.nCols = ncols, .pSchemaEx = pSchema};
+    SSchemaWrapper sw = {.nCols = ncols, .pSchema = pSchema};
     metaEncodeSchemaEx(&pBuf, &sw);
 
     value2.data = buf1;

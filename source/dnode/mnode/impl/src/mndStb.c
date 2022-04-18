@@ -333,9 +333,9 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
 }
 
 static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSchema) {
-  if (*(col_id_t *)colId < ((SSchemaEx *)pSchema)->colId) {
+  if (*(col_id_t *)colId < ((SSchema *)pSchema)->colId) {
     return -1;
-  } else if (*(col_id_t *)colId > ((SSchemaEx *)pSchema)->colId) {
+  } else if (*(col_id_t *)colId > ((SSchema *)pSchema)->colId) {
     return 1;
   }
   return 0;
@@ -360,7 +360,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.stbCfg.nTagCols = pStb->numOfTags;
   req.stbCfg.pTagSchema = pStb->pTags;
   req.stbCfg.nBSmaCols = pStb->numOfSmas;
-  req.stbCfg.pSchema = (SSchemaEx *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaEx));
+  req.stbCfg.pSchema = (SSchema *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
   if (req.stbCfg.pSchema == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -374,36 +374,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     TASSERT(pStb->pSmas != NULL);  // TODO: remove the assert
   }
 
-  for (int32_t i = 0; i < req.stbCfg.nCols; ++i) {
-    SSchemaEx *pSchemaEx = req.stbCfg.pSchema + i;
-    SSchema   *pSchema = pStb->pColumns + i;
-    pSchemaEx->type = pSchema->type;
-    pSchemaEx->sma = (bSmaStat == 1) ? TSDB_BSMA_TYPE_LATEST : TSDB_BSMA_TYPE_NONE;
-    pSchemaEx->colId = pSchema->colId;
-    pSchemaEx->bytes = pSchema->bytes;
-    memcpy(pSchemaEx->name, pSchema->name, TSDB_COL_NAME_LEN);
-  }
-
-  if (bSmaStat == 2) {
-    if (pStb->pSmas == NULL) {
-      mError("stb:%s, sma options is empty", pStb->name);
-      taosMemoryFreeClear(req.stbCfg.pSchema);
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return NULL;
-    }
-    for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
-      SSchema   *pSmaSchema = pStb->pSmas + i;
-      SSchemaEx *pColSchema = taosbsearch(&pSmaSchema->colId, req.stbCfg.pSchema, req.stbCfg.nCols, sizeof(SSchemaEx),
-                                          schemaExColIdCompare, TD_EQ);
-      if (pColSchema == NULL) {
-        terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-        taosMemoryFreeClear(req.stbCfg.pSchema);
-        mError("stb:%s, sma col:%s not found in columns", pStb->name, pSmaSchema->name);
-        return NULL;
-      }
-      pColSchema->sma = TSDB_BSMA_TYPE_LATEST;
-    }
-  }
+  memcpy(req.stbCfg.pSchema, pStb->pColumns, sizeof(SSchema)*req.stbCfg.nCols);
 
   SRSmaParam *pRSmaParam = NULL;
   if (req.rollup) {

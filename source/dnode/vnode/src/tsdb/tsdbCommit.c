@@ -1261,7 +1261,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     pBlockCol->type = pDataCol->type;
     pAggrBlkCol->colId = pDataCol->colId;
 
-    if (isSuper && pColumn->sma && tDataTypes[pDataCol->type].statisFunc) {
+    if (isSuper && (pColumn->flag == SCHEMA_SMA_ON)  && tDataTypes[pDataCol->type].statisFunc) {
 #if 0
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
                                                &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
@@ -1286,7 +1286,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 
     ++nColsNotAllNull;
 
-    if (isSuper && pColumn->sma) {
+    if (isSuper && (pColumn->flag == SCHEMA_SMA_ON)) {
       ++nColsOfBlockSma;
     }
   }

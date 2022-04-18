@@ -64,19 +64,19 @@ typedef struct {
   col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
   int32_t  type : 8;     // column type
   int32_t  bytes : 24;   // column bytes (0~16M)
-  int32_t  sma : 8;      // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
+  int32_t  flag : 8;     // block SMA: 0, no SMA, 1, sum/min/max
   int32_t  offset : 24;  // point offset in STpRow after the header part.
 } STColumn;
 #pragma pack(pop)
 
 #define colType(col)   ((col)->type)
-#define colSma(col)    ((col)->sma)
+#define colFlag(col)   ((col)->flag)
 #define colColId(col)  ((col)->colId)
 #define colBytes(col)  ((col)->bytes)
 #define colOffset(col) ((col)->offset)
 
 #define colSetType(col, t)   (colType(col) = (t))
-#define colSetSma(col, s)    (colSma(col) = (s))
+#define colSetFlag(col, s)   (colFlag(col) = (s))
 #define colSetColId(col, id) (colColId(col) = (id))
 #define colSetBytes(col, b)  (colBytes(col) = (b))
 #define colSetOffset(col, o) (colOffset(col) = (o))
