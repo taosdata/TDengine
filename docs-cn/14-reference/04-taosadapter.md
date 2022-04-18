@@ -18,7 +18,7 @@ taosAdapter 提供以下功能：
 
 ## taosAdapter 架构图
 
-![taosAdapter Architecture](taosadapter-architecture.png)
+![taosAdapter Architecture](taosAdapter-architecture.png)
 
 ## taosAdapter 部署方法
 
