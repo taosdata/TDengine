@@ -893,7 +893,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateToJson,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = toJsonFunction,
     .finalizeFunc = NULL
   }
 };

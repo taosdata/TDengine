@@ -76,7 +76,7 @@ char* tjsonToString(const SJson* pJson);
 char* tjsonToUnformattedString(const SJson* pJson);
 
 SJson* tjsonParse(const char* pStr);
-bool   tjsonIsObject(const SJson* pJson);
+bool   tjsonValidateJson(const char* pJson);
 
 #ifdef __cplusplus
 }
