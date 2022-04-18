@@ -204,7 +204,6 @@ install.packages("RJDBC")
     <ConnRust />
   </TabItem>
   <TabItem label="Node.js" value="node">
-    <ConnNodeNative />
     <ConnNode />
   </TabItem>
   <TabItem label="C#" value="csharp">

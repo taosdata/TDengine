@@ -27,7 +27,7 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 
 4. 一条 SQL 语句的最大长度为 65480 个字符；
 
-5. 数据库还有更多与存储相关的配置参数，请参见 [配置参数](/reference/server-config/) 章节。
+5. 数据库还有更多与存储相关的配置参数，请参见 [配置参数](/reference/config/) 章节。
 
 :::
 

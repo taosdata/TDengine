@@ -407,7 +407,7 @@ taosAdapter 通过参数 `restfulRowLimit` 来控制结果的返回条数，-1 �
 | ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1     | httpEnableRecordSql | --logLevel=debug                     |                                                                                                                                            |
 | 2     | httpMaxThreads      | n/a                                  | taosAdapter 自动管理线程池，无需此参数                                                                                                     |
-| 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 |
+| 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 |                                                                                                                                            |
 | 4     | restfulRowLimit     | restfulRowLimit                      | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。您可以根据实际场景需求进行配置 |
 | 5     | httpDebugFlag       | 不适用                               | httpdDebugFlag 对 taosAdapter 不起作用                                                                                                     |
 | 6     | httpDBNameMandatory | 不适用                               | taosAdapter 要求 URL 中必须指定数据库名                                                                                                    |
