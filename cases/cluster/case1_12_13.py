@@ -143,6 +143,23 @@ class Case12(ClusterCase):
                 sql = f"insert into {tb} values {value_statement}"
                 # self.logger.info(sql)
                 client_0.execute(sql)
+            if i>100 and i%100 ==0: 
+
+                self.stop_dnode(self.slave_node)
+                time.sleep(1)
+                self.start_dnode(self.slave_node)
+                time.sleep(3)
+
+                if i %200==0:
+                    alter_sql = "alter database {} replica 3".format(db_name)
+                    self.logger.info(alter_sql)
+                    self.check_replica_sync(db_name, 1)
+                    self.check_replica_sync(db_name, 1, endpoint)
+                else:
+                    alter_sql = "alter database {} replica 2".format(db_name)
+                    self.logger.info(alter_sql)
+                    self.check_replica_sync(db_name, 1)
+                    self.check_replica_sync(db_name, 1, endpoint)
 
         client_0.close()
         self.logger.info("write thread exit")
