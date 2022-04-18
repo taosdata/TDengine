@@ -2914,8 +2914,12 @@ void setResultRowOutputBufInitCtx_rv(SResultRow* pResult, SqlFunctionCtx* pCtx, 
       continue;
     }
 
-    if (!pResInfo->initialized && pCtx[i].functionId != -1) {
-      pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+    if (!pResInfo->initialized) {
+      if (pCtx[i].functionId != -1) {
+        pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+      } else {
+        pResInfo->initialized = true;
+      }
     }
   }
 }
