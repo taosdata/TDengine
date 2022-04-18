@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <pthread.h>
 #include <unistd.h>
 #include "../../../include/client/taos.h"
 
@@ -15,19 +16,23 @@ typedef struct {
 
 void taosMsleep(int mseconds);
 
-unsigned long long getCurrentTime(){
-    struct timeval tv;
-    if (taosGetTimeOfDay(&tv) != 0) {
-        perror("Failed to get current time in ms");
-        exit(EXIT_FAILURE);
-    }
+int32_t taosGetTimeOfDay(struct timeval *tv) {
+  return gettimeofday(tv, NULL);
+}
+void *taosMemoryCalloc(int32_t num, int32_t size) {
+  return calloc(num, size);
+}
+void taosMemoryFree(const void *ptr) {
+  if (ptr == NULL) return;
 
-    return (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+  return free((void*)ptr);
 }
 
-
-
-
+static int64_t taosGetTimestampUs() {
+  struct timeval systemTime;
+  taosGetTimeOfDay(&systemTime);
+  return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
+}
 
 int stmt_scol_func1(TAOS_STMT *stmt) {
   struct {
@@ -42,43 +47,50 @@ int stmt_scol_func1(TAOS_STMT *stmt) {
       char bin[40];
       char blob[80];
   } v = {0};
+  int32_t len[10] = {sizeof(v.ts), sizeof(v.v1), sizeof(v.v2), sizeof(v.f4), sizeof(v.bin), sizeof(v.bin)};
   
-  TAOS_BIND params[10];
+  TAOS_BIND_v2 params[10];
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[0].buffer_length = sizeof(v.ts);
   params[0].buffer = &v.ts;
-  params[0].length = &params[0].buffer_length;
+  params[0].length = &len[0];
   params[0].is_null = NULL;
+  params[0].num = 1;
 
   params[1].buffer_type = TSDB_DATA_TYPE_TINYINT;
   params[1].buffer_length = sizeof(v.v1);
   params[1].buffer = &v.v1;
-  params[1].length = &params[1].buffer_length;
+  params[1].length = &len[1];
   params[1].is_null = NULL;
+  params[1].num = 1;
 
   params[2].buffer_type = TSDB_DATA_TYPE_SMALLINT;
   params[2].buffer_length = sizeof(v.v2);
   params[2].buffer = &v.v2;
-  params[2].length = &params[2].buffer_length;
+  params[2].length = &len[2];
   params[2].is_null = NULL;
+  params[2].num = 1;
 
   params[3].buffer_type = TSDB_DATA_TYPE_FLOAT;
   params[3].buffer_length = sizeof(v.f4);
   params[3].buffer = &v.f4;
-  params[3].length = &params[3].buffer_length;
+  params[3].length = &len[3];
   params[3].is_null = NULL;
+  params[3].num = 1;
 
   params[4].buffer_type = TSDB_DATA_TYPE_BINARY;
   params[4].buffer_length = sizeof(v.bin);
   params[4].buffer = v.bin;
-  params[4].length = &params[4].buffer_length;
+  params[4].length = &len[4];
   params[4].is_null = NULL;
+  params[4].num = 1;
 
   params[5].buffer_type = TSDB_DATA_TYPE_BINARY;
   params[5].buffer_length = sizeof(v.bin);
   params[5].buffer = v.bin;
-  params[5].length = &params[5].buffer_length;
+  params[5].length = &len[5];
   params[5].is_null = NULL;
+  params[5].num = 1;
 
   char *sql = "insert into ? (ts, v1,v2,f4,bin,bin2) values(?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -122,7 +134,7 @@ int stmt_scol_func1(TAOS_STMT *stmt) {
   return 0;
 }
 
-
+#if 0
 
 int stmt_scol_func2(TAOS_STMT *stmt) {
   struct {
@@ -4192,7 +4204,7 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
 
   return 0;
 }
-
+#endif
 
 void check_result(TAOS     *taos, char *tname, int printr, int expected) {
   char sql[255] = "SELECT * FROM ";
@@ -4263,7 +4275,7 @@ int sql_perf1(TAOS     *taos) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  int64_t starttime = taosGetTimestampUs();
   for (int i = 0; i < 3000; ++i) {
       result = taos_query(taos, sql[i]);
       int code = taos_errno(result);
@@ -4275,7 +4287,7 @@ int sql_perf1(TAOS     *taos) {
 
     taos_free_result(result);
   }
-  unsigned long long endtime = getCurrentTime();
+  int64_t endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
   for (int i = 0; i < 3000; i++) {
@@ -4291,7 +4303,7 @@ int sql_perf1(TAOS     *taos) {
 
 //one table 60 records one time
 int sql_perf_s1(TAOS     *taos) {
-  char **sql = taosMemoryCalloc(1, sizeof(char*) * 360000);
+  char **sql = calloc(1, sizeof(char*) * 360000);
   TAOS_RES *result;
 
   for (int i = 0; i < 360000; i++) {
@@ -4316,7 +4328,7 @@ int sql_perf_s1(TAOS     *taos) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
   for (int i = 0; i < 360000; ++i) {
       result = taos_query(taos, sql[i]);
       int code = taos_errno(result);
@@ -4328,7 +4340,7 @@ int sql_perf_s1(TAOS     *taos) {
 
     taos_free_result(result);
   }
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
   for (int i = 0; i < 360000; i++) {
@@ -4363,7 +4375,7 @@ int sql_s_perf1(TAOS     *taos) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
   for (int i = 0; i < 3000; ++i) {
       result = taos_query(taos, sql[i]);
       int code = taos_errno(result);
@@ -4375,7 +4387,7 @@ int sql_s_perf1(TAOS     *taos) {
 
     taos_free_result(result);
   }
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
   for (int i = 0; i < 3000; i++) {
@@ -4528,7 +4540,7 @@ void* runcase(void *par) {
     taos_stmt_close(stmt);
 #endif
 
-
+#if 0
 #if 1
     prepare(taos, 1, 1);
   
@@ -5025,6 +5037,7 @@ void* runcase(void *par) {
   taos_stmt_close(stmt);
 
 #endif
+#endif
 
   printf("test end\n");
 
@@ -5066,11 +5079,11 @@ int main(int argc, char *argv[])
     exit(1);
   }     
 
-  TdThread *pThreadList = (TdThread *) taosMemoryCalloc(sizeof(TdThread), 4);
+  pthread_t *pThreadList = (pthread_t *) taosMemoryCalloc(sizeof(pthread_t), 4);
 
-  TdThreadAttr thattr;
-  taosThreadAttrInit(&thattr);
-  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   T_par par[4];
 
   par[0].taos = taos[0];
@@ -5082,13 +5095,13 @@ int main(int argc, char *argv[])
   par[3].taos = taos[3];
   par[3].idx = 3;
   
-  taosThreadCreate(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
-  //taosThreadCreate(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
-  //taosThreadCreate(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
-  //taosThreadCreate(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
+  pthread_create(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
+  //pthread_create(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
+  //pthread_create(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
+  //pthread_create(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
 
   while(1) {
-    taosSsleep(1);
+    sleep(1);
   }
   return 0;
 }

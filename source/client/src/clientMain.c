@@ -127,6 +127,10 @@ const char *taos_errstr(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
+  if (NULL == res) {
+    return;
+  }
+  
   SRequestObj *pRequest = (SRequestObj *)res;
   destroyRequest(pRequest);
 }

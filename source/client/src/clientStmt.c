@@ -9,12 +9,12 @@ int32_t stmtGetTbName(TAOS_STMT *stmt, char **tbName) {
 
   pStmt->sql.type = STMT_TYPE_MULTI_INSERT;
   
-  if (NULL == pStmt->bind.tbName) {
+  if (NULL == pStmt->bInfo.tbName) {
     tscError("no table name set");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_TBNAME_ERROR);
   }
 
-  *tbName = pStmt->bind.tbName;
+  *tbName = pStmt->bInfo.tbName;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -22,10 +22,10 @@ int32_t stmtGetTbName(TAOS_STMT *stmt, char **tbName) {
 int32_t stmtSetBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  pStmt->bind.tbUid = pTableMeta->uid;
-  pStmt->bind.tbSuid = pTableMeta->suid;
-  pStmt->bind.tbType = pTableMeta->tableType;
-  pStmt->bind.boundTags = tags;
+  pStmt->bInfo.tbUid = pTableMeta->uid;
+  pStmt->bInfo.tbSuid = pTableMeta->suid;
+  pStmt->bInfo.tbType = pTableMeta->tableType;
+  pStmt->bInfo.boundTags = tags;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -54,11 +54,11 @@ int32_t stmtCacheBlock(STscStmt *pStmt) {
   }
 
   uint64_t uid;
-  if (TSDB_CHILD_TABLE == pStmt->bind.tbType) {
-    uid = pStmt->bind.tbSuid;
+  if (TSDB_CHILD_TABLE == pStmt->bInfo.tbType) {
+    uid = pStmt->bInfo.tbSuid;
   } else {
-    ASSERT(TSDB_NORMAL_TABLE == pStmt->bind.tbType);
-    uid = pStmt->bind.tbUid;
+    ASSERT(TSDB_NORMAL_TABLE == pStmt->bInfo.tbType);
+    uid = pStmt->bInfo.tbUid;
   }
 
   if (taosHashGet(pStmt->sql.pTableCache, &uid, sizeof(uid))) {
@@ -72,14 +72,14 @@ int32_t stmtCacheBlock(STscStmt *pStmt) {
 
   SStmtTableCache cache = {
     .pDataBlock = pDst,
-    .boundTags = pStmt->bind.boundTags,
+    .boundTags = pStmt->bInfo.boundTags,
   };
 
   if (taosHashPut(pStmt->sql.pTableCache, &uid, sizeof(uid), &cache, sizeof(cache))) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pStmt->bind.boundTags = NULL;
+  pStmt->bInfo.boundTags = NULL;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -95,7 +95,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
 
-  pStmt->bind.needParse = false;
+  pStmt->bInfo.needParse = false;
   
   switch (nodeType(pStmt->sql.pQuery->pRoot)) {
     case QUERY_NODE_VNODE_MODIF_STMT:
@@ -116,14 +116,14 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 int32_t stmtCleanBindInfo(STscStmt* pStmt) {
-  pStmt->bind.tbUid = 0;
-  pStmt->bind.tbSuid = 0;
-  pStmt->bind.tbType = 0;
-  pStmt->bind.needParse = true;
+  pStmt->bInfo.tbUid = 0;
+  pStmt->bInfo.tbSuid = 0;
+  pStmt->bInfo.tbType = 0;
+  pStmt->bInfo.needParse = true;
 
-  taosMemoryFreeClear(pStmt->bind.tbName);
-  destroyBoundColumnInfo(pStmt->bind.boundTags);
-  taosMemoryFreeClear(pStmt->bind.boundTags);
+  taosMemoryFreeClear(pStmt->bInfo.tbName);
+  destroyBoundColumnInfo(pStmt->bInfo.boundTags);
+  taosMemoryFreeClear(pStmt->bInfo.boundTags);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -137,7 +137,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable) {
     STableDataBlocks* pBlocks = *(STableDataBlocks**)pIter;    
     uint64_t *key = taosHashGetKey(pIter, NULL);
     
-    if (keepTable && (*key == pStmt->bind.tbUid)) {
+    if (keepTable && (*key == pStmt->bInfo.tbUid)) {
       qResetStmtDataBlock(pBlocks, true);
       
       pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
@@ -197,10 +197,10 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   STableMeta *pTableMeta = NULL;
   SEpSet ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
-  STMT_ERR_RET(catalogGetTableMeta(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bind.sname, &pTableMeta));
+  STMT_ERR_RET(catalogGetTableMeta(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bInfo.sname, &pTableMeta));
 
-  if (pTableMeta->uid == pStmt->bind.tbUid) {
-    pStmt->bind.needParse = false;
+  if (pTableMeta->uid == pStmt->bInfo.tbUid) {
+    pStmt->bInfo.needParse = false;
     
     return TSDB_CODE_SUCCESS;
   }
@@ -212,29 +212,29 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
       STMT_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
     }
     
-    pStmt->bind.needParse = false;
+    pStmt->bInfo.needParse = false;
     
-    pStmt->bind.tbUid = pTableMeta->uid;
-    pStmt->bind.tbSuid = pTableMeta->suid;
-    pStmt->bind.tbType = pTableMeta->tableType;
-    pStmt->bind.boundTags = pCache->boundTags;
+    pStmt->bInfo.tbUid = pTableMeta->uid;
+    pStmt->bInfo.tbSuid = pTableMeta->suid;
+    pStmt->bInfo.tbType = pTableMeta->tableType;
+    pStmt->bInfo.boundTags = pCache->boundTags;
     
     return TSDB_CODE_SUCCESS;
   }
 
   SStmtTableCache* pCache = taosHashGet(pStmt->sql.pTableCache, &pTableMeta->uid, sizeof(pTableMeta->uid));
   if (pCache) {
-    pStmt->bind.needParse = false;
+    pStmt->bInfo.needParse = false;
 
-    pStmt->bind.tbUid = pTableMeta->uid;
-    pStmt->bind.tbSuid = pTableMeta->suid;
-    pStmt->bind.tbType = pTableMeta->tableType;
-    pStmt->bind.boundTags = pCache->boundTags;
+    pStmt->bInfo.tbUid = pTableMeta->uid;
+    pStmt->bInfo.tbSuid = pTableMeta->suid;
+    pStmt->bInfo.tbType = pTableMeta->tableType;
+    pStmt->bInfo.boundTags = pCache->boundTags;
 
     STableDataBlocks* pNewBlock = NULL;
     STMT_ERR_RET(qRebuildStmtDataBlock(&pNewBlock, pCache->pDataBlock));
 
-    if (taosHashPut(pStmt->exec.pBlockHash, &pStmt->bind.tbUid, sizeof(pStmt->bind.tbUid), &pNewBlock, POINTER_BYTES)) {
+    if (taosHashPut(pStmt->exec.pBlockHash, &pStmt->bInfo.tbUid, sizeof(pStmt->bInfo.tbUid), &pNewBlock, POINTER_BYTES)) {
       STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     
@@ -261,11 +261,11 @@ TAOS_STMT *stmtInit(TAOS *taos) {
     taosMemoryFree(pStmt);
     return NULL;
   }
-  
-  pStmt->taos = pObj;
-  pStmt->sql.status = STMT_INIT;
-  pStmt->bind.needParse = true;
 
+  pStmt->taos = pObj;
+  pStmt->bInfo.needParse = true;
+  pStmt->sql.status = STMT_INIT;
+  
   return pStmt;
 }
 
@@ -290,15 +290,15 @@ int stmtSetTbName(TAOS_STMT *stmt, const char *tbName) {
 
   STMT_SWITCH_STATUS(pStmt, STMT_SETTBNAME, TSDB_CODE_TSC_STMT_API_ERROR);
 
-  taosMemoryFree(pStmt->bind.tbName);
+  taosMemoryFree(pStmt->bInfo.tbName);
 
   if (NULL == pStmt->exec.pRequest) {
     STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
   }
   
-  STMT_ERR_RET(qCreateSName(&pStmt->bind.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+  STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
   
-  pStmt->bind.tbName = strdup(tbName);
+  pStmt->bInfo.tbName = strdup(tbName);
   
   STMT_ERR_RET(stmtGetFromCache(pStmt));
 
@@ -310,17 +310,17 @@ int stmtSetTbTags(TAOS_STMT *stmt, TAOS_BIND_v2 *tags) {
 
   STMT_SWITCH_STATUS(pStmt, STMT_SETTBNAME, TSDB_CODE_TSC_STMT_API_ERROR);
 
-  if (pStmt->bind.needParse) {
+  if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
-  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bind.tbUid, sizeof(pStmt->bind.tbUid));
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bInfo.tbUid, sizeof(pStmt->bInfo.tbUid));
   if (NULL == pDataBlock) {
-    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bind.tbUid);
+    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bInfo.tbUid);
     STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
-  STMT_ERR_RET(qBindStmtTagsValue(pDataBlock, pStmt->bind.boundTags, pStmt->bind.tbSuid, &pStmt->bind.sname, tags, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+  STMT_ERR_RET(qBindStmtTagsValue(pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, &pStmt->bInfo.sname, tags, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -331,7 +331,7 @@ int32_t stmtFetchTagFields(TAOS_STMT *stmt, int32_t *fieldNum, TAOS_FIELD** fiel
 
   STMT_SWITCH_STATUS(pStmt, STMT_FETCH_TAG_FIELDS, TSDB_CODE_TSC_STMT_API_ERROR);
 
-  if (pStmt->bind.needParse) {
+  if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
@@ -340,13 +340,13 @@ int32_t stmtFetchTagFields(TAOS_STMT *stmt, int32_t *fieldNum, TAOS_FIELD** fiel
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bind.tbUid, sizeof(pStmt->bind.tbUid));
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bInfo.tbUid, sizeof(pStmt->bInfo.tbUid));
   if (NULL == pDataBlock) {
-    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bind.tbUid);
+    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bInfo.tbUid);
     STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  STMT_ERR_RET(qBuildStmtTagFields(pDataBlock, pStmt->bind.boundTags, fieldNum, fields));
+  STMT_ERR_RET(qBuildStmtTagFields(pDataBlock, pStmt->bInfo.boundTags, fieldNum, fields));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -356,7 +356,7 @@ int32_t stmtFetchColFields(TAOS_STMT *stmt, int32_t *fieldNum, TAOS_FIELD** fiel
 
   STMT_SWITCH_STATUS(pStmt, STMT_FETCH_COL_FIELDS, TSDB_CODE_TSC_STMT_API_ERROR);
 
-  if (pStmt->bind.needParse) {
+  if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
@@ -365,9 +365,9 @@ int32_t stmtFetchColFields(TAOS_STMT *stmt, int32_t *fieldNum, TAOS_FIELD** fiel
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bind.tbUid, sizeof(pStmt->bind.tbUid));
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bInfo.tbUid, sizeof(pStmt->bInfo.tbUid));
   if (NULL == pDataBlock) {
-    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bind.tbUid);
+    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bInfo.tbUid);
     STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
@@ -381,21 +381,21 @@ int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
 
   STMT_SWITCH_STATUS(pStmt, STMT_BIND, TSDB_CODE_TSC_STMT_API_ERROR);
 
-  if (pStmt->bind.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 && STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
-    pStmt->bind.needParse = false;
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 && STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
+    pStmt->bInfo.needParse = false;
   }
 
   if (NULL == pStmt->exec.pRequest) {
     STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
   }
 
-  if (pStmt->bind.needParse) {
+  if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
-  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bind.tbUid, sizeof(pStmt->bind.tbUid));
+  STableDataBlocks *pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bInfo.tbUid, sizeof(pStmt->bInfo.tbUid));
   if (NULL == pDataBlock) {
-    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bind.tbUid);
+    tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bInfo.tbUid);
     STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   

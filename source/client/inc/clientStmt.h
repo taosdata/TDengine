@@ -26,7 +26,7 @@ typedef void STableDataBlocks;
 typedef enum {
   STMT_TYPE_INSERT = 1,
   STMT_TYPE_MULTI_INSERT,
-  STMT_TYPE_QUERY
+  STMT_TYPE_QUERY,
 } STMT_TYPE;
 
 typedef enum {
@@ -38,7 +38,7 @@ typedef enum {
   STMT_BIND,
   STMT_BIND_COL,
   STMT_ADD_BATCH,
-  STMT_EXECUTE
+  STMT_EXECUTE,
 } STMT_STATUS;
 
 typedef struct SStmtTableCache {
@@ -79,7 +79,7 @@ typedef struct STscStmt {
 
   SStmtSQLInfo  sql;
   SStmtExecInfo exec;
-  SStmtBindInfo bind;
+  SStmtBindInfo bInfo;
 } STscStmt;
 
 
@@ -91,7 +91,6 @@ typedef struct STscStmt {
   do {                                                                \
     switch (_newstatus) {                                             \
       case STMT_INIT:                                                 \
-        if ((_stmt)->sql.status != 0) return (_errcode);              \
         break;                                                        \
       case STMT_PREPARE:                                              \
         if ((_stmt)->sql.status != STMT_INIT) STMT_ERR_RET(_errcode); \
