@@ -579,7 +579,7 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   return stmtPrepare(stmt, sql, length);
 }
 
-int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags) {
+int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND_v2 *tags) {
   if (stmt == NULL || name == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -608,25 +608,23 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   return stmtSetTbName(stmt, name);
 }
 
-int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
+int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  TAOS_MULTI_BIND mbind = {0};
-  mbind.buffer_type = bind->buffer_type;
-  mbind.buffer = bind->buffer;
-  mbind.buffer_length = bind->buffer_length;
-  mbind.length = bind->length;
-  mbind.is_null = bind->is_null;
-  mbind.num = 1;
+  if (bind->num > 1) {
+    tscError("invalid bind number %d for %s", bind->num, __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   
-  return stmtBindBatch(stmt, &mbind);
+  return stmtBindBatch(stmt, bind);
 }
 
-int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -642,7 +640,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   return stmtBindBatch(stmt, bind);
 }
 
-int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
+int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx) {
   return stmtBindBatch(stmt, bind); /* TODO */
 }
 
@@ -703,7 +701,7 @@ char *taos_stmt_errstr(TAOS_STMT *stmt) {
     return NULL;
   }
 
-  return stmtErrstr(stmt);
+  return (char *)stmtErrstr(stmt);
 }
 
 int taos_stmt_affected_rows(TAOS_STMT *stmt) {

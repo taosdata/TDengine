@@ -19,6 +19,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "catalog.h"
+
+typedef void STableDataBlocks;
 
 typedef enum {
   STMT_TYPE_INSERT = 1,
@@ -107,15 +110,16 @@ typedef struct STscStmt {
 TAOS_STMT *stmtInit(TAOS *taos);
 int stmtClose(TAOS_STMT *stmt);
 int stmtExec(TAOS_STMT *stmt);
-char *stmtErrstr(TAOS_STMT *stmt);
+const char *stmtErrstr(TAOS_STMT *stmt);
 int stmtAffectedRows(TAOS_STMT *stmt);
 int stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
-int stmtSetTbNameTags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags);
+int stmtSetTbName(TAOS_STMT *stmt, const char *tbName);
+int stmtSetTbTags(TAOS_STMT *stmt, TAOS_BIND_v2 *tags);
 int stmtIsInsert(TAOS_STMT *stmt, int *insert);
 int stmtGetParamNum(TAOS_STMT *stmt, int *nums);
 int stmtAddBatch(TAOS_STMT *stmt);
 TAOS_RES *stmtUseResult(TAOS_STMT *stmt);
-int stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind);
+int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
 
 
 #ifdef __cplusplus

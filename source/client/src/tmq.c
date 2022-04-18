@@ -582,7 +582,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
 
   int32_t code = 0;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQueryNode), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQueryNode, NULL), _return);
 
   // todo check for invalid sql statement and return with error code
 
