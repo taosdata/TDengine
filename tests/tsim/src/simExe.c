@@ -18,7 +18,7 @@
 
 void simLogSql(char *sql, bool useSharp) {
   static TdFilePtr pFile = NULL;
-  char         filename[256];
+  char             filename[256];
   sprintf(filename, "%s/sim.sql", simScriptDir);
   if (pFile == NULL) {
     // fp = fopen(filename, "w");
@@ -305,7 +305,8 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceStr(char *buf, char *src, char *dst) {
+bool simReplaceStr(char *buf, char *src, char *dst) {
+  bool  replaced = false;
   char *begin = strstr(buf, src);
   if (begin != NULL) {
     int32_t srcLen = (int32_t)strlen(src);
@@ -320,13 +321,16 @@ void simReplaceStr(char *buf, char *src, char *dst) {
     }
 
     memcpy(begin, dst, dstLen);
+    replaced = true;
   }
 
   simInfo("system cmd is %s", buf);
+  return replaced;
 }
 
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
+  bool replaced = false;
 
 #ifndef WINDOWS
   sprintf(buf, "cd %s; ", simScriptDir);
@@ -341,7 +345,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   }
 
   if (useValgrind) {
-    simReplaceStr(buf, "exec.sh", "exec.sh -v");
+    replaced = simReplaceStr(buf, "exec.sh", "exec.sh -v");
   }
 
   simLogSql(buf, true);
@@ -359,6 +363,11 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 
   sprintf(script->system_exit_code, "%d", code);
   script->linePos++;
+  if (replaced && strstr(buf, "start") != NULL) {
+    simInfo("====> startup is slow in valgrind mode, so sleep 5 seconds after exec.sh -s start");
+    taosMsleep(5000);
+  }
+
   return true;
 }
 
@@ -774,7 +783,7 @@ bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
 
 bool simExecuteRestfulCmd(SScript *script, char *rest) {
   TdFilePtr pFile = NULL;
-  char  filename[256];
+  char      filename[256];
   sprintf(filename, "%s/tmp.sql", simScriptDir);
   // fp = fopen(filename, "w");
   pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
