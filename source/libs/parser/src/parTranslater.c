@@ -403,6 +403,9 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   uint8_t precision = (NULL != pCxt->pCurrStmt ? pCxt->pCurrStmt->precision : pVal->node.resType.precision);
   pVal->node.resType.precision = precision;
+  if (pVal->placeholderNo > 0) {
+    return DEAL_RES_CONTINUE;
+  }
   if (pVal->isDuration) {
     if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, precision) !=
         TSDB_CODE_SUCCESS) {

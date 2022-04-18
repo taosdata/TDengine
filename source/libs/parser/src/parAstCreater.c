@@ -44,6 +44,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->notSupport = false;
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
+  pCxt->placeholderNo = 1;
 }
 
 static void trimEscape(SToken* pName) {
@@ -258,14 +259,12 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  if (NULL != pLiteral) {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
-    if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
-       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
-      trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
-    }
-    CHECK_OUT_OF_MEM(val->literal);
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
+      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+    trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
+  CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
@@ -306,10 +305,12 @@ SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   return (SNode*)val;
 }
 
-SNode* createPlaceholderValueNode(SAstCreateContext* pCxt) {
+SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->placeholderNo = pCxt->placeholderNo++;
   return (SNode*)val;
 }
 
