@@ -69,9 +69,9 @@ void taos_cleanup(void) {
   rpcCleanup();
   catalogDestroy();
   schedulerDestroy();
-  taosCloseLog();
 
   tscInfo("all local resources released");
+  taosCloseLog();
 }
 
 setConfRet taos_set_config(const char *config) {
