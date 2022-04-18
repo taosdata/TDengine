@@ -347,7 +347,7 @@ double getVectorDoubleValue_JSON(void *src, int32_t index){
   return out;
 }
 
-void convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData, char **pRightData, void *pLeftOut, void *pRightOut){
+void convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData, char **pRightData, void *pLeftOut, void *pRightOut, bool *isNull){
   if(optr == OP_TYPE_JSON_CONTAINS) {
     return;
   }
@@ -363,6 +363,10 @@ void convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
   if(typeRight == TSDB_DATA_TYPE_JSON){
     typeRight = **pRightData;
     (*pRightData) ++;
+  }
+  if(typeLeft == TSDB_DATA_TYPE_NULL || typeRight == TSDB_DATA_TYPE_NULL){
+    *isNull = true;
+    return;
   }
   int8_t type = vectorGetConvertType(typeLeft, typeRight);
 
@@ -381,7 +385,7 @@ void convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     *pLeftData = pLeftOut;
   }
 
-  if(IS_VAR_DATA_TYPE(typeRight)) {
+  if(typeRight == TSDB_DATA_TYPE_NCHAR) {
     convertStringToDouble(*pRightData, pRightOut, typeRight, type);
     *pRightData = pRightOut;
   } else if(typeRight != type) {
@@ -1339,7 +1343,11 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
 
       int64_t leftOut = 0;
       int64_t rightOut = 0;
-      convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut);
+      bool isJsonnull = false;
+      convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
+      if(isJsonnull){
+        continue;  // TODO set null or ignore
+      }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
@@ -1354,7 +1362,11 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       char *pRightData = colDataGetData(pRight->columnData, 0);
       int64_t leftOut = 0;
       int64_t rightOut = 0;
-      convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut);
+      bool isJsonnull = false;
+      convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
+      if(isJsonnull){
+        continue;  // TODO set null or ignore
+      }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
@@ -1368,7 +1380,11 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       char *pRightData = colDataGetData(pLeft->columnData, i);
       int64_t leftOut = 0;
       int64_t rightOut = 0;
-      convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut);
+      bool isJsonnull = false;
+      convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
+      if(isJsonnull){
+        continue;  // TODO set null or ignore
+      }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }

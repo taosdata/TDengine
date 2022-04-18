@@ -107,7 +107,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 // SColumnInfoData, rowNumber
 #define colDataGetData(p1_, r_)                                        \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ?  colDataGetVarData(p1_, r_)  \
-                                        :  colDataGetNumData(p1_, r_)
+                                        :  colDataGetNumData(p1_, r_))
 
 static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uint32_t currentRow) {
   // There is a placehold for each NULL value of binary or nchar type.
