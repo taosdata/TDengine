@@ -772,6 +772,9 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   if (pFile == NULL) {
     return -1;
   }
+  if (*ptrBuf != NULL) {
+    taosMemoryFreeClear(*ptrBuf);
+  }
   assert(pFile->fp != NULL);
 
   size_t len = 0;
