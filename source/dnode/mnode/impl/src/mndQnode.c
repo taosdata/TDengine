@@ -34,7 +34,7 @@ static int32_t  mndProcessCreateQnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessDropQnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropQnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessQnodeListReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitQnode(SMnode *pMnode) {
@@ -497,7 +497,7 @@ static int32_t mndProcessDropQnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
@@ -510,8 +510,8 @@ static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*)&pObj->id, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->bytes[cols]);
