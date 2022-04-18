@@ -65,14 +65,15 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // create handle
-  pVnode = (SVnode *)taosMemoryCalloc(1, sizeof(*pVnode));
+  pVnode = (SVnode *)taosMemoryCalloc(1, sizeof(*pVnode) + strlen(path) + 1);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     vError("vgId: %d failed to open vnode since %s", info.config.vgId, tstrerror(terrno));
     return NULL;
   }
 
-  pVnode->path = strdup(dir);
+  pVnode->path = (char *)&pVnode[1];
+  strcpy(pVnode->path, path);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.processed = pVnode->state.applied = pVnode->state.committed;
@@ -88,9 +89,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open meta
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_META_DIR);
-  pVnode->pMeta = metaOpen(tdir, vBufPoolGetMAF(pVnode));
-  if (pVnode->pMeta == NULL) {
+  if (metaOpen(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId: %d failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -141,7 +140,6 @@ _err:
   if (pVnode->pTsdb) tsdbClose(pVnode->pTsdb);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
   tsem_destroy(&(pVnode->canCommit));
-  taosMemoryFreeClear(pVnode->path);
   taosMemoryFree(pVnode);
   return NULL;
 }
@@ -159,7 +157,6 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
-    taosMemoryFreeClear(pVnode->path);
     taosMemoryFree(pVnode);
   }
 }
