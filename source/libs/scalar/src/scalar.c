@@ -398,7 +398,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *params = NULL;
   int32_t rowNum = 0;
   int32_t code = 0;
-  
+
   SCL_ERR_RET(sclInitOperatorParams(&params, node, ctx, &rowNum));
   output->columnData = createColumnInfoData(&node->node.resType, rowNum);
   if (output->columnData == NULL) {
@@ -411,7 +411,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
-  
+
   OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC);
 
 _return:
@@ -426,7 +426,7 @@ _return:
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SScalarParam output = {0};
-  
+
   ctx->code = sclExecFunction(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;
@@ -440,16 +440,19 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  res->node.resType = node->node.resType;
-
-  int32_t type = output.columnData->info.type;
-  if (IS_VAR_DATA_TYPE(type)) {
-    res->datum.p = output.columnData->pData;
-    output.columnData->pData = NULL;
+  if (colDataIsNull_s(output.columnData, 0)) {
+    res->node.resType.type = TSDB_DATA_TYPE_NULL;
   } else {
-    memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+    res->node.resType = node->node.resType;
+    int32_t type = output.columnData->info.type;
+    if (IS_VAR_DATA_TYPE(type)) {
+      res->datum.p = output.columnData->pData;
+      output.columnData->pData = NULL;
+    } else {
+      memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+    }
   }
-  
+
   nodesDestroyNode(*pNode);
   *pNode = (SNode*)res;
 
@@ -469,7 +472,7 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
   SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
   if (NULL == res) {
     sclError("make value node failed");
-    sclFreeParam(&output);    
+    sclFreeParam(&output);
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
