@@ -406,7 +406,31 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
     default: {
       return -1;
     }
-  }  
+  }
+}
+
+int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
+  int32_t charLen = varDataLen(inputData);
+  char *newColData;
+  if (type == TSDB_DATA_TYPE_BINARY) {
+    newColData = taosMemoryCalloc(1,  charLen + 1);
+    memcpy(newColData, varDataVal(inputData), charLen);
+    taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
+    taosMemoryFree(newColData);
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    newColData = taosMemoryCalloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+    int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inputData), charLen, newColData);
+    if (len < 0){
+      taosMemoryFree(newColData);
+      return TSDB_CODE_FAILED;
+    }
+    newColData[len] = 0;
+    taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, 0);
+    taosMemoryFree(newColData);
+  } else {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {

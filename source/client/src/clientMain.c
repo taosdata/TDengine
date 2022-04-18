@@ -472,7 +472,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
       return 0;
     }
 
-    doFetchRow(pRequest, false, false);
+    doFetchRow(pRequest, false, true);
 
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 

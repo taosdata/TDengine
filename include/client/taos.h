@@ -30,7 +30,7 @@ typedef void **TAOS_ROW;
 #if 0
 typedef void   TAOS_STREAM;
 #endif
-typedef void   TAOS_SUB;
+typedef void TAOS_SUB;
 
 // Data type definition
 #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
@@ -114,13 +114,13 @@ typedef enum {
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
   SET_CONF_RET_CODE retCode;
-  char   retMsg[RET_MSG_LENGTH];
+  char              retMsg[RET_MSG_LENGTH];
 } setConfRet;
 
-DLL_EXPORT void  taos_cleanup(void);
-DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
-DLL_EXPORT setConfRet   taos_set_config(const char *config);
-DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+DLL_EXPORT void       taos_cleanup(void);
+DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT setConfRet taos_set_config(const char *config);
+DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, const char *pass, int passLen,
                                 const char *db, int dbLen, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
@@ -164,14 +164,14 @@ DLL_EXPORT void        taos_stop_query(TAOS_RES *res);
 DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
 DLL_EXPORT bool        taos_is_update_query(TAOS_RES *res);
 DLL_EXPORT int         taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
-DLL_EXPORT int         taos_fetch_block_s(TAOS_RES *res, int* numOfRows, TAOS_ROW *rows);
-DLL_EXPORT int         taos_fetch_raw_block(TAOS_RES *res, int* numOfRows, void** pData);
+DLL_EXPORT int         taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
+DLL_EXPORT int         taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData);
 DLL_EXPORT int        *taos_get_column_data_offset(TAOS_RES *res, int columnIndex);
 DLL_EXPORT int         taos_validate_sql(TAOS *taos, const char *sql);
 DLL_EXPORT void        taos_reset_current_db(TAOS *taos);
 
-DLL_EXPORT int        *taos_fetch_lengths(TAOS_RES *res);
-DLL_EXPORT TAOS_ROW   *taos_result_block(TAOS_RES *res);
+DLL_EXPORT int      *taos_fetch_lengths(TAOS_RES *res);
+DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
 
 DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
@@ -213,9 +213,9 @@ typedef struct tmq_t                   tmq_t;
 typedef struct tmq_topic_vgroup_t      tmq_topic_vgroup_t;
 typedef struct tmq_topic_vgroup_list_t tmq_topic_vgroup_list_t;
 
-typedef struct tmq_conf_t    tmq_conf_t;
-typedef struct tmq_list_t    tmq_list_t;
-typedef struct tmq_message_t tmq_message_t;
+typedef struct tmq_conf_t tmq_conf_t;
+typedef struct tmq_list_t tmq_list_t;
+// typedef struct tmq_message_t tmq_message_t;
 
 typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, void *param));
 
@@ -235,7 +235,7 @@ DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, tmq_list_t *topic_list);
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-DLL_EXPORT tmq_message_t *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
+DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_assign(tmq_t* tmq, const tmq_topic_vgroup_list_t* vgroups);
@@ -244,8 +244,8 @@ DLL_EXPORT tmq_resp_err_t tmq_assignment(tmq_t* tmq, tmq_topic_vgroup_list_t** v
 DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, int32_t async);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
-#endif
 DLL_EXPORT tmq_resp_err_t tmq_seek(tmq_t *tmq, const tmq_topic_vgroup_t *offset);
+#endif
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
 enum tmq_conf_res_t {
@@ -261,21 +261,24 @@ DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const 
 DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb);
 
+#if 0
 // temporary used function for demo only
 void    tmqShowMsg(tmq_message_t *tmq_message);
 int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
+#endif
 
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
+DLL_EXPORT char   *tmq_get_topic_name(TAOS_RES *res);
+DLL_EXPORT int32_t tmq_get_vgroup_id(TAOS_RES *res);
+#if 0
 DLL_EXPORT TAOS_ROW    tmq_get_row(tmq_message_t *message);
-DLL_EXPORT char       *tmq_get_topic_name(tmq_message_t *message);
-DLL_EXPORT int32_t     tmq_get_vgroup_id(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_request_offset(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_response_offset(tmq_message_t *message);
 DLL_EXPORT TAOS_FIELD *tmq_get_fields(tmq_t *tmq, const char *topic);
 DLL_EXPORT int32_t     tmq_field_count(tmq_t *tmq, const char *topic);
-DLL_EXPORT void        tmq_message_destroy(tmq_message_t *tmq_message);
-
+#endif
+DLL_EXPORT void tmq_message_destroy(TAOS_RES *res);
 /* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
 #if 0
 DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
@@ -284,7 +287,7 @@ DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *
 DLL_EXPORT TAOS_RES *tmq_create_stream(TAOS *taos, const char *streamName, const char *tbName, const char *sql);
 
 /* ------------------------------ TMQ END -------------------------------- */
-#if 1 // Shuduo: temporary enable for app build
+#if 1  // Shuduo: temporary enable for app build
 typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
 #endif
 
