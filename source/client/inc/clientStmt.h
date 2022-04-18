@@ -100,7 +100,7 @@ int stmtIsInsert(TAOS_STMT *stmt, int *insert);
 int stmtGetParamNum(TAOS_STMT *stmt, int *nums);
 int stmtAddBatch(TAOS_STMT *stmt);
 TAOS_RES *stmtUseResult(TAOS_STMT *stmt);
-int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
+int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int32_t colIdx);
 
 
 #ifdef __cplusplus

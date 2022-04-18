@@ -402,7 +402,7 @@ int32_t stmtFetchColFields(TAOS_STMT *stmt, int32_t *fieldNum, TAOS_FIELD** fiel
   return TSDB_CODE_SUCCESS;  
 }
 
-int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int32_t colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));

@@ -407,7 +407,6 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
   return 0;
 }
 
-#if 0
 
 
 //10 tables 10 records single column bind
@@ -428,7 +427,7 @@ int stmt_scol_func4(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -488,7 +487,7 @@ int stmt_scol_func4(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? (ts,b,v4,v8,f8) values(?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -519,7 +518,7 @@ int stmt_scol_func4(TAOS_STMT *stmt) {
     }
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -531,6 +530,7 @@ int stmt_scol_func4(TAOS_STMT *stmt) {
   return 0;
 }
 
+#if 0
 
 
 int stmt_func1(TAOS_STMT *stmt) {
@@ -926,7 +926,7 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1075,7 +1075,7 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -1104,7 +1104,7 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -1139,7 +1139,7 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1288,7 +1288,7 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(1,true,2,3,4,5.0,6.0,'a','b') values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -1317,7 +1317,7 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -1353,7 +1353,7 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1477,7 +1477,7 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(1,?,2,?,4,?,6.0,?,'b') values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -1506,7 +1506,7 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -1544,7 +1544,7 @@ int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*5);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*5);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1632,7 +1632,7 @@ int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(1,?,2,?,4,?,6.0,?,'b') (ts,b,v4,v8,f8) values(?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -1661,7 +1661,7 @@ int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -1697,7 +1697,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1821,7 +1821,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 (id1,id2,id3,id4,id5,id6,id7,id8,id9) tags(1,?,2,?,4,?,6.0,?,'b') values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -1850,7 +1850,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -1886,7 +1886,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2035,7 +2035,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -2065,7 +2065,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -2103,7 +2103,7 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2252,7 +2252,7 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 (id1,id2,id3,id4,id5,id6,id7,id8,id9) tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -2283,7 +2283,7 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -2318,7 +2318,7 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2467,7 +2467,7 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -2508,7 +2508,7 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -2545,7 +2545,7 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2694,7 +2694,7 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
   }
 
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(NULL, sql, 0);
@@ -2735,7 +2735,7 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
 
   ++id;
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
   taosMemoryFree(v.ts);  
@@ -2768,7 +2768,7 @@ int stmt_funcb1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -2864,7 +2864,7 @@ int stmt_funcb1(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -2894,7 +2894,7 @@ int stmt_funcb1(TAOS_STMT *stmt) {
     ++id;
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -2925,7 +2925,7 @@ int stmt_funcb2(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(18000 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 3000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 18000);
   char* no_null = taosMemoryMalloc(sizeof(char) * 18000);
 
@@ -3021,7 +3021,7 @@ int stmt_funcb2(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3052,7 +3052,7 @@ int stmt_funcb2(TAOS_STMT *stmt) {
  
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3083,7 +3083,7 @@ int stmt_funcb3(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3185,7 +3185,7 @@ int stmt_funcb3(TAOS_STMT *stmt) {
     }
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3215,7 +3215,7 @@ int stmt_funcb3(TAOS_STMT *stmt) {
     ++id;
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3248,7 +3248,7 @@ int stmt_funcb4(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3344,7 +3344,7 @@ int stmt_funcb4(TAOS_STMT *stmt) {
     v.ts[i] = tts;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3374,7 +3374,7 @@ int stmt_funcb4(TAOS_STMT *stmt) {
     ++id;
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3407,7 +3407,7 @@ int stmt_funcb5(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(18000 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 3000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 18000);
   char* no_null = taosMemoryMalloc(sizeof(char) * 18000);
 
@@ -3503,7 +3503,7 @@ int stmt_funcb5(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into m0 values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3527,7 +3527,7 @@ int stmt_funcb5(TAOS_STMT *stmt) {
  
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3551,7 +3551,7 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(30000 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 3000*10);
   char* no_null = taosMemoryMalloc(sizeof(int) * 200000);
 
   for (int i = 0; i < 30000; ++i) {
@@ -3581,7 +3581,7 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3612,7 +3612,7 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
  
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3642,7 +3642,7 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3738,7 +3738,7 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3769,7 +3769,7 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
  
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3804,7 +3804,7 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3900,7 +3900,7 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -3931,7 +3931,7 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
     }
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -3962,7 +3962,7 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -4058,7 +4058,7 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -4091,7 +4091,7 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
  
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -4122,7 +4122,7 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 60*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 60*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -4219,7 +4219,7 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -4248,7 +4248,7 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
     exit(1);
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  

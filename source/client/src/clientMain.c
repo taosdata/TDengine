@@ -635,7 +635,7 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
     return terrno;
   }
   
-  return stmtBindBatch(stmt, bind);
+  return stmtBindBatch(stmt, bind, -1);
 }
 
 int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
@@ -651,10 +651,22 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
     return terrno;
   }
 
-  return stmtBindBatch(stmt, bind);
+  return stmtBindBatch(stmt, bind, -1);
 }
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (colIdx <= 0) {
+    tscError("invalid bind column idx %d", colIdx);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  
   return stmtBindBatch(stmt, bind, colIdx); /* TODO */
 }
 
