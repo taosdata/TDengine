@@ -368,7 +368,8 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceStr(char *buf, char *src, char *dst) {
+bool simReplaceStr(char *buf, char *src, char *dst) {
+  bool  replaced = false;
   char *begin = strstr(buf, src);
   if (begin != NULL) {
     int32_t srcLen = (int32_t)strlen(src);
@@ -383,13 +384,16 @@ void simReplaceStr(char *buf, char *src, char *dst) {
     }
 
     memcpy(begin, dst, dstLen);
+    replaced = true;
   }
 
   simInfo("system cmd is %s", buf);
+  return replaced;
 }
 
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
+  bool replaced = false;
 
 #ifndef WINDOWS
   sprintf(buf, "cd %s; ", simScriptDir);
@@ -404,7 +408,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   }
 
   if (useValgrind) {
-    simReplaceStr(buf, "exec.sh", "exec.sh -v");
+    replaced = simReplaceStr(buf, "exec.sh", "exec.sh -v");
   }
 
   simLogSql(buf, true);
@@ -422,6 +426,11 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 
   sprintf(script->system_exit_code, "%d", code);
   script->linePos++;
+  if (replaced && strstr(buf, "start") != NULL) {
+    simInfo("====> startup is slow in valgrind mode, so sleep 5 seconds after exec.sh -s start");
+    taosMsleep(5000);
+  }
+
   return true;
 }
 

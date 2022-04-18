@@ -33,7 +33,7 @@
 #define MAX_BACKGROUND_SCRIPT_NUM 10
 #define MAX_FILE_NAME_LEN         256
 #define MAX_ERROR_LEN             1024
-#define MAX_QUERY_VALUE_LEN       40
+#define MAX_QUERY_VALUE_LEN       1024
 #define MAX_QUERY_COL_NUM         100
 #define MAX_QUERY_ROW_NUM         100
 #define MAX_SYSTEM_RESULT_LEN     2048
