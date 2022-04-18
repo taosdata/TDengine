@@ -14,6 +14,20 @@ TDengine 提供的连续查询与普通流计算中的时间窗口计算具有�
 - 如果有历史记录写入到已经计算完成的时间区间，连续查询并不会重新进行计算，也不会重新将结果推送给用户。对于写回 TDengine 的模式，也不会更新已经存在的计算结果。
 - 使用连续查询推送结果的模式，服务端并不缓存客户端计算状态，也不提供 Exactly-Once 的语义保证。如果用户的应用端崩溃，再次拉起的连续查询将只会从再次拉起的时间开始重新计算最近的一个完整的时间窗口。如果使用写回模式，TDengine 可确保数据写回的有效性和连续性。
 
+## 连续查询语法
+
+```sql
+[CREATE TABLE AS] SELECT select_expr [, select_expr ...]
+    FROM {tb_name_list}
+    [WHERE where_condition]
+    [INTERVAL(interval_val [, interval_offset]) [SLIDING sliding_val]]
+
+```
+
+INTERVAL: 连续查询作用的时间窗口
+
+SLIDING: 连续查询的时间窗口向前滑动的时间间隔
+
 ## 使用连续查询
 
 下面以智能电表场景为例介绍连续查询的具体使用方法。假设我们通过下列 SQL 语句创建了超级表和子表：
@@ -25,7 +39,7 @@ create table D1002 using meters tags ("Beijing.Haidian", 2);
 ...
 ```
 
-我们已经知道，可以通过下面这条 SQL 语句以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压。
+可以通过下面这条 SQL 语句以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压。
 
 ```sql
 select avg(voltage) from meters interval(1m) sliding(30s);

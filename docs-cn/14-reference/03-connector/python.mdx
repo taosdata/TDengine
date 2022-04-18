@@ -35,7 +35,7 @@ pip2 install taospy
 pip3 install taospy
 ```
 
-Python 命令行依赖 taos 动态库 `libtaos.so` 或 `taos.dll`, 对于 Windows 客户端，安装 TDengine windows 客户端后，如果不能正常 `import taos`，可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\windows\system32` 目录后重新尝试。
+Python 命令行依赖 taos 客户端驱动 `libtaos.so` 或 `taos.dll`, 对于 Windows 客户端，安装 TDengine windows 客户端后，如果不能正常 `import taos`，可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\windows\system32` 目录后重新尝试。
 
 对于无法联网用户，可以将 TDengine 客户端中的 `connector/python` 路径（Linux 下其安装路径为 `/usr/local/taos/connector/python/`，Windows 下默认安装路径为 `C:\TDengine\connector\python`）添加到 `PYTHONPATH` 环境变量中使用。
 

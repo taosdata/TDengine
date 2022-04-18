@@ -9,25 +9,16 @@ title: 数据库管理
 CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 ```
 
-:::info 说明
-
+:::info
 1. KEEP 是该数据库的数据保留多长天数，缺省是 3650 天(10 年)，数据库会自动删除超过时限的数据；<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION -->
-
 2. UPDATE 标志数据库支持更新相同时间戳数据；（从 2.1.7.0 版本开始此参数支持设为 2，表示允许部分列更新，也即更新数据行时未被设置的列会保留原值。）（从 2.0.8.0 版本开始支持此参数。注意此参数不能通过 `ALTER DATABASE` 指令进行修改。）
-
    1. UPDATE 设为 0 时，表示不允许更新数据，后发送的相同时间戳的数据会被直接丢弃；
-
    2. UPDATE 设为 1 时，表示更新全部列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会被设为 NULL；
-
    3. UPDATE 设为 2 时，表示支持更新部分列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值；
-
    4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-fqa/faq)。
-
 3. 数据库名最大长度为 33；
-
 4. 一条 SQL 语句的最大长度为 65480 个字符；
-
-5. 数据库还有更多与存储相关的配置参数，请参见 [配置参数](/reference/server-config/) 章节。
+5. 数据库还有更多与数据库相关的配置参数，如 cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, 具体细节请参见 [配置参数](/reference/config/) 章节。
 
 :::
 
