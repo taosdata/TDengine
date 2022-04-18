@@ -8329,7 +8329,7 @@ static bool check_expr_in_groupby_colum(SGroupbyExpr* pGroupbyExpr, SExprInfo* p
     return false;
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols ; ++k) {
     pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
-    if (!strcmp(pIndex->name,&pExpr->base.colInfo.name[1])){ // notes:first char is dot, skip one char.
+    if (!strcmp(pIndex->name,&pExpr->base.colInfo[0].name[1])){ // notes:first char is dot, skip one char.
       return true;
     }
   }
@@ -8357,7 +8357,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
     if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ ||
-        (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
+        (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo[0].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
       if (false == check_expr_in_groupby_colum(pGroupbyExpr,pExpr)) {
         tagTsColExists = true;  // selectivity + ts/tag column
         break;
