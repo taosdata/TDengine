@@ -62,6 +62,15 @@ class Case12(ClusterCase):
             client_0 = self.tdSql.get_connection(self._conf)
         client_0.execute("use {}".format(db_name))
         while True:
+
+            result = client_0.query("show databases ")
+            database_data = result.fetch_all()
+            index_flag = -1
+            for index , db in enumerate(database_data):
+                if db[0] == db_name:
+                    index_flag ==index
+            replica_num = database_data[index_flag][4]
+
             client_0.execute(" show {}.vgroups ".format(db_name))
             result = client_0.query(" show {}.vgroups ".format(db_name))
             vgroups = result.fetch_all()
@@ -76,13 +85,15 @@ class Case12(ClusterCase):
                             continue
                         else:
                             row_elem.append(elem)
+                    
                 vgroups_status.append(row_elem)
             
             # check sync done
+            
             sync_done = True
             for status_row in vgroups_status:
                 for status in status_row:
-                    if status not in ['master', 'slave']:
+                    if status not in ['master', 'slave'] or len(status)!=replica_num:
                         sync_done = False
             time.sleep(check_interval)
             self.logger.info("current cluster status is: {}".format(vgroups_status))
@@ -200,6 +211,6 @@ class Case12(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.12  1.13 always alter database replica from 3 to 1  ... ;
+            [test]<wenzhouwww> test case for cluster about 1.12  always alter database replica from 3 to 1  ... ;
         '''
         return case_description
