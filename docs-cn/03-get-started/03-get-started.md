@@ -162,6 +162,11 @@ taos> source <filename>;
 - 执行 `RESET QUERY CACHE` 可清除本地缓存的表 schema
 - 批量执行 SQL 语句。可以将一系列的 shell 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 shell 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
 - 输入 q 回车，退出 taos shell
+- 在线修改显示字符宽度
+    ```
+    SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+    ```
+    如显示的内容后面以...结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
 
 ## 使用 taosBenchmark 体验写入速度
 
