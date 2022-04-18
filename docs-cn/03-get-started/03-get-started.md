@@ -44,8 +44,8 @@ import PkgInstall from "./\_pkg_install.mdx";
 import AptGetInstall from "./\_apt_get_install.mdx";
 import SrcInstall from "./\_src_install.mdx";
 
-TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务端程序 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。
-之前版本 TDengine 服务端，以及所有服务端 lite 版，均使用内置 http 服务。
+TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接 TDengine，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式, taosAdapter 需要手动启动。
+2.4 之前的版本中 TDengine 服务端，以及所有服务端 lite 版，均使用由 taosd 内置的 http 服务。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 

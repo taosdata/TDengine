@@ -3,8 +3,11 @@ sidebar_label: 超级表管理
 title: 超级表 STable 管理
 ---
 
+:::note
 
-注意：在 2.0.15.0 及以后的版本中，开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
+在 2.0.15.0 及以后的版本中开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在 2.0.15.0 之前的版本中 STABLE 保留字需写作 TABLE。
+
+:::
 
 ## 创建超级表
 
@@ -18,7 +21,7 @@ CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_n
 
 1. TAGS 列的数据类型不能是 timestamp 类型；（从 2.1.3.0 版本开始，TAGS 列中支持使用 timestamp 类型，但需注意在 TAGS 中的 timestamp 列写入数据时需要提供给定值，而暂不支持四则运算，例如 `NOW + 10s` 这类表达式）
 2. TAGS 列名不能与其他列名相同；
-3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](https://www.taosdata.com/cn/documentation/administrator#keywords) 章节）；
+3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/reference/keywords/) 章节）；
 4. TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
 
 :::
@@ -109,11 +112,7 @@ ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 
 如果标签的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
 
-### 修改子表标签值
+:::note
+除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。
 
-```
-ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
-```
-
-说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。
-
+:::

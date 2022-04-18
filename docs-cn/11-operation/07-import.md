@@ -58,4 +58,4 @@ Query OK, 9 row(s) affected (0.004763s)
 
 ## taosdump 工具导入
 
-TDengine 提供了方便的数据库导入导出工具 taosdump。用户可以将 taosdump 从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见：[TDengine 数据备份工具: taosdump](https://www.taosdata.com/docs/cn/v2.0/tools/taosdump)。
+TDengine 提供了方便的数据库导入导出工具 taosdump。用户可以将 taosdump 从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见：[TDengine 数据备份工具: taosdump](https://github.com/taosdata/taos-tools/blob/develop/taosdump-user-manual-CN.md)。

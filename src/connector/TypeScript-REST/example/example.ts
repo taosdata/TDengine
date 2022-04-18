@@ -1,5 +1,7 @@
 import { options, connect } from '../tdengine_rest'
 options.path = '/rest/sqlt'
+options.host = 'localhost'
+
 const db = 'rest_ts_db';
 const table = 'rest'
 const createDB = `create database if not exists ${db} keep 3650`;

@@ -13,20 +13,21 @@ TDengine 支持针对数据的聚合查询。提供支持的聚合和选择函�
 SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
 ```
 
-- **功能说明**：统计表/超级表中记录行数或某列的非空值个数。
-- **返回数据类型**：长整型 INT64。
-- **应用字段**：应用全部字段。
-- **适用于**：表、超级表。
+**功能说明**：统计表/超级表中记录行数或某列的非空值个数。
 
-:::info
+**返回数据类型**：长整型 INT64。
+
+**应用字段**：应用全部字段。
+
+**适用于**：表、超级表。
+
+**使用说明**:
 
 - 可以使用星号(\*)来替代具体的字段，使用星号(\*)返回全部记录数量。
 - 针对同一表的（不包含 NULL 值）字段查询结果均相同。
 - 如果统计对象是具体的列，则返回该列中非 NULL 值的记录数量。
 
-:::
-
-示例：
+**示例**：
 
 ```
 taos> SELECT COUNT(*), COUNT(voltage) FROM meters;
@@ -48,12 +49,15 @@ Query OK, 1 row(s) in set (0.001075s)
 SELECT AVG(field_name) FROM tb_name [WHERE clause];
 ```
 
-- **功能说明**：统计表/超级表中某列的平均值。
-- **返回数据类型**：双精度浮点数 Double。
-- **应用字段**：不能应用在 timestamp、binary、nchar、bool 字段。
-- **适用于**：表、超级表。
+**功能说明**：统计表/超级表中某列的平均值。
 
-示例：
+**返回数据类型**：双精度浮点数 Double。
+
+**应用字段**：不能应用在 timestamp、binary、nchar、bool 字段。
+
+**适用于**：表、超级表。
+
+**示例**：
 
 ```
 taos> SELECT AVG(current), AVG(voltage), AVG(phase) FROM meters;
@@ -75,12 +79,17 @@ Query OK, 1 row(s) in set (0.000943s)
 SELECT TWA(field_name) FROM tb_name WHERE clause;
 ```
 
-- **功能说明**：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。
-- **返回数据类型**：双精度浮点数 Double。
-- **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
-- **适用于**：表、（超级表。
+**功能说明**：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。
 
-说明：从 2.1.3.0 版本开始，TWA 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+**返回数据类型**：双精度浮点数 Double。
+
+**应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
+
+**适用于**：表、超级表。
+
+**使用说明**：
+
+- 从 2.1.3.0 版本开始，TWA 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
 
 ### IRATE
 
@@ -94,9 +103,11 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 
 **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
 
-适用于：**表、（超级表）**。
+**适用于**：表、超级表。
 
-说明：（从 2.1.3.0 版本开始新增此函数）IRATE 可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+**使用说明**：
+
+- 从 2.1.3.0 版本开始此函数可用，IRATE 可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
 
 ### SUM
 
@@ -112,7 +123,7 @@ SELECT SUM(field_name) FROM tb_name [WHERE clause];
 
 **适用于**：表、超级表。
 
-示例：
+**示例**：
 
 ```
 taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM meters;
@@ -140,9 +151,9 @@ SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 
 **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
 
-**适用于**：表。（从 2.0.15.1 版本开始，本函数也支持**超级表**）
+**适用于**：表、超级表（从 2.0.15.1 版本开始）
 
-示例：
+**示例**：
 
 ```
 taos> SELECT STDDEV(current) FROM d1001;
@@ -158,12 +169,15 @@ Query OK, 1 row(s) in set (0.000915s)
 SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
 ```
 
-- **功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
-- **返回数据类型**：字符串表达式（斜率, 截距）。
-- **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
-- **适用于**：表。
+**功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
 
-示例：
+**返回数据类型**：字符串表达式（斜率, 截距）。
+
+**应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
+
+**适用于**：表。
+
+**示例**：
 
 ```
 taos> SELECT LEASTSQUARES(current, 1, 1) FROM d1001;
@@ -179,13 +193,17 @@ Query OK, 1 row(s) in set (0.000921s)
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-- **功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。不能匹配标签、时间戳输出。
-- **返回数据类型**：同应用的字段。
-- **应用字段**：适合于除时间主列外的任何类型字段。
-- **说明**：由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在 10 万级别，否则会报错。
-- **支持的版本**：2.6 开始的版本。
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。不能匹配标签、时间戳输出。
 
-示例：
+**返回数据类型**：同应用的字段。
+
+**应用字段**：适合于除时间主列外的任何类型字段。
+
+**使用说明**：由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在 10 万级别，否则会报错。
+
+**支持的版本**：2.6.0.0 及以后的版本。
+
+**示例**：
 
 ```
 taos> select voltage from d002;
@@ -210,14 +228,17 @@ Query OK, 1 row(s) in set (0.019393s)
 SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-- **功能说明**：
+**功能说明**：
   - 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，但是求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
   - 在数据量较少的时候该算法不是很准确，可以使用 select count(data) from (select unique(col) as data from table) 的方法。
-- **返回结果类型**：整形。
-- **应用字段**：适合于任何类型字段。
-- **支持的版本**：2.6 开始的版本。
 
-示例：
+**返回结果类型**：整形。
+
+**应用字段**：适合于任何类型字段。
+
+**支持的版本**：2.6.0.0 及以后的版本。
+
+**示例**：
 
 ```
 taos> select dbig from shll;
@@ -258,7 +279,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **适用于**：表、超级表。
 
-示例：
+**示例**：
 
 ```
 taos> SELECT MIN(current), MIN(voltage) FROM meters;
@@ -288,7 +309,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-示例：
+**示例**：
 
 ```
 taos> SELECT MAX(current), MAX(voltage) FROM meters;
@@ -318,15 +339,13 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-说明：
+**使用说明**:
 
-1）如果要返回各个列的首个（时间戳最小）非 NULL 值，可以使用 FIRST(\*)；
+- 如果要返回各个列的首个（时间戳最小）非 NULL 值，可以使用 FIRST(\*)；
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
+- 如果结果集中所有列全部为 NULL 值，则不返回结果。
 
-2）如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
-
-3）如果结果集中所有列全部为 NULL 值，则不返回结果。
-
-示例：
+**示例**：
 
 ```
 taos> SELECT FIRST(*) FROM meters;
@@ -356,15 +375,14 @@ SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-说明：
+**使用说明**:
 
-1）如果要返回各个列的最后（时间戳最大）一个非 NULL 值，可以使用 LAST(\*)；
+- 如果要返回各个列的最后（时间戳最大）一个非 NULL 值，可以使用 LAST(\*)；
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；如果结果集中所有列全部为 NULL 值，则不返回结果。
+- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
 
-2）如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；如果结果集中所有列全部为 NULL 值，则不返回结果。
 
-3）在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-
-示例：
+**示例**：
 
 ```
 taos> SELECT LAST(*) FROM meters;
@@ -394,15 +412,13 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-说明：
+**使用说明**:
 
-1）*k*值取值范围 1≤*k*≤100；
+- *k*值取值范围 1≤*k*≤100；
+- 系统同时返回该记录关联的时间戳列；
+- 限制：TOP 函数不支持 FILL 子句。
 
-2）系统同时返回该记录关联的时间戳列；
-
-3）限制：TOP 函数不支持 FILL 子句。
-
-示例：
+**示例**：
 
 ```
 taos> SELECT TOP(current, 3) FROM meters;
@@ -435,15 +451,13 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-说明：
+**使用说明**:
 
-1）*k*值取值范围 1≤*k*≤100；
+- *k*值取值范围 1≤*k*≤100；
+- 系统同时返回该记录关联的时间戳列；
+- 限制：BOTTOM 函数不支持 FILL 子句。
 
-2）系统同时返回该记录关联的时间戳列；
-
-3）限制：BOTTOM 函数不支持 FILL 子句。
-
-示例：
+**示例**：
 
 ```
 taos> SELECT BOTTOM(voltage, 2) FROM meters;
@@ -475,9 +489,9 @@ SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 
 **适用于**：表。
 
-说明：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
 
-示例：
+**示例**：
 
 ```
 taos> SELECT PERCENTILE(current, 20) FROM d1001;
@@ -502,9 +516,14 @@ FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表、超级表。
 
-说明：<br/>**P**值有效取值范围 0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX；<br/>**algo_type**的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用 t-digest 方式采样计算近似分位数。但该参数指定计算算法的功能从 2.2.0.x 版本开始支持，2.2.0.0 之前的版本不支持指定使用算法的功能。<br/>
+**使用说明**
 
-嵌套子查询支持：适用于内层查询和外层查询。
+- **P**值有效取值范围 0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX；
+- **algo_type**的有效输入：**default** 和 **t-digest**
+- 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。
+- 当使用“t-digest”参数的时候，将使用 t-digest 方式采样计算近似分位数。但该参数指定计算算法的功能从 2.2.0.x 版本开始支持，2.2.0.0 之前的版本不支持指定使用算法的功能。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
 
 ```
 taos> SELECT APERCENTILE(current, 20) FROM d1001;
@@ -540,16 +559,12 @@ SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 
 **适用于**：表、超级表。
 
-限制：LAST_ROW() 不能与 INTERVAL 一起使用。
+**使用说明**：
 
-说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。<br/>
+- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
+- 不能与 INTERVAL 一起使用。
 
-{" "}
-
-{" "}
-
-<br />
-示例：
+**示例**：
 
 ```
  taos> SELECT LAST_ROW(current) FROM meters;
@@ -577,53 +592,49 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 **应用字段**：数值型字段。
 
-适用于：**表、超级表、嵌套查询**。
+**适用于**：表、超级表、嵌套查询。
 
-说明：
-1）INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 
-2）INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
+**使用说明**
 
-3）INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1<=timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。如果没有指定 RANGE，那么满足过滤条件的输入数据中第一条记录的 timestamp 即为 timestamp1，最后一条记录的 timestamp 即为 timestamp2，同样也满足 timestamp1 <= timestamp2。
+- INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
+- INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
+- INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1<=timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。如果没有指定 RANGE，那么满足过滤条件的输入数据中第一条记录的 timestamp 即为 timestamp1，最后一条记录的 timestamp 即为 timestamp2，同样也满足 timestamp1 <= timestamp2。
+- INTERP 根据 EVERY 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（EVERY 值）进行插值。如果没有指定 EVERY，则默认窗口大小为无穷大，即从 timestamp1 开始只有一个窗口。
+- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值，如果没有 FILL 字段则默认不插值，即输出为原始记录值或不输出（原始记录不存在）。
+- INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 group by tbname 一起使用，当作用嵌套查询外层时内层子查询不能含 GROUP BY 信息。
+- INTERP 的插值结果不受 ORDER BY timestamp 的影响，ORDER BY timestamp 只影响输出结果的排序。
 
-4）INTERP 根据 EVERY 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（EVERY 值）进行插值。如果没有指定 EVERY，则默认窗口大小为无穷大，即从 timestamp1 开始只有一个窗口。
+**SQL示例（基于文档中广泛使用的电表 schema )**：
 
-5）INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值，如果没有 FILL 字段则默认不插值，即输出为原始记录值或不输出（原始记录不存在）。
-
-6）INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 group by tbname 一起使用，当作用嵌套查询外层时内层子查询不能含 GROUP BY 信息。
-
-7）INTERP 的插值结果不受 ORDER BY timestamp 的影响，ORDER BY timestamp 只影响输出结果的排序。
-
-SQL 示例：
-
-      1) 单点线性插值
+- 单点线性插值
 
 ```
- taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:40:00'，'2017-7-14 18:40:00') FILL(LINEAR);
+ taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:40:00','2017-7-14 18:40:00') FILL(LINEAR);
 ```
 
-      2) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行取值(不插值)
+- 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行取值(不插值)
 
 ```
- taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s);
+ taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s);
 ```
 
-      3) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
+- 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
 
 ```
-  taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+  taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
 ```
 
-4.在所有时间范围内每隔 5 秒钟进行向后插值
+- 在所有时间范围内每隔 5 秒钟进行向后插值
 
 ```
-  taos> SELECT INTERP(*) FROM t1 EVERY(5s) FILL(NEXT);
+  taos> SELECT INTERP(current) FROM t1 EVERY(5s) FILL(NEXT);
 ```
 
-5.根据 2017-07-14 17:00:00 到 2017-07-14 20:00:00 间的数据进行从 2017-07-14 18:00:00 到 2017-07-14 19:00:00 间每隔 5 秒钟进行线性插值
+- 根据 2017-07-14 17:00:00 到 2017-07-14 20:00:00 间的数据进行从 2017-07-14 18:00:00 到 2017-07-14 19:00:00 间每隔 5 秒钟进行线性插值
 
 ```
-  taos> SELECT INTERP(*) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+  taos> SELECT INTERP(current) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
 ```
 
 ### INTERP [2.3.1 之前的版本]
@@ -640,8 +651,14 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL
 
 **适用于**：表、超级表。
 
-说明：（从 2.0.15.0 版本开始新增此函数） <br/>1）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。<br/>2）INTERP 查询要求查询的时间区间必须位于数据集合（表）的所有记录的时间范围之内。如果给定的时间戳位于时间范围之外，即使有插值指令，仍然不返回结果。<br/>3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。<br/>  
- 示例：
+**使用说明**:
+
+- 从 2.0.15.0 及以后版本可用
+- INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。
+- INTERP 查询要求查询的时间区间必须位于数据集合（表）的所有记录的时间范围之内。如果给定的时间戳位于时间范围之外，即使有插值指令，仍然不返回结果。
+- 单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值
+
+**示例**：
 
 ```
  taos> SELECT INTERP(*) FROM meters WHERE ts='2017-7-14 18:40:00.004';
@@ -689,9 +706,9 @@ SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 
 **应用字段**：适合于除时间主列外的任何类型字段。
 
-**支持版本**：2.6 开始的版本。
+**支持版本**：2.6.0.0 及之后的版本。
 
-示例：
+**示例**：
 
 ```
 taos> select ts,dbig from tail2;
@@ -725,14 +742,14 @@ SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **应用字段**：适合于除时间类型以外的字段。
 
-**支持版本**：2.6 开始的版本。
+**支持版本**：2.6.0.0 及之后的版本。
 
-**说明**：
+**使用说明**:
 
 - 该函数可以应用在普通表和超级表上。不能和窗口操作一起使用，例如 interval/state_window/session_window 。
 - 由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在 10 万级别，否则会报错。
 
-示例：
+**示例**：
 
 ```
 taos> select ts,voltage from unique1;
@@ -761,23 +778,27 @@ Query OK, 5 row(s) in set (0.108458s)
 
 ## 计算函数
 
-- **DIFF**
+### DIFF
 
   ```sql
   SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
   ```
 
-  功能说明：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative 为 1 时表示忽略负数。
+**功能说明**：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative 为 1 时表示忽略负数。
 
-  返回结果数据类型：同应用字段。
+**返回结果数据类型**：同应用字段。
 
-  应用字段：不能应用在 timestamp、binary、nchar、bool 类型字段。
+**应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
 
-  适用于：**表、（超级表）**。
+**适用于**：表、超级表。
 
-  说明：输出结果行数是范围内总行数减一，第一行没有结果输出。从 2.1.3.0 版本开始，DIFF 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。从 2.6.0 开始，DIFF 函数支持 ignore_negative 参数
+**使用说明**:
 
-  示例：
+- 输出结果行数是范围内总行数减一，第一行没有结果输出。
+- 从 2.1.3.0 版本开始，DIFF 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+- 从 2.6.0 开始，DIFF 函数支持 ignore_negative 参数
+
+**示例**：
 
   ```sql
   taos> SELECT DIFF(current) FROM d1001;
@@ -800,11 +821,14 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
 
-适用于：**表、（超级表）**。
+**适用于**：表、超级表
 
-说明：（从 2.1.3.0 版本开始新增此函数）输出结果行数是范围内总行数减一，第一行没有结果输出。DERIVATIVE 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+**使用说明**:
 
-示例：
+- 从 2.1.3.0 及以后版本可用；输出结果行数是范围内总行数减一，第一行没有结果输出。
+- DERIVATIVE 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+
+**示例**：
 
 ```
 taos> select derivative(current, 10m, 0) from t1;
@@ -832,9 +856,9 @@ SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-说明：可用于 TIMESTAMP 字段，此时表示记录的时间覆盖范围。
+**使用说明**：可用于 TIMESTAMP 字段，此时表示记录的时间覆盖范围。
 
-示例：
+**示例**：
 
 ```
 taos> SELECT SPREAD(voltage) FROM meters;
@@ -858,16 +882,18 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**：获得指定列的向上取整数的结果。
 
-返回结果类型：与指定列的原始数据类型一致。例如，如果指定列的原始数据类型为 Float，那么返回的数据类型也为 Float；如果指定列的原始数据类型为 Double，那么返回的数据类型也为 Double。
+**返回结果类型**：与指定列的原始数据类型一致。例如，如果指定列的原始数据类型为 Float，那么返回的数据类型也为 Float；如果指定列的原始数据类型为 Double，那么返回的数据类型也为 Double。
 
-适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列，无论 tag 列的类型是什么类型。
+**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列，无论 tag 列的类型是什么类型。
 
-嵌套子查询支持：适用于内层查询和外层查询。
+**适用于**: 普通表、超级表。
 
-说明：
-支持 +、-、\*、/ 运算，如 ceil(col1) + ceil(col2)。
-只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-该函数可以应用在普通表和超级表上。
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**使用说明**:
+
+- 支持 +、-、\*、/ 运算，如 ceil(col1) + ceil(col2)。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 ### FLOOR
 
@@ -901,9 +927,13 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
   **嵌套子查询支持**： 适用于内层查询和外层查询。
 
-  **补充说明**： 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 使用在超级表上的时候，需要搭配 Group by tbname使用，将结果强制规约到单个时间线。
+  **使用说明**： 
+  
+  - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
+  - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
+  - 使用在超级表上的时候，需要搭配 Group by tbname使用，将结果强制规约到单个时间线。
 
-  **支持版本**： 从2.3.0.x开始支持
+**支持版本**： 从2.3.0.x开始支持
 
 ### MAVG
 
@@ -919,9 +949,13 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
   **嵌套子查询支持**： 适用于内层查询和外层查询。
 
-  **补充说明**： 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；该函数可以应用在普通表和超级表上；使用在超级表上的时候，需要搭配 Group by tbname使用，将结果强制规约到单个时间线。
+  **使用说明**： 
+  
+  - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
+  - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+  - 该函数可以应用在普通表和超级表上；使用在超级表上的时候，需要搭配 Group by tbname使用，将结果强制规约到单个时间线。
 
-  **支持版本**： 从2.3.0.x开始支持
+**支持版本**： 从2.3.0.x开始支持
 
 ### SAMPLE
 
@@ -937,9 +971,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
   **嵌套子查询支持**： 适用于内层查询和外层查询。
 
-  **补充说明**： 不能参与表达式计算；该函数可以应用在普通表和超级表上；使用在超级表上的时候，需要搭配 Group by tbname 使用，将结果强制规约到单个时间线。
+  **使用说明**： 
+  
+  - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
+  - 使用在超级表上的时候，需要搭配 Group by tbname 使用，将结果强制规约到单个时间线。
 
-  **支持版本**： 从2.3.0.x开始支持
+**支持版本**： 从2.3.0.x开始支持
 
 ### ASIN
 
@@ -957,11 +994,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### ACOS
 
@@ -979,11 +1014,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### ATAN
 
@@ -1001,11 +1034,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### SIN
 
@@ -1023,11 +1054,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### COS
 
@@ -1045,11 +1074,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### TAN
 
@@ -1067,11 +1094,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### POW
 
@@ -1089,11 +1114,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### LOG
 
@@ -1111,11 +1134,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### ABS
 
@@ -1133,11 +1154,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### SQRT
 
@@ -1155,11 +1174,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **使用说明**：
 
-      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-      该函数可以应用在普通表和超级表上。
-
-      版本2.6.0.x后支持
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 该函数可以应用在普通表和超级表上。
+- 版本2.6.0.x后支持
 
 ### CAST
 
@@ -1171,20 +1188,21 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：CAST 中指定的类型（type_name）。
 
-**适用数据类型**：输入参数 expression 的类型可以是除 JSON 外目前所有类型字段（BOOL/TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/BINARY(M)/TIMESTAMP/NCHAR(M)/TINYINT UNSIGNED/SMALLINT UNSIGNED/INT UNSIGNED/BIGINT UNSIGNED）; 输出目标类型只支持 BIGINT/BINARY(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED。
+**适用数据类型**：
 
-  说明：
+- 输入参数 expression 的类型可以是除 JSON 外目前所有类型字段（BOOL/TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/BINARY(M)/TIMESTAMP/NCHAR(M)/TINYINT UNSIGNED/SMALLINT UNSIGNED/INT UNSIGNED/BIGINT UNSIGNED）; 
+- 输出目标类型只支持 BIGINT/BINARY(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED。
 
-      对于不能支持的类型转换会直接报错。
+**使用说明**：
 
-      如果输入值为NULL则输出值也为NULL。
-
-      对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+- 对于不能支持的类型转换会直接报错。
+- 如果输入值为NULL则输出值也为NULL。
+- 对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
         1）BINARY/NCHAR转BIGINT/BIGINT UNSIGNED时可能出现的无效字符情况，例如"a"可能转为0。
         2）有符号数或TIMESTAMP转BIGINT UNSIGNED可能遇到的溢出问题。
         3）BIGINT UNSIGNED转BIGINT可能遇到的溢出问题。
         4）FLOAT/DOUBLE转BIGINT/BIGINT UNSIGNED可能遇到的溢出问题。
-      版本2.6.0.x后支持
+- 版本2.6.0.x后支持
 
 ### CONCAT
 
@@ -1198,13 +1216,13 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数或者全部是 BINARY 格式的字符串或者列，或者全部是 NCHAR 格式的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果输入值为NULL，输出值为NULL。
-      该函数最小参数个数为2个，最大参数个数为8个。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数最小参数个数为2个，最大参数个数为8个。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### CONCAT_WS
 
@@ -1218,13 +1236,13 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数或者全部是 BINARY 格式的字符串或者列，或者全部是 NCHAR 格式的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果separator值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串
-      该函数最小参数个数为3个，最大参数个数为9个。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果separator值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串
+- 该函数最小参数个数为3个，最大参数个数为9个。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### LENGTH
 
@@ -1238,12 +1256,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**
+**使用说明**
 
-      如果输入值为NULL，输出值为NULL。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数可以应用在普通表和超级表上。
+- 函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### CHAR_LENGTH
 
@@ -1257,12 +1275,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**
+**使用说明**
 
-      如果输入值为NULL，输出值为NULL。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### LOWER
 
@@ -1276,12 +1294,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果输入值为NULL，输出值为NULL。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### UPPER
 
@@ -1295,12 +1313,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果输入值为NULL，输出值为NULL。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### LTRIM
 
@@ -1314,12 +1332,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果输入值为NULL，输出值为NULL。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### RTRIM
 
@@ -1333,12 +1351,12 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果输入值为NULL，输出值为NULL。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### SUBSTR
 
@@ -1352,13 +1370,13 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
 
-**说明**：
+**使用说明**：
 
-      如果输入值为NULL，输出值为NULL。
-      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
-      该函数可以应用在普通表和超级表上。
-      该函数适用于内层查询和外层查询。
-      版本2.6.0.x后支持
+- 如果输入值为NULL，输出值为NULL。
+- 输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+- 该函数可以应用在普通表和超级表上。
+- 该函数适用于内层查询和外层查询。
+- 版本2.6.0.x后支持
 
 ### 四则运算
 
@@ -1374,11 +1392,10 @@ SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WH
 
 **适用于**：表、超级表。
 
-**说明**：
+**使用说明**：
 
-1）支持两列或多列之间进行计算，可使用括号控制计算优先级；
-
-2）NULL 字段不参与计算，如果参与计算的某行中包含 NULL，该行的计算结果为 NULL。
+- 支持两列或多列之间进行计算，可使用括号控制计算优先级；
+- NULL 字段不参与计算，如果参与计算的某行中包含 NULL，该行的计算结果为 NULL。
 
 ```
 taos> SELECT current + voltage * phase FROM d1001;
@@ -1411,10 +1428,9 @@ SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clau
 
 **支持的版本**：2.6 开始的版本。
 
-**说明**：
+**使用说明**：
 
 - 该函数可以应用在普通表上，在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）
-
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 **示例**：
@@ -1465,10 +1481,9 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 **支持的版本**：2.6 开始的版本。
 
-**说明**：
+**使用说明**：
 
 - 该函数可以应用在普通表上，在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）
-
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 **示例**：
@@ -1517,10 +1532,11 @@ INSERT INTO tb_name VALUES (NOW(), ...);
 
 **适用于**：表、超级表。
 
-**说明**：
-1）支持时间加减操作，如 NOW() + 1s, 支持的时间单位如下：
-b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
-2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+**使用说明**：
+
+- 支持时间加减操作，如 NOW() + 1s, 支持的时间单位如下：
+        b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 **示例**：
 
@@ -1563,10 +1579,11 @@ INSERT INTO tb_name VALUES (TODAY(), ...);
 
 **适用于**：表、超级表。
 
-**说明**：
-1）支持时间加减操作，如 TODAY() + 1s, 支持的时间单位如下：
-b(纳秒)，u(微秒)，a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)。
-2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+**使用说明**：
+
+- 支持时间加减操作，如 TODAY() + 1s, 支持的时间单位如下：
+                b(纳秒)，u(微秒)，a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 **示例**：
 
@@ -1631,7 +1648,10 @@ SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
 
 **适用于**：表、超级表。
 
-**说明**：如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定，如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+**使用说明**：
+
+- 如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定; 
+- 如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 **示例**：
 
@@ -1663,9 +1683,10 @@ SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [W
 
 **适用于**：表、超级表。
 
-**说明**：
-1）输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 0。
-2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+**使用说明**：
+
+- 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 0。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 **示例**：
 
@@ -1697,10 +1718,10 @@ SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name
 
 **适用于**：表、超级表。
 
-**说明**：
-1）支持的时间单位 time_unit 如下：
-1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
-2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+**使用说明**：
+- 支持的时间单位 time_unit 如下：
+          1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 **示例**：
 
@@ -1740,10 +1761,10 @@ SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2
 
 **适用于**：表、超级表。
 
-**说明**：
-1）支持的时间单位 time_unit 如下：
-1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
-2）如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+**使用说明**：
+- 支持的时间单位 time_unit 如下：
+          1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+- 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
 
 **示例**：
 

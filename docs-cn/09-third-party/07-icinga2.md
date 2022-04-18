@@ -6,7 +6,7 @@ title: icinga2 写入
 安装 icinga2
 请参考[官方文档](https://icinga.com/docs/icinga-2/latest/doc/02-installation/)
 
-TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 icinga2 的多种应用的数据写入。
+TDengine 新版本（2.4.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 icinga2 的多种应用的数据写入。
 
 icinga2 可以收集监控和性能数据并写入 OpenTSDB，taosAdapter 可以支持接收 icinga2 的数据并写入到 TDengine 中。
 

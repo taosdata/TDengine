@@ -21,13 +21,13 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 
    3. UPDATE 设为 2 时，表示支持更新部分列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值；
 
-   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](https://www.taosdata.com/cn/documentation/faq)。
+   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-fqa/faq)。
 
 3. 数据库名最大长度为 33；
 
 4. 一条 SQL 语句的最大长度为 65480 个字符；
 
-5. 数据库还有更多与存储相关的配置参数，请参见 [服务端配置](https://www.taosdata.com/cn/documentation/administrator#config) 章节。
+5. 数据库还有更多与存储相关的配置参数，请参见 [配置参数](/reference/server-config/) 章节。
 
 :::
 

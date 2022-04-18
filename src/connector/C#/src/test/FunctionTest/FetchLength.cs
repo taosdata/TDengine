@@ -47,13 +47,24 @@ namespace Cases
             ResultSet actualResult = new ResultSet(resPtr);
             List<string> actualData = actualResult.GetResultData();
             List<TDengineMeta> actualMeta = actualResult.GetResultMeta();
-            expectData.Reverse();
+            
+            // Make expected data and retrieved data in same order
+            expectData.Sort();
+            actualData.Sort();
 
-            Assert.Equal(expectData[0], actualData[0]);
+            // Assert meta data
             Assert.Equal(expectMeta[1].name, actualMeta[0].name);
             Assert.Equal(expectMeta[1].size, actualMeta[0].size);
             Assert.Equal(expectMeta[1].type, actualMeta[0].type);
 
+            // Assert retrieved data
+            for (int i = 0; i < actualData.Count; i++)
+            {
+                // Console.WriteLine($"expectData[{i}]:{expectData[i]},, actualData[{i}]:{actualData[i]}" );
+                Assert.Equal(expectData[i].ToString(), actualData[i]);
+            }
+
         }
     }
-}
+} 
+

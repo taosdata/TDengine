@@ -7,7 +7,7 @@ query.execute().then(function (result) {
   result.pretty();
 });
 
-// stdout:
+// output:
 // Successfully connected to TDengine
 // Query OK, 2 row(s) in set (0.00317767s)
 

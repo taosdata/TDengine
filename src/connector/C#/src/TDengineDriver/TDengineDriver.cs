@@ -235,6 +235,7 @@ namespace TDengineDriver
 
             IntPtr commandBuffer = Marshal.StringToCoTaskMemUTF8(command);
             res = Query(conn, commandBuffer);
+            Marshal.FreeCoTaskMem(commandBuffer);
             return res;
         }
 

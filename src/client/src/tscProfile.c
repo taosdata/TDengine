@@ -24,6 +24,7 @@
 #include "taos.h"
 #include "tscUtil.h"
 
+void taos_close_stream(TAOS_STREAM *handle);
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
 TAOS *tscSlowQueryConn = NULL;
 bool  tscSlowQueryConnInitialized = false;

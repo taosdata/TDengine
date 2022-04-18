@@ -16,13 +16,13 @@ INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
 
 ```
-SELECT * FROM temp_table INTERVAL(1S)
+SELECT * FROM temp_tb_1 INTERVAL(1m);
 ```
 
 SLIDING 的向前滑动的时间不能超过一个窗口的时间范围。以下语句非法：
 
 ```
-SELECT COUNT(*) FROM temp_table INTERVAL(1D) SLIDING(2D)
+SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
 当 SLIDING 与 INTERVAL 取值相等的时候，滑动窗口即为翻转窗口。
@@ -38,7 +38,7 @@ _ 从 2.1.5.0 版本开始，INTERVAL 语句允许的最短时间间隔调整为
 使用 STATE_WINDOW 来确定状态窗口划分的列。例如：
 
 ```
-SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status)
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
 ## 会话窗口
@@ -51,7 +51,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status)
 
 ```
 
-SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val)
+SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
 这种类型的查询语法如下：
@@ -72,7 +72,7 @@ SELECT function_list FROM stb_name
 ```
 
 - 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：DIFF 以及四则运算）。
-- 此外也 LAST_ROW 查询也不能与窗口聚合同时出现。
+- 此外 LAST_ROW 查询也不能与窗口聚合同时出现。
 - 标量函数（如：CEIL/FLOOR 等）也不能使用在窗口聚合查询中。
 -
 
@@ -93,7 +93,7 @@ SELECT function_list FROM stb_name
 
 :::
 
-时间聚合也常被用于连续查询场景，可以参考文档 [连续查询(Continuous Query)](https://www.taosdata.com/cn/documentation/advanced-features#continuous-query)。
+时间聚合也常被用于连续查询场景，可以参考文档 [连续查询(Continuous Query)](/advance-feature/continuous-query)。
 
 ## 示例
 

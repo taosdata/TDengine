@@ -6,7 +6,7 @@ title: TCollector 写入
 安装 TCollector
 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
-TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 TCollector 的多种应用的数据写入。
+TDengine 新版本（2.4.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 TCollector 的多种应用的数据写入。
 
 TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
 

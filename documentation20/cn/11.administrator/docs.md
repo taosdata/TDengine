@@ -582,37 +582,7 @@ taosd -C
    | 取值范围 | 1-3 |
    | 缺省值 | 1 |
 
-47. **mqttHostName**
-
-   | 属性 | 说明 |
-   |---|---|
-   | 内部配置 | Yes |
-   | 适用范围 | 仅服务端适用 |
-   | 含义 | mqtt uri |
-   | 缺省值 |  |
-   | 补充说明 | mqtt://username:password@hostname:1883/taos/ |
-
-48. **mqttPort**
-
-   | 属性 | 说明 |
-   |---|---|
-   | 内部配置 | Yes |
-   | 适用范围 | 仅服务端适用 |
-   | 含义 | mqtt client name |
-   | 缺省值 |  |
-   | 补充说明 | 1883 |
-
-49. **mqttTopic**
-
-   | 属性 | 说明 |
-   |---|---|
-   | 内部配置 | Yes |
-   | 适用范围 | 仅服务端适用 |
-   | 含义 |  |
-   | 缺省值 |  |
-   | 补充说明 | /test |
-
-50. **compressMsgSize**
+47. **compressMsgSize**
 
    | 属性 | 说明 |
    |---|---|
@@ -623,7 +593,7 @@ taosd -C
    | 取值范围 | `0 `表示对所有的消息均进行压缩 >0: 超过该值的消息才进行压缩 -1: 不压缩 |
    | 缺省值 | -1 |
 
-51. **maxSQLLength**
+48. **maxSQLLength**
 
    | 属性 | 说明 |
    |---|---|
@@ -634,7 +604,7 @@ taosd -C
    | 取值范围 | 65480-1048576 |
    | 缺省值 | 1048576 |
 
-52. **maxNumOfOrderedRes**
+49. **maxNumOfOrderedRes**
 
    | 属性 | 说明 |
    |---|---|
@@ -643,7 +613,7 @@ taosd -C
    | 含义 | 支持超级表时间排序允许的最多记录数限制 |
    | 缺省值 | 10 万 |
 
-53. **timezone**
+50. **timezone**
 
    | 属性 | 说明 |
    |---|---|
@@ -652,7 +622,7 @@ taosd -C
    | 含义 | 时区 |
    | 缺省值 | 从系统中动态获取当前的时区设置 |
 
-54. **locale**
+51. **locale**
 
    | 属性 | 说明 |
    |---|---|
@@ -661,7 +631,7 @@ taosd -C
    | 含义 | 系统区位信息及编码格式 |
    | 缺省值 | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
 
-55. **charset**
+52. **charset**
 
    | 属性 | 说明 |
    |---|---|
@@ -670,7 +640,7 @@ taosd -C
    | 含义 | 字符集编码 |
    | 缺省值 | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
 
-56. **maxShellConns**
+53. **maxShellConns**
 
    | 属性 | 说明 |
    |---|---|
@@ -680,7 +650,7 @@ taosd -C
    | 取值范围 | 10-50000000 |
    | 缺省值 | 5000 |
 
-57. **maxConnections**
+54. **maxConnections**
 
    | 属性 | 说明 |
    |---|---|
@@ -691,7 +661,7 @@ taosd -C
    | 缺省值 | 5000 |
    | 补充说明 | 实际测试下来，如果默认没有配，选 50 个 worker thread 会产生 Network unavailable |
 
-58. **minimalLogDirGB**
+55. **minimalLogDirGB**
 
    | 属性 | 说明 |
    |---|---|
@@ -701,7 +671,7 @@ taosd -C
    | 单位| GB |
    | 缺省值 | 0.1 |
 
-59. **minimalTmpDirGB**
+56. **minimalTmpDirGB**
 
    | 属性 | 说明 |
    |---|---|
@@ -711,7 +681,7 @@ taosd -C
    | 单位| GB |
    | 缺省值 | 0.1 |
 
-60. **minimalDataDirGB**
+57. **minimalDataDirGB**
 
    | 属性 | 说明 |
    |---|---|
@@ -721,7 +691,7 @@ taosd -C
    | 单位| GB |
    | 缺省值 | 0.1 |
 
-61. **mnodeEqualVnodeNum**
+58. **mnodeEqualVnodeNum**
 
    | 属性 | 说明 |
    |---|---|
@@ -730,7 +700,7 @@ taosd -C
    | 含义 | 一个 mnode 等同于 vnode 消耗的个数 |
    | 缺省值 | 4 |
 
-62. **http**
+59. **http**
 
    | 属性 | 说明 |
    |---|---|
@@ -740,17 +710,7 @@ taosd -C
    | 取值范围 | 0：关闭 http 服务， 1：激活 http 服务。 |
    | 缺省值 | 1 |
 
-63. **mqtt**
-
-   | 属性 | 说明 |
-   |---|---|
-   | 内部配置 | Yes |
-   | 适用范围 | 仅服务端适用 |
-   | 含义 | 服务器内部的 mqtt 服务开关。 |
-   | 取值范围 | 0：关闭 mqtt 服务， 1：激活 mqtt 服务。 |
-   | 缺省值 | 0 |
-
-64. **monitor**
+60. **monitor**
 
    | 属性 | 说明 |
    |---|---|
@@ -760,7 +720,7 @@ taosd -C
    | 取值范围 | 0：关闭监控服务， 1：激活监控服务。 |
    | 缺省值 | 0 |
 
-65. **httpEnableRecordSql**
+61. **httpEnableRecordSql**
 
    | 属性 | 说明 |
    |---|---|
@@ -770,7 +730,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
 
-66. **httpMaxThreads**
+62. **httpMaxThreads**
 
    | 属性 | 说明 |
    |---|---|
@@ -779,7 +739,7 @@ taosd -C
    | 含义 | RESTFul 接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。 |
    | 缺省值 | 2 |
 
-67. **telegrafUseFieldNum**
+63. **telegrafUseFieldNum**
 
    | 属性 | 说明 |
    |---|---|
@@ -788,7 +748,7 @@ taosd -C
    | 含义 |  |
    | 缺省值 |  |
 
-68. **restfulRowLimit**
+64. **restfulRowLimit**
 
    | 属性 | 说明 |
    |---|---|
@@ -798,7 +758,7 @@ taosd -C
    | 缺省值 | 10240 |
    | 补充说明 | 最大 10,000,000 |
 
-69. **numOfLogLines**
+65. **numOfLogLines**
 
    | 属性 | 说明 |
    |---|---|
@@ -807,7 +767,7 @@ taosd -C
    | 含义 | 单个日志文件允许的最大行数。 |
    | 缺省值 | 10,000,000 |
 
-70. **asyncLog**
+66. **asyncLog**
 
    | 属性 | 说明 |
    |---|---|
@@ -817,7 +777,7 @@ taosd -C
    | 取值范围 | 0：同步、1：异步 |
    | 缺省值 | 1 |
 
-71. **logKeepDays**
+67. **logKeepDays**
 
    | 属性 | 说明 |
    |---|---|
@@ -828,7 +788,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 大于 0 时，日志文件会被重命名为 taosdlog.xxx，其中 xxx 为日志文件最后修改的时间戳。 |
 
-72. **debugFlag**
+68. **debugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -838,7 +798,7 @@ taosd -C
    | 取值范围 | 131（输出错误和警告日志），135（输出错误、警告和调试日志），143（输出错误、警告、调试和跟踪日志） |
    | 缺省值 | 131 或 135（不同模块有不同的默认值） |
 
-73. **mDebugFlag**
+69. **mDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -848,7 +808,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 | 135 |
 
-74. **dDebugFlag**
+70. **dDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -858,7 +818,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 | 135 |
 
-75. **sDebugFlag**
+71. **sDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -868,7 +828,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 | 135 |
 
-76. **wDebugFlag**
+72. **wDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -878,7 +838,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 | 135 |
 
-77. **sdbDebugFlag**
+73. **sdbDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -888,7 +848,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 | 135 |
 
-78. **rpcDebugFlag**
+74. **rpcDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -898,7 +858,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-79. **tmrDebugFlag**
+75. **tmrDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -908,7 +868,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-80. **cDebugFlag**
+76. **cDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -918,7 +878,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-81. **jniDebugFlag**
+77. **jniDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -928,7 +888,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-82. **odbcDebugFlag**
+78. **odbcDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -938,7 +898,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-83. **uDebugFlag**
+79. **uDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -948,7 +908,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-84. **httpDebugFlag**
+80. **httpDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -958,17 +918,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-85. **mqttDebugFlag**
-
-   | 属性 | 说明 |
-   |---|---|
-   | 内部配置 | No |
-   | 适用范围 | 仅服务端适用 |
-   | 含义 | mqtt 模块的日志开关 |
-   | 取值范围 | 同上 |
-   | 缺省值 |  |
-
-86. **monitorDebugFlag**
+81. **monitorDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -978,7 +928,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-87. **qDebugFlag**
+82. **qDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -988,7 +938,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-88. **vDebugFlag**
+83. **vDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -998,7 +948,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-89. **tsdbDebugFlag**
+84. **tsdbDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -1008,7 +958,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-90. **cqDebugFlag**
+85. **cqDebugFlag**
 
    | 属性 | 说明 |
    |---|---|
@@ -1018,7 +968,7 @@ taosd -C
    | 取值范围 | 同上 |
    | 缺省值 |  |
 
-91. **tscEnableRecordSql**
+86. **tscEnableRecordSql**
 
    | 属性 | 说明 |
    |---|---|
@@ -1029,7 +979,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 生成的文件（tscnote-xxxx.0/tscnote-xxx.1，xxxx 是 pid），与客户端日志所在目录相同。 |
 
-92. **enableCoreFile**
+87. **enableCoreFile**
 
    | 属性 | 说明 |
    |---|---|
@@ -1040,7 +990,7 @@ taosd -C
    | 缺省值 | 1 |
    | 补充说明 | 不同的启动方式，生成 core 文件的目录如下：1、systemctl start taosd 启动：生成的 core 在根目录下 <br/> 2、手动启动，就在 taosd 执行目录下。 |
 
-93. **gitinfo**
+88. **gitinfo**
 
    | 属性 | 说明 |
    |---|---|
@@ -1050,7 +1000,7 @@ taosd -C
    | 取值范围 | 1 |
    | 缺省值 |  |
 
-94. **gitinfoofInternal**
+89. **gitinfoofInternal**
 
    | 属性 | 说明 |
    |---|---|
@@ -1060,7 +1010,7 @@ taosd -C
    | 取值范围 | 2 |
    | 缺省值 |  |
 
-95. **Buildinfo**
+90. **Buildinfo**
 
    | 属性 | 说明 |
    |---|---|
@@ -1070,7 +1020,7 @@ taosd -C
    | 取值范围 | 3 |
    | 缺省值 |  |
 
-96. **version**
+91. **version**
 
    | 属性 | 说明 |
    |---|---|
@@ -1080,7 +1030,7 @@ taosd -C
    | 取值范围 | 4 |
    | 缺省值 |  |
 
-97. **maxBinaryDisplayWidth**
+92. **maxBinaryDisplayWidth**
 
    | 属性 | 说明 |
    |---|---|
@@ -1091,7 +1041,7 @@ taosd -C
    | 缺省值 | 30 |
    | 补充说明 | 实际上限按以下规则计算：如果字段值的长度大于 maxBinaryDisplayWidth，则显示上限为 **字段名长度** 和 **maxBinaryDisplayWidth** 的较大者。<br/>否则，上限为 **字段名长度** 和 **字段值长度** 的较大者。<br/>可在 shell 中通过命令 set max_binary_display_width nn 动态修改此选项 |
 
-98. **queryBufferSize**
+93. **queryBufferSize**
 
    | 属性 | 说明 |
    |---|---|
@@ -1102,7 +1052,7 @@ taosd -C
    | 缺省值 |  |
    | 补充说明 | 计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。<br/>（2.0.15 以前的版本中，此参数的单位是字节） |
 
-99. **ratioOfQueryCores**
+94. **ratioOfQueryCores**
 
    | 属性 | 说明 |
    |---|---|
@@ -1112,7 +1062,7 @@ taosd -C
    | 缺省值 |  |
    | 补充说明 | 最小值 0 表示只有 1 个查询线程 <br/> 最大值 2 表示最大建立 2 倍 CPU 核数的查询线程。<br/>默认为 1，表示最大和 CPU 核数相等的查询线程。<br/>该值可以为小数，即 0.5 表示最大建立 CPU 核数一半的查询线程。 |
 
-100. **update**
+95. **update**
 
    | 属性 | 说明 |
    |---|---|
@@ -1123,7 +1073,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 2.0.8.0 版本之前，不支持此参数。 |
 
-101. **cacheLast**
+96. **cacheLast**
 
    | 属性 | 说明 |
    |---|---|
@@ -1134,7 +1084,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。 |
 
-102. **numOfCommitThreads**
+97. **numOfCommitThreads**
 
    | 属性 | 说明 |
    |---|---|
@@ -1143,7 +1093,7 @@ taosd -C
    | 含义 | 设置写入线程的最大数量 |
    | 缺省值 |  |
 
-103. **maxWildCardsLength**
+98. **maxWildCardsLength**
 
    | 属性 | 说明 |
    |---|---|
@@ -1155,7 +1105,7 @@ taosd -C
    | 缺省值 | 100 |
    | 补充说明 | 2.1.6.1 版本新增。 |
 
-104. **compressColData**
+99. **compressColData**
 
    | 属性 | 说明 |
    |---|---|
@@ -1167,7 +1117,7 @@ taosd -C
    | 缺省值 | -1 |
    | 补充说明 | 2.3.0.0 版本新增。 |
 
-105. **tsdbMetaCompactRatio**
+100. **tsdbMetaCompactRatio**
 
    | 属性 | 说明 |
    |---|---|
@@ -1177,7 +1127,7 @@ taosd -C
    | 取值范围 | 0：不开启，[1-100]：冗余数据比例 |
    | 缺省值 | 0 |
 
-106. **rpcForceTcp**
+101. **rpcForceTcp**
 
    | 属性 | 说明 |
    |---|---|
@@ -1188,7 +1138,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 在网络比较差的环境中，建议开启。<br/>2.0 版本新增。 |
 
-107. **maxNumOfDistinctRes**
+102. **maxNumOfDistinctRes**
 
    | 属性 | 说明 |
    |---|---|
@@ -1199,7 +1149,7 @@ taosd -C
    | 缺省值 | 10 万 |
    | 补充说明 | 2.3 版本新增。 |
 
-108. **clientMerge**
+103. **clientMerge**
 
    | 属性 | 说明 |
    |---|---|
@@ -1210,7 +1160,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 2.3 版本新增。 |
 
-109. **httpDBNameMandatory**
+104. **httpDBNameMandatory**
 
    | 属性 | 说明 |
    |---|---|
@@ -1221,7 +1171,7 @@ taosd -C
    | 缺省值 | 0 |
    | 补充说明 | 2.3 版本新增。 |
 
-110. **maxRegexStringLen**
+105. **maxRegexStringLen**
 
    | 属性 | 说明 |
    |---|---|
@@ -1232,7 +1182,7 @@ taosd -C
    | 缺省值 | 128 |
    | 补充说明 | 2.3 版本新增。 |
 
-111. **lossyColumns**
+106. **lossyColumns**
 
    | 属性 | 说明 |
    |---|---|
@@ -1243,7 +1193,7 @@ taosd -C
    | 缺省值 | 默认为空字符串，关闭有损压缩 |
    | 补充说明 | 2.4.0.10版本新增。|
 
-112. **fPrecision**
+107. **fPrecision**
 
    | 属性 | 说明 |
    |---|---|
@@ -1254,7 +1204,7 @@ taosd -C
    | 缺省值 | 0.00000001（1E-8）|
    | 补充说明 | 2.4.0.10版本新增。|
 
-113. **dPrecision**
+108. **dPrecision**
 
    | 属性 | 说明 |
    |---|---|
@@ -1265,7 +1215,7 @@ taosd -C
    | 缺省值 | 0.0000000000000001（1E-16）|
    | 补充说明 | 2.4.0.10版本新增。|
 
-114. **maxRange**
+109. **maxRange**
 
    | 属性 | 说明 |
    |---|---|
@@ -1276,7 +1226,7 @@ taosd -C
    | 缺省值 | 自动预测 |
    | 补充说明 | 2.4.0.10版本新增。|
 
-115. **Range**
+110. **Range**
 
    | 属性 | 说明 |
    |---|---|

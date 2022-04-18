@@ -122,3 +122,9 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）  
  如果表是通过超级表创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构。
 
+ ### 修改子表标签值
+
+```
+ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+```
+如果表是通过超级表创建，可以使用此指令修改其标签值
