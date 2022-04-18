@@ -1171,31 +1171,43 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   pResult->info.groupId = pSrcBlock->info.groupId;
 
+  int32_t numOfRows = 0;
+
   for (int32_t k = 0; k < numOfOutput; ++k) {
     int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
     SqlFunctionCtx* pfCtx = &pCtx[k];
 
     if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      colDataAssign(pColInfoData, pfCtx->input.pData[0], pfCtx->input.numOfRows);
+      if (pResult->info.rows > 0) {
+        colDataMergeCol(pColInfoData, pResult->info.rows, pfCtx->input.pData[0], pfCtx->input.numOfRows);
+      } else {
+        colDataAssign(pColInfoData, pfCtx->input.pData[0], pfCtx->input.numOfRows);
+      }
 
-      pResult->info.rows = pSrcBlock->info.rows;
+      numOfRows = pfCtx->input.numOfRows;
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+
+      int32_t offset = pResult->info.rows;
       for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, taosVariantGet(&pExpr[k].base.pParam[0].param, pExpr[k].base.pParam[0].param.nType), TSDB_DATA_TYPE_NULL == pExpr[k].base.pParam[0].param.nType);
+        colDataAppend(pColInfoData, i + offset, taosVariantGet(&pExpr[k].base.pParam[0].param, pExpr[k].base.pParam[0].param.nType), TSDB_DATA_TYPE_NULL == pExpr[k].base.pParam[0].param.nType);
       }
-      pResult->info.rows = pSrcBlock->info.rows;
+
+      numOfRows = pSrcBlock->info.rows;
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
       SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
       taosArrayPush(pBlockList, &pSrcBlock);
 
-      SScalarParam dest = {0};
-      dest.columnData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+      SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+      SColumnInfoData idata = {.info = pResColData->info};
 
+      SScalarParam dest = {.columnData = &idata};
       scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
-      pResult->info.rows = dest.numOfRows;
 
+      colDataMergeCol(pResColData, pResult->info.rows, &idata, dest.numOfRows);
+
+      numOfRows = dest.numOfRows;
       taosArrayDestroy(pBlockList);
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       ASSERT(!fmIsAggFunc(pfCtx->functionId));
@@ -1212,28 +1224,33 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
         pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
         pfCtx->offset  = pResult->info.rows;  // set the start offset
 
+        // set the timestamp(_rowts) output buffer
         if (taosArrayGetSize(pPseudoList) > 0) {
           int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
           pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
         }
 
-        int32_t numOfRows = pfCtx->fpSet.process(pfCtx);
-        pResult->info.rows += numOfRows;
+        numOfRows = pfCtx->fpSet.process(pfCtx);
       } else {
         SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
         taosArrayPush(pBlockList, &pSrcBlock);
 
-        SScalarParam dest = {0};
-        dest.columnData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+        SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+        SColumnInfoData idata = {.info = pResColData->info};
 
+        SScalarParam dest = {.columnData = &idata};
         scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
-        pResult->info.rows = dest.numOfRows;
+        colDataMergeCol(pResColData, pResult->info.rows, &idata, dest.numOfRows);
+
+        numOfRows = dest.numOfRows;
         taosArrayDestroy(pBlockList);
       }
     } else {
       ASSERT(0);
     }
   }
+
+  pResult->info.rows += numOfRows;
 }
 
 void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SArray* pDataBlock, TSKEY prevTs,
