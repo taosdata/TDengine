@@ -2,7 +2,6 @@
 
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1
 system sh/exec.sh -n dnode1 -s start
 
 $loop_cnt = 0
@@ -481,4 +480,4 @@ if $loop_test == 0 then
   goto loop_test_pos
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

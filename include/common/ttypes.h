@@ -248,8 +248,8 @@ typedef struct tDataTypeDescriptor {
                       int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
   int32_t (*decompFunc)(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-  void (*statisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum, int16_t *minindex,
-                     int16_t *maxindex, int16_t *numofnull);
+  void (*statisFunc)(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numofrow, int64_t *min,
+                     int64_t *max, int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];

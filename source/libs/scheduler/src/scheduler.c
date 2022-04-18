@@ -2735,10 +2735,12 @@ void schedulerDestroy(void) {
   if (schMgmt.jobRef) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
     int64_t refId = 0;
-    
+
     while (pJob) {
       refId = pJob->refId;
-      
+      if (refId == 0) {
+        break;
+      }
       taosRemoveRef(schMgmt.jobRef, pJob->refId);
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);

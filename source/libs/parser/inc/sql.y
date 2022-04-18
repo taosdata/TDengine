@@ -427,7 +427,7 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A)
-  stream_options(B) into_opt(C) AS query_expression(D).                           { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, B, C, D); }
+  stream_options(B) into_opt(C) AS query_expression(D).                           { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
 
 into_opt(A) ::= .                                                                 { A = NULL; }
@@ -465,8 +465,8 @@ literal(A) ::= NK_STRING(B).                                                    
 literal(A) ::= NK_BOOL(B).                                                        { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B)); }
 literal(A) ::= TIMESTAMP(B) NK_STRING(C).                                         { A = createRawExprNodeExt(pCxt, &B, &C, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &C)); }
 literal(A) ::= duration_literal(B).                                               { A = B; }
-literal(A) ::= NULL(B).                                                           { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_NULL, NULL)); }
-literal(A) ::= NK_QUESTION(B).                                                    { A = createRawExprNode(pCxt, &B, createPlaceholderValueNode(pCxt)); }
+literal(A) ::= NULL(B).                                                           { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B)); }
+literal(A) ::= NK_QUESTION(B).                                                    { A = createRawExprNode(pCxt, &B, createPlaceholderValueNode(pCxt, &B)); }
 
 duration_literal(A) ::= NK_VARIABLE(B).                                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
@@ -603,12 +603,13 @@ pseudo_column(A) ::= WDURATION(B).                                              
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= CAST(B) NK_LP expression(C) AS type_name(D) NK_RP(E).  { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
-function_expression(A) ::= noarg_func(B) NK_LP NK_RP(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
+function_expression(A) ::= noarg_func(B) NK_LP NK_RP(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNodeNoArg(pCxt, &B)); }
 
 %type noarg_func                                                                  { SToken }
 %destructor noarg_func                                                            { }
 noarg_func(A) ::= NOW(B).                                                         { A = B; }
 noarg_func(A) ::= TODAY(B).                                                       { A = B; }
+noarg_func(A) ::= TIMEZONE(B).                                                    { A = B; }
 
 %type star_func                                                                   { SToken }
 %destructor star_func                                                             { }

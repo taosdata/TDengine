@@ -1470,6 +1470,9 @@ void qWorkerDestroy(void **qWorkerMgmt) {
 
   //TODO FREE ALL
 
+  taosHashCleanup(mgmt->ctxHash);
+  taosHashCleanup(mgmt->schHash);
+
   taosMemoryFreeClear(*qWorkerMgmt);
 }
 

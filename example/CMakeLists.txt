@@ -18,15 +18,15 @@ target_sources(demoapi
 )
 
 target_link_libraries(tmq
-    taos
+    taos_static
 )
 
 target_link_libraries(tstream
-    taos
+    taos_static
 )
 
 target_link_libraries(demoapi
-    taos
+    taos_static
 )
 
 target_include_directories(tmq

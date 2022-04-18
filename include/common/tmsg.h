@@ -70,11 +70,7 @@ typedef uint16_t tmsg_t;
 #define TSDB_IE_TYPE_DNODE_EXT   6
 #define TSDB_IE_TYPE_DNODE_STATE 7
 
-enum {
-  CONN_TYPE__QUERY = 1,
-  CONN_TYPE__TMQ,
-  CONN_TYPE__MAX
-};
+enum { CONN_TYPE__QUERY = 1, CONN_TYPE__TMQ, CONN_TYPE__MAX };
 
 enum {
   HEARTBEAT_KEY_DBINFO = 1,
@@ -342,13 +338,13 @@ int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 int32_t tDeserializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 
 typedef struct {
-  int32_t acctId;
-  int64_t clusterId;
+  int32_t  acctId;
+  int64_t  clusterId;
   uint32_t connId;
-  int8_t  superUser;
-  int8_t  connType;
-  SEpSet  epSet;
-  char    sVersion[128];
+  int8_t   superUser;
+  int8_t   connType;
+  SEpSet   epSet;
+  char     sVersion[128];
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -663,14 +659,13 @@ typedef struct {
   int32_t outputLen;
   int32_t bufSize;
   int64_t signature;
-  int32_t commentSize;
-  int32_t codeSize;
-  char    pComment[TSDB_FUNC_COMMENT_LEN];
-  char    pCode[TSDB_FUNC_CODE_LEN];
+  char*   pComment;
+  char*   pCode;
 } SCreateFuncReq;
 
 int32_t tSerializeSCreateFuncReq(void* buf, int32_t bufLen, SCreateFuncReq* pReq);
 int32_t tDeserializeSCreateFuncReq(void* buf, int32_t bufLen, SCreateFuncReq* pReq);
+void    tFreeSCreateFuncReq(SCreateFuncReq* pReq);
 
 typedef struct {
   char   name[TSDB_FUNC_NAME_LEN];
@@ -687,6 +682,7 @@ typedef struct {
 
 int32_t tSerializeSRetrieveFuncReq(void* buf, int32_t bufLen, SRetrieveFuncReq* pReq);
 int32_t tDeserializeSRetrieveFuncReq(void* buf, int32_t bufLen, SRetrieveFuncReq* pReq);
+void    tFreeSRetrieveFuncReq(SRetrieveFuncReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -698,8 +694,8 @@ typedef struct {
   int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
-  char    pComment[TSDB_FUNC_COMMENT_LEN];
-  char    pCode[TSDB_FUNC_CODE_LEN];
+  char*   pComment;
+  char*   pCode;
 } SFuncInfo;
 
 typedef struct {
@@ -709,6 +705,7 @@ typedef struct {
 
 int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
 int32_t tDeserializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
+void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
   int32_t statusInterval;
@@ -1209,12 +1206,17 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
+#define STREAM_TRIGGER_AT_ONCE      1
+#define STREAM_TRIGGER_WINDOW_CLOSE 2
+
 typedef struct {
-  char   name[TSDB_TOPIC_FNAME_LEN];
-  char   outputSTbName[TSDB_TABLE_FNAME_LEN];
-  int8_t igExists;
-  char*  sql;
-  char*  ast;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    outputSTbName[TSDB_TABLE_FNAME_LEN];
+  int8_t  igExists;
+  char*   sql;
+  char*   ast;
+  int8_t  triggerType;
+  int64_t watermark;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1666,14 +1668,14 @@ typedef struct {
   int32_t  pid;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
-  SArray*  subDesc;    // SArray<SQuerySubDesc>
+  SArray*  subDesc;  // SArray<SQuerySubDesc>
 } SQueryDesc;
 
 typedef struct {
-  uint32_t   connId;
-  int32_t    pid;
-  char       app[TSDB_APP_NAME_LEN];
-  SArray*    queryDesc;   // SArray<SQueryDesc>
+  uint32_t connId;
+  int32_t  pid;
+  char     app[TSDB_APP_NAME_LEN];
+  SArray*  queryDesc;  // SArray<SQueryDesc>
 } SQueryHbReqBasic;
 
 typedef struct {
@@ -1737,7 +1739,7 @@ static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
     }
     taosMemoryFreeClear(req->query);
   }
-  
+
   if (req->info) {
     tFreeReqKvHash(req->info);
     taosHashCleanup(req->info);

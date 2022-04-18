@@ -591,12 +591,12 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
 }
 
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
-  uInfo("load from env variables not implemented yet");
+  uDebug("load from env variables not implemented yet");
   return 0;
 }
 
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
-  uInfo("load from env file not implemented yet");
+  uDebug("load from env file not implemented yet");
   return 0;
 }
 
@@ -655,6 +655,6 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 }
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
-  uInfo("load from apoll url not implemented yet");
+  uDebug("load from apoll url not implemented yet");
   return 0;
 }

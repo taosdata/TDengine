@@ -56,6 +56,20 @@ typedef enum ECondAction {
   // after supporting outer join, there are other possibilities
 } ECondAction;
 
+EDealRes haveNormalColImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool haveNormalCol(SNodeList* pList) {
+  bool res = false;
+  nodesWalkExprsPostOrder(pList, haveNormalColImpl, &res);
+  return res;
+}
+
 static bool osdMayBeOptimized(SLogicNode* pNode) {
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_OSD)) {
     return false;
@@ -67,7 +81,10 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
       (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) && QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent))) {
     return false;
   }
-  return true;
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
+    return (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType);
+  }
+  return !haveNormalCol(((SAggLogicNode*)pNode->pParent)->pGroupKeys);
 }
 
 static SLogicNode* osdFindPossibleScanNode(SLogicNode* pNode) {
@@ -149,12 +166,24 @@ static int32_t osdGetDataRequired(SNodeList* pFuncs) {
   return dataRequired;
 }
 
+static void setScanWindowInfo(SScanLogicNode* pScan) {
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pScan->node.pParent) &&
+      WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pScan->node.pParent)->winType) {
+    pScan->interval = ((SWindowLogicNode*)pScan->node.pParent)->interval;
+    pScan->offset = ((SWindowLogicNode*)pScan->node.pParent)->offset;
+    pScan->sliding = ((SWindowLogicNode*)pScan->node.pParent)->sliding;
+    pScan->intervalUnit = ((SWindowLogicNode*)pScan->node.pParent)->intervalUnit;
+    pScan->slidingUnit = ((SWindowLogicNode*)pScan->node.pParent)->slidingUnit;
+  }
+}
+
 static int32_t osdOptimize(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   SOsdInfo info = {0};
   int32_t code = osdMatch(pCxt, pLogicNode, &info);
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = osdGetDataRequired(info.pSdrFuncs);
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
+    setScanWindowInfo((SScanLogicNode*)info.pScan);
     OPTIMIZE_FLAG_SET_MASK(info.pScan->node.optimizedFlag, OPTIMIZE_FLAG_OSD);
     pCxt->optimized = true;
   }

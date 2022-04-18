@@ -45,7 +45,7 @@ protected:
     int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] parser code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
+      cout << "sql:[" << cxt_.pSql << "] qParseQuerySql code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
       return false;
     }
 
@@ -90,17 +90,16 @@ protected:
       return false;
     }
 
-    SQueryPlan* pPlan = nullptr;
-    code = createPhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
+    code = createPhysiPlan(&cxt, pLogicPlan, &plan_, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] createPhysiPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
   
     cout << "unformatted physical plan : " << endl;
-    cout << toString((const SNode*)pPlan, false) << endl;
+    cout << toString((const SNode*)plan_, false) << endl;
     SNode* pNode;
-    FOREACH(pNode, pPlan->pSubplans) {
+    FOREACH(pNode, plan_->pSubplans) {
       SNode* pSubplan;
       FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
         cout << "unformatted physical subplan : " << endl;
@@ -123,6 +122,12 @@ private:
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
       pCxt->streamQuery = true;
+    } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
+      SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
+      pCxt->pAstRoot = pStmt->pQuery;
+      pCxt->streamQuery = true;
+      pCxt->triggerType = pStmt->pOptions->triggerType;
+      pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }
@@ -154,6 +159,7 @@ private:
   string sqlBuf_;
   SParseContext cxt_;
   SQuery* query_;
+  SQueryPlan* plan_;
 };
 
 TEST_F(PlannerTest, selectBasic) {
@@ -353,11 +359,11 @@ TEST_F(PlannerTest, createTopic) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, stream) {
+TEST_F(PlannerTest, createStream) {
   setDatabase("root", "test");
 
-  bind("SELECT sum(c1) FROM st1");
-  ASSERT_TRUE(run(true));
+  bind("create stream if not exists s1 trigger window_close watermark 10s into st1 as select count(*) from t1 interval(10s)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, createSmaIndex) {

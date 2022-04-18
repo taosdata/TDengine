@@ -13,18 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#ifndef PLAN_TEST_UTIL_H
+#define PLAN_TEST_UTIL_H
 
-int metaOpenUidGnrt(SMeta *pMeta) {
-  // Init a generator
-  pMeta->uidGnrt.nextUid = IVLD_TB_UID;
-  return 0;
-}
+#include <gtest/gtest.h>
 
-void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
-}
+class PlannerTestBaseImpl;
 
-tb_uid_t metaGenerateUid(SMeta *pMeta) {
-  // Generate a new table UID
-  return tGenIdPI64();
-}
+class PlannerTestBase : public testing::Test {
+public:
+  PlannerTestBase();
+  virtual ~PlannerTestBase();
+
+  void useDb(const std::string& acctId, const std::string& db);
+  void run(const std::string& sql);
+
+private:
+  std::unique_ptr<PlannerTestBaseImpl> impl_;
+};
+
+#endif  // PLAN_TEST_UTIL_H

@@ -72,7 +72,8 @@ typedef struct SResultRowInfo {
   SResultRowPosition *pPosition;
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
-  int32_t      curPos;     // current active result row index of pResult list
+//  int32_t      curPos;     // current active result row index of pResult list
+  SResultRowPosition cur;
 } SResultRowInfo;
 
 struct STaskAttr;

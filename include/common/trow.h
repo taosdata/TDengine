@@ -48,9 +48,12 @@ extern "C" {
 #define TD_VTYPE_NONE 0x02U  // none or unknown/undefined
 #define TD_VTYPE_MAX  0x03U  //
 
-#define TD_VTYPE_NORM_BYTE 0x0U
-#define TD_VTYPE_NULL_BYTE 0x55U
-#define TD_VTYPE_NONE_BYTE 0xAAU
+#define TD_VTYPE_NORM_BYTE_I 0x0U
+#define TD_VTYPE_NULL_BYTE_I 0xFFU
+
+#define TD_VTYPE_NORM_BYTE_II 0x0U
+#define TD_VTYPE_NULL_BYTE_II 0x55U
+#define TD_VTYPE_NONE_BYTE_II 0xAAU
 
 #define TD_ROWS_ALL_NORM  0x00U
 #define TD_ROWS_NULL_NORM 0x01U
@@ -162,38 +165,39 @@ typedef struct {
   int32_t  extendedRowSize;
 } SRowBuilder;
 
-#define TD_ROW_HEAD_LEN (sizeof(STSRow))
+#define TD_ROW_HEAD_LEN  (sizeof(STSRow))
 #define TD_ROW_NCOLS_LEN (sizeof(col_id_t))
 
-#define TD_ROW_INFO(r) ((r)->info)
-#define TD_ROW_TYPE(r) ((r)->type)
-#define TD_ROW_DELETE(r) ((r)->del)
-#define TD_ROW_ENDIAN(r) ((r)->endian)
-#define TD_ROW_SVER(r) ((r)->sver)
-#define TD_ROW_NCOLS(r) ((r)->data)  // only valid for SKvRow
-#define TD_ROW_DATA(r) ((r)->data)
-#define TD_ROW_LEN(r) ((r)->len)
-#define TD_ROW_KEY(r) ((r)->ts)
+#define TD_ROW_INFO(r)     ((r)->info)
+#define TD_ROW_TYPE(r)     ((r)->type)
+#define TD_ROW_DELETE(r)   ((r)->del)
+#define TD_ROW_ENDIAN(r)   ((r)->endian)
+#define TD_ROW_SVER(r)     ((r)->sver)
+#define TD_ROW_NCOLS(r)    ((r)->data)  // only valid for SKvRow
+#define TD_ROW_DATA(r)     ((r)->data)
+#define TD_ROW_LEN(r)      ((r)->len)
+#define TD_ROW_KEY(r)      ((r)->ts)
+#define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
 #define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
 
-#define TD_ROW_SET_INFO(r, i) (TD_ROW_INFO(r) = (i))
-#define TD_ROW_SET_TYPE(r, t) (TD_ROW_TYPE(r) = (t))
-#define TD_ROW_SET_DELETE(r) (TD_ROW_DELETE(r) = 1)
-#define TD_ROW_SET_SVER(r, v) (TD_ROW_SVER(r) = (v))
-#define TD_ROW_SET_LEN(r, l) (TD_ROW_LEN(r) = (l))
+#define TD_ROW_SET_INFO(r, i)  (TD_ROW_INFO(r) = (i))
+#define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))
+#define TD_ROW_SET_DELETE(r)   (TD_ROW_DELETE(r) = 1)
+#define TD_ROW_SET_SVER(r, v)  (TD_ROW_SVER(r) = (v))
+#define TD_ROW_SET_LEN(r, l)   (TD_ROW_LEN(r) = (l))
 #define TD_ROW_SET_NCOLS(r, n) (*(col_id_t *)TD_ROW_NCOLS(r) = (n))
 
 #define TD_ROW_IS_DELETED(r) (TD_ROW_DELETE(r) == 1)
-#define TD_IS_TP_ROW(r) (TD_ROW_TYPE(r) == TD_ROW_TP)
-#define TD_IS_KV_ROW(r) (TD_ROW_TYPE(r) == TD_ROW_KV)
-#define TD_IS_TP_ROW_T(t) ((t) == TD_ROW_TP)
-#define TD_IS_KV_ROW_T(t) ((t) == TD_ROW_KV)
+#define TD_IS_TP_ROW(r)      (TD_ROW_TYPE(r) == TD_ROW_TP)
+#define TD_IS_KV_ROW(r)      (TD_ROW_TYPE(r) == TD_ROW_KV)
+#define TD_IS_TP_ROW_T(t)    ((t) == TD_ROW_TP)
+#define TD_IS_KV_ROW_T(t)    ((t) == TD_ROW_KV)
 
-#define TD_BOOL_STR(b) ((b) ? "true" : "false")
+#define TD_BOOL_STR(b)       ((b) ? "true" : "false")
 #define isUtilizeKVRow(k, d) ((k) < ((d)*KVRatioConvert))
 
 #define TD_ROW_COL_IDX(r) POINTER_SHIFT(TD_ROW_DATA(r), sizeof(col_id_t))
@@ -221,8 +225,12 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, T
 static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT valType);
 static FORCE_INLINE int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
 int32_t                     tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8_t bitmapMode);
-static FORCE_INLINE int32_t tdGetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT *pValType);
-static FORCE_INLINE int32_t tdGetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType,
+                                               int8_t bitmapMode);
+static FORCE_INLINE bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
+bool                        tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode);
 int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t maxPoints,
                              int8_t bitmapMode);
 static FORCE_INLINE int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
@@ -230,7 +238,7 @@ static FORCE_INLINE int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowVa
 static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
                                                   bool isCopyVarData, int8_t colType, int16_t colIdx, int32_t offset,
                                                   col_id_t colId);
-int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols);
+int32_t                     tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols);
 
 /**
  * @brief
@@ -324,7 +332,16 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
+static FORCE_INLINE bool tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode) {
+  TDRowValT valType = 0;
+  tdGetBitmapValType(pBitmap, idx, &valType, bitmapMode);
+  if (tdValTypeIsNorm(valType)) {
+    return true;
+  }
+  return false;
+}
+
+static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
   switch (bitmapMode) {
     case 0:
       tdGetBitmapValTypeII(pBitmap, colIdx, pValType);
@@ -349,7 +366,7 @@ static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TD
  * @param pValType
  * @return FORCE_INLINE
  */
-static FORCE_INLINE int32_t tdGetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
+static FORCE_INLINE int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
   if (!pBitmap || colIdx < 0) {
     TASSERT(0);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -448,7 +465,7 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, T
  * @param pValType
  * @return FORCE_INLINE
  */
-static FORCE_INLINE int32_t tdGetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
+static FORCE_INLINE int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
   if (!pBitmap || colIdx < 0) {
     TASSERT(0);
     terrno = TSDB_CODE_INVALID_PARA;
