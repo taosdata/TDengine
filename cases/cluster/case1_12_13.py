@@ -40,8 +40,12 @@ class Case12(ClusterCase):
         self.slave_node = self.slave_nodes[i]
         self.logger.info("slave: %s", self.slave_node)
 
-    def get_replica_num(self ,db_name):
-        client_0 = self.tdSql.get_connection(None, self.slave_node)
+    def get_replica_num(self ,db_name ,endpoint):
+        
+        if not endpoint is None:
+            client_0 = self.tdSql.get_connection(None, endpoint)
+        else:
+            client_0 = self.tdSql.get_connection(self._conf)
         result = client_0.query("show databases ")
         database_data = result.fetch_all()
         index_flag = -1
@@ -51,10 +55,14 @@ class Case12(ClusterCase):
         replica_num = database_data[index_flag][4]
         return replica_num
 
-    def check_replica_sync(self,db_name ,check_interval):
-        client_0 = self.tdSql.get_connection(None, self.slave_node)
+    def check_replica_sync(self,db_name ,check_interval ,endpoint):
+        if not endpoint is None:
+            client_0 = self.tdSql.get_connection(None, endpoint)
+        else:
+            client_0 = self.tdSql.get_connection(self._conf)
         client_0.execute("use {}".format(db_name))
         while True:
+            client_0.execute(" show {}.vgroups ".format(db_name))
             result = client_0.query(" show {}.vgroups ".format(db_name))
             vgroups = result.fetch_all()
             vgroups_status = []
@@ -124,7 +132,7 @@ class Case12(ClusterCase):
             while j < row_num:
                 ts = self.ts + j
                 k = 0
-                n = 50
+                n = 1000
                 if row_num - j < n:
                     n = row_num - j
                 value_statement = ""
@@ -137,14 +145,19 @@ class Case12(ClusterCase):
                 client_0.execute(sql)
             if i>100 and i%100 ==0: 
 
+                self.stop_dnode(self.slave_node)
+                time.sleep(1)
+                self.start_dnode(self.slave_node)
+                time.sleep(3)
+
                 if i %200==0:
                     alter_sql = "alter database {} replica 3".format(db_name)
                     self.logger.info(alter_sql)
-                    self.check_replica_sync(db_name, 1)
+                    self.check_replica_sync(db_name, 1, endpoint)
                 else:
                     alter_sql = "alter database {} replica 2".format(db_name)
                     self.logger.info(alter_sql)
-                    self.check_replica_sync(db_name, 1)
+                    self.check_replica_sync(db_name, 1, endpoint)
 
         client_0.close()
         self.logger.info("write thread exit")
@@ -154,7 +167,7 @@ class Case12(ClusterCase):
         pass
 
     def run(self):
-        self.alter_database_replica( self.db_name, self.stable_name, self.table_name, self.table_num, self.row_num, self.replicas, None)
+        self.alter_database_replica( self.db_name, self.stable_name, self.table_name, self.table_num, self.row_num, self.replicas, self.master_node)
     
 
     def cleanup(self):
@@ -174,6 +187,6 @@ class Case12(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.12  and 1.13 always alter database replica from 3 to 1  ... ;
+            [test]<wenzhouwww> test case for cluster about 1.12  always alter database replica from 3 to 1  ... ;
         '''
         return case_description
