@@ -78,13 +78,13 @@ void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
 const char *mndGetRoleStr(int32_t showType) {
   switch (showType) {
     case TAOS_SYNC_STATE_FOLLOWER:
-      return "unsynced";
+      return "FOLLOWER";
     case TAOS_SYNC_STATE_CANDIDATE:
-      return "slave";
+      return "CANDIDATE";
     case TAOS_SYNC_STATE_LEADER:
-      return "master";
+      return "LEADER";
     default:
-      return "undefined";
+      return "ERROR";
   }
 }
 
