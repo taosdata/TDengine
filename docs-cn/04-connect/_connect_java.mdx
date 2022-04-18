@@ -4,6 +4,8 @@
 ```java title="RESTful 连接"
 {{#include docs-examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
 ```
-```java title="WebSocket 连接" {4}
+使用RESTful 连接时，如果查询数据量比较大，还可开启批量拉取功能。
+```java title="开启批量拉取功能" {4}
 {{#include docs-examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
 ```
+更多连接参数配置，参考[Java 连接器](/reference/connector/java)
