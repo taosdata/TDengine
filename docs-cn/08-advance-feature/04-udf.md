@@ -83,9 +83,9 @@ title: UDF（用户定义函数）
 
 ## 编译 UDF
 
-用户定义函数的 C 语言源代码无法直接被 TDengine 系统使用，而是需要先编译为 .so 链接库，之后才能载入 TDengine 系统。
+用户定义函数的 C 语言源代码无法直接被 TDengine 系统使用，而是需要先编译为 动态链接库，之后才能载入 TDengine 系统。
 
-例如，按照上一章节描述的规则准备好了用户定义函数的源代码 add_one.c，那么可以执行如下指令编译得到动态链接库文件：
+例如，按照上一章节描述的规则准备好了用户定义函数的源代码 add_one.c，以 Linux 为例可以执行如下指令编译得到动态链接库文件：
 
 ```bash
 gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
@@ -143,9 +143,9 @@ DROP FUNCTION ids(X);
 ```
 
 - ids(X)：此参数的含义与 CREATE 指令中的 ids(X) 参数一致，也即要删除的函数的名字，例如 
-  ```sql
-  DROP FUNCTION add_one;
-  ```
+```sql
+DROP FUNCTION add_one;
+```
 - 显示系统中当前可用的所有 UDF：
 ```sql
 SHOW FUNCTIONS;
