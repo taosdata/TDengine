@@ -93,7 +93,7 @@ class Case12(ClusterCase):
             sync_done = True
             for status_row in vgroups_status:
                 for status in status_row:
-                    if status not in ['master', 'slave'] or len(status)!=replica_num:
+                    if status not in ['master', 'slave'] or len(status_row)!=replica_num:
                         sync_done = False
             time.sleep(check_interval)
             self.logger.info("current cluster status is: {}".format(vgroups_status))
