@@ -1,0 +1,33 @@
+#### 直接采集
+
+修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6045 来接收 collectd 直接采集方式的数据。
+
+```text
+LoadPlugin network
+<Plugin network>
+         Server "127.0.0.1" "6045"
+</Plugin>
+```
+
+#### tsdb 写入方式
+
+修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6047 来接收 collectd tsdb 写入方式的数据。
+
+```text
+LoadPlugin write_tsdb
+<Plugin write_tsdb>
+        <Node>
+                Host "localhost"
+                Port "6047"
+                HostTags "status=production"
+                StoreRates false
+                AlwaysAppendDS false
+        </Node>
+</Plugin>
+```
+
+重启 collectd：
+
+```
+systemctl restart collectd
+```

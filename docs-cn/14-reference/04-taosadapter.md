@@ -4,6 +4,11 @@ description: "taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集�
 sidebar_label: "taosAdapter"
 ---
 
+import CollectD from "./_collectd.mdx"
+import StatsD from "./_statsd.mdx"
+import icinga2 from "./_icinga2.mdx"
+import tcollector from "./_tcollector.mdx"
+
 taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
 
 taosAdapter 提供以下功能：
@@ -207,73 +212,19 @@ AllowWebSockets
 
 ### collectd
 
-#### 直接采集
-
-修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6045 来接收 collectd 直接采集方式的数据。
-
-```text
-LoadPlugin network
-<Plugin network>
-         Server "127.0.0.1" "6045"
-</Plugin>
-```
-
-#### tsdb 写入方式
-
-修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6047 来接收 collectd tsdb 写入方式的数据。
-
-```text
-LoadPlugin write_tsdb
-<Plugin write_tsdb>
-        <Node>
-                Host "localhost"
-                Port "6047"
-                HostTags "status=production"
-                StoreRates false
-                AlwaysAppendDS false
-        </Node>
-</Plugin>
-```
+<CollectD />
 
 ### StatsD
 
-修改 StatsD 配置文件 `config.js`，taosAdapter 默认使用 6044 端口接收 StatsD 的写入数据。
-
-- `backends` add `"./backends/repeater"`
-- `repeater` add `{ host:'host to taosAdapter', port: 6044}`
-
-配置文件示例
-
-```js
-{
-  port: 8125,
-  backends: ["./backends/repeater"],
-  repeater: [{ host: '127.0.0.1', port: 6044}]
-}
-```
+<StatsD \>
 
 ### icinga2 OpenTSDB writer
 
-使用 icinga2 收集监控数据的方法参见：
-
-- 参考文档：
-  opentsdb-writer [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer)
-- 使能 taosAdapter `opentsdb_telnet.enable` 来支持写入
-- 修改配置文件 `/etc/icinga2/features-enabled/opentsdb.conf`， taosAdapter 默认使用 6048 端口接收 icinga2 的数据。
-
-```text
-object OpenTsdbWriter "opentsdb" {
-  host = "host to taosAdapter"
-  port = 6048
-}
-```
+<icinga2 \>
 
 ### TCollector
 
-Tcollector 是一个客户端进程，它从本地收集器中收集数据并将数据推送到 OpenTSDB。您在您的所有主机上运行它，它完成将每个主机的数据发送到 TSD （OpenTSDB 后台服务进程）的工作。
-
-- 启用 taosAdapter 配置 opentsdb_telnet.enable
-- 修改 TCollector 配置文件，将 OpenTSDB 主机修改为部署 taosAdapter 的主机，并修改端口为 6049
+<tcollector \>
 
 ### node_exporter
 
