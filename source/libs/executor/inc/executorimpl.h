@@ -220,14 +220,9 @@ typedef struct SExecTaskInfo {
 } SExecTaskInfo;
 
 typedef struct STaskRuntimeEnv {
-
-  jmp_buf         env;
   STaskAttr*      pQueryAttr;
   uint32_t        status;  // query status
-  void*           qinfo;
   uint8_t         scanFlag;  // denotes reversed scan of data or not
-  void*           pTsdbReadHandle;
-  bool            enableGroupData;
   SDiskbasedBuf*  pResultBuf;           // query result buffer based on blocked-wised disk file
   SHashObj*       pResultRowHashTable;  // quick locate the window object for each result
   SHashObj*       pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
@@ -235,12 +230,10 @@ typedef struct STaskRuntimeEnv {
   char*           keyBuf;               // window key buffer
   // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   char**    prevRow;
-  SArray*   prevResult;  // intermediate result, SArray<SInterResult>
   STSBuf*   pTsBuf;      // timestamp filter list
   STSCursor cur;
 
   char*                          tagVal;  // tag value of current data block
-  struct SScalarFunctionSupport* scalarSup;
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo* proot;
   SGroupResInfo         groupResInfo;
@@ -266,7 +259,6 @@ typedef struct SOperatorInfo {
   char*                   name;          // name, used to show the query execution plan
   void*                   info;          // extension attribution
   SExprInfo*              pExpr;
-  STaskRuntimeEnv*        pRuntimeEnv;  // todo remove it
   SExecTaskInfo*          pTaskInfo;
   SOperatorCostInfo       cost;
   SResultInfo             resultInfo;
@@ -291,7 +283,7 @@ typedef struct {
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
-  EX_SOURCE_DATA_READY = 0x2,
+  EX_SOURCE_DATA_READY     = 0x2,
   EX_SOURCE_DATA_EXHAUSTED = 0x3,
 } EX_SOURCE_STATUS;
 
@@ -682,7 +674,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReaderHandle* pReaderHandle, SExprInfo
 void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                            int32_t numOfOutput, SArray* pPseudoList);
 
-void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
+void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order, bool createDummyCol);
 
 void finalizeQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
