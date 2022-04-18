@@ -24,6 +24,8 @@ static SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 
+static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
+
 static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
@@ -108,7 +110,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
 static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   SHbConnInfo *info = taosHashGet(pAppHbMgr->connInfo, &pRsp->connKey, sizeof(SClientHbKey));
   if (NULL == info) {
-    tscWarn("fail to get connInfo, may be dropped, refId:%" PRIx64 ", type:%d", pRsp->connKey.tscRid, pRsp->connKey.hbType);
+    tscWarn("fail to get connInfo, may be dropped, refId:%" PRIx64 ", type:%d", pRsp->connKey.tscRid, pRsp->connKey.connType);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -222,7 +224,7 @@ static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) 
 
   for (int32_t i = 0; i < rspNum; ++i) {
     SClientHbRsp *rsp = taosArrayGet(pRsp.rsps, i);
-    code = (*clientHbMgr.rspHandle[rsp->connKey.hbType])((*pInst)->pAppHbMgr, rsp);
+    code = (*clientHbMgr.rspHandle[rsp->connKey.connType])((*pInst)->pAppHbMgr, rsp);
     if (code) {
       break;
     }
@@ -417,13 +419,12 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
-
 void hbMgrInitMqHbHandle() {
-  clientHbMgr.reqHandle[HEARTBEAT_TYPE_QUERY] = hbQueryHbReqHandle;
-  clientHbMgr.reqHandle[HEARTBEAT_TYPE_MQ] = hbMqHbReqHandle;
-  clientHbMgr.rspHandle[HEARTBEAT_TYPE_QUERY] = hbQueryHbRspHandle;
-  clientHbMgr.rspHandle[HEARTBEAT_TYPE_MQ] = hbMqHbRspHandle;
+  clientHbMgr.reqHandle[CONN_TYPE__QUERY] = hbQueryHbReqHandle;
+  clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbMqHbReqHandle;
+
+  clientHbMgr.rspHandle[CONN_TYPE__QUERY] = hbQueryHbRspHandle;
+  clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbMqHbRspHandle;
 }
 
 static FORCE_INLINE void hbMgrInitHandle() {
@@ -457,7 +458,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
 
     SHbConnInfo *info = taosHashGet(pAppHbMgr->connInfo, &pOneReq->connKey, sizeof(SClientHbKey));
     if (info) {
-      code = (*clientHbMgr.reqHandle[pOneReq->connKey.hbType])(&pOneReq->connKey, info->param, pOneReq);
+      code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, info->param, pOneReq);
       if (code) {
         pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
         continue;
@@ -564,7 +565,7 @@ static int32_t hbCreateThread() {
   if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
- }
+  }
   taosThreadAttrDestroy(&thAttr);
   return 0;
 }
@@ -648,13 +649,13 @@ int hbMgrInit() {
   hbMgrInitHandle();
 
   // init backgroud thread
-  hbCreateThread();
+  //hbCreateThread();
 
   return 0;
 }
 
 void hbMgrCleanUp() {
-  hbStopThread();
+  //hbStopThread();
 
   // destroy all appHbMgr
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
@@ -691,29 +692,27 @@ int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *
   return 0;
 }
 
-int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, int32_t hbType) {
+int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType) {
   SClientHbKey connKey = {
       .tscRid = tscRefId,
-      .hbType = HEARTBEAT_TYPE_QUERY,
+      .connType = connType,
   };
   SHbConnInfo info = {0};
 
-  switch (hbType) {
-    case HEARTBEAT_TYPE_QUERY: {
+  switch (connType) {
+    case CONN_TYPE__QUERY: {
       int64_t *pClusterId = taosMemoryMalloc(sizeof(int64_t));
       *pClusterId = clusterId;
 
       info.param = pClusterId;
-      break;
+      return hbRegisterConnImpl(pAppHbMgr, connKey, &info);
     }
-    case HEARTBEAT_TYPE_MQ: {
-      break;
+    case CONN_TYPE__TMQ: {
+      return 0;
     }
     default:
-      break;
+      return 0;
   }
-
-  return hbRegisterConnImpl(pAppHbMgr, connKey, &info);
 }
 
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {

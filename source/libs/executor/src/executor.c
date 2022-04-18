@@ -52,7 +52,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
 
-        SSDataBlock* p = createOneDataBlock(pDataBlock);
+        SSDataBlock* p = createOneDataBlock(pDataBlock, false);
         p->info = pDataBlock->info;
 
         taosArrayClear(p->pDataBlock);

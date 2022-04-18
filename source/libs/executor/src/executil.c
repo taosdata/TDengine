@@ -52,11 +52,11 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
 }
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
-  pResultRowInfo->size     = 0;
-  pResultRowInfo->curPos   = -1;
-  pResultRowInfo->capacity = size;
+  pResultRowInfo->size       = 0;
+  pResultRowInfo->capacity   = size;
+  pResultRowInfo->cur.pageId = -1;
+  
   pResultRowInfo->pPosition = taosMemoryCalloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
-
   if (pResultRowInfo->pPosition == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -114,7 +114,6 @@ void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
   
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    ASSERT(0);
 //    SResultRow* pRow = pResultRowInfo->pResult[i];
 //    if (pRow->closed) {
 //      continue;
@@ -337,11 +336,11 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
 
 void orderTheResultRows(STaskRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
-  if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
-    fn = tsAscOrder;
-  } else {
-    fn = tsDescOrder;
-  }
+//  if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
+//    fn = tsAscOrder;
+//  } else {
+//    fn = tsDescOrder;
+//  }
 
   taosArraySort(pRuntimeEnv->pResultRowArrayList, fn);
 }
@@ -377,8 +376,8 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
 
 static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
     int32_t* rowCellInfoOffset) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
-
+  bool ascQuery = true;
+#if 0
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t *posList = NULL;
@@ -402,18 +401,19 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
   int32_t numOfTables = 0;
   for (int32_t i = 0; i < size; ++i) {
     STableQueryInfo *item = taosArrayGetP(pTableList, i);
-    if (item->resInfo.size > 0) {
-      pTableQueryInfoList[numOfTables++] = item;
-    }
+//    if (item->resInfo.size > 0) {
+//      pTableQueryInfoList[numOfTables++] = item;
+//    }
   }
 
   // there is no data in current group
   // no need to merge results since only one table in each group
-  if (numOfTables == 0) {
-    goto _end;
-  }
+//  if (numOfTables == 0) {
+//    goto _end;
+//  }
 
-  SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQueryAttr->order.order};
+  int32_t order = TSDB_ORDER_ASC;
+  SCompSupporter cs = {pTableQueryInfoList, posList, order};
 
   int32_t ret = tMergeTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -497,6 +497,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  int64_t elapsedTime = taosGetTimestampUs() - st;
 //  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_TASKID(pRuntimeEnv),
 //         pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
+#endif
 
   return TSDB_CODE_SUCCESS;
 }

@@ -26,11 +26,11 @@ class MndTestTrans : public ::testing::Test {
   }
 
   static void KillThenRestartServer() {
-    char    file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
+    char      file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
     TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
-    int32_t size = 3 * 1024 * 1024;
-    void*   buffer = taosMemoryMalloc(size);
-    int32_t readLen = taosReadFile(pFile, buffer, size);
+    int32_t   size = 3 * 1024 * 1024;
+    void*     buffer = taosMemoryMalloc(size);
+    int32_t   readLen = taosReadFile(pFile, buffer, size);
     if (readLen < 0 || readLen == size) {
       ASSERT(1);
     }
@@ -65,18 +65,7 @@ TestServer MndTestTrans::server2;
 
 TEST_F(MndTestTrans, 00_Create_User_Crash) {
   {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
-    CHECK_META("show trans", 7);
-
-    CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "id");
-    CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-    CHECK_SCHEMA(2, TSDB_DATA_TYPE_BINARY, TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE, "stage");
-    CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "db");
-    CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE, "type");
-    CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "last_exec_time");
-    CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, TSDB_TRANS_ERROR_LEN - 1 + VARSTR_HEADER_SIZE, "last_error");
-
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_TRANS, "trans", "");
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
@@ -109,26 +98,13 @@ TEST_F(MndTestTrans, 01_Create_User_Crash) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 2);
 
   KillThenRestartServer();
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 2);
-
-  CheckBinary("u1", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
 }
 
 TEST_F(MndTestTrans, 02_Create_Qnode1_Crash) {
@@ -144,9 +120,7 @@ TEST_F(MndTestTrans, 02_Create_Qnode1_Crash) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
-    CHECK_META("show qnodes", 3);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_QNODE, "qnodes", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -163,9 +137,7 @@ TEST_F(MndTestTrans, 02_Create_Qnode1_Crash) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_QNODE_ALREADY_EXIST);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
-    CHECK_META("show qnodes", 3);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_QNODE, "qnodes", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 }
@@ -185,8 +157,7 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, 0);
 
     taosMsleep(1300);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_DNODE, "dnodes", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -208,18 +179,8 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
 
   {
     // show trans
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
-    CHECK_META("show trans", 7);
-    test.SendShowRetrieveReq();
-
+    test.SendShowReq(TSDB_MGMT_TABLE_TRANS, "trans", "");
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckInt32(4);
-    CheckTimestamp();
-    CheckBinary("undoAction", TSDB_TRANS_STAGE_LEN);
-    CheckBinary("", TSDB_DB_NAME_LEN - 1);
-    CheckBinary("create-qnode", TSDB_TRANS_TYPE_LEN);
-    CheckTimestamp();
-    CheckBinary("Unable to establish connection", TSDB_TRANS_ERROR_LEN - 1);
   }
 
   // kill trans
@@ -238,8 +199,7 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
 
   // show trans
   {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_TRANS, "trans", "");
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
@@ -258,11 +218,9 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
-  uInfo("======== kill and restart server")
-  KillThenRestartServer();
+  uInfo("======== kill and restart server") KillThenRestartServer();
 
-  uInfo("======== server2 start")
-  server2.DoStart();
+  uInfo("======== server2 start") server2.DoStart();
 
   uInfo("======== server2 started")
 
@@ -286,13 +244,10 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
 
     ASSERT_NE(retry, retryMax);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
-    CHECK_META("show qnodes", 3);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_QNODE, "qnodes", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 }
-
 
 // create db
 // partial create stb

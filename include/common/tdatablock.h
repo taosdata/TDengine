@@ -203,11 +203,10 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
-void*  blockDataDestroy(SSDataBlock* pBlock);
 
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
-SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
+SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
 void blockDebugShowData(const SArray* dataBlocks);
 

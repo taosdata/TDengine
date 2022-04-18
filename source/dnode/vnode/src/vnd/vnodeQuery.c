@@ -13,73 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include "vnodeInt.h"
 
-static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
-static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
-
 int vnodeQueryOpen(SVnode *pVnode) {
-  return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, &pVnode->msgCb);
+  return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), NULL, (void **)&pVnode->pQuery, &pVnode->msgCb);
 }
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
-int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
-  vTrace("message in query queue is processing");
-  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config};
-
-  switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:
-      return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
-    case TDMT_VND_QUERY_CONTINUE:
-      return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg);
-    default:
-      vError("unknown msg type:%d in query queue", pMsg->msgType);
-      return TSDB_CODE_VND_APP_ERROR;
-  }
-}
-
-int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("message in fetch queue is processing");
-  char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
-  switch (pMsg->msgType) {
-    case TDMT_VND_FETCH:
-      return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_FETCH_RSP:
-      return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_RES_READY:
-      return qWorkerProcessReadyMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_TASKS_STATUS:
-      return qWorkerProcessStatusMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_CANCEL_TASK:
-      return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_DROP_TASK:
-      return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_SHOW_TABLES:
-      return qWorkerProcessShowMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_SHOW_TABLES_FETCH:
-      return vnodeGetTableList(pVnode, pMsg);
-      //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
-    case TDMT_VND_TABLE_META:
-      return vnodeGetTableMeta(pVnode, pMsg);
-    case TDMT_VND_CONSUME:
-      return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
-    case TDMT_VND_TASK_PIPE_EXEC:
-    case TDMT_VND_TASK_MERGE_EXEC:
-      return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, 0);
-    case TDMT_VND_STREAM_TRIGGER:
-      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
-    case TDMT_VND_QUERY_HEARTBEAT:
-      return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
-    default:
-      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
-      return TSDB_CODE_VND_APP_ERROR;
-  }
-}
-
-static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
+int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   STbCfg         *pTbCfg = NULL;
   STbCfg         *pStbCfg = NULL;
   tb_uid_t        uid;
@@ -159,7 +101,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   metaRsp.numOfColumns = nCols;
   metaRsp.tableType = pTbCfg->type;
   metaRsp.tuid = uid;
-  metaRsp.vgId = pVnode->vgId;
+  metaRsp.vgId = TD_VID(pVnode);
 
   memcpy(metaRsp.pSchemas, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
   if (nTagCols) {
@@ -208,73 +150,18 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
-static void freeItemHelper(void *pItem) {
-  char *p = *(char **)pItem;
-  taosMemoryFree(p);
-}
-
-/**
- * @param pVnode
- * @param pMsg
- * @param pRsp
- */
-static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
-  SMTbCursor *pCur = metaOpenTbCursor(pVnode->pMeta);
-  SArray     *pArray = taosArrayInit(10, POINTER_BYTES);
-
-  char   *name = NULL;
-  int32_t totalLen = 0;
-  int32_t numOfTables = 0;
-  while ((name = metaTbCursorNext(pCur)) != NULL) {
-    if (numOfTables < 10000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
-      taosArrayPush(pArray, &name);
-      totalLen += strlen(name);
-    } else {
-      taosMemoryFreeClear(name);
-    }
-
-    numOfTables++;
-  }
-
-  // TODO: temp debug, and should del when show tables command ok
-  vInfo("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
-  if (numOfTables > 10000) {
-    numOfTables = 10000;
-  }
-
-  metaCloseTbCursor(pCur);
-
-  int32_t rowLen =
-      (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
-  // int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
-
-  int32_t payloadLen = rowLen * numOfTables;
-  //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
-
-  SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp) + payloadLen);
-  memset(pFetchRsp, 0, sizeof(SVShowTablesFetchRsp) + payloadLen);
-
-  char *p = pFetchRsp->data;
-  for (int32_t i = 0; i < numOfTables; ++i) {
-    char *n = taosArrayGetP(pArray, i);
-    STR_TO_VARSTR(p, n);
-
-    p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
-    // taosMemoryFree(n);
-  }
-
-  pFetchRsp->numOfRows = htonl(numOfTables);
-  pFetchRsp->precision = 0;
-
-  SRpcMsg rpcMsg = {
-      .handle = pMsg->handle,
-      .ahandle = pMsg->ahandle,
-      .pCont = pFetchRsp,
-      .contLen = sizeof(SVShowTablesFetchRsp) + payloadLen,
-      .code = 0,
-  };
-
-  tmsgSendRsp(&rpcMsg);
-  taosArrayDestroyEx(pArray, freeItemHelper);
+int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  pLoad->vgId = TD_VID(pVnode);
+  pLoad->role = TAOS_SYNC_STATE_LEADER;
+  pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
+  pLoad->numOfTimeSeries = 400;
+  pLoad->totalStorage = 300;
+  pLoad->compStorage = 200;
+  pLoad->pointsWritten = 100;
+  pLoad->numOfSelectReqs = 1;
+  pLoad->numOfInsertReqs = 3;
+  pLoad->numOfInsertSuccessReqs = 2;
+  pLoad->numOfBatchInsertReqs = 5;
+  pLoad->numOfBatchInsertSuccessReqs = 4;
   return 0;
 }

@@ -15,7 +15,6 @@
 
 #include "vnodeInt.h"
 
-#include "tdbInt.h"
 typedef struct SPoolMem {
   int64_t          size;
   struct SPoolMem *prev;
@@ -27,18 +26,18 @@ typedef struct SPoolMem {
 static SPoolMem *openPool();
 static void      clearPool(SPoolMem *pPool);
 static void      closePool(SPoolMem *pPool);
-static void *    poolMalloc(void *arg, size_t size);
+static void     *poolMalloc(void *arg, size_t size);
 static void      poolFree(void *arg, void *ptr);
 
 struct SMetaDB {
   TXN       txn;
-  TENV *    pEnv;
-  TDB *     pTbDB;
-  TDB *     pSchemaDB;
-  TDB *     pNameIdx;
-  TDB *     pStbIdx;
-  TDB *     pNtbIdx;
-  TDB *     pCtbIdx;
+  TENV     *pEnv;
+  TDB      *pTbDB;
+  TDB      *pSchemaDB;
+  TDB      *pNameIdx;
+  TDB      *pStbIdx;
+  TDB      *pNtbIdx;
+  TDB      *pCtbIdx;
   SPoolMem *pPool;
 #ifdef META_TDB_SMA_TEST
   TDB *pSmaDB;
@@ -52,7 +51,7 @@ typedef struct __attribute__((__packed__)) {
 } SSchemaDbKey;
 
 typedef struct {
-  char *   name;
+  char    *name;
   tb_uid_t uid;
 } SNameIdxKey;
 
@@ -251,14 +250,14 @@ void metaCloseDB(SMeta *pMeta) {
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   tb_uid_t       uid;
-  SMetaDB *      pMetaDb;
-  void *         pKey;
-  void *         pVal;
+  SMetaDB       *pMetaDb;
+  void          *pKey;
+  void          *pVal;
   int            kLen;
   int            vLen;
   int            ret;
   char           buf[512];
-  void *         pBuf;
+  void          *pBuf;
   SCtbIdxKey     ctbIdxKey;
   SSchemaDbKey   schemaDbKey;
   SSchemaWrapper schemaWrapper;
@@ -375,11 +374,11 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
 STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
   int      ret;
   SMetaDB *pMetaDb = pMeta->pDB;
-  void *   pKey;
-  void *   pVal;
+  void    *pKey;
+  void    *pVal;
   int      kLen;
   int      vLen;
-  STbCfg * pTbCfg;
+  STbCfg  *pTbCfg;
 
   // Fetch
   pKey = &uid;
@@ -431,14 +430,14 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 }
 
 static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx) {
-  void *          pKey;
-  void *          pVal;
+  void           *pKey;
+  void           *pVal;
   int             kLen;
   int             vLen;
   int             ret;
   SSchemaDbKey    schemaDbKey;
   SSchemaWrapper *pSchemaWrapper;
-  void *          pBuf;
+  void           *pBuf;
 
   // fetch
   schemaDbKey.uid = uid;
@@ -465,9 +464,9 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   tb_uid_t        quid;
   SSchemaWrapper *pSW;
   STSchemaBuilder sb;
-  SSchemaEx *     pSchema;
-  STSchema *      pTSchema;
-  STbCfg *        pTbCfg;
+  SSchemaEx      *pSchema;
+  STSchema       *pTSchema;
+  STbCfg         *pTbCfg;
 
   pTbCfg = metaGetTbInfoByUid(pMeta, uid);
   if (pTbCfg->type == META_CHILD_TABLE) {
@@ -498,7 +497,7 @@ struct SMTbCursor {
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
-  SMetaDB *   pDB = pMeta->pDB;
+  SMetaDB    *pDB = pMeta->pDB;
 
   pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
@@ -520,12 +519,12 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
 }
 
 char *metaTbCursorNext(SMTbCursor *pTbCur) {
-  void * pKey = NULL;
-  void * pVal = NULL;
+  void  *pKey = NULL;
+  void  *pVal = NULL;
   int    kLen;
   int    vLen;
   int    ret;
-  void * pBuf;
+  void  *pBuf;
   STbCfg tbCfg;
 
   for (;;) {
@@ -548,17 +547,17 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
 }
 
 struct SMCtbCursor {
-  TDBC *   pCur;
+  TDBC    *pCur;
   tb_uid_t suid;
-  void *   pKey;
-  void *   pVal;
+  void    *pKey;
+  void    *pVal;
   int      kLen;
   int      vLen;
 };
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
-  SMetaDB *    pDB = pMeta->pDB;
+  SMetaDB     *pDB = pMeta->pDB;
   int          ret;
 
   pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
@@ -654,7 +653,6 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
         continue;
       }
 
-
       ++pSW->number;
       STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
@@ -709,10 +707,10 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
   // ASSERT(0);
 
 #ifdef META_TDB_SMA_TEST
-  int32_t ret = 0;
+  int32_t  ret = 0;
   SMetaDB *pMetaDb = pMeta->pDB;
-  void   *pBuf = NULL, *qBuf = NULL;
-  void   *key = {0}, *val = {0};
+  void    *pBuf = NULL, *qBuf = NULL;
+  void    *key = {0}, *val = {0};
 
   // save sma info
   int32_t len = tEncodeTSma(NULL, pSmaCfg);
@@ -1103,7 +1101,7 @@ static void closePool(SPoolMem *pPool) {
 }
 
 static void *poolMalloc(void *arg, size_t size) {
-  void *    ptr = NULL;
+  void     *ptr = NULL;
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 

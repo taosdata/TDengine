@@ -119,14 +119,14 @@ typedef struct {
 
 typedef struct {
   // subscribe info
-  int32_t     sqlLen;
-  char*       sql;
-  char*       topicName;
-  int64_t     topicId;
-  SArray*     vgs;  // SArray<SMqClientVg>
-  int8_t      isSchemaAdaptive;
-  int32_t     numOfFields;
-  TAOS_FIELD* fields;
+  int32_t        sqlLen;
+  char*          sql;
+  char*          topicName;
+  int64_t        topicId;
+  SArray*        vgs;  // SArray<SMqClientVg>
+  int8_t         isSchemaAdaptive;
+  int32_t        numOfFields;
+  SSchemaWrapper schema;
 } SMqClientTopic;
 
 typedef struct {
@@ -357,7 +357,15 @@ tmq_t* tmq_consumer_new1(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq == NULL) {
     return NULL;
   }
-  pTmq->pTscObj = taos_connect(conf->ip, conf->user, conf->pass, conf->db, conf->port);
+  const char* user = conf->user == NULL ? TSDB_DEFAULT_USER : conf->user;
+  const char* pass = conf->pass == NULL ? TSDB_DEFAULT_PASS : conf->pass;
+
+  ASSERT(user);
+  ASSERT(pass);
+  ASSERT(conf->db);
+
+  pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, conf->db, conf->port, CONN_TYPE__TMQ);
+  if (pTmq->pTscObj == NULL) return NULL;
 
   pTmq->inWaiting = 0;
   pTmq->status = 0;
@@ -783,7 +791,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     }
   }
 
-  struct tm* ptm = localtime(&tt);
+  struct tm* ptm = taosLocalTime(&tt, NULL);
   size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -956,6 +964,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
   for (int32_t i = 0; i < topicNumGet; i++) {
     SMqClientTopic topic = {0};
     SMqSubTopicEp* pTopicEp = taosArrayGet(pRsp->topics, i);
+    topic.schema = pTopicEp->schema;
     taosHashClear(pHash);
     topic.topicName = strdup(pTopicEp->topic);
 
@@ -1191,7 +1200,10 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   for (int32_t i = 0; i < blockNum; i++) {
     int32_t            pos = *(int32_t*)taosArrayGet(pRsp->blockPos, i);
     SRetrieveTableRsp* pRetrieve = POINTER_SHIFT(pRsp->blockData, pos);
-    SReqResultInfo     resInfo;
+    SReqResultInfo     resInfo = {0};
+    resInfo.totalRows = 0;
+    resInfo.precision = TSDB_TIME_PRECISION_MILLI;
+    setResSchemaInfo(&resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
     setQueryResultFromRsp(&resInfo, pRetrieve, true);
     taosArrayPush(pRspObj->res, &resInfo);
   }
@@ -1386,7 +1398,7 @@ SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t blockingTime, bool pollIfReset) {
           rspWrapper = NULL;
           continue;
         }
-        // build msg
+        // build rsp
         SMqRspObj* pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
         return pRsp;
       } else {

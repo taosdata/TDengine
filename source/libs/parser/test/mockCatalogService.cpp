@@ -146,6 +146,7 @@ public:
     meta_[db][tbname].reset(new MockTableMeta());
     meta_[db][tbname]->schema = table.release();
     meta_[db][tbname]->schema->uid = id_++;
+    meta_[db][tbname]->schema->tableType = TSDB_CHILD_TABLE;
 
     SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0,};
     addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030);
@@ -197,11 +198,11 @@ public:
         std::cout << "Table:" << table.first << std::endl;
         std::cout << SH("Field") << SH("Type") << SH("DataType") << IH("Bytes") << std::endl;
         std::cout << SL(3, 1) << std::endl;
-        int16_t numOfTags = schema->tableInfo.numOfTags;
-        int16_t numOfFields = numOfTags + schema->tableInfo.numOfColumns;
+        int16_t numOfColumns = schema->tableInfo.numOfColumns;
+        int16_t numOfFields = numOfColumns + schema->tableInfo.numOfTags;
         for (int16_t i = 0; i < numOfFields; ++i) {
           const SSchema* col = schema->schema + i;
-          std::cout << SF(std::string(col->name)) << SH(ftToString(i, numOfTags)) << SH(dtToString(col->type)) << IF(col->bytes) << std::endl;
+          std::cout << SF(std::string(col->name)) << SH(ftToString(i, numOfColumns)) << SH(dtToString(col->type)) << IF(col->bytes) << std::endl;
         }
         std::cout << std::endl;
       }
@@ -262,8 +263,8 @@ private:
     return tDataTypes[type].name;
   }
 
-  std::string ftToString(int16_t colid, int16_t numOfTags) const {
-    return (0 == colid ? "column" : (colid <= numOfTags ? "tag" : "column"));
+  std::string ftToString(int16_t colid, int16_t numOfColumns) const {
+    return (0 == colid ? "column" : (colid < numOfColumns ? "column" : "tag"));
   }
 
   STableMeta* getTableSchemaMeta(const std::string& db, const std::string& tbname) const {

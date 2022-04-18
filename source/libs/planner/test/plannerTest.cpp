@@ -45,7 +45,7 @@ protected:
     int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] parser code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
+      cout << "sql:[" << cxt_.pSql << "] qParseQuerySql code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
       return false;
     }
 
@@ -69,6 +69,12 @@ protected:
     cout << syntaxTreeStr << endl;
     cout << "unformatted logic plan : " << endl;
     cout << toString((const SNode*)pLogicNode, false) << endl;
+
+    code = optimizeLogicPlan(&cxt, pLogicNode);
+    if (code != TSDB_CODE_SUCCESS) {
+      cout << "sql:[" << cxt_.pSql << "] optimizeLogicPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
+      return false;
+    }
 
     SLogicSubplan* pLogicSubplan = nullptr;
     code = splitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
@@ -117,6 +123,12 @@ private:
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
       pCxt->streamQuery = true;
+    } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
+      SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
+      pCxt->pAstRoot = pStmt->pQuery;
+      pCxt->streamQuery = true;
+      pCxt->triggerType = pStmt->pOptions->triggerType;
+      pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }
@@ -174,13 +186,13 @@ TEST_F(PlannerTest, selectStableBasic) {
 TEST_F(PlannerTest, selectJoin) {
   setDatabase("root", "test");
 
-  bind("SELECT * FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  bind("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
   ASSERT_TRUE(run());
 
-  bind("SELECT * FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1");
+  bind("SELECT t1.*, t2.* FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
   ASSERT_TRUE(run());
 
-  bind("SELECT t1.* FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1");
+  bind("SELECT t1.c1, t2.c1 FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1 and t1.c2 = 'abc' and t2.c2 = 'qwe'");
   ASSERT_TRUE(run());
 }
 
@@ -190,14 +202,14 @@ TEST_F(PlannerTest, selectGroupBy) {
   bind("SELECT count(*) FROM t1");
   ASSERT_TRUE(run());
 
-  // bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
-  // ASSERT_TRUE(run());
+  bind("SELECT c1, max(c3), min(c3), count(*) FROM t1 GROUP BY c1");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
-  // ASSERT_TRUE(run());
+  bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
+  ASSERT_TRUE(run());
 
-  // bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
-  // ASSERT_TRUE(run());
+  bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, selectSubquery) {
@@ -347,11 +359,11 @@ TEST_F(PlannerTest, createTopic) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(PlannerTest, stream) {
+TEST_F(PlannerTest, createStream) {
   setDatabase("root", "test");
 
-  bind("SELECT sum(c1) FROM st1");
-  ASSERT_TRUE(run(true));
+  bind("create stream if not exists s1 trigger window_close watermark 10s into st1 as select count(*) from t1 interval(10s)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, createSmaIndex) {

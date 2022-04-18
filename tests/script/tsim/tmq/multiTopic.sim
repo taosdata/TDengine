@@ -48,24 +48,24 @@ print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $d
 print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
 
 if $loop_cnt == 0 then 
-  if $rows != 2 then 
+  if $rows != 3 then
     return -1
   endi
-  if $data02 != 1 then  # vgroups
+  if $data22 != 1 then  # vgroups
     print vgroups: $data02
     return -1
   endi
 else
-  if $rows != 3 then 
+  if $rows != 4 then
     return -1
   endi
-  if $data00 == d1 then 
-    if $data02 != 4 then  # vgroups
+  if $data20 == d1 then
+    if $data22 != 4 then  # vgroups
       print vgroups: $data02
       return -1
     endi
   else  
-    if $data12 != 4 then  # vgroups
+    if $data32 != 4 then  # vgroups
       print vgroups: $data12
       return -1
     endi
@@ -173,10 +173,15 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
-#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
+
+system_content echo -n \$BUILD_DIR
+$tmq_sim = $system_content . /build/bin/tmq_sim
+$tsim_cfg = $system_content . /tsim/cfg
+
+#print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
+#system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function, topic_stb_all" -k "group.id:tg2"
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column, topic_stb_function" -k "group.id:tg2"
 print cmd result----> $system_content
 #if $system_content != @{consume success: 20000, 0}@ then
 if $system_content != $expect_result then
@@ -190,8 +195,8 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column, topic_ctb_function, topic_ctb_all" -k "group.id:tg2"
 print cmd result----> $system_content
 #if $system_content != @{consume success: 300, 0}@ then
 if $system_content != $expect_result then
@@ -205,8 +210,8 @@ $expect_result = $expect_result . $totalMsgCntOfmultiTopics
 $expect_result = $expect_result . @, @ 
 $expect_result = $expect_result . 0}
 print expect_result----> $expect_result
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
+print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
+system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column, topic_ntb_all, topic_ntb_function" -k "group.id:tg2"
 print cmd result----> $system_content
 #if $system_content != @{consume success: 30000, 0}@ then
 if $system_content != $expect_result then
@@ -221,4 +226,4 @@ if $loop_cnt == 0 then
 endi
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

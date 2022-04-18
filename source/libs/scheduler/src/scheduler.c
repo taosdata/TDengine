@@ -14,12 +14,12 @@
  */
 
 #include "catalog.h"
+#include "command.h"
 #include "query.h"
 #include "schedulerInt.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
-#include "command.h"
 
 SSchedulerMgmt schMgmt = {0};
 
@@ -68,8 +68,8 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
 }
 
 int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray *pNodeList, const char *sql,
-                              int64_t startTs, bool syncSchedule) {
-  int32_t code = 0;
+                   int64_t startTs, bool syncSchedule) {
+  int32_t  code = 0;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
@@ -140,7 +140,6 @@ _return:
   schFreeJobImpl(pJob);
   SCH_RET(code);
 }
-
 
 void schFreeRpcCtx(SRpcCtx *pCtx) {
   if (NULL == pCtx) {
@@ -1047,12 +1046,12 @@ _return:
 
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp) {
   SCH_TASK_DLOG("got explain rsp, rows:%d, complete:%d", htonl(pRsp->numOfRows), pRsp->completed);
-  
+
   atomic_store_32(&pJob->resNumOfRows, htonl(pRsp->numOfRows));
   atomic_store_ptr(&pJob->resData, pRsp);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCCEED);
-  
+
   schProcessOnDataFetched(pJob);
 
   return TSDB_CODE_SUCCESS;
@@ -1100,6 +1099,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SSubmitRsp *rsp = (SSubmitRsp *)msg;
         SCH_ERR_JRET(rsp->code);
       }
+
       SCH_ERR_JRET(rspCode);
 
       SSubmitRsp *rsp = (SSubmitRsp *)msg;
@@ -1145,7 +1145,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
-      
+
       if (!SCH_IS_EXPLAIN_JOB(pJob)) {
         SCH_TASK_ELOG("invalid msg received for none explain query, msg type:%s", TMSG_INFO(msgType));
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -1179,13 +1179,13 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       if (SCH_IS_EXPLAIN_JOB(pJob)) {
-        if (rsp->completed) {          
+        if (rsp->completed) {
           SRetrieveTableRsp *pRsp = NULL;
           SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
           if (pRsp) {
             SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
           }
-          
+
           return TSDB_CODE_SUCCESS;
         }
 
@@ -1237,23 +1237,24 @@ _return:
 }
 
 int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
-   int32_t s = taosHashGetSize(pTaskList);
-   if (s <= 0) {
-     return TSDB_CODE_SUCCESS;
-   }
-   
-   SSchTask **task = taosHashGet(pTaskList, &taskId, sizeof(taskId));
-   if (NULL == task || NULL == (*task)) {
-     return TSDB_CODE_SUCCESS;
-   }
+  int32_t s = taosHashGetSize(pTaskList);
+  if (s <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-   *pTask = *task;
+  SSchTask **task = taosHashGet(pTaskList, &taskId, sizeof(taskId));
+  if (NULL == task || NULL == (*task)) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-   return TSDB_CODE_SUCCESS;
+  *pTask = *task;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCode) {
-  if (rspCode || NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 || taosArrayGetSize(pTask->execNodes) <= 0) {
+  if (rspCode || NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 ||
+      taosArrayGetSize(pTask->execNodes) <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1262,7 +1263,6 @@ int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCo
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, int32_t rspCode) {
   int32_t                code = 0;
@@ -1281,13 +1281,15 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
     if (TDMT_VND_EXPLAIN_RSP == msgType) {
       schGetTaskFromTaskList(pJob->succTasks, pParam->taskId, &pTask);
     } else {
-      SCH_JOB_ELOG("task not found in execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId, pParam->taskId);
+      SCH_JOB_ELOG("task not found in execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId,
+                   pParam->taskId);
       SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
   }
-  
+
   if (NULL == pTask) {
-    SCH_JOB_ELOG("task not found in execList & succList, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId, pParam->taskId);
+    SCH_JOB_ELOG("task not found in execList & succList, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId,
+                 pParam->taskId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -1298,7 +1300,6 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
-
   if (pJob) {
     schReleaseJob(pParam->refId);
   }
@@ -1444,7 +1445,7 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
 }
 
 int32_t schGenerateTaskCallBackAHandle(SSchJob *pJob, SSchTask *pTask, int32_t msgType, SMsgSendInfo **pMsgSendInfo) {
-  int32_t code = 0;
+  int32_t       code = 0;
   SMsgSendInfo *msgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == msgSendInfo) {
     SCH_TASK_ELOG("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
@@ -1565,7 +1566,7 @@ _return:
 }
 
 int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
-  int32_t                code = 0;
+  int32_t       code = 0;
   SMsgSendInfo *pReadyMsgSendInfo = NULL;
   SMsgSendInfo *pExplainMsgSendInfo = NULL;
 
@@ -1578,7 +1579,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   SCH_ERR_JRET(schGenerateTaskCallBackAHandle(pJob, pTask, TDMT_VND_RES_READY, &pReadyMsgSendInfo));
   SCH_ERR_JRET(schGenerateTaskCallBackAHandle(pJob, pTask, TDMT_VND_EXPLAIN, &pExplainMsgSendInfo));
 
-  int32_t msgType = TDMT_VND_RES_READY_RSP;
+  int32_t    msgType = TDMT_VND_RES_READY_RSP;
   SRpcCtxVal ctxVal = {.val = pReadyMsgSendInfo, .clone = schCloneSMsgSendInfo, .freeFunc = schFreeRpcCtxVal};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
@@ -1599,7 +1600,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
 _return:
 
   taosHashCleanup(pCtx->args);
-  
+
   if (pReadyMsgSendInfo) {
     taosMemoryFreeClear(pReadyMsgSendInfo->param);
     taosMemoryFreeClear(pReadyMsgSendInfo);
@@ -1818,7 +1819,7 @@ _return:
     taosMemoryFreeClear(pMsgSendInfo->param);
     taosMemoryFreeClear(pMsgSendInfo);
   }
-  
+
   SCH_RET(code);
 }
 
@@ -2319,7 +2320,7 @@ _return:
 }
 
 int32_t schExecStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
-                              bool syncSchedule) {
+                             bool syncSchedule) {
   qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
 
   int32_t  code = 0;
@@ -2608,7 +2609,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
     if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
       SCH_ERR_JRET(schFetchFromRemote(pJob));
       tsem_wait(&pJob->rspSem);
-    } 
+    }
   } else {
     SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
     SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
@@ -2670,18 +2671,17 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
 
   for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
-    
+
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
-      SSchTask *pTask = taosArrayGet(pLevel->subTasks, m);
+      SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
       SQuerySubDesc subDesc = {.tid = pTask->taskId, .status = pTask->status};
-      
+
       taosArrayPush(pSub, &subDesc);
     }
   }
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t scheduleCancelJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
@@ -2734,15 +2734,19 @@ void schedulerFreeTaskList(SArray *taskList) {
 void schedulerDestroy(void) {
   if (schMgmt.jobRef) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
+    int64_t refId = 0;
 
     while (pJob) {
+      refId = pJob->refId;
+      if (refId == 0) {
+        break;
+      }
       taosRemoveRef(schMgmt.jobRef, pJob->refId);
 
-      pJob = taosIterateRef(schMgmt.jobRef, pJob->refId);
+      pJob = taosIterateRef(schMgmt.jobRef, refId);
     }
 
     taosCloseRef(schMgmt.jobRef);
     schMgmt.jobRef = 0;
   }
 }
-

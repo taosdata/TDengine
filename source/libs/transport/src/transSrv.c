@@ -147,8 +147,8 @@ static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleR
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
-static void* workerThread(void* arg);
-static void* acceptThread(void* arg);
+static void* transWorkerThread(void* arg);
+static void* transAcceptThread(void* arg);
 
 // add handle loop
 static bool addHandleToWorkloop(void* arg);
@@ -538,7 +538,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   }
 }
 
-void* acceptThread(void* arg) {
+void* transAcceptThread(void* arg) {
   // opt
   setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
@@ -596,7 +596,7 @@ static bool addHandleToAcceptloop(void* arg) {
   }
   return true;
 }
-void* workerThread(void* arg) {
+void* transWorkerThread(void* arg) {
   setThreadName("trans-worker");
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
@@ -686,7 +686,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     if (false == addHandleToWorkloop(thrd)) {
       goto End;
     }
-    int err = taosThreadCreate(&(thrd->thread), NULL, workerThread, (void*)(thrd));
+    int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
     if (err == 0) {
       tDebug("sucess to create worker-thread %d", i);
       // printf("thread %d create\n", i);
@@ -698,7 +698,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   if (false == addHandleToAcceptloop(srv)) {
     goto End;
   }
-  int err = taosThreadCreate(&srv->thread, NULL, acceptThread, (void*)srv);
+  int err = taosThreadCreate(&srv->thread, NULL, transAcceptThread, (void*)srv);
   if (err == 0) {
     tDebug("success to create accept-thread");
   } else {

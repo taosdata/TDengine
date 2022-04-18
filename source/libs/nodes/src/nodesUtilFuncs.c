@@ -84,6 +84,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SIndexOptions));
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return makeNode(type, sizeof(SExplainOptions));
+    case QUERY_NODE_STREAM_OPTIONS:
+      return makeNode(type, sizeof(SStreamOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -146,31 +148,52 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDescribeStmt));
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return makeNode(type, sizeof(SNode));
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-    case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
-    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_COMPACT_STMT:
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+    case QUERY_NODE_DROP_FUNCTION_STMT:
+      break;
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      return makeNode(type, sizeof(SCreateStreamStmt));
+    case QUERY_NODE_DROP_STREAM_STMT:
+      return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_MERGE_VGROUP_STMT:
+    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+    case QUERY_NODE_SYNCDB_STMT:
+      break;
     case QUERY_NODE_SHOW_DNODES_STMT:
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
+    case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
-    case QUERY_NODE_SHOW_APPS_STMT:
-    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
+    case QUERY_NODE_SHOW_TRANS_STMT:
+    case QUERY_NODE_SHOW_SMAS_STMT:
+    case QUERY_NODE_SHOW_CONFIGS_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_VNODES_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_SCORES_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT: 
-    case QUERY_NODE_SHOW_QUERIES_STMT:
-    case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_TOPICS_STMT:
-    case QUERY_NODE_SHOW_VARIABLE_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
-    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_KILL_CONNECTION_STMT:
+    case QUERY_NODE_KILL_QUERY_STMT:
+      return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -676,6 +699,7 @@ int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL != pList->pTail) {
     pList->pTail->pNext = p;
   }
+  p->pPrev = pList->pTail;
   pList->pTail = p;
   ++(pList->length);
   return TSDB_CODE_SUCCESS;

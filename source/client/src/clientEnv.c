@@ -27,13 +27,13 @@
 #include "ttime.h"
 
 #define TSC_VAR_NOT_RELEASE 1
-#define TSC_VAR_RELEASED 0
+#define TSC_VAR_RELEASED    0
 
 SAppInfo appInfo;
-int32_t  clientReqRefPool = -1;
+int32_t  clientReqRefPool  = -1;
 int32_t  clientConnRefPool = -1;
 
-static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
+static TdThreadOnce   tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t      tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
@@ -49,8 +49,8 @@ static void registerRequest(SRequestObj *pRequest) {
   if (pTscObj->pAppInfo) {
     SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
 
-    int32_t total = atomic_add_fetch_64(&pSummary->totalRequests, 1);
-    int32_t currentInst = atomic_add_fetch_64(&pSummary->currentRequests, 1);
+    int32_t total = atomic_add_fetch_64((int64_t*)&pSummary->totalRequests, 1);
+    int32_t currentInst = atomic_add_fetch_64((int64_t*)&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
@@ -63,7 +63,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   STscObj *         pTscObj = pRequest->pTscObj;
   SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
 
-  int32_t currentInst = atomic_sub_fetch_64(&pActivity->currentRequests, 1);
+  int32_t currentInst = atomic_sub_fetch_64((int64_t*)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
@@ -122,7 +122,7 @@ void closeAllRequests(SHashObj *pRequests) {
 void destroyTscObj(void *pObj) {
   STscObj *pTscObj = pObj;
 
-  SClientHbKey connKey = {.tscRid = pTscObj->id, .hbType = pTscObj->connType};
+  SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
@@ -220,7 +220,6 @@ static void doDestroyRequest(void *p) {
   
   taosMemoryFreeClear(pRequest->msgBuf);
   taosMemoryFreeClear(pRequest->sqlstr);
-  taosMemoryFreeClear(pRequest->pInfo);
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
@@ -228,10 +227,6 @@ static void doDestroyRequest(void *p) {
 
   if (pRequest->body.queryJob != 0) {
     schedulerFreeJob(pRequest->body.queryJob);
-  }
-
-  if (pRequest->body.showInfo.pArray != NULL) {
-    taosArrayDestroy(pRequest->body.showInfo.pArray);
   }
 
   taosArrayDestroy(pRequest->tableList);

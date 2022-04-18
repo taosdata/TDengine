@@ -58,9 +58,9 @@ void functionFinalize(SqlFunctionCtx *pCtx) {
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
-    return FUNC_DATA_REQUIRED_NO_NEEDED;
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
   }
-  return FUNC_DATA_REQUIRED_STATIS_NEEDED;
+  return FUNC_DATA_REQUIRED_STATIS_LOAD;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -181,6 +181,10 @@ int32_t sumFunction(SqlFunctionCtx *pCtx) {
 bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SSumRes);
   return true;
+}
+
+EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow){
+  return FUNC_DATA_REQUIRED_STATIS_LOAD;
 }
 
 bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -357,20 +361,15 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
       index = pInput->pColumnDataAgg[0]->maxIndex;
     }
 
-    TSKEY key = TSKEY_INITIAL_VAL;
-    if (pCtx->ptsList != NULL) {
-      // the index is the original position, not the relative position
-      key = pCtx->ptsList[index];
-    }
+    // the index is the original position, not the relative position
+    TSKEY key = (pCtx->ptsList != NULL)? pCtx->ptsList[index]:TSKEY_INITIAL_VAL;
 
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t prev = 0;
+      GET_TYPED_DATA(prev, int64_t, type, buf);
+
       int64_t val = GET_INT64_VAL(tval);
-
-#if defined(_DEBUG_VIEW)
-      qDebug("max value updated according to pre-cal:%d", *data);
-#endif
-
-      if ((*(int64_t*)buf < val) ^ isMinFunc) {
+      if ((prev < val) ^ isMinFunc) {
         *(int64_t*) buf = val;
         for (int32_t i = 0; i < (pCtx)->subsidiaryRes.numOfCols; ++i) {
           SqlFunctionCtx* __ctx = pCtx->subsidiaryRes.pCtx[i];
@@ -383,14 +382,28 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
         }
       }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t prev = 0;
+      GET_TYPED_DATA(prev, uint64_t, type, buf);
+
       uint64_t val = GET_UINT64_VAL(tval);
-      UPDATE_DATA(pCtx, *(uint64_t*)buf, val, numOfElems, isMinFunc, key);
+      if ((prev < val) ^ isMinFunc) {
+        *(uint64_t*) buf = val;
+        for (int32_t i = 0; i < (pCtx)->subsidiaryRes.numOfCols; ++i) {
+          SqlFunctionCtx* __ctx = pCtx->subsidiaryRes.pCtx[i];
+          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
+            __ctx->tag.i = key;
+            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+          }
+
+          __ctx->fpSet.process(__ctx);
+        }
+      }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double  val = GET_DOUBLE_VAL(tval);
-      UPDATE_DATA(pCtx, *(double*)buf, val, numOfElems, isMinFunc, key);
+      UPDATE_DATA(pCtx, *(double*) buf, val, numOfElems, isMinFunc, key);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
       double val = GET_DOUBLE_VAL(tval);
-      UPDATE_DATA(pCtx, *(float*)buf, (float)val, numOfElems, isMinFunc, key);
+      UPDATE_DATA(pCtx, *(float*) buf, val, numOfElems, isMinFunc, key);
     }
 
     return numOfElems;

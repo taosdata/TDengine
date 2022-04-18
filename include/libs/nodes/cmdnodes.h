@@ -267,6 +267,33 @@ typedef struct SDescribeStmt {
   STableMeta* pMeta;
 } SDescribeStmt;
 
+typedef struct SKillStmt {
+  ENodeType type;
+  int32_t targetId;
+} SKillStmt;
+
+typedef struct SStreamOptions {
+  ENodeType type;
+  int8_t triggerType;
+  SNode* pWatermark;
+} SStreamOptions;
+
+typedef struct SCreateStreamStmt {
+  ENodeType type;
+  char streamName[TSDB_TABLE_NAME_LEN];
+  char targetDbName[TSDB_DB_NAME_LEN];
+  char targetTabName[TSDB_TABLE_NAME_LEN];
+  bool ignoreExists;
+  SStreamOptions* pOptions;
+  SNode* pQuery;
+} SCreateStreamStmt;
+
+typedef struct SDropStreamStmt {
+  ENodeType type;
+  char streamName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropStreamStmt;
+
 #ifdef __cplusplus
 }
 #endif

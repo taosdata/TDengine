@@ -29,7 +29,7 @@ endi
 print =============== create database
 sql create database d1
 sql show databases
-if $rows != 5 then 
+if $rows != 6 then
   return -1
 endi
 
@@ -205,7 +205,8 @@ endi
 print =============== query data from st
 print ==============select * against super will cause crash.
 sql select ts from st
-if $rows != 21 then 
+if $rows != 21 then
+  print expect 21, actual $rows
   return -1
 endi
 

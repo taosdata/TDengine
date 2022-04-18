@@ -223,10 +223,10 @@ DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
 DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
 
-// will be removed in 3.0
+#if 1
 DLL_EXPORT tmq_t *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+#endif
 
-// will replace last one
 DLL_EXPORT tmq_t *tmq_consumer_new1(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);

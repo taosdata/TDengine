@@ -293,6 +293,7 @@ tags_def(A) ::= TAGS NK_LP column_def_list(B) NK_RP.                            
 table_options(A) ::= .                                                            { A = createTableOptions(pCxt); }
 table_options(A) ::= table_options(B) COMMENT NK_STRING(C).                       { ((STableOptions*)B)->pComments = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C); A = B; }
 table_options(A) ::= table_options(B) KEEP integer_list(C).                       { ((STableOptions*)B)->pKeep = C; A = B; }
+table_options(A) ::= table_options(B) KEEP variable_list(C).                      { ((STableOptions*)B)->pKeep = C; A = B; }
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { ((STableOptions*)B)->pTtl = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C); A = B; }
 table_options(A) ::= table_options(B) SMA NK_LP col_name_list(C) NK_RP.           { ((STableOptions*)B)->pSma = C; A = B; }
 table_options(A) ::= table_options(B) ROLLUP NK_LP func_name_list(C) NK_RP.       { ((STableOptions*)B)->pFuncs = C; A = B; }
@@ -306,6 +307,7 @@ alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).        
 %destructor alter_table_option                                                    { }
 alter_table_option(A) ::= COMMENT NK_STRING(B).                                   { A.type = TABLE_OPTION_COMMENT; A.pVal = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 alter_table_option(A) ::= KEEP integer_list(B).                                   { A.type = TABLE_OPTION_KEEP; A.pList = B; }
+alter_table_option(A) ::= KEEP variable_list(B).                                  { A.type = TABLE_OPTION_KEEP; A.pList = B; }
 alter_table_option(A) ::= TTL NK_INTEGER(B).                                      { A.type = TABLE_OPTION_TTL; A.pVal = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
 
 %type col_name_list                                                               { SNodeList* }
@@ -424,8 +426,17 @@ bufsize_opt(A) ::= .                                                            
 bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = strtol(B.z, NULL, 10); }
 
 /************************************************ create/drop stream **************************************************/
-cmd ::= CREATE STREAM stream_name(A) INTO table_name(B) AS query_expression(C).   { pCxt->pRootNode = createCreateStreamStmt(pCxt, &A, &B, C); }
-cmd ::= DROP STREAM stream_name(A).                                               { pCxt->pRootNode = createDropStreamStmt(pCxt, &A); }
+cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A)
+  stream_options(B) into_opt(C) AS query_expression(D).                           { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
+cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
+
+into_opt(A) ::= .                                                                 { A = NULL; }
+into_opt(A) ::= INTO full_table_name(B).                                          { A = B; }
+
+stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
+stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE.                          { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_AT_ONCE; A = B; }
+stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE.                     { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_WINDOW_CLOSE; A = B; }
+stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
 
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
@@ -455,6 +466,7 @@ literal(A) ::= NK_BOOL(B).                                                      
 literal(A) ::= TIMESTAMP(B) NK_STRING(C).                                         { A = createRawExprNodeExt(pCxt, &B, &C, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &C)); }
 literal(A) ::= duration_literal(B).                                               { A = B; }
 literal(A) ::= NULL(B).                                                           { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_NULL, NULL)); }
+literal(A) ::= NK_QUESTION(B).                                                    { A = createRawExprNode(pCxt, &B, createPlaceholderValueNode(pCxt)); }
 
 duration_literal(A) ::= NK_VARIABLE(B).                                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
@@ -501,8 +513,6 @@ column_name(A) ::= NK_ID(B).                                                    
 %type function_name                                                               { SToken }
 %destructor function_name                                                         { }
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
-function_name(A) ::= FIRST(B).                                                    { A = B; }
-function_name(A) ::= LAST(B).                                                     { A = B; }
 
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { }
@@ -530,18 +540,9 @@ stream_name(A) ::= NK_ID(B).                                                    
 
 /************************************************ expression **********************************************************/
 expression(A) ::= literal(B).                                                     { A = B; }
-//expression(A) ::= NK_QUESTION(B).                                                 { A = B; }
 expression(A) ::= pseudo_column(B).                                               { A = B; }
 expression(A) ::= column_reference(B).                                            { A = B; }
-expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).             { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
-expression(A) ::= function_name(B) NK_LP NK_STAR(C) NK_RP(D).                     { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, createNodeList(pCxt, createColumnNode(pCxt, NULL, &C)))); }
-//for CAST function CAST(expr AS type_name)
-expression(A) ::= function_name(B) NK_LP expression(C) AS type_name(D) NK_RP(E).  {
-                                                                                    SNodeList *p = createNodeList(pCxt, releaseRawExprNode(pCxt, C));
-                                                                                    p = addValueNodeFromTypeToList(pCxt, D, p);
-                                                                                    A = createRawExprNodeExt(pCxt, &B, &E, createFunctionNode(pCxt, &B, p));
-                                                                                  }
-//expression(A) ::= cast_expression(B).                                             { A = B; }
+expression(A) ::= function_expression(B).                                         { A = B; }
 //expression(A) ::= case_expression(B).                                             { A = B; }
 expression(A) ::= subquery(B).                                                    { A = B; }
 expression(A) ::= NK_LP(B) expression(C) NK_RP(D).                                { A = createRawExprNodeExt(pCxt, &B, &D, releaseRawExprNode(pCxt, C)); }
@@ -578,6 +579,10 @@ expression(A) ::= expression(B) NK_REM expression(C).                           
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, C);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MOD, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
                                                                                   }
+expression(A) ::= column_reference(B) NK_ARROW NK_STRING(C).                      {
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createOperatorNode(pCxt, OP_TYPE_JSON_GET_VALUE, releaseRawExprNode(pCxt, B), createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C))); 
+                                                                                  }
 
 %type expression_list                                                             { SNodeList* }
 %destructor expression_list                                                       { nodesDestroyList($$); }
@@ -587,14 +592,44 @@ expression_list(A) ::= expression_list(B) NK_COMMA expression(C).               
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
-pseudo_column(A) ::=  NOW(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  ROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  TBNAME(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  QSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  QENDTS(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  WSTARTTS(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  WENDTS(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::=  WDURATION(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= ROWTS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= TBNAME(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= QSTARTTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= QENDTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= WSTARTTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= WENDTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= WDURATION(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+
+function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::= CAST(B) NK_LP expression(C) AS type_name(D) NK_RP(E).  { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+function_expression(A) ::= noarg_func(B) NK_LP NK_RP(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNodeNoArg(pCxt, &B)); }
+
+%type noarg_func                                                                  { SToken }
+%destructor noarg_func                                                            { }
+noarg_func(A) ::= NOW(B).                                                         { A = B; }
+noarg_func(A) ::= TODAY(B).                                                       { A = B; }
+noarg_func(A) ::= TIMEZONE(B).                                                    { A = B; }
+
+%type star_func                                                                   { SToken }
+%destructor star_func                                                             { }
+star_func(A) ::= COUNT(B).                                                        { A = B; }
+star_func(A) ::= FIRST(B).                                                        { A = B; }
+star_func(A) ::= LAST(B).                                                         { A = B; }
+star_func(A) ::= LAST_ROW(B).                                                     { A = B; }
+
+%type star_func_para_list                                                         { SNodeList* }
+%destructor star_func_para_list                                                   { nodesDestroyList($$); }
+star_func_para_list(A) ::= NK_STAR(B).                                            { A = createNodeList(pCxt, createColumnNode(pCxt, NULL, &B)); }
+star_func_para_list(A) ::= other_para_list(B).                                    { A = B; }
+
+%type other_para_list                                                             { SNodeList* }
+%destructor other_para_list                                                       { nodesDestroyList($$); }
+other_para_list(A) ::= star_func_para(B).                                         { A = createNodeList(pCxt, B); }
+other_para_list(A) ::= other_para_list(B) NK_COMMA star_func_para(C).             { A = addNodeToList(pCxt, B, C); }
+
+star_func_para(A) ::= expression(B).                                              { A = releaseRawExprNode(pCxt, B); }
+star_func_para(A) ::= table_name(B) NK_DOT NK_STAR(C).                            { A = createColumnNode(pCxt, &B, &C); }
 
 /************************************************ predicate ***********************************************************/
 predicate(A) ::= expression(B) compare_op(C) expression(D).                       {
@@ -639,6 +674,7 @@ compare_op(A) ::= LIKE.                                                         
 compare_op(A) ::= NOT LIKE.                                                       { A = OP_TYPE_NOT_LIKE; }
 compare_op(A) ::= MATCH.                                                          { A = OP_TYPE_MATCH; }
 compare_op(A) ::= NMATCH.                                                         { A = OP_TYPE_NMATCH; }
+compare_op(A) ::= CONTAINS.                                                       { A = OP_TYPE_JSON_CONTAINS; }
 
 %type in_op                                                                       { EOperatorType }
 %destructor in_op                                                                 { }

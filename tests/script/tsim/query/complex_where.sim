@@ -25,7 +25,7 @@ sql connect
 print =============== create database
 sql create database db
 sql show databases
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 
@@ -688,4 +688,4 @@ if $rows != 1 then
     return -1
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

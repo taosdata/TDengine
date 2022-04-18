@@ -41,8 +41,15 @@ endi
 #        -m      startTimestamp, default is 1640966400000 [2022-01-01 00:00:00]
 #        -g      showMsgFlag, default is 0
 #        
-print cmd===> system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
-system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
+
+system_content echo -n \$BUILD_DIR
+$tmq_demo = $system_content . /build/bin/tmq_demo
+system_content echo -n \$SIM_DIR
+$tsim_cfg = $system_content . /tsim/cfg
+$sim_wal = $system_content . /dnode1/data/vnode/vnode4/wal
+
+print cmd===> system_content $tmq_demo -sim 1 -b 100 -c $tsim_cfg -w $sim_wal
+system_content $tmq_demo -sim 1 -b 100 -c $tsim_cfg -w $sim_wal
 print cmd result----> $system_content
 if $system_content != @{consume success: 100}@ then
   return -1
@@ -50,10 +57,10 @@ endi
 
 sql show databases
 print ===> $rows $data00 $data01 $data02 $data03
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
-if $data00 != tmqdb then 
+if $data20 != tmqdb then
   return -1
 endi
 
@@ -76,4 +83,4 @@ if $data00 != 10000 then
   return -1
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

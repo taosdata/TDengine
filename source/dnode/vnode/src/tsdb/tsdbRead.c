@@ -13,18 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "talgo.h"
-#include "tcompare.h"
-#include "tdatablock.h"
-#include "tdataformat.h"
-#include "texception.h"
-#include "vnodeInt.h"
-
-#include "filter.h"
-#include "taosdef.h"
-#include "tlosertree.h"
-#include "tmsg.h"
 #include "vnodeInt.h"
 
 #define EXTRA_BYTES                2
@@ -111,10 +99,10 @@ typedef struct SIOCostSummary {
 
 typedef struct STsdbReadHandle {
   STsdb*        pTsdb;
-  SQueryFilePos cur;  // current position
+  SQueryFilePos cur;       // current position
   int16_t       order;
-  STimeWindow   window;  // the primary query time window that applies to all queries
-  SDataStatis*  statis;  // query level statistics, only one table block statistics info exists at any time
+  STimeWindow   window;    // the primary query time window that applies to all queries
+  SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
   int32_t       numOfBlocks;
   SArray*       pColumns;  // column list, SColumnInfoData array list
   bool          locateStart;
@@ -326,7 +314,7 @@ static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
   STsdbCfg* pCfg = &pTsdb->config;
 
   int64_t now = taosGetTimestamp(pCfg->precision);
-  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep) + 1;  // needs to add one tick
+  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
 }
 
 static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, STsdbQueryCond* pCond) {
@@ -389,7 +377,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
 
   if (pCond->numOfCols > 0) {
     // allocate buffer in order to load data blocks from file
-    pReadHandle->statis = taosMemoryCalloc(pCond->numOfCols, sizeof(SDataStatis));
+    pReadHandle->statis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
     if (pReadHandle->statis == NULL) {
       goto _end;
     }
@@ -416,7 +404,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
     pReadHandle->defaultLoadColumn = getDefaultLoadColumns(pReadHandle, true);
   }
 
-  pReadHandle->pDataCols = tdNewDataCols(1000, pReadHandle->pTsdb->config.maxRowsPerFileBlock);
+  pReadHandle->pDataCols = tdNewDataCols(1000, pReadHandle->pTsdb->config.maxRows);
   if (pReadHandle->pDataCols == NULL) {
     tsdbError("%p failed to malloc buf for pDataCols, %s", pReadHandle, pReadHandle->idStr);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -489,7 +477,7 @@ void tsdbResetQueryHandle(tsdbReaderT queryHandle, STsdbQueryCond* pCond) {
   }
 
   // allocate buffer in order to load data blocks from file
-  memset(pTsdbReadHandle->statis, 0, sizeof(SDataStatis));
+  memset(pTsdbReadHandle->statis, 0, sizeof(SColumnDataAgg));
 
   tsdbInitDataBlockLoadInfo(&pTsdbReadHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pTsdbReadHandle->compBlockLoadInfo);
@@ -517,7 +505,7 @@ void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, STsdbQueryCond* pC
   }
 
   // allocate buffer in order to load data blocks from file
-  memset(pTsdbReadHandle->statis, 0, sizeof(SDataStatis));
+  memset(pTsdbReadHandle->statis, 0, sizeof(SColumnDataAgg));
 
   tsdbInitDataBlockLoadInfo(&pTsdbReadHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pTsdbReadHandle->compBlockLoadInfo);
@@ -998,7 +986,7 @@ static int32_t loadBlockInfo(STsdbReadHandle* pTsdbReadHandle, int32_t index, in
   pCheckInfo->numOfBlocks = 0;
 
   STable table = {.uid = pCheckInfo->tableId, .tid = pCheckInfo->tableId};
-  table.pSchema = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, pCheckInfo->tableId, 0);
+  table.pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 0);
 
   if (tsdbSetReadTable(&pTsdbReadHandle->rhelper, &table) != TSDB_CODE_SUCCESS) {
     code = terrno;
@@ -1103,7 +1091,7 @@ static int32_t doLoadFileDataBlock(STsdbReadHandle* pTsdbReadHandle, SBlock* pBl
                                    int32_t slotIndex) {
   int64_t st = taosGetTimestampUs();
 
-  STSchema* pSchema = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, pCheckInfo->tableId, 0);
+  STSchema* pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 0);
   int32_t   code = tdInitDataCols(pTsdbReadHandle->pDataCols, pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p failed to malloc buf for pDataCols, %s", pTsdbReadHandle, pTsdbReadHandle->idStr);
@@ -1495,7 +1483,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    pSchema1 = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, uid, TD_ROW_SVER(row1));
+    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
   }
 
   if (isRow1DataRow) {
@@ -1508,7 +1496,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
   if (row2) {
     isRow2DataRow = TD_IS_TP_ROW(row2);
     if (pSchema2 == NULL) {
-      pSchema2 = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, uid, TD_ROW_SVER(row2));
+      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
     }
     if (isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -2211,7 +2199,7 @@ static int32_t getFirstFileDataBlock(STsdbReadHandle* pTsdbReadHandle, bool* exi
       break;
     }
 
-    tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, pTsdbReadHandle->pFileGroup->fid, &win.skey, &win.ekey);
+    tsdbGetFidKeyRange(pCfg->days, pCfg->precision, pTsdbReadHandle->pFileGroup->fid, &win.skey, &win.ekey);
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pTsdbReadHandle->order) && win.skey > pTsdbReadHandle->window.ekey) ||
@@ -2307,7 +2295,7 @@ int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDistInfo*
   // find the start data block in file
   pTsdbReadHandle->locateStart = true;
   STsdbCfg* pCfg = &pTsdbReadHandle->pTsdb->config;
-  int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
+  int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
 
   tsdbRLockFS(pFileHandle);
   tsdbFSIterInit(&pTsdbReadHandle->fileIter, pFileHandle, pTsdbReadHandle->order);
@@ -2333,7 +2321,7 @@ int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDistInfo*
       break;
     }
 
-    tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, pTsdbReadHandle->pFileGroup->fid, &win.skey, &win.ekey);
+    tsdbGetFidKeyRange(pCfg->days, pCfg->precision, pTsdbReadHandle->pFileGroup->fid, &win.skey, &win.ekey);
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ascTraverse && win.skey > pTsdbReadHandle->window.ekey) ||
@@ -2408,7 +2396,7 @@ static int32_t getDataBlocksInFiles(STsdbReadHandle* pTsdbReadHandle, bool* exis
   if (!pTsdbReadHandle->locateStart) {
     pTsdbReadHandle->locateStart = true;
     STsdbCfg* pCfg = &pTsdbReadHandle->pTsdb->config;
-    int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
+    int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
 
     tsdbRLockFS(pFileHandle);
     tsdbFSIterInit(&pTsdbReadHandle->fileIter, pFileHandle, pTsdbReadHandle->order);
@@ -2526,7 +2514,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != TD_ROW_SVER(row)) {
-      pSchema = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, pCheckInfo->tableId, 0);
+      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 0);
       rv = TD_ROW_SVER(row);
     }
     mergeTwoRowFromMem(pTsdbReadHandle, maxRowsToRead, numOfRows, row, NULL, numOfCols, pCheckInfo->tableId, pSchema,
@@ -3234,7 +3222,7 @@ void tsdbRetrieveDataBlockInfo(tsdbReaderT* pTsdbReadHandle, SDataBlockInfo* pDa
 /*
  * return null for mixed data block, if not a complete file data block, the statistics value will always return NULL
  */
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStatis** pBlockStatis) {
+int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SColumnDataAgg** pBlockStatis) {
   STsdbReadHandle* pHandle = (STsdbReadHandle*)pTsdbReadHandle;
 
   SQueryFilePos* c = &pHandle->cur;
@@ -3264,7 +3252,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
 
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
-  memset(pHandle->statis, 0, numOfCols * sizeof(SDataStatis));
+  memset(pHandle->statis, 0, numOfCols * sizeof(SColumnDataAgg));
   for (int32_t i = 0; i < numOfCols; ++i) {
     pHandle->statis[i].colId = colIds[i];
   }
@@ -3272,7 +3260,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
   tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols, pBlockInfo->compBlock);
 
   // always load the first primary timestamp column data
-  SDataStatis* pPrimaryColStatis = &pHandle->statis[0];
+  SColumnDataAgg* pPrimaryColStatis = &pHandle->statis[0];
   assert(pPrimaryColStatis->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
 
   pPrimaryColStatis->numOfNull = 0;
