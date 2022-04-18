@@ -885,7 +885,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   return TSDB_CODE_SUCCESS;
 }
 
-static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks, int16_t timePrec, int32_t* len, char* tmpTokenBuf) {
+static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks, int16_t timePrec, bool* gotRow, char* tmpTokenBuf) {
   SParsedDataColInfo* spd = &pDataBlocks->boundColumnInfo;
   SRowBuilder*        pBuilder = &pDataBlocks->rowBuilder;
   STSRow*             row = (STSRow*)(pDataBlocks->pData + pDataBlocks->size);  // skip the SSubmitBlk header
@@ -937,6 +937,8 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
         }
       }
     }
+
+    *gotRow = true;
   }
 
   // *len = pBuilder->extendedRowSize;
@@ -967,19 +969,23 @@ static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlo
       maxRows = tSize;
     }
 
-    int32_t len = 0;
-    CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &len, tmpTokenBuf));
-    pDataBlock->size += extendedRowSize; //len;
+    bool gotRow = false;
+    CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &gotRow, tmpTokenBuf));
+    if (gotRow) {
+      pDataBlock->size += extendedRowSize; //len;
+    }
 
     NEXT_TOKEN(pCxt->pSql, sToken);
     if (TK_NK_RP != sToken.type) {
       return buildSyntaxErrMsg(&pCxt->msg, ") expected", sToken.z);
     }
 
-    (*numOfRows)++;
+    if (gotRow) {
+      (*numOfRows)++;
+    }
   }
 
-  if (0 == (*numOfRows)) {
+  if (0 == (*numOfRows) && (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
     return  buildSyntaxErrMsg(&pCxt->msg, "no any data points", NULL);
   }
   return TSDB_CODE_SUCCESS;
@@ -1050,8 +1056,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   
   // for each table
   while (1) {
-    destroyInsertParseContextForTable(pCxt);
-
     SToken sToken;
     char *tbName = NULL;
 
@@ -1060,7 +1064,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     // no data in the sql string anymore.
     if (sToken.n == 0) {
-      if (0 == pCxt->totalNum) {
+      if (0 == pCxt->totalNum && (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
         return buildInvalidOperationMsg(&pCxt->msg, "no data in sql");;
       }
       break;
@@ -1069,6 +1073,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && tbNum > 0) {
       return buildInvalidOperationMsg(&pCxt->msg, "single table allowed in one stmt");;
     }
+
+    destroyInsertParseContextForTable(pCxt);
 
     if (TK_NK_QUESTION == sToken.type) {
       if (pCxt->pStmtCb) {
@@ -1105,7 +1111,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     if (TK_VALUES == sToken.type) {
       // pSql -> (field1_value, ...) [(field1_value2, ...) ...]
       CHECK_CODE(parseValuesClause(pCxt, dataBuf));
-      pCxt->pOutput->insertType = TSDB_QUERY_TYPE_INSERT;
+      TSDB_QUERY_SET_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_INSERT);
 
       tbNum++;
       continue;

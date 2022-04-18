@@ -33,6 +33,7 @@ typedef enum {
   STMT_INIT = 1,
   STMT_PREPARE,
   STMT_SETTBNAME,
+  STMT_SETTAGS,
   STMT_FETCH_TAG_FIELDS,
   STMT_FETCH_COL_FIELDS,
   STMT_BIND,
@@ -86,25 +87,6 @@ typedef struct STscStmt {
 #define STMT_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define STMT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define STMT_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
-
-#define STMT_SWITCH_STATUS(_stmt, _newstatus, _errcode)               \
-  do {                                                                \
-    switch (_newstatus) {                                             \
-      case STMT_INIT:                                                 \
-        break;                                                        \
-      case STMT_PREPARE:                                              \
-        if ((_stmt)->sql.status != STMT_INIT) STMT_ERR_RET(_errcode); \
-        break;                                                        \
-      case STMT_SETTBNAME:                                            \
-        break;                                                        \
-      default:                                                        \
-        STMT_ERR_RET(_errcode);                                       \
-        break;                                                        \
-    }                                                                 \
-                                                                      \
-    (_stmt)->sql.status = _newstatus;                                 \
-  } while (0)
-
 
 TAOS_STMT *stmtInit(TAOS *taos);
 int stmtClose(TAOS_STMT *stmt);

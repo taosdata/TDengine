@@ -19,6 +19,10 @@ void taosMsleep(int mseconds);
 int32_t taosGetTimeOfDay(struct timeval *tv) {
   return gettimeofday(tv, NULL);
 }
+void *taosMemoryMalloc(int32_t size) {
+  return malloc(size);
+}
+
 void *taosMemoryCalloc(int32_t num, int32_t size) {
   return calloc(num, size);
 }
@@ -33,6 +37,51 @@ static int64_t taosGetTimestampUs() {
   taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
 }
+
+
+int stmt_allcol_func1(TAOS_STMT *stmt) {
+  struct {
+      int64_t ts;
+      int32_t v4;
+  } v = {0};
+  int32_t len[10] = {sizeof(v.ts), sizeof(v.v4)};
+  
+  TAOS_BIND_v2 params[10];
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].buffer_length = sizeof(v.ts);
+  params[0].buffer = &v.ts;
+  params[0].length = &len[0];
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_TINYINT;
+  params[1].buffer_length = sizeof(v.v4);
+  params[1].buffer = &v.v4;
+  params[1].length = &len[1];
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  char *sql = "insert into m0 values(?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+  }
+  
+
+  v.ts = 1591060628000;
+  v.v4 = 111;
+
+  taos_stmt_bind_param(stmt, params);
+  taos_stmt_add_batch(stmt);
+
+  if (taos_stmt_execute(stmt) != 0) {
+    printf("failed to execute insert statement, error:%s.\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  return 0;
+}
+
 
 int stmt_scol_func1(TAOS_STMT *stmt) {
   struct {
@@ -95,7 +144,7 @@ int stmt_scol_func1(TAOS_STMT *stmt) {
   char *sql = "insert into ? (ts, v1,v2,f4,bin,bin2) values(?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
+    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
   }
   
   for (int zz = 0; zz < 10; zz++) {
@@ -103,7 +152,7 @@ int stmt_scol_func1(TAOS_STMT *stmt) {
     sprintf(buf, "m%d", zz);
     code = taos_stmt_set_tbname(stmt, buf);
     if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
+      printf("failed to execute taos_stmt_set_tbname. error:%s\n", taos_stmt_errstr(stmt));
       exit(1);
     }  
     v.ts = 1591060628000 + zz * 10;
@@ -127,14 +176,13 @@ int stmt_scol_func1(TAOS_STMT *stmt) {
   }
 
   if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
+    printf("failed to execute insert statement, error:%s.\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
   return 0;
 }
 
-#if 0
 
 int stmt_scol_func2(TAOS_STMT *stmt) {
   struct {
@@ -150,42 +198,48 @@ int stmt_scol_func2(TAOS_STMT *stmt) {
       char blob[80];
   } v = {0};
   
-  TAOS_BIND params[10];
+  TAOS_BIND_v2 params[10];
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[0].buffer_length = sizeof(v.ts);
   params[0].buffer = &v.ts;
   params[0].length = &params[0].buffer_length;
   params[0].is_null = NULL;
+  params[0].num = 1;
 
   params[1].buffer_type = TSDB_DATA_TYPE_TINYINT;
   params[1].buffer_length = sizeof(v.v1);
   params[1].buffer = &v.v1;
   params[1].length = &params[1].buffer_length;
   params[1].is_null = NULL;
+  params[1].num = 1;
 
   params[2].buffer_type = TSDB_DATA_TYPE_SMALLINT;
   params[2].buffer_length = sizeof(v.v2);
   params[2].buffer = &v.v2;
   params[2].length = &params[2].buffer_length;
   params[2].is_null = NULL;
+  params[2].num = 1;
 
   params[3].buffer_type = TSDB_DATA_TYPE_FLOAT;
   params[3].buffer_length = sizeof(v.f4);
   params[3].buffer = &v.f4;
   params[3].length = &params[3].buffer_length;
   params[3].is_null = NULL;
+  params[3].num = 1;
 
   params[4].buffer_type = TSDB_DATA_TYPE_BINARY;
   params[4].buffer_length = sizeof(v.bin);
   params[4].buffer = v.bin;
   params[4].length = &params[4].buffer_length;
   params[4].is_null = NULL;
+  params[4].num = 1;
 
   params[5].buffer_type = TSDB_DATA_TYPE_BINARY;
   params[5].buffer_length = sizeof(v.bin);
   params[5].buffer = v.bin;
   params[5].length = &params[5].buffer_length;
   params[5].is_null = NULL;
+  params[5].num = 1;
 
   char *sql = "insert into m0 (ts, v1,v2,f4,bin,bin2) values(?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -243,7 +297,7 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -311,7 +365,7 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
     v.ts[i] = tts + i;
   }
 
-  unsigned long long starttime = getCurrentTime();
+  unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? (ts, v1,v2,f4,bin,bin2) values(?,?,?,?,?,?)";
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -341,7 +395,7 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
     ++id;
   }
 
-  unsigned long long endtime = getCurrentTime();
+  unsigned long long endtime = taosGetTimestampUs();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
   taosMemoryFree(v.ts);  
@@ -353,6 +407,7 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
   return 0;
 }
 
+#if 0
 
 
 //10 tables 10 records single column bind
@@ -4516,11 +4571,33 @@ void* runcase(void *par) {
 
   (void)idx;
 
+#if 0
+    prepare(taos, 0, 1);
+  
+    stmt = taos_stmt_init(taos);
+    if (NULL == stmt) {
+      printf("taos_stmt_init failed\n");
+      exit(1);
+    }
+  
+    printf("1t+1records start\n");
+    stmt_allcol_func1(stmt);
+    printf("1t+1records end\n");
+    printf("check result start\n");
+    check_result(taos, "m0", 1, 1);
+    printf("check result end\n");
+    taos_stmt_close(stmt);
+#endif
 
-#if 1
+
+#if 0
     prepare(taos, 1, 1);
   
     stmt = taos_stmt_init(taos);
+    if (NULL == stmt) {
+      printf("taos_stmt_init failed\n");
+      exit(1);
+    }
   
     printf("10t+10records+specifycol start\n");
     stmt_scol_func1(stmt);
@@ -4540,8 +4617,10 @@ void* runcase(void *par) {
     taos_stmt_close(stmt);
 #endif
 
+
+
+
 #if 0
-#if 1
     prepare(taos, 1, 1);
   
     stmt = taos_stmt_init(taos);
@@ -4554,6 +4633,7 @@ void* runcase(void *par) {
     printf("check result end\n");
     taos_stmt_close(stmt);
 #endif
+
 
 
 #if 1  
@@ -4574,6 +4654,8 @@ void* runcase(void *par) {
   taos_stmt_close(stmt);
 
 #endif
+
+#if 0
 
 #if 1  
   prepare(taos, 1, 1);

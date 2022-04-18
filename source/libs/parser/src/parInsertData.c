@@ -572,14 +572,20 @@ int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo
 }
 
 
-void qResetStmtDataBlock(void* block, bool freeData) {
+int32_t qResetStmtDataBlock(void* block, bool keepBuf) {
   STableDataBlocks* pBlock = (STableDataBlocks*)block;
 
-  if (freeData) {
-    taosMemoryFree(pBlock->pData);
+  if (keepBuf) {
+    taosMemoryFreeClear(pBlock->pData);
+    pBlock->pData = taosMemoryMalloc(TSDB_PAYLOAD_SIZE);
+    if (NULL == pBlock->pData) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memset(pBlock->pData, 0, sizeof(SSubmitBlk));
+  } else {
+    pBlock->pData  = NULL;
   }
-
-  pBlock->pData    = NULL;
+  
   pBlock->ordered  = true;
   pBlock->prevTS   = INT64_MIN;
   pBlock->size     = sizeof(SSubmitBlk);
@@ -589,6 +595,8 @@ void qResetStmtDataBlock(void* block, bool freeData) {
   pBlock->headerSize = pBlock->size;
   
   memset(&pBlock->rowBuilder, 0, sizeof(pBlock->rowBuilder));
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -601,9 +609,7 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc) {
   memcpy(*pDst, pSrc, sizeof(STableDataBlocks));
   ((STableDataBlocks*)(*pDst))->cloned = true;
   
-  qResetStmtDataBlock(*pDst, false);
-
-  return TSDB_CODE_SUCCESS;
+  return qResetStmtDataBlock(*pDst, false);
 }
 
 int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc) {
@@ -618,6 +624,8 @@ int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc) {
     qFreeStmtDataBlock(pBlock);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  memset(pBlock->pData, 0, sizeof(SSubmitBlk));
 
   return TSDB_CODE_SUCCESS;
 }

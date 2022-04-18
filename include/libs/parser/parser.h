@@ -82,7 +82,7 @@ void qDestroyQuery(SQuery* pQueryNode);
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
-void    qResetStmtDataBlock(void* pBlock, bool freeData);
+int32_t qResetStmtDataBlock(void* block, bool keepBuf);
 int32_t qCloneStmtDataBlock(void** pDst, void* pSrc);
 void    qFreeStmtDataBlock(void* pDataBlock);
 int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc);
