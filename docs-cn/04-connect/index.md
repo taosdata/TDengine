@@ -4,19 +4,18 @@ title: 建立连接
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import ConnRest from "./_connect_restful.mdx";
 import ConnJava from "./_connect_java.mdx";
 import ConnGo from "./_connect_go.mdx";
 import ConnRust from "./_connect_rust.mdx";
 import ConnNode from "./_connect_node.mdx";
-import ConnPythonNative from "./_connect_python_native.mdx";
-import ConnCSNative from "./_connect_cs_native.mdx";
+import ConnPythonNative from "./_connect_python.mdx";
+import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 import InstallOnWindows from "../14-reference/03-connector/_linux_install.mdx";
 import InstallOnLinux from "../14-reference/03-connector/_windows_install.mdx";
-import VerifyWindows from "../14-reference/03-connector/_verify_linux.mdx";
-import VerifyLinux from "../14-reference/03-connector/_verify_windows.mdx";
+import VerifyLinux from "../14-reference/03-connector/_verify_linux.mdx";
+import VerifyWindows from "../14-reference/03-connector/_verify_windows.mdx";
 
 TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [RESTful API](https://docs.taosdata.com/reference/restful-api/)。除 RESTful 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
 
@@ -33,7 +32,7 @@ TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过�
 2. 使用本地连接可以体验 TDengine 的全部功能，如[原生接口写入](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
 
 
-## 安装客户端驱动taosc
+## 安装客户端驱动 taosc
 
 如果选择本地连接，而且应用程序不在 TDengine 同一台服务器上运行，你需要先安装客户端驱动，否则可以跳过此一步。为避免客户端驱动和服务端不兼容，请使用一致的版本。
 
@@ -177,6 +176,12 @@ dotnet add package TDengine.Connector
 ```R
 install.packages("RJDBC")
 ```
+</TabItem>
+<TabItem label="C" value="c">
+
+如果已经安装了 TDengine 服务端软件或 TDengine 客户端驱动 taosc， 那么已经安装了 C 连接器，无需额外操作。
+<br/>
+
 </TabItem>
 </Tabs>
 
