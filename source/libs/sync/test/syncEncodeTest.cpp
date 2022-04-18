@@ -102,7 +102,7 @@ SRpcMsg *step0() {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true);
+  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
@@ -159,23 +159,23 @@ int main(int argc, char **argv) {
 
   // step0
   SRpcMsg *pMsg0 = step0();
-  syncRpcMsgPrint2((char *)"==step0==", pMsg0);
+  syncRpcMsgLog2((char *)"==step0==", pMsg0);
 
   // step1
   SyncClientRequest *pMsg1 = step1(pMsg0);
-  syncClientRequestPrint2((char *)"==step1==", pMsg1);
+  syncClientRequestLog2((char *)"==step1==", pMsg1);
 
   // step2
   SRpcMsg *pMsg2 = step2(pMsg1);
-  syncRpcMsgPrint2((char *)"==step2==", pMsg2);
+  syncRpcMsgLog2((char *)"==step2==", pMsg2);
 
   // step3
   SyncClientRequest *pMsg3 = step3(pMsg2);
-  syncClientRequestPrint2((char *)"==step3==", pMsg3);
+  syncClientRequestLog2((char *)"==step3==", pMsg3);
 
   // step4
   SSyncRaftEntry *pMsg4 = step4(pMsg3);
-  syncEntryPrint2((char *)"==step4==", pMsg4);
+  syncEntryLog2((char *)"==step4==", pMsg4);
 
   // log, relog
   SSyncNode *pSyncNode = syncNodeInit();
@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
   SSyncRaftEntry *pEntry = pMsg4;
   pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
   SSyncRaftEntry *pEntry2 = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, pEntry->index);
-  syncEntryPrint2((char *)"==pEntry2==", pEntry2);
+  syncEntryLog2((char *)"==pEntry2==", pEntry2);
 
   // step5
   uint32_t len;
@@ -194,11 +194,11 @@ int main(int argc, char **argv) {
 
   // step6
   SSyncRaftEntry *pMsg6 = step6(pMsg5, len);
-  syncEntryPrint2((char *)"==step6==", pMsg6);
+  syncEntryLog2((char *)"==step6==", pMsg6);
 
   // step7
   SRpcMsg *pMsg7 = step7(pMsg6);
-  syncRpcMsgPrint2((char *)"==step7==", pMsg7);
+  syncRpcMsgLog2((char *)"==step7==", pMsg7);
 
   return 0;
 }

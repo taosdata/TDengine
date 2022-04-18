@@ -73,9 +73,8 @@ void initRaftId(SSyncNode* pSyncNode) {
 }
 
 int main(int argc, char** argv) {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
 
   myIndex = 0;
   if (argc >= 2) {

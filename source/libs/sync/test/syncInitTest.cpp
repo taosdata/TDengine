@@ -30,7 +30,7 @@ SSyncNode* syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./sync_init_test");
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;
@@ -64,15 +64,15 @@ void initRaftId(SSyncNode* pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
     ids[i] = pSyncNode->replicasId[i];
     char* s = syncUtilRaftId2Str(&ids[i]);
-    printf("raftId[%d] : %s\n", i, s);
+    sTrace("raftId[%d] : %s\n", i, s);
     taosMemoryFree(s);
   }
 }
 
 int main(int argc, char** argv) {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
+  // taosInitLog((char *)"tmp/syncInitTest.log", 100);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
 
   myIndex = 0;
   if (argc >= 2) {
@@ -88,11 +88,13 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodePrint2((char*)"syncInitTest", pSyncNode);
-
+  syncNodeLog2((char*)"syncInitTest", pSyncNode);
   initRaftId(pSyncNode);
 
-  //--------------------------------------------------------------
+  syncNodeClose(pSyncNode);
+  syncEnvStop();
+  // syncIOStop();
 
+  // taosCloseLog();
   return 0;
 }

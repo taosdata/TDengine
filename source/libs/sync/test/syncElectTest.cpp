@@ -20,11 +20,12 @@ uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
-SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SWal*      pWal;
-SSyncNode* gSyncNode;
+SRaftId     ids[TSDB_MAX_REPLICA];
+SSyncInfo   syncInfo;
+SSyncFSM*   pFsm;
+SWal*       pWal;
+SSyncNode*  gSyncNode;
+const char* pDir = "./syncElectTest";
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
@@ -33,7 +34,7 @@ SSyncNode* syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_%d", pDir, myIndex);
 
   int code = walInit();
   assert(code == 0);
@@ -48,7 +49,7 @@ SSyncNode* syncNodeInit() {
   walCfg.level = TAOS_WAL_FSYNC;
 
   char tmpdir[128];
-  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
+  snprintf(tmpdir, sizeof(tmpdir), "%s_wal_%d", pDir, myIndex);
   pWal = walOpen(tmpdir, &walCfg);
   assert(pWal != NULL);
 
@@ -77,6 +78,8 @@ SSyncNode* syncNodeInit() {
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
+
+  syncNodeStart(pSyncNode);
 
   return pSyncNode;
 }
@@ -110,16 +113,15 @@ int main(int argc, char** argv) {
 
   gSyncNode = syncInitTest();
   assert(gSyncNode != NULL);
-  syncNodePrint2((char*)"", gSyncNode);
+  syncNodeLog2((char*)"", gSyncNode);
 
   initRaftId(gSyncNode);
 
   //---------------------------
   while (1) {
-    sTrace(
-        "elect sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-        gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm,
-        gSyncNode->electTimerLogicClock, gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+    char* s = syncNode2SimpleStr(gSyncNode);
+    sTrace("%s", s);
+    taosMemoryFree(s);
     taosMsleep(1000);
   }
 

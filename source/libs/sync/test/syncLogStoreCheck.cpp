@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
   pSyncNode = logStoreCheck(argv[1]);
   assert(pSyncNode != NULL);
 
-  logStorePrint2((char*)"logStoreCheck", pSyncNode->pLogStore);
+  logStoreLog2((char*)"logStoreCheck", pSyncNode->pLogStore);
 
   return 0;
 }

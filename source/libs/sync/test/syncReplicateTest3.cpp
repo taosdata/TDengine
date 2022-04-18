@@ -29,29 +29,26 @@ SSyncInfo syncInfo;
 SSyncFSM *pFsm;
 SWal *    pWal;
 
-void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
-              ESyncState state) {
+void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
-           pFsm, index, isWeak, code, state, syncUtilState2String(state));
-  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+  syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
-                 ESyncState state) {
+void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, index, isWeak,
-           code, state, syncUtilState2String(state));
-  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
+           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, cbMeta.index,
+           cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+  syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
-                ESyncState state) {
+void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
-           pFsm, index, isWeak, code, state, syncUtilState2String(state));
-  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+  syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
 void initFsm() {
@@ -99,8 +96,9 @@ int64_t syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  int64_t rid = syncStart(&syncInfo);
+  int64_t rid = syncOpen(&syncInfo);
   assert(rid > 0);
+  syncStart(rid);
 
   SSyncNode *pSyncNode = (SSyncNode *)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
@@ -143,7 +141,7 @@ SRpcMsg *step0(int i) {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true);
+  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
@@ -182,13 +180,13 @@ int main(int argc, char **argv) {
   SSyncNode *pSyncNode = (SSyncNode *)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
 
-  syncNodePrint2((char *)"", pSyncNode);
+  syncNodeLog2((char *)"", pSyncNode);
   initRaftId(pSyncNode);
 
   for (int i = 0; i < recordCount; ++i) {
     // step0
     SRpcMsg *pMsg0 = step0(i);
-    syncRpcMsgPrint2((char *)"==step0==", pMsg0);
+    syncRpcMsgLog2((char *)"==step0==", pMsg0);
 
     syncPropose(rid, pMsg0, true);
     taosMsleep(sleepMS);
