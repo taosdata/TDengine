@@ -152,13 +152,15 @@ class Case12(ClusterCase):
 
                 if i %200==0:
                     alter_sql = "alter database {} replica 3".format(db_name)
-                    self.logger.info(alter_sql)
                     client_0.execute(alter_sql)
+                    self.logger.info(alter_sql)
+                    
                     self.check_replica_sync(db_name, 1, endpoint)
                 else:
                     alter_sql = "alter database {} replica 2".format(db_name)
-                    self.logger.info(alter_sql)
                     client_0.execute(alter_sql)
+                    self.logger.info(alter_sql)
+                    
                     self.check_replica_sync(db_name, 1, endpoint)
 
         client_0.close()
@@ -198,6 +200,6 @@ class Case12(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.12  always alter database replica from 3 to 1  ... ;
+            [test]<wenzhouwww> test case for cluster about 1.12  1.13 always alter database replica from 3 to 1  ... ;
         '''
         return case_description
