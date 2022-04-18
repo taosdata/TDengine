@@ -68,7 +68,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         # tdSql.query("select * from t1 where c1 between 0x64 and 0x69")
         # tdSql.checkRows(6)
-        tdSql.error("select * from t1 where c1 not between 100 and 106")
+        # tdSql.query("select * from t1 where c1 not between 100 and 106")
         tdSql.query(f"select * from t1 where c1 between {2**31-2} and {2**31+1}")
         tdSql.checkRows(1)
         tdSql.error(f"select * from t2 where c1 between null and {1-2**31}")
