@@ -14,45 +14,38 @@
  */
 
 #define __USE_XOPEN
-#include "os.h"
-#include "shell.h"
-#include "tglobal.h"
-#include "tconfig.h"
 #include "shellCommand.h"
-#include "tbase64.h"
+#include "tglobal.h"
 #include "tlog.h"
-#include "version.h"
 
-#include <wordexp.h>
 #include <argp.h>
 #include <termio.h>
+#include <wordexp.h>
 
 #define OPT_ABORT 1 /* abort */
 
-
 int indicator = 1;
 
-void insertChar(Command *cmd, char *c, int size);
-void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
-                 int32_t pkgNum, char *pkgType);
+void        insertChar(Command *cmd, char *c, int size);
+void        taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen, int32_t pkgNum, char *pkgType);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
 static char args_doc[] = "";
 
-TdThread pid;
+TdThread      pid;
 static tsem_t cancelSem;
 
 static struct argp_option options[] = {
   {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
-  {"password",   'p', 0,            0,                   "The password to use when connecting to the server."},
+  {"password",   'p', NULL,         0,                   "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
   {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
   {"auth",       'A', "Auth",       0,                   "The auth string to use when connecting to the server."},
   {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
-  {"dump-config", 'C', 0,           0,                   "Dump configuration."},
+  {"dump-config",'C', NULL,         0,                   "Dump configuration."},
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
-  {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
+  {"raw-time",   'r', NULL,         0,                   "Output time as uint64_t."},
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
   {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
   {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
@@ -70,7 +63,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   /* Get the input argument from argp_parse, which we
   know is a pointer to our arguments structure. */
   SShellArguments *arguments = state->input;
-  wordexp_t full_path;
+  wordexp_t        full_path;
 
   switch (key) {
     case 'h':
@@ -80,7 +73,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
-        arguments->port  = atoi(arg);
+        arguments->port = atoi(arg);
       } else {
         fprintf(stderr, "Invalid port\n");
         return -1;
@@ -182,35 +175,33 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
-char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char LINUXCLIENT_VERSION[] =
+    "Welcome to the TDengine shell from %s, Client Version:%s\n"
+    "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
-static void parse_args(
-        int argc, char *argv[], SShellArguments *arguments) {
-    for (int i = 1; i < argc; i++) {
-        if ((strncmp(argv[i], "-p", 2) == 0)
-              || (strncmp(argv[i], "--password", 10) == 0)) {
-            printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
-            if ((strlen(argv[i]) == 2)
-                  || (strncmp(argv[i], "--password", 10) == 0)) {
-                printf("Enter password: ");
-                taosSetConsoleEcho(false);
-                if (scanf("%20s", g_password) > 1) {
-                    fprintf(stderr, "password reading error\n");
-                }
-                taosSetConsoleEcho(true);
-                if (EOF == getchar()) {
-                    fprintf(stderr, "getchar() return EOF\n");
-                }
-            } else {
-                tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
-                strcpy(argv[i], "-p");
-            }
-            arguments->password = g_password;
-            arguments->is_use_passwd = true;
+static void parse_args(int argc, char *argv[], SShellArguments *arguments) {
+  for (int i = 1; i < argc; i++) {
+    if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
+      printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
+      if ((strlen(argv[i]) == 2) || (strncmp(argv[i], "--password", 10) == 0)) {
+        printf("Enter password: ");
+        taosSetConsoleEcho(false);
+        if (scanf("%20s", g_password) > 1) {
+          fprintf(stderr, "password reading error\n");
         }
+        taosSetConsoleEcho(true);
+        if (EOF == getchar()) {
+          fprintf(stderr, "getchar() return EOF\n");
+        }
+      } else {
+        tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
+        strcpy(argv[i], "-p");
+      }
+      arguments->password = g_password;
+      arguments->is_use_passwd = true;
     }
+  }
 }
 
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
@@ -225,20 +216,20 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
   if (arguments->abort) {
-    #ifndef _ALPINE
-    #if 0
+#ifndef _ALPINE
+#if 0
       error(10, 0, "ABORTED");
-    #endif  
-    #else
-      abort();
-    #endif
+#endif
+#else
+    abort();
+#endif
   }
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
   unsigned hist_counter = history.hend;
-  char utf8_array[10] = "\0";
-  Command cmd;
+  char     utf8_array[10] = "\0";
+  Command  cmd;
   memset(&cmd, 0, sizeof(cmd));
   cmd.buffer = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
   cmd.command = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
@@ -247,7 +238,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   // Read input.
   char c;
   while (1) {
-    c = (char)getchar(); // getchar() return an 'int' value
+    c = (char)getchar();  // getchar() return an 'int' value
 
     if (c == EOF) {
       return c;
@@ -406,13 +397,13 @@ void *shellLoopQuery(void *arg) {
   taosThreadCleanupPush(cleanup_handler, NULL);
 
   char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
-  if (command == NULL){
+  if (command == NULL) {
     uError("failed to malloc command");
     return NULL;
   }
 
   int32_t err = 0;
-  
+
   do {
     // Read command from shell.
     memset(command, 0, MAX_COMMAND_SIZE);
@@ -423,12 +414,12 @@ void *shellLoopQuery(void *arg) {
     }
     resetTerminalMode();
   } while (shellRunCommand(con, command) == 0);
-  
+
   taosMemoryFreeClear(command);
   exitShell();
 
   taosThreadCleanupPop(1);
-  
+
   return NULL;
 }
 
@@ -437,7 +428,7 @@ void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    //fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
@@ -458,13 +449,13 @@ void clearScreen(int ecmd_pos, int cursor_pos) {
 void showOnScreen(Command *cmd) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    //fprintf(stderr, "No stream device\n");
+    // fprintf(stderr, "No stream device\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
 
   TdWchar wc;
-  int size = 0;
+  int     size = 0;
 
   // Print out the command.
   char *total_string = taosMemoryMalloc(MAX_COMMAND_SIZE);
@@ -531,13 +522,11 @@ void showOnScreen(Command *cmd) {
 void cleanup_handler(void *arg) { resetTerminalMode(); }
 
 void exitShell() {
-  /*int32_t ret =*/ resetTerminalMode();
+  /*int32_t ret =*/resetTerminalMode();
   taos_cleanup();
   exit(EXIT_SUCCESS);
 }
-void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
-  tsem_post(&cancelSem);
-}
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&cancelSem); }
 
 void *cancelHandler(void *arg) {
   setThreadName("cancelHandler");
@@ -554,7 +543,7 @@ void *cancelHandler(void *arg) {
     SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
     taos_stop_query(pSql);
     taosReleaseRef(tscObjRef, rid);
-#endif    
+#endif
 #else
     resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
@@ -640,11 +629,11 @@ int main(int argc, char *argv[]) {
       con = taos_connect_auth(args.host, args.user, args.auth, args.database, args.port);
     }
 
-/*    if (taos_init()) {
-      printf("Failed to init taos");
-      exit(EXIT_FAILURE);
-    }
-    */
+    // if (taos_init()) {
+    //   printf("Failed to init taos");
+    //   exit(EXIT_FAILURE);
+    // }
+
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
     taos_close(con);
     exit(0);
