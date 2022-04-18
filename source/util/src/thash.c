@@ -31,9 +31,12 @@
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n)     ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
 
-#define FREE_HASH_NODE(_n) \
-  do {                     \
-    taosMemoryFreeClear(_n);             \
+#define FREE_HASH_NODE(_fp, _n) \
+  do {                          \
+    if (_fp != NULL) {          \
+      (_fp)(_n);                \
+    }                           \
+    taosMemoryFreeClear(_n);    \
   } while (0);
 
 struct SHashNode {
@@ -195,7 +198,7 @@ static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SH
 
   if (pNode->refCount <= 0) {
     pNewNode->next = pNode->next;
-    FREE_HASH_NODE(pNode);
+    FREE_HASH_NODE(pHashObj->freeFp, pNode);
   } else {
     pNewNode->next = pNode;
     pe->num++;
@@ -310,7 +313,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     return -1;
   }
 
-  uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
+  uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
 
   // need the resize process, write lock applied
   if (HASH_NEED_RESIZE(pHashObj)) {
@@ -523,7 +526,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
         pe->num--;
         atomic_sub_fetch_64(&pHashObj->size, 1);
-        FREE_HASH_NODE(pNode);
+        FREE_HASH_NODE(pHashObj->freeFp, pNode);
       }
     } else {
       prevNode = pNode;
@@ -558,7 +561,7 @@ void taosHashClear(SHashObj *pHashObj) {
 
     while (pNode) {
       pNext = pNode->next;
-      FREE_HASH_NODE(pNode);
+      FREE_HASH_NODE(pHashObj->freeFp, pNode);
 
       pNode = pNext;
     }
@@ -769,7 +772,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
 
       pe->num--;
       atomic_sub_fetch_64(&pHashObj->size, 1);
-      FREE_HASH_NODE(pOld);
+      FREE_HASH_NODE(pHashObj->freeFp, pOld);
     }
   } else {
 //    uError("pNode:%p data:%p is not there!!!", pNode, p);

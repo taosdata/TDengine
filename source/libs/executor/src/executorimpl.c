@@ -20,23 +20,19 @@
 #include "tname.h"
 #include "os.h"
 
-#include "parser.h"
 #include "tdatablock.h"
-#include "texception.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tsort.h"
 #include "ttime.h"
 
 #include "executorimpl.h"
-#include "function.h"
 #include "query.h"
 #include "tcompare.h"
 #include "tcompression.h"
 #include "thash.h"
 #include "vnode.h"
 #include "ttypes.h"
-#include "vnode.h"
 
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -4879,6 +4875,7 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter *pSup, SOptrBasi
     if (!resultRow) {
       longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
     }
+
     // add a new result set for a new group
     SResultRowPosition pos = {.pageId = resultRow->pageId, .offset = resultRow->offset};
     taosHashPut(pSup->pResultRowHashTable, result + offset, keyLen, &pos, sizeof(SResultRowPosition));
