@@ -176,10 +176,9 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
     }
 
     if (block) {
-        warnPrint("%s", "call taos_fetch_block()\n");
+        warnPrint("%s", "call taos_fetch_block(), don't call taos_fetch_lengths()\n");
         int rows = 0;
         while ((rows = taos_fetch_block(res, &row))) {
-            int *lengths = taos_fetch_lengths(res);
             for (int f = 0; f < num_fields; f++) {
                 if ((fields[f].type != TSDB_DATA_TYPE_VARCHAR)
                         && (fields[f].type != TSDB_DATA_TYPE_NCHAR)
