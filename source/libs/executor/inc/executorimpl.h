@@ -342,7 +342,7 @@ typedef struct STableScanInfo {
 
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t         dataBlockLoadFlag;
-  double          sampleRatio;  // data block sample ratio
+  double          sampleRatio;  // data block sample ratio, 1 by default
   SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
 } STableScanInfo;
 
@@ -395,7 +395,6 @@ typedef struct SOptrBasicInfo {
   int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
   SqlFunctionCtx* pCtx;
   SSDataBlock*    pRes;
-  int32_t         capacity;  // TODO remove it
 } SOptrBasicInfo;
 
 // TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
@@ -422,6 +421,8 @@ typedef struct STableIntervalOperatorInfo {
   EOPTR_EXEC_MODEL execModel;          // operator execution model [batch model|stream model]
   SArray*          pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
   SColumnInfoData  timeWindowData;     // query time window info for scalar function execution.
+  double           watermark;          // water mark
+  int32_t          trigger;            // trigger model
 } STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -602,7 +603,8 @@ int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void    operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
-                    int32_t numOfRows, SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
+                    SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
+void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
 void    toSDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
                      SDiskbasedBuf* pBuf, int32_t* rowCellOffset);
 void    finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf,
