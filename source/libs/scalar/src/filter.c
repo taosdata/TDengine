@@ -63,22 +63,18 @@ OptrStr gOptrStr[] = {
 
 bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result >= 0;
 }
 bool filterRangeCompGe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result > 0;
 }
 bool filterRangeCompLi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(minv, maxr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result <= 0;
 }
 bool filterRangeCompLe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(minv, maxr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result < 0;
 }
 bool filterRangeCompii (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
@@ -1783,9 +1779,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       bytes = (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
 
       fi->data = taosMemoryCalloc(1, bytes);
-    } else if (type != TSDB_DATA_TYPE_JSON){
+    } else{
       if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
-/*      
+/*
         fi->data = taosMemoryCalloc(dType->bytes, tDataTypes[type].bytes);
         for (int32_t a = 0; a < dType->bytes; ++a) {
           int64_t *v = taosArrayGet(var->arr, a);
@@ -1796,31 +1792,27 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       } else {
         fi->data = taosMemoryCalloc(1, sizeof(int64_t));
       }
-    } else{     // type == TSDB_DATA_TYPE_JSON
-      // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
-    if(type != TSDB_DATA_TYPE_JSON) {
-      if (dType->type == type) {
-        assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+    if (dType->type == type) {
+      assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+    } else {
+      SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
+      out.columnData->info.type = type;
+      if (IS_VAR_DATA_TYPE(type)) {
+        out.columnData->info.bytes = bytes;
       } else {
-        SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
-        out.columnData->info.type = type;
-        if (IS_VAR_DATA_TYPE(type)) {
-          out.columnData->info.bytes = bytes;
-        } else {
-          out.columnData->info.bytes = tDataTypes[type].bytes;
-        }
-
-        // todo refactor the convert
-        int32_t code = doConvertDataType(var, &out);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("convert value to type[%d] failed", type);
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-
-        memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
+        out.columnData->info.bytes = tDataTypes[type].bytes;
       }
+
+      // todo refactor the convert
+      int32_t code = doConvertDataType(var, &out);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("convert value to type[%d] failed", type);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
     }
 
     // match/nmatch for nchar type need convert from ucs4 to mbs
@@ -2561,11 +2553,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].colId = FILTER_UNIT_COL_ID(info, unit);
     
     if (unit->right.type == FLD_TYPE_VALUE) {
-      if(FILTER_UNIT_DATA_TYPE(unit) == TSDB_DATA_TYPE_JSON){   // json value is tVariant
-        info->cunits[i].valData = FILTER_UNIT_JSON_VAL_DATA(info, unit);
-      }else{
-        info->cunits[i].valData = FILTER_UNIT_VAL_DATA(info, unit);
-      }
+      info->cunits[i].valData = FILTER_UNIT_VAL_DATA(info, unit);
     } else {
       info->cunits[i].valData = NULL;
     }
@@ -2891,18 +2879,8 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
-    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      if (!colData){  // for json->'key' is null
-        (*p)[i] = 1;
-      }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){  // for json is null
-        colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
-      }else{
-        (*p)[i] = 0;
-      }
-    }else{
-      (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
-    }
+    (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
+
     if ((*p)[i] == 0) {
       all = false;
     }    
@@ -2926,19 +2904,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
-    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      if (!colData) {   // for json->'key' is not null
-        (*p)[i] = 0;
-      }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){   // for json is not null
-        colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
-      }else{    // for json->'key' is not null
-        (*p)[i] = 1;
-      }
-    }else {
-      (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
-    }
-
+    (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     if ((*p)[i] == 0) {
       all = false;
     }
