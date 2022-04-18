@@ -219,10 +219,14 @@ static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
 
 static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   mTrace("db:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+  taosWLockLatch(&pOld->lock);
+  SArray *pOldRetensions = pOld->cfg.pRetensions;
   pOld->updateTime = pNew->updateTime;
   pOld->cfgVersion = pNew->cfgVersion;
   pOld->vgVersion = pNew->vgVersion;
   memcpy(&pOld->cfg, &pNew->cfg, sizeof(SDbCfg));
+  pNew->cfg.pRetensions = pOldRetensions;
+  taosWUnLockLatch(&pOld->lock);
   return 0;
 }
 
