@@ -284,7 +284,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
     }
 
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, true);
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->pScalarExprInfo != NULL) {
