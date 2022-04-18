@@ -471,7 +471,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
-  SCliConn*    conn = handle->data;
+  SCliConn* conn = handle->data;
+  tError("oh no %p", conn);
   SConnBuffer* pBuf = &conn->readBuf;
   transAllocBuffer(pBuf, buf);
 }
