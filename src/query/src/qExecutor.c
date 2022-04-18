@@ -9008,6 +9008,9 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     param->pUdfInfo->bufSize = htonl(*(int32_t*)pMsg);
     pMsg += sizeof(int32_t);
 
+    param->pUdfInfo->numOfParams = htonl(*(int32_t*)pMsg);
+    pMsg += sizeof(int32_t);
+
     param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
     memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
 

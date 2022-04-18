@@ -601,6 +601,7 @@ typedef struct {
   uint8_t  outputType;
   int16_t  outputLen;
   int32_t  bufSize;
+  int32_t  numOfParams;
   int32_t  codeLen;
   char     code[];
 } SCreateFuncMsg;
@@ -618,6 +619,7 @@ typedef struct {
   int8_t  resType;
   int16_t resBytes;
   int32_t bufSize;
+  int32_t numOfParams;
   int32_t len;
   char    content[];
 } SFunctionInfoMsg;

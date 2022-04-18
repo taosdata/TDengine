@@ -528,6 +528,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       pMsg->funcType = htonl(createInfo->type);
       pMsg->bufSize = htonl(createInfo->bufSize);
+      pMsg->numOfParams = htonl(createInfo->numOfParams);
 
       pMsg->outputType = createInfo->output.type;
       pMsg->outputLen = htons(createInfo->output.bytes);
@@ -3771,6 +3772,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       int32_t numOfParams = (pItem->pNode->Expr.paramList == NULL) ? 0 : (int32_t)taosArrayGetSize(pItem->pNode->Expr.paramList);
       if (numOfParams == 0 || numOfParams > 2) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      if (numOfParams != pUdfInfo->numOfParams) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 

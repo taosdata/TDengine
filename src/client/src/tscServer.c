@@ -1171,6 +1171,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *(int32_t*) pMsg = htonl(pUdfInfo->bufSize);
       pMsg += sizeof(pUdfInfo->bufSize);
 
+      *(int32_t*) pMsg = htonl(pUdfInfo->numOfParams);
+      pMsg += sizeof(pUdfInfo->numOfParams);
+
       pQueryMsg->udfContentLen = htonl(pUdfInfo->contLen);
       memcpy(pMsg, pUdfInfo->content, pUdfInfo->contLen);
 
@@ -2364,6 +2367,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+      pUdfInfo->numOfParams  = htonl(pFunc->numOfParams);
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);
@@ -2535,6 +2539,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+      pUdfInfo->numOfParams  = htonl(pFunc->numOfParams);
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);

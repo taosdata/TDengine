@@ -3140,6 +3140,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     pFuncInfo->resType  = pFuncObj->resType;
     pFuncInfo->resBytes = htons(pFuncObj->resBytes);
     pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
+    pFuncInfo->numOfParams  = htonl(pFuncObj->numOfParams);
 
     msg += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
   }

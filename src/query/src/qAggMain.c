@@ -506,7 +506,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     if (functionId < 0) {
       if (pUdfInfo->bufSize > 0) {
         *type = TSDB_DATA_TYPE_BINARY;
-        *bytes = pUdfInfo->bufSize;
+        *bytes = MAX(pUdfInfo->bufSize, pUdfInfo->resBytes);
       } else {
         *type = pUdfInfo->resType;
         *bytes = pUdfInfo->resBytes;
@@ -655,7 +655,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *type = pUdfInfo->resType;
 
     if (pUdfInfo->bufSize > 0) {
-      *bytes = pUdfInfo->bufSize;
+      *bytes = MAX(pUdfInfo->bufSize, pUdfInfo->resBytes);
     } else {
       *bytes = pUdfInfo->resBytes;
     }

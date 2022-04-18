@@ -1356,7 +1356,7 @@ void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDb
   pInfo->pMiscInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
 
-void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPath, TAOS_FIELD *output, SStrToken* bufSize, int32_t funcType) {
+void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPath, TAOS_FIELD *output, SStrToken *bufSize, SStrToken *numOfParams, int32_t funcType) {
   pInfo->type = type;
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
@@ -1370,6 +1370,12 @@ void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToke
     pInfo->pMiscInfo->funcOpt.bufSize = strtol(bufSize->z, NULL, 10);
   } else {
     pInfo->pMiscInfo->funcOpt.bufSize = 0;  
+  }
+
+  if (numOfParams->n > 0) {
+    pInfo->pMiscInfo->funcOpt.numOfParams = strtol(numOfParams->z, NULL, 10);
+  } else {
+    pInfo->pMiscInfo->funcOpt.numOfParams = 1;
   }
 }
 
