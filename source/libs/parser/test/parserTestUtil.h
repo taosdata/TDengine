@@ -13,28 +13,4 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STREAM_H_
-#define _TD_MND_STREAM_H_
-
-#include "mndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitStream(SMnode *pMnode);
-void    mndCleanupStream(SMnode *pMnode);
-
-SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
-void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
-
-SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
-
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, int8_t triggerType, int64_t watermark, STrans *pTrans);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_STREAM_H_*/
+extern bool g_isDump;

@@ -311,7 +311,7 @@ void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t 
   pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
   tsdbGetFilename(pRepo->vgId, fid, ver, ftype, fname);
-  tfsInitFile(pRepo->pTfs, &(pDFile->f), did, fname);
+  tfsInitFile(REPO_TFS(pRepo), &(pDFile->f), did, fname);
 }
 
 void tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile) {
@@ -330,7 +330,7 @@ int tsdbEncodeSDFile(void **buf, SDFile *pDFile) {
 
 void *tsdbDecodeSDFile(STsdb *pRepo, void *buf, SDFile *pDFile) {
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
-  buf = tfsDecodeFile(pRepo->pTfs, buf, &(pDFile->f));
+  buf = tfsDecodeFile(REPO_TFS(pRepo), buf, &(pDFile->f));
   TSDB_FILE_SET_CLOSED(pDFile);
 
   return buf;
@@ -365,7 +365,7 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T
     if (errno == ENOENT) {
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
-      if (tfsMkdirRecurAt(pRepo->pTfs, taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
+      if (tfsMkdirRecurAt(REPO_TFS(pRepo), taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
         taosMemoryFreeClear(s);
         return -1;
       }
@@ -443,7 +443,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
 }
 
 static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
-  SDFile      df;
+  SDFile df;
 
   tsdbInitDFileEx(&df, pDFile);
 

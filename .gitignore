@@ -5,6 +5,7 @@ compile_commands.json
 .tasks
 .vimspector.json
 .vscode/
+.vscode
 .idea/
 cmake-build-debug/
 cmake-build-release/

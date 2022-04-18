@@ -18,6 +18,7 @@
 static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg **pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
+static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
 
 void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
@@ -35,7 +36,7 @@ void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
     if (walWrite(pVnode->pWal, ver, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
       // TODO: handle error
       /*ASSERT(false);*/
-      vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());
+      vError("vnode:%d  write wal error since %s", TD_VID(pVnode), terrstr());
     }
   }
 
@@ -72,16 +73,17 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_ALTER_STB:
       return vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
     case TDMT_VND_DROP_STB:
-      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      vTrace("vgId:%d, process drop stb req", TD_VID(pVnode));
       break;
     case TDMT_VND_DROP_TABLE:
       break;
     case TDMT_VND_SUBMIT:
-      /*printf("vnode %d write data %ld\n", pVnode->vgId, ver);*/
+      /*printf("vnode %d write data %ld\n", TD_VID(pVnode), ver);*/
       if (pVnode->config.streamMode == 0) {
-        if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
-          // TODO: handle error
-        }
+        *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
+        (*pRsp)->handle = pMsg->handle;
+        (*pRsp)->ahandle = pMsg->ahandle;
+        return vnodeProcessSubmitReq(pVnode, ptr, *pRsp);
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
@@ -243,7 +245,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
 
     if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
       // TODO: handle error
-      vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
+      vError("vgId:%d, failed to create table: %s", TD_VID(pVnode), pCreateTbReq->name);
     }
     // TODO: to encapsule a free API
     taosMemoryFree(pCreateTbReq->name);
@@ -266,7 +268,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     }
   }
 
-  vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
+  vTrace("vgId:%d process create %" PRIzu " tables", TD_VID(pVnode), taosArrayGetSize(vCreateTbBatchReq.pArray));
   taosArrayDestroy(vCreateTbBatchReq.pArray);
   if (vCreateTbBatchRsp.rspList) {
     int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
@@ -287,7 +289,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
 
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   SVCreateTbReq vAlterTbReq = {0};
-  vTrace("vgId:%d, process alter stb req", pVnode->vgId);
+  vTrace("vgId:%d, process alter stb req", TD_VID(pVnode));
   tDeserializeSVCreateTbReq(pReq, &vAlterTbReq);
   // TODO: to encapsule a free API
   taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
@@ -298,5 +300,25 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   }
   taosMemoryFree(vAlterTbReq.dbFName);
   taosMemoryFree(vAlterTbReq.name);
+  return 0;
+}
+
+static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp) {
+  SSubmitRsp rsp = {0};
+
+  pRsp->code = 0;
+
+  // handle the request
+  if (tsdbInsertData(pVnode->pTsdb, pSubmitReq, &rsp) < 0) {
+    pRsp->code = terrno;
+    return -1;
+  }
+
+  // encode the response (TODO)
+  pRsp->msgType = TDMT_VND_SUBMIT_RSP;
+  pRsp->pCont = rpcMallocCont(sizeof(SSubmitRsp));
+  memcpy(pRsp->pCont, &rsp, sizeof(rsp));
+  pRsp->contLen = sizeof(SSubmitRsp);
+
   return 0;
 }
