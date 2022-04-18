@@ -7,19 +7,17 @@ title: UDF（用户定义函数）
 
 从 2.2.0.0 版本开始，TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
 
+用户可以通过 UDF 实现两类函数： 标量函数 和 聚合函数。
+
 ## 用 C/C++ 语言来定义 UDF
-
-TDengine 提供 3 个 UDF 的源代码示例，分别为：
-
-- [add_one.c](#add_one.c)
-- [abs_max.c](#abs_max.c)
-- [demo.c](#demo.c)
 
 ### 标量函数
 
-[add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c) 是结构最简单的 UDF 实现。其功能为：对传入的一个数据列（可能因 WHERE 子句进行了筛选）中的每一项，都输出 +1 之后的值，并且要求输入的列数据类型为 INT。
+用户可以按照下列函数模板定义自己的标量计算函数
 
-这一具体的处理逻辑在函数 `void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput, int* numOfOutput, short otype, short obytes, SUdfInit* buf)` 中定义。这类用于实现 UDF 的基础计算逻辑的函数，我们称为 udfNormalFunc，也就是对行数据块的标量计算函数。需要注意的是，udfNormalFunc 的参数项是固定的，用于按照约束完成与引擎之间的数据交换。
+ `void udfNormalFunc(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput, int* numOfOutput, short otype, short obytes, SUdfInit* buf)` 
+ 
+ 其中 udfNormalFunc 是函数名的占位符，以上述模板实现的函数对行数据块进行标量计算，其参数项是固定的，用于按照约束完成与引擎之间的数据交换。
 
 - udfNormalFunc 中各参数的具体含义是：
   - data：输入数据。
@@ -35,15 +33,15 @@ TDengine 提供 3 个 UDF 的源代码示例，分别为：
   - oBytes：输出数据中每个值占用的字节数。
   - buf：用于在 UDF 与引擎间的状态控制信息传递块。
 
+  [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c) 是结构最简单的 UDF 实现，也即上面定义的 udfNormalFunc 函数的一个具体实现。其功能为：对传入的一个数据列（可能因 WHERE 子句进行了筛选）中的每一项，都输出 +1 之后的值，并且要求输入的列数据类型为 INT。
+
 ### 聚合函数
 
-[abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c) 实现的是一个聚合函数，功能是对一组数据按绝对值取最大值。
+用户可以按照如下函数模板定义自己的聚合函数。
 
-其计算过程为：与所在查询语句相关的数据会被分为多个行数据块，对每个行数据块调用 udfNormalFunc（在本例的实现代码中，实际函数名是 `abs_max`)来生成每个子表的中间结果，再将子表的中间结果调用 udfMergeFunc（本例中，其实际的函数名是 `abs_max_merge`）进行聚合，生成超级表的最终聚合结果或中间结果。聚合查询最后还会通过 udfFinalizeFunc（本例中，其实际的函数名是 `abs_max_finalize`）再把超级表的中间结果处理为最终结果，最终结果只能含 0 或 1 条结果数据。
+`void abs_max_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf)`
 
-值得注意的是，udfNormalFunc、udfMergeFunc、udfFinalizeFunc 之间，函数名约定使用相同的前缀，此前缀即 udfNormalFunc 的实际函数名。udfMergeFunc 的函数名后缀 `_merge`、udfFinalizeFunc 的函数名后缀 `_finalize`，是 UDF 实现规则的一部分，系统会按照这些函数名后缀来调用相应功能。
-
-- udfMergeFunc 用于对计算中间结果进行聚合，只有针对超级表的聚合查询才需要调用该函数。本例中 udfMergeFunc 对应的实现函数为 `void abs_max_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf)`，其中各参数的具体含义是：
+其中 udfMergeFunc 是函数名的占位符，以上述模板实现的函数用于对计算中间结果进行聚合，只有针对超级表的聚合查询才需要调用该函数。其中各参数的具体含义是：
 
   - data：udfNormalFunc 的输出数据数组，如果使用了 interBuf 那么 data 就是 interBuf 的数组。
   - numOfRows：data 中数据的行数。
@@ -51,35 +49,37 @@ TDengine 提供 3 个 UDF 的源代码示例，分别为：
   - numOfOutput：输出结果的个数（行数）。
   - buf：用于在 UDF 与引擎间的状态控制信息传递块。
 
-- udfFinalizeFunc 用于对计算结果进行最终计算，通常用于有 interBuf 使用的场景。本例中 udfFinalizeFunc 对应的实现函数为 `void abs_max_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf)`，其中各参数的具体含义是：
+[abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c) 实现的是一个聚合函数，功能是对一组数据按绝对值取最大值。
+
+其计算过程为：与所在查询语句相关的数据会被分为多个行数据块，对每个行数据块调用 udfNormalFunc（在本例的实现代码中，实际函数名是 `abs_max`)来生成每个子表的中间结果，再将子表的中间结果调用 udfMergeFunc（本例中，其实际的函数名是 `abs_max_merge`）进行聚合，生成超级表的最终聚合结果或中间结果。聚合查询最后还会通过 udfFinalizeFunc（本例中，其实际的函数名是 `abs_max_finalize`）再把超级表的中间结果处理为最终结果，最终结果只能含 0 或 1 条结果数据。
+
+其他典型场景，如协方差的计算，也可通过定义聚合 UDF 的方式实现。
+
+### 最终计算
+
+用户可以按下面的函数模板实现自己的函数对计算结果进行最终计算，通常用于有 interBuf 使用的场景。
+
+`void abs_max_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf)`
+
+其中 udfFinalizeFunc 是函数名的占位符 ，其中各参数的具体含义是：
   - dataOutput：输出数据的缓冲区。
   - interBuf：中间结算结果缓冲区，可作为输入。
   - numOfOutput：输出数据的个数，对聚合函数来说只能是 0 或者 1。
   - buf：用于在 UDF 与引擎间的状态控制信息传递块。
 
-其他典型场景，如协方差的计算，即可通过定义聚合 UDF 的方式实现。
+## UDF 实现方式的规则总结
 
-### 其他 UDF 函数
-
-用户 UDF 程序除了需要实现上面几个函数外，还有两个用于初始化和释放 UDF 与引擎间的状态控制信息传递块的函数。具体来说，也即对应 udfInitFunc 和 udfDestroyFunc。其函数名命名规则同样是采取以 udfNormalFunc 的实际函数名为前缀，以 `_init` 和 `_destroy` 为后缀。系统会在初始化和资源释放时调用对应名称的函数。
-
-- udfInitFunc 用于初始化状态控制信息传递块。上例中 udfInitFunc 对应的实现函数为 `int abs_max_init(SUdfInit* buf)`，其中各参数的具体含义是：
-
-  - buf：用于在 UDF 与引擎间的状态控制信息传递块。
-
-- udfDestroyFunc 用于释放状态控制信息传递块。上例中 udfDestroyFunc 对应的实现函数为 `void abs_max_destroy(SUdfInit* buf)`，其中各参数的具体含义是：
-  - buf：用于在 UDF 与引擎间的状态控制信息传递块。
-
-目前该功能暂时没有实际意义，待后续扩展使用。
-
-### UDF 实现方式的规则总结
+三类 UDF 函数： udfNormalFunc、udfMergeFunc、udfFinalizeFunc ，其函数名约定使用相同的前缀，此前缀即 udfNormalFunc 的实际函数名，也即 udfNormalFunc 函数不需要在实际函数名后添加后缀；而udfMergeFunc 的函数名要加上后缀 `_merge`、udfFinalizeFunc 的函数名要加上后缀 `_finalize`，这是 UDF 实现规则的一部分，系统会按照这些函数名后缀来调用相应功能。
 
 根据 UDF 函数类型的不同，用户所要实现的功能函数也不同：
 
 - 标量函数：UDF 中需实现 udfNormalFunc。
 - 聚合函数：UDF 中需实现 udfNormalFunc、udfMergeFunc（对超级表查询）、udfFinalizeFunc。
 
-需要注意的是，如果对应的函数不需要具体的功能，也需要实现一个空函数。
+:::note
+如果对应的函数不需要具体的功能，也需要实现一个空函数。
+
+:::
 
 ## 编译 UDF
 
@@ -101,7 +101,10 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 
 在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。此外， UDF 支持输入与输出类型不一致，用户需要保证输入数据类型与 UDF 程序匹配，UDF 输出数据类型与 OUTPUTTYPE 匹配。
 
-- 创建标量函数：`CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];`
+- 创建标量函数
+```sql
+CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
+```
 
   - ids(X)：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
   - ids(Y)：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
@@ -114,7 +117,10 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
   CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
   ```
 
-- 创建聚合函数：`CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];`
+- 创建聚合函数：
+```sql
+CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
+```
 
   - ids(X)：聚合函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
   - ids(Y)：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
@@ -131,14 +137,23 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 
 ### 管理 UDF
 
-- 删除指定名称的用户定义函数：`DROP FUNCTION ids(X);`
-  - ids(X)：此参数的含义与 CREATE 指令中的 ids(X) 参数一致，也即要删除的函数的名字，例如 `DROP FUNCTION add_one;`。
-- 显示系统中当前可用的所有 UDF：`SHOW FUNCTIONS;`
+- 删除指定名称的用户定义函数：
+```
+DROP FUNCTION ids(X);
+```
+
+- ids(X)：此参数的含义与 CREATE 指令中的 ids(X) 参数一致，也即要删除的函数的名字，例如 
+  ```sql
+  DROP FUNCTION add_one;
+  ```
+- 显示系统中当前可用的所有 UDF：
+```sql
+SHOW FUNCTIONS;
+```
 
 ### 调用 UDF
 
 在 SQL 指令中，可以直接以在系统中创建 UDF 时赋予的函数名来调用用户定义函数。例如：
-
 ```sql
 SELECT X(c) FROM table/stable;
 ```
@@ -156,7 +171,7 @@ SELECT X(c) FROM table/stable;
 5. 无法通过 RESTful 接口来创建 UDF；
 6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
 
-## 代码附件
+## 示例代码
 
 ### [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
 
