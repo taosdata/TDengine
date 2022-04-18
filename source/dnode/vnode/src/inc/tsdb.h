@@ -43,10 +43,8 @@ typedef struct STable {
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-STsdb  *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta,
-                 STfs *pTfs);
+STsdb  *tsdbOpen(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
 void    tsdbClose(STsdb *);
-void    tsdbRemove(const char *path);
 int     tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int     tsdbPrepareCommit(STsdb *pTsdb);
 int     tsdbCommit(STsdb *pTsdb);
@@ -167,16 +165,14 @@ struct STsdb {
   SRtn                  rtn;
   SMemAllocatorFactory *pmaf;
   STsdbFS              *fs;
-  SMeta                *pMeta;
-  STfs                 *pTfs;
   SSmaEnvs              smaEnvs;
 };
 
 #define REPO_ID(r)        ((r)->vgId)
 #define REPO_CFG(r)       (&(r)->config)
 #define REPO_FS(r)        ((r)->fs)
-#define REPO_META(r)      ((r)->pMeta)
-#define REPO_TFS(r)       ((r)->pTfs)
+#define REPO_META(r)      ((r)->pVnode->pMeta)
+#define REPO_TFS(r)       ((r)->pVnode->pTfs)
 #define IS_REPO_LOCKED(r) ((r)->repoLocked)
 #define REPO_TSMA_NUM(r)  ((r)->smaEnvs.nTSma)
 #define REPO_RSMA_NUM(r)  ((r)->smaEnvs.nRSma)
