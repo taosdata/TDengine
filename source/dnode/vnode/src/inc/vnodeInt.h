@@ -52,6 +52,11 @@ typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
 typedef struct SQWorkerMgmt SQHandle;
 
+#define VNODE_META_DIR "meta"
+#define VNODE_TSDB_DIR "tsdb"
+#define VNODE_TQ_DIR   "tq"
+#define VNODE_WAL_DIR  "wal"
+
 typedef struct {
   int8_t  streamType;  // sma or other
   int8_t  dstType;
@@ -80,10 +85,11 @@ struct SVnodeInfo {
 };
 
 struct SVnode {
-  int32_t    vgId;
   char*      path;
   SVnodeCfg  config;
   SVState    state;
+  STfs*      pTfs;
+  SMsgCb     msgCb;
   SVBufPool* pBufPool;
   SMeta*     pMeta;
   STsdb*     pTsdb;
@@ -92,9 +98,9 @@ struct SVnode {
   SSink*     pSink;
   tsem_t     canCommit;
   SQHandle*  pQuery;
-  SMsgCb     msgCb;
-  STfs*      pTfs;
 };
+
+#define TD_VID(PVNODE) (PVNODE)->config.vgId
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);

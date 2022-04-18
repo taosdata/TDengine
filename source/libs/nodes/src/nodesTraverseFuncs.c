@@ -87,9 +87,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     }
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
-      res = walkNode(pSession->pCol, order, walker, pContext);
+      res = walkNode((SNode*)pSession->pCol, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkNode(pSession->pGap, order, walker, pContext);
+        res = walkNode((SNode*)pSession->pGap, order, walker, pContext);
       }
       break;
     }
@@ -227,9 +227,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     }
     case QUERY_NODE_SESSION_WINDOW: {
       SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
-      res = rewriteNode(&pSession->pCol, order, rewriter, pContext);
+      res = rewriteNode((SNode**)&pSession->pCol, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = rewriteNode(&pSession->pGap, order, rewriter, pContext);
+        res = rewriteNode((SNode**)&pSession->pGap, order, rewriter, pContext);
       }
       break;
     }
