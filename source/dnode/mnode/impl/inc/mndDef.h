@@ -275,16 +275,17 @@ typedef struct {
 } SDbCfg;
 
 typedef struct {
-  char    name[TSDB_DB_FNAME_LEN];
-  char    acct[TSDB_USER_LEN];
-  char    createUser[TSDB_USER_LEN];
-  int64_t createdTime;
-  int64_t updateTime;
-  int64_t uid;
-  int32_t cfgVersion;
-  int32_t vgVersion;
-  int8_t  hashMethod;  // default is 1
-  SDbCfg  cfg;
+  char     name[TSDB_DB_FNAME_LEN];
+  char     acct[TSDB_USER_LEN];
+  char     createUser[TSDB_USER_LEN];
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  int32_t  cfgVersion;
+  int32_t  vgVersion;
+  int8_t   hashMethod;  // default is 1
+  SDbCfg   cfg;
+  SRWLatch lock;
 } SDbObj;
 
 typedef struct {
