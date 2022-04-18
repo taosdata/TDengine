@@ -200,43 +200,8 @@ if $data02 != 2678400000 then
   return -1
 endi
 
-sql select  _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(2w)
-print ===> select  _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(2w)
-print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-if $rows != 4 then
-  return -1
-endi
-if $data00 != @21-11-30 08:00:00.000@ then
-  return -1
-endi
-if $data01 != NULL then
-  print expect null, actual: $data01
-  return -1
-endi
-if $data31 != $data34 then
-  return -1
-endi
-
-sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*)  from ct3 interval(1n, 1w) sliding(4w)
-print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(4w)
-print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-if $rows != 4 then
-  return -1
-endi
-if $data01 != NULL then
-  return -1
-endi
-if $data04 != 1 then
-  return -1
-endi
+sql_error select  _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(2w)
+sql_error select _wstartts, count(tbcol), _wduration, _wstartts, count(*)  from ct3 interval(1n, 1w) sliding(4w)
 
 sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n)
 print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n)
@@ -254,37 +219,8 @@ if $data04 != 2 then
   return -1
 endi
 
-sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(6n)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(6n)
-print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-if $rows != 3 then
-  return -1
-endi
-if $data00 != 2 then
-  return -1
-endi
-if $data04 != 2 then
-  return -1
-endi
-
-sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n) sliding(12n)
-print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n) sliding(12n)
-print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-if $rows != 3 then
-  return -1
-endi
-if $data01 != 2 then
-  return -1
-endi
-if $data04 != 2 then
-  return -1
-endi
+sql_error select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(6n)
+sql_error select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n) sliding(12n)
 
 #=================================================
 print =============== stop and restart taosd

@@ -16,7 +16,7 @@
 #include "vnodeInt.h"
 
 int vnodeQueryOpen(SVnode *pVnode) {
-  return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, &pVnode->msgCb);
+  return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), NULL, (void **)&pVnode->pQuery, &pVnode->msgCb);
 }
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
@@ -101,7 +101,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   metaRsp.numOfColumns = nCols;
   metaRsp.tableType = pTbCfg->type;
   metaRsp.tuid = uid;
-  metaRsp.vgId = pVnode->vgId;
+  metaRsp.vgId = TD_VID(pVnode);
 
   memcpy(metaRsp.pSchemas, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
   if (nTagCols) {
@@ -151,7 +151,7 @@ _exit:
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
-  pLoad->vgId = pVnode->vgId;
+  pLoad->vgId = TD_VID(pVnode);
   pLoad->role = TAOS_SYNC_STATE_LEADER;
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = 400;

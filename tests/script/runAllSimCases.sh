@@ -10,7 +10,9 @@ set -e
 #set -x
 VALGRIND=0
 LOG_BK_DIR=/data/valgrind_log_backup     # 192.168.0.203
-while getopts "v:r" arg
+SIM_FILES=./jenkins/basic.txt
+
+while getopts "v:r:f:" arg
 do
   case $arg in
     v)
@@ -18,6 +20,9 @@ do
       ;;
     r)
       LOG_BK_DIR=$(echo $OPTARG)
+      ;;
+    f)
+      SIM_FILES=$(echo $OPTARG)
       ;;
     ?) #unknow option
       echo "unkonw argument"
@@ -27,6 +32,7 @@ do
 done
 
 echo "VALGRIND: $VALGRIND, LOG_BK_DIR: $LOG_BK_DIR"
+echo "SIM_FILES: $SIM_FILES"
 
 CURRENT_DIR=`pwd`
 TSIM_LOG_DIR=$CURRENT_DIR/../../sim/tsim/log
@@ -76,6 +82,7 @@ do
       $line
     fi
   fi
-done < ./jenkins/basic.txt
+done < ${SIM_FILES}
+#done < ./jenkins/basic.txt
 
 

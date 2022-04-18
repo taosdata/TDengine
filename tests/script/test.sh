@@ -51,7 +51,7 @@ else
 fi
 
 TOP_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep debug|head -n1`
+TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
 if [[ "$OS_TYPE" != "Darwin" ]]; then
   cut_opt="--field="
@@ -60,16 +60,16 @@ else
 fi
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
 else
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
-BUILD_DIR=$TOP_DIR/$BIN_DIR
+declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 
-SIM_DIR=$TOP_DIR/sim
+declare -x SIM_DIR=$TOP_DIR/sim
 
-PROGRAM=$BUILD_DIR/tests/tsim/tsim
+PROGRAM=$BUILD_DIR/build/bin/tsim
 
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
@@ -125,8 +125,14 @@ ulimit -c unlimited
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"
   if [ $VALGRIND -eq 1 ]; then
-    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
-    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
+    if [[ $MULTIPROCESS -eq 1 ]];then
+      FLAG="-m -v"
+    else
+      FLAG="-v"    
+    fi 
+  
+    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
+    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
   else
     if [[ $MULTIPROCESS -eq 1 ]];then
       echo "ExcuteCmd(multiprocess):" $PROGRAM -m -c $CFG_DIR -f $FILE_NAME  
