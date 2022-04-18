@@ -54,12 +54,15 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
+#define colDataIsNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] == -1)
+#define colDataSetNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] = -1)
+
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
     return false;
   }
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    return pColumnInfoData->varmeta.offset[row] == -1;
+    return colDataIsNull_var(pColumnInfoData, row);
   } else {
     if (pColumnInfoData->nullbitmap == NULL) {
       return false;
@@ -86,7 +89,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    return pColumnInfoData->varmeta.offset[row] == -1;
+    return colDataIsNull_var(pColumnInfoData, row);
   } else {
     if (pColumnInfoData->nullbitmap == NULL) {
       return false;
@@ -98,15 +101,18 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
+#define colDataGetVarData(p1_, r_) ((p1_)->pData + (p1_)->varmeta.offset[(r_)])
+
+#define colDataGetNumData(p1_, r_) ((p1_)->pData + ((r_) * (p1_)->info.bytes))
 // SColumnInfoData, rowNumber
-#define colDataGetData(p1_, r_)                                                        \
-  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
-                                        : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
+#define colDataGetData(p1_, r_)                                        \
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ?  colDataGetVarData(p1_, r_)  \
+                                        :  colDataGetNumData(p1_, r_)
 
 static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uint32_t currentRow) {
   // There is a placehold for each NULL value of binary or nchar type.
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    pColumnInfoData->varmeta.offset[currentRow] = -1;  // it is a null value of VAR type.
+    colDataSetNull_var(pColumnInfoData, currentRow);  // it is a null value of VAR type.
   } else {
     colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow);
   }
@@ -117,7 +123,7 @@ static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uin
 static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     for (int32_t i = start; i < start + nRows; ++i) {
-      pColumnInfoData->varmeta.offset[i] = -1;  // it is a null value of VAR type.
+      colDataSetNull_var(pColumnInfoData,i);  // it is a null value of VAR type.
     }
   } else {
     for (int32_t i = start; i < start + nRows; ++i) {
