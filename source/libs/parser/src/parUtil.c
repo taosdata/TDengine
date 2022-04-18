@@ -55,8 +55,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Endpoint should be in the format of 'fqdn:port'";
     case TSDB_CODE_PAR_EXPRIE_STATEMENT:
       return "This statement is no longer supported";
-    case TSDB_CODE_PAR_INTERVAL_VALUE_TOO_SMALL:
-      return "This interval value is too small : %s";
+    case TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL:
+      return "Interval cannot be less than %d us";
     case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
       return "Database not specified";
     case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:
@@ -93,6 +93,28 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid option keep unit: %c, %c, %c, only m, h, d allowed";
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
       return "Aggregate functions do not support nesting";
+    case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
+      return "Only support STATE_WINDOW on integer column";
+    case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
+      return "Not support STATE_WINDOW on tag column";
+    case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
+      return "STATE_WINDOW not support for super table query";
+    case TSDB_CODE_PAR_INTER_SESSION_GAP:
+      return "SESSION gap should be fixed time window, and greater than 0";
+    case TSDB_CODE_PAR_INTER_SESSION_COL:
+      return "Only support SESSION on primary timestamp column";
+    case TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE:
+      return "Interval offset cannot be negative";
+    case TSDB_CODE_PAR_INTER_OFFSET_UNIT:
+      return "Cannot use 'year' as offset when interval is 'month'";
+    case TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG:
+      return "Interval offset should be shorter than interval";
+    case TSDB_CODE_PAR_INTER_SLIDING_UNIT:
+      return "Does not support sliding when interval is natural month/year";
+    case TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG:
+      return "sliding value no larger than the interval value";
+    case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
+      return "sliding value can not less than 1% of interval value";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

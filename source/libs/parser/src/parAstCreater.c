@@ -260,7 +260,8 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   CHECK_OUT_OF_MEM(val);
   if (NULL != pLiteral) {
     val->literal = strndup(pLiteral->z, pLiteral->n);
-    if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+    if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
+       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
       trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
     }
     CHECK_OUT_OF_MEM(val->literal);
@@ -367,7 +368,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   return (SNode*)func;
 }
 
-SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncName) {
+SNode* createFunctionNodeNoArg(SAstCreateContext* pCxt, const SToken* pFuncName) {
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
   char buf[64] = {0};
@@ -386,11 +387,11 @@ SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncNam
       dataType = TSDB_DATA_TYPE_BIGINT;
       break;
     }
-    //case TK_TIMEZONE: {
-    //  strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
-    //  dataType = TSDB_DATA_TYPE_BINARY;
-    //  break;
-    //}
+    case TK_TIMEZONE: {
+      strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
+      dataType = TSDB_DATA_TYPE_BINARY;
+      break;
+    }
   }
   SToken token = {.type = pFuncName->type, .n = strlen(buf), .z = buf};
 
@@ -499,8 +500,8 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
 SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap) {
   SSessionWindowNode* session = (SSessionWindowNode*)nodesMakeNode(QUERY_NODE_SESSION_WINDOW);
   CHECK_OUT_OF_MEM(session);
-  session->pCol = pCol;
-  session->pGap = pGap;
+  session->pCol = (SColumnNode*)pCol;
+  session->pGap = (SValueNode*)pGap;
   return (SNode*)session;
 }
 

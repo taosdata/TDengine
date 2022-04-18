@@ -23,11 +23,6 @@ int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   return 0;
 }
 
-#if 1  //======================================================================
-void vnodeOptionsCopy(SVnodeCfg *pDest, const SVnodeCfg *pSrc) {
-  memcpy((void *)pDest, (void *)pSrc, sizeof(SVnodeCfg));
-}
-
 int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
   uint32_t hashValue = 0;
 
@@ -47,5 +42,3 @@ int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-#endif

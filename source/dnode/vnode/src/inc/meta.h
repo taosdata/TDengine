@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-typedef struct SMetaCache  SMetaCache;
 typedef struct SMetaIdx    SMetaIdx;
 typedef struct SMetaDB     SMetaDB;
 typedef struct SMCtbCursor SMCtbCursor;
@@ -36,13 +35,22 @@ typedef struct SMSmaCursor SMSmaCursor;
 #define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("META ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+// metaOpen ==================
+int metaOpen(SVnode* pVnode, SMeta** ppMeta);
+int metaClose(SMeta* pMeta);
+
+// metaIdx ==================
+int  metaOpenIdx(SMeta* pMeta);
+void metaCloseIdx(SMeta* pMeta);
+int  metaSaveTableToIdx(SMeta* pMeta, const STbCfg* pTbOptions);
+int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
+
+static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
+
 #define META_SUPER_TABLE  TD_SUPER_TABLE
 #define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
 
-SMeta*          metaOpen(const char* path, const SMetaCfg* pMetaCfg, SMemAllocatorFactory* pMAF);
-void            metaClose(SMeta* pMeta);
-void            metaRemove(const char* path);
 int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg);
 int             metaDropTable(SMeta* pMeta, tb_uid_t uid);
 int             metaCommit(SMeta* pMeta);
@@ -71,38 +79,15 @@ int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 int  metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
 int  metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
 
-// SMetaCache
-int  metaOpenCache(SMeta* pMeta);
-void metaCloseCache(SMeta* pMeta);
-
 // SMetaIdx
-int  metaOpenIdx(SMeta* pMeta);
-void metaCloseIdx(SMeta* pMeta);
-int  metaSaveTableToIdx(SMeta* pMeta, const STbCfg* pTbOptions);
-int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 
-// STbUidGnrt
-typedef struct STbUidGenerator {
-  tb_uid_t nextUid;
-} STbUidGenerator;
-
-// STableUidGenerator
-int  metaOpenUidGnrt(SMeta* pMeta);
-void metaCloseUidGnrt(SMeta* pMeta);
-
-// tb_uid_t
-#define IVLD_TB_UID 0
 tb_uid_t metaGenerateUid(SMeta* pMeta);
 
 struct SMeta {
-  char*                 path;
-  SVnode*               pVnode;
-  SMetaCfg              options;
-  SMetaDB*              pDB;
-  SMetaIdx*             pIdx;
-  SMetaCache*           pCache;
-  STbUidGenerator       uidGnrt;
-  SMemAllocatorFactory* pmaf;
+  char*     path;
+  SVnode*   pVnode;
+  SMetaDB*  pDB;
+  SMetaIdx* pIdx;
 };
 
 #ifdef __cplusplus
