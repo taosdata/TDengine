@@ -1,9 +1,22 @@
 ---
 title: 立即开始
+description: "从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序 taos shell 和工具 taosdemo 快速体验 TDengine 功能"
 ---
 
-## 从 Docker 快速开始
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import PkgInstall from "./\_pkg_install.mdx";
+import AptGetInstall from "./\_apt_get_install.mdx";
 
+## 安装
+
+TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接 TDengine，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式, taosAdapter 需要手动启动。
+2.4 之前的版本中 TDengine 服务端，以及所有服务端 lite 版，均使用由 taosd 内置的 http 服务。
+
+TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
+
+<Tabs defaultValue="apt-get">
+<TabItem value="docker" label="Docker">
 如果已经安装了 docker， 只需执行下面的命令。
 
 ```shell
@@ -35,30 +48,20 @@ docker exec -it <containrid> bash
 暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 macOS 和 Windows 环境下尝试 TDengine。
 
 :::
+</TabItem>
+<TabItem value="apt-get" label="apt-get">
+<AptGetInstall />
+</TabItem>
+<TabItem value="pkg" label="安装包">
+<PkgInstall />
+</TabItem>
+<TabItem value="src" label="源码">
 
-## 安装
+如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-import PkgInstall from "./\_pkg_install.mdx";
-import AptGetInstall from "./\_apt_get_install.mdx";
-import SrcInstall from "./\_src_install.mdx";
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)。
 
-TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接 TDengine，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式, taosAdapter 需要手动启动。
-2.4 之前的版本中 TDengine 服务端，以及所有服务端 lite 版，均使用由 taosd 内置的 http 服务。
-
-TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
-
-<Tabs defaultValue="apt-get">
-  <TabItem value="apt-get" label="apt-get">
-    <AptGetInstall />
-  </TabItem>
-  <TabItem value="pkg" label="安装包">
-    <PkgInstall />
-  </TabItem>
-  <TabItem value="src" label="源码">
-    <SrcInstall />
-  </TabItem>
+</TabItem>
 </Tabs>
 
 ## 启动
