@@ -262,6 +262,7 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
+  tfsClose(pMgmt->pTfs);
   // walCleanUp();
   taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
