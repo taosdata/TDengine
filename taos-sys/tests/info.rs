@@ -1,4 +1,4 @@
-use taos_sys::taos_get_client_info;
+use taos_sys::ffi::taos_get_client_info;
 
 use std::ffi::CStr;
 

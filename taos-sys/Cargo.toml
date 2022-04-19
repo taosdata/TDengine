@@ -13,6 +13,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 serde_repr = { version = "0.1.7", optional = true }
 taos-error = { path = "../taos-error" }
 taos-macros = { path = "../taos-macros" }
+cfg-if = "1.0.0"
 
 [build-dependencies]
 dotenv = "0.15.0"

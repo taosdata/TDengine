@@ -37,6 +37,8 @@ pretty_env_logger = { version = "0.4.0", optional = true }
 rand = { version = "0.8.5", optional = true }
 uuid = { version = "0.8.2", features = ["v4", "v1"], optional = true }
 
+async-trait = "0.1.53"
+
 [dev-dependencies]
 criterion = "0.3"
 faker_rand = "0.1.1"

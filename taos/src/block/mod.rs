@@ -311,6 +311,11 @@ impl<'a> Block<'a> {
             _ => unreachable!("unsupported borrowed column type"),
         }
     }
+
+    fn into_rows_stream(self) -> () {
+        todo!()
+        // futures::stream::iter(self.into_iter_rows())
+    }
 }
 
 pub struct RowsIter<'block> {
