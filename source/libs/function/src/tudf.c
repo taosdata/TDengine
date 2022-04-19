@@ -318,7 +318,7 @@ int32_t encodeUdfRequest(void** buf, const SUdfRequest* request) {
 
 void* decodeUdfRequest(const void* buf, SUdfRequest* request) {
   request->msgLen = *(int32_t*)(buf);
-  POINTER_SHIFT(buf, sizeof(request->msgLen));
+  buf = POINTER_SHIFT(buf, sizeof(request->msgLen));
 
   buf = taosDecodeFixedI64(buf, &request->seqNum);
   buf = taosDecodeFixedI8(buf, &request->type);
@@ -361,7 +361,7 @@ int32_t encodeUdfCallResponse(void **buf, const SUdfCallResponse *callRsp) {
       len += encodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
     case TSDB_UDF_CALL_AGG_FIN:
-      len += tEncodeDataBlock(buf, &callRsp->resultData);
+      len += encodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
   }
   return len;
@@ -383,7 +383,7 @@ void* decodeUdfCallResponse(const void* buf, SUdfCallResponse* callRsp) {
       buf = decodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
     case TSDB_UDF_CALL_AGG_FIN:
-      buf = tDecodeDataBlock(buf, &callRsp->resultData);
+      buf = decodeUdfInterBuf(buf, &callRsp->resultBuf);
       break;
   }
   return (void*)buf;
@@ -404,6 +404,13 @@ int32_t encodeUdfResponse(void** buf, const SUdfResponse* rsp) {
   } else {
     *(int32_t*)(*buf) = rsp->msgLen;
     *buf = POINTER_SHIFT(*buf, sizeof(rsp->msgLen));
+  }
+
+  if (buf == NULL) {
+    len += sizeof(rsp->seqNum);
+  } else {
+    *(int64_t*)(*buf) = rsp->seqNum;
+    *buf = POINTER_SHIFT(*buf, sizeof(rsp->seqNum));
   }
 
   len += taosEncodeFixedI64(buf, rsp->seqNum);
@@ -429,7 +436,9 @@ int32_t encodeUdfResponse(void** buf, const SUdfResponse* rsp) {
 
 void* decodeUdfResponse(const void* buf, SUdfResponse* rsp) {
   rsp->msgLen = *(int32_t*)(buf);
-  POINTER_SHIFT(buf, sizeof(rsp->msgLen));
+  buf = POINTER_SHIFT(buf, sizeof(rsp->msgLen));
+  rsp->seqNum = *(int64_t*)(buf);
+  buf = POINTER_SHIFT(buf, sizeof(rsp->seqNum));
   buf = taosDecodeFixedI64(buf, &rsp->seqNum);
   buf = taosDecodeFixedI8(buf, &rsp->type);
   buf = taosDecodeFixedI32(buf, &rsp->code);
@@ -453,15 +462,15 @@ void* decodeUdfResponse(const void* buf, SUdfResponse* rsp) {
 
 void freeUdfColumnData(SUdfColumnData *data) {
   if (data->varLengthColumn) {
-    taosMemoryFree(data->varOffsets);
-    data->varOffsets = NULL;
-    taosMemoryFree(data->payload);
-    data->payload = NULL;
+    taosMemoryFree(data->varLenCol.varOffsets);
+    data->varLenCol.varOffsets = NULL;
+    taosMemoryFree(data->varLenCol.payload);
+    data->varLenCol.payload = NULL;
   } else {
-    taosMemoryFree(data->nullBitmap);
-    data->nullBitmap = NULL;
-    taosMemoryFree(data->data);
-    data->data = NULL;
+    taosMemoryFree(data->fixLenCol.nullBitmap);
+    data->fixLenCol.nullBitmap = NULL;
+    taosMemoryFree(data->fixLenCol.data);
+    data->fixLenCol.data = NULL;
   }
 }
 
@@ -488,9 +497,9 @@ void freeUdfInterBuf(SUdfInterBuf *buf) {
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock) {
   udfBlock->numOfRows = block->info.rows;
   udfBlock->numOfCols = block->info.numOfCols;
-  udfBlock->udfCols = taosMemoryMalloc(sizeof(SUdfColumn*) * udfBlock->numOfCols);
+  udfBlock->udfCols = taosMemoryCalloc(udfBlock->numOfCols, sizeof(SUdfColumn*));
   for (int32_t i = 0; i < udfBlock->numOfCols; ++i) {
-    udfBlock->udfCols[i] = taosMemoryMalloc(sizeof(SUdfColumn));
+    udfBlock->udfCols[i] = taosMemoryCalloc(1, sizeof(SUdfColumn));
     SColumnInfoData *col= (SColumnInfoData*)taosArrayGet(block->pDataBlock, i);
     SUdfColumn *udfCol = udfBlock->udfCols[i];
     udfCol->colMeta.type = col->info.type;
@@ -500,19 +509,23 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
     udfCol->colData.numOfRows = udfBlock->numOfRows;
     udfCol->colData.varLengthColumn = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
     if (udfCol->colData.varLengthColumn) {
-      udfCol->colData.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
-      udfCol->colData.varOffsets = taosMemoryMalloc(udfCol->colData.varOffsetsLen);
-      memcpy(udfCol->colData.varOffsets, col->varmeta.offset, udfCol->colData.varOffsetsLen);
-      udfCol->colData.payloadLen = colDataGetLength(col, udfBlock->numOfRows);
-      udfCol->colData.payload = taosMemoryMalloc(udfCol->colData.payloadLen);
-      memcpy(udfCol->colData.payload, col->pData, udfCol->colData.payloadLen);
+      udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
+      udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
+      memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
+      udfCol->colData.varLenCol.payloadLen = colDataGetLength(col, udfBlock->numOfRows);
+      udfCol->colData.varLenCol.payload = taosMemoryMalloc(udfCol->colData.varLenCol.payloadLen);
+      memcpy(udfCol->colData.varLenCol.payload, col->pData, udfCol->colData.varLenCol.payloadLen);
     } else {
-      udfCol->colData.nullBitmapLen = BitmapLen(udfCol->colData.numOfRows);
-      udfCol->colData.nullBitmap = taosMemoryMalloc(udfCol->colData.nullBitmapLen);
-      memcpy(udfCol->colData.nullBitmap, col->nullbitmap, udfCol->colData.nullBitmapLen);
-      udfCol->colData.dataLen = colDataGetLength(col, udfBlock->numOfRows);
-      udfCol->colData.data = taosMemoryMalloc(udfCol->colData.dataLen);
-      memcpy(udfCol->colData.data, col->pData, udfCol->colData.dataLen);
+      udfCol->colData.fixLenCol.nullBitmapLen = BitmapLen(udfCol->colData.numOfRows);
+      int32_t bitmapLen = udfCol->colData.fixLenCol.nullBitmapLen;
+      udfCol->colData.fixLenCol.nullBitmap = taosMemoryMalloc(udfCol->colData.fixLenCol.nullBitmapLen);
+      char* bitmap = udfCol->colData.fixLenCol.nullBitmap;
+      memcpy(bitmap, col->nullbitmap, bitmapLen);
+      udfCol->colData.fixLenCol.dataLen = colDataGetLength(col, udfBlock->numOfRows);
+      int32_t dataLen = udfCol->colData.fixLenCol.dataLen;
+      udfCol->colData.fixLenCol.data = taosMemoryMalloc(udfCol->colData.fixLenCol.dataLen);
+      char* data = udfCol->colData.fixLenCol.data;
+      memcpy(data, col->pData, dataLen);
     }
   }
   return 0;
@@ -534,15 +547,15 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   SUdfColumnData *data = &udfCol->colData;
 
   if (!IS_VAR_DATA_TYPE(meta->type)) {
-    col->nullbitmap = taosMemoryMalloc(data->nullBitmapLen);
-    memcpy(col->nullbitmap, data->nullBitmap, data->nullBitmapLen);
-    col->pData = taosMemoryMalloc(data->dataLen);
-    memcpy(col->pData, data->payload, data->dataLen);
+    col->nullbitmap = taosMemoryMalloc(data->fixLenCol.nullBitmapLen);
+    memcpy(col->nullbitmap, data->fixLenCol.nullBitmap, data->fixLenCol.nullBitmapLen);
+    col->pData = taosMemoryMalloc(data->fixLenCol.dataLen);
+    memcpy(col->pData, data->fixLenCol.data, data->fixLenCol.dataLen);
   } else {
-    col->varmeta.offset = taosMemoryMalloc(data->varOffsetsLen);
-    memcpy(col->varmeta.offset, data->varOffsets, data->varOffsetsLen);
-    col->pData = taosMemoryMalloc(data->payloadLen);
-    memcpy(col->pData, data->payload, data->payloadLen);
+    col->varmeta.offset = taosMemoryMalloc(data->varLenCol.varOffsetsLen);
+    memcpy(col->varmeta.offset, data->varLenCol.varOffsets, data->varLenCol.varOffsetsLen);
+    col->pData = taosMemoryMalloc(data->varLenCol.payloadLen);
+    memcpy(col->pData, data->varLenCol.payload, data->varLenCol.payloadLen);
   }
   return 0;
 }
@@ -697,7 +710,18 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
 }
 
 void udfcUvHandleError(SClientUvConn *conn) {
-  uv_close((uv_handle_t *) conn->pipe, onUdfcPipeClose);
+  while (!QUEUE_EMPTY(&conn->taskQueue)) {
+    QUEUE* h = QUEUE_HEAD(&conn->taskQueue);
+    SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, connTaskQueue);
+    task->errCode = UDFC_CODE_PIPE_READ_ERR;
+    uv_sem_post(&task->taskSem);
+    QUEUE_REMOVE(&task->procTaskQueue);
+  }
+
+  uv_close((uv_handle_t *) conn->pipe, NULL);
+  taosMemoryFree(conn->pipe);
+  taosMemoryFree(conn->readBuf.buf);
+  taosMemoryFree(conn);
 }
 
 void onUdfcRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
@@ -775,9 +799,10 @@ int32_t createUdfcUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskN
     }
     int32_t bufLen = encodeUdfRequest(NULL, &request);
     request.msgLen = bufLen;
-    void *buf = taosMemoryMalloc(bufLen);
+    void *bufBegin = taosMemoryMalloc(bufLen);
+    void *buf = bufBegin;
     encodeUdfRequest(&buf, &request);
-    uvTask->reqBuf = uv_buf_init(buf, bufLen);
+    uvTask->reqBuf = uv_buf_init(bufBegin, bufLen);
     uvTask->seqNum = request.seqNum;
   } else if (uvTaskType == UV_TASK_DISCONNECT) {
     uvTask->pipe = task->session->udfSvcPipe;
@@ -903,8 +928,11 @@ void udfStopAsyncCb(uv_async_t *async) {
     uv_stop(&gUdfdLoop);
   }
 }
+
 int32_t startUdfd();
+
 void onUdfdExit(uv_process_t *req, int64_t exit_status, int term_signal) {
+  //TODO: pipe close will be first received
   debugPrint("Process exited with status %" PRId64 ", signal %d", exit_status, term_signal);
   uv_close((uv_handle_t *) req, NULL);
   //TODO: restart the udfd process
@@ -919,7 +947,6 @@ void onUdfdExit(uv_process_t *req, int64_t exit_status, int term_signal) {
     cleanUpUvTasks();
     startUdfd();
   }
-
 }
 
 int32_t startUdfd() {
@@ -996,7 +1023,8 @@ int32_t udfcRunUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   udfcGetUvTaskResponseResult(task, uvTask);
   if (uvTaskType == UV_TASK_CONNECT) {
     task->session->udfSvcPipe = uvTask->pipe;
-  }  taosMemoryFree(uvTask);
+  }
+  taosMemoryFree(uvTask);
   uvTask = NULL;
   return task->errCode;
 }
@@ -1037,6 +1065,9 @@ int32_t callUdf(UdfHandle handle, int8_t callType, SSDataBlock *input, SUdfInter
   task->type = UDF_TASK_CALL;
 
   SUdfCallRequest *req = &task->_call.req;
+  req->udfHandle = task->session->severHandle;
+  req->callType = callType;
+
   switch (callType) {
     case TSDB_UDF_CALL_AGG_INIT: {
       req->initFirst = 1;

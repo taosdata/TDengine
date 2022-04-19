@@ -910,6 +910,8 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void *param1) 
 
 void taosStopCacheRefreshWorker(void) {
   stopRefreshWorker = true;
+  taosThreadJoin(cacheRefreshWorker, NULL);
+  taosArrayDestroy(pCacheArrayList);
 }
 
 size_t taosCacheGetNumOfObj(const SCacheObj* pCacheObj) {

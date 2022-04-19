@@ -237,33 +237,45 @@ static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum, int32_t maxParaNum, int32_t primaryParaNo) {
+static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum, int32_t maxParaNum, bool hasSep) {
   int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
   if (paraNum < minParaNum || paraNum > maxParaNum) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  uint8_t resultType = TSDB_DATA_TYPE_NCHAR;
+  uint8_t resultType = TSDB_DATA_TYPE_BINARY;
   int32_t resultBytes = 0;
   int32_t sepBytes = 0;
-  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); ++i) {
+
+  /* For concat/concat_ws function, if params have NCHAR type, promote the final result to NCHAR */
+  for (int32_t i = 0; i < paraNum; ++i) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-    int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
     if (!IS_VAR_DATA_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
-    if (i < primaryParaNo) {
-      sepBytes = paraBytes;
-      continue;
+    if (TSDB_DATA_TYPE_NCHAR == paraType) {
+      resultType = paraType;
     }
-    if (TSDB_DATA_TYPE_BINARY == paraType) {
-      resultType = TSDB_DATA_TYPE_BINARY;
-    }
-    resultBytes += paraBytes;
   }
-  if (sepBytes > 0) {
-    resultBytes += sepBytes * (paraNum - 2);
+
+  for (int32_t i = 0; i < paraNum; ++i) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
+    uint8_t paraType = ((SExprNode*)pPara)->resType.type;
+    int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
+    int32_t factor = 1;
+    if (TSDB_DATA_TYPE_NCHAR == resultType && TSDB_DATA_TYPE_VARCHAR == paraType) {
+      factor *= TSDB_NCHAR_SIZE;
+    }
+    resultBytes += paraBytes * factor;
+
+    if (i == 0) {
+      sepBytes = paraBytes * factor;
+    }
+  }
+
+  if (hasSep) {
+    resultBytes += sepBytes * (paraNum - 3);
   }
 
   pFunc->node.resType = (SDataType) { .bytes = resultBytes, .type = resultType };
@@ -271,11 +283,11 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 }
 
 static int32_t translateConcat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateConcatImpl(pFunc, pErrBuf, len, 2, 8, 0);
+  return translateConcatImpl(pFunc, pErrBuf, len, 2, 8, false);
 }
 
 static int32_t translateConcatWs(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateConcatImpl(pFunc, pErrBuf, len, 3, 9, 1);
+  return translateConcatImpl(pFunc, pErrBuf, len, 3, 9, true);
 }
 
 static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -318,7 +330,7 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_VAR_DATA_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+  if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -346,7 +358,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if ((!IS_VAR_DATA_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+  if ((!IS_VAR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) || !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -360,12 +372,13 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if ((!IS_VAR_DATA_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) || 
-      (!IS_VAR_DATA_TYPE(para2Type) && TSDB_DATA_TYPE_TIMESTAMP != para2Type)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  for (int32_t i = 0; i < 2; ++i) {
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+    if (!IS_VAR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
   }
+
   if (3 == paraNum) {
     if (!IS_INTEGER_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);

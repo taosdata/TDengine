@@ -91,11 +91,6 @@ TAOS *shellInit(SShellArguments *_args) {
     _args->user = TSDB_DEFAULT_USER;
   }
 
-  SConfig *pCfg = cfgInit();
-  if (NULL == pCfg) return NULL;
-
-  if (0 != taosAddClientLogCfg(pCfg)) return NULL;
-
   // Connect to the database.
   TAOS *con = NULL;
   if (_args->auth == NULL) {

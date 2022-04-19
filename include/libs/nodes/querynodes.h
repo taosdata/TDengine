@@ -82,6 +82,7 @@ typedef struct SValueNode {
   bool isDuration;
   bool translate;
   bool genByCalc;
+  int16_t placeholderNo;
   union {
     bool b;
     int64_t i;
