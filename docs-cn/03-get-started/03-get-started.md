@@ -99,9 +99,7 @@ which systemctl
 
 ## TDengine 命令行 (CLI)
 
-### 进入 命令行
-
-要进入 TDengine 命令行 （以下简称为 TDengine CLI)，您只要在 Linux 终端执行 `taos` 即可。
+为便于检查 TDengine 的状态，执行各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos. 要进入 TDengine 命令行，您只要在 Linux 终端执行 `taos` 即可。
 
 ```bash
 taos
@@ -112,8 +110,6 @@ taos
 ```cmd
 taos>
 ```
-
-### 执行 SQL 命令
 
 在 TDengine CLI中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
 
@@ -131,18 +127,7 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。
-
-
-### 执行 SQL 脚本
-
-TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
-
-```sql
-taos> source <filename>;
-```
-
-更多细节请参考 [这里](../reference/taos-shell/)
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。更多细节请参考 [这里](../reference/taos-shell/)
 
 ## 使用 taosBenchmark 体验写入速度
 
@@ -156,9 +141,7 @@ taosBenchmark
 
 这条命令很快完成 1 亿条记录的插入。具体时间取决于硬件性能，即使在一台普通的 PC 服务器往往也仅需十几秒。
 
-taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
-
-taosBenchmark 详细使用方法请参照 [如何使用 taosBenchmark 对 TDengine 进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
+taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，您可以设置不同参数进行体验，请执行 `taosBenchmark --help` 详细列出。taosBenchmark 详细使用方法请参照 [如何使用 taosBenchmark 对 TDengine 进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
 
 ## 使用 TDengine CLI 体验查询速度
 
