@@ -767,6 +767,17 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
 }
 
 char *getJsonValue(char *json, char *key){    //todo
+  int16_t cols = kvRowNCols(json);
+  for (int i = 0; i < cols; ++i) {
+    SColIdx *pColIdx = kvRowColIdxAt(json, i);
+    char *data = kvRowColVal(json, pColIdx);
+    if(i == 0 && *data == TSDB_DATA_TYPE_NULL){
+      return NULL;
+    }
+    if(strncmp(key, varDataVal(data), varDataLen(data)) == 0){
+      return data + varDataTLen(data);
+    }
+  }
   return NULL;
 }
 
@@ -844,7 +855,11 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
     if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-        *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) + getVectorDoubleValueFnRight(pRightCol->pData, i);
+        if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;  // TODO set null or ignore
+        }
+        *output = getVectorDoubleValueFnLeft(LEFT_COL, i) + getVectorDoubleValueFnRight(RIGHT_COL, i);
       }
 
       pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
@@ -957,7 +972,11 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
     if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-        *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) - getVectorDoubleValueFnRight(pRightCol->pData, i);
+        if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;  // TODO set null or ignore
+        }
+        *output = getVectorDoubleValueFnLeft(LEFT_COL, i) - getVectorDoubleValueFnRight(RIGHT_COL, i);
       }
 
       pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);

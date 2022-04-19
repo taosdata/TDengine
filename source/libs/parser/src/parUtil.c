@@ -276,7 +276,7 @@ static bool isValidateTag(char *input) {
 
 int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* pMsgBuf, int16_t startColId){
   // set json NULL data
-  uint8_t jsonNULL = TSDB_JSON_NULL;
+  uint8_t jsonNULL = TSDB_DATA_TYPE_NULL;
   int jsonIndex = startColId + 1;
   if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0){
     tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
@@ -328,7 +328,7 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
     strncpy(varDataVal(tagKV), jsonKey, keyLen);
     varDataSetLen(tagKV, keyLen);
     if(taosHashGetSize(keyHash) == 0){
-      uint8_t jsonNotNULL = TSDB_JSON_NOT_NULL;
+      uint8_t jsonNotNULL = TSDB_DATA_TYPE_JSON;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNotNULL, CHAR_BYTES);   // add json type
     }
     taosHashPut(keyHash, jsonKey, keyLen, &keyLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
