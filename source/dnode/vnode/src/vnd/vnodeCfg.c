@@ -15,30 +15,32 @@
 
 #include "vnodeInt.h"
 
-const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
-                                   .dbname = "",
-                                   .dbId = 0,
-                                   .wsize = 96 * 1024 * 1024,
-                                   .ssize = 1 * 1024 * 1024,
-                                   .lsize = 1024,
-                                   .isHeapAllocator = false,
-                                   .ttl = 0,
-                                   .keep = 0,
-                                   .streamMode = 0,
-                                   .isWeak = 0,
-                                   .tsdbCfg = {.precision = TWO_STAGE_COMP,
-                                               .update = 0,
-                                               .compression = 2,
-                                               .days = 10,
-                                               .minRows = 100,
-                                               .maxRows = 4096,
-                                               .keep2 = 3650,
-                                               .keep0 = 3650,
-                                               .keep1 = 3650},
-                                   .walCfg = {.level = TAOS_WAL_WRITE},
-                                   .hashBegin = 0,
-                                   .hashEnd = 0,
-                                   .hashMethod = 0};
+const SVnodeCfg vnodeCfgDefault = {
+    .vgId = -1,
+    .dbname = "",
+    .dbId = 0,
+    .wsize = 96 * 1024 * 1024,
+    .ssize = 1 * 1024 * 1024,
+    .lsize = 1024,
+    .isHeapAllocator = false,
+    .ttl = 0,
+    .keep = 0,
+    .streamMode = 0,
+    .isWeak = 0,
+    .tsdbCfg = {.precision = TWO_STAGE_COMP,
+                .update = 0,
+                .compression = 2,
+                .days = 10,
+                .minRows = 100,
+                .maxRows = 4096,
+                .keep2 = 3650,
+                .keep0 = 3650,
+                .keep1 = 3650},
+    .walCfg =
+        {.vgId = -1, .fsyncPeriod = 0, .retentionPeriod = 0, .rollPeriod = 0, .segSize = 0, .level = TAOS_WAL_WRITE},
+    .hashBegin = 0,
+    .hashEnd = 0,
+    .hashMethod = 0};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
