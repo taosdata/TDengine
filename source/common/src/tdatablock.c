@@ -113,14 +113,27 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
 
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
+    int32_t dataLen = varDataTLen(pData);
+    if(type == TSDB_DATA_TYPE_JSON) {
+      if(*pData == TSDB_DATA_TYPE_NULL) {
+        dataLen = 0;
+      }else if(*pData == TSDB_DATA_TYPE_NCHAR) {
+        dataLen = varDataTLen(pData+CHAR_BYTES);
+      }else if(*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
+        dataLen = LONG_BYTES;
+      }else if(*pData == TSDB_DATA_TYPE_BOOL) {
+        dataLen = CHAR_BYTES;
+      }
+      dataLen += CHAR_BYTES;
+    }
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;
-    if (pAttr->allocLen < pAttr->length + varDataTLen(pData)) {
+    if (pAttr->allocLen < pAttr->length + dataLen) {
       uint32_t newSize = pAttr->allocLen;
       if (newSize == 0) {
         newSize = 8;
       }
 
-      while (newSize < pAttr->length + varDataTLen(pData)) {
+      while (newSize < pAttr->length + dataLen) {
         newSize = newSize * 1.5;
       }
 
@@ -136,8 +149,8 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     uint32_t len = pColumnInfoData->varmeta.length;
     pColumnInfoData->varmeta.offset[currentRow] = len;
 
-    memcpy(pColumnInfoData->pData + len, pData, varDataTLen(pData));
-    pColumnInfoData->varmeta.length += varDataTLen(pData);
+    memcpy(pColumnInfoData->pData + len, pData, dataLen);
+    pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow, pData, pColumnInfoData->info.bytes);
   }

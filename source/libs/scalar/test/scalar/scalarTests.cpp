@@ -125,56 +125,6 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   
   *pNode = (SNode *)vnode;
 }
-void scltMakeJsonColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
-  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-  SColumnNode *rnode = (SColumnNode *)node;
-  rnode->node.resType.type = dataType;
-  rnode->node.resType.bytes = dataBytes;
-  rnode->dataBlockId = 0;
-
-  if (NULL == *block) {
-    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-    res->info.numOfCols = 3;
-    res->info.rows = rowNum;
-    res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
-    for (int32_t i = 0; i < 2; ++i) {
-      SColumnInfoData idata = {{0}};
-      idata.info.type  = TSDB_DATA_TYPE_NULL;
-      idata.info.bytes = 10;
-      idata.info.colId = i + 1;
-
-      int32_t size = idata.info.bytes * rowNum;
-      idata.pData = (char *)taosMemoryCalloc(1, size);
-      taosArrayPush(res->pDataBlock, &idata);
-    }
-
-    SColumnInfoData idata = {{0}};
-    idata.info.type  = dataType;
-    idata.info.bytes = dataBytes;
-    idata.info.colId = 3;
-    int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)taosMemoryCalloc(1, size);
-    taosArrayPush(res->pDataBlock, &idata);
-
-    blockDataEnsureCapacity(res, rowNum);
-
-    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
-    for (int32_t i = 0; i < rowNum; ++i) {
-      uint32_t len = pColumnInfoData->varmeta.length;
-      pColumnInfoData->varmeta.offset[i] = len;
-
-      memcpy(pColumnInfoData->pData + len, value, varDataLen(value));
-      pColumnInfoData->varmeta.length += varDataLen(value);
-    }
-
-    rnode->slotId = 2;
-    rnode->colId = 3;
-
-    *block = res;
-  }
-
-  *pNode = (SNode *)rnode;
-}
 
 void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
   SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_COLUMN);
@@ -960,54 +910,77 @@ TEST(constantTest, greater_and_lower) {
   nodesDestroyNode(res);
 }
 
-TEST(columnTest, smallint_value_add_json_column) {
-  scltInitLogFile();
+void makeJsonArrow(SSDataBlock **src, SNode **opNode, void *json, char *key){
+  char key[32] = {0};
+  memcpy(varDataVal(key), key, strlen(key));
+  varDataLen(key) = strlen(key);
 
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
-  int32_t leftv = 1;
-  char *rightv= "{"k1":4,"k2":"hello","k3":null,"k4":true,"k5":5.44}";
-  char key[10] = {0};
-  memcpy(varDataVal(key), "k1", 2);
-  varDataLen(key) = 2;
+  scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, key);
+  scltMakeColumnNode(&pLeft, src, TSDB_DATA_TYPE_JSON, varDataLen(json), 1, json);
+  scltMakeOpNode(opNode, OP_TYPE_JSON_GET_VALUE, TSDB_DATA_TYPE_JSON, pLeft, pRight);
+}
+
+void makeOperator(SNode **opNode, SArray *blockList, int32_t resType, EOperatorType opType, int32_t rightType, void *rightData){
+  SNode *right = NULL;
+  scltMakeValueNode(&right, rightType, rightData);
+  scltMakeOpNode(opNode, opType, resType, *opNode, right);
+
+  SColumnInfo colInfo = createColumnInfo(1, resType, tDataTypes[resType].bytes);
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, 1, &colInfo);
+  scltMakeTargetNode(opNode, dataBlockId, slotId, *opNode);
+}
+
+void makeCalculate(void *json, void *key, void *value, double exceptValue, EOperatorType opType){
+  SArray *blockList = taosArrayInit(2, POINTER_BYTES);
+  SSDataBlock *src = NULL;
+  SNode *opNode = NULL;
+
+  makeJsonArrow(&src, &opNode, row, key);
+  taosArrayPush(blockList, &src);
+
+  makeOperator(&opNode, blockList, TSDB_DATA_TYPE_DOUBLE, opType, TSDB_DATA_TYPE_INT, value);
+
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
+  ASSERT_EQ(code, 0);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, 1);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_EQ(*((double *)colDataGetData(column, 0)), exceptValue);
+
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
+}
+
+TEST(columnTest, int_value_add_json_column) {
+  scltInitLogFile();
+  char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
+  char *key = "k1";
 
   SKVRowBuilder kvRowBuilder;
   tdInitKVRowBuilder(&kvRowBuilder);
   parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
   SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
 
-  double eRes[5] = {1.0, -4, -3, 24, 101};
+  int32_t leftv = 1;
+  makeCalculate(row, key, &leftv, 5.0, OP_TYPE_ADD);
 
-  SSDataBlock *src = NULL;
-  int32_t rowNum = 1;
+  leftv = 8;
+  makeCalculate(row, key, &leftv, -4, OP_TYPE_SUB);
 
-  scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, key);
-  scltMakeJsonColumnNode(&pLeft, &src, TSDB_DATA_TYPE_JSON, varDataLen(row), rowNum, row);
-  scltMakeOpNode(&opNode, OP_TYPE_JSON_GET_VALUE, TSDB_DATA_TYPE_JSON, pLeft, pRight);
+  leftv = 2;
+  makeCalculate(row, key, &leftv, 8.0, OP_TYPE_MULTI);
 
-  SNode *right = NULL;
-  scltMakeValueNode(&right, TSDB_DATA_TYPE_INT, &leftv);
-  scltMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_DOUBLE, opNode, right);
+  leftv = 2;
+  makeCalculate(row, key, &leftv, 2.0, OP_TYPE_DIV);
 
-  SArray *blockList = taosArrayInit(2, POINTER_BYTES);
-  taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
-  int16_t dataBlockId = 0, slotId = 0;
-  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
-  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  leftv = 3;
+  makeCalculate(row, key, &leftv, 1.0, OP_TYPE_MODE);
 
-  int32_t code = scalarCalculate(opNode, blockList, NULL);
-  ASSERT_EQ(code, 0);
-
-  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
-  ASSERT_EQ(res->info.rows, rowNum);
-  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
-  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
-  for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
-  }
-
-  taosArrayDestroyEx(blockList, scltFreeDataBlock);
-  nodesDestroyNode(opNode);
+  makeCalculate(row, key, &leftv, -4, OP_TYPE_MINUS);
 }
 
 TEST(columnTest, smallint_value_add_int_column) {

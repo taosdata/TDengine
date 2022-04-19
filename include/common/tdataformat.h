@@ -502,7 +502,7 @@ typedef struct {
 
 #define TD_KV_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
-#define kvRowLen(r)            (*(TDRowLenT *)(r))
+#define kvRowLen(r)            (*(uint16_t *)(r))
 #define kvRowNCols(r)          (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
 #define kvRowSetLen(r, len)    kvRowLen(r) = (len)
 #define kvRowSetNCols(r, n)    kvRowNCols(r) = (n)

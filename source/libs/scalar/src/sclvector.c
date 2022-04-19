@@ -774,7 +774,7 @@ char *getJsonValue(char *json, char *key){    //todo
     if(i == 0 && *data == TSDB_DATA_TYPE_NULL){
       return NULL;
     }
-    if(strncmp(key, varDataVal(data), varDataLen(data)) == 0){
+    if(memcmp(key, data, varDataTLen(data)) == 0){
       return data + varDataTLen(data);
     }
   }
@@ -803,7 +803,7 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
       pOutputCol->hasNull = true;
       continue;
     }
-    colDataAppend(pOutputCol, i, pLeftData, false);
+    colDataAppend(pOutputCol, i, value, false);
   }
 }
 
