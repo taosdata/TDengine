@@ -31,6 +31,9 @@ extern "C" {
 // clang-format on
 
 // vnodeCfg ====================
+extern const SVnodeCfg vnodeCfgDefault;
+
+int vnodeCheckCfg(const SVnodeCfg*);
 int vnodeEncodeConfig(const void* pObj, SJson* pJson);
 int vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
@@ -43,10 +46,10 @@ void vnodeQueryClose(SVnode* pVnode);
 int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit ====================
+int vnodeBegin(SVnode* pVnode);
 int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
-int vnodeBegin(SVnode* pVnode, int option);
 int vnodeSyncCommit(SVnode* pVnode);
 int vnodeAsyncCommit(SVnode* pVnode);
 
@@ -87,11 +90,6 @@ void            vmaReset(SVMemAllocator* pVMA);
 void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
-
-// vnodeCfg.h
-extern const SVnodeCfg vnodeCfgDefault;
-
-int vnodeCheckCfg(const SVnodeCfg*);
 
 #endif
 

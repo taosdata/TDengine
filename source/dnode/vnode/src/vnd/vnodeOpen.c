@@ -124,11 +124,11 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
-#if 0
-  if (vnodeBegin() < 0) {
+  // vnode begin
+  if (vnodeBegin(pVnode) < 0) {
+    vError("vgId: %d failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
-#endif
 
   return pVnode;
 

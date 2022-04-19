@@ -25,6 +25,26 @@ static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommit(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
 
+int vnodeBegin(SVnode *pVnode) {
+  // begin buffer pool
+
+  // begin meta
+  if (metaBegin(pVnode->pMeta) < 0) {
+    vError("vgId: %d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
+
+  // begin tsdb
+#if 0
+  if (tsdbBegin(pVnode->pTsdb) < 0) {
+    vError("vgId: %d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
+#endif
+
+  return 0;
+}
+
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   char      fname[TSDB_FILENAME_LEN];
   TdFilePtr pFile;

@@ -19,6 +19,8 @@ const SVnodeCfg vnodeCfgDefault = {
     .vgId = -1,
     .dbname = "",
     .dbId = 0,
+    .szPage = 4096,
+    .szCache = 256,
     .wsize = 96 * 1024 * 1024,
     .ssize = 1 * 1024 * 1024,
     .lsize = 1024,
@@ -53,6 +55,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "vgId", pCfg->vgId) < 0) return -1;
   if (tjsonAddStringToObject(pJson, "dbname", pCfg->dbname) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szPage", pCfg->szPage) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wsize", pCfg->wsize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "ssize", pCfg->ssize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "lsize", pCfg->lsize) < 0) return -1;
@@ -91,6 +95,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "vgId", pCfg->vgId) < 0) return -1;
   if (tjsonGetStringValue(pJson, "dbname", pCfg->dbname) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "dbId", pCfg->dbId) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szPage", pCfg->szPage) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wsize", pCfg->wsize) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "ssize", pCfg->ssize) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "lsize", pCfg->lsize) < 0) return -1;

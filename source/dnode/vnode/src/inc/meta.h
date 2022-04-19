@@ -45,22 +45,49 @@ void metaCloseIdx(SMeta* pMeta);
 int  metaSaveTableToIdx(SMeta* pMeta, const STbCfg* pTbOptions);
 int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 
+// metaCommit ==================
+int metaBegin(SMeta* pMeta);
+
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
 struct SMeta {
-  char*   path;
-  SVnode* pVnode;
-#ifdef META_REFACT
-  TENV* pEnv;
-  TDB*  pTbDb;
-  TDB*  pSchemaDb;
-  TDB*  pNameIdx;
-  TDB*  pCtbIdx;
-#else
-  SMetaDB* pDB;
-#endif
+  char*     path;
+  SVnode*   pVnode;
+  TENV*     pEnv;
+  TDB*      pTbDb;
+  TDB*      pSkmDb;
+  TDB*      pNameIdx;
+  TDB*      pCtbIdx;
+  TDB*      pTagIdx;
+  TDB*      pTtlIdx;
   SMetaIdx* pIdx;
 };
+
+typedef struct {
+  tb_uid_t uid;
+  int64_t  ver;
+} STbDbKey;
+
+typedef struct __attribute__((__packed__)) {
+  tb_uid_t uid;
+  int32_t  sver;
+} SSkmDbKey;
+
+typedef struct {
+  tb_uid_t suid;
+  tb_uid_t uid;
+} SCtbIdxKey;
+
+typedef struct __attribute__((__packed__)) {
+  tb_uid_t suid;
+  int16_t  cid;
+  char     data[];
+} STagIdxKey;
+
+typedef struct {
+  int64_t  dtime;
+  tb_uid_t uid;
+} STtlIdxKey;
 
 #if 1
 #define META_SUPER_TABLE  TD_SUPER_TABLE

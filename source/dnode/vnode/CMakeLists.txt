@@ -22,6 +22,7 @@ target_sources(
     "src/meta/metaTable.c"
     "src/meta/metaTDBImpl.c"
     "src/meta/metaQuery.c"
+    "src/meta/metaCommit.c"
 
     # tsdb
     "src/tsdb/tsdbTDBImpl.c"
@@ -70,7 +71,7 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
 )
-# target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
+target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
 if(${BUILD_TEST})
     add_subdirectory(test)

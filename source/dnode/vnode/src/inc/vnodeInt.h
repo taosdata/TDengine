@@ -22,6 +22,7 @@
 #include "sync.h"
 #include "tchecksum.h"
 #include "tcoding.h"
+#include "tcompare.h"
 #include "tcompression.h"
 #include "tdatablock.h"
 #include "tdbInt.h"

@@ -23,7 +23,6 @@
 #include "tbuffer.h"
 #include "tdataformat.h"
 #include "tdef.h"
-#include "tschema.h"
 #include "ttypes.h"
 #include "tutil.h"
 
@@ -58,12 +57,12 @@ extern "C" {
 #define TD_ROWS_ALL_NORM  0x00U
 #define TD_ROWS_NULL_NORM 0x01U
 
-#define TD_COL_ROWS_NORM(c) ((c)->bitmap == TD_ROWS_ALL_NORM)  // all rows of SDataCol/SBlockCol is NORM
+#define TD_COL_ROWS_NORM(c)          ((c)->bitmap == TD_ROWS_ALL_NORM)  // all rows of SDataCol/SBlockCol is NORM
 #define TD_SET_COL_ROWS_BTIMAP(c, v) ((c)->bitmap = (v))
-#define TD_SET_COL_ROWS_NORM(c) TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_ALL_NORM)
-#define TD_SET_COL_ROWS_MISC(c) TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_NULL_NORM)
+#define TD_SET_COL_ROWS_NORM(c)      TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_ALL_NORM)
+#define TD_SET_COL_ROWS_MISC(c)      TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_NULL_NORM)
 
-#define KvConvertRatio (0.9f)
+#define KvConvertRatio            (0.9f)
 #define isSelectKVRow(klen, tlen) ((klen) < ((tlen)*KvConvertRatio))
 
 #ifdef TD_SUPPORT_BITMAP
@@ -341,7 +340,8 @@ static FORCE_INLINE bool tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx,
   return false;
 }
 
-static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
+static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType,
+                                               int8_t bitmapMode) {
   switch (bitmapMode) {
     case 0:
       tdGetBitmapValTypeII(pBitmap, colIdx, pValType);

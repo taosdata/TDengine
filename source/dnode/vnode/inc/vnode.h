@@ -137,6 +137,8 @@ struct SVnodeCfg {
   int32_t  vgId;
   char     dbname[TSDB_DB_NAME_LEN];
   uint64_t dbId;
+  int32_t  szPage;
+  int32_t  szCache;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
