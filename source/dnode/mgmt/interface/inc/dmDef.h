@@ -133,7 +133,6 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
-  bool finished;
   char name[TSDB_STEP_NAME_LEN];
   char desc[TSDB_STEP_DESC_LEN];
 } SStartupInfo;

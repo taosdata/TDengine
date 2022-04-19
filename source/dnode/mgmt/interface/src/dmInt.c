@@ -136,16 +136,10 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
 }
 
-void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc, bool finished) {
+void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
   SStartupInfo *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  pStartup->finished = false;
-}
-
-static void dmGetStartup(SDnode *pDnode, SStartupInfo *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupInfo));
-  pStartup->finished = (pDnode->status == DND_STAT_RUNNING);
 }
 
 static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {

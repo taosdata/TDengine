@@ -34,7 +34,7 @@ const char   *dmEventName(EDndEvent ev);
 void   dmSetStatus(SDnode *pDnode, EDndRunStatus stat);
 void   dmSetEvent(SDnode *pDnode, EDndEvent event);
 void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
-void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc, bool finished);
+void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void   dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pMsg);
 void   dmGetMonitorSysInfo(SMonSysInfo *pInfo);
 
