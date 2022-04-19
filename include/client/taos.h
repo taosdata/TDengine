@@ -95,7 +95,7 @@ typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
 typedef struct TAOS_BIND_v2 {
   int       buffer_type;
   void     *buffer;
-  uintptr_t buffer_length;
+  int32_t   buffer_length;
   int32_t  *length;
   char     *is_null;
   int       num;

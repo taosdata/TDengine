@@ -98,7 +98,7 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
       *colIdx = schemaIdx;
     } else {
-      *toffset = idx * sizeof(SColIdx);  // the offset of SColIdx
+      *toffset = idx * sizeof(SKvRowIdx);  // the offset of SColIdx
       *colIdx = idx;
     }
   } else {
@@ -108,7 +108,7 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
       *toffset = (spd->cols + schemaIdx)->toffset;
       *colIdx = schemaIdx;
     } else {
-      *toffset = ((spd->colIdxInfo + idx)->finalIdx) * sizeof(SColIdx);
+      *toffset = ((spd->colIdxInfo + idx)->finalIdx) * sizeof(SKvRowIdx);
       *colIdx = (spd->colIdxInfo + idx)->finalIdx;
     }
   }

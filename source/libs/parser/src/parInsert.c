@@ -1319,6 +1319,8 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, int32
   SMemParam param = {.rb = pBuilder};
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
 
+  CHECK_CODE(initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo));
+
   CHECK_CODE(allocateMemForSize(pDataBlock, extendedRowSize * bind->num));
   
   for (int32_t r = 0; r < bind->num; ++r) {
@@ -1333,6 +1335,10 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, int32
       getSTSRowAppendInfo(pBuilder->rowType, spd, c, &param.toffset, &param.colIdx);
 
       if (bind[c].is_null && bind[c].is_null[r]) {
+        if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+          return buildInvalidOperationMsg(&pBuf, "primary timestamp should not be NULL");
+        }
+        
         CHECK_CODE(MemRowAppend(&pBuf, NULL, 0, &param));
       } else {
         int32_t colLen = pColSchema->bytes;
