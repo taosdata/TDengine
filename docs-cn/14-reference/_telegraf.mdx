@@ -1,0 +1,40 @@
+
+Telegraf 是一款十分流行的指标采集开源软件，将 Telegraf 的数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储和查询能力。安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
+
+## 依赖配置
+
+TDengine 新版本（2.4.0.0+）包含一个 taosAdapter 独立程序，可以接收包括 Telegraf 在内的多种应用的数据写入。
+
+启动 taosAdapter：
+
+```
+systemctl start taosadapter
+```
+
+检查 taosAdapter 的运行状态：
+
+```
+systemctl status taosadapter
+```
+
+## 配置 Telegraf
+
+配置方法，在 `/etc/telegraf/telegraf.conf` 增加如下配置，其中 `database name` 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，`TDengine server`、`cluster host`、`username` 和 `password` 填写 TDengine 集群中的实际配置：
+
+示例 telegraf.conf 如下：
+
+```
+[[outputs.http]]
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
+  method = "POST"
+  timeout = "5s"
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
+  data_format = "influx"
+  influx_max_line_bytes = 250
+```
+
+## 验证方法
+
+重启 Telegraf 后可通过查询 TDengine 中配置指定的数据库来验证 Telegraf 写入的数据。
+
