@@ -148,28 +148,26 @@ void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const c
 }
 
 static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
+  pStatus->details[0] = 0;
+
   if (pDnode->status == DND_STAT_INIT) {
     pStatus->statusCode = TSDB_SRV_STATUS_NETWORK_OK;
+    snprintf(pStatus->details, sizeof(pStatus->details), "%s: %s", pDnode->startup.name, pDnode->startup.desc);
   } else if (pDnode->status == DND_STAT_STOPPED) {
     pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
   } else {
-    pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
-  }
-
-  if (pStatus->statusCode == TSDB_SRV_STATUS_NETWORK_OK) {
-    SStartupInfo *pStartup = &pDnode->startup;
-
-    int32_t len = strlen(pStartup->name) + strlen(pStartup->desc);
-    if (len > 0) {
-      pStatus->details = taosMemoryCalloc(1, len + 24);
-      if (pStatus->details != NULL) {
-        pStatus->detailLen = snprintf(pStatus->details, len + 20, "%s: %s", pStartup->name, pStartup->desc) + 1;
-      }
+    SDnodeData *pData = &pDnode->data;
+    if (pData->isMnode && pData->mndState != TAOS_SYNC_STATE_FOLLOWER && pData->mndState != TAOS_SYNC_STATE_FOLLOWER) {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
+      snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(pData->mndState));
+    } else if (pData->unsyncedVgId != 0 && pData->vndState != TAOS_SYNC_STATE_FOLLOWER &&
+               pData->vndState != TAOS_SYNC_STATE_FOLLOWER) {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
+      snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pData->unsyncedVgId,
+               syncStr(pData->vndState));
+    } else {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
     }
-  }
-
-  if (pStatus->statusCode == TSDB_SRV_STATUS_SERVICE_OK) {
-    // check the status of mnode and vnode
   }
 }
 
@@ -198,7 +196,6 @@ void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
 
 _OVER:
   rpcSendResponse(&rspMsg);
-  tFreeSServerStatusRsp(&statusRsp);
 }
 
 void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {

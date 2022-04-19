@@ -46,6 +46,34 @@ int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   return 0;
 }
 
+void mmGetMnodeLoads(SMgmtWrapper *pWrapper, SMonMloadInfo *pInfo) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  pInfo->isMnode = 1;
+  mndGetLoad(pMgmt->pMnode, &pInfo->load);
+}
+
+int32_t mmProcessGetMnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+  SMonMloadInfo mloads = {0};
+  mmGetMnodeLoads(pWrapper, &mloads);
+
+  int32_t rspLen = tSerializeSMonMloadInfo(NULL, 0, &mloads);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSMonMloadInfo(pRsp, rspLen, &mloads);
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
+  return 0;
+}
+
 int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
@@ -117,6 +145,7 @@ int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 
 void mmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dmSetMsgHandle(pWrapper, TDMT_MON_MM_INFO, mmProcessMonitorMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_MON_MM_LOAD, mmProcessMonitorMsg, DEFAULT_HANDLE);
 
   // Requests handled by DNODE
   dmSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE_RSP, mmProcessWriteMsg, DEFAULT_HANDLE);

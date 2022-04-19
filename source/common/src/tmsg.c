@@ -1003,7 +1003,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
-    if (tEncodeI8(&encoder, pload->role) < 0) return -1;
+    if (tEncodeI32(&encoder, pload->syncState) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
@@ -1054,7 +1054,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad vload = {0};
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
-    if (tDecodeI8(&decoder, &vload.role) < 0) return -1;
+    if (tDecodeI32(&decoder, &vload.syncState) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
@@ -3105,10 +3105,7 @@ int32_t tSerializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp *
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->statusCode) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->detailLen) < 0) return -1;
-  if (pRsp->detailLen > 0) {
-    if (tEncodeCStr(&encoder, pRsp->details) < 0) return -1;
-  }
+  if (tEncodeCStr(&encoder, pRsp->details) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -3123,22 +3120,12 @@ int32_t tDeserializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->statusCode) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->detailLen) < 0) return -1;
-  if (pRsp->detailLen > 0) {
-    pRsp->details = taosMemoryCalloc(1, pRsp->detailLen);
-    if (pRsp->details == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-    if (tDecodeCStrTo(&decoder, pRsp->details) < 0) return -1;
-  }
+  if (tDecodeCStrTo(&decoder, pRsp->details) < 0) return -1;
 
   tEndDecode(&decoder);
   tCoderClear(&decoder);
   return 0;
 }
-
-void tFreeSServerStatusRsp(SServerStatusRsp *pRsp) { taosMemoryFree(pRsp->details); }
 
 int32_t tEncodeSMqOffset(SCoder *encoder, const SMqOffset *pOffset) {
   if (tEncodeI32(encoder, pOffset->vgId) < 0) return -1;

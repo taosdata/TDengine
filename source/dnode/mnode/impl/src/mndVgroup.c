@@ -545,7 +545,7 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
         colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
 
         char        buf1[20] = {0};
-        const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
+        const char *role = syncStr(pVgroup->vnodeGid[i].role);
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->bytes[cols]);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -636,7 +636,7 @@ static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
       colDataAppend(pColInfo, numOfRows, (const char *)&val, false);
 
       char buf[20] = {0};
-      STR_TO_VARSTR(buf, mndGetRoleStr(pVgid->role));
+      STR_TO_VARSTR(buf, syncStr(pVgid->role));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 

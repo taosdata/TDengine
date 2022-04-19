@@ -29,7 +29,6 @@ typedef struct SVnodesMgmt {
   SHashObj     *hash;
   SRWLatch      latch;
   SVnodesStat   state;
-  SVnodesStat   lastState;
   STfs         *pTfs;
   SQWorkerPool  queryPool;
   SQWorkerPool  fetchPool;

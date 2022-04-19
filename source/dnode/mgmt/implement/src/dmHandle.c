@@ -72,9 +72,23 @@ void dmSendStatusReq(SDnode *pDnode) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pDnode->data.latch);
 
-  SMonVloadInfo info = {0};
-  dmGetVnodeLoads(pDnode, &info);
-  req.pVloads = info.pVloads;
+  SMonVloadInfo vinfo = {0};
+  dmGetVnodeLoads(pDnode, &vinfo);
+  req.pVloads = vinfo.pVloads;
+  pDnode->data.unsyncedVgId = 0;
+  pDnode->data.vndState = TAOS_SYNC_STATE_LEADER;
+  for (int32_t i = 0; i < taosArrayGetSize(req.pVloads); ++i) {
+    SVnodeLoad *pLoad = taosArrayGet(req.pVloads, i);
+    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
+      pDnode->data.unsyncedVgId = pLoad->vgId;
+      pDnode->data.vndState = pLoad->syncState;
+    }
+  }
+
+  SMonMloadInfo minfo = {0};
+  dmGetMnodeLoads(pDnode, &minfo);
+  pDnode->data.isMnode = minfo.isMnode;
+  pDnode->data.mndState = minfo.load.syncState;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);

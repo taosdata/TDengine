@@ -878,7 +878,5 @@ _OVER:
   if (rpcRsp.pCont != NULL) {
     rpcFreeCont(rpcRsp.pCont);
   }
-  tFreeSServerStatusRsp(&statusRsp);
-
   return code;
 }

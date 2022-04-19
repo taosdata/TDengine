@@ -38,6 +38,7 @@
 #include "dnode.h"
 #include "mnode.h"
 #include "monitor.h"
+#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -110,6 +111,10 @@ typedef struct {
   int64_t       dnodeVer;
   int64_t       updateTime;
   int64_t       rebootTime;
+  int32_t       unsyncedVgId;
+  ESyncState    vndState;
+  ESyncState    mndState;
+  bool          isMnode;
   bool          dropped;
   SEpSet        mnodeEps;
   SArray       *dnodeEps;

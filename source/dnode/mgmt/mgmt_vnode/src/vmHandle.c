@@ -16,21 +16,42 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo) {
+void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  tfsGetMonitorInfo(pMgmt->pTfs, &vmInfo->tfs);
 
-  taosWLockLatch(&pMgmt->latch);
-  vmInfo->vstat.totalVnodes = pMgmt->state.totalVnodes;
-  vmInfo->vstat.masterNum = pMgmt->state.masterNum;
-  vmInfo->vstat.numOfSelectReqs = pMgmt->state.numOfSelectReqs - pMgmt->lastState.numOfSelectReqs;
-  vmInfo->vstat.numOfInsertReqs = pMgmt->state.numOfInsertReqs - pMgmt->lastState.numOfInsertReqs;
-  vmInfo->vstat.numOfInsertSuccessReqs = pMgmt->state.numOfInsertSuccessReqs - pMgmt->lastState.numOfInsertSuccessReqs;
-  vmInfo->vstat.numOfBatchInsertReqs = pMgmt->state.numOfBatchInsertReqs - pMgmt->lastState.numOfBatchInsertReqs;
-  vmInfo->vstat.numOfBatchInsertSuccessReqs =
-      pMgmt->state.numOfBatchInsertSuccessReqs - pMgmt->lastState.numOfBatchInsertSuccessReqs;
-  pMgmt->lastState = pMgmt->state;
-  taosWUnLockLatch(&pMgmt->latch);
+  SMonVloadInfo vloads = {0};
+  vmGetVnodeLoads(pWrapper, &vloads);
+  if (vloads.pVloads == NULL) return;
+
+  int32_t totalVnodes = 0;
+  int32_t masterNum = 0;
+  int64_t numOfSelectReqs = 0;
+  int64_t numOfInsertReqs = 0;
+  int64_t numOfInsertSuccessReqs = 0;
+  int64_t numOfBatchInsertReqs = 0;
+  int64_t numOfBatchInsertSuccessReqs = 0;
+
+  for (int32_t i = 0; i < taosArrayGetSize(vloads.pVloads); ++i) {
+    SVnodeLoad *pLoad = taosArrayGet(vloads.pVloads, i);
+    numOfSelectReqs += pLoad->numOfSelectReqs;
+    numOfInsertReqs += pLoad->numOfInsertReqs;
+    numOfInsertSuccessReqs += pLoad->numOfInsertSuccessReqs;
+    numOfBatchInsertReqs += pLoad->numOfBatchInsertReqs;
+    numOfBatchInsertSuccessReqs += pLoad->numOfBatchInsertSuccessReqs;
+    if (pLoad->syncState == TAOS_SYNC_STATE_LEADER) masterNum++;
+    totalVnodes++;
+  }
+
+  pInfo->vstat.totalVnodes = totalVnodes;
+  pInfo->vstat.masterNum = masterNum;
+  pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
+  pInfo->vstat.numOfInsertReqs = numOfInsertReqs - pMgmt->state.numOfInsertReqs;
+  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs - pMgmt->state.numOfInsertSuccessReqs;
+  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs - pMgmt->state.numOfBatchInsertReqs;
+  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs - pMgmt->state.numOfBatchInsertSuccessReqs;
+  pMgmt->state = pInfo->vstat;
+
+  taosArrayDestroy(vloads.pVloads);
 }
 
 int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {

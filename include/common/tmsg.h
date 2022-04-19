@@ -723,7 +723,7 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-  int8_t  role;
+  int32_t syncState;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
   int64_t totalStorage;
@@ -735,6 +735,10 @@ typedef struct {
   int64_t numOfBatchInsertReqs;
   int64_t numOfBatchInsertSuccessReqs;
 } SVnodeLoad;
+
+typedef struct {
+  int32_t syncState;
+} SMnodeLoad;
 
 typedef struct {
   int32_t     sver;      // software version
@@ -1072,13 +1076,11 @@ int32_t tDeserializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
 
 typedef struct {
   int32_t statusCode;
-  int32_t detailLen;
-  char*   details;
+  char    details[1024];
 } SServerStatusRsp;
 
 int32_t tSerializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp* pRsp);
 int32_t tDeserializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp* pRsp);
-void    tFreeSServerStatusRsp(SServerStatusRsp* pRsp);
 
 /**
  * The layout of the query message payload is as following:
