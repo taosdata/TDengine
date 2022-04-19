@@ -354,6 +354,7 @@ void loop_consume(tmq_t* tmq) {
       if (0 != g_stConfInfo.showMsgFlag) {
         /*msg_process(tmqMsg);*/
       }
+      /*tmq_commit(tmq, NULL, false);*/
       tmq_message_destroy(tmqMsg);
     } else {
       break;
