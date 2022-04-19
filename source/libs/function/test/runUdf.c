@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     pBlock->info.numOfCols = 1;
     pBlock->info.rows = 4;
     char data[16] = {0};
-    char bitmap[1] = {0};
+    char bitmap[4] = {0};
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData colInfo = {0};
       colInfo.info.type = TSDB_DATA_TYPE_INT;
@@ -47,6 +47,10 @@ int main(int argc, char *argv[]) {
     SSDataBlock output = {0};
     callUdfScalaProcess(handle, pBlock, &output);
 
+    SColumnInfoData *col = taosArrayGet(output.pDataBlock, 0);
+    for (int32_t i = 0; i < output.info.rows; ++i) {
+      fprintf(stderr, "%d\t%d\n" , i, *(int32_t*)(col->pData + i *sizeof(int32_t)));
+    }
     teardownUdf(handle);
 
     stopUdfService();

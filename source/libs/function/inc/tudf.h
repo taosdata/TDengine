@@ -68,17 +68,19 @@ typedef struct SUdfColumnData {
   int32_t numOfRows;
   bool varLengthColumn;
   union {
-    int32_t nullBitmapLen;
-    char* nullBitmap;
-    int32_t dataLen;
-    char* data;
-  };
+    struct {
+      int32_t nullBitmapLen;
+      char   *nullBitmap;
+      int32_t dataLen;
+      char   *data;
+    } fixLenCol;
 
-  union {
-    int32_t varOffsetsLen;
-    char* varOffsets;
-    int32_t payloadLen;
-    char* payload;
+    struct {
+      int32_t varOffsetsLen;
+      char   *varOffsets;
+      int32_t payloadLen;
+      char   *payload;
+    } varLenCol;
   };
 } SUdfColumnData;
 
@@ -136,7 +138,7 @@ typedef int32_t (*TUdfTeardownFunc)();
 //typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
 //typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
 
-typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* columnData);
+typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
 
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumn *resultCol);
 typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);

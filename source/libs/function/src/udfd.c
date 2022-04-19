@@ -84,9 +84,10 @@ void udfdProcessRequest(uv_work_t *req) {
 	    //TODO error, multi-thread, same udf, lock it
 	    //TODO find all functions normal, init, destroy, normal, merge, finalize
             uv_dlsym(&udf->lib, normalFuncName, (void **) (&udf->scalarProcFunc));
-            char freeFuncName[TSDB_FUNC_NAME_LEN + 5];
+            char freeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+            char *freeSuffix = "_free";
             strncpy(freeFuncName, normalFuncName, strlen(normalFuncName));
-            strcat(freeFuncName, "_free");
+            strncat(freeFuncName, freeSuffix, strlen(freeSuffix));
             uv_dlsym(&udf->lib, freeFuncName, (void **)(&udf->freeUdfColumn));
 
             SUdfHandle *handle = taosMemoryMalloc(sizeof(SUdfHandle));
@@ -118,7 +119,7 @@ void udfdProcessRequest(uv_work_t *req) {
 
             SUdfDataBlock input = {0};
             convertDataBlockToUdfDataBlock(&call->block, &input);
-            SUdfColumn output;
+            SUdfColumn output = {0};
 	    //TODO: call different functions according to call type, for now just calar
             if (call->callType == TSDB_UDF_CALL_SCALA_PROC) {
               udf->scalarProcFunc(input, &output);
@@ -131,6 +132,7 @@ void udfdProcessRequest(uv_work_t *req) {
               rsp->type = request.type;
               rsp->code = 0;
               SUdfCallResponse *subRsp = &rsp->callRsp;
+              subRsp->callType = call->callType;
               convertUdfColumnToDataBlock(&output, &subRsp->resultData);
             }
 
