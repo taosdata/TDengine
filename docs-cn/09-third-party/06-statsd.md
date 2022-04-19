@@ -5,7 +5,9 @@ title: StatsD 直接写入
 
 import StatsD from "../14-reference/_statsd.mdx"
 
-StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年来发展迅速，已经变成了一个用于收集应用性能指标的统一的协议。将 StatsD 采集的指标数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储和查询能力。安装 StatsD 请参考[官方文档](https://github.com/statsd/statsd)。
+StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年来发展迅速，已经变成了一个用于收集应用性能指标的统一的协议。将 StatsD 采集的指标数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储和查询能力。
+
+安装 StatsD 请参考[官方文档](https://github.com/statsd/statsd)。
 
 ## 依赖配置
 
