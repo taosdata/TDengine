@@ -33,9 +33,9 @@
 
 #define FREE_HASH_NODE(_fp, _n) \
   do {                          \
-    if (_fp != NULL) {          \
+/*    if (_fp != NULL) {          \
       (_fp)(_n);                \
-    }                           \
+    }*/                           \
     taosMemoryFreeClear(_n);    \
   } while (0);
 
