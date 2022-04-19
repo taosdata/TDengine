@@ -1,3 +1,4 @@
+from this import d
 import taos
 import sys
 
@@ -65,12 +66,37 @@ class TDTestCase:
         )
 
 
-        tdLog.printNoPrefix("==========step3:query timestamp type")
+        tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
+
+        tdSql.query("select c1  from ct4")
+        data_ct4 = []
+        for i in range(tdSql.queryRows):
+            data_ct4[i] = tdSql.getData(i,0)
+
+        tdSql.query("select c1  from t1")
+        data_t1 = []
+        for i in range(tdSql.queryRows):
+            data_t1[i] = tdSql.getData(i,0)
+
+        tdSql.query("select cast(c1 as int) as b from ct4")
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, data_ct4[i])
+
+        tdSql.query("select cast(c1 as int) as b from t1")
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, data_t1[i])
+
+        tdLog.printNoPrefix("==========step1: cast int to bigint, expect no changes")
+
         tdSql.query("select cast(c1 as bigint) as b from ct4")
-        tdSql.checkRows(12)
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, data_ct4[i])
         tdSql.query("select cast(c1 as bigint) as b from t1")
-        tdSql.checkRows(12)
-        tdSql.checkData(0,0, None)
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, data_t1[i])
+
+        tdSql.error("select cast(c1 as bigint) as b from ct4 interval(1y) ")
+        tdSql.error("select cast(c1 as bigint) as b from t1 interval(1y) ")
 
 
     def stop(self):
