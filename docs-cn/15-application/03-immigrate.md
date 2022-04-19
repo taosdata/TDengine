@@ -47,7 +47,7 @@ title: OpenTSDB 应用迁移到 TDengine 的最佳实践
 
 用户可以根据需求弹性部署 taosAdapter 实例，结合场景的需要，快速提升数据写入的吞吐量，为不同应用场景下的数据写入提供保障。
 
-通过 taosAdapter，用户可以将 collectd 和 StatsD 收集的数据直接推送到 TDengine ，实现应用场景的无缝迁移，非常的轻松便捷。taosAdapter 还支持 Telegraf、Icinga、TCollector 、node_exporter 的数据接入，使用详情参考[taosAdapter](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。
+通过 taosAdapter，用户可以将 collectd 和 StatsD 收集的数据直接推送到 TDengine ，实现应用场景的无缝迁移，非常的轻松便捷。taosAdapter 还支持 Telegraf、Icinga、TCollector 、node_exporter 的数据接入，使用详情参考[taosAdapter](/reference/taosadapter/)。
 
 如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosAdapter 部署的节点 IP 地址和端口。假设 taosAdapter 的 IP 地址为 192.168.1.130，端口为 6046，配置如下：
 

@@ -51,4 +51,4 @@ chmod +x TDinsight.sh
 
 运行程序并重启 Grafana 服务，打开面板：`http://localhost:3000/d/tdinsight`。
 
-更多使用场景和限制请参考[TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) 文档。
+更多使用场景和限制请参考[TDinsight](/reference/tdinsight/) 文档。
