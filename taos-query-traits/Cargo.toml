@@ -7,13 +7,18 @@ edition = "2021"
 
 [dependencies]
 anyhow = "*"
-chrono = "*"
+chrono = { version = "*", features = ["serde"] }
 log = "*"
 num_enum = "0.5.7"
+thiserror = "1.0"
+itertools = "0.10.3"
+
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_repr = "0.1.7"
 
+nom = "7"
+paste = "1"
 [dev-dependencies]
 pretty_env_logger = "*"
 [features]

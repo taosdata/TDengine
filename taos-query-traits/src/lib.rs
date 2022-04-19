@@ -7,9 +7,11 @@ use std::iter::FlatMap;
 
 pub mod common;
 mod de;
+pub mod helpers;
 
 use common::*;
 use de::RecordDeserializer;
+use helpers::*;
 
 pub enum CodecOpts {
     Raw,
@@ -62,7 +64,7 @@ pub trait BlockExt<'de, 'b: 'de>: Debug + Sized {
     ///
     /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
     fn deserialize<T>(&self) -> II<'de, 'b, Self, T>
-    //std::iter::Map<Self::RowIter, fn(Self::Row) -> Result<T, serde::de::value::Error>>
+    // std::iter::Map<Self::RowIter, fn(Self::Row) -> Result<T, serde::de::value::Error>>
     where
         T: serde::de::Deserialize<'de>,
     {
@@ -84,19 +86,19 @@ type II<'de, 'b, B, T> = std::iter::Map<
 
 /// A result gained from query lifetime(`'q`), and will produce a block iterator with
 /// sub lifetime called `'b`(means block).
-pub trait ResultSet<'q, 'de: 'q, 'b: 'de>: Sized {
+pub trait ResultSet<'q, 'de, 'b: 'de>: Sized {
     type B: 'b + BlockExt<'de, 'b>;
     type I: Iterator<Item = Self::B>;
 
-    fn fields(&'b self) -> &'b [Field];
+    fn fields(&'q self) -> &'q [Field];
 
-    fn next_block(&'b self) -> Option<Self::B>;
+    fn next_block(&'q self) -> Option<Self::B>;
 
-    fn block_iter(&'b self) -> Self::I;
+    fn block_iter(&'q self) -> Self::I;
 
     #[allow(clippy::type_complexity)]
     fn deserialize<T>(
-        &'b self,
+        &'q self,
     ) -> FlatMap<Self::I, II<'de, 'b, Self::B, T>, fn(Self::B) -> II<'de, 'b, Self::B, T>>
     where
         T: serde::de::DeserializeOwned,
@@ -106,19 +108,89 @@ pub trait ResultSet<'q, 'de: 'q, 'b: 'de>: Sized {
     }
 }
 
-/// Queryable trait is the basic starter.
-pub trait Queryable<'q, 'de: 'q, 'b: 'de>: Debug {
-    type Error: Debug;
-    type Block: BlockExt<'de, 'b>;
-    type ResultSet: ResultSet<'q, 'de, 'b>;
+pub trait Queryable: Debug {
+    type Error: Debug + From<serde::de::value::Error>;
+    type ResultSet: for<'q, 'b> ResultSet<'q, 'b, 'b>;
 
-    fn query<T: AsRef<str>>(
-        &'q self,
-        sql: T,
-    ) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
+    fn query<T: AsRef<str>>(&self, sql: T) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
 
-    fn exec<T: AsRef<str>>(&self, sql: T) -> Result<usize, Self::Error>;
+    fn exec<T: AsRef<str>>(&self, sql: T) -> Result<usize, Self::Error> {
+        self.query(sql).map(|res| match res {
+            Ok(_) => 0, // todo: if we should get the selected rows if not update query?
+            Err(affected) => affected,
+        })
+    }
+
+    fn databases(&self) -> Result<Vec<ShowDatabase>, Self::Error> {
+        use itertools::Itertools;
+        self.query("show databases")?
+            .expect("`show databases` must be queryable")
+            .deserialize()
+            .try_collect()
+            .map_err(Into::into)
+    }
+
+    fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
+        use itertools::Itertools;
+        self.query(format!("describe {}", table))?
+            .expect("`describe <table>` must be queryable")
+            .deserialize()
+            .try_collect()
+            .map_err(Into::into)
+    }
+
+    fn create_database<I: Into<DatabaseProperties>>(
+        &self,
+        name: &str,
+        opts: I,
+    ) -> Result<(), Self::Error> {
+        let sql = format!("create database {} if not exists {}", name, opts.into());
+        self.exec(&sql).map(|_| ())
+    }
+
+    fn use_database(&self, database: &str) -> Result<(), Self::Error> {
+        let sql = format!("use database {}", database);
+        self.exec(&sql).map(|_| ())
+    }
+
+    fn create_table(&self, name: &str) -> Result<(), Self::Error> {
+        let sql = format!("create table {}", name);
+        self.exec(&sql).map(|_| ())
+    }
 }
+
+/// Queryable trait is the basic starter.
+// pub trait Queryable<'de, 'b: 'de>: Debug {
+//     type Error: Debug + From<serde::de::value::Error>;
+//     type Block: 'b + BlockExt<'de, 'b>;
+//     type ResultSet: 'b + ResultSet<'de, 'b>;
+
+//     fn query<T: AsRef<str>>(&'b self, sql: T) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
+
+//     fn exec<T: AsRef<str>>(&'b self, sql: T) -> Result<usize, Self::Error> {
+//         self.query(sql).map(|res| match res {
+//             Ok(_) => 0, // todo: if we should get the selected rows if not update query?
+//             Err(affected) => affected,
+//         })
+//     }
+
+//     // fn describe(&self, table: &str) -> Result<ColumnMeta, Self::Error>;
+// }
+
+// pub trait QueryableExt<'q>: Queryable<'q> {
+//     fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error>;
+
+//     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
+//         use itertools::Itertools;
+//         self.query(format!("show databases"))?
+//             .expect("`show databases` must be queryable")
+//             .deserialize()
+//             .try_collect()
+//             .map_err(Into::into)
+//         // <Self as Queryable>::ResultSet::deserialize(rs).try_collect()
+//     }
+
+// }
 
 #[cfg(test)]
 mod tests {
@@ -351,16 +423,16 @@ mod tests {
         }
     }
 
-    impl<'q, 'de: 'q, 'b: 'de> crate::ResultSet<'q, 'de, 'b> for ResultSet {
+    impl<'q, 'de, 'b: 'de> crate::ResultSet<'q, 'de, 'b> for ResultSet {
         type B = Block;
 
         type I = BlocksIter;
 
-        fn fields(&self) -> &[Field] {
+        fn fields(&'q self) -> &[Field] {
             todo!()
         }
 
-        fn next_block(&self) -> Option<Self::B> {
+        fn next_block(&'q self) -> Option<Self::B> {
             todo!()
         }
 
@@ -372,10 +444,8 @@ mod tests {
     #[derive(Debug)]
     struct Error;
 
-    impl<'q, 'de: 'q, 'b: 'de> Queryable<'q, 'de, 'b> for Conn {
+    impl Queryable for Conn {
         type Error = anyhow::Error;
-
-        type Block = Block;
 
         type ResultSet = ResultSet;
 

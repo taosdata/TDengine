@@ -1,7 +1,16 @@
-use std::{fmt, str::FromStr};
+use std::{
+    fmt::{self, Display},
+    str::FromStr,
+};
 
 use num_enum::TryFromPrimitive;
 use serde::Deserialize;
+
+#[derive(Debug, thiserror::Error)]
+pub enum PrecisionError {
+    #[error("invalid precision repr: {0}")]
+    Invalid(String),
+}
 
 /// The precision of a timestamp or a database.
 #[repr(i32)]
@@ -13,15 +22,48 @@ pub enum Precision {
     Nanosecond,
 }
 
+impl Precision {
+    pub const fn as_str(&self) -> &'static str {
+        use Precision::*;
+        match self {
+            Millisecond => "ms",
+            Microsecond => "us",
+            Nanosecond => "ns",
+        }
+    }
+
+    pub const fn as_u8(&self) -> u8 {
+        match self {
+            Self::Millisecond => 0,
+            Self::Microsecond => 1,
+            Self::Nanosecond => 2,
+        }
+    }
+    pub const fn from_u8(precision: u8) -> Self {
+        match precision {
+            0 => Self::Millisecond,
+            1 => Self::Microsecond,
+            2 => Self::Nanosecond,
+            _ => panic!("precision integer only allow 0/1/2"),
+        }
+    }
+}
+
+impl Display for Precision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 impl FromStr for Precision {
-    type Err = String;
+    type Err = PrecisionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ms" => Ok(Precision::Millisecond),
             "us" => Ok(Precision::Microsecond),
             "ns" => Ok(Precision::Nanosecond),
-            s => Err(format!("unknown precision string: {}", s)),
+            s => Err(PrecisionError::Invalid(s.to_string())),
         }
     }
 }
