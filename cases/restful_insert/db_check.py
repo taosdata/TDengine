@@ -66,6 +66,8 @@ class TestDB(TDCase):
             self.tdSql.checkEqual(int(res[0][7]), 365)
         elif str(res[0][7]) == '365,365,365':
             self.tdSql.checkEqual(str(res[0][7]), '365,365,365')
+        else:
+            self.tdSql.checkEqual(str(res[0][7]), 'unexpected value')
         # comp
         for comp in [0, 1]:
             self.tdRest.request(f'alter database {dbname} comp {comp}')
