@@ -51,8 +51,9 @@ use std::str::FromStr;
 /// Note:
 /// - VarChar sql name is BINARY in v2, and VARCHAR in v3.
 /// - Decimal/Blob/MediumBlob is not supported in 2.0/3.0 .
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde_repr::Serialize_repr, serde_repr::Deserialize_repr,
+)]
 #[repr(u8)]
 pub enum Ty {
     /// 0: Null is only a value, not a *real* type, a nullable data type will be represented as [Option<T>] in Rust.

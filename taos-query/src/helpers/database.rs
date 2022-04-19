@@ -2,10 +2,7 @@ use chrono::NaiveDateTime;
 use paste::paste;
 use serde::{Deserialize, Serialize};
 
-use std::{
-    fmt::{Display},
-    str::FromStr,
-};
+use std::{fmt::Display, str::FromStr};
 
 use crate::common::Precision;
 

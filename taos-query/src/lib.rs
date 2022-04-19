@@ -8,6 +8,7 @@ use std::iter::FlatMap;
 pub mod common;
 mod de;
 pub mod helpers;
+mod insert;
 
 use common::*;
 use de::RecordDeserializer;
@@ -74,11 +75,17 @@ pub trait BlockExt<'de, 'b: 'de>: Debug + Sized {
         })
     }
 
-    fn write_with(&self, codec: CodecOpts);
+    fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
 
-    fn write_all_with(&self, codec: CodecOpts);
+    fn write_with(&self, _codec: CodecOpts);
+
+    fn write_all_with(&self, _codec: CodecOpts);
 }
 
+pub trait BlockCodec {
+    fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
+    fn decode(from: &[u8], _codec: CodecOpts) -> Self;
+}
 type II<'de, 'b, B, T> = std::iter::Map<
     <B as BlockExt<'de, 'b>>::RowIter,
     fn(<B as BlockExt<'de, 'b>>::Row) -> Result<T, serde::de::value::Error>,
@@ -91,6 +98,10 @@ pub trait ResultSet<'q, 'de, 'b: 'de>: Sized {
     type I: Iterator<Item = Self::B>;
 
     fn fields(&'q self) -> &'q [Field];
+
+    fn num_of_fields(&'q self) -> usize {
+        self.fields().len()
+    }
 
     fn next_block(&'q self) -> Option<Self::B>;
 
@@ -158,39 +169,6 @@ pub trait Queryable: Debug {
         self.exec(&sql).map(|_| ())
     }
 }
-
-/// Queryable trait is the basic starter.
-// pub trait Queryable<'de, 'b: 'de>: Debug {
-//     type Error: Debug + From<serde::de::value::Error>;
-//     type Block: 'b + BlockExt<'de, 'b>;
-//     type ResultSet: 'b + ResultSet<'de, 'b>;
-
-//     fn query<T: AsRef<str>>(&'b self, sql: T) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
-
-//     fn exec<T: AsRef<str>>(&'b self, sql: T) -> Result<usize, Self::Error> {
-//         self.query(sql).map(|res| match res {
-//             Ok(_) => 0, // todo: if we should get the selected rows if not update query?
-//             Err(affected) => affected,
-//         })
-//     }
-
-//     // fn describe(&self, table: &str) -> Result<ColumnMeta, Self::Error>;
-// }
-
-// pub trait QueryableExt<'q>: Queryable<'q> {
-//     fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error>;
-
-//     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
-//         use itertools::Itertools;
-//         self.query(format!("show databases"))?
-//             .expect("`show databases` must be queryable")
-//             .deserialize()
-//             .try_collect()
-//             .map_err(Into::into)
-//         // <Self as Queryable>::ResultSet::deserialize(rs).try_collect()
-//     }
-
-// }
 
 #[cfg(test)]
 mod tests {
@@ -340,6 +318,10 @@ mod tests {
         fn write_all_with(&self, codec: CodecOpts) {
             todo!()
         }
+
+        fn encode(&self, codec: CodecOpts) -> Vec<u8> {
+            todo!()
+        }
     }
 
     #[derive(Debug)]
@@ -451,12 +433,12 @@ mod tests {
 
         fn query<T: AsRef<str>>(
             &self,
-            sql: T,
+            _sql: T,
         ) -> Result<Result<Self::ResultSet, usize>, Self::Error> {
             Ok(Ok(ResultSet))
         }
 
-        fn exec<T: AsRef<str>>(&self, sql: T) -> Result<usize, Self::Error> {
+        fn exec<T: AsRef<str>>(&self, _sql: T) -> Result<usize, Self::Error> {
             Ok(1)
         }
     }

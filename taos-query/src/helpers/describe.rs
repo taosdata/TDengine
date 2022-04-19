@@ -1,4 +1,3 @@
-
 use std::{fmt, str::FromStr};
 
 use serde::{
@@ -90,11 +89,7 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                 let note: String = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
-                let desc = Described {
-                    field,
-                    ty,
-                    length,
-                };
+                let desc = Described { field, ty, length };
                 if note.is_empty() {
                     Ok(ColumnMeta::Column(desc))
                 } else {
@@ -144,11 +139,7 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                 let field = field.ok_or_else(|| de::Error::missing_field("field"))?;
                 let ty = ty.ok_or_else(|| de::Error::missing_field("type"))?;
                 let length = length.ok_or_else(|| de::Error::missing_field("length"))?;
-                let desc = Described {
-                    field,
-                    ty,
-                    length,
-                };
+                let desc = Described { field, ty, length };
                 let note = note.ok_or_else(|| de::Error::missing_field("note"))?;
                 if note {
                     Ok(ColumnMeta::Column(desc))
@@ -517,4 +508,3 @@ impl ColumnMeta {
 //         Ok(())
 //     }
 // }
-
