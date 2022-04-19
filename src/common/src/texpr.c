@@ -636,6 +636,7 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
   char *leftIn = NULL, *rightIn = NULL;
   int32_t leftNum = 0, rightNum = 0;
   int32_t leftType = 0, rightType = 0;
+  int32_t leftBytes = 0, rightBytes = 0;
   int32_t fnOrder = TSDB_ORDER_ASC;
   
   if (pLeft->nodeType == TSQL_NODE_EXPR || pLeft->nodeType == TSQL_NODE_FUNC) {
@@ -646,6 +647,7 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     
     leftIn = ltmp;
     leftType = left.type;
+    leftBytes = left.bytes;
     leftNum = left.numOfRows;
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
     char *pInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
@@ -659,11 +661,13 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     }
 
     leftType = pLeft->pSchema->type;
+    leftBytes = pLeft->pSchema->bytes;
     leftNum = numOfRows;
   } else {
     assert(pLeft->nodeType == TSQL_NODE_VALUE);
     leftIn = (char *)&pLeft->pVal->i64;
     leftType = pLeft->pVal->nType;
+    leftBytes = pLeft->resultBytes;
     leftNum = 1;
   }
 
@@ -675,6 +679,7 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     
     rightIn = rtmp;
     rightType = right.type;
+    rightBytes = right.bytes;
     rightNum = right.numOfRows;
   } else if (pRight->nodeType == TSQL_NODE_COL) {
     char *pInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
@@ -688,16 +693,18 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     }
 
     rightType = pRight->pSchema->type;
+    rightBytes = pRight->pSchema->bytes;
     rightNum = numOfRows;    
   } else {
     assert(pRight->nodeType == TSQL_NODE_VALUE);
     rightIn = (char *)&pRight->pVal->i64;
     rightType = pRight->pVal->nType;
+    rightBytes = pRight->resultBytes;
     rightNum = 1;
   }
 
   _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
-  OperatorFn(leftIn, leftNum, leftType, rightIn, rightNum, rightType, output->data, fnOrder);
+  OperatorFn(leftIn, leftNum, leftType, leftBytes, rightIn, rightNum, rightType, rightBytes, output->data, fnOrder);
 
   output->numOfRows = MAX(leftNum, rightNum);
   if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {

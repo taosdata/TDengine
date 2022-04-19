@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-typedef void (*_arithmetic_operator_fn_t)(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight,
-                                          int32_t rightType, void *output, int32_t order);
+typedef void (*_arithmetic_operator_fn_t)(void *left, int32_t numLeft, int32_t leftType, int32_t leftBytes, void *right, int32_t numRight,
+                                          int32_t rightType, int32_t rightBytes, void *output, int32_t order);
 
 _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr);
 
