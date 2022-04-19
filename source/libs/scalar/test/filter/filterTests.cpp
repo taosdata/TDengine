@@ -155,7 +155,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     
-    colInfoDataEnsureCapacity(pColumn, rowNum);
+    colInfoDataEnsureCapacity(pColumn, 0, rowNum);
 
     for (int32_t i = 0; i < rowNum; ++i) {
       colDataAppend(pColumn, i, (const char *)value, false);

@@ -30,7 +30,7 @@ SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
   pColumnData->info.scale     = pType->scale;
   pColumnData->info.precision = pType->precision;
 
-  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
+  int32_t code = colInfoDataEnsureCapacity(pColumnData, 0, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pColumnData);
@@ -45,7 +45,7 @@ int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
   in.columnData = createColumnInfoData(&pValueNode->node.resType, 1);
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
-  colInfoDataEnsureCapacity(out->columnData, 1);
+  colInfoDataEnsureCapacity(out->columnData, 0, 1);
   int32_t code = vectorConvertImpl(&in, out);
   sclFreeParam(&in);
 
