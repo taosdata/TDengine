@@ -154,10 +154,12 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   if (pStatus->statusCode == TSDB_SRV_STATUS_NETWORK_OK) {
     SStartupInfo *pStartup = &pDnode->startup;
 
-    int32_t len = strlen(pStartup->name) + strlen(pStartup->desc) + 24;
-    pStatus->details = taosMemoryCalloc(1, len);
-    if (pStatus->details != NULL) {
-      pStatus->detailLen = snprintf(pStatus->details, len - 1, "%s: %s", pStartup->name, pStartup->desc) + 1;
+    int32_t len = strlen(pStartup->name) + strlen(pStartup->desc);
+    if (len > 0) {
+      pStatus->details = taosMemoryCalloc(1, len + 24);
+      if (pStatus->details != NULL) {
+        pStatus->detailLen = snprintf(pStatus->details, len + 20, "%s: %s", pStartup->name, pStartup->desc) + 1;
+      }
     }
   }
 

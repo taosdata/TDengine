@@ -505,6 +505,7 @@ static void dmCleanupServer(SDnode *pDnode) {
 int32_t dmInitTrans(SDnode *pDnode) {
   if (dmInitServer(pDnode) != 0) return -1;
   if (dmInitClient(pDnode) != 0) return -1;
+  dmReportStartup(pDnode, "transport", "initialized");
   return 0;
 }
 
