@@ -63,12 +63,14 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB:
       ret = vnodeProcessCreateStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
-      return 0;
+      break;
     case TDMT_VND_CREATE_TABLE:
       pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
-      return vnodeProcessCreateTbReq(pVnode, pMsg, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pRsp);
+      vnodeProcessCreateTbReq(pVnode, pMsg, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pRsp);
+      break;
     case TDMT_VND_ALTER_STB:
-      return vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
+      vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
+      break;
     case TDMT_VND_DROP_STB:
       vTrace("vgId:%d, process drop stb req", TD_VID(pVnode));
       break;
@@ -76,7 +78,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       break;
     case TDMT_VND_SUBMIT:
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
-      return vnodeProcessSubmitReq(pVnode, ptr, pRsp);
+      vnodeProcessSubmitReq(pVnode, ptr, pRsp);
+      break;
     case TDMT_VND_MQ_SET_CONN: {
       if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
