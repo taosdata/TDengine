@@ -52,6 +52,10 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   if (pIter->len == 0) {
     pIter->len += sizeof(SSubmitReq);
   } else {
+    if (pIter->len >= pIter->totalLen) {
+      ASSERT(0);
+    }
+
     SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
     pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
     ASSERT(pIter->len > 0);

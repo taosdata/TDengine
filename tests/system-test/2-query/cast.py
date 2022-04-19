@@ -35,12 +35,14 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step2:insert data")
         for i in range(9):
             tdSql.execute(
-                f"insert into ct1 values ( now-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now+{1*i}a )"
+
+                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
             tdSql.execute(
                 f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
-        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now+8a )")
+
+        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
         tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
 
         tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
@@ -69,15 +71,15 @@ class TDTestCase:
         tdSql.query("select c1  from t1")
         data_t1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
 
-        tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
+        # tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
 
-        tdSql.query("select cast(c1 as int) as b from ct4")
-        for i in range(len(data_ct4)):
-            tdSql.checkData( i, 0, data_ct4[i])
+        # tdSql.query("select cast(c1 as int) as b from ct4")
+        # for i in range(len(data_ct4)):
+        #     tdSql.checkData( i, 0, data_ct4[i])
 
-        tdSql.query("select cast(c1 as int) as b from t1")
-        for i in range(len(data_t1)):
-            tdSql.checkData( i, 0, data_t1[i])
+        # tdSql.query("select cast(c1 as int) as b from t1")
+        # for i in range(len(data_t1)):
+        #     tdSql.checkData( i, 0, data_t1[i])
 
         tdLog.printNoPrefix("==========step2: cast int to bigint, expect no changes")
 
@@ -88,35 +90,75 @@ class TDTestCase:
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, data_t1[i])
 
-        tdLog.printNoPrefix("==========step3: cast int to float, expect no changes")
+        # tdLog.printNoPrefix("==========step3: cast int to float, expect no changes")
 
-        tdSql.query("select cast(c1 as float) as b from ct4")
-        for i in range(len(data_ct4)):
-            tdSql.checkData( i, 0, data_ct4[i])
-        tdSql.query("select cast(c1 as float) as b from t1")
-        for i in range(len(data_t1)):
-            tdSql.checkData( i, 0, data_t1[i])
+        # tdSql.query("select cast(c1 as float) as b from ct4")
+        # for i in range(len(data_ct4)):
+        #     tdSql.checkData( i, 0, data_ct4[i])
+        # tdSql.query("select cast(c1 as float) as b from t1")
+        # for i in range(len(data_t1)):
+        #     tdSql.checkData( i, 0, data_t1[i])
 
-        tdLog.printNoPrefix("==========step4: cast int to double, expect no changes")
+        # tdLog.printNoPrefix("==========step4: cast int to double, expect no changes")
 
-        tdSql.query("select cast(c1 as double) as b from ct4")
-        for i in range(len(data_ct4)):
-            tdSql.checkData( i, 0, data_ct4[i])
-        tdSql.query("select cast(c1 as double) as b from t1")
-        for i in range(len(data_t1)):
-            tdSql.checkData( i, 0, data_t1[i])
+        # tdSql.query("select cast(c1 as double) as b from ct4")
+        # for i in range(len(data_ct4)):
+        #     tdSql.checkData( i, 0, data_ct4[i])
+        # tdSql.query("select cast(c1 as double) as b from t1")
+        # for i in range(len(data_t1)):
+        #     tdSql.checkData( i, 0, data_t1[i])
 
         tdLog.printNoPrefix("==========step5: cast int to binary, expect no changes")
 
-        tdSql.query("select cast(c1 as binary) as b from ct4")
+        tdSql.query("select cast(c1 as binary(32)) as b from ct4")
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, str(data_ct4[i]) )
+        tdSql.query("select cast(c1 as binary(32)) as b from t1")
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, str(data_t1[i]) )
+
+        tdLog.printNoPrefix("==========step6: cast int to nchar, expect no changes")
+
+        tdSql.query("select cast(c1 as nchar(32)) as b from ct4")
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, str(data_ct4[i]) )
+        tdSql.query("select cast(c1 as nchar(32)) as b from t1")
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, str(data_t1[i]) )
+
+        tdLog.printNoPrefix("==========step7: cast int to timestamp, expect no changes")
+
+        tdSql.query("select cast(c1 as timestamp) as b from ct4")
         for i in range(len(data_ct4)):
             tdSql.checkData( i, 0, data_ct4[i])
-        tdSql.query("select cast(c1 as binary) as b from t1")
+        tdSql.query("select cast(c1 as timestamp) as b from t1")
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, data_t1[i])
 
+        tdSql.error("select cast(c1 as int) as b from ct4")
+        tdSql.error("select cast(c1 as bool) as b from ct4")
+        tdSql.error("select cast(c1 as tinyint) as b from ct4")
+        tdSql.error("select cast(c1 as smallint) as b from ct4")
+        tdSql.error("select cast(c1 as float) as b from ct4")
+        tdSql.error("select cast(c1 as double) as b from ct4")
+        tdSql.error("select cast(c1 as tinyint unsigned) as b from ct4")
+        tdSql.error("select cast(c1 as smallint unsigned) as b from ct4")
+        tdSql.error("select cast(c1 as int unsigned) as b from ct4")
 
+        tdSql.error("select cast(c2 as int) as b from ct4")
+        tdSql.error("select cast(c3 as bool) as b from ct4")
+        tdSql.error("select cast(c4 as tinyint) as b from ct4")
+        tdSql.error("select cast(c5 as smallint) as b from ct4")
+        tdSql.error("select cast(c6 as float) as b from ct4")
+        tdSql.error("select cast(c7 as double) as b from ct4")
+        tdSql.error("select cast(c8 as tinyint unsigned) as b from ct4")
 
+        tdSql.error("select cast(c8 as timestamp ) as b from ct4")
+
+        tdSql.error("select cast(c9 as binary(64) ) as b from ct4")
+        tdSql.error("select cast(c9 as timestamp ) as b from ct4")
+        tdSql.error("select cast(c10 as binary(64) ) as b from ct4")
+        tdSql.error("select cast(c10 as nchar(64) ) as b from ct4")
 
 
     def stop(self):

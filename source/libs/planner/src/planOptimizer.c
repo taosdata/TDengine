@@ -15,6 +15,7 @@
 
 #include "planInt.h"
 #include "functionMgt.h"
+#include "filter.h"
 
 #define OPTIMIZE_FLAG_MASK(n)    (1 << n)
 
@@ -195,9 +196,173 @@ static int32_t osdOptimize(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   return code;
 }
 
-static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
-  // todo
+static int32_t cpdMergeCond(SNode** pDst, SNode** pSrc) {
+  SLogicConditionNode* pLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  if (NULL == pLogicCond) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  int32_t code = nodesListMakeAppend(&pLogicCond->pParameterList, *pSrc);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pSrc = NULL;
+    code = nodesListMakeAppend(&pLogicCond->pParameterList, *pDst);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pDst = (SNode*)pLogicCond;
+  } else {
+    nodesDestroyNode(pLogicCond);
+  }
+  return code;
+}
+
+static int32_t cpdMergeConds(SNode** pDst, SNodeList** pSrc) {
+  if (NULL == *pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (1 == LIST_LENGTH(*pSrc)) {
+    *pDst = nodesListGetNode(*pSrc, 0);
+    nodesClearList(*pSrc);
+  } else {
+    SLogicConditionNode* pLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    if (NULL == pLogicCond) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pLogicCond->condType = LOGIC_COND_TYPE_AND;
+    pLogicCond->pParameterList = *pSrc;
+    *pDst = (SNode*)pLogicCond;
+  }
+  *pSrc = NULL;
+
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdCondAppend(SNode** pCond, SNode** pAdditionalCond) {
+  if (NULL == *pCond) {
+    TSWAP(*pCond, *pAdditionalCond, SNode*);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCond)) {
+    code = nodesListAppend(((SLogicConditionNode*)*pCond)->pParameterList, *pAdditionalCond);
+    if (TSDB_CODE_SUCCESS == code) {
+      *pAdditionalCond = NULL;
+    }
+  } else {
+    code = cpdMergeCond(pCond, pAdditionalCond);
+  }
+  return code;
+}
+
+static EDealRes cpdIsPrimaryKeyCondImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *((bool*)pContext) = ((PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) ? true : false);
+    return *((bool*)pContext) ? DEAL_RES_CONTINUE : DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool cpdIsPrimaryKeyCond(SNode* pNode) {
+  bool isPrimaryKeyCond = false;
+  nodesWalkExpr(pNode, cpdIsPrimaryKeyCondImpl, &isPrimaryKeyCond);
+  return isPrimaryKeyCond;
+}
+
+static int32_t cpdPartitionScanLogicCond(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pScan->node.pConditions;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SNodeList* pPrimaryKeyConds = NULL;
+  SNodeList* pOtherConds = NULL;
+  SNode* pCond = NULL;
+  FOREACH(pCond, pLogicCond->pParameterList) {
+    if (cpdIsPrimaryKeyCond(pCond)) {
+      code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
+    } else {
+      code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  SNode* pTempPrimaryKeyCond = NULL;
+  SNode* pTempOtherCond = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = cpdMergeConds(&pTempPrimaryKeyCond, &pPrimaryKeyConds);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = cpdMergeConds(&pTempOtherCond, &pOtherConds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPrimaryKeyCond = pTempPrimaryKeyCond;
+    *pOtherCond = pTempOtherCond;
+    nodesDestroyNode(pScan->node.pConditions);
+    pScan->node.pConditions = NULL;
+  } else {
+    nodesDestroyList(pPrimaryKeyConds);
+    nodesDestroyList(pOtherConds);
+    nodesDestroyNode(pTempPrimaryKeyCond);
+    nodesDestroyNode(pTempOtherCond);
+  }
+
+  return code;
+}
+
+static int32_t cpdPartitionScanCond(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pScan->node.pConditions) &&
+    LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pScan->node.pConditions)->condType) {
+    return cpdPartitionScanLogicCond(pScan, pPrimaryKeyCond, pOtherCond);
+  }
+
+  if (cpdIsPrimaryKeyCond(pScan->node.pConditions)) {
+    *pPrimaryKeyCond = pScan->node.pConditions;
+  } else {
+    *pOtherCond = pScan->node.pConditions;
+  }
+  pScan->node.pConditions = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (isStrict) {
+      nodesDestroyNode(*pPrimaryKeyCond);
+    } else {
+      code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+    }
+    *pPrimaryKeyCond = NULL;
+  }
+  return code;
+}
+
+static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
+  if (NULL == pScan->node.pConditions) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPrimaryKeyCond = NULL;
+  SNode* pOtherCond = NULL;
+  int32_t code = cpdPartitionScanCond(pScan, &pPrimaryKeyCond, &pOtherCond);
+  if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
+    code = cpdCalcTimeRange(pScan, &pPrimaryKeyCond, &pOtherCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pScan->node.pConditions = pOtherCond;
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pPrimaryKeyCond);
+    nodesDestroyNode(pOtherCond);
+  }
+
+  return code;
 }
 
 static bool belongThisTable(SNode* pCondCol, SNodeList* pTableCols) {
@@ -228,28 +393,6 @@ static ECondAction cpdCondAction(EJoinType joinType, SNodeList* pLeftCols, SNode
   nodesWalkExpr(pNode, cpdIsMultiTableCondImpl, &cxt);
   return (JOIN_TYPE_INNER != joinType ? COND_ACTION_STAY :
       (cxt.havaLeftCol && cxt.haveRightCol ? COND_ACTION_PUSH_JOIN : (cxt.havaLeftCol ? COND_ACTION_PUSH_LEFT_CHILD : COND_ACTION_PUSH_RIGHT_CHILD)));
-}
-
-static int32_t cpdMakeCond(SNodeList** pConds, SNode** pCond) {
-  if (NULL == *pConds) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (1 == LIST_LENGTH(*pConds)) {
-    *pCond = nodesListGetNode(*pConds, 0);
-    nodesClearList(*pConds);
-  } else {
-    SLogicConditionNode* pLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
-    if (NULL == pLogicCond) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pLogicCond->condType = LOGIC_COND_TYPE_AND;
-    pLogicCond->pParameterList = *pConds;
-    *pCond = (SNode*)pLogicCond;
-  }
-  *pConds = NULL;
-
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t cpdPartitionLogicCond(SJoinLogicNode* pJoin, SNode** pOnCond, SNode** pLeftChildCond, SNode** pRightChildCond) {
@@ -288,16 +431,16 @@ static int32_t cpdPartitionLogicCond(SJoinLogicNode* pJoin, SNode** pOnCond, SNo
   SNode* pTempRightChildCond = NULL;
   SNode* pTempRemainCond = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = cpdMakeCond(&pOnConds, &pTempOnCond);
+    code = cpdMergeConds(&pTempOnCond, &pOnConds);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = cpdMakeCond(&pLeftChildConds, &pTempLeftChildCond);
+    code = cpdMergeConds(&pTempLeftChildCond, &pLeftChildConds);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = cpdMakeCond(&pRightChildConds, &pTempRightChildCond);
+    code = cpdMergeConds(&pTempRightChildCond, &pRightChildConds);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = cpdMakeCond(&pRemainConds, &pTempRemainCond);
+    code = cpdMergeConds(&pTempRemainCond, &pRemainConds);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -345,44 +488,12 @@ static int32_t cpdPartitionCond(SJoinLogicNode* pJoin, SNode** pOnCond, SNode** 
   }
 }
 
-static int32_t cpdCondAppend(SOptimizeContext* pCxt, SNode** pCond, SNode** pAdditionalCond) {
-  if (NULL == *pCond) {
-    TSWAP(*pCond, *pAdditionalCond, SNode*);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCond)) {
-    code = nodesListAppend(((SLogicConditionNode*)*pCond)->pParameterList, *pAdditionalCond);
-    if (TSDB_CODE_SUCCESS == code) {
-      *pAdditionalCond = NULL;
-    }
-  } else {
-    SLogicConditionNode* pLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
-    if (NULL == pLogicCond) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pLogicCond->condType = LOGIC_COND_TYPE_AND;
-    code = nodesListMakeAppend(&pLogicCond->pParameterList, *pAdditionalCond);
-    if (TSDB_CODE_SUCCESS == code) {
-      *pAdditionalCond = NULL;
-      code = nodesListMakeAppend(&pLogicCond->pParameterList, *pCond);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      *pCond = (SNode*)pLogicCond;
-    } else {
-      nodesDestroyNode(pLogicCond);
-    }
-  }
-  return code;
-}
-
 static int32_t cpdPushCondToOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode** pCond) {
-  return cpdCondAppend(pCxt, &pJoin->pOnConditions, pCond);
+  return cpdCondAppend(&pJoin->pOnConditions, pCond);
 }
 
 static int32_t cpdPushCondToScan(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pCond) {
-  return cpdCondAppend(pCxt, &pScan->node.pConditions, pCond);
+  return cpdCondAppend(&pScan->node.pConditions, pCond);
 }
 
 static int32_t cpdPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {

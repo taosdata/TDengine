@@ -296,7 +296,6 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *in = pInputData->pData + pInputData->varmeta.offset[0];
   int16_t *out = (int16_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -305,8 +304,8 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
       continue;
     }
 
+    char *in = pInputData->pData + pInputData->varmeta.offset[i];
     out[i] = lenFn(in, type);
-    in += varDataTLen(in);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -316,7 +315,8 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, int32_t type, int16_t *dataLen) {
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
-    bool ret = taosMbsToUcs4(varDataVal(input), varDataLen(input), newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, NULL);
+    int32_t len = varDataLen(input);
+    bool ret = taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len);
     if (!ret) {
       taosMemoryFree(newBuf);
       return TSDB_CODE_FAILED;
@@ -345,6 +345,7 @@ static int32_t getNumOfNullEntries(SColumnInfoData *pColumnInfoData, int32_t num
 }
 
 int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t ret = TSDB_CODE_SUCCESS;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData *pOutputData = pOutput->columnData;
   char **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
@@ -360,7 +361,6 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   }
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[0];
     int32_t factor = 1;
     if (hasNchar && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
@@ -378,8 +378,8 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   outputBuf = taosMemoryCalloc(outputLen, 1);
   char *output = outputBuf;
 
-  bool hasNull = false;
   for (int32_t k = 0; k < numOfRows; ++k) {
+    bool hasNull = false;
     for (int32_t i = 0; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k)) {
         colDataAppendNULL(pOutputData, k);
@@ -392,14 +392,18 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       continue;
     }
 
+
     int16_t dataLen = 0;
     for (int32_t i = 0; i < inputNum; ++i) {
-      int32_t ret = concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen);
-      if (ret != TSDB_CODE_SUCCESS) {
-        return ret;
+      if (pInput[i].numOfRows == 1) {
+        input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[0];
+      } else {
+        input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[k];
       }
-      if (pInput[i].numOfRows != 1) {
-        input[i] += varDataTLen(input[i]);
+
+      ret = concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen);
+      if (ret != TSDB_CODE_SUCCESS) {
+        goto DONE;
       }
     }
     varDataSetLen(output, dataLen);
@@ -408,15 +412,18 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   }
 
   pOutput->numOfRows = numOfRows;
+
+DONE:
   taosMemoryFree(input);
   taosMemoryFree(outputBuf);
   taosMemoryFree(pInputData);
 
-  return TSDB_CODE_SUCCESS;
+  return ret;
 }
 
 
 int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t ret = TSDB_CODE_SUCCESS;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData *pOutputData = pOutput->columnData;
   char **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
@@ -432,7 +439,6 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   }
   for (int32_t i = 0; i < inputNum; ++i) {
     pInputData[i] = pInput[i].columnData;
-    input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[0];
     int32_t factor = 1;
     if (hasNchar && (GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_VARCHAR)) {
       factor = TSDB_NCHAR_SIZE;
@@ -460,40 +466,53 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     }
 
     int16_t dataLen = 0;
+    bool hasNull = false;
     for (int32_t i = 1; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k)) {
-        continue;
+        hasNull = true;
+        break;
       }
 
-      int32_t ret = concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen);
+      if (pInput[i].numOfRows == 1) {
+        input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[0];
+      } else {
+        input[i] = pInputData[i]->pData + pInputData[i]->varmeta.offset[k];
+      }
+
+      ret = concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen);
       if (ret != TSDB_CODE_SUCCESS) {
-        return ret;
+        goto DONE;
       }
 
-      if (pInput[i].numOfRows != 1) {
-        input[i] += varDataTLen(input[i]);
-      }
 
       if (i < inputNum - 1) {
         //insert the separator
-        char *sep = pInputData[0]->pData;
-        int32_t ret = concatCopyHelper(sep, output, hasNchar, GET_PARAM_TYPE(&pInput[0]), &dataLen);
+        char *sep = (pInput[0].numOfRows == 1) ? colDataGetData(pInputData[0], 0) : colDataGetData(pInputData[0], k);
+         ret = concatCopyHelper(sep, output, hasNchar, GET_PARAM_TYPE(&pInput[0]), &dataLen);
         if (ret != TSDB_CODE_SUCCESS) {
-          return ret;
+          goto DONE;
         }
       }
     }
-    varDataSetLen(output, dataLen);
-    colDataAppend(pOutputData, k, output, false);
-    output += varDataTLen(output);
+
+    if (hasNull) {
+      colDataAppendNULL(pOutputData, k);
+      memset(output, 0, dataLen);
+    } else {
+      varDataSetLen(output, dataLen);
+      colDataAppend(pOutputData, k, output, false);
+      output += varDataTLen(output);
+    }
   }
 
   pOutput->numOfRows = numOfRows;
+
+DONE:
   taosMemoryFree(input);
   taosMemoryFree(outputBuf);
   taosMemoryFree(pInputData);
 
-  return TSDB_CODE_SUCCESS;
+  return ret;
 }
 
 static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _conv_fn convFn) {
@@ -505,12 +524,9 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input  = pInputData->pData + pInputData->varmeta.offset[0];
-  char *output = NULL;
-
   int32_t outputLen = pInputData->varmeta.length;
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
-  output = outputBuf;
+  char *output = outputBuf;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -518,6 +534,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
       continue;
     }
 
+    char *input = pInputData->pData + pInputData->varmeta.offset[i];
     int32_t len = varDataLen(input);
     if (type == TSDB_DATA_TYPE_VARCHAR) {
       for (int32_t j = 0; j < len; ++j) {
@@ -530,7 +547,6 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
     }
     varDataSetLen(output, len);
     colDataAppend(pOutputData, i, output, false);
-    input += varDataTLen(input);
     output += varDataTLen(output);
   }
 
@@ -550,18 +566,16 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input  = pInputData->pData + pInputData->varmeta.offset[0];
-  char *output = NULL;
-
   int32_t outputLen = pInputData->varmeta.length;
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
-  output = outputBuf;
+  char *output = outputBuf;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
       colDataAppendNULL(pOutputData, i);
       continue;
     }
+    char *input  = pInputData->pData + pInputData->varmeta.offset[i];
 
     int32_t len = varDataLen(input);
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
@@ -569,7 +583,6 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
 
     varDataSetLen(output, len);
     colDataAppend(pOutputData, i, output, false);
-    input += varDataTLen(input);
     output += varDataTLen(output);
   }
 
