@@ -20,7 +20,7 @@
 
 // sync integration
 
-int32_t vnodeSyncOpen(SVnode *pVnode) {
+int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->config.vgId;
   SSyncCfg *pCfg = &(syncInfo.syncCfg);
@@ -28,7 +28,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode) {
   pCfg->myIndex = pVnode->config.syncCfg.myIndex;
   memcpy(pCfg->nodeInfo, pVnode->config.syncCfg.nodeInfo, sizeof(pCfg->nodeInfo));
 
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s/sync", pVnode->path);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s/sync", path);
   syncInfo.pWal = pVnode->pWal;
 
   syncInfo.pFsm = syncVnodeMakeFsm(pVnode);

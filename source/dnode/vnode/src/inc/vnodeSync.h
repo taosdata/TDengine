@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-int32_t vnodeSyncOpen(SVnode *pVnode);
+int32_t vnodeSyncOpen(SVnode *pVnode, char *path);
 int32_t vnodeSyncStart(SVnode *pVnode);
 void    vnodeSyncClose(SVnode *pVnode);
 
