@@ -32,7 +32,7 @@ static int32_t invaildFuncParaNumErrMsg(char* pErrBuf, int32_t len, const char* 
 }
 
 static int32_t invaildFuncParaTypeErrMsg(char* pErrBuf, int32_t len, const char* pFuncName) {
-  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "Inconsistent datatypes : %s", pFuncName);
+  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "Invalid datatypes : %s", pFuncName);
 }
 
 static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char* pFuncName) {
@@ -327,7 +327,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
   int32_t para2Bytes = pFunc->node.resType.bytes;
-  if (para2Bytes < 0) { //negative value or overflow
+  if (para2Bytes <= 0) { //non-positive value or overflow
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
