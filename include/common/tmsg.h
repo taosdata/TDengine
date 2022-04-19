@@ -1432,7 +1432,6 @@ typedef struct {
 
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
-  char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;

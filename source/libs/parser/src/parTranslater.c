@@ -251,6 +251,9 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
     pCol->colType = pProjCol->colType;
   }
   strcpy(pCol->colName, pExpr->aliasName);
+  if ('\0' == pCol->node.aliasName[0]) {
+    strcpy(pCol->node.aliasName, pCol->colName);
+  }
   pCol->node.resType = pExpr->resType;
 }
 
@@ -381,23 +384,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
     }
     res = (found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol));
   }
-
-  if (DEAL_RES_ERROR == res) {
-    return res;
-  }
-
-  if (SQL_CLAUSE_WINDOW == pCxt->currClause && QUERY_NODE_STATE_WINDOW == nodeType(pCxt->pCurrStmt->pWindow)) {
-    if (!IS_INTEGER_TYPE(pCol->node.resType.type)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
-    }
-    if (COLUMN_TYPE_TAG == pCol->colType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
-    }
-    if (TSDB_SUPER_TABLE == pCol->tableType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE);
-    }
-  }
-  return DEAL_RES_CONTINUE;
+  return res;
 }
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
@@ -1200,9 +1187,27 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    STranslateContext* pCxt = pContext;
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (!IS_INTEGER_TYPE(pCol->node.resType.type)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
+    }
+    if (COLUMN_TYPE_TAG == pCol->colType) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+    }
+    if (TSDB_SUPER_TABLE == pCol->tableType) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
+  nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
   // todo check for "function not support for state_window"
-  return TSDB_CODE_SUCCESS;
+  return pCxt->errCode;
 }
 
 static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
@@ -2747,7 +2752,6 @@ static void toSchemaEx(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSch
 }
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
-  taosMemoryFreeClear(pReq->dbFName);
   taosMemoryFreeClear(pReq->name);
   taosMemoryFreeClear(pReq->ntbCfg.pSchema);
 }
@@ -2784,7 +2788,6 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
-  req.dbFName = strdup(dbFName);
   req.name = strdup(pStmt->tableName);
   req.ntbCfg.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchema));
@@ -2843,7 +2846,6 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
   size_t size = taosArrayGetSize(pTbBatch->req.pArray);
   for (int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
-    taosMemoryFreeClear(pTableReq->dbFName);
     taosMemoryFreeClear(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
@@ -2929,7 +2931,6 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, c
 
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
-  req.dbFName = strdup(dbFName);
   req.name = strdup(pTableName);
   req.ctbCfg.suid = suid;
   req.ctbCfg.pTag = row;

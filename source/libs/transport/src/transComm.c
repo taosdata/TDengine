@@ -195,7 +195,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
-
+    uv_close((uv_handle_t*)async, NULL);
     SAsyncItem* item = async->data;
     taosThreadMutexDestroy(&item->mtx);
     taosMemoryFree(item);

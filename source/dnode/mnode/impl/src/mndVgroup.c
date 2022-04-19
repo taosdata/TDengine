@@ -537,17 +537,6 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
 
-    // status
-    char buf[10] = {0};
-    STR_TO_VARSTR(buf, "ready");  // TODO
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, buf, false);
-
-    // onlines
-    int32_t onlines = pVgroup->replica;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&onlines, false);
-
     // default 3 replica
     for (int32_t i = 0; i < 3; ++i) {
 
