@@ -13,4 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef PARSER_TEST_UTIL_H
+#define PARSER_TEST_UTIL_H
+
 extern bool g_isDump;
+
+#endif  // PARSER_TEST_UTIL_H

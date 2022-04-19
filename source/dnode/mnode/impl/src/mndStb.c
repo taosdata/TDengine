@@ -18,8 +18,8 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndInfoSchema.h"
-#include "mndPerfSchema.h"
 #include "mndMnode.h"
+#include "mndPerfSchema.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -40,7 +40,7 @@ static int32_t  mndProcessVCreateStbRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVAlterStbRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVDropStbRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessTableMetaReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitStb(SMnode *pMnode) {
@@ -333,9 +333,9 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
 }
 
 static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSchema) {
-  if (*(col_id_t *)colId < ((SSchemaEx *)pSchema)->colId) {
+  if (*(col_id_t *)colId < ((SSchema *)pSchema)->colId) {
     return -1;
-  } else if (*(col_id_t *)colId > ((SSchemaEx *)pSchema)->colId) {
+  } else if (*(col_id_t *)colId > ((SSchema *)pSchema)->colId) {
     return 1;
   }
   return 0;
@@ -348,8 +348,6 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   tNameGetFullDbName(&name, dbFName);
 
   SVCreateTbReq req = {0};
-  req.ver = 0;
-  req.dbFName = dbFName;
   req.name = (char *)tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
@@ -360,49 +358,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.stbCfg.nTagCols = pStb->numOfTags;
   req.stbCfg.pTagSchema = pStb->pTags;
   req.stbCfg.nBSmaCols = pStb->numOfSmas;
-  req.stbCfg.pSchema = (SSchemaEx *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaEx));
+  req.stbCfg.pSchema = (SSchema *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
   if (req.stbCfg.pSchema == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  int bSmaStat = 0;                             // no column has bsma
-  if (pStb->numOfSmas == pStb->numOfColumns) {  // assume pColumns > 0
-    bSmaStat = 1;                               // all columns have bsma
-  } else if (pStb->numOfSmas != 0) {
-    bSmaStat = 2;                  // partial columns have bsma
-    TASSERT(pStb->pSmas != NULL);  // TODO: remove the assert
-  }
-
-  for (int32_t i = 0; i < req.stbCfg.nCols; ++i) {
-    SSchemaEx *pSchemaEx = req.stbCfg.pSchema + i;
-    SSchema   *pSchema = pStb->pColumns + i;
-    pSchemaEx->type = pSchema->type;
-    pSchemaEx->sma = (bSmaStat == 1) ? TSDB_BSMA_TYPE_LATEST : TSDB_BSMA_TYPE_NONE;
-    pSchemaEx->colId = pSchema->colId;
-    pSchemaEx->bytes = pSchema->bytes;
-    memcpy(pSchemaEx->name, pSchema->name, TSDB_COL_NAME_LEN);
-  }
-
-  if (bSmaStat == 2) {
-    if (pStb->pSmas == NULL) {
-      mError("stb:%s, sma options is empty", pStb->name);
-      taosMemoryFreeClear(req.stbCfg.pSchema);
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return NULL;
-    }
-    for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
-      SSchema   *pSmaSchema = pStb->pSmas + i;
-      SSchemaEx *pColSchema = taosbsearch(&pSmaSchema->colId, req.stbCfg.pSchema, req.stbCfg.nCols, sizeof(SSchemaEx),
-                                          schemaExColIdCompare, TD_EQ);
-      if (pColSchema == NULL) {
-        terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-        taosMemoryFreeClear(req.stbCfg.pSchema);
-        mError("stb:%s, sma col:%s not found in columns", pStb->name, pSmaSchema->name);
-        return NULL;
-      }
-      pColSchema->sma = TSDB_BSMA_TYPE_LATEST;
-    }
+  memcpy(req.stbCfg.pSchema, pStb->pColumns, sizeof(SSchema) * pStb->numOfColumns);
+  for (int i = 0; i < pStb->numOfColumns; i++) {
+    req.stbCfg.pSchema[i].flags = SCHEMA_SMA_ON;
   }
 
   SRSmaParam *pRSmaParam = NULL;
@@ -428,9 +392,9 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
       *(pRSmaParam->pFuncIds + f) = pStb->aggregationMethod;
     }
     req.stbCfg.pRSmaParam = pRSmaParam;
-  }  
+  }
 
-  int32_t contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+  int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     if (pRSmaParam) {
@@ -1644,14 +1608,14 @@ static void mndExtractTableName(char *tableId, char *name) {
   }
 }
 
-static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->pNode;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   SStbObj *pStb = NULL;
   int32_t  cols = 0;
 
-  SDbObj* pDb = NULL;
+  SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return terrno;
@@ -1669,20 +1633,20 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
     cols = 0;
 
     SName name = {0};
-    char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTableName(pStb->name, &stbName[VARSTR_HEADER_SIZE]);
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) stbName, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)stbName, false);
 
-    char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
+    char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&name, pStb->db, T_NAME_ACCT | T_NAME_DB);
     tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) db, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)db, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStb->createdTime, false);
@@ -1696,7 +1660,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
 
-    char* p = taosMemoryMalloc(pStb->commentLen + VARSTR_HEADER_SIZE); // check malloc failures
+    char *p = taosMemoryMalloc(pStb->commentLen + VARSTR_HEADER_SIZE);  // check malloc failures
     if (p != NULL) {
       if (pStb->commentLen != 0) {
         STR_TO_VARSTR(p, pStb->comment);
