@@ -40,6 +40,8 @@ typedef struct SVnode    SVnode;
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
 
+extern const SVnodeCfg vnodeCfgDefault;
+
 int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
@@ -133,6 +135,7 @@ struct STsdbCfg {
 
 struct SVnodeCfg {
   int32_t  vgId;
+  char     dbname[TSDB_DB_NAME_LEN];
   uint64_t dbId;
   uint64_t wsize;
   uint64_t ssize;
