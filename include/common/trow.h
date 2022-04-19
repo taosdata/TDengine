@@ -308,21 +308,21 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, 
   // use literal value directly and not use formula to simplify the codes
   switch (nOffset) {
     case 0:
-      // *pDestByte = ((*pDestByte) & 0x3F) | (valType << 6);
+      *pDestByte = ((*pDestByte) & 0x3F) | (valType << 6);
       // set the value and clear other partitions for offset 0
-      *pDestByte = (valType << 6);
+      // *pDestByte |= (valType << 6);
       break;
     case 1:
-      // *pDestByte = ((*pDestByte) & 0xCF) | (valType << 4);
-      *pDestByte |= (valType << 4);
+      *pDestByte = ((*pDestByte) & 0xCF) | (valType << 4);
+      // *pDestByte |= (valType << 4);
       break;
     case 2:
-      // *pDestByte = ((*pDestByte) & 0xF3) | (valType << 2);
-      *pDestByte |= (valType << 2);
+      *pDestByte = ((*pDestByte) & 0xF3) | (valType << 2);
+      // *pDestByte |= (valType << 2);
       break;
     case 3:
-      // *pDestByte = ((*pDestByte) & 0xFC) | valType;
-      *pDestByte |= (valType);
+      *pDestByte = ((*pDestByte) & 0xFC) | valType;
+      // *pDestByte |= (valType);
       break;
     default:
       TASSERT(0);
@@ -417,37 +417,37 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, T
   // use literal value directly and not use formula to simplify the codes
   switch (nOffset) {
     case 0:
-      // *pDestByte = ((*pDestByte) & 0x7F) | (valType << 7);
+      *pDestByte = ((*pDestByte) & 0x7F) | (valType << 7);
       // set the value and clear other partitions for offset 0
-      *pDestByte = (valType << 7);
+      // *pDestByte |= (valType << 7);
       break;
     case 1:
-      // *pDestByte = ((*pDestByte) & 0xBF) | (valType << 6);
-      *pDestByte |= (valType << 6);
+      *pDestByte = ((*pDestByte) & 0xBF) | (valType << 6);
+      // *pDestByte |= (valType << 6);
       break;
     case 2:
-      // *pDestByte = ((*pDestByte) & 0xDF) | (valType << 5);
-      *pDestByte |= (valType << 5);
+      *pDestByte = ((*pDestByte) & 0xDF) | (valType << 5);
+      // *pDestByte |= (valType << 5);
       break;
     case 3:
-      // *pDestByte = ((*pDestByte) & 0xEF) | (valType << 4);
-      *pDestByte |= (valType << 4);
+      *pDestByte = ((*pDestByte) & 0xEF) | (valType << 4);
+      // *pDestByte |= (valType << 4);
       break;
     case 4:
-      // *pDestByte = ((*pDestByte) & 0xF7) | (valType << 3);
-      *pDestByte |= (valType << 3);
+      *pDestByte = ((*pDestByte) & 0xF7) | (valType << 3);
+      // *pDestByte |= (valType << 3);
       break;
     case 5:
-      // *pDestByte = ((*pDestByte) & 0xFB) | (valType << 2);
-      *pDestByte |= (valType << 2);
+      *pDestByte = ((*pDestByte) & 0xFB) | (valType << 2);
+      // *pDestByte |= (valType << 2);
       break;
     case 6:
-      // *pDestByte = ((*pDestByte) & 0xFD) | (valType << 1);
-      *pDestByte |= (valType << 1);
+      *pDestByte = ((*pDestByte) & 0xFD) | (valType << 1);
+      // *pDestByte |= (valType << 1);
       break;
     case 7:
-      // *pDestByte = ((*pDestByte) & 0xFE) | valType;
-      *pDestByte |= (valType);
+      *pDestByte = ((*pDestByte) & 0xFE) | valType;
+      // *pDestByte |= (valType);
       break;
     default:
       TASSERT(0);
@@ -656,6 +656,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     case TD_ROW_TP:
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = tdGetBitmapAddrTp(pBuilder->pBuf, pBuilder->flen);
+      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBitmaps);
 #endif
       // the primary TS key is stored separatedly
       len = TD_ROW_HEAD_LEN + pBuilder->flen - sizeof(TSKEY) + pBuilder->nBitmaps;
@@ -665,6 +666,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     case TD_ROW_KV:
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols);
+      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBitmaps);
 #endif
       len = TD_ROW_HEAD_LEN + TD_ROW_NCOLS_LEN + (pBuilder->nBoundCols - 1) * sizeof(SKvRowIdx) +
             pBuilder->nBoundBitmaps;  // add

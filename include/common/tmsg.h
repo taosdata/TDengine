@@ -1435,7 +1435,6 @@ typedef struct {
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
-  int64_t  ver;  // use a general definition
   char*    name;
   uint32_t ttl;
   uint32_t keep;

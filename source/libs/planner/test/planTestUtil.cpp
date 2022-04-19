@@ -32,6 +32,8 @@ using namespace testing;
     } \
   } while(0);
 
+bool g_isDump = false;
+
 class PlannerTestBaseImpl {
 public:
   void useDb(const string& acctId, const string& db) {
