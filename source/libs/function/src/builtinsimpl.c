@@ -901,7 +901,7 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
 
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
-      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) > cts) {
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
         memcpy(buf, data, bytes);
         *(TSKEY*)(buf + bytes) = cts;
         //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
@@ -919,7 +919,7 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
 
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
-      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) > cts) {
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
         memcpy(buf, data, bytes);
         *(TSKEY*)(buf + bytes) = cts;
         pResInfo->numOfRes = 1;
