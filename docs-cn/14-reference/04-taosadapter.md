@@ -216,15 +216,15 @@ AllowWebSockets
 
 ### StatsD
 
-<StatsD \>
+<StatsD />
 
 ### icinga2 OpenTSDB writer
 
-<icinga2 \>
+<icinga2 />
 
 ### TCollector
 
-<tcollector \>
+<tcollector />
 
 ### node_exporter
 

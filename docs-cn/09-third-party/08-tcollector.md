@@ -11,6 +11,6 @@ TDengine 新版本（2.4.0.0+）包含一个 taosAdapter 独立程序，负责�
 
 启动 taosAdapter 的命令为 `systemctl start taosadapter`，可以使用 `systemctl status taosadapter` 检查 taosAdapter 的运行状态。
 
-<tcollector \>
+<tcollector />
 
 taosAdapter 相关配置参数请参考 `taosadapter --help` 命令输出以及相关文档。
