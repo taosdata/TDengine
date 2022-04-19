@@ -132,6 +132,7 @@ void sclFreeRes(SHashObj *res) {
 void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
+    taosMemoryFree(param->columnData);
   }
 
   if (param->pHashFilter != NULL) {

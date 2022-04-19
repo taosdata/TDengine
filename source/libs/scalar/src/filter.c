@@ -1050,6 +1050,8 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
 
       cell = cell->pNext;
     }
+    colDataDestroy(out.columnData);
+    taosMemoryFree(out.columnData);
   } else {
     filterAddFieldFromNode(info, node->pRight, &right);
     
@@ -1813,6 +1815,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
+      colDataDestroy(out.columnData);
+      taosMemoryFree(out.columnData);
     }
 
     // match/nmatch for nchar type need convert from ucs4 to mbs
@@ -3533,6 +3537,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       }      
 
       if (nodeType(node->pLeft) == nodeType(node->pRight)) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+
+      if (OP_TYPE_JSON_CONTAINS == node->opType) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
