@@ -29,11 +29,15 @@ int main(int argc, char *argv[]) {
     pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
     pBlock->info.numOfCols = 1;
     pBlock->info.rows = 4;
+    char data[16] = {0};
+    char bitmap[1] = {0};
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData colInfo = {0};
       colInfo.info.type = TSDB_DATA_TYPE_INT;
       colInfo.info.bytes = sizeof(int32_t);
       colInfo.info.colId = 1;
+      colInfo.pData = data;
+      colInfo.nullbitmap = bitmap;
       for (int32_t j = 0; j < pBlock->info.rows; ++j) {
         colDataAppendInt32(&colInfo, j, &j);
       }

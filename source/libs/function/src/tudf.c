@@ -318,7 +318,7 @@ int32_t encodeUdfRequest(void** buf, const SUdfRequest* request) {
 
 void* decodeUdfRequest(const void* buf, SUdfRequest* request) {
   request->msgLen = *(int32_t*)(buf);
-  POINTER_SHIFT(buf, sizeof(request->msgLen));
+  buf = POINTER_SHIFT(buf, sizeof(request->msgLen));
 
   buf = taosDecodeFixedI64(buf, &request->seqNum);
   buf = taosDecodeFixedI8(buf, &request->type);
@@ -429,7 +429,7 @@ int32_t encodeUdfResponse(void** buf, const SUdfResponse* rsp) {
 
 void* decodeUdfResponse(const void* buf, SUdfResponse* rsp) {
   rsp->msgLen = *(int32_t*)(buf);
-  POINTER_SHIFT(buf, sizeof(rsp->msgLen));
+  buf = POINTER_SHIFT(buf, sizeof(rsp->msgLen));
   buf = taosDecodeFixedI64(buf, &rsp->seqNum);
   buf = taosDecodeFixedI8(buf, &rsp->type);
   buf = taosDecodeFixedI32(buf, &rsp->code);
@@ -786,9 +786,10 @@ int32_t createUdfcUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskN
     }
     int32_t bufLen = encodeUdfRequest(NULL, &request);
     request.msgLen = bufLen;
-    void *buf = taosMemoryMalloc(bufLen);
+    void *bufBegin = taosMemoryMalloc(bufLen);
+    void *buf = bufBegin;
     encodeUdfRequest(&buf, &request);
-    uvTask->reqBuf = uv_buf_init(buf, bufLen);
+    uvTask->reqBuf = uv_buf_init(bufBegin, bufLen);
     uvTask->seqNum = request.seqNum;
   } else if (uvTaskType == UV_TASK_DISCONNECT) {
     uvTask->pipe = task->session->udfSvcPipe;
@@ -931,7 +932,7 @@ void onUdfdExit(uv_process_t *req, int64_t exit_status, int term_signal) {
     gUdfcState = UDFC_STATE_RESTARTING;
     //TODO: asynchronous without blocking. how to do it
     cleanUpUvTasks();
-    startUdfd();
+    //startUdfd();
   }
 }
 
@@ -966,7 +967,7 @@ void constructUdfService(void *argsThread) {
   uv_loop_init(&gUdfdLoop);
 
   //TODO spawn error
-  startUdfd();
+  //startUdfd();
 
   uv_async_init(&gUdfdLoop, &gUdfLoopTaskAync, udfClientAsyncCb);
   uv_async_init(&gUdfdLoop, &gUdfLoopStopAsync, udfStopAsyncCb);
@@ -1009,7 +1010,8 @@ int32_t udfcRunUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   udfcGetUvTaskResponseResult(task, uvTask);
   if (uvTaskType == UV_TASK_CONNECT) {
     task->session->udfSvcPipe = uvTask->pipe;
-  }  taosMemoryFree(uvTask);
+  }
+  taosMemoryFree(uvTask);
   uvTask = NULL;
   return task->errCode;
 }
@@ -1050,6 +1052,8 @@ int32_t callUdf(UdfHandle handle, int8_t callType, SSDataBlock *input, SUdfInter
   task->type = UDF_TASK_CALL;
 
   SUdfCallRequest *req = &task->_call.req;
+  req->udfHandle = task->session->severHandle;
+
   switch (callType) {
     case TSDB_UDF_CALL_AGG_INIT: {
       req->initFirst = 1;

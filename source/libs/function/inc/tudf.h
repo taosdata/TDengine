@@ -136,7 +136,7 @@ typedef int32_t (*TUdfTeardownFunc)();
 //typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
 //typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
 
-typedef int32_t (*TUdfFreeUdfColumnDataFunc)(SUdfColumn* columnData);
+typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* columnData);
 
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumn *resultCol);
 typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);

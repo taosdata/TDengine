@@ -49,7 +49,7 @@ typedef struct SUdf {
 
     uv_lib_t lib;
     TUdfScalarProcFunc scalarProcFunc;
-    TUdfFreeUdfColumnDataFunc freeUdfColumnData;
+    TUdfFreeUdfColumnFunc freeUdfColumn;
 } SUdf;
 
 //TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
@@ -72,18 +72,22 @@ void udfdProcessRequest(uv_work_t *req) {
             SUdfSetupRequest *setup = &request.setup;
             strcpy(udf->name, setup->udfName);
             //TODO: retrive udf info from mnode
-            char* path = "udf1.so";
+            char* path = "libudf1.so";
             int err = uv_dlopen(path, &udf->lib);
             if (err != 0) {
                 debugPrint("can not load library %s. error: %s", path, uv_strerror(err));
                 //TODO set error
             }
 
-            char normalFuncName[32] = {0};
+            char normalFuncName[TSDB_FUNC_NAME_LEN] = {0};
             strcpy(normalFuncName, setup->udfName);
-	    //TODO error,
+	    //TODO error, multi-thread, same udf, lock it
 	    //TODO find all functions normal, init, destroy, normal, merge, finalize
             uv_dlsym(&udf->lib, normalFuncName, (void **) (&udf->scalarProcFunc));
+            char freeFuncName[TSDB_FUNC_NAME_LEN + 5];
+            strncpy(freeFuncName, normalFuncName, strlen(normalFuncName));
+            strcat(freeFuncName, "_free");
+            uv_dlsym(&udf->lib, freeFuncName, (void **)(&udf->freeUdfColumn));
 
             SUdfHandle *handle = taosMemoryMalloc(sizeof(SUdfHandle));
             handle->udf = udf;
@@ -96,10 +100,11 @@ void udfdProcessRequest(uv_work_t *req) {
             rsp.setupRsp.udfHandle = (int64_t) (handle);
             int32_t len = encodeUdfResponse(NULL, &rsp);
             rsp.msgLen = len;
-            void *buf = taosMemoryMalloc(len);
+            void *bufBegin = taosMemoryMalloc(len);
+            void *buf = bufBegin;
             encodeUdfResponse(&buf, &rsp);
 
-            uvUdf->output = uv_buf_init(buf, len);
+            uvUdf->output = uv_buf_init(bufBegin, len);
 
             taosMemoryFree(uvUdf->input.base);
             break;
@@ -131,12 +136,13 @@ void udfdProcessRequest(uv_work_t *req) {
 
             int32_t len = encodeUdfResponse(NULL, rsp);
             rsp->msgLen = len;
-            void *buf = taosMemoryMalloc(len);
+            void *bufBegin = taosMemoryMalloc(len);
+            void *buf = bufBegin;
             encodeUdfResponse(&buf, rsp);
-            uvUdf->output = uv_buf_init(buf, len);
+            uvUdf->output = uv_buf_init(bufBegin, len);
 
             //TODO: free
-            udf->freeUdfColumnData(&output);
+            udf->freeUdfColumn(&output);
 
             taosMemoryFree(uvUdf->input.base);
             break;
@@ -160,12 +166,12 @@ void udfdProcessRequest(uv_work_t *req) {
             rsp->seqNum = request.seqNum;
             rsp->type = request.type;
             rsp->code = 0;
-            SUdfTeardownResponse *subRsp = &response.teardownRsp;
             int32_t len = encodeUdfResponse(NULL, rsp);
-            void *buf = taosMemoryMalloc(len);
             rsp->msgLen = len;
+            void *bufBegin = taosMemoryMalloc(len);
+            void *buf = bufBegin;
             encodeUdfResponse(&buf, rsp);
-            uvUdf->output = uv_buf_init(buf, len);
+            uvUdf->output = uv_buf_init(bufBegin, len);
 
             taosMemoryFree(uvUdf->input.base);
             break;
