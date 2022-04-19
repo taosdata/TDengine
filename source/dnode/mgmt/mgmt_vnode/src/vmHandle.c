@@ -82,13 +82,13 @@ int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
 }
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
+  memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
+
   pCfg->vgId = pCreate->vgId;
+  strcpy(pCfg->dbname, pCreate->db);
   pCfg->wsize = pCreate->cacheBlockSize * 1024 * 1024;
   pCfg->ssize = 1024;
   pCfg->lsize = 1024 * 1024;
-  pCfg->isHeapAllocator = true;
-  pCfg->ttl = 4;
-  pCfg->keep = pCreate->daysToKeep0;
   pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
@@ -96,12 +96,6 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
-  pCfg->walCfg.level = TAOS_WAL_WRITE;
-  pCfg->walCfg.fsyncPeriod = 0;
-  pCfg->walCfg.retentionPeriod = 0;
-  pCfg->walCfg.retentionSize = 0;
-  pCfg->walCfg.rollPeriod = 0;
-  pCfg->walCfg.segSize = 0;
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;

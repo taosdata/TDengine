@@ -36,12 +36,12 @@ static int32_t dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     }
   } else {
     SStatusRsp statusRsp = {0};
-    if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
-        tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
+    if (pRsp->pCont != NULL && pRsp->contLen > 0 && tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
       pDnode->data.dnodeVer = statusRsp.dnodeVer;
       dmUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
       dmUpdateEps(pDnode, statusRsp.pDnodeEps);
     }
+    rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
   }
 
@@ -76,7 +76,7 @@ void dmSendStatusReq(SDnode *pDnode) {
   req.pVloads = info.pVloads;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void   *pHead = rpcMallocCont(contLen);
+  void *  pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
@@ -101,7 +101,7 @@ int32_t dmProcessGrantRsp(SDnode *pDnode, SNodeMsg *pMsg) {
 }
 
 int32_t dmProcessConfigReq(SDnode *pDnode, SNodeMsg *pMsg) {
-  SRpcMsg       *pReq = &pMsg->rpcMsg;
+  SRpcMsg *      pReq = &pMsg->rpcMsg;
   SDCfgDnodeReq *pCfg = pReq->pCont;
   dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;

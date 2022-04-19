@@ -41,14 +41,16 @@ typedef struct SVnode    SVnode;
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
 
+extern const SVnodeCfg vnodeCfgDefault;
+
 int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
-void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);
-int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int     vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version);
+int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
@@ -134,6 +136,7 @@ struct STsdbCfg {
 
 struct SVnodeCfg {
   int32_t  vgId;
+  char     dbname[TSDB_DB_NAME_LEN];
   uint64_t dbId;
   uint64_t wsize;
   uint64_t ssize;

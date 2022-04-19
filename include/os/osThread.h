@@ -22,6 +22,10 @@
 extern "C" {
 #endif
 
+#ifndef __USE_XOPEN2K
+typedef pthread_mutex_t pthread_spinlock_t;
+#endif
+
 typedef pthread_t TdThread;
 typedef pthread_spinlock_t TdThreadSpinlock;
 typedef pthread_mutex_t TdThreadMutex;
@@ -33,8 +37,6 @@ typedef pthread_rwlockattr_t TdThreadRwlockAttr;
 typedef pthread_cond_t TdThreadCond;
 typedef pthread_condattr_t TdThreadCondAttr;
 typedef pthread_key_t TdThreadKey;
-typedef pthread_barrier_t TdThreadBarrier;
-typedef pthread_barrierattr_t TdThreadBarrierAttr;
 
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop pthread_cleanup_pop
@@ -156,13 +158,6 @@ int32_t taosThreadAttrSetSchedParam(TdThreadAttr * attr, const struct sched_para
 int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr * attr, int32_t policy);
 int32_t taosThreadAttrSetScope(TdThreadAttr * attr, int32_t contentionscope);
 int32_t taosThreadAttrSetStackSize(TdThreadAttr * attr, size_t stacksize);
-int32_t taosThreadBarrierDestroy(TdThreadBarrier * barrier);
-int32_t taosThreadBarrierInit(TdThreadBarrier * barrier, const TdThreadBarrierAttr * attr, uint32_t count);
-int32_t taosThreadBarrierWait(TdThreadBarrier * barrier);
-int32_t taosThreadBarrierAttrDestroy(TdThreadBarrierAttr * attr);
-int32_t taosThreadBarrierAttrGetPshared(const TdThreadBarrierAttr * attr, int32_t *pshared);
-int32_t taosThreadBarrierAttrInit(TdThreadBarrierAttr * attr);
-int32_t taosThreadBarrierAttrSetPshared(TdThreadBarrierAttr * attr, int32_t pshared);
 int32_t taosThreadCancel(TdThread thread);
 int32_t taosThreadCondDestroy(TdThreadCond * cond);
 int32_t taosThreadCondInit(TdThreadCond * cond, const TdThreadCondAttr * attr);

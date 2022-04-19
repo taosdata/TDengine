@@ -539,7 +539,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
   pTaskInfo->code = pOperator->_openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
@@ -547,6 +547,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     size_t total = taosArrayGetSize(pInfo->pBlockLists);
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
+      pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
 
@@ -560,11 +561,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
       pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
         terrno = pTaskInfo->code;
+        pOperator->status = OP_EXEC_DONE;
         return NULL;
       }
 
       if (pBlockInfo->rows == 0) {
-        return NULL;
+        break;
       }
 
       SArray* pCols = tqRetrieveDataBlock(pInfo->readerHandle);
@@ -583,6 +585,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
 
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
+        pOperator->status = OP_EXEC_DONE;
         pTaskInfo->code = terrno;
         return NULL;
       }
@@ -593,6 +596,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     // record the scan action.
     pInfo->numOfExec++;
     pInfo->numOfRows += pBlockInfo->rows;
+
+    if (pBlockInfo->rows == 0) {
+      pOperator->status = OP_EXEC_DONE;
+    }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
   }
