@@ -17,7 +17,7 @@ fn test_parse_time() {
             s.as_ptr(),
             &mut time as _,
             s.to_bytes().len() as _,
-            TIMESTAMP_MICROSECOND,
+            Precision::Microsecond,
             0,
         )
     };
@@ -37,7 +37,7 @@ fn test_parse_time() {
             s.as_ptr(),
             &mut time as _,
             s.to_bytes().len() as _,
-            TIMESTAMP_MICROSECOND,
+            Precision::Microsecond,
             0,
         )
     };

@@ -44,12 +44,12 @@ impl<'a, T: IntoField> IntoNamedField<'a> for (&str, T) {
 
 #[test]
 fn obj() {
-    fn t1(fields: &[&dyn IntoField]) {}
+    fn t1(_fields: &[&dyn IntoField]) {}
 
     let v = vec![&10 as _, &0.0 as _];
     t1(&v);
 
-    fn insert_named<'a>(fields: &[&dyn IntoNamedField<'a>]) {}
+    fn insert_named<'a>(_fields: &[&dyn IntoNamedField<'a>]) {}
 
     let v = vec![&("a", 0) as _, &("b", 0.0) as _];
     insert_named(&v);

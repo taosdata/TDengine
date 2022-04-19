@@ -311,15 +311,15 @@ mod tests {
             RowIter(PhantomData)
         }
 
-        fn write_with(&self, codec: CodecOpts) {
+        fn write_with(&self, _codec: CodecOpts) {
             todo!()
         }
 
-        fn write_all_with(&self, codec: CodecOpts) {
+        fn write_all_with(&self, _codec: CodecOpts) {
             todo!()
         }
 
-        fn encode(&self, codec: CodecOpts) -> Vec<u8> {
+        fn encode(&self, _codec: CodecOpts) -> Vec<u8> {
             todo!()
         }
     }

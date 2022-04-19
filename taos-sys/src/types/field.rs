@@ -1,6 +1,7 @@
-use std::ffi::CStr;
+use std::{borrow::Cow, ffi::CStr};
 
-use super::TaosDataType;
+// use super::Ty;
+use taos_query::common::{Field, Ty};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -15,7 +16,7 @@ impl TAOS_FIELD {
         unsafe { CStr::from_ptr(self.name.as_ptr() as _) }
         // CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
     }
-    pub fn type_(&self) -> TaosDataType {
+    pub fn type_(&self) -> Ty {
         self.type_.into()
     }
 
@@ -24,31 +25,39 @@ impl TAOS_FIELD {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de, 'a> serde::de::Deserializer<'de> for &'a TAOS_FIELD {
-    type Error = taos_error::Error;
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        self.name()
-            .to_str()
-            .map_err(|err| taos_error::Error::from_string(format!("{}", err)))
-            .and_then(|s| visitor.visit_str(s))
-    }
-
-    serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit option
-        seq bytes byte_buf map unit_struct newtype_struct
-        tuple_struct struct tuple enum identifier ignored_any
-    }
+fn from_v2<'a>(fields: &'a [TAOS_FIELD]) -> Cow<'a, [Field]> {
+    let f: Vec<Field> = fields
+        .into_iter()
+        .map(|field| {
+            Field::new(
+                &field.name().to_string_lossy(),
+                field.type_(),
+                field.bytes(),
+            )
+        })
+        .collect::<Vec<_>>();
+    Cow::Owned(f)
 }
-#[cfg(feature = "serde")]
-impl<'de, 'a> serde::de::IntoDeserializer<'de, taos_error::Error> for &'a TAOS_FIELD {
-    type Deserializer = &'a TAOS_FIELD;
 
-    fn into_deserializer(self) -> Self::Deserializer {
-        self
-    }
+#[cfg(taos_v3)]
+pub fn from_raw_fields<'a>(ptr: *const TAOS_FIELD, len: usize) -> Cow<'a, [Field]> {
+    // let f: &'a [Field] = unsafe { std::mem::transmute(fields) };
+    let ptr: *const Field = unsafe { std::mem::transmute(ptr) };
+    Cow::Borrowed(unsafe { std::slice::from_raw_parts(ptr, len) })
+}
+
+#[cfg(not(taos_v3))]
+pub fn from_raw_fields<'a>(ptr: *const TAOS_FIELD, len: usize) -> Cow<'a, [Field]> {
+    let raw = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let fields: Vec<Field> = raw
+        .into_iter()
+        .map(|field| {
+            Field::new(
+                &field.name().to_string_lossy(),
+                field.type_(),
+                field.bytes(),
+            )
+        })
+        .collect();
+    Cow::Owned(fields)
 }

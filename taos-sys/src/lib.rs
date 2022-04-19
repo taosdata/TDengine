@@ -2,9 +2,10 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{borrow::Cow, ffi::CStr, io::Write, os::raw::*};
+use std::{borrow::Cow, ffi::CStr, os::raw::*};
 
 use taos_error::{Code, Error};
+use taos_query::common::{Field, Ty};
 
 pub(crate) mod types;
 pub use types::*;
@@ -188,8 +189,11 @@ impl RawRes {
         unsafe { taos_num_fields(self.as_ptr()) }
     }
     #[inline]
-    pub fn fetch_fields(&self) -> *mut TAOS_FIELD {
-        unsafe { taos_fetch_fields(self.as_ptr()) }
+    pub fn fetch_fields(&self) -> Cow<[Field]> {
+        from_raw_fields(
+            unsafe { taos_fetch_fields(self.as_ptr()) },
+            self.num_fields() as _,
+        )
     }
 
     #[inline]
@@ -374,7 +378,7 @@ impl RawStmt {
     }
 
     #[inline]
-    pub fn get_param(&mut self, idx: i32) -> Result<(TaosDataType, i32), Error> {
+    pub fn get_param(&mut self, idx: i32) -> Result<(Ty, i32), Error> {
         let (mut type_, mut bytes) = (0, 0);
         err_or!(
             self,
@@ -405,121 +409,56 @@ impl RawStmt {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, Clone)]
-pub struct Field {
-    name: [u8; 65],
-    ty: TaosDataType,
-    bytes: u32,
-}
+// #[derive(Debug, Clone, Copy)]
+// #[repr(C)]
+// enum BlockVer {
+//     V2 = 0,
+//     V3,
+// }
+// #[derive(Debug, Clone, Copy)]
+// #[repr(C)]
 
-#[test]
-fn field_size() {
-    assert_eq!(std::mem::size_of::<Field>(), 72);
-    #[cfg(taos_v2)]
-    assert_eq!(std::mem::size_of::<TAOS_FIELD>(), 68);
-    #[cfg(taos_v3)]
-    assert_eq!(std::mem::size_of::<TAOS_FIELD>(), 72);
-}
-impl Field {
-    pub fn new(name: &str, ty: TaosDataType, bytes: u32) -> Self {
-        let name_raw = name.as_bytes();
-        let mut name: [u8; 65] = [0; 65];
-        unsafe {
-            std::ptr::copy_nonoverlapping(name_raw.as_ptr(), name.as_mut_ptr(), name_raw.len())
-        };
-        Self { name, ty, bytes }
-    }
-    pub const fn name(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(&self.name) }
-    }
-    pub const fn data_type(&self) -> TaosDataType {
-        self.ty
-    }
-    pub const fn bytes(&self) -> u32 {
-        self.bytes
-    }
+// enum BlockCodec {
+//     Bytes,
+// }
 
-    fn from_v2<'a>(fields: &'a [TAOS_FIELD]) -> Cow<'a, [Field]> {
-        fields
-            .into_iter()
-            .map(|field| Field {
-                name: field.name.clone(),
-                ty: field.type_(),
-                bytes: field.bytes(),
-            })
-            .collect::<Vec<_>>()
-            .into()
-    }
+// #[derive(Debug)]
+// enum BlockType<'a> {
+//     V2(*mut *mut c_void),
+//     Bytes(Cow<'a, [u8]>),
+// }
 
-    fn from_v3<'a>(fields: &'a [TAOS_FIELD]) -> Cow<'a, [Field]> {
-        let f: &'a [Field] = unsafe { std::mem::transmute(fields) };
-        Cow::Borrowed(f)
-    }
+// struct RawCodec<'a> {
+//     version: BlockVer,
+//     method: BlockCodec,
+//     precision: Precision,
+//     fields: Cow<'a, [Field]>,
+// }
 
-    fn from_raw_fields(fields: &[TAOS_FIELD]) -> Cow<[Field]> {
-        cfg_if::cfg_if! {
-            if #[cfg(taos_v2)] {
-                Self::from_v2(fields)
-            } else if #[cfg(taos_v3)] {
-                Self::from_v3(fields)
-            } else {
-                compile_error!("can not parse fields")
-            }
-        }
-    }
-}
+// #[derive(Debug)]
+// pub struct RawBlock<'a> {
+//     version: BlockVer,
+//     codec: BlockCodec,
+//     precision: Precision,
+//     fields: Cow<'a, [Field]>,
+//     num_of_rows: usize,
+//     data: BlockType<'a>,
+// }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-enum BlockVer {
-    V2 = 0,
-    V3,
-}
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
+// impl<'a> RawBlock<'a> {
+//     fn precision(&self) -> Precision {
+//         self.precision
+//     }
 
-enum BlockCodec {
-    Bytes,
-}
+//     fn to_bytes(&self) -> Cow<[u8]> {
+//         todo!()
+//     }
 
-#[derive(Debug)]
-enum BlockType<'a> {
-    V2(*mut *mut c_void),
-    Bytes(Cow<'a, [u8]>),
-}
+//     fn write<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
+//         wtr.write(&self.to_bytes())
+//     }
 
-struct RawCodec<'a> {
-    version: BlockVer,
-    method: BlockCodec,
-    precision: Precision,
-    fields: Cow<'a, [Field]>,
-}
-
-#[derive(Debug)]
-pub struct RawBlock<'a> {
-    version: BlockVer,
-    codec: BlockCodec,
-    precision: Precision,
-    fields: Cow<'a, [Field]>,
-    num_of_rows: usize,
-    data: BlockType<'a>,
-}
-
-impl<'a> RawBlock<'a> {
-    fn precision(&self) -> Precision {
-        self.precision
-    }
-
-    fn to_bytes(&self) -> Cow<[u8]> {
-        todo!()
-    }
-
-    fn write<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
-        wtr.write(&self.to_bytes())
-    }
-
-    fn write_all<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
-        wtr.write(&self.to_bytes())
-    }
-}
+//     fn write_all<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
+//         wtr.write(&self.to_bytes())
+//     }
+// }

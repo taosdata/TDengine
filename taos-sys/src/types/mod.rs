@@ -1,10 +1,8 @@
-use std::{ffi::CStr, os::raw::*};
-
-mod data;
-pub use data::*;
+use std::os::raw::*;
 
 mod field;
-pub use field::TAOS_FIELD;
+pub use field::*;
+pub use taos_query::common::{Precision, Ty};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -22,27 +20,6 @@ pub const TSDB_OPTION_TIMEZONE: TSDB_OPTION = TSDB_OPTION::Timezone;
 pub const TSDB_OPTION_CONFIGDIR: TSDB_OPTION = TSDB_OPTION::Locale;
 pub const TSDB_OPTION_SHELL_ACTIVITY_TIMER: TSDB_OPTION = TSDB_OPTION::ShellActivityTimer;
 pub const TSDB_MAX_OPTIONS: TSDB_OPTION = TSDB_OPTION::MaxOptions;
-
-
-use num_enum::FromPrimitive;
-
-#[repr(i32)]
-#[derive(Debug, Copy, Clone, FromPrimitive)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)
-)]
-pub enum Precision {
-    #[num_enum(default)]
-    Millisecond = 0,
-    Microsecond,
-    Nanosecond,
-}
-
-pub const TIMESTAMP_MILLISECOND: Precision = Precision::Millisecond;
-pub const TIMESTAMP_MICROSECOND: Precision = Precision::Microsecond;
-pub const TIMESTAMP_NANOSECOND: Precision = Precision::Nanosecond;
-
 
 #[repr(C)]
 #[derive(Copy, Clone)]

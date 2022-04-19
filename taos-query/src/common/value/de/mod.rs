@@ -499,7 +499,7 @@ mod de_borrowed_value {
             Null, Option<u8>, None
             TinyInt(-1), i8, -1
             SmallInt(-1), i16, -1
-            Int(0x_fff_ffff), i32, 0x_fff_ffff
+            Int(0x0fff_ffff), i32, 0x0fff_ffff
             BigInt(0xffffffff), i64, 0xffffffff
             UTinyInt(0xff), u8, 0xff
             USmallInt(0xffff), u16, 0xffff
@@ -1128,7 +1128,7 @@ mod value_ref_de {
             Null, Option<u8>, None
             TinyInt(-1), i8, -1
             SmallInt(-1), i16, -1
-            Int(0x_fff_ffff), i32, 0x_fff_ffff
+            Int(0x0fff_ffff), i32, 0x0fff_ffff
             BigInt(0xffffffff), i64, 0xffffffff
             UTinyInt(0xff), u8, 0xff
             USmallInt(0xffff), u16, 0xffff
@@ -1753,7 +1753,7 @@ mod value_de {
             Null, Option<u8>, None
             TinyInt(-1), i8, -1
             SmallInt(-1), i16, -1
-            Int(0x_fff_ffff), i32, 0x_fff_ffff
+            Int(0x0fff_ffff), i32, 0x0fff_ffff
             BigInt(0xffffffff), i64, 0xffffffff
             UTinyInt(0xff), u8, 0xff
             USmallInt(0xffff), u16, 0xffff
