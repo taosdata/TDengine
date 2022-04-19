@@ -460,8 +460,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
   if (isNullStr(pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      int64_t tmpVal = 0;
-      return func(pMsgBuf, &tmpVal, pSchema->bytes, param);
+      return buildSyntaxErrMsg(pMsgBuf, "primary timestamp can not be null", pToken->z);
     }
 
     return func(pMsgBuf, NULL, 0, param);
