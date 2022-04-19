@@ -255,7 +255,12 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
 void tmq_list_destroy(tmq_list_t* list) {
   SArray* container = &list->container;
   /*taosArrayDestroy(container);*/
-  taosArrayDestroyEx(container, (void (*)(void*))taosMemoryFree);
+  int32_t sz = taosArrayGetSize(container);
+  for (int32_t i = 0; i < sz; i++) {
+    char* str = taosArrayGetP(container, i);
+    taosMemoryFree(str);
+  }
+  taosArrayDestroy(container);
 }
 
 static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
@@ -496,7 +501,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   SCMSubscribeReq req;
   req.topicNum = sz;
   req.consumerId = tmq->consumerId;
-  req.consumerGroup = strdup(tmq->groupId);
+  strcpy(req.cgroup, tmq->groupId);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
 
   for (int i = 0; i < sz; i++) {

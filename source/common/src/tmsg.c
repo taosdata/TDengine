@@ -121,14 +121,14 @@ int32_t taosEncodeSEpSet(void **buf, const SEpSet *pEp) {
   return tlen;
 }
 
-void *taosDecodeSEpSet(void *buf, SEpSet *pEp) {
+void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
   buf = taosDecodeFixedI8(buf, &pEp->inUse);
   buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
     buf = taosDecodeFixedU16(buf, &pEp->eps[i].port);
     buf = taosDecodeStringTo(buf, pEp->eps[i].fqdn);
   }
-  return buf;
+  return (void *)buf;
 }
 
 static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq) {
@@ -2184,7 +2184,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->showId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->type) < 0) return -1;
-//  if (tEncodeI8(&encoder, pReq->free) < 0) return -1;
+  //  if (tEncodeI8(&encoder, pReq->free) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
   tEndEncode(&encoder);
@@ -2201,7 +2201,7 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->showId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->type) < 0) return -1;
-//  if (tDecodeI8(&decoder, &pReq->free) < 0) return -1;
+  //  if (tDecodeI8(&decoder, &pReq->free) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
   tEndDecode(&decoder);

@@ -453,6 +453,9 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   }
   SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
 
+  int64_t             unexistKey = -1;
+  SMqConsumerEpInSub* pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
+
   void* pIter = NULL;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
@@ -466,24 +469,33 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     plan->execNode.nodeId = pVgroup->vgId;
     plan->execNode.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
+    SMqVgEp* pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
+    pVgEp->epSet = plan->execNode.epSet;
+    pVgEp->vgId = plan->execNode.nodeId;
+
+#if 0
     SMqConsumerEp consumerEp = {0};
     consumerEp.status = 0;
     consumerEp.consumerId = -1;
     consumerEp.epSet = plan->execNode.epSet;
     consumerEp.vgId = plan->execNode.nodeId;
-    
-    mDebug("init subscribption %s, assign vg: %d", pSub->key, consumerEp.vgId);
+#endif
+
+    mDebug("init subscribption %s, assign vg: %d", pSub->key, pVgEp->vgId);
 
     int32_t msgLen;
-    if (qSubPlanToString(plan, &consumerEp.qmsg, &msgLen) < 0) {
+    if (qSubPlanToString(plan, &pVgEp->qmsg, &msgLen) < 0) {
       sdbRelease(pSdb, pVgroup);
       qDestroyQueryPlan(pPlan);
       terrno = TSDB_CODE_QRY_INVALID_INPUT;
       return -1;
     }
-    taosArrayPush(pSub->unassignedVg, &consumerEp);
+    taosArrayPush(pEpInSub->vgs, &pVgEp);
+
+    /*taosArrayPush(pSub->unassignedVg, &consumerEp);*/
   }
 
+  taosHashRelease(pSub->consumerHash, pEpInSub);
   qDestroyQueryPlan(pPlan);
 
   return 0;
