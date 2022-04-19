@@ -92,7 +92,7 @@ Query OK, 2 row(s) in set (0.001017s)
 
 在上面的示例中可以看到新创建的 dnode 的状态为 offline，待该 dnode 被启动并连接上配置文件中指定的 firstEp后再次查看，得到如下结果（示例）
 
-```bash
+```
 taos> show dnodes;
    id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
 ======================================================================================================================================
