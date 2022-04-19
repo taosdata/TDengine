@@ -653,20 +653,15 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     outputLen = outputLen * factor + VARSTR_HEADER_SIZE;
   }
 
-  char *input = NULL;
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;
-  if (IS_VAR_DATA_TYPE(inputType)) {
-    input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
-  } else {
-    input = pInput[0].columnData->pData;
-  }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
       continue;
     }
+    char *input = colDataGetData(pInput[0].columnData, i);
 
     switch(outputType) {
       case TSDB_DATA_TYPE_BIGINT: {
@@ -776,11 +771,6 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     }
 
     colDataAppend(pOutput->columnData, i, output, false);
-    if (IS_VAR_DATA_TYPE(inputType)) {
-      input  += varDataTLen(input);
-    } else {
-      input  += tDataTypes[inputType].bytes;
-    }
     if (IS_VAR_DATA_TYPE(outputType)) {
       output += varDataTLen(output);
     } else {
