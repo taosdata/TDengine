@@ -136,12 +136,12 @@ taos> show dnodes;
 Query OK, 1 row(s) in set (0.001137s)
 ```
 
-上面的示例中，初次执行 show dnodes 列出了两个 dnode, 执行 drop dnode 2 删除其中 ID 为 2 的 dnode 之后再次执行 show dnode，可以看到只剩下 ID 为 1 的dnode.
+上面的示例中，初次执行 `show dnodes` 列出了两个 dnode, 执行 drop dnode 2 删除其中 ID 为 2 的 dnode 之后再次执行 `show dnodes`，可以看到只剩下 ID 为 1 的dnode.
 
 :::warning
 
-数据节点一旦被 drop 之后，不能重新加入集群。需要将此节点重新部署（清空数据文件夹）。集群在完成 drop dnode 操作之前，会将该 dnode 的数据迁移走。
-请注意 drop dnode 和 停止 taosd 进程是两个不同的概念，不要混淆：因为删除 dnode 之前要执行迁移数据的操作，因此被删除的 dnode 必须保持在线状态。待删除操作结束之后，才能停止 taosd 进程。
+数据节点一旦被 drop 之后，不能重新加入集群。需要将此节点重新部署（清空数据文件夹）。集群在完成 `drop dnode` 操作之前，会将该 dnode 的数据迁移走。
+请注意 `drop dnode` 和 停止 taosd 进程是两个不同的概念，不要混淆：因为删除 dnode 之前要执行迁移数据的操作，因此被删除的 dnode 必须保持在线状态。待删除操作结束之后，才能停止 taosd 进程。
 一个数据节点被 drop 之后，其他节点都会感知到这个 dnodeID 的删除操作，任何集群中的节点都不会再接收此 dnodeID 的请求。
 dnodeID 是集群自动分配的，不得人工指定。它在生成时是递增的，不会重复。
 
