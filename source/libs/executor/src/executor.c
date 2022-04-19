@@ -34,6 +34,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
     return doSetStreamBlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
   } else {
+    pOperator->status = OP_NOT_OPENED;
+
     SStreamBlockScanInfo* pInfo = pOperator->info;
 
     // the block type can not be changed in the streamscan operators
