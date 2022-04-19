@@ -444,9 +444,6 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
   } else {
     res->node.resType = node->node.resType;
-    if (res->node.resType.type == TSDB_DATA_TYPE_NCHAR) {
-      res->node.resType.bytes *= TSDB_NCHAR_SIZE;
-    }
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {
       res->datum.p = output.columnData->pData;
