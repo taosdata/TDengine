@@ -349,7 +349,6 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 
   SVCreateTbReq req = {0};
   req.ver = 0;
-  req.dbFName = dbFName;
   req.name = (char *)tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
