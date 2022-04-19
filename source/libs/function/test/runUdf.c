@@ -5,6 +5,7 @@
 #include "uv.h"
 #include "os.h"
 #include "tudf.h"
+#include "tdatablock.h"
 
 int main(int argc, char *argv[]) {
     startUdfService();
@@ -18,28 +19,38 @@ int main(int argc, char *argv[]) {
     }
     fprintf(stdout, "current working directory:%s\n", path);
     strcat(path, "/libudf1.so");
-    SUdfInfo udfInfo = {.udfName="udf1", .path=path};
 
     UdfHandle handle;
-    setupUdf(&udfInfo, &handle);
+    SEpSet epSet;
+    setupUdf("udf1", &epSet, &handle);
 
-    //char state[5000000] = "state";
-    //char input[5000000] = "input";
-    int dataSize = 500;
-    int callCount = 2;
-    if (argc > 1) dataSize = atoi(argv[1]);
-    if (argc > 2) callCount = atoi(argv[2]);
-    char *state = taosMemoryMalloc(dataSize);
-    char *input = taosMemoryMalloc(dataSize);
-    SUdfDataBlock blockInput = {.data = input, .size = dataSize};
-    SUdfDataBlock blockOutput;
-    char* newState;
-    int32_t newStateSize;
-    for (int l = 0; l < callCount; ++l) {
-        callUdf(handle, 0, state, dataSize, blockInput, &newState, &newStateSize, &blockOutput);
+    SSDataBlock block = {0};
+    SSDataBlock* pBlock = &block;
+    pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+    pBlock->info.numOfCols = 1;
+    pBlock->info.rows = 4;
+    char data[16] = {0};
+    char bitmap[4] = {0};
+    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+      SColumnInfoData colInfo = {0};
+      colInfo.info.type = TSDB_DATA_TYPE_INT;
+      colInfo.info.bytes = sizeof(int32_t);
+      colInfo.info.colId = 1;
+      colInfo.pData = data;
+      colInfo.nullbitmap = bitmap;
+      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+        colDataAppendInt32(&colInfo, j, &j);
+      }
+      taosArrayPush(pBlock->pDataBlock, &colInfo);
     }
-    taosMemoryFree(state);
-    taosMemoryFree(input);
+    
+    SSDataBlock output = {0};
+    callUdfScalaProcess(handle, pBlock, &output);
+
+    SColumnInfoData *col = taosArrayGet(output.pDataBlock, 0);
+    for (int32_t i = 0; i < output.info.rows; ++i) {
+      fprintf(stderr, "%d\t%d\n" , i, *(int32_t*)(col->pData + i *sizeof(int32_t)));
+    }
     teardownUdf(handle);
 
     stopUdfService();
