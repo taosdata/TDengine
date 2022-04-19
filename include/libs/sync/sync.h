@@ -84,6 +84,9 @@ typedef struct SSyncFSM {
 struct SSyncRaftEntry;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
+#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_INVALID -1
+
 // abstract definition of log store in raft
 // SWal implements it
 typedef struct SSyncLogStore {

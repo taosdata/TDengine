@@ -137,6 +137,7 @@ static void *vmOpenVnodeFunc(void *param) {
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
+    msgCb.queueFps[SYNC_QUEUE] = vmPutMsgToSyncQueue;  // sync integration
     msgCb.qsizeFp = vmGetQueueSize;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
     SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);

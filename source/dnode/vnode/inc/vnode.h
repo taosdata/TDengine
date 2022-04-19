@@ -24,6 +24,7 @@
 #include "tarray.h"
 #include "tfs.h"
 #include "wal.h"
+#include "sync.h"
 
 #include "tcommon.h"
 #include "tfs.h"
@@ -144,6 +145,7 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
+  SSyncCfg syncCfg; // sync integration
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;

@@ -124,6 +124,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+  // sync integration
+  // open sync
+  if (vnodeSyncOpen(pVnode)) {
+    goto _err;
+  }
+
 #if 0
   if (vnodeBegin() < 0) {
     goto _err;

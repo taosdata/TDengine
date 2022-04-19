@@ -54,8 +54,8 @@ typedef struct SQWorkerMgmt SQHandle;
 
 #define VNODE_META_DIR "meta"
 #define VNODE_TSDB_DIR "tsdb"
-#define VNODE_TQ_DIR   "tq"
-#define VNODE_WAL_DIR  "wal"
+#define VNODE_TQ_DIR "tq"
+#define VNODE_WAL_DIR "wal"
 
 typedef struct {
   int8_t  streamType;  // sma or other
@@ -68,8 +68,8 @@ typedef struct {
 } SStreamSinkInfo;
 
 typedef struct {
-  SVnode*   pVnode;
-  SHashObj* pHash;  // streamId -> SStreamSinkInfo
+  SVnode   *pVnode;
+  SHashObj *pHash;  // streamId -> SStreamSinkInfo
 } SSink;
 
 // SVState
@@ -85,25 +85,26 @@ struct SVnodeInfo {
 };
 
 struct SVnode {
-  char*      path;
+  char      *path;
   SVnodeCfg  config;
   SVState    state;
-  STfs*      pTfs;
+  STfs      *pTfs;
   SMsgCb     msgCb;
-  SVBufPool* pBufPool;
-  SMeta*     pMeta;
-  STsdb*     pTsdb;
-  SWal*      pWal;
-  STQ*       pTq;
-  SSink*     pSink;
+  SVBufPool *pBufPool;
+  SMeta     *pMeta;
+  STsdb     *pTsdb;
+  SWal      *pWal;
+  STQ       *pTq;
+  SSink     *pSink;
+  int64_t    sync;  // sync integration
   tsem_t     canCommit;
-  SQHandle*  pQuery;
+  SQHandle  *pQuery;
 };
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
 // sma
-void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data);
 
 #include "vnd.h"
 
@@ -112,6 +113,8 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 #include "tsdb.h"
 
 #include "tq.h"
+
+#include "vnodeSync.h"
 
 #ifdef __cplusplus
 }

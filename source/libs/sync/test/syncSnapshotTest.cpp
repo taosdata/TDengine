@@ -112,7 +112,7 @@ SSyncNode *syncNodeInit() {
   for (int i = 0; i < replicaNum; ++i) {
     pCfg->nodeInfo[i].nodePort = ports[i];
     snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
-    // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
+    taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
   SSyncNode *pSyncNode = syncNodeOpen(&syncInfo);
