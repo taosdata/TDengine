@@ -20,30 +20,28 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
 static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
 
-void vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs) {
+int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
   SNodeMsg *pMsg;
   SRpcMsg  *pRpc;
 
+  *version = pVnode->state.processed;
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
     pRpc = &pMsg->rpcMsg;
 
     // set request version
-    void   *pBuf = POINTER_SHIFT(pRpc->pCont, sizeof(SMsgHead));
-    int64_t ver = pVnode->state.processed++;
-    taosEncodeFixedI64(&pBuf, ver);
-
-    if (walWrite(pVnode->pWal, ver, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
-      // TODO: handle error
-      /*ASSERT(false);*/
+    if (walWrite(pVnode->pWal, pVnode->state.processed++, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
       vError("vnode:%d  write wal error since %s", TD_VID(pVnode), terrstr());
+      return -1;
     }
   }
 
   walFsync(pVnode->pWal, false);
+
+  return 0;
 }
 
-int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg **pRsp) {
   void *ptr = NULL;
   int   ret;
 
@@ -58,9 +56,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   }
 
   // todo: change the interface here
-  int64_t ver;
-  taosDecodeFixedI64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
-  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, ver) < 0) {
+  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     // TODO: handle error
   }
 
@@ -128,7 +124,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       break;
   }
 
-  pVnode->state.applied = ver;
+  pVnode->state.applied = version;
 
   // Check if it needs to commit
   if (vnodeShouldCommit(pVnode)) {

@@ -97,6 +97,7 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
 static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
+  int64_t    version;
 
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
   if (pArray == NULL) {
@@ -115,7 +116,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     }
   }
 
-  vnodePreprocessWriteReqs(pVnode->pImpl, pArray);
+  vnodePreprocessWriteReqs(pVnode->pImpl, pArray, &version);
 
   numOfMsgs = taosArrayGetSize(pArray);
   for (int32_t i = 0; i < numOfMsgs; i++) {
@@ -123,7 +124,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     SRpcMsg  *pRpc = &pMsg->rpcMsg;
     SRpcMsg  *pRsp = NULL;
 
-    int32_t code = vnodeProcessWriteReq(pVnode->pImpl, pRpc, &pRsp);
+    int32_t code = vnodeProcessWriteReq(pVnode->pImpl, pRpc, version++, &pRsp);
     if (pRsp != NULL) {
       pRsp->ahandle = pRpc->ahandle;
       tmsgSendRsp(pRsp);
@@ -153,7 +154,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     // todo
     SRpcMsg *pRsp = NULL;
-    (void)vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, &pRsp);
+    // (void)vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, &pRsp);
   }
 }
 
