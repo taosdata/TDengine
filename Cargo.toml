@@ -3,6 +3,7 @@ members = [
   "taos-error",
   "taos-macros",
   "taos-sys",
+  "taos-query",
   "taos",
 ]
 
