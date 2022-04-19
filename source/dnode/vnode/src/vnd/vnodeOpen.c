@@ -165,3 +165,5 @@ void vnodeClose(SVnode *pVnode) {
     taosMemoryFree(pVnode);
   }
 }
+
+int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
