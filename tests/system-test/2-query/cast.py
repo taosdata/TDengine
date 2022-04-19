@@ -69,14 +69,9 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
 
         tdSql.query("select c1  from ct4")
-        data_ct4 = []
-        for i in range(tdSql.queryRows):
-            data_ct4[i] = tdSql.getData(i,0)
-
+        data_ct4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
         tdSql.query("select c1  from t1")
-        data_t1 = []
-        for i in range(tdSql.queryRows):
-            data_t1[i] = tdSql.getData(i,0)
+        data_t1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
 
         tdSql.query("select cast(c1 as int) as b from ct4")
         for i in range(len(data_ct4)):
@@ -86,7 +81,7 @@ class TDTestCase:
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, data_t1[i])
 
-        tdLog.printNoPrefix("==========step1: cast int to bigint, expect no changes")
+        tdLog.printNoPrefix("==========step2: cast int to bigint, expect no changes")
 
         tdSql.query("select cast(c1 as bigint) as b from ct4")
         for i in range(len(data_ct4)):
