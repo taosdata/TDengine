@@ -5,7 +5,9 @@ title: TCollector 写入
 
 import Tcollector from "../14-reference/_tcollector.mdx"
 
-TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。将 TCollector 采集的日志数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储和查询能力。
+TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。
+
+将 TCollector 采集的日志数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
 
 安装 TCollector 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
