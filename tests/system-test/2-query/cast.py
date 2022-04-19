@@ -1,4 +1,3 @@
-from this import d
 import taos
 import sys
 
@@ -65,13 +64,12 @@ class TDTestCase:
             '''
         )
 
-
-        tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
-
         tdSql.query("select c1  from ct4")
         data_ct4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
         tdSql.query("select c1  from t1")
         data_t1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
 
         tdSql.query("select cast(c1 as int) as b from ct4")
         for i in range(len(data_ct4)):
@@ -90,8 +88,35 @@ class TDTestCase:
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, data_t1[i])
 
-        tdSql.error("select cast(c1 as bigint) as b from ct4 interval(1y) ")
-        tdSql.error("select cast(c1 as bigint) as b from t1 interval(1y) ")
+        tdLog.printNoPrefix("==========step3: cast int to float, expect no changes")
+
+        tdSql.query("select cast(c1 as float) as b from ct4")
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, data_ct4[i])
+        tdSql.query("select cast(c1 as float) as b from t1")
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, data_t1[i])
+
+        tdLog.printNoPrefix("==========step4: cast int to double, expect no changes")
+
+        tdSql.query("select cast(c1 as double) as b from ct4")
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, data_ct4[i])
+        tdSql.query("select cast(c1 as double) as b from t1")
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, data_t1[i])
+
+        tdLog.printNoPrefix("==========step5: cast int to binary, expect no changes")
+
+        tdSql.query("select cast(c1 as binary) as b from ct4")
+        for i in range(len(data_ct4)):
+            tdSql.checkData( i, 0, data_ct4[i])
+        tdSql.query("select cast(c1 as binary) as b from t1")
+        for i in range(len(data_t1)):
+            tdSql.checkData( i, 0, data_t1[i])
+
+
+
 
 
     def stop(self):
