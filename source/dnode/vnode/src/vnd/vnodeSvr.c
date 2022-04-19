@@ -253,10 +253,6 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
       taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
     } else {
       taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
-      if (pCreateTbReq->ntbCfg.pRSmaParam) {
-        taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam->pFuncIds);
-        taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
-      }
     }
   }
 

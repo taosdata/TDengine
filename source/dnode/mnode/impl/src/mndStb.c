@@ -357,7 +357,6 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.stbCfg.nCols = pStb->numOfColumns;
   req.stbCfg.nTagCols = pStb->numOfTags;
   req.stbCfg.pTagSchema = pStb->pTags;
-  req.stbCfg.nBSmaCols = pStb->numOfSmas;
   req.stbCfg.pSchema = (SSchema *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
   if (req.stbCfg.pSchema == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

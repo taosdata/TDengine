@@ -2756,6 +2756,7 @@ static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
+#if 0
   pReq->ntbCfg.pRSmaParam = taosMemoryCalloc(1, sizeof(SRSmaParam));
   if (NULL == pReq->ntbCfg.pRSmaParam) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2770,6 +2771,7 @@ static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
   int32_t index = 0;
   SNode*  pFunc = NULL;
   FOREACH(pFunc, pOptions->pFuncs) { pReq->ntbCfg.pRSmaParam->pFuncIds[index++] = ((SFunctionNode*)pFunc)->funcId; }
+#endif
 
   return TSDB_CODE_SUCCESS;
 }

@@ -1444,10 +1444,9 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       tb_uid_t    suid;
-      col_id_t    nCols;
-      col_id_t    nBSmaCols;
+      int16_t     nCols;
       SSchema*    pSchema;
-      col_id_t    nTagCols;
+      int16_t     nTagCols;
       SSchema*    pTagSchema;
       SRSmaParam* pRSmaParam;
     } stbCfg;
@@ -1456,13 +1455,14 @@ typedef struct SVCreateTbReq {
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      col_id_t    nCols;
-      col_id_t    nBSmaCols;
-      SSchema*    pSchema;
-      SRSmaParam* pRSmaParam;
+      int16_t  nCols;
+      SSchema* pSchema;
     } ntbCfg;
   };
 } SVCreateTbReq, SVUpdateTbReq;
+
+int tEncodeSVCreateTbReq(SCoder* pCoder, const SVCreateTbReq* pReq);
+int tDecodeSVCreateTbReq(SCoder* pCoder, SVCreateTbReq* pReq);
 
 typedef struct {
   int32_t code;
