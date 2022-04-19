@@ -866,10 +866,6 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
 }
 
 int32_t lastFunction(SqlFunctionCtx *pCtx) {
-  if (pCtx->order != TSDB_ORDER_DESC) {
-    return 0;
-  }
-
   int32_t numOfElems = 0;
 
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);

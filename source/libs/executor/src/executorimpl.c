@@ -4931,6 +4931,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
 
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
   
 #if 0
   if (pProjectInfo->existDataBlock) {  // TODO refactor
