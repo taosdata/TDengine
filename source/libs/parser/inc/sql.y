@@ -646,7 +646,7 @@ predicate(A) ::= expression(B) BETWEEN expression(C) AND expression(D).         
 predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).       {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, D);
-                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D)));
                                                                                   }
 predicate(A) ::= expression(B) IS NULL(C).                                        {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
