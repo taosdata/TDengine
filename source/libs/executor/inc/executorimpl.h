@@ -404,25 +404,29 @@ typedef struct SAggSupporter {
   SArray*        pResultRowArrayList;  // The array list that contains the Result rows
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
-  int32_t        resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
+  int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
-typedef struct STableIntervalOperatorInfo {
-  SOptrBasicInfo   binfo;              // basic info
-  SGroupResInfo    groupResInfo;       // multiple results build supporter
-  SInterval        interval;           // interval info
-  int32_t          primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
-  STimeWindow      win;                // query time range
-  bool             timeWindowInterpo;  // interpolation needed or not
-  char**           pRow;               // previous row/tuple of already processed datablock
-  SAggSupporter    aggSup;             // aggregate supporter
-  STableQueryInfo* pCurrent;           // current tableQueryInfo struct
-  int32_t          order;              // current SSDataBlock scan order
-  EOPTR_EXEC_MODEL execModel;          // operator execution model [batch model|stream model]
-  SArray*          pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
+typedef struct STimeWindowSupp {
+  int8_t           calTrigger;
+  int64_t          waterMark;
   SColumnInfoData  timeWindowData;     // query time window info for scalar function execution.
-  double           watermark;          // water mark
-  int32_t          trigger;            // trigger model
+} STimeWindowAggSupp;
+
+typedef struct STableIntervalOperatorInfo {
+  SOptrBasicInfo     binfo;              // basic info
+  SGroupResInfo      groupResInfo;       // multiple results build supporter
+  SInterval          interval;           // interval info
+  int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
+  STimeWindow        win;                // query time range
+  bool               timeWindowInterpo;  // interpolation needed or not
+  char**             pRow;               // previous row/tuple of already processed datablock
+  SAggSupporter      aggSup;             // aggregate supporter
+  STableQueryInfo*   pCurrent;           // current tableQueryInfo struct
+  int32_t            order;              // current SSDataBlock scan order
+  EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
+  SArray*            pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
+  STimeWindowAggSupp twAggSup;
 } STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -440,19 +444,19 @@ typedef struct SAggOperatorInfo {
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-  SSDataBlock*   existDataBlock;
-  SArray*        pPseudoColInfo;
-  SLimit         limit;
-  SLimit         slimit;
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SSDataBlock*       existDataBlock;
+  SArray*            pPseudoColInfo;
+  SLimit             limit;
+  SLimit             slimit;
 
-  uint64_t groupId;
-  int64_t  curSOffset;
-  int64_t  curGroupOutput;
+  uint64_t           groupId;
+  int64_t            curSOffset;
+  int64_t            curGroupOutput;
 
-  int64_t curOffset;
-  int64_t curOutput;
+  int64_t            curOffset;
+  int64_t            curOutput;
 } SProjectOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -467,10 +471,10 @@ typedef struct SFillOperatorInfo {
 } SFillOperatorInfo;
 
 typedef struct {
-  char*   pData;
-  bool    isNull;
-  int16_t type;
-  int32_t bytes;
+  char*           pData;
+  bool            isNull;
+  int16_t         type;
+  int32_t         bytes;
 } SGroupKeys, SStateKeys;
 
 typedef struct SGroupbyOperatorInfo {
@@ -489,9 +493,9 @@ typedef struct SGroupbyOperatorInfo {
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {
-  uint64_t groupId;
-  int64_t  numOfRows;
-  SArray*  pPageList;
+  uint64_t        groupId;
+  int64_t         numOfRows;
+  SArray*         pPageList;
 } SDataGroupInfo;
 
 // The sort in partition may be needed later.
@@ -506,9 +510,8 @@ typedef struct SPartitionOperatorInfo {
   SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
   int32_t        rowCapacity;   // maximum number of rows for each buffer page
   int32_t*       columnOffset;  // start position for each column data
-
-  void*   pGroupIter;  // group iterator
-  int32_t pageIndex;   // page index of current group
+  void*          pGroupIter;  // group iterator
+  int32_t        pageIndex;   // page index of current group
 } SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
@@ -519,13 +522,13 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 typedef struct SSessionAggOperatorInfo {
-  SOptrBasicInfo  binfo;
-  SAggSupporter   aggSup;
-  SGroupResInfo   groupResInfo;
-  SWindowRowsSup  winSup;
-  bool            reptScan;        // next round scan
-  int64_t         gap;             // session window gap
-  SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SGroupResInfo      groupResInfo;
+  SWindowRowsSup     winSup;
+  bool               reptScan;        // next round scan
+  int64_t            gap;             // session window gap
+  STimeWindowAggSupp twAggSup;
 } SSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
@@ -535,14 +538,14 @@ typedef struct STimeSliceOperatorInfo {
 } STimeSliceOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
-  SOptrBasicInfo  binfo;
-  SAggSupporter   aggSup;
-  SGroupResInfo   groupResInfo;
-  SWindowRowsSup  winSup;
-  int32_t         colIndex;  // start row index
-  bool            hasKey;
-  SStateKeys      stateKey;
-  SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SGroupResInfo      groupResInfo;
+  SWindowRowsSup     winSup;
+  int32_t            colIndex;  // start row index
+  bool               hasKey;
+  SStateKeys         stateKey;
+  STimeWindowAggSupp twAggSup;
   //  bool             reptScan;
 } SStateWindowOperatorInfo;
 
@@ -640,10 +643,11 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
                                               SNode* pCondition, SEpSet epset, SArray* colList,
                                               SExecTaskInfo* pTaskInfo, bool showRewrite, int32_t accountId);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlot,
-                                          const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
+                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
+                                          STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo,
+                                          SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                            SSDataBlock* pResBlock, int64_t gap, SExecTaskInfo* pTaskInfo);
+                                            SSDataBlock* pResBlock, int64_t gap, STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                        SSDataBlock* pResultBlock, SArray* pGroupColList, SNode* pCondition,
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo,
@@ -656,7 +660,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExp
                                       SInterval* pInterval, SSDataBlock* pResBlock, int32_t fillType, char* fillVal,
                                       bool multigroupResult, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
-                                             SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
+                                             SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, SArray* pGroupColList, SExecTaskInfo* pTaskInfo,
