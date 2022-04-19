@@ -37,16 +37,14 @@ extern "C" {
 
 // vnode
 typedef struct SVnode    SVnode;
-typedef struct SMetaCfg  SMetaCfg;  // todo: remove
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct STqCfg    STqCfg;    // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
 
 int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
-void    vnodeDestroy(const char *path);
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
+void    vnodeDestroy(const char *path, STfs *pTfs);
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
 void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);
 int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
@@ -73,7 +71,6 @@ char       *metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 typedef struct STsdb          STsdb;
-typedef struct SDataStatis    SDataStatis;
 typedef struct STsdbQueryCond STsdbQueryCond;
 typedef void                 *tsdbReaderT;
 
@@ -93,7 +90,7 @@ int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, con
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SDataStatis **pBlockStatis);
+int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
@@ -134,14 +131,9 @@ struct STsdbCfg {
   SArray  *retentions;
 };
 
-struct STqCfg {
-  int32_t reserved;
-};
-
 struct SVnodeCfg {
   int32_t  vgId;
   uint64_t dbId;
-  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -151,23 +143,10 @@ struct SVnodeCfg {
   int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
-  SMetaCfg metaCfg;
-  STqCfg   tqCfg;
   SWalCfg  walCfg;
-  SMsgCb   msgCb;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
-};
-
-struct SDataStatis {
-  int16_t colId;
-  int16_t maxIndex;
-  int16_t minIndex;
-  int16_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
 };
 
 struct STsdbQueryCond {

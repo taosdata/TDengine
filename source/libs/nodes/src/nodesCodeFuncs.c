@@ -748,6 +748,11 @@ static const char* jkTableScanPhysiPlanEndKey = "EndKey";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
+static const char* jkTableScanPhysiPlanInterval = "Interval";
+static const char* jkTableScanPhysiPlanOffset = "Offset";
+static const char* jkTableScanPhysiPlanSliding = "Sliding";
+static const char* jkTableScanPhysiPlanIntervalUnit = "intervalUnit";
+static const char* jkTableScanPhysiPlanSlidingUnit  = "slidingUnit";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -770,6 +775,21 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkTableScanPhysiPlanDynamicScanFuncs, pNode->pDynamicScanFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanInterval, pNode->interval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanOffset, pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanSliding, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanIntervalUnit, pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanSlidingUnit, pNode->slidingUnit);
   }
 
   return code;
@@ -796,6 +816,21 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkTableScanPhysiPlanDynamicScanFuncs, &pNode->pDynamicScanFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkTableScanPhysiPlanInterval, pNode->interval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkTableScanPhysiPlanOffset, pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkTableScanPhysiPlanSliding, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkTableScanPhysiPlanIntervalUnit, pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkTableScanPhysiPlanSlidingUnit, pNode->slidingUnit);
   }
 
   return code;
@@ -1159,7 +1194,6 @@ static const char* jkIntervalPhysiPlanSliding = "Sliding";
 static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit  = "slidingUnit";
 static const char* jkIntervalPhysiPlanFill = "Fill";
-static const char* jkIntervalPhysiPlanPrecision = "Precision";
 
 static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
@@ -1182,9 +1216,6 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkIntervalPhysiPlanFill, nodeToJson, pNode->pFill);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanPrecision, pNode->precision);
   }
 
   return code;
@@ -1211,9 +1242,6 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkIntervalPhysiPlanFill, (SNode**)&pNode->pFill);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUTinyIntValue(pJson, jkIntervalPhysiPlanPrecision, &pNode->precision);
   }
 
   return code;

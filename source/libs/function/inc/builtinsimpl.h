@@ -30,6 +30,7 @@ EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWind
 bool getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t countFunction(SqlFunctionCtx *pCtx);
 
+EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t sumFunction(SqlFunctionCtx *pCtx);
 

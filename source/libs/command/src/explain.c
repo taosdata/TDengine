@@ -316,6 +316,9 @@ int32_t qExplainResAppendRow(SExplainCtx *ctx, char *tbuf, int32_t len, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static uint8_t getIntervalPrecision(SIntervalPhysiNode* pIntNode) {
+  return ((SColumnNode*)pIntNode->window.pTspk)->node.resType.precision;
+}
 
 int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
   int32_t tlen = 0;
@@ -658,10 +661,10 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->outputRowSize);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
-
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIME_WINDOWS_FORMAT, INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->interval, pIntNode->intervalUnit, pIntNode->precision),  
-              pIntNode->intervalUnit, pIntNode->offset, getPrecisionUnit(pIntNode->precision), 
-              INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->sliding, pIntNode->slidingUnit, pIntNode->precision), pIntNode->slidingUnit);
+        uint8_t precision = getIntervalPrecision(pIntNode);
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIME_WINDOWS_FORMAT, INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->interval, pIntNode->intervalUnit, precision),  
+              pIntNode->intervalUnit, pIntNode->offset, getPrecisionUnit(precision), 
+              INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->sliding, pIntNode->slidingUnit, precision), pIntNode->slidingUnit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         

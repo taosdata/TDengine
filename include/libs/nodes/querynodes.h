@@ -57,6 +57,7 @@ typedef enum EColumnType {
 typedef struct SColumnNode {
   SExprNode node; // QUERY_NODE_COLUMN
   uint64_t tableId;
+  int8_t tableType;
   col_id_t colId;
   EColumnType colType; // column or tag
   char dbName[TSDB_DB_NAME_LEN];
@@ -81,6 +82,7 @@ typedef struct SValueNode {
   bool isDuration;
   bool translate;
   bool genByCalc;
+  int16_t placeholderNo;
   union {
     bool b;
     int64_t i;
@@ -196,8 +198,8 @@ typedef struct SStateWindowNode {
 
 typedef struct SSessionWindowNode {
   ENodeType type; // QUERY_NODE_SESSION_WINDOW
-  SNode* pCol; // timestamp primary key
-  SNode* pGap; // gap between two session window(in microseconds)
+  SColumnNode* pCol; // timestamp primary key
+  SValueNode* pGap; // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {

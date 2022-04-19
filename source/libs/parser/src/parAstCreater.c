@@ -44,6 +44,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->notSupport = false;
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
+  pCxt->placeholderNo = 1;
 }
 
 static void trimEscape(SToken* pName) {
@@ -258,13 +259,12 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  if (NULL != pLiteral) {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
-    if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
-      trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
-    }
-    CHECK_OUT_OF_MEM(val->literal);
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
+      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+    trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
+  CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
@@ -305,10 +305,12 @@ SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   return (SNode*)val;
 }
 
-SNode* createPlaceholderValueNode(SAstCreateContext* pCxt) {
+SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->placeholderNo = pCxt->placeholderNo++;
   return (SNode*)val;
 }
 
@@ -367,7 +369,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   return (SNode*)func;
 }
 
-SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncName) {
+SNode* createFunctionNodeNoArg(SAstCreateContext* pCxt, const SToken* pFuncName) {
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
   char buf[64] = {0};
@@ -386,11 +388,11 @@ SNode* createFunctionNodeNoParam(SAstCreateContext* pCxt, const SToken* pFuncNam
       dataType = TSDB_DATA_TYPE_BIGINT;
       break;
     }
-    //case TK_TIMEZONE: {
-    //  strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
-    //  dataType = TSDB_DATA_TYPE_BINARY;
-    //  break;
-    //}
+    case TK_TIMEZONE: {
+      strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
+      dataType = TSDB_DATA_TYPE_BINARY;
+      break;
+    }
   }
   SToken token = {.type = pFuncName->type, .n = strlen(buf), .z = buf};
 
@@ -499,8 +501,8 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
 SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap) {
   SSessionWindowNode* session = (SSessionWindowNode*)nodesMakeNode(QUERY_NODE_SESSION_WINDOW);
   CHECK_OUT_OF_MEM(session);
-  session->pCol = pCol;
-  session->pGap = pGap;
+  session->pCol = (SColumnNode*)pCol;
+  session->pGap = (SValueNode*)pGap;
   return (SNode*)session;
 }
 
