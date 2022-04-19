@@ -832,7 +832,7 @@ static void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQuer
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  colInfoDataEnsureCapacity(pColData, 5);
+  colInfoDataEnsureCapacity(pColData, 0, 5);
   colDataAppendInt64(pColData, 0, &pQueryWindow->skey);
   colDataAppendInt64(pColData, 1, &pQueryWindow->ekey);
 
@@ -1061,7 +1061,7 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
   }
 
   ASSERT(!IS_VAR_DATA_TYPE(type));
-  colInfoDataEnsureCapacity(pColInfo, numOfRows);
+  colInfoDataEnsureCapacity(pColInfo, 0, numOfRows);
 
   if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT) {
     int64_t v = pFuncParam->param.i;

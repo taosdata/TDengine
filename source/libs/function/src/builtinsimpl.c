@@ -767,8 +767,16 @@ void percentileFinalize(SqlFunctionCtx* pCtx) {
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = pNode->node.resType.bytes;
+  pEnv->calcMemSize = pNode->node.resType.bytes + sizeof(int64_t);
   return true;
+}
+
+static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowIndex) {
+  if (pTsColInfo == NULL) {
+    return 0;
+  }
+
+  return *(TSKEY*) colDataGetData(pTsColInfo, rowIndex);
 }
 
 // This ordinary first function does not care if current scan is ascending order or descending order scan
@@ -792,8 +800,8 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
 
   SColumnDataAgg* pColAgg = (pInput->colDataAggIsSet)? pInput->pColumnDataAgg[0]:NULL;
 
-  TSKEY startKey = *(int64_t*)(pInput->pPTS ? colDataGetData(pInput->pPTS, 0) : 0);
-  TSKEY endKey = *(int64_t*)(pInput->pPTS ? colDataGetData(pInput->pPTS, pInput->totalRows - 1) : 0);
+  TSKEY startKey = getRowPTs(pInput->pPTS, 0);
+  TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
 
   int32_t blockDataOrder = (startKey <= endKey)? TSDB_ORDER_ASC:TSDB_ORDER_DESC;
 
@@ -812,12 +820,14 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
       }
 
       char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
 
-      TSKEY cts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
-      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) > cts) {
         memcpy(buf, data, bytes);
         *(TSKEY*)(buf + bytes) = cts;
 //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+
+        pResInfo->numOfRes = 1;
       }
 
       numOfElems++;
@@ -838,12 +848,13 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
       }
 
       char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
 
-      TSKEY cts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
-      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) > cts) {
         memcpy(buf, data, bytes);
         *(TSKEY*)(buf + bytes) = cts;
 //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        pResInfo->numOfRes = 1;
       }
 
       numOfElems++;

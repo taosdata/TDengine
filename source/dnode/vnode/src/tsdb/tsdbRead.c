@@ -392,7 +392,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
       SColumnInfoData colInfo = {{0}, 0};
       colInfo.info = pCond->colList[i];
 
-      int32_t code = colInfoDataEnsureCapacity(&colInfo, pReadHandle->outputCapacity);
+      int32_t code = colInfoDataEnsureCapacity(&colInfo, 0, pReadHandle->outputCapacity);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }

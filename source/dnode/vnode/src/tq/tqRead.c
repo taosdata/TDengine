@@ -141,7 +141,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       colInfo.info.colId = pColSchema->colId;
       colInfo.info.type = pColSchema->type;
 
-      if (colInfoDataEnsureCapacity(&colInfo, numOfRows) < 0) {
+      if (colInfoDataEnsureCapacity(&colInfo, 0, numOfRows) < 0) {
         taosArrayDestroyEx(pArray, (void (*)(void*))tDeleteSSDataBlock);
         return NULL;
       }
