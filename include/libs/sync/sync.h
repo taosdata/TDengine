@@ -50,14 +50,10 @@ typedef struct SSyncCfg {
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCfg;
 
-typedef struct SRaftId {
-  SyncNodeId  addr;
-  SyncGroupId vgId;
-} SRaftId;
-
 typedef struct SSnapshot {
   void*     data;
   SyncIndex lastApplyIndex;
+  SyncTerm  lastApplyTerm;
 } SSnapshot;
 
 typedef enum {
@@ -80,8 +76,8 @@ typedef struct SSyncFSM {
   void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
-  int32_t (*FpTakeSnapshot)(SSnapshot* snapshot);
-  int32_t (*FpRestoreSnapshot)(const SSnapshot* snapshot);
+  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
 
 } SSyncFSM;
 

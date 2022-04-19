@@ -27,6 +27,12 @@ extern "C" {
 #include "trpc.h"
 #include "wal.h"
 
+// ------------------ ds -------------------
+typedef struct SRaftId {
+  SyncNodeId  addr;
+  SyncGroupId vgId;
+} SRaftId;
+
 // ------------------ control -------------------
 struct SSyncNode;
 typedef struct SSyncNode SSyncNode;
