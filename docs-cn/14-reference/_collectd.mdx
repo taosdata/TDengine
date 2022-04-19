@@ -1,4 +1,8 @@
-#### 直接采集
+## 配置 collectd
+#
+collectd 支持直接采集和 tsdb 写入两种方式。
+
+### 直接采集方式
 
 修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6045 来接收 collectd 直接采集方式的数据。
 
@@ -9,7 +13,7 @@ LoadPlugin network
 </Plugin>
 ```
 
-#### tsdb 写入方式
+### tsdb 写入方式
 
 修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6047 来接收 collectd tsdb 写入方式的数据。
 
@@ -31,3 +35,8 @@ LoadPlugin write_tsdb
 ```
 systemctl restart collectd
 ```
+
+## 验证方法
+
+重启 collectd 后可通过查询 TDengine 中数据库 `collectd` 来验证 Telegraf 写入的数据。
+

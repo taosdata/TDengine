@@ -1,3 +1,5 @@
+## 配置方法
+
 配置 taosAdapter 接收 icinga2 数据的方法：
 
 - 参考链接 `https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer` 使能 opentsdb-writer
@@ -10,3 +12,8 @@ object OpenTsdbWriter "opentsdb" {
   port = 6048
 }
 ```
+
+## 验证方法
+
+重启 icinga2 后可通过查询 TDengine 中配置指定的数据库来验证 Telegraf 写入的数据。
+
