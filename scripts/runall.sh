@@ -76,20 +76,35 @@ function run() {
                 local use_file=""
                 echo "$use_param" | grep -q "\-\-use="
                 if [ $? -eq 0 ]; then
-                    use_file=`echo "$use_param" | cut -d= -f2`
+                    use_file=`echo "$use_param" | cut -d= -f2 | cut -d' ' -f1`
                 else
                     use_file=`echo "$use_param" | awk '{print $2}'`
                 fi
                 if [ ! -z "$use_file" ]; then
+                    echo "grep -q \"$use_file\" $env_file"
                     grep -q "$use_file" $env_file
                     if [ $? -ne 0 ]; then
-                        echo "$use_file" >>$env_file
+                        echo "replace use with setup"
                         cmd="${cmd/--use/--setup}"
                     fi
                 fi
             fi
             echo "$cmd" | grep -q "\-\-setup"
             if [ $? -eq 0 ]; then
+                local setup_param=`echo "$cmd" | grep "\-\-setup.*"`
+                local setup_file=""
+                echo "$setup_param" | grep -q "\-\-setup="
+                if [ $? -eq 0 ]; then
+                    setup_file=`echo "$setup_param" | cut -d= -f2 | cut -d' ' -f1`
+                else
+                    setup_file=`echo "$setup_param" | awk '{print $2}'`
+                fi
+                if [ ! -z "$setup_file" ]; then
+                    grep -q "$setup_file" $env_file
+                    if [ $? -ne 0 ]; then
+                        echo "$setup_file" >>$env_file
+                    fi
+                fi
                 if [ ! -z "$server_pkg" ]; then
                     cmd="$cmd --server-pkg=$server_pkg"
                 fi
