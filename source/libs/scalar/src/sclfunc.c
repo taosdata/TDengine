@@ -1232,6 +1232,7 @@ int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   if (inputNum != 1) {
     return TSDB_CODE_FAILED;
   }
+  pOutput->columnData->info.bytes = pInput->columnData->info.bytes;
   colDataAppend(pOutput->columnData, pOutput->numOfRows, (char *)colDataGetData(pInput->columnData, 0), false);
   return TSDB_CODE_SUCCESS;
 }
