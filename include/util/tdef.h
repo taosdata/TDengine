@@ -199,7 +199,7 @@ typedef enum EOperatorType {
 } EOperatorType;
 
 typedef enum ELogicConditionType {
-  LOGIC_COND_TYPE_AND,
+  LOGIC_COND_TYPE_AND = 1,
   LOGIC_COND_TYPE_OR,
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
