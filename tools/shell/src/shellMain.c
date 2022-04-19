@@ -35,6 +35,7 @@ static char args_doc[] = "";
 
 TdThread      pid;
 static tsem_t cancelSem;
+extern void   taos_init();
 
 static struct argp_option options[] = {
   {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
@@ -52,6 +53,8 @@ static struct argp_option options[] = {
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
+  {"status",     't', NULL,         0,                   "Check the service status."},
+  {"verbose",    'v', NULL,         0,                   "Check the details of the service status."},
   {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
@@ -137,6 +140,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'k':
       arguments->check = atoi(arg);
+      break;
+    case 't':
+      arguments->status = true;
+      break;
+    case 'v':
+      arguments->verbose = true;
       break;
     case 'd':
       arguments->database = arg;
@@ -608,10 +617,9 @@ int main(int argc, char *argv[]) {
   }
 
   shellParseArgument(argc, argv, &args);
+  taos_init();
 
   if (args.dump_config) {
-    taosInitCfg(configDir, NULL, NULL, NULL, 1);
-
     SConfig *pCfg = taosGetCfg();
     if (NULL == pCfg) {
       printf("TDengine read global config failed!\n");
@@ -621,21 +629,36 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 
-  if (args.netTestRole && args.netTestRole[0] != 0) {
-    TAOS *con = NULL;
-    if (args.auth == NULL) {
-      con = taos_connect(args.host, args.user, args.password, args.database, args.port);
-    } else {
-      con = taos_connect_auth(args.host, args.user, args.auth, args.database, args.port);
+  if (args.status || args.verbose) {
+    char details[1024] = {0};
+
+    TSDB_SERVER_STATUS code = taos_check_server_status(args.host, args.port, details, args.verbose ? 1024 : 0);
+    switch (code) {
+      case TSDB_SRV_STATUS_UNAVAILABLE:
+        printf("0: unavailable\n");
+        break;
+      case TSDB_SRV_STATUS_NETWORK_OK:
+        printf("1: network ok\n");
+        break;
+      case TSDB_SRV_STATUS_SERVICE_OK:
+        printf("2: service ok\n");
+        break;
+      case TSDB_SRV_STATUS_SERVICE_DEGRADED:
+        printf("3: service degradedk\n");
+        break;
+      case TSDB_SRV_STATUS_EXTING:
+        printf("4: exiting\n");
+        break;
     }
 
-    // if (taos_init()) {
-    //   printf("Failed to init taos");
-    //   exit(EXIT_FAILURE);
-    // }
+    if (strlen(details) != 0) {
+      printf("detail info:\n%s\n", details);
+    }
+    exit(0);
+  }
 
+  if (args.netTestRole && args.netTestRole[0] != 0) {
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
-    taos_close(con);
     exit(0);
   }
 

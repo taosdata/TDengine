@@ -50,6 +50,8 @@ typedef struct SShellArguments {
   char  dir[TSDB_FILENAME_LEN];
   int   threadNum;
   int   check;
+  bool  status;
+  bool  verbose;
   char* commands;
   int   abort;
   int   port;
@@ -72,7 +74,6 @@ void read_history();
 void write_history();
 void source_file(TAOS* con, char* fptr);
 void source_dir(TAOS* con, SShellArguments* args);
-void shellCheck(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
 void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);

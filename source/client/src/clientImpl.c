@@ -844,6 +844,14 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
     goto _OVER;
   }
 
+  if (fqdn == NULL) {
+    fqdn = tsLocalFqdn;
+  }
+
+  if (port == 0) {
+    port = tsServerPort;
+  }
+
   tstrncpy(epSet.eps[0].fqdn, fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = (uint16_t)port;
   rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
@@ -859,7 +867,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   }
 
   code = statusRsp.statusCode;
-  if (details != NULL) {
+  if (details != NULL && statusRsp.details != NULL) {
     tstrncpy(details, statusRsp.details, maxlen);
   }
 

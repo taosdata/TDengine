@@ -145,7 +145,7 @@ void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
 static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   if (pDnode->status == DND_STAT_INIT) {
     pStatus->statusCode = TSDB_SRV_STATUS_NETWORK_OK;
-  } else if (pDnode->status != DND_STAT_STOPPED) {
+  } else if (pDnode->status == DND_STAT_STOPPED) {
     pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
   } else {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
@@ -172,7 +172,7 @@ void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
   SServerStatusRsp statusRsp = {0};
   dmGetServerStatus(pDnode, &statusRsp);
 
-  SRpcMsg rspMsg = {.handle = pReq->handle, .handle = pReq->ahandle};
+  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
