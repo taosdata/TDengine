@@ -1173,6 +1173,9 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   pResult->info.groupId = pSrcBlock->info.groupId;
 
+  // if the source equals to the destination, it is to create a new column as the result of scalar function or some operators.
+  bool createNewColModel = (pResult == pSrcBlock);
+
   int32_t numOfRows = 0;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
@@ -1181,7 +1184,7 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
 
     if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      if (pResult->info.rows > 0) {
+      if (pResult->info.rows > 0 && !createNewColModel) {
         colDataMergeCol(pColInfoData, pResult->info.rows, pfCtx->input.pData[0], pfCtx->input.numOfRows);
       } else {
         colDataAssign(pColInfoData, pfCtx->input.pData[0], pfCtx->input.numOfRows);
@@ -1191,7 +1194,7 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
 
-      int32_t offset = pResult->info.rows;
+      int32_t offset = createNewColModel? 0: pResult->info.rows;
       for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
         colDataAppend(pColInfoData, i + offset, taosVariantGet(&pExpr[k].base.pParam[0].param, pExpr[k].base.pParam[0].param.nType), TSDB_DATA_TYPE_NULL == pExpr[k].base.pParam[0].param.nType);
       }
@@ -1207,7 +1210,8 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
       SScalarParam dest = {.columnData = &idata};
       scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
 
-      colDataMergeCol(pResColData, pResult->info.rows, &idata, dest.numOfRows);
+      int32_t startOffset = createNewColModel? 0:pResult->info.rows;
+      colDataMergeCol(pResColData, startOffset, &idata, dest.numOfRows);
 
       numOfRows = dest.numOfRows;
       taosArrayDestroy(pBlockList);
@@ -1224,7 +1228,7 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
         pfCtx->fpSet.init(&pCtx[k], pResInfo);
 
         pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
-        pfCtx->offset  = pResult->info.rows;  // set the start offset
+        pfCtx->offset  = createNewColModel? 0:pResult->info.rows; // set the start offset
 
         // set the timestamp(_rowts) output buffer
         if (taosArrayGetSize(pPseudoList) > 0) {
@@ -1242,7 +1246,9 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
 
         SScalarParam dest = {.columnData = &idata};
         scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
-        colDataMergeCol(pResColData, pResult->info.rows, &idata, dest.numOfRows);
+
+        int32_t startOffset = createNewColModel? 0:pResult->info.rows;
+        colDataMergeCol(pResColData, startOffset, &idata, dest.numOfRows);
 
         numOfRows = dest.numOfRows;
         taosArrayDestroy(pBlockList);
@@ -1252,7 +1258,9 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
     }
   }
 
-  pResult->info.rows += numOfRows;
+  if (!createNewColModel) {
+    pResult->info.rows += numOfRows;
+  }
 }
 
 void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SArray* pDataBlock, TSKEY prevTs,
