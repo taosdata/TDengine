@@ -21,7 +21,6 @@ target_sources(
     "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
     "src/meta/metaTDBImpl.c"
-    # "src/meta/metaBDBImpl.c"
 
     # tsdb
     "src/tsdb/tsdbTDBImpl.c"
