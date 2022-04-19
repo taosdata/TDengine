@@ -262,6 +262,7 @@ static int32_t mndExecSteps(SMnode *pMnode) {
       return -1;
     } else {
       mDebug("%s is initialized", pStep->name);
+      tmsgReportStartup(pStep->name, "initialized");
     }
   }
 

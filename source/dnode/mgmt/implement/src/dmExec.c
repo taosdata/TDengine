@@ -140,6 +140,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     if (dmRunParentProc(pWrapper) != 0) return -1;
   }
 
+  dmReportStartup(pWrapper->pDnode, pWrapper->name, "openned");
   return 0;
 }
 
@@ -161,6 +162,7 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     }
   }
 
+  dmReportStartup(pWrapper->pDnode, pWrapper->name, "started");
   return 0;
 }
 

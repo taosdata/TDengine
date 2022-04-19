@@ -130,7 +130,7 @@ static void *vmOpenVnodeFunc(void *param) {
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", pCfg->vgId,
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
-    dmReportStartup(pDnode, "open-vnodes", stepDesc);
+    dmReportStartup(pDnode, "vnode-open", stepDesc);
 
     SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
     msgCb.pWrapper = pMgmt->pWrapper;
@@ -298,25 +298,30 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     dError("failed to init tfs since %s", terrstr());
     goto _OVER;
   }
+  dmReportStartup(pDnode, "vnode-tfs", "initialized");
 
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
     goto _OVER;
   }
+  dmReportStartup(pDnode, "vnode-wal", "initialized");
 
   if (vnodeInit(tsNumOfCommitThreads) != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;
   }
+  dmReportStartup(pDnode, "vnode-commit", "initialized");
 
   if (vmStartWorker(pMgmt) != 0) {
     dError("failed to init workers since %s", terrstr()) goto _OVER;
   }
+  dmReportStartup(pDnode, "vnode-worker", "initialized");
 
   if (vmOpenVnodes(pMgmt) != 0) {
     dError("failed to open vnode since %s", terrstr());
     return -1;
   }
+  dmReportStartup(pDnode, "vnode-vnodes", "initialized");
 
   code = 0;
 

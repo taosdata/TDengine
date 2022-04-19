@@ -140,6 +140,12 @@ void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
   SStartupInfo *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
+  dInfo("step:%s, %s", pStartup->name, pStartup->desc);
+  taosMsleep(300);
+}
+
+void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc) {
+  dmReportStartup(pWrapper->pDnode, pName, pDesc);
 }
 
 static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
