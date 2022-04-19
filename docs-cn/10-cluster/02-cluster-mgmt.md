@@ -22,7 +22,7 @@ SHOW DNODES;
 
 输出如下（具体内容仅供参考，取决于实际的集群配置）
 
-```bash
+```
 taos> show dnodes;
    id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
 ======================================================================================================================================
@@ -43,7 +43,7 @@ SHOW VGROUPS;
 
 输出如下（具体内容仅供参考，取决于实际的集群配置）
 
-```bash
+```
 taos> show dnodes;
    id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
 ======================================================================================================================================
@@ -78,7 +78,7 @@ CREATE DNODE "fqdn:port";
 将新数据节点的 End Point 添加进集群的 EP 列表。“fqdn:port“需要用双引号引起来，否则出错。一个数据节点对外服务的 fqdn 和 port 可以通过配置文件 taos.cfg 进行配置，缺省是自动获取。【强烈不建议用自动获取方式来配置 FQDN，可能导致生成的数据节点的 End Point 不是所期望的】
 
 示例如下：
-```bash
+```
 taos> create dnode "localhost:7030";
 Query OK, 0 of 0 row(s) in database (0.008203s)
 
@@ -118,7 +118,7 @@ DROP DNODE dnodeId;
 通过 “fqdn:port” 或 dnodeID 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
 
 示例如下：
-```bash
+```
 taos> show dnodes;
    id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
 ======================================================================================================================================
@@ -186,7 +186,7 @@ DB error: Balance already enabled (0.00755
 上面的结果表明目前所在数据库已经启动了 balance 选项，所以无法进行手动迁移。
 
 停止整个集群，将两个 dnode 的配置文件中的 balance 都设置为 0 （默认为1）之后，重新启动集群，再次执行 ` alter dnode` 和 `show vgroups` 命令如下
-```bash
+```
 taos> alter dnode 3 balance "vnode:18-dnode:1";
 Query OK, 0 row(s) in set (0.000575s)
 
