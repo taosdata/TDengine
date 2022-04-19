@@ -186,7 +186,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     (void)vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, &pRsp);
 
     // sync integration response
-    // send response
+    // if leader send response
   }
 }
 
