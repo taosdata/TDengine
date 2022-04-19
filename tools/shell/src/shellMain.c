@@ -633,7 +633,7 @@ void shellCheckServerStatus() {
         printf("2: service ok\n");
         break;
       case TSDB_SRV_STATUS_SERVICE_DEGRADED:
-        printf("3: service degradedk\n");
+        printf("3: service degraded\n");
         break;
       case TSDB_SRV_STATUS_EXTING:
         printf("4: exiting\n");
@@ -642,10 +642,12 @@ void shellCheckServerStatus() {
     if (strlen(details) != 0) {
       printf("%s\n\n", details);
     }
-    if (code == TSDB_SRV_STATUS_NETWORK_OK) {
+    if (code == TSDB_SRV_STATUS_NETWORK_OK && args.verbose) {
       taosMsleep(1000);
+    } else {
+      break;
     }
-  } while (code == TSDB_SRV_STATUS_NETWORK_OK);
+  } while (1);
 
   exitShell();
 }

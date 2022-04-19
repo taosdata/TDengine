@@ -157,10 +157,10 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
     pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
   } else {
     SDnodeData *pData = &pDnode->data;
-    if (pData->isMnode && pData->mndState != TAOS_SYNC_STATE_FOLLOWER && pData->mndState != TAOS_SYNC_STATE_FOLLOWER) {
+    if (pData->isMnode && pData->mndState != TAOS_SYNC_STATE_LEADER && pData->mndState == TAOS_SYNC_STATE_FOLLOWER) {
       pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
       snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(pData->mndState));
-    } else if (pData->unsyncedVgId != 0 && pData->vndState != TAOS_SYNC_STATE_FOLLOWER &&
+    } else if (pData->unsyncedVgId != 0 && pData->vndState != TAOS_SYNC_STATE_LEADER &&
                pData->vndState != TAOS_SYNC_STATE_FOLLOWER) {
       pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
       snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pData->unsyncedVgId,
