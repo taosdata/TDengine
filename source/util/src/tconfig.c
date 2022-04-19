@@ -472,6 +472,8 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "apollo_url";
     case CFG_STYPE_ARG_LIST:
       return "arg_list";
+    case CFG_STYPE_TAOS_OPTIONS:
+      return "taos_options";
     default:
       return "invalid";
   }
