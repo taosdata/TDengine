@@ -617,10 +617,10 @@ void shellTestNetWork() {
 
 void shellCheckServerStatus() {
   if (!args.status && !args.verbose) return;
-  char details[1024] = {0};
 
   TSDB_SERVER_STATUS code;
   do {
+    char details[1024] = {0};
     code = taos_check_server_status(args.host, args.port, details, args.verbose ? 1024 : 0);
     switch (code) {
       case TSDB_SRV_STATUS_UNAVAILABLE:
