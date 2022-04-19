@@ -116,7 +116,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     }
   }
 
-#if 1
+#if 0
   int64_t version;
 
   vnodePreprocessWriteReqs(pVnode->pImpl, pArray, &version);
@@ -180,8 +180,10 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   SNodeMsg  *pMsg = NULL;
   SRpcMsg    rsp;
 
+  static int64_t version = 0;
+
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-#if 0
+#if 1
     taosGetQitem(qall, (void **)&pMsg);
 
     if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
@@ -191,7 +193,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
       rsp.pCont = NULL;
       rsp.contLen = 0;
 
-      if (vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, &rsp) < 0) {
+      if (vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, version++, &rsp) < 0) {
         rsp.code = terrno;
         tmsgSendRsp(&rsp);
       }
