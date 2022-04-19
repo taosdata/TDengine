@@ -1,10 +1,10 @@
 ## 配置 collectd
 #
-collectd 支持直接采集和 tsdb 写入两种方式。
+collectd 使用插件机制可以以多种形式将采集到的监控数据写入到不同的数据存储软件。TDengine 支持直接采集插件和 write_tsdb 插件。
 
-### 直接采集方式
+### 配置接收直接采集插件数据
 
-修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6045 来接收 collectd 直接采集方式的数据。
+修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6045 来接收 collectd 直接采集插件的数据。
 
 ```text
 LoadPlugin network
@@ -13,9 +13,9 @@ LoadPlugin network
 </Plugin>
 ```
 
-### tsdb 写入方式
+### 配置 write_tsdb 插件数据
 
-修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6047 来接收 collectd tsdb 写入方式的数据。
+修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6047 来接收 collectd write_tsdb 插件的数据。
 
 ```text
 LoadPlugin write_tsdb
