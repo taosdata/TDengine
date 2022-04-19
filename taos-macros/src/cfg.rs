@@ -45,6 +45,8 @@ fn foreign_fn_to_item_fn(item: ForeignItemFn) -> ItemFn {
     // use extern "C"
     let abi: syn::Abi = syn::parse_quote!(extern "C");
     sig.abi = Some(abi);
+    let un: syn::token::Unsafe = syn::parse_quote!(unsafe);
+    sig.unsafety = Some(un);
 
     // add panic block
     let err = Literal::string(&format!(
@@ -107,8 +109,8 @@ mod tests {
             }
             #[cfg(not(tmq))]
             #[no_mangle]
-            pub fn a () {
-              panic!("function {} is not supported in this build", stringify!("a"));
+            pub unsafe extern "C" fn a () {
+              panic!("C function a is not supported in this build");
             }
         };
         assert_eq!(tokens.to_string(), expect.to_string());
@@ -123,7 +125,7 @@ mod tests {
         let r = super::foreign_fn_to_item_fn(c);
 
         let e: ItemFn = syn::parse_quote!(
-            pub extern "C" fn tmq_list_new() -> *mut tmq_list_t {
+            pub unsafe extern "C" fn tmq_list_new() -> *mut tmq_list_t {
                 panic!("C function tmq_list_new is not supported in this build");
             }
         );
@@ -153,12 +155,12 @@ mod tests {
 
             #[cfg(not(tmq))]
             #[no_mangle]
-            pub extern "C" fn tmq_list_new() -> *mut tmq_list_t {
+            pub unsafe extern "C" fn tmq_list_new() -> *mut tmq_list_t {
                 panic!("C function tmq_list_new is not supported in this build");
             }
             #[cfg(not(tmq))]
             #[no_mangle]
-            pub extern "C" fn tmq_list_append(arg1: *mut tmq_list_t, arg2: *const c_char) -> i32 {
+            pub unsafe extern "C" fn tmq_list_append(arg1: *mut tmq_list_t, arg2: *const c_char) -> i32 {
                 panic!("C function tmq_list_append is not supported in this build");
             }
         };

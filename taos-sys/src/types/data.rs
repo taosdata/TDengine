@@ -10,9 +10,6 @@ pub const TSDB_DATA_TYPE_INT: TaosDataType = TaosDataType::Int; // 4 bytes
 pub const TSDB_DATA_TYPE_BIGINT: TaosDataType = TaosDataType::BigInt; // 8 bytes
 pub const TSDB_DATA_TYPE_FLOAT: TaosDataType = TaosDataType::Float; // 4 bytes
 pub const TSDB_DATA_TYPE_DOUBLE: TaosDataType = TaosDataType::Double; // 8 bytes
-#[cfg(taos_v2)]
-pub const TSDB_DATA_TYPE_BINARY: TaosDataType = TaosDataType::Binary; // string, alias for varchar
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_BINARY: TaosDataType = TaosDataType::VarChar; // string, alias for varchar
 pub const TSDB_DATA_TYPE_TIMESTAMP: TaosDataType = TaosDataType::Timestamp; // 8 bytes
 pub const TSDB_DATA_TYPE_NCHAR: TaosDataType = TaosDataType::NChar; // unicode string
@@ -21,15 +18,10 @@ pub const TSDB_DATA_TYPE_USMALLINT: TaosDataType = TaosDataType::USmallInt; // 2
 pub const TSDB_DATA_TYPE_UINT: TaosDataType = TaosDataType::UInt; // 4 bytes
 pub const TSDB_DATA_TYPE_UBIGINT: TaosDataType = TaosDataType::UBigInt; // 8 bytes
 pub const TSDB_DATA_TYPE_JSON: TaosDataType = TaosDataType::Json; // json
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_VARCHAR: TaosDataType = TaosDataType::VarChar; // string
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_VARBINARY: TaosDataType = TaosDataType::VarBinary; // binary
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_DECIMAL: TaosDataType = TaosDataType::Decimal; // decimal
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_BLOB: TaosDataType = TaosDataType::Blob; // binary
-#[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_MEDIUMBLOB: TaosDataType = TaosDataType::MediumBlob; // binary
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -47,10 +39,7 @@ pub enum TaosDataType {
     BigInt,   // 5
     Float,    // 6
     Double,   // 7
-    #[cfg(taos_v2)]
-    Binary = 8, // 8
-    #[cfg(taos_v3)]
-    VarChar = 8, // 8, since 3.0 Binary is just an alias of VarChar
+    VarChar,  // 8, since 3.0 Binary is just an alias of VarChar
     Timestamp, // 9
     NChar,    // 10
     UTinyInt, // 11
@@ -58,18 +47,15 @@ pub enum TaosDataType {
     UInt,     // 13
     UBigInt,  // 14
     Json,     // 15
-    #[cfg(taos_v3)]
     VarBinary, // 16
-    #[cfg(taos_v3)]
     Decimal, // 17
-    #[cfg(taos_v3)]
     Blob, // 18
-    #[cfg(taos_v3)]
-    MediumBlob, // 18
+    MediumBlob, // 19
     #[num_enum(default)]
     Unknown = 255,
 }
 
+// todo: decimal/blob
 impl FromStr for TaosDataType {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -107,7 +93,7 @@ impl TaosDataType {
             BigInt => "BIGINT",
             Float => "FLOAT",
             Double => "DOUBLE",
-            Binary => "BINARY",
+            VarChar => "BINARY",
             Timestamp => "TIMESTAMP",
             NChar => "NCHAR",
             UTinyInt => "TINYINT UNSIGNED",
@@ -115,7 +101,7 @@ impl TaosDataType {
             UInt => "INT UNSIGNED",
             UBigInt => "BIGINT UNSIGNED",
             Json => "JSON",
-            Unknown => "UNKNOWN",
+            _ => "UNKNOWN",
         }
     }
     pub const fn as_variant_str(&self) -> &'static str {
@@ -130,7 +116,7 @@ impl TaosDataType {
             BigInt => "BigInt",
             Float => "Float",
             Double => "Double",
-            Binary => "Binary",
+            VarChar => "Binary",
             Timestamp => "Timestamp",
             NChar => "NChar",
             UTinyInt => "UTinyInt",
@@ -138,11 +124,12 @@ impl TaosDataType {
             UInt => "UInt",
             UBigInt => "UBigInt",
             Json => "Json",
-            Unknown => "Unknown",
+            _ => "Unknown",
         }
     }
 }
 
+// todo: remove or refactor
 #[cfg(feature = "serde")]
 impl<'de> serde::de::VariantAccess<'de> for TaosDataType {
     type Error = taos_error::Error;

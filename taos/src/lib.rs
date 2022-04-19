@@ -167,11 +167,15 @@ pub mod stmt;
 
 #[cfg(feature = "r2d2")]
 pub mod r2d2;
+#[cfg(feature = "r2d2")]
+pub use crate::r2d2::TaosPool;
 
 pub mod prelude {
     #[cfg(feature = "test")]
     pub use taos_macros::test;
 }
+
+pub mod query;
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,20 @@
+[package]
+name = "taos-query-traits"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "*"
+chrono = "*"
+log = "*"
+num_enum = "0.5.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_repr = "0.1.7"
+
+[dev-dependencies]
+pretty_env_logger = "*"
+[features]
+nightly = []
