@@ -1101,6 +1101,11 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
 
     pColumn->nullbitmap = tmp;
     memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+
+    if (pColumn->info.type == TSDB_DATA_TYPE_NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
     assert(pColumn->info.bytes);
     tmp = taosMemoryRealloc(pColumn->pData, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {

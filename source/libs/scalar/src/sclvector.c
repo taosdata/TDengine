@@ -57,6 +57,10 @@ int64_t getVectorBigintValue_FLOAT(void *src, int32_t index) {
 int64_t getVectorBigintValue_DOUBLE(void *src, int32_t index) {
   return (int64_t)*((double *)src + index);
 }
+int64_t getVectorBigintValue_BOOL(void *src, int32_t index) {
+  return (int64_t)*((bool *)src + index);
+}
+
 _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     _getBigintValue_fn_t p = NULL;
     if(srcType==TSDB_DATA_TYPE_TINYINT) {
@@ -81,6 +85,8 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
         p = getVectorBigintValue_DOUBLE;
     }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
         p = getVectorBigintValue_BIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_BOOL) {
+        p = getVectorBigintValue_BOOL;
     }else {
         assert(0);
     }
@@ -620,8 +626,10 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
   SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
   SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
 
-  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BIGINT) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BIGINT)) { //timestamp plus duration
+  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pRight))) ||
+      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pLeft))) ||
+      (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BOOL) ||
+      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BOOL)) { //timestamp plus duration
     int64_t *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
     _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
