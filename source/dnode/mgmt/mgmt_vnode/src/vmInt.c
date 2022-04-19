@@ -73,6 +73,12 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
     return -1;
   }
 
+  // sync integration
+  vnodeSyncSetQ(pImpl, NULL);
+  vnodeSyncSetRpc(pImpl, NULL);
+  int32_t ret = vnodeSyncStart(pImpl);
+  assert(ret == 0);
+
   taosWLockLatch(&pMgmt->latch);
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
   taosWUnLockLatch(&pMgmt->latch);
@@ -303,6 +309,12 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
     goto _OVER;
+  }
+
+  // sync integration
+  if (syncInit() != 0) {
+    dError("failed to open sync since %s", terrstr());
+    return -1;
   }
 
   if (vnodeInit(tsNumOfCommitThreads) != 0) {

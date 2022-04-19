@@ -170,6 +170,11 @@ typedef struct {
   uint64_t uid;
 } STableKeyInfo;
 
+// sync integration
+void    vnodeSyncSetQ(SVnode *pVnode, void *qHandle);
+void    vnodeSyncSetRpc(SVnode *pVnode, void *rpcHandle);
+int32_t vnodeSyncStart(SVnode *pVnode);
+
 #ifdef __cplusplus
 }
 #endif
