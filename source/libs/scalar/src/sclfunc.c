@@ -795,13 +795,6 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (type != TSDB_DATA_TYPE_BIGINT && type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (inputNum != 1) {
-    return TSDB_CODE_FAILED;
-  }
 
   char *input  = pInput[0].columnData->pData;
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
@@ -867,13 +860,6 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
   int32_t timePrec = GET_PARAM_PRECISON(pInput);
-  if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (inputNum != 1) {
-    return TSDB_CODE_FAILED;
-  }
 
   char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
@@ -883,7 +869,11 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
 
     int64_t timeVal = 0;
-    convertStringToTimestamp(type, input, timePrec, &timeVal);
+    int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
+    if (ret != TSDB_CODE_SUCCESS) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
 
     colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
     input += varDataTLen(input);
@@ -897,18 +887,6 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(&pInput[0]);
   int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
-  if (inputNum != 2) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (type != TSDB_DATA_TYPE_BIGINT && type != TSDB_DATA_TYPE_TIMESTAMP &&
-      type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (GET_PARAM_TYPE(&pInput[1]) != TSDB_DATA_TYPE_BIGINT) { //time_unit
-    return TSDB_CODE_FAILED;
-  }
 
   int64_t timeUnit, timeVal = 0;
   GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
@@ -930,7 +908,11 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     }
 
     if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-      convertStringToTimestamp(type, input, TSDB_TIME_PRECISION_NANO, &timeVal);
+      int32_t ret = convertStringToTimestamp(type, input, TSDB_TIME_PRECISION_NANO, &timeVal);
+      if (ret != TSDB_CODE_SUCCESS) {
+        colDataAppendNULL(pOutput->columnData, i);
+        continue;
+      }
       //If converted value is less than 10digits in second, use value in second instead
       int64_t timeValSec = timeVal / 1000000000;
       if (timeValSec < 1000000000) {
@@ -1096,16 +1078,9 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 }
 
 int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 2 && inputNum != 3) {
-    return TSDB_CODE_FAILED;
-  }
-
   int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
   int64_t timeUnit = -1, timeVal[2] = {0};
   if (inputNum == 3) {
-    if (GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_BIGINT) {
-      return TSDB_CODE_FAILED;
-    }
     GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
   }
 
@@ -1133,7 +1108,11 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
       int32_t type = GET_PARAM_TYPE(&pInput[k]);
       if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-        convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
+        int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
+        if (ret != TSDB_CODE_SUCCESS) {
+          colDataAppendNULL(pOutput->columnData, i);
+          continue;
+        }
       } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k]);
         if (type == TSDB_DATA_TYPE_TIMESTAMP) {

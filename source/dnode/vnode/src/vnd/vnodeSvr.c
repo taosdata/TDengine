@@ -217,7 +217,6 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
   }
-  taosMemoryFree(vCreateTbReq.dbFName);
   taosMemoryFree(vCreateTbReq.name);
 
   return 0;
@@ -233,7 +232,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
 
     char      tableFName[TSDB_TABLE_FNAME_LEN];
     SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
-    sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
+    sprintf(tableFName, "%s.%s", pVnode->config.dbname, pCreateTbReq->name);
 
     int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
     if (code) {
@@ -249,7 +248,6 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     }
     // TODO: to encapsule a free API
     taosMemoryFree(pCreateTbReq->name);
-    taosMemoryFree(pCreateTbReq->dbFName);
     if (pCreateTbReq->type == TD_SUPER_TABLE) {
       taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
       taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
@@ -298,7 +296,6 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
     taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
     taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
   }
-  taosMemoryFree(vAlterTbReq.dbFName);
   taosMemoryFree(vAlterTbReq.name);
   return 0;
 }

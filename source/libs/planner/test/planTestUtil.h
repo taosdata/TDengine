@@ -13,9 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PARSER_TEST_UTIL_H
-#define PARSER_TEST_UTIL_H
+#ifndef PLAN_TEST_UTIL_H
+#define PLAN_TEST_UTIL_H
 
-extern bool g_isDump;
+#include <gtest/gtest.h>
 
-#endif  // PARSER_TEST_UTIL_H
+class PlannerTestBaseImpl;
+
+class PlannerTestBase : public testing::Test {
+public:
+  PlannerTestBase();
+  virtual ~PlannerTestBase();
+
+  void useDb(const std::string& acctId, const std::string& db);
+  void run(const std::string& sql);
+
+private:
+  std::unique_ptr<PlannerTestBaseImpl> impl_;
+};
+
+#endif  // PLAN_TEST_UTIL_H
