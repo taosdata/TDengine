@@ -68,6 +68,8 @@ class TDTestCase:
 
         data_ct1_c8 = ["varchar8","varchar7","varchar6","varchar5","varchar0","varchar4","varchar3","varchar2","varchar1","varchar0","varchar9"]
 
+        tdLog.printNoPrefix("==========step3: cast on varchar")
+
         tdSql.query("select c8 from ct1")
         for i in range(tdSql.queryRows):
             tdSql.checkData(i,0, data_ct1_c8[i])
@@ -78,7 +80,7 @@ class TDTestCase:
         # tdSql.query("select c8 from t1")
         # data_t1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
 
-        # tdLog.printNoPrefix("==========step2: cast on varchar")
+        # tdLog.printNoPrefix("==========step4: cast on varchar")
 
         # tdSql.query("select cast(c8 as nchar(16)) as b from ct4")
         # for i in range(len(data_ct4)):
@@ -92,30 +94,30 @@ class TDTestCase:
         #     tdSql.checkData( i, 0, data_t1[i][:2])
 
 
-        tdSql.error("select cast(c1 as int) as b from ct4")
-        tdSql.error("select cast(c1 as bool) as b from ct4")
-        tdSql.error("select cast(c1 as tinyint) as b from ct4")
-        tdSql.error("select cast(c1 as smallint) as b from ct4")
-        tdSql.error("select cast(c1 as float) as b from ct4")
-        tdSql.error("select cast(c1 as double) as b from ct4")
-        tdSql.error("select cast(c1 as tinyint unsigned) as b from ct4")
-        tdSql.error("select cast(c1 as smallint unsigned) as b from ct4")
-        tdSql.error("select cast(c1 as int unsigned) as b from ct4")
+        # tdSql.error("select cast(c1 as int) as b from ct4")
+        # tdSql.error("select cast(c1 as bool) as b from ct4")
+        # tdSql.error("select cast(c1 as tinyint) as b from ct4")
+        # tdSql.error("select cast(c1 as smallint) as b from ct4")
+        # tdSql.error("select cast(c1 as float) as b from ct4")
+        # tdSql.error("select cast(c1 as double) as b from ct4")
+        # tdSql.error("select cast(c1 as tinyint unsigned) as b from ct4")
+        # tdSql.error("select cast(c1 as smallint unsigned) as b from ct4")
+        # tdSql.error("select cast(c1 as int unsigned) as b from ct4")
 
-        tdSql.error("select cast(c2 as int) as b from ct4")
-        tdSql.error("select cast(c3 as bool) as b from ct4")
-        tdSql.error("select cast(c4 as tinyint) as b from ct4")
-        tdSql.error("select cast(c5 as smallint) as b from ct4")
-        tdSql.error("select cast(c6 as float) as b from ct4")
-        tdSql.error("select cast(c7 as double) as b from ct4")
-        tdSql.error("select cast(c8 as tinyint unsigned) as b from ct4")
+        # tdSql.error("select cast(c2 as int) as b from ct4")
+        # tdSql.error("select cast(c3 as bool) as b from ct4")
+        # tdSql.error("select cast(c4 as tinyint) as b from ct4")
+        # tdSql.error("select cast(c5 as smallint) as b from ct4")
+        # tdSql.error("select cast(c6 as float) as b from ct4")
+        # tdSql.error("select cast(c7 as double) as b from ct4")
+        # tdSql.error("select cast(c8 as tinyint unsigned) as b from ct4")
 
-        tdSql.error("select cast(c8 as timestamp ) as b from ct4")
+        # tdSql.error("select cast(c8 as timestamp ) as b from ct4")
 
-        tdSql.error("select cast(c9 as binary(64) ) as b from ct4")
-        tdSql.error("select cast(c9 as timestamp ) as b from ct4")
-        tdSql.error("select cast(c10 as binary(64) ) as b from ct4")
-        tdSql.error("select cast(c10 as nchar(64) ) as b from ct4")
+        # tdSql.error("select cast(c9 as binary(64) ) as b from ct4")
+        # tdSql.error("select cast(c9 as timestamp ) as b from ct4")
+        # tdSql.error("select cast(c10 as binary(64) ) as b from ct4")
+        # tdSql.error("select cast(c10 as nchar(64) ) as b from ct4")
 
 
     def stop(self):
