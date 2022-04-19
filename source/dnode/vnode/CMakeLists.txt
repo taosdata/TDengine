@@ -13,7 +13,6 @@ target_sources(
     "src/vnd/vnodeInt.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
-    "src/vnd/vnodeWrite.c"
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
 
