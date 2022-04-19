@@ -251,6 +251,9 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
     pCol->colType = pProjCol->colType;
   }
   strcpy(pCol->colName, pExpr->aliasName);
+  if ('\0' == pCol->node.aliasName[0]) {
+    strcpy(pCol->node.aliasName, pCol->colName);
+  }
   pCol->node.resType = pExpr->resType;
 }
 
@@ -381,23 +384,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
     }
     res = (found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol));
   }
-
-  if (DEAL_RES_ERROR == res) {
-    return res;
-  }
-
-  if (SQL_CLAUSE_WINDOW == pCxt->currClause && QUERY_NODE_STATE_WINDOW == nodeType(pCxt->pCurrStmt->pWindow)) {
-    if (!IS_INTEGER_TYPE(pCol->node.resType.type)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
-    }
-    if (COLUMN_TYPE_TAG == pCol->colType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
-    }
-    if (TSDB_SUPER_TABLE == pCol->tableType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE);
-    }
-  }
-  return DEAL_RES_CONTINUE;
+  return res;
 }
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
@@ -1200,9 +1187,27 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    STranslateContext* pCxt = pContext;
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (!IS_INTEGER_TYPE(pCol->node.resType.type)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
+    }
+    if (COLUMN_TYPE_TAG == pCol->colType) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+    }
+    if (TSDB_SUPER_TABLE == pCol->tableType) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
+  nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
   // todo check for "function not support for state_window"
-  return TSDB_CODE_SUCCESS;
+  return pCxt->errCode;
 }
 
 static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
