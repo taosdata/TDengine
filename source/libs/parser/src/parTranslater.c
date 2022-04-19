@@ -2747,7 +2747,6 @@ static void toSchemaEx(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSch
 }
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
-  taosMemoryFreeClear(pReq->dbFName);
   taosMemoryFreeClear(pReq->name);
   taosMemoryFreeClear(pReq->ntbCfg.pSchema);
 }
@@ -2784,7 +2783,6 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
-  req.dbFName = strdup(dbFName);
   req.name = strdup(pStmt->tableName);
   req.ntbCfg.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchema));
@@ -2843,7 +2841,6 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
   size_t size = taosArrayGetSize(pTbBatch->req.pArray);
   for (int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
-    taosMemoryFreeClear(pTableReq->dbFName);
     taosMemoryFreeClear(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
@@ -2929,7 +2926,6 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, c
 
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
-  req.dbFName = strdup(dbFName);
   req.name = strdup(pTableName);
   req.ctbCfg.suid = suid;
   req.ctbCfg.pTag = row;
