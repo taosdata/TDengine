@@ -13,28 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_MACRO_H_
-#define _TD_UTIL_MACRO_H_
+#ifndef _TD_MND_PERF_SCHEMA_H_
+#define _TD_MND_PERF_SCHEMA_H_
 
-#include "os.h"
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Module init/clear MACRO definitions
-#define TD_MOD_UNINITIALIZED 0
-#define TD_MOD_INITIALIZED   1
+typedef struct SPerfsTableSchema {
+  char   *name;
+  int32_t type;
+  int32_t bytes;
+} SPerfsTableSchema;
 
-typedef int8_t td_mode_flag_t;
+typedef struct SPerfsTableMeta {
+  char                    *name;
+  const SPerfsTableSchema *schema;
+  int32_t                  colNum;
+} SPerfsTableMeta;
 
-#define TD_CHECK_AND_SET_MODE_INIT(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_UNINITIALIZED, TD_MOD_INITIALIZED)
-#define TD_CHECK_AND_SET_MOD_CLEAR(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_INITIALIZED, TD_MOD_UNINITIALIZED)
-
-#define TD_IS_NULL(PTR) ((PTR) == NULL)
+int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
+int32_t mndInitPerfs(SMnode *pMnode);
+void mndCleanupPerfs(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_MACRO_H_*/
+#endif /*_TD_MND_PERF_SCHEMA_H_*/

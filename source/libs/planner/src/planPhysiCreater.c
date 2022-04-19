@@ -443,6 +443,11 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     nodesDestroyNode(pTableScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pTableScan->interval = pScanLogicNode->interval;
+  pTableScan->offset = pScanLogicNode->offset;
+  pTableScan->sliding = pScanLogicNode->sliding;
+  pTableScan->intervalUnit = pScanLogicNode->intervalUnit;
+  pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
 
   return createScanPhysiNodeFinalize(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
@@ -498,19 +503,16 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  SDataBlockDescNode* pLeftDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
+  SDataBlockDescNode* pRightDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 1))->pOutputDataBlockDesc;
   int32_t code = TSDB_CODE_SUCCESS;
 
   pJoin->joinType = pJoinLogicNode->joinType;
   if (NULL != pJoinLogicNode->pOnConditions) {
-    SDataBlockDescNode* pLeftDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
-    SDataBlockDescNode* pRightDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 1))->pOutputDataBlockDesc;
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pOnConditions, &pJoin->pOnConditions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pJoin->pTargets = nodesCloneList(pJoinLogicNode->node.pTargets);
-    if (NULL == pJoin->pTargets) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->node.pTargets, &pJoin->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc);
@@ -799,6 +801,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
     }
   }
 
+  pWindow->triggerType = pWindowLogicNode->triggerType;
+  pWindow->watermark = pWindowLogicNode->watermark;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pWindow;
   } else {
@@ -819,7 +824,6 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->sliding = pWindowLogicNode->sliding;
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
-  pInterval->precision = ((SColumnNode*)pWindowLogicNode->pTspk)->node.resType.precision;
 
   pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
   if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {

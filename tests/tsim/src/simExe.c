@@ -18,7 +18,7 @@
 
 void simLogSql(char *sql, bool useSharp) {
   static TdFilePtr pFile = NULL;
-  char         filename[256];
+  char             filename[256];
   sprintf(filename, "%s/sim.sql", simScriptDir);
   if (pFile == NULL) {
     // fp = fopen(filename, "w");
@@ -49,6 +49,41 @@ char *simParseHostName(char *varName) {
   return hostName;
 }
 
+static void simFindFirstNum(const char *begin, int32_t beginLen, int32_t *num) {
+  if (beginLen <= 5) {
+    *num = 0;
+  } else {
+    *num = atoi(begin + 5);
+  }
+}
+
+static void simFindSecondNum(const char *begin, int32_t beginLen, int32_t *num) {
+  const char *number = strstr(begin, "][");
+  if (number == NULL) {
+    *num = 0;
+  } else {
+    *num = atoi(number + 2);
+  }
+}
+
+static void simFindFirstKeyVal(const char *begin, int32_t beginLen, char *key, int32_t keyLen) {
+  key[0] = 0;
+  for (int32_t i = 5; i < beginLen && i - 5 < keyLen; ++i) {
+    if (begin[i] != 0 && begin[i] != ']' && begin[i] != ')') {
+      key[i - 5] = begin[i];
+    }
+  }
+}
+
+static void simFindSecondKeyNum(const char *begin, int32_t beginLen, int32_t *num) {
+  const char *number = strstr(begin, ")[");
+  if (number == NULL) {
+    *num = 0;
+  } else {
+    *num = atoi(number + 2);
+  }
+}
+
 char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
   if (strncmp(varName, "hostname", 8) == 0) {
     return simParseHostName(varName);
@@ -66,13 +101,40 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 
   if (strncmp(varName, "system_content", varLen) == 0) return script->system_ret_content;
 
-  // variable like data2_192.168.0.1
   if (strncmp(varName, "data", 4) == 0) {
     if (varLen < 6) {
       return "null";
     }
 
-    if (varName[5] == '_') {
+    int32_t row = 0;
+    int32_t col = 0;
+    char    keyVal[1024] = {0};
+    int32_t keyLen = 1024;
+
+    if (varName[4] == '[') {
+      // $data[0][1]
+      simFindFirstNum(varName, varLen, &row);
+      simFindSecondNum(varName, varLen, &col);
+      if (row < 0 || row >= MAX_QUERY_ROW_NUM) {
+        return "null";
+      }
+      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
+        return "null";
+      }
+      simDebug("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
+      return script->data[row][col];
+    } else if (varName[4] == '(') {
+      // $data(db)[0]
+      simFindFirstKeyVal(varName, varLen, keyVal, keyLen);
+      simFindSecondKeyNum(varName, varLen, &col);
+      for (int32_t i = 0; i < MAX_QUERY_ROW_NUM; ++i) {
+        if (strncmp(keyVal, script->data[i][0], keyLen) == 0) {
+          simDebug("script:%s, keyName:%s, keyValue:%s", script->fileName, script->data[i][0], script->data[i][col]);
+          return script->data[i][col];
+        }
+      }
+    } else if (varName[5] == '_') {
+      // data2_db
       int32_t col = varName[4] - '0';
       if (col < 0 || col >= MAX_QUERY_COL_NUM) {
         return "null";
@@ -90,6 +152,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       }
       return "null";
     } else if (varName[6] == '_') {
+      // data21_db
       int32_t col = (varName[4] - '0') * 10 + (varName[5] - '0');
       if (col < 0 || col >= MAX_QUERY_COL_NUM) {
         return "null";
@@ -107,6 +170,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       }
       return "null";
     } else {
+      // $data00
       int32_t row = varName[4] - '0';
       int32_t col = varName[5] - '0';
       if (row < 0 || row >= MAX_QUERY_ROW_NUM) {
@@ -119,6 +183,8 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       simDebug("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
       return script->data[row][col];
     }
+
+    return "null";
   }
 
   for (int32_t i = 0; i < script->varLen; ++i) {
@@ -127,9 +193,6 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       continue;
     }
     if (strncmp(varName, var->varName, varLen) == 0) {
-      // if (strlen(var->varValue) != 0)
-      //  simDebug("script:%s, var:%s, value:%s", script->fileName,
-      //  var->varName, var->varValue);
       return var->varValue;
     }
   }
@@ -305,7 +368,8 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceStr(char *buf, char *src, char *dst) {
+bool simReplaceStr(char *buf, char *src, char *dst) {
+  bool  replaced = false;
   char *begin = strstr(buf, src);
   if (begin != NULL) {
     int32_t srcLen = (int32_t)strlen(src);
@@ -320,13 +384,16 @@ void simReplaceStr(char *buf, char *src, char *dst) {
     }
 
     memcpy(begin, dst, dstLen);
+    replaced = true;
   }
 
   simInfo("system cmd is %s", buf);
+  return replaced;
 }
 
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
+  bool replaced = false;
 
 #ifndef WINDOWS
   sprintf(buf, "cd %s; ", simScriptDir);
@@ -338,6 +405,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 
   if (useMultiProcess) {
     simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
+  }
+
+  if (useValgrind) {
+    replaced = simReplaceStr(buf, "exec.sh", "exec.sh -v");
   }
 
   simLogSql(buf, true);
@@ -355,6 +426,11 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 
   sprintf(script->system_exit_code, "%d", code);
   script->linePos++;
+  if (replaced && strstr(buf, "start") != NULL) {
+    simInfo("====> startup is slow in valgrind mode, so sleep 5 seconds after exec.sh -s start");
+    taosMsleep(5000);
+  }
+
   return true;
 }
 
@@ -770,7 +846,7 @@ bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
 
 bool simExecuteRestfulCmd(SScript *script, char *rest) {
   TdFilePtr pFile = NULL;
-  char  filename[256];
+  char      filename[256];
   sprintf(filename, "%s/tmp.sql", simScriptDir);
   // fp = fopen(filename, "w");
   pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);

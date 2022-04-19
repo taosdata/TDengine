@@ -1020,7 +1020,7 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
   
   if (ctx->phase == QW_PHASE_PRE_QUERY) {
-    ctx->ctrlConnInfo.handle == qwMsg->connInfo.handle;
+    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
     ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_READY);
     needRsp = false;
@@ -1469,6 +1469,9 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   //TODO STOP ALL QUERY
 
   //TODO FREE ALL
+
+  taosHashCleanup(mgmt->ctxHash);
+  taosHashCleanup(mgmt->schHash);
 
   taosMemoryFreeClear(*qWorkerMgmt);
 }

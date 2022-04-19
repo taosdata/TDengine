@@ -16,10 +16,19 @@
 #define _DEFAULT_SOURCE
 #include "trow.h"
 
-const uint8_t tdVTypeByte[3] = {
-    TD_VTYPE_NORM_BYTE,  // TD_VTYPE_NORM
-    TD_VTYPE_NONE_BYTE,  // TD_VTYPE_NONE
-    TD_VTYPE_NULL_BYTE,  // TD_VTYPE_NULL
+const uint8_t tdVTypeByte[2][3] = {{
+                                       // 2 bits
+                                       TD_VTYPE_NORM_BYTE_II,
+                                       TD_VTYPE_NONE_BYTE_II,
+                                       TD_VTYPE_NULL_BYTE_II,
+                                   },
+                                   {
+                                       // 1 bit
+                                       TD_VTYPE_NORM_BYTE_I,
+                                       TD_VTYPE_NULL_BYTE_I,
+                                       TD_VTYPE_NULL_BYTE_I, // padding
+                                   }
+
 };
 
 // declaration
@@ -266,19 +275,51 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index, bool setBit
 //   }
 // }
 
+/**
+ * @brief Set bitmap area by byte preferentially and then by bit.
+ *
+ * @param pBitmap
+ * @param nEle
+ * @param valType
+ * @param bitmapMode 0 for 2 bits, 1 for 1 bit
+ * @return int32_t
+ */
 int32_t tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8_t bitmapMode) {
   TASSERT(valType < TD_VTYPE_MAX);
-  int16_t nBytes = nEle / TD_VTYPE_PARTS;
+  int32_t nBytes = (bitmapMode == 0 ? nEle / TD_VTYPE_PARTS : nEle / TD_VTYPE_PARTS_I);
+  uint8_t vTypeByte = tdVTypeByte[bitmapMode][valType];
   for (int i = 0; i < nBytes; ++i) {
-    *(uint8_t *)pBitmap = tdVTypeByte[valType];
+    *(uint8_t *)pBitmap = vTypeByte;
     pBitmap = POINTER_SHIFT(pBitmap, 1);
   }
-  int16_t nLeft = nEle - nBytes * TD_VTYPE_BITS;
 
+  int32_t nLeft = nEle - nBytes * (bitmapMode == 0 ? TD_VTYPE_BITS : TD_VTYPE_BITS_I);
   for (int j = 0; j < nLeft; ++j) {
     tdSetBitmapValType(pBitmap, j, valType, bitmapMode);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+bool tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode) {
+  int32_t nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
+  uint8_t vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
+  for (int i = 0; i < nBytes; ++i) {
+    if (*((uint8_t *)pBitmap) != vTypeByte) {
+      return false;
+    }
+    pBitmap = POINTER_SHIFT(pBitmap, 1);
+  }
+
+  int32_t nLeft = numOfBits - nBytes * (bitmapMode == 0 ? TD_VTYPE_BITS : TD_VTYPE_BITS_I);
+
+  for (int j = 0; j < nLeft; ++j) {
+    uint8_t vType;
+    tdGetBitmapValType(pBitmap, j, &vType, bitmapMode);
+    if (vType != TD_VTYPE_NORM) {
+      return false;
+    }
+  }
+  return true;
 }
 
 static FORCE_INLINE void dataColSetNoneAt(SDataCol *pCol, int index, bool setBitmap, int8_t bitmapMode) {

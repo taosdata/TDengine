@@ -195,7 +195,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
-
+    uv_close((uv_handle_t*)async, NULL);
     SAsyncItem* item = async->data;
     taosThreadMutexDestroy(&item->mtx);
     taosMemoryFree(item);
@@ -292,7 +292,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 
 void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
-  queue->freeFunc = freeFunc;
+  queue->freeFunc = (void (*)(const void*))freeFunc;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
   if (queue->q == NULL) {

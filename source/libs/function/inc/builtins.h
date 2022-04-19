@@ -37,17 +37,18 @@ extern "C" {
 #define FUNC_MGT_WINDOW_PC_FUNC         FUNC_MGT_FUNC_CLASSIFICATION_MASK(8)
 #define FUNC_MGT_SPECIAL_DATA_REQUIRED  FUNC_MGT_FUNC_CLASSIFICATION_MASK(9)
 #define FUNC_MGT_DYNAMIC_SCAN_OPTIMIZED FUNC_MGT_FUNC_CLASSIFICATION_MASK(10)
+#define FUNC_MGT_MULTI_RES_FUNC         FUNC_MGT_FUNC_CLASSIFICATION_MASK(11)
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
-typedef int32_t (*FCheckAndGetResultType)(SFunctionNode* pFunc);
+typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 typedef struct SBuiltinFuncDefinition {
   char name[FUNCTION_NAME_MAX_LENGTH];
   EFunctionType type;
   uint64_t classification;
-  FCheckAndGetResultType checkFunc;
+  FTranslateFunc translateFunc;
   FFuncDataRequired dataRequiredFunc;
   FExecGetEnv getEnvFunc;
   FExecInit initFunc;

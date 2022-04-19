@@ -190,8 +190,8 @@ static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
 
 // ================== STsdbFS
 STsdbFS *tsdbNewFS(const STsdbCfg *pCfg) {
-  int      keep = pCfg->keep;
-  int      days = pCfg->daysPerFile;
+  int      keep = pCfg->keep2;
+  int      days = pCfg->days;
   int      maxFSet = TSDB_MAX_FSETS(keep, days);
   STsdbFS *pfs;
 
@@ -644,7 +644,7 @@ static int tsdbComparFidFSet(const void *arg1, const void *arg2) {
 }
 
 static void tsdbGetTxnFname(STsdb *pRepo, TSDB_TXN_FILE_T ftype, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(pRepo->pTfs), pRepo->vgId,
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(REPO_TFS(pRepo)), pRepo->vgId,
            tsdbTxnFname[ftype]);
 }
 
@@ -912,7 +912,7 @@ static int tsdbScanRootDir(STsdb *pRepo) {
   const STfsFile *pf;
 
   tsdbGetRootDir(REPO_ID(pRepo), rootDir);
-  STfsDir *tdir = tfsOpendir(pRepo->pTfs, rootDir);
+  STfsDir *tdir = tfsOpendir(REPO_TFS(pRepo), rootDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
     return -1;
@@ -946,7 +946,7 @@ static int tsdbScanDataDir(STsdb *pRepo) {
   const STfsFile *pf;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
-  STfsDir *tdir = tfsOpendir(pRepo->pTfs, dataDir);
+  STfsDir *tdir = tfsOpendir(REPO_TFS(pRepo), dataDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dataDir, tstrerror(terrno));
     return -1;
@@ -1128,7 +1128,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
     return -1;
   }
 
-  tdir = tfsOpendir(pRepo->pTfs, dataDir);
+  tdir = tfsOpendir(REPO_TFS(pRepo), dataDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));

@@ -106,6 +106,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_MODULES                "modules"
 #define TSDB_INS_TABLE_QNODES                 "qnodes"
 #define TSDB_INS_TABLE_BNODES                 "bnodes"
+#define TSDB_INS_TABLE_SNODES                 "snodes"
 #define TSDB_INS_TABLE_CLUSTER                "cluster"
 #define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
@@ -115,15 +116,29 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_TABLES            "user_tables"
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
-#define TSDB_INS_TABLE_VGROUPS                "vgroups"
-#define TSDB_INS_TABLE_BNODES                 "bnodes"
-#define TSDB_INS_TABLE_SNODES                 "snodes"
 #define TSDB_INS_TABLE_LICENCES               "grants"
+#define TSDB_INS_TABLE_VGROUPS                "vgroups"
+#define TSDB_INS_TABLE_TOPICS                 "topics"
+#define TSDB_INS_TABLE_CONSUMERS              "consumers"
+#define TSDB_INS_TABLE_SUBSCRIBES             "subscribes"
+#define TSDB_INS_TABLE_TRANS                  "trans"
+#define TSDB_INS_TABLE_SMAS                   "smas"
+#define TSDB_INS_TABLE_CONFIGS                "configs"
+#define TSDB_INS_TABLE_CONNS                  "connections"
+#define TSDB_INS_TABLE_QUERIES                "queries"
+#define TSDB_INS_TABLE_VNODES                 "vnodes"
+
+#define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
+#define TSDB_PERFS_TABLE_CONNECTIONS "connections"
+#define TSDB_PERFS_TABLE_QUERIES     "queries"
+#define TSDB_PERFS_TABLE_TOPICS      "topics"
+#define TSDB_PERFS_TABLE_CONSUMERS   "consumers"
+#define TSDB_PERFS_TABLE_SUBSCRIBES  "subscribes"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
 
-#define TSDB_INS_USER_STABLES_DBNAME_COLID    2
+#define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
 #define TSDB_TICK_PER_SECOND(precision)                      \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1e3L \
@@ -184,7 +199,7 @@ typedef enum EOperatorType {
 } EOperatorType;
 
 typedef enum ELogicConditionType {
-  LOGIC_COND_TYPE_AND,
+  LOGIC_COND_TYPE_AND = 1,
   LOGIC_COND_TYPE_OR,
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
@@ -219,8 +234,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_FNAME_LEN   (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
 #define TSDB_FUNC_NAME_LEN       65
-#define TSDB_FUNC_COMMENT_LEN    4096
-#define TSDB_FUNC_CODE_LEN       (65535 - 512)
+#define TSDB_FUNC_COMMENT_LEN    1024 * 1024
+#define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
 #define TSDB_FUNC_BUF_SIZE       512
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
@@ -324,12 +339,12 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TOTAL_BLOCKS     10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS 6
 
-#define TSDB_MIN_DAYS_PER_FILE     60    // unit minute
+#define TSDB_MIN_DAYS_PER_FILE     60  // unit minute
 #define TSDB_MAX_DAYS_PER_FILE     (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE (10 * 1440)
 
 #define TSDB_MIN_KEEP     (1 * 1440)       // data in db to be reserved. unit minute
-#define TSDB_MAX_KEEP     (365000 * 1440) // data in db to be reserved.
+#define TSDB_MAX_KEEP     (365000 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP (3650 * 1440)    // ten years
 
 #define TSDB_MIN_MIN_ROW_FBLOCK     10
@@ -404,11 +419,11 @@ typedef enum ELogicConditionType {
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
-#define TSDB_MIN_EXPLAIN_RATIO       0
-#define TSDB_MAX_EXPLAIN_RATIO       1
-#define TSDB_DEFAULT_EXPLAIN_RATIO   0.001
+#define TSDB_MIN_EXPLAIN_RATIO     0
+#define TSDB_MAX_EXPLAIN_RATIO     1
+#define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
 
-#define TSDB_EXPLAIN_RESULT_ROW_SIZE 1024
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE    1024
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY PLAN"
 
 #define TSDB_MAX_JOIN_TABLE_NUM 10
@@ -494,12 +509,20 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define MNODE_HANDLE -1
-#define QNODE_HANDLE 1
+#define MNODE_HANDLE   -1
+#define QNODE_HANDLE   1
 #define DEFAULT_HANDLE 0
 
-#define MAX_NUM_STR_SIZE 40
+#define TSDB_CONFIG_OPTION_LEN 16
+#define TSDB_CONIIG_VALUE_LEN  48
+#define TSDB_CONFIG_NUMBER     8
 
+#define QUERY_ID_SIZE      20
+#define QUERY_OBJ_ID_SIZE  18
+#define SUBQUERY_INFO_SIZE 6
+#define QUERY_SAVE_SIZE    20
+
+#define MAX_NUM_STR_SIZE 40
 
 #ifdef __cplusplus
 }

@@ -13,11 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tglobal.h"
+#include <common/ttime.h>
 #include "filter.h"
 #include "function.h"
+#include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
+#include "tglobal.h"
 #include "tname.h"
 #include "vnode.h"
 
@@ -64,35 +66,193 @@ static void setupQueryRangeForReverseScan(STableScanInfo* pTableScanInfo) {
 #endif
 }
 
-int32_t loadDataBlock(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
+// relocated the column data according to the slotId
+static void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
+  int32_t numOfCols = pBlock->info.numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pCols, i);
+    SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, i);
+    if (!pmInfo->output) {
+      continue;
+    }
+
+    ASSERT(pmInfo->colId == p->info.colId);
+    taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
+  }
+}
+
+static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  if (pInterval->intervalUnit != 'n' && pInterval->intervalUnit != 'y') {
+    tw->skey += pInterval->sliding * factor;
+    tw->ekey = tw->skey + pInterval->interval - 1;
+    return;
+  }
+
+  int64_t key = tw->skey, interval = pInterval->interval;
+  //convert key to second
+  key = convertTimePrecision(key, pInterval->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+
+  if (pInterval->intervalUnit == 'y') {
+    interval *= 12;
+  }
+
+  struct tm tm;
+  time_t t = (time_t)key;
+  taosLocalTime(&t, &tm);
+
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+
+  mon = (int)(mon + interval);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+  tw->ekey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+
+  tw->ekey -= 1;
+}
+
+static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo) {
+  STimeWindow w = {0};
+
+  // 0 by default, which means it is not a interval operator of the upstream operator.
+  if (pInterval->interval == 0) {
+    return false;
+  }
+
+  // todo handle the time range case
+  TSKEY sk = INT64_MIN;
+  TSKEY ek = INT64_MAX;
+//  TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+//  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+
+  if (true) {
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, sk, ek, &w);
+    assert(w.ekey >= pBlockInfo->window.skey);
+
+    if (w.ekey < pBlockInfo->window.ekey) {
+      return true;
+    }
+
+    while(1) { // todo handle the desc order scan case
+      getNextTimeWindow(pInterval, &w, TSDB_ORDER_ASC);
+      if (w.skey > pBlockInfo->window.ekey) {
+        break;
+      }
+
+      assert(w.ekey > pBlockInfo->window.ekey);
+      if (w.skey <= pBlockInfo->window.ekey && w.skey > pBlockInfo->window.skey) {
+        return true;
+      }
+    }
+  } else {
+//    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
+//    assert(w.skey <= pBlockInfo->window.ekey);
+//
+//    if (w.skey > pBlockInfo->window.skey) {
+//      return true;
+//    }
+//
+//    while(1) {
+//      getNextTimeWindow(pQueryAttr, &w);
+//      if (w.ekey < pBlockInfo->window.skey) {
+//        break;
+//      }
+//
+//      assert(w.skey < pBlockInfo->window.skey);
+//      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+//        return true;
+//      }
+//    }
+  }
+
+  return false;
+}
+
+int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STableScanInfo* pInfo = pOperator->info;
+
   STaskCostInfo* pCost = &pTaskInfo->cost;
 
   pCost->totalBlocks += 1;
   pCost->totalRows += pBlock->info.rows;
 
+  *status = pInfo->dataBlockLoadFlag;
+  if (pTableScanInfo->pFilterNode != NULL || overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info)) {
+    (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  SDataBlockInfo* pBlockInfo = &pBlock->info;
+  taosMemoryFreeClear(pBlock->pBlockAgg);
+
+  if (*status == FUNC_DATA_REQUIRED_FILTEROUT) {
+    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+    pCost->filterOutBlocks += 1;
+    return TSDB_CODE_SUCCESS;
+  } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+    pCost->skipBlocks += 1;
+    return TSDB_CODE_SUCCESS;
+  } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
+    pCost->loadBlockStatis += 1;
+
+    SColumnDataAgg* pColAgg = NULL;
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg);
+
+    if (pColAgg != NULL) {
+      int32_t numOfCols = pBlock->info.numOfCols;
+
+      // todo create this buffer during creating operator
+      pBlock->pBlockAgg = taosMemoryCalloc(numOfCols, sizeof(SColumnDataAgg));
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        SColMatchInfo* pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
+        if (!pColMatchInfo->output) {
+          continue;
+        }
+        pBlock->pBlockAgg[pColMatchInfo->targetSlotId] = pColAgg[i];
+      }
+
+      return TSDB_CODE_SUCCESS;
+    } else { // failed to load the block sma data, data block statistics does not exist, load data block instead
+      *status = FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
+  }
+
+  ASSERT (*status == FUNC_DATA_REQUIRED_DATA_LOAD);
+
+  // todo filter data block according to the block sma data firstly
+#if 0
+  if (!doFilterByBlockStatistics(pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
+    pCost->filterOutBlocks += 1;
+    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+    (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
+    return TSDB_CODE_SUCCESS;
+  }
+#endif
+
   pCost->totalCheckedRows += pBlock->info.rows;
   pCost->loadBlocks += 1;
-
-  *status = BLK_DATA_ALL_NEEDED;
 
   SArray* pCols = tsdbRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
   if (pCols == NULL) {
     return terrno;
   }
 
-  int32_t numOfCols = pBlock->info.numOfCols;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pCols, i);
-    SColMatchInfo*   pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
-    if (!pColMatchInfo->output) {
-      continue;
-    }
-
-    ASSERT(pColMatchInfo->colId == p->info.colId);
-    taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
-  }
+  relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
 
   doFilter(pTableScanInfo->pFilterNode, pBlock);
+  if (pBlock->info.rows == 0) {
+    pCost->filterOutBlocks += 1;
+    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo), pBlockInfo->window.skey,
+           pBlockInfo->window.ekey, pBlockInfo->rows);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -111,7 +271,6 @@ static void setupEnvForReverseScan(STableScanInfo* pTableScanInfo, SqlFunctionCt
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
   STableScanInfo* pTableScanInfo = pOperator->info;
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
   SSDataBlock*     pBlock = pTableScanInfo->pResBlock;
   STableGroupInfo* pTableGroupInfo = &pOperator->pTaskInfo->tableqinfoGroupInfo;
@@ -138,15 +297,15 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     //    }
 
     // this function never returns error?
-    uint32_t status = BLK_DATA_ALL_NEEDED;
-    int32_t  code = loadDataBlock(pTaskInfo, pTableScanInfo, pBlock, &status);
+    uint32_t status = 0;
+    int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
 
-    // current block is ignored according to filter result by block statistics data, continue load the next block
-    if (status == BLK_DATA_DISCARD || pBlock->info.rows == 0) {
+    // current block is filter out according to filter condition, continue load the next block
+    if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
     }
 
@@ -189,9 +348,9 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
     pTableScanInfo->scanFlag = REPEAT_SCAN;
 
-    if (pResultRowInfo->size > 0) {
-      pResultRowInfo->curPos = 0;
-    }
+//    if (pResultRowInfo->size > 0) {
+//      pResultRowInfo->curPos = 0;
+//    }
 
     qDebug("%s start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_TASKID(pTaskInfo), pTaskInfo->window.skey, pTaskInfo->window.ekey);
@@ -208,7 +367,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
            GET_TASKID(pTaskInfo), pTaskInfo->window.skey, pTaskInfo->window.ekey);
 
     if (pResultRowInfo->size > 0) {
-      pResultRowInfo->curPos = pResultRowInfo->size - 1;
+//      pResultRowInfo->curPos = pResultRowInfo->size - 1;
     }
 
     p = doTableScanImpl(pOperator, newgroup);
@@ -217,9 +376,9 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   return p;
 }
 
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
                                            int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
-                                           SNode* pCondition, SExecTaskInfo* pTaskInfo) {
+                                           SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
@@ -232,6 +391,9 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
     return NULL;
   }
 
+  pInfo->interval         = *pInterval;
+  pInfo->sampleRatio      = sampleRatio;
+  pInfo->dataBlockLoadFlag= dataLoadFlag;
   pInfo->pResBlock        = pResBlock;
   pInfo->pFilterNode      = pCondition;
   pInfo->dataReader       = pTsdbReadHandle;
@@ -377,7 +539,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
   pTaskInfo->code = pOperator->_openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
@@ -385,6 +547,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     size_t total = taosArrayGetSize(pInfo->pBlockLists);
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
+      pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
 
@@ -398,11 +561,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
       pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
         terrno = pTaskInfo->code;
+        pOperator->status = OP_EXEC_DONE;
         return NULL;
       }
 
       if (pBlockInfo->rows == 0) {
-        return NULL;
+        break;
       }
 
       SArray* pCols = tqRetrieveDataBlock(pInfo->readerHandle);
@@ -421,6 +585,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
 
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
+        pOperator->status = OP_EXEC_DONE;
         pTaskInfo->code = terrno;
         return NULL;
       }
@@ -431,6 +596,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     // record the scan action.
     pInfo->numOfExec++;
     pInfo->numOfRows += pBlockInfo->rows;
+
+    if (pBlockInfo->rows == 0) {
+      pOperator->status = OP_EXEC_DONE;
+    }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
   }
@@ -767,24 +936,22 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   // TODO remove it
   int32_t     tableType = 0;
   const char* name = tNameGetTableName(pName);
-  if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_DB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_USER;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_DNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_MNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_QNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CLUSTER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_DB;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_FUNC;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, tListLen(pName->tname)) == 0) {
@@ -795,13 +962,33 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     tableType = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, tListLen(pName->tname)) == 0) {
     tableType = TSDB_MGMT_TABLE_TABLE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, tListLen(pName->tname)) == 0) {
     //    tableType = TSDB_MGMT_TABLE_DIST;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, tListLen(pName->tname)) == 0) {
-    tableType = TSDB_MGMT_TABLE_CLUSTER;
-  } else {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_USER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_GRANTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_VGROUP;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_TOPICS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONSUMERS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CONSUMERS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIBES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SUBSCRIBES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_TRANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SMAS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_SMAS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONFIGS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CONFIGS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONNS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_CONNS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_QUERIES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_QUERIES;
+  }  else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_VNODES;
+  }else {
     ASSERT(0);
   }
 

@@ -1,11 +1,11 @@
-aux_source_directory(. QTEST_SRC)
-add_executable(mnode_test_qnode ${QTEST_SRC})
+aux_source_directory(. MNODE_QNODE_TEST_SRC)
+add_executable(mqnodeTest ${MNODE_QNODE_TEST_SRC})
 target_link_libraries(
-    mnode_test_qnode
+    mqnodeTest
     PUBLIC sut
 )
 
 add_test(
-    NAME mnode_test_qnode
-    COMMAND mnode_test_qnode
+    NAME mqnodeTest
+    COMMAND mqnodeTest
 )

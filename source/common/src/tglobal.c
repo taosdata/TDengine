@@ -238,7 +238,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
 
   if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
     if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
-      uError("failed to load from config file:%s since %s", cfgFile, terrstr());
+      uInfo("cfg file:%s not read since %s", cfgFile, terrstr());
       return 0;
     }
   }
@@ -495,7 +495,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
   tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
   tsRpcForceTcp = cfgGetItem(pCfg, "rpcForceTcp")->i32;
-  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->bval;
+  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
   tsMaxWildCardsLen = cfgGetItem(pCfg, "maxWildCardsLength")->i32;

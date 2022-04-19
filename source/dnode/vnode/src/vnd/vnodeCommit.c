@@ -15,10 +15,129 @@
 
 #include "vnodeInt.h"
 
+#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME_TMP "vnode_tmp.json"
+
+static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
+static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
 static int  vnodeStartCommit(SVnode *pVnode);
 static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommit(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
+
+int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
+  char      fname[TSDB_FILENAME_LEN];
+  TdFilePtr pFile;
+  char     *data;
+
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
+
+  // encode info
+  data = NULL;
+
+  if (vnodeEncodeInfo(pInfo, &data) < 0) {
+    return -1;
+  }
+
+  // save info to a vnode_tmp.json
+  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosWriteFile(pFile, data, strlen(data)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosFsyncFile(pFile) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  taosCloseFile(&pFile);
+
+  // free info binary
+  taosMemoryFree(data);
+
+  vInfo("vgId: %d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+
+  return 0;
+
+_err:
+  taosCloseFile(&pFile);
+  taosMemoryFree(data);
+  return -1;
+}
+
+int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
+  char fname[TSDB_FILENAME_LEN];
+  char tfname[TSDB_FILENAME_LEN];
+
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
+  snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
+
+  if (taosRenameFile(tfname, fname) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  vInfo("vgId: %d vnode info is committed", pInfo->config.vgId);
+
+  return 0;
+}
+
+int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
+  char      fname[TSDB_FILENAME_LEN];
+  TdFilePtr pFile = NULL;
+  char     *pData = NULL;
+  int64_t   size;
+
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
+
+  // read info
+  pFile = taosOpenFile(fname, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  pData = taosMemoryMalloc(size + 1);
+  if (pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  if (taosReadFile(pFile, pData, size) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  pData[size] = '\0';
+
+  taosCloseFile(&pFile);
+
+  // decode info
+  if (vnodeDecodeInfo(pData, pInfo) < 0) {
+    taosMemoryFree(pData);
+    return -1;
+  }
+
+  taosMemoryFree(pData);
+
+  return 0;
+
+_err:
+  taosCloseFile(&pFile);
+  taosMemoryFree(pData);
+  return -1;
+}
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   vnodeWaitCommit(pVnode);
@@ -61,3 +180,78 @@ static int vnodeEndCommit(SVnode *pVnode) {
 }
 
 static FORCE_INLINE void vnodeWaitCommit(SVnode *pVnode) { tsem_wait(&pVnode->canCommit); }
+
+static int vnodeEncodeState(const void *pObj, SJson *pJson) {
+  const SVState *pState = (SVState *)pObj;
+
+  if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
+
+  return 0;
+}
+
+static int vnodeDecodeState(const SJson *pJson, void *pObj) {
+  SVState *pState = (SVState *)pObj;
+
+  if (tjsonGetNumberValue(pJson, "commit version", pState->committed) < 0) return -1;
+
+  return 0;
+}
+
+static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
+  SJson *pJson;
+  char  *pData;
+
+  *ppData = NULL;
+
+  pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    return -1;
+  }
+
+  if (tjsonAddObject(pJson, "config", vnodeEncodeConfig, (void *)&pInfo->config) < 0) {
+    goto _err;
+  }
+
+  if (tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state) < 0) {
+    goto _err;
+  }
+
+  pData = tjsonToString(pJson);
+  if (pData == NULL) {
+    goto _err;
+  }
+
+  tjsonDelete(pJson);
+
+  *ppData = pData;
+  return 0;
+
+_err:
+  tjsonDelete(pJson);
+  return -1;
+}
+
+static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
+  SJson *pJson = NULL;
+
+  pJson = tjsonParse(pData);
+  if (pJson == NULL) {
+    return -1;
+  }
+
+  if (tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config) < 0) {
+    goto _err;
+  }
+
+  if (tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state) < 0) {
+    goto _err;
+  }
+
+  tjsonDelete(pJson);
+
+  return 0;
+
+_err:
+  tjsonDelete(pJson);
+  return -1;
+}

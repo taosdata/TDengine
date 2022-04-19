@@ -57,6 +57,10 @@ int64_t getVectorBigintValue_FLOAT(void *src, int32_t index) {
 int64_t getVectorBigintValue_DOUBLE(void *src, int32_t index) {
   return (int64_t)*((double *)src + index);
 }
+int64_t getVectorBigintValue_BOOL(void *src, int32_t index) {
+  return (int64_t)*((bool *)src + index);
+}
+
 _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     _getBigintValue_fn_t p = NULL;
     if(srcType==TSDB_DATA_TYPE_TINYINT) {
@@ -79,6 +83,10 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
         p = getVectorBigintValue_FLOAT;
     }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
         p = getVectorBigintValue_DOUBLE;
+    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+        p = getVectorBigintValue_BIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_BOOL) {
+        p = getVectorBigintValue_BOOL;
     }else {
         assert(0);
     }
@@ -565,6 +573,25 @@ static void vectorMathAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
   }
 }
 
+static void vectorMathBigintAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
+
+  int64_t *output = (int64_t *)pOutputCol->pData;
+
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, 0);
+    }
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
+    }
+  }
+}
+
 static SColumnInfoData* doVectorConvert(SScalarParam* pInput, int32_t* doConvert) {
   SScalarParam convertParam = {0};
 
@@ -599,27 +626,55 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
   SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
   SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
 
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pRight))) ||
+      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pLeft))) ||
+      (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BOOL) ||
+      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BOOL)) { //timestamp plus duration
+    int64_t *output = (int64_t *)pOutputCol->pData;
+    _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+    _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
-  double *output = (double *)pOutputCol->pData;
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) + getVectorDoubleValueFnRight(pRightCol->pData, i);
-    }
-
-    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-    if (pOutputCol->hasNull) {
-      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-      for (int32_t j = 0; j < numOfBitLen; ++j) {
-        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+    if (pLeft->numOfRows == pRight->numOfRows) {
+      for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+        *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-    }
 
-  } else if (pLeft->numOfRows == 1) {
-    vectorMathAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
-  } else if (pRight->numOfRows == 1) {
-    vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
+      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+      if (pOutputCol->hasNull) {
+        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+        for (int32_t j = 0; j < numOfBitLen; ++j) {
+          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+        }
+      }
+
+    } else if (pLeft->numOfRows == 1) {
+      vectorMathBigintAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+    } else if (pRight->numOfRows == 1) {
+      vectorMathBigintAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
+    }
+  } else {
+    double *output = (double *)pOutputCol->pData;
+    _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+    _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+    if (pLeft->numOfRows == pRight->numOfRows) {
+      for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+        *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) + getVectorDoubleValueFnRight(pRightCol->pData, i);
+      }
+
+      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+      if (pOutputCol->hasNull) {
+        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+        for (int32_t j = 0; j < numOfBitLen; ++j) {
+          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+        }
+      }
+
+    } else if (pLeft->numOfRows == 1) {
+      vectorMathAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+    } else if (pRight->numOfRows == 1) {
+      vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
+    }
   }
 
   doReleaseVec(pLeftCol, leftConvert);
@@ -646,6 +701,25 @@ static void vectorMathSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
   }
 }
 
+static void vectorMathBigintSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
+
+  int64_t *output = (int64_t *)pOutputCol->pData;
+
+  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    colDataAppendNNULL(pOutputCol, 0, numOfRows);
+  } else {
+    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      *output = (getVectorBigintValueFnLeft(pLeftCol->pData, i) - getVectorBigintValueFnRight(pRightCol->pData, 0)) * factor;
+    }
+    pOutputCol->hasNull = pLeftCol->hasNull;
+    if (pOutputCol->hasNull) {
+      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
+    }
+  }
+}
+
 void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
 
@@ -658,27 +732,53 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
   SColumnInfoData *pLeftCol   = doVectorConvert(pLeft, &leftConvert);
   SColumnInfoData *pRightCol  = doVectorConvert(pRight, &rightConvert);
 
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BIGINT) ||
+      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BIGINT)) { //timestamp minus duration
+    int64_t *output = (int64_t *)pOutputCol->pData;
+    _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+    _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
-  double *output = (double *)pOutputCol->pData;
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) - getVectorDoubleValueFnRight(pRightCol->pData, i);
-    }
-
-    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-    if (pOutputCol->hasNull) {
-      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-      for (int32_t j = 0; j < numOfBitLen; ++j) {
-        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+    if (pLeft->numOfRows == pRight->numOfRows) {
+      for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+        *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) - getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-    }
 
-  } else if (pLeft->numOfRows == 1) {
-    vectorMathSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
-  } else if (pRight->numOfRows == 1) {
-    vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
+      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+      if (pOutputCol->hasNull) {
+        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+        for (int32_t j = 0; j < numOfBitLen; ++j) {
+          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+        }
+      }
+
+    } else if (pLeft->numOfRows == 1) {
+      vectorMathBigintSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
+    } else if (pRight->numOfRows == 1) {
+      vectorMathBigintSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
+    }
+  } else {
+    double *output = (double *)pOutputCol->pData;
+    _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+    _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+
+    if (pLeft->numOfRows == pRight->numOfRows) {
+      for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
+        *output = getVectorDoubleValueFnLeft(pLeftCol->pData, i) - getVectorDoubleValueFnRight(pRightCol->pData, i);
+      }
+
+      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
+      if (pOutputCol->hasNull) {
+        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
+        for (int32_t j = 0; j < numOfBitLen; ++j) {
+          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
+        }
+      }
+
+    } else if (pLeft->numOfRows == 1) {
+      vectorMathSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
+    } else if (pRight->numOfRows == 1) {
+      vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
+    }
   }
 
   doReleaseVec(pLeftCol,  leftConvert);

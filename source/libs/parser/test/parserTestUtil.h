@@ -13,18 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#ifndef PARSER_TEST_UTIL_H
+#define PARSER_TEST_UTIL_H
 
-int metaOpenUidGnrt(SMeta *pMeta) {
-  // Init a generator
-  pMeta->uidGnrt.nextUid = IVLD_TB_UID;
-  return 0;
-}
+extern bool g_isDump;
 
-void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
-}
-
-tb_uid_t metaGenerateUid(SMeta *pMeta) {
-  // Generate a new table UID
-  return tGenIdPI64();
-}
+#endif  // PARSER_TEST_UTIL_H

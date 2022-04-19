@@ -106,7 +106,8 @@ struct SSmaStat {
 
 // expired window
 static int32_t  tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
-static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version);
+static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey,
+                                     int64_t version);
 static int32_t  tsdbInitSmaStat(SSmaStat **pSmaStat);
 static void    *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
 static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat);
@@ -197,7 +198,7 @@ static SPoolMem *openPool() {
 
 static void clearPool(SPoolMem *pPool) {
   if (!pPool) return;
-  
+
   SPoolMem *pMem;
 
   do {
@@ -259,7 +260,7 @@ static void poolFree(void *arg, void *ptr) {
 
 int32_t tsdbInitSma(STsdb *pTsdb) {
   // tSma
-  int32_t numOfTSma = taosArrayGetSize(metaGetSmaTbUids(pTsdb->pMeta, false));
+  int32_t numOfTSma = taosArrayGetSize(metaGetSmaTbUids(REPO_META(pTsdb), false));
   if (numOfTSma > 0) {
     atomic_store_16(&REPO_TSMA_NUM(pTsdb), (int16_t)numOfTSma);
   }
@@ -313,8 +314,7 @@ static FORCE_INLINE void tsdbSmaStatSetDropped(SSmaStatItem *pStatItem) {
 }
 
 static void tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode%svnode%d%stsdb%s%s", TD_DIRSEP, vgId, TD_DIRSEP, TD_DIRSEP,
-           TSDB_SMA_DNAME[smaType]);
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s", TD_DIRSEP, vgId, TD_DIRSEP, TSDB_SMA_DNAME[smaType]);
 }
 
 static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did) {
@@ -348,7 +348,7 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did)
   }
 
   char aname[TSDB_FILENAME_LEN] = {0};
-  tfsAbsoluteName(pTsdb->pTfs, did, path, aname);
+  tfsAbsoluteName(REPO_TFS(pTsdb), did, path, aname);
   if (tsdbOpenDBEnv(&pEnv->dbEnv, aname) != TSDB_CODE_SUCCESS) {
     tsdbFreeSmaEnv(pEnv);
     return NULL;
@@ -519,14 +519,14 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
     char rname[TSDB_FILENAME_LEN] = {0};
 
     SDiskID did = {0};
-    tfsAllocDisk(pTsdb->pTfs, TFS_PRIMARY_LEVEL, &did);
+    tfsAllocDisk(REPO_TFS(pTsdb), TFS_PRIMARY_LEVEL, &did);
     if (did.level < 0 || did.id < 0) {
       tsdbUnlockRepo(pTsdb);
       return TSDB_CODE_FAILED;
     }
     tsdbGetSmaDir(REPO_ID(pTsdb), smaType, rname);
 
-    if (tfsMkdirRecurAt(pTsdb->pTfs, rname, did) != TSDB_CODE_SUCCESS) {
+    if (tfsMkdirRecurAt(REPO_TFS(pTsdb), rname, did) != TSDB_CODE_SUCCESS) {
       tsdbUnlockRepo(pTsdb);
       return TSDB_CODE_FAILED;
     }
@@ -544,7 +544,8 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
   return TSDB_CODE_SUCCESS;
 };
 
-static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version) {
+static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey,
+                                    int64_t version) {
   SSmaStatItem *pItem = taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
   if (pItem == NULL) {
     // TODO: use TSDB_SMA_STAT_EXPIRED and update by stream computing later
@@ -556,7 +557,7 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
     }
 
     // cache smaMeta
-    STSma *pSma = metaGetSmaInfoByIndex(pTsdb->pMeta, indexUid, true);
+    STSma *pSma = metaGetSmaInfoByIndex(REPO_META(pTsdb), indexUid, true);
     if (pSma == NULL) {
       terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
       taosHashCleanup(pItem->expiredWindows);
@@ -612,7 +613,7 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!pTsdb->pMeta) {
+  if (!REPO_META(pTsdb)) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
@@ -946,7 +947,7 @@ static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, int64_t indexUid, int32_t
  */
 static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLevel) {
   STsdbCfg *pCfg = REPO_CFG(pTsdb);
-  int32_t   daysPerFile = pCfg->daysPerFile;
+  int32_t   daysPerFile = pCfg->days;
 
   if (storageLevel == SMA_STORAGE_LEVEL_TSDB) {
     int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerDay[pCfg->precision]);
@@ -1582,7 +1583,7 @@ int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg) {
   // record current timezone of server side
   vCreateSmaReq.tSma.timezoneInt = tsTimezone;
 
-  if (metaCreateTSma(pTsdb->pMeta, &vCreateSmaReq) < 0) {
+  if (metaCreateTSma(REPO_META(pTsdb), &vCreateSmaReq) < 0) {
     // TODO: handle error
     tdDestroyTSma(&vCreateSmaReq.tSma);
     return -1;
@@ -1609,7 +1610,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
   // }
   //
 
-  if (metaDropTSma(pTsdb->pMeta, vDropSmaReq.indexUid) < 0) {
+  if (metaDropTSma(REPO_META(pTsdb), vDropSmaReq.indexUid) < 0) {
     // TODO: handle error
     return -1;
   }

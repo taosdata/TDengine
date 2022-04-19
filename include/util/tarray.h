@@ -205,11 +205,19 @@ SArray* taosArrayDup(const SArray* pSrc);
  */
 SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy);
 
+
 /**
  * clear the array (remove all element)
  * @param pArray
  */
 void taosArrayClear(SArray* pArray);
+
+/**
+ * clear the array (remove all element)
+ * @param pArray
+ * @param fp
+ */
+void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
 
 void* taosArrayDestroy(SArray* pArray);
 void  taosArrayDestroyP(SArray* pArray, FDelete fp);

@@ -2,7 +2,6 @@
 
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1
 system sh/exec.sh -n dnode1 -s start
 
 $loop_cnt = 0
@@ -280,7 +279,6 @@ endi
 if $data12 != NULL then
   return -1
 endi
-return
 
 print ====> select c2, c3 , concat(c2,c3) from ntb6
 sql select c2, c3 , concat(c2,c3) from ntb6
@@ -728,4 +726,4 @@ if $loop_test == 0 then
   goto loop_test_pos
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -33,7 +33,7 @@ static int32_t  mndProcessCreateBnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessCreateBnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessDropBnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropBnodeRsp(SNodeMsg *pRsp);
-static int32_t  mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextBnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitBnode(SMnode *pMnode) {
@@ -437,7 +437,7 @@ static int32_t mndProcessDropBnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
@@ -449,8 +449,8 @@ static int32_t mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pObj->id, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char buf[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->pDnode->ep, pShow->bytes[cols]);
@@ -459,7 +459,7 @@ static int32_t mndRetrieveBnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
     colDataAppend(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pObj->createdTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

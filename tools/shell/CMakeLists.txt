@@ -3,7 +3,7 @@ aux_source_directory(src SHELL_SRC)
 add_executable(shell ${SHELL_SRC})
 target_link_libraries(
     shell
-    PUBLIC taos
+    PUBLIC taos_static
     PRIVATE os common transport util
 )
 target_include_directories(
