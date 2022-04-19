@@ -14,34 +14,3 @@
  */
 
 #include "vnodeInt.h"
-
-int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
-#ifdef META_REFACT
-#else
-  if (metaSaveTableToDB(pMeta, pTbCfg) < 0) {
-    // TODO: handle error
-    return -1;
-  }
-#endif
-
-  if (metaSaveTableToIdx(pMeta, pTbCfg) < 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  return 0;
-}
-
-int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
-  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
-    // TODO
-    return -1;
-  }
-
-  return 0;
-}

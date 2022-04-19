@@ -21,6 +21,8 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
   *ppMeta = NULL;
 
+#ifdef META_REFACT
+#else
   // create handle
   slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + slen)) == NULL) {
@@ -44,22 +46,29 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   if (metaOpenIdx(pMeta) < 0) {
     goto _err;
   }
+#endif
 
   *ppMeta = pMeta;
   return 0;
 
 _err:
+#ifdef META_REFACT
+#else
   if (pMeta->pIdx) metaCloseIdx(pMeta);
   if (pMeta->pDB) metaCloseDB(pMeta);
   taosMemoryFree(pMeta);
+#endif
   return -1;
 }
 
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
+#ifdef META_REFACT
+#else
     metaCloseIdx(pMeta);
     metaCloseDB(pMeta);
     taosMemoryFree(pMeta);
+#endif
   }
 
   return 0;

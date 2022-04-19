@@ -15,6 +15,8 @@
 
 #include "vnodeInt.h"
 
+#ifndef META_REFACT
+
 typedef struct SPoolMem {
   int64_t          size;
   struct SPoolMem *prev;
@@ -1134,3 +1136,5 @@ static void poolFree(void *arg, void *ptr) {
 
   tdbOsFree(pMem);
 }
+
+#endif

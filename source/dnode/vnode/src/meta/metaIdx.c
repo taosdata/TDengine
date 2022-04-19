@@ -51,7 +51,9 @@ int metaOpenIdx(SMeta *pMeta) {
 
 #ifdef USE_INVERTED_INDEX
   SIndexOpts opts;
-  if (indexOpen(&opts, pMeta->path, &pMeta->pIdx->pIdx) != 0) { return -1; }
+  if (indexOpen(&opts, pMeta->path, &pMeta->pIdx->pIdx) != 0) {
+    return -1;
+  }
 
 #endif
   return 0;
@@ -67,7 +69,9 @@ void metaCloseIdx(SMeta *pMeta) { /* TODO */
 
 #ifdef USE_INVERTED_INDEX
   SIndexOpts opts;
-  if (indexClose(pMeta->pIdx->pIdx) != 0) { return -1; }
+  if (indexClose(pMeta->pIdx->pIdx) != 0) {
+    return -1;
+  }
 
 #endif
 }
@@ -84,7 +88,7 @@ int metaSaveTableToIdx(SMeta *pMeta, const STbCfg *pTbCfg) {
     tb_uid_t         suid = pTbCfg->ctbCfg.suid;  // super id
     tb_uid_t         tuid = 0;                    // child table uid
     SIndexMultiTerm *terms = indexMultiTermCreate();
-    SIndexTerm *     term =
+    SIndexTerm      *term =
         indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_BINARY, buf, strlen(buf), pTagVal, strlen(pTagVal), tuid);
     indexMultiTermAdd(terms, term);
 
@@ -114,10 +118,13 @@ int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg) {
 
   // TODO: add atomicity
 
+#ifdef META_REFACT
+#else
   if (metaSaveSmaToDB(pMeta, &pCfg->tSma) < 0) {
     // TODO: handle error
     return -1;
   }
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -125,9 +132,12 @@ int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
   // TODO: Validate the cfg
   // TODO: add atomicity
 
+#ifdef META_REFACT
+#else
   if (metaRemoveSmaFromDb(pMeta, indexUid) < 0) {
     // TODO: handle error
     return -1;
   }
+#endif
   return TSDB_CODE_SUCCESS;
 }

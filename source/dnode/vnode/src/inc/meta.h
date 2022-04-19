@@ -47,6 +47,22 @@ int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
+struct SMeta {
+  char*   path;
+  SVnode* pVnode;
+#ifdef META_REFACT
+  TENV* pEnv;
+  TDB*  pTbDb;
+  TDB*  pSchemaDb;
+  TDB*  pNameIdx;
+  TDB*  pCtbIdx;
+#else
+  SMetaDB* pDB;
+#endif
+  SMetaIdx* pIdx;
+};
+
+#if 1
 #define META_SUPER_TABLE  TD_SUPER_TABLE
 #define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
@@ -71,6 +87,7 @@ SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
 
+#ifndef META_REFACT
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
@@ -78,17 +95,9 @@ int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg);
 int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 int  metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
 int  metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
+#endif
 
-// SMetaIdx
-
-tb_uid_t metaGenerateUid(SMeta* pMeta);
-
-struct SMeta {
-  char*     path;
-  SVnode*   pVnode;
-  SMetaDB*  pDB;
-  SMetaIdx* pIdx;
-};
+#endif
 
 #ifdef __cplusplus
 }
