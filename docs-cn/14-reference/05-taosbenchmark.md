@@ -331,43 +331,43 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 
 #### [返回](#taosbenchmark)
 
-- #### insert mode
+### insert mode
 
   可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应 c 接口，restful，参数绑定，schemaless 的 c 接口，taosAdapter schemaless 写入
 
-- #### insert interval
+### insert interval
 
   只有当[interlace rows](#interlace-rows)大于 0 时才起作用。
   意味着线程在为每个子表插入隔行扫描记录后，会等待该值的时间再进行下一轮写入。
 
-- #### partial col num
+### partial col num
 
   若该值为 5， 则仅向前 5 列写入，仅当 [insert_mode](#insert-mode) 为 taosc 和 rest 时生效，为 0 则是向全部列写入。
 
-- #### batch create tbl num
+### batch create tbl num
 
   创建子表时的批数，默认为 10。
 
   注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
-- #### auto create table
+### auto create table
 
   仅当 [insert_mode](#insert-mode) 为 taosc, rest, stmt 时 并且 childtable_exists 为 ”no“ 时生效，此参数表示执行写入的 SQL 语句，若为 “yes” 则为 ` insert into tb using stb tags (xxx,xxx,...) values (xxx,xxx,...)` 这样的格式，若为 “no“ 则为 ` insert into tb values (xxx,xxx,...)` 这样的格式，前者不需要提前建立子表，后者需要。
 
-- #### interlace rows
+### interlace rows
 
   如果它的值为 0，意味着逐个子表逐个子表插入，如果它的值大于零，比如 5，将首先插入
   到第一个子表的 5 条记录，然后是第二个子表 5 条记录、然后第三个，以此类推。当所有的子表都写入 5 条记录后，线程将从第一个子表继续写入，以此类推。
 
-- #### record per request
+### record per request
 
   每次插入数据请求/调用 api 时包含的数据行数，也是批次数，当批次数过大时，taos 客户端会返回相应的错误信息，此时需要调整这个数来满足写入要求。
 
-- #### columns
+### columns
 
   如果同时设置了该参数和[-b/--data-type](#data-type)，会比较该参数与[-b/--data-type](#data-type)设置的列类型的列的个数，如果前者大于后者，比如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果前者小于等于后者，比如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`。
 
-- #### tag type
+### tag type
 
   设置超级表的标签类型，nchar 和 binary 也可以设置长度，例如:
 
@@ -383,100 +383,100 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
   taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   ```
 
-- #### data type
+### data type
 
   与[-A/--tag-type](#tag-type)相同，但用于列，默认为 FLOAT,INT,FLOAT
 
-- #### random
+### random
 
   默认的情况下，数据是模拟电表的采集点的数据，数据值有特定的大小范围，若配置次参数，数据将随机从支持最大的正负 32 位整数中产生。若有修改表结构的其他参数，如 [-l](#columns), [-b](#data-type), [-A](#tag-type)等...，将自动使用从支持最大的正负 32 位整数内随机产生的数据。
 
-- #### disorder ratio
+### disorder ratio
 
   随机乱序时间戳的概率，最大为 50，即为 50%。随机的乱序时间戳为当前应插入数据的时间戳倒退随机[disorder-range](#disorder-range)内的时间戳。
 
-- #### disorder range
+### disorder range
 
   只有当[-O/--disorder](#disorder-ratio)大于 0 时才有效，单位与数据库的时间精确度相同。
 
-- #### prepared rand
+### prepared rand
 
   作为数据源预先生成的随机数据的数量，小的 prepare_rand
   会节省内存，但会减少数据种类。若为 1，则生成的所有同类型的数据相同。
 
-- #### connection pool size
+### connection pool size
 
   所有与 taos c 客户端相关的交互都需要 taos 实例，实例会预先创建，以防止运行过程中由于中断导致的失败，该值决定 taos 实例预先创建的数量。若不配置，则与线程数相同。
 
-- #### data source
+### data source
 
   数据的来源，默认为 taosBenchmark 随机产生，可以配置为 sample，即为使用 sample_file 参数指定的文件内的数据。
 
-- #### line protocol
+### line protocol
 
   行协议，仅当 [insert_mode](#insert-mode) 为 sml 与 sml-rest 时生效，可选项为 line, telnet, json。
 
-- #### non stop mode
+### non stop mode
 
   写入模式是否为不停的持续写入，若为 “yes” 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。
 
   注：即使 insert_rows 失效，但是也必须是一个非零正整数。
 
-- #### tcp transfer
+### tcp transfer
 
   仅当 [insert_mode](#insert-mode) 为 sml-rest 并且 [line_protocol](#line-protocol) 为 telnet 时生效，支持两种通讯协议: tcp 与 http， 默认为 http。
 
-- #### normal table
+### normal table
 
   仅当 [insert_mode](#insert-mode) 为 taosc, stmt, rest 模式下可以使用，不创建超级表，只创建普通表。
 
-- #### childtable limit
+### childtable limit
 
   仅当 childtable_exists 为 yes 时生效，为使用语句
   ` select tbname from stable limit x offset y;`
   中的 limit 的值 x，即为获取插入的现有的子表数量。
 
-- #### childtable offset
+### childtable offset
 
   仅当 childtable_exists 为 yes 时生效，为使用语句
   ` select tbname from stable limit x offset y;`
   中的 offset 的值 y，即为获取插入子表的偏移量。
 
-- #### sample file
+### sample file
 
   是否使用以 csv 格式的数据作为数据源，仅当 data_source 为 sample 时生效。
 
   注：这里与最终生成的数据不同，最终数据源的数据与[prepared_rand](#prepared-rand)的值有关，若 csv 文件内的数据行数小于 prepared_rand，那么会循环读取 csv 文件数据直到与 prepared_rand 相同，若大于，则会只读取 prepared_rand 个数的行的数据。
 
-- #### use sample ts
+### use sample ts
 
   仅当 data_source 为 sample 时生效，sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no， 若为 yes， 则使用 csv 文件第一列的时间戳，由于同一子表时间戳不能重复，生成的数据个数必须与 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
-- #### tags file
+### tags file
 
   仅当 [insert_mode](#insert-mode) 为 taosc, rest 的模式下生效。
 
   注：这里原理与 [sample-file](#sample-file) 类似，最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到与子表数量相同，若大于，则只会读取 childtable_count 行 tag 数据。
 
-- #### type
+### type
 
   可选值请参考官方支持的数据类型(https://www.taosdata.com/docs/cn/v2.0/taos-sql#data-type)。
 
   注：JSON 数据类型比较特殊，只有在 tags 里面可以选择，并且有且仅有一列 JSON tag 才可以，此时 [count](#count) 和 [len](#len) 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 
-- #### count
+### count
 
   该列连续的个数，比如我们想测试 4096 个列的性能时，不用罗列出 4096 个列来表示，直接使用 `"count": 4096` 即可。
 
-- #### len
+### len
 
   该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效，若对其他数据类型配置，若为 0 ， 则代表这列始终都是以 null 值写入，若为其他数，则没有意义，不建议配置。
 
-- #### name
+### name
 
   列的名字，若与 count 同时使用，比如 `"name"："current", "count":3`, 则 3 个列的名字分别为 current, current_2. current_3
 
-- #### sql
+### sql
 
   对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
   替换为超级表中所有的子表名。
