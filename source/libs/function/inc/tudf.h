@@ -32,6 +32,7 @@ extern "C" {
 enum {
   UDFC_CODE_STOPPING = -1,
   UDFC_CODE_RESTARTING = -2,
+  UDFC_CODE_PIPE_READ_ERR = -3,
 };
 
 /**
