@@ -49,7 +49,7 @@ void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
 int     vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version);
-int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg **pRsp);
+int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);

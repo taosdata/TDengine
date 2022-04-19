@@ -16,7 +16,7 @@
 #include "vnodeInt.h"
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq);
-static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg **pRsp);
+static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
 static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
 
@@ -41,7 +41,7 @@ int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
   return 0;
 }
 
-int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg **pRsp) {
+int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp) {
   void *ptr = NULL;
   int   ret;
 
@@ -65,6 +65,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       ret = vnodeProcessCreateStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
       return 0;
     case TDMT_VND_CREATE_TABLE:
+      pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
       return vnodeProcessCreateTbReq(pVnode, pMsg, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pRsp);
     case TDMT_VND_ALTER_STB:
       return vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
@@ -74,14 +75,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_DROP_TABLE:
       break;
     case TDMT_VND_SUBMIT:
-      /*printf("vnode %d write data %ld\n", TD_VID(pVnode), ver);*/
-      if (pVnode->config.streamMode == 0) {
-        *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
-        (*pRsp)->handle = pMsg->handle;
-        (*pRsp)->ahandle = pMsg->ahandle;
-        return vnodeProcessSubmitReq(pVnode, ptr, *pRsp);
-      }
-      break;
+      pRsp->msgType = TDMT_VND_SUBMIT_RSP;
+      return vnodeProcessSubmitReq(pVnode, ptr, pRsp);
     case TDMT_VND_MQ_SET_CONN: {
       if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
@@ -218,7 +213,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
   return 0;
 }
 
-static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg **pRsp) {
+static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp) {
   SVCreateTbBatchReq vCreateTbBatchReq = {0};
   SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
   tDeserializeSVCreateTbBatchReq(pReq, &vCreateTbBatchReq);
@@ -270,12 +265,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
     taosArrayDestroy(vCreateTbBatchRsp.rspList);
 
-    *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
-    (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
-    (*pRsp)->pCont = msg;
-    (*pRsp)->contLen = contLen;
-    (*pRsp)->handle = pMsg->handle;
-    (*pRsp)->ahandle = pMsg->ahandle;
+    pRsp->pCont = msg;
+    pRsp->contLen = contLen;
   }
 
   return 0;
@@ -308,7 +299,6 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg
   }
 
   // encode the response (TODO)
-  pRsp->msgType = TDMT_VND_SUBMIT_RSP;
   pRsp->pCont = rpcMallocCont(sizeof(SSubmitRsp));
   memcpy(pRsp->pCont, &rsp, sizeof(rsp));
   pRsp->contLen = sizeof(SSubmitRsp);
