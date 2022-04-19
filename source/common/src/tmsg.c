@@ -3097,6 +3097,47 @@ int32_t tDeserializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
   return 0;
 }
 
+int32_t tSerializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->statusCode) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->detailLen) < 0) return -1;
+  if (pRsp->detailLen > 0) {
+    if (tEncodeCStr(&encoder, pRsp->details) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp *pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->statusCode) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->detailLen) < 0) return -1;
+  if (pRsp->detailLen > 0) {
+    pRsp->details = taosMemoryCalloc(1, pRsp->detailLen);
+    if (pRsp->details == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    if (tDecodeCStrTo(&decoder, pRsp->details) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSServerStatusRsp(SServerStatusRsp *pRsp) { taosMemoryFree(pRsp->details); }
+
 int32_t tEncodeSMqOffset(SCoder *encoder, const SMqOffset *pOffset) {
   if (tEncodeI32(encoder, pOffset->vgId) < 0) return -1;
   if (tEncodeI64(encoder, pOffset->offset) < 0) return -1;

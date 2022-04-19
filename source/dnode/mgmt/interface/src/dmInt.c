@@ -136,27 +136,68 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
 }
 
-void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
-  SStartupReq *pStartup = &pDnode->startup;
+void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc, bool finished) {
+  SStartupInfo *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  pStartup->finished = 0;
+  pStartup->finished = false;
 }
 
-static void dmGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
+static void dmGetStartup(SDnode *pDnode, SStartupInfo *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupInfo));
   pStartup->finished = (pDnode->status == DND_STAT_RUNNING);
 }
 
-void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("startup req is received");
-  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
-  dmGetStartup(pDnode, pStartup);
+static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
+  if (pDnode->status == DND_STAT_INIT) {
+    pStatus->statusCode = TSDB_SRV_STATUS_NETWORK_OK;
+  } else if (pDnode->status != DND_STAT_STOPPED) {
+    pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
+  } else {
+    pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
+  }
 
-  dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
-  SRpcMsg rpcRsp = {
-      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
-  rpcSendResponse(&rpcRsp);
+  if (pStatus->statusCode == TSDB_SRV_STATUS_NETWORK_OK) {
+    SStartupInfo *pStartup = &pDnode->startup;
+
+    int32_t len = strlen(pStartup->name) + strlen(pStartup->desc) + 24;
+    pStatus->details = taosMemoryCalloc(1, len);
+    if (pStatus->details != NULL) {
+      pStatus->detailLen = snprintf(pStatus->details, len - 1, "%s: %s", pStartup->name, pStartup->desc) + 1;
+    }
+  }
+
+  if (pStatus->statusCode == TSDB_SRV_STATUS_SERVICE_OK) {
+    // check the status of mnode and vnode
+  }
+}
+
+void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
+  dDebug("server status req is received");
+
+  SServerStatusRsp statusRsp = {0};
+  dmGetServerStatus(pDnode, &statusRsp);
+
+  SRpcMsg rspMsg = {.handle = pReq->handle, .handle = pReq->ahandle};
+  int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
+  if (rspLen < 0) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspLen;
+
+_OVER:
+  rpcSendResponse(&rspMsg);
+  tFreeSServerStatusRsp(&statusRsp);
 }
 
 void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {

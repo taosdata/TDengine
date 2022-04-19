@@ -256,7 +256,7 @@ static int32_t dmStartNodes(SDnode *pDnode) {
   }
 
   dInfo("TDengine initialized successfully");
-  dmReportStartup(pDnode, "TDengine", "initialized successfully");
+  dmReportStartup(pDnode, "TDengine", "initialized successfully", true);
   return 0;
 }
 

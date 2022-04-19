@@ -1071,10 +1071,14 @@ int32_t tSerializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
 int32_t tDeserializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
 
 typedef struct {
-  int8_t finished;
-  char   name[TSDB_STEP_NAME_LEN];
-  char   desc[TSDB_STEP_DESC_LEN];
-} SStartupReq;
+  int32_t statusCode;
+  int32_t detailLen;
+  char*   details;
+} SServerStatusRsp;
+
+int32_t tSerializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp* pRsp);
+int32_t tDeserializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp* pRsp);
+void    tFreeSServerStatusRsp(SServerStatusRsp* pRsp);
 
 /**
  * The layout of the query message payload is as following:

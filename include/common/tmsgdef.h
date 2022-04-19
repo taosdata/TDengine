@@ -87,7 +87,7 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_DND_SYNC_VNODE, "dnode-sync-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_COMPACT_VNODE, "dnode-compact-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CONFIG_DNODE, "dnode-config-dnode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_DND_NETWORK_TEST, "dnode-nettest", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_SERVER_STATUS, "dnode-server-status", NULL, NULL)
 
   // Requests handled by MNODE
   TD_NEW_MSG_SEG(TDMT_MND_MSG)
