@@ -121,7 +121,7 @@ int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deploye
   int32_t len = 0;
   int32_t maxLen = 4096;
   char   *content = taosMemoryCalloc(1, maxLen + 1);
-  
+
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
 

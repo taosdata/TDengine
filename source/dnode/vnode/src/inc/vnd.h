@@ -31,6 +31,8 @@ extern "C" {
 // clang-format on
 
 // vnodeCfg ====================
+int vnodeEncodeConfig(const void* pObj, SJson* pJson);
+int vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
 // vnodeModule ====================
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
