@@ -34,8 +34,8 @@ typedef struct {
 int32_t gVarCharSize = 10;
 int32_t gVarCharLen = 5;
 
-int insertAllCols(TAOS_STMT *stmt);
-int insertSpecifyCols(TAOS_STMT *stmt);
+int insertMBSETest(TAOS_STMT *stmt);
+int insertMBMETest(TAOS_STMT *stmt);
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t longColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
@@ -53,16 +53,17 @@ typedef struct {
   int32_t  tblNum;
   int32_t  rowNum;
   int32_t  bindRowNum;
-  int32_t  bindColNum;
+  int32_t  bindColNum;      // equal colNum in full column case
   int32_t  bindNullNum;
   int32_t  runTimes;
 } CaseCfg;
 
 CaseCfg gCase[] = {
-//  {"insert:all columns", tListLen(shortColList), shortColList, false, true, insertAllCols,  1, 10, 10, 2, 0, 10},
-//  {"insert:all columns", tListLen(shortColList), shortColList, false, true, insertAllCols, 10, 100, 10, 2, 0, 10},
-  {"insert:all columns", tListLen(longColList), longColList, false, true, insertAllCols, 10, 10, 2, 14, 0, 1},
-//  {"insert:all columns", tListLen(longColList), longColList, false, false, insertSpecifyCols, 10, 10, 2, 6, 0, 1},
+//  {"insert:MBSE", tListLen(shortColList), shortColList, false, true, insertMBSETest,  1, 10, 10, 0, 0, 10},
+//  {"insert:MBSE", tListLen(shortColList), shortColList, false, true, insertMBSETest, 10, 100, 10, 0, 0, 10},
+//  {"insert:MBSE", tListLen(longColList), longColList, false, true, insertMBSETest, 10, 10, 2, 0, 0, 1},
+//  {"insert:MBSE", tListLen(longColList), longColList, false, false, insertMBSETest, 10, 10, 2, 6, 0, 1},
+  {"insert:MBSE", tListLen(longColList), longColList, false, false, insertMBMETest, 10, 10, 2, 6, 0, 1},
 };
 
 CaseCfg *gCurCase = NULL;
@@ -111,7 +112,7 @@ bool colExists(TAOS_BIND_v2* pBind, int32_t dataType) {
   }
 }
 
-void generateSql(BindData *data) {
+void generateInsertSQL(BindData *data) {
   int32_t len = sprintf(data->sql, "insert into %s ", (gCurCase->tblNum > 1 ? "? " : "m0 "));
   if (!gCurCase->fullCol) {
     len += sprintf(data->sql + len, "(");
@@ -184,12 +185,13 @@ void generateSql(BindData *data) {
 
 void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
   if (bindIdx < gCurCase->bindColNum) {
-    if (colIdx) {
-      if (!gCurCase->multiCol) {
-        *dataType = TSDB_DATA_TYPE_INT;
-        return;
-      }
-      
+    if (gCurCase->fullCol) {
+      *dataType = gCurCase->colList[bindIdx];
+      return;
+    } else if (0 == colIdx) {
+      *dataType = TSDB_DATA_TYPE_TIMESTAMP;
+      return;
+    } else {
       while (true) {
         *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
         if (*dataType == TSDB_DATA_TYPE_JSON || *dataType == TSDB_DATA_TYPE_DECIMAL 
@@ -260,7 +262,7 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       break;
     case TSDB_DATA_TYPE_VARCHAR:
       data->pBind[bindIdx].buffer_length = gVarCharSize;
-      data->pBind[bindIdx].buffer = data->binaryData + rowIdx;
+      data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       data->pBind[bindIdx].length = data->binaryLen;
       data->pBind[bindIdx].is_null = data->isNull;
       break;
@@ -272,7 +274,7 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       break;
     case TSDB_DATA_TYPE_NCHAR:
       data->pBind[bindIdx].buffer_length = gVarCharSize;
-      data->pBind[bindIdx].buffer = data->binaryData + rowIdx;
+      data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       data->pBind[bindIdx].length = data->binaryLen;
       data->pBind[bindIdx].is_null = data->isNull;
       break;
@@ -364,7 +366,7 @@ int32_t prepareData(BindData *data) {
     }
   }
 
-  generateSql(data);
+  generateInsertSQL(data);
   
   return 0;
 }
@@ -389,7 +391,7 @@ void destroyData(BindData *data) {
 }
 
 
-int insertAllCols(TAOS_STMT *stmt) {
+int insertMBSETest(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
@@ -435,7 +437,7 @@ int insertAllCols(TAOS_STMT *stmt) {
 }
 
 
-int insertSpecifyCols(TAOS_STMT *stmt) {
+int insertMBMETest(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
@@ -470,12 +472,13 @@ int insertSpecifyCols(TAOS_STMT *stmt) {
         exit(1);
       }
     }
+
+    if (taos_stmt_execute(stmt) != 0) {
+      printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
   }
 
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
-    exit(1);
-  }
 
   return 0;
 }
@@ -4763,9 +4766,9 @@ void prepareCheckResult(TAOS     *taos) {
   char buf[32];
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
     if (gCurCase->tblNum > 1) {
-      sprintf(buf, "m%d", t);
+      sprintf(buf, "t%d", t);
     } else {
-      sprintf(buf, "m%d", 0);
+      sprintf(buf, "t%d", 0);
     }
 
     prepareCheckResultImpl(taos, buf, 1, gCurCase->rowNum);
@@ -4924,6 +4927,9 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
   if (stable) {
     blen += sprintf(buf + blen, "tags (");
     for (int c = 0; c < colNum; ++c) {
+      if (c > 0) {
+        blen += sprintf(buf + blen, ",");
+      }
       switch (colList[c]) {  
         case TSDB_DATA_TYPE_BOOL:
           blen += sprintf(buf + blen, "tbooldata bool");
@@ -4979,6 +4985,10 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
   blen += sprintf(buf + blen, " (");
   
   for (int c = 0; c < colNum; ++c) {
+    if (c > 0) {
+      blen += sprintf(buf + blen, ",");
+    }
+  
     switch (colList[c]) {  
       case TSDB_DATA_TYPE_BOOL:
         blen += sprintf(buf + blen, "booldata bool");
@@ -5005,7 +5015,7 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         blen += sprintf(buf + blen, "binarydata binary(%d)", gVarCharSize);
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
-        blen += sprintf(buf + blen, "ts ts");
+        blen += sprintf(buf + blen, "ts timestamp");
         break;
       case TSDB_DATA_TYPE_NCHAR:
         blen += sprintf(buf + blen, "nchardata nchar(%d)", gVarCharSize);
@@ -5029,6 +5039,8 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
   }
 
   blen += sprintf(buf + blen, ")");
+
+  printf("Create SQL:%s\n", buf);
 }
 
 void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int autoCreate) {
@@ -5087,8 +5099,12 @@ void* runcase(TAOS *taos) {
     gCurCase = &gCase[i];
     printf("Case %d Begin\n", i);
 
+    if (gCurCase->fullCol) {
+      gCurCase->bindColNum = gCurCase->colNum;
+    }
+    
     for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
-      prepare(taos, tListLen(gCurCase->colList), gCurCase->colList, gCurCase->autoCreate);
+      prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->autoCreate);
       
       stmt = taos_stmt_init(taos);
       if (NULL == stmt) {
