@@ -172,6 +172,8 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 
 extern int32_t sDebugFlag;
 
+const char *syncStr(ESyncState state);
+
 #ifdef __cplusplus
 }
 #endif
