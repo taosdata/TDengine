@@ -108,7 +108,7 @@ TEST_F(DndTestVnode, 02_Alter_Vnode) {
     void*   pReq = rpcMallocCont(contLen);
     tSerializeSCreateVnodeReq(pReq, contLen, &alterReq);
 
-    SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_VNODE, pReq, contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_VND_ALTER_VNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }

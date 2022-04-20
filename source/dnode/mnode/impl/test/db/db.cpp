@@ -45,7 +45,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     createReq.maxRows = 4096;
     createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
-    createReq.ttl = 0;
+    createReq.ttl = 1;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
@@ -139,7 +139,7 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     createReq.maxRows = 4096;
     createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
-    createReq.ttl = 0;
+    createReq.ttl = 1;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;

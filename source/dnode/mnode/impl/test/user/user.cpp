@@ -303,6 +303,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     createReq.strict = 1;
     createReq.update = 0;
     createReq.cacheLastRow = 0;
+    createReq.ttl = 1;
     createReq.ignoreExist = 1;
 
     int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);

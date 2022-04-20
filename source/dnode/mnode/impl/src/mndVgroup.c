@@ -32,7 +32,6 @@ static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
 static int32_t mndProcessCreateVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessAlterVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessDropVnodeRsp(SNodeMsg *pRsp);
-static int32_t mndProcessSyncVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessCompactVnodeRsp(SNodeMsg *pRsp);
 
 static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
@@ -50,10 +49,9 @@ int32_t mndInitVgroup(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndVgroupActionUpdate};
 
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndProcessCreateVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndProcessDropVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_SYNC_VNODE_RSP, mndProcessSyncVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_COMPACT_VNODE_RSP, mndProcessCompactVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_VNODE_RSP, mndProcessCompactVnodeRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -464,8 +462,6 @@ static int32_t mndProcessDropVnodeRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
-
-static int32_t mndProcessSyncVnodeRsp(SNodeMsg *pRsp) { return 0; }
 
 static int32_t mndProcessCompactVnodeRsp(SNodeMsg *pRsp) { return 0; }
 

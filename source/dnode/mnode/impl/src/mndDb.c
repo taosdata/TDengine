@@ -673,6 +673,7 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgO
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  contLen += +sizeof(SMsgHead);
 
   void *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
@@ -680,7 +681,11 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgO
     return NULL;
   }
 
-  tSerializeSAlterVnodeReq(pReq, contLen, &alterReq);
+  SMsgHead *pHead = pReq;
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
+
+  tSerializeSAlterVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &alterReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -701,7 +706,7 @@ static int32_t mndBuilAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 
     action.pCont = pReq;
     action.contLen = contLen;
-    action.msgType = TDMT_DND_ALTER_VNODE;
+    action.msgType = TDMT_VND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
       return -1;
@@ -1424,7 +1429,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *src = pDb->cfg.strict ? "strict" : "nostrict";
-    char        b[10 + VARSTR_HEADER_SIZE] = {0};
+    char        b[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)b, false);
