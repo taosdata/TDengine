@@ -19,14 +19,14 @@
 #include "thash.h"
 #include "ttypes.h"
 
+//#include "tfill.h"
 #include "function.h"
 #include "taggfunction.h"
-#include "tfill.h"
-#include "thistogram.h"
-#include "ttszip.h"
-#include "tpercentile.h"
 #include "tbuffer.h"
 #include "tcompression.h"
+#include "thistogram.h"
+#include "tpercentile.h"
+#include "ttszip.h"
 //#include "queryLog.h"
 #include "tdatablock.h"
 #include "tudf.h"
@@ -3681,7 +3681,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
           if (isNull(start, srcType) || isNull(end, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
+//            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
