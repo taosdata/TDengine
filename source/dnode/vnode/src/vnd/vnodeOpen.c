@@ -75,8 +75,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->path = (char *)&pVnode[1];
   strcpy(pVnode->path, path);
   pVnode->config = info.config;
-  pVnode->state.committed = info.state.committed;
-  pVnode->state.processed = pVnode->state.applied = pVnode->state.committed;
+  pVnode->state = info.state;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
 
@@ -171,3 +170,5 @@ void vnodeClose(SVnode *pVnode) {
 }
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
+
+void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) { pSnapshot->lastApplyIndex = pVnode->state.committed; }

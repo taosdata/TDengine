@@ -62,6 +62,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
+void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 
 // meta
 typedef struct SMeta      SMeta;  // todo: remove

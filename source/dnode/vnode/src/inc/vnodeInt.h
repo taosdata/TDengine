@@ -74,7 +74,7 @@ typedef struct {
 
 // SVState
 struct SVState {
-  int64_t processed;
+  // int64_t processed;
   int64_t committed;
   int64_t applied;
 };

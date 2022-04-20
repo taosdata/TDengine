@@ -23,6 +23,7 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
 static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
+#if 0
   SNodeMsg *pMsg;
   SRpcMsg  *pRpc;
 
@@ -40,6 +41,7 @@ int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
 
   walFsync(pVnode->pWal, false);
 
+#endif
   return 0;
 }
 
