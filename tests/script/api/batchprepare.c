@@ -34,8 +34,10 @@ typedef struct {
 int32_t gVarCharSize = 10;
 int32_t gVarCharLen = 5;
 
-int insertMBSETest(TAOS_STMT *stmt);
-int insertMBMETest(TAOS_STMT *stmt);
+int insertMBSETest1(TAOS_STMT *stmt);
+int insertMBSETest2(TAOS_STMT *stmt);
+int insertMBMETest1(TAOS_STMT *stmt);
+int insertMBMETest2(TAOS_STMT *stmt);
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t longColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
@@ -59,11 +61,17 @@ typedef struct {
 } CaseCfg;
 
 CaseCfg gCase[] = {
-//  {"insert:MBSE", tListLen(shortColList), shortColList, false, true, insertMBSETest,  1, 10, 10, 0, 0, 10},
-//  {"insert:MBSE", tListLen(shortColList), shortColList, false, true, insertMBSETest, 10, 100, 10, 0, 0, 10},
-//  {"insert:MBSE", tListLen(longColList), longColList, false, true, insertMBSETest, 10, 10, 2, 0, 0, 1},
-//  {"insert:MBSE", tListLen(longColList), longColList, false, false, insertMBSETest, 10, 10, 2, 6, 0, 1},
-  {"insert:MBME", tListLen(longColList), longColList, false, false, insertMBMETest, 10, 10, 2, 6, 0, 1},
+#if 0
+  {"insert:MBSE1", tListLen(shortColList), shortColList, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 10},
+  {"insert:MBSE1", tListLen(shortColList), shortColList, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 10},
+  {"insert:MBSE1", tListLen(longColList), longColList, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 1},
+  {"insert:MBSE1", tListLen(longColList), longColList, false, false, insertMBSETest1, 10, 10, 2, 6, 0, 1},
+#endif
+//  {"insert:MBSE2", tListLen(longColList), longColList, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 1},
+//  {"insert:MBSE2", tListLen(longColList), longColList, false, false, insertMBSETest2, 10, 10, 2, 6, 0, 1},
+//  {"insert:MBME1", tListLen(longColList), longColList, false, false, insertMBMETest1, 10, 10, 2, 6, 0, 1},
+    {"insert:MBME2", tListLen(longColList), longColList, false, false, insertMBMETest2, 10, 10, 2, 6, 0, 1},
+
 };
 
 CaseCfg *gCurCase = NULL;
@@ -113,7 +121,7 @@ bool colExists(TAOS_BIND_v2* pBind, int32_t dataType) {
 }
 
 void generateInsertSQL(BindData *data) {
-  int32_t len = sprintf(data->sql, "insert into %s ", (gCurCase->tblNum > 1 ? "? " : "m0 "));
+  int32_t len = sprintf(data->sql, "insert into %s ", (gCurCase->tblNum > 1 ? "? " : "t0 "));
   if (!gCurCase->fullCol) {
     len += sprintf(data->sql + len, "(");
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
@@ -391,7 +399,8 @@ void destroyData(BindData *data) {
 }
 
 
-int insertMBSETest(TAOS_STMT *stmt) {
+/* prepare [settbname [bind add]] exec */
+int insertMBSETest1(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
@@ -437,7 +446,55 @@ int insertMBSETest(TAOS_STMT *stmt) {
 }
 
 
-int insertMBMETest(TAOS_STMT *stmt) {
+/* prepare [settbname bind add] exec  */
+int insertMBSETest2(TAOS_STMT *stmt) {
+  BindData data = {0};
+  prepareData(&data);
+
+  printf("SQL: %s\n", data.sql);
+
+  int code = taos_stmt_prepare(stmt, data.sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+
+  for (int32_t b = 0; b <bindTimes; ++b) {
+    for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+      if (gCurCase->tblNum > 1) {
+        char buf[32];
+        sprintf(buf, "t%d", t);
+        code = taos_stmt_set_tbname(stmt, buf);
+        if (code != 0){
+          printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }  
+      }
+    
+      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+      
+      if (taos_stmt_add_batch(stmt)) {
+        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+    }
+  }
+
+  if (taos_stmt_execute(stmt) != 0) {
+    printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  return 0;
+}
+
+/* prepare [settbname [bind add] exec] */
+int insertMBMETest1(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
@@ -476,6 +533,53 @@ int insertMBMETest(TAOS_STMT *stmt) {
     if (taos_stmt_execute(stmt) != 0) {
       printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
       exit(1);
+    }
+  }
+
+
+  return 0;
+}
+
+/* prepare [settbname [bind add exec]] */
+int insertMBMETest2(TAOS_STMT *stmt) {
+  BindData data = {0};
+  prepareData(&data);
+
+  printf("SQL: %s\n", data.sql);
+  
+  int code = taos_stmt_prepare(stmt, data.sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+  for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+    if (gCurCase->tblNum > 1) {
+      char buf[32];
+      sprintf(buf, "t%d", t);
+      code = taos_stmt_set_tbname(stmt, buf);
+      if (code != 0){
+        printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }  
+    }
+    
+    for (int32_t b = 0; b <bindTimes; ++b) {
+      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+      
+      if (taos_stmt_add_batch(stmt)) {
+        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+
+      if (taos_stmt_execute(stmt) != 0) {
+        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
     }
   }
 
