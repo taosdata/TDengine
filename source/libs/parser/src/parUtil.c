@@ -262,7 +262,6 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
     j++;
   }
   dst[j] = '\0';
-  strtrim(dst);
   return j;
 }
 

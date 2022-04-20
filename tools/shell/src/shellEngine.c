@@ -761,7 +761,8 @@ static int calcColWidth(TAOS_FIELD *field, int precision) {
         return TMAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return TMAX(tsMaxBinaryDisplayWidth, width);
