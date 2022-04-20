@@ -263,6 +263,7 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   if (pHead->secured == 1) {
     // auth process in BG Thread
+    tTrace("server conn %p will be authed", pConn);
     uv_work_t* wreq = taosMemoryMalloc(sizeof(uv_work_t));
     wreq->data = pConn;
     uv_read_stop((uv_stream_t*)pConn->pTcp);
@@ -270,6 +271,7 @@ static void uvHandleReq(SSrvConn* pConn) {
     uv_queue_work(((SWorkThrdObj*)pConn->hostThrd)->loop, wreq, uvWorkDoTask, uvWorkAfterTask);
     return;
   }
+  tTrace("server conn %p already authed", pConn);
   uvHandleReqInternal(pConn);
 }
 
@@ -500,6 +502,7 @@ static int32_t uvDoAuth(uv_work_t* req) {
   memcpy(pConn->secret, uMsg->secret, tListLen(uMsg->secret));
 
   STrans* pTransInst = pConn->pTransInst;
+  tTrace("server conn %p user: %s", pConn, pConn->user);
   code = (*pTransInst->afp)(pTransInst->parent, pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
 
   int32_t tLen = htonl(pHead->msgLen);
