@@ -17,6 +17,11 @@
 
 #include "transComm.h"
 
+static void transInit();
+static void transCleanup();
+
+static TdThreadOnce transOnce = PTHREAD_ONCE_INIT;
+
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) = {
     transInitServer, transInitClient};
 
@@ -28,6 +33,8 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHan
 void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 void* rpcOpen(const SRpcInit* pInit) {
+  taosThreadOnce(&transOnce, transInit);
+
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
     return NULL;
@@ -131,8 +138,14 @@ void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   transSendRecv(shandle, ip, port, pMsg, pRsp);
 }
 
-void rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
-int  rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return transGetConnInfo((void*)thandle, pInfo); }
+void rpcSendResponse(const SRpcMsg* pMsg) {
+  //
+  transSendResponse(pMsg);
+}
+int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
+  // Get user/ip/port info
+  return transGetConnInfo((void*)thandle, pInfo);
+}
 
 void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
@@ -144,19 +157,32 @@ void rpcUnrefHandle(void* handle, int8_t type) {
   (*taosUnRefHandle[type])(handle);
 }
 
-void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { transRegisterMsg(msg); }
+void rpcRegisterBrokenLinkArg(SRpcMsg* msg) {
+  // register brokelink arg to nofity app when conn is broken
+  transRegisterMsg(msg);
+}
+
 void rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*transReleaseHandle[type])(handle);
 }
 
+// compatibillity interface, rename later
 int32_t rpcInit() {
-  // impl later
+  transInit();
   return 0;
 }
-void rpcCleanup(void) {
+void rpcCleanup() {
   // impl later
   return;
+}
+
+void transInit() {
+  int8_t sz = 2;
+  setenv("UV_THREADPOOL_SIZE", &sz, 1);
+}
+void transCleanup() {
+  // do nothing currently
 }
 
 #endif

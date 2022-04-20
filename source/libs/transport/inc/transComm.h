@@ -186,23 +186,23 @@ typedef enum { Normal, Quit, Release, Register } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
-#define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
+#define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
 
-#define RPC_MSG_OVERHEAD (sizeof(SRpcHead) + sizeof(SRpcDigest))
-#define rpcHeadFromCont(cont) ((SRpcHead*)((char*)cont - sizeof(SRpcHead)))
-#define rpcContFromHead(msg) (msg + sizeof(SRpcHead))
+#define RPC_MSG_OVERHEAD           (sizeof(SRpcHead) + sizeof(SRpcDigest))
+#define rpcHeadFromCont(cont)      ((SRpcHead*)((char*)cont - sizeof(SRpcHead)))
+#define rpcContFromHead(msg)       (msg + sizeof(SRpcHead))
 #define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
-#define rpcContLenFromMsg(msgLen) (msgLen - sizeof(SRpcHead))
-#define rpcIsReq(type) (type & 1U)
+#define rpcContLenFromMsg(msgLen)  (msgLen - sizeof(SRpcHead))
+#define rpcIsReq(type)             (type & 1U)
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
-#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead))
-#define transHeadFromCont(cont) ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg) (msg + sizeof(STransMsgHead))
+#define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
+#define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
+#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
-#define transContLenFromMsg(msgLen) (msgLen - sizeof(STransMsgHead));
-#define transIsReq(type) (type & 1U)
+#define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
+#define transIsReq(type)             (type & 1U)
 
 int       rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
 void      rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);

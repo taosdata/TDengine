@@ -136,6 +136,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
     uv_walk(loop, cliWalkCb, NULL); \
     uv_run(loop, UV_RUN_DEFAULT);   \
     uv_loop_close(loop);            \
+    uv_library_shutdown();          \
   } while (0);
 
 // snprintf may cause performance problem
@@ -221,10 +222,8 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
     }                                 \
   } while (0)
 
-#define CONN_NO_PERSIST_BY_APP(conn) \
-  (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
-#define CONN_RELEASE_BY_SERVER(conn) \
-  (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+#define CONN_NO_PERSIST_BY_APP(conn) (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
+#define CONN_RELEASE_BY_SERVER(conn) (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 
 #define REQUEST_NO_RESP(msg)         ((msg)->noResp == 1)
 #define REQUEST_PERSIS_HANDLE(msg)   ((msg)->persistHandle == 1)
@@ -299,9 +298,8 @@ void cliHandleResp(SCliConn* conn) {
     tDebug("%s cli conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
-  tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
-         TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
-         taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
+  tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn, TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr),
+         ntohs(conn->addr.sin_port), taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
 
   conn->secured = pHead->secured;
 
@@ -367,12 +365,10 @@ void cliHandleExcept(SCliConn* pConn) {
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
       transMsg.ahandle = transCtxDumpVal(&pConn->ctx, transMsg.msgType);
-      tDebug("%s cli conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle,
-             TMSG_INFO(transMsg.msgType));
+      tDebug("%s cli conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle, TMSG_INFO(transMsg.msgType));
       if (transMsg.ahandle == NULL) {
         transMsg.ahandle = transCtxDumpBrokenlinkVal(&pConn->ctx, (int32_t*)&(transMsg.msgType));
-        tDebug("%s cli conn %p construct ahandle %p due to brokenlink", CONN_GET_INST_LABEL(pConn), pConn,
-               transMsg.ahandle);
+        tDebug("%s cli conn %p construct ahandle %p due to brokenlink", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle);
       }
     } else {
       transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
@@ -615,6 +611,7 @@ void cliSend(SCliConn* pConn) {
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+
   pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
 
   int msgLen = transMsgLenFromCont(pMsg->contLen);
@@ -638,6 +635,7 @@ void cliSend(SCliConn* pConn) {
     msgLen += sizeof(STransUserMsg);
   }
 
+  pHead->code = htonl(0);
   pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
   pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
   pHead->msgType = pMsg->msgType;
@@ -645,9 +643,8 @@ void cliSend(SCliConn* pConn) {
   pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
-  tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
-         TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-         taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+  tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr),
+         ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -685,7 +682,7 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   destroyConnPool(pThrd->pool);
-  uv_timer_stop(&pThrd->timer);
+  // uv_timer_stop(&pThrd->timer);
   uv_walk(pThrd->loop, cliWalkCb, NULL);
 
   pThrd->quit = true;
