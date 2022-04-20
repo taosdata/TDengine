@@ -42,8 +42,8 @@ void test1() {
 
 void test2() {
   SyncApplyMsg *pMsg = createMsg();
-  uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)taosMemoryMalloc(len);
+  uint32_t      len = pMsg->bytes;
+  char *        serialized = (char *)taosMemoryMalloc(len);
   syncApplyMsgSerialize(pMsg, serialized, len);
   SyncApplyMsg *pMsg2 = syncApplyMsgBuild(pMsg->dataLen);
   syncApplyMsgDeserialize(serialized, len, pMsg2);
@@ -56,8 +56,8 @@ void test2() {
 
 void test3() {
   SyncApplyMsg *pMsg = createMsg();
-  uint32_t           len;
-  char *             serialized = syncApplyMsgSerialize2(pMsg, &len);
+  uint32_t      len;
+  char *        serialized = syncApplyMsgSerialize2(pMsg, &len);
   SyncApplyMsg *pMsg2 = syncApplyMsgDeserialize2(serialized, len);
   syncApplyMsgLog2((char *)"test3: syncApplyMsgSerialize2 -> syncApplyMsgDeserialize2 ", pMsg2);
 
@@ -68,7 +68,7 @@ void test3() {
 
 void test4() {
   SyncApplyMsg *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg       rpcMsg;
   syncApplyMsg2RpcMsg(pMsg, &rpcMsg);
   SyncApplyMsg *pMsg2 = (SyncApplyMsg *)taosMemoryMalloc(rpcMsg.contLen);
   syncApplyMsgFromRpcMsg(&rpcMsg, pMsg2);
@@ -81,7 +81,7 @@ void test4() {
 
 void test5() {
   SyncApplyMsg *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg       rpcMsg;
   syncApplyMsg2RpcMsg(pMsg, &rpcMsg);
   SyncApplyMsg *pMsg2 = syncApplyMsgFromRpcMsg2(&rpcMsg);
   syncApplyMsgLog2((char *)"test5: syncClientRequest2RpcMsg -> syncApplyMsgFromRpcMsg2 ", pMsg2);
@@ -93,13 +93,13 @@ void test5() {
 
 void test6() {
   SyncApplyMsg *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg       rpcMsg;
   syncApplyMsg2RpcMsg(pMsg, &rpcMsg);
   SyncApplyMsg *pMsg2 = syncApplyMsgFromRpcMsg2(&rpcMsg);
 
   SRpcMsg originalRpcMsg;
   syncApplyMsg2OriginalRpcMsg(pMsg2, &originalRpcMsg);
-  syncRpcMsgLog2((char*)"test6", &originalRpcMsg);
+  syncRpcMsgLog2((char *)"test6", &originalRpcMsg);
 
   rpcFreeCont(originalRpcMsg.pCont);
   rpcFreeCont(rpcMsg.pCont);
