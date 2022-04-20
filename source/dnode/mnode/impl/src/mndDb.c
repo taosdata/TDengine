@@ -762,27 +762,29 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
     goto GET_DB_CFG_OVER;
   }
 
-  cfgRsp.numOfVgroups   = pDb->cfg.numOfVgroups;
-  cfgRsp.cacheBlockSize = pDb->cfg.cacheBlockSize;
-  cfgRsp.totalBlocks    = pDb->cfg.totalBlocks;
-  cfgRsp.daysPerFile    = pDb->cfg.daysPerFile;
-  cfgRsp.daysToKeep0    = pDb->cfg.daysToKeep0;
-  cfgRsp.daysToKeep1    = pDb->cfg.daysToKeep1;
-  cfgRsp.daysToKeep2    = pDb->cfg.daysToKeep2;
-  cfgRsp.minRows        = pDb->cfg.minRows;
-  cfgRsp.maxRows        = pDb->cfg.maxRows;
-  cfgRsp.commitTime     = pDb->cfg.commitTime;
-  cfgRsp.fsyncPeriod    = pDb->cfg.fsyncPeriod;
-  cfgRsp.ttl            = pDb->cfg.ttl;
-  cfgRsp.walLevel       = pDb->cfg.walLevel;
-  cfgRsp.precision      = pDb->cfg.precision;
-  cfgRsp.compression    = pDb->cfg.compression;
-  cfgRsp.replications   = pDb->cfg.replications;
-  cfgRsp.quorum         = pDb->cfg.quorum;
-  cfgRsp.update         = pDb->cfg.update;
-  cfgRsp.cacheLastRow   = pDb->cfg.cacheLastRow;
-  cfgRsp.streamMode     = pDb->cfg.streamMode;
-  cfgRsp.singleSTable   = pDb->cfg.singleSTable;
+  cfgRsp.numOfVgroups    = pDb->cfg.numOfVgroups;
+  cfgRsp.cacheBlockSize  = pDb->cfg.cacheBlockSize;
+  cfgRsp.totalBlocks     = pDb->cfg.totalBlocks;
+  cfgRsp.daysPerFile     = pDb->cfg.daysPerFile;
+  cfgRsp.daysToKeep0     = pDb->cfg.daysToKeep0;
+  cfgRsp.daysToKeep1     = pDb->cfg.daysToKeep1;
+  cfgRsp.daysToKeep2     = pDb->cfg.daysToKeep2;
+  cfgRsp.minRows         = pDb->cfg.minRows;
+  cfgRsp.maxRows         = pDb->cfg.maxRows;
+  cfgRsp.commitTime      = pDb->cfg.commitTime;
+  cfgRsp.fsyncPeriod     = pDb->cfg.fsyncPeriod;
+  cfgRsp.ttl             = pDb->cfg.ttl;
+  cfgRsp.walLevel        = pDb->cfg.walLevel;
+  cfgRsp.precision       = pDb->cfg.precision;
+  cfgRsp.compression     = pDb->cfg.compression;
+  cfgRsp.replications    = pDb->cfg.replications;
+  cfgRsp.quorum          = pDb->cfg.quorum;
+  cfgRsp.update          = pDb->cfg.update;
+  cfgRsp.cacheLastRow    = pDb->cfg.cacheLastRow;
+  cfgRsp.streamMode      = pDb->cfg.streamMode;
+  cfgRsp.singleSTable    = pDb->cfg.singleSTable;
+  cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
+  cfgRsp.pRetensions     = pDb->cfg.pRetensions;
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
@@ -796,6 +798,8 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
 
   pReq->pRsp = pRsp;
   pReq->rspLen = contLen;
+
+  code = 0;
 
 GET_DB_CFG_OVER:
 
