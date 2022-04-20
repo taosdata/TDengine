@@ -184,19 +184,22 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
 #if 1
+    // sync integration
+
     taosGetQitem(qall, (void **)&pMsg);
+
+    rsp.code = 0;
+    rsp.pCont = NULL;
+    rsp.contLen = 0;
+    if (vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, version++, &rsp) < 0) {
+      rsp.code = terrno;
+      dTrace("vnodeProcessWriteReq error, code:%d", terrno);
+    }
 
     if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
       rsp.ahandle = pMsg->rpcMsg.ahandle;
       rsp.handle = pMsg->rpcMsg.handle;
-      rsp.code = 0;
-      rsp.pCont = NULL;
-      rsp.contLen = 0;
-
-      if (vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, version++, &rsp) < 0) {
-        rsp.code = terrno;
-        tmsgSendRsp(&rsp);
-      }
+      tmsgSendRsp(&rsp);
     }
 #endif
   }
