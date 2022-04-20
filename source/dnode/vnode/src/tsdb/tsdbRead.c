@@ -652,7 +652,7 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
   STbData** pMem = NULL;
   STbData** pIMem = NULL;
 
-  TSKEY tLastKey = 0;  /// keyToTkey(pCheckInfo->lastKey);
+  TSKEY tLastKey = keyToTkey(pCheckInfo->lastKey);
   if (pHandle->pTsdb->mem != NULL) {
     pMem = taosHashGet(pHandle->pTsdb->mem->pHashIdx, &pCheckInfo->tableId, sizeof(pCheckInfo->tableId));
     if (pMem != NULL) {
