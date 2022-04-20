@@ -137,6 +137,12 @@ class TDTestCase:
         tdSql.query("select now() -1b from normaltb")
         tdSql.checkRows(3)
 
+        tdSql.query("select timezone() from normaltb where ts=today()")
+        tdSql.checkRows(1)
+
+        # tdSql.query("select timezone() from normaltb where ts=now()")
+        # tdSql.checkRows(0)
+
 
 
         # tdLog.printNoPrefix("==========step3:create super table==========")
@@ -247,13 +253,6 @@ class TDTestCase:
         # tdSql.checkRows(1)
         # tdSql.checkData(0,0,100)
 
-
-        
-
-
-        
-        
-        # tdSql.execute()
 
     def stop(self):
         tdSql.close()
