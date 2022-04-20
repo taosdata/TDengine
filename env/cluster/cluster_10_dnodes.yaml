@@ -1,6 +1,6 @@
 settings:
   - name: taosd
-    fqdn: [dnode_1 , dnode_2 , dnode_3 , dnode_4, dnode_5]
+    fqdn: [dnode_1 , dnode_2 , dnode_3 , dnode_4, dnode_5,dnode_6 ,dnode_7, dnode_8, dnode_9, dnode_10 ]
     labels: [service]
     spec:
       version: 2.4.0.12  # 默认最新版
@@ -42,8 +42,43 @@ settings:
             logDir: /data/run/dnode5/log
             numOfMnodes: 3
             debugFlag: 135
+        - endpoint: dnode_6:6030
+          config_dir: /data/run/dnode6/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode6/data
+            logDir: /data/run/dnode6/log
+            numOfMnodes: 3
+            debugFlag: 135
+        - endpoint: dnode_7:6030
+          config_dir: /data/run/dnode7/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode7/data
+            logDir: /data/run/dnode7/log
+            numOfMnodes: 3
+            debugFlag: 135
+        - endpoint: dnode_8:6030
+          config_dir: /data/run/dnode8/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode8/data
+            logDir: /data/run/dnode8/log
+            numOfMnodes: 3
+            debugFlag: 135
+        - endpoint: dnode_9:6030
+          config_dir: /data/run/dnode9/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode9/data
+            logDir: /data/run/dnode9/log
+            numOfMnodes: 3
+            debugFlag: 135
+        - endpoint: dnode_10:6030
+          config_dir: /data/run/dnode10/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode10/data
+            logDir: /data/run/dnode10/log
+            numOfMnodes: 3
+            debugFlag: 135
   - name: taospy
-    fqdn: [dnode_1 ,dnode_2 , dnode_3, dnode_4, dnode_5]
+    fqdn: [dnode_1 , dnode_2 , dnode_3 , dnode_4, dnode_5,dnode_6 ,dnode_7, dnode_8, dnode_9, dnode_10 ]
     labels: [client]
     spec:
       version: 2.2.0
