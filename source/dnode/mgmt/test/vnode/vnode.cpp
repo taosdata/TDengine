@@ -47,7 +47,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replica = 1;
-    createReq.quorum = 1;
+    createReq.strict = 1;
     createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.selfIndex = 0;
@@ -94,7 +94,7 @@ TEST_F(DndTestVnode, 02_Alter_Vnode) {
     alterReq.precision = 0;
     alterReq.compression = 2;
     alterReq.replica = 1;
-    alterReq.quorum = 1;
+    alterReq.strict = 1;
     alterReq.update = 0;
     alterReq.cacheLastRow = 0;
     alterReq.selfIndex = 0;

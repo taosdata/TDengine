@@ -265,11 +265,12 @@ typedef struct {
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
   int8_t  singleSTable;
+  int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
 } SDbCfg;
@@ -283,7 +284,6 @@ typedef struct {
   int64_t  uid;
   int32_t  cfgVersion;
   int32_t  vgVersion;
-  int8_t   hashMethod;  // default is 1
   SDbCfg   cfg;
   SRWLatch lock;
 } SDbObj;

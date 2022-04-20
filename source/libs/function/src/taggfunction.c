@@ -4034,8 +4034,8 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
 
-    int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
-    if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+    int32_t maxSteps = TSDB_MAX_MAXROWS_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
+    if (TSDB_MAX_MAXROWS_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
       ++maxSteps;
     }
     pDist->dataBlockInfos = taosArrayInit(maxSteps, sizeof(SFileBlockInfo));

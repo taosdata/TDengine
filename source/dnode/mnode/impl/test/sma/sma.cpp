@@ -54,7 +54,7 @@ void* MndTestSma::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.precision = 0;
   createReq.compression = 2;
   createReq.replications = 1;
-  createReq.quorum = 1;
+  createReq.strict = 1;
   createReq.update = 0;
   createReq.cacheLastRow = 0;
   createReq.ignoreExist = 1;

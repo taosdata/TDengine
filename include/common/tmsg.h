@@ -509,7 +509,7 @@ typedef struct {
   int8_t  precision;  // time resolution
   int8_t  compression;
   int8_t  replications;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
@@ -531,7 +531,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t fsyncPeriod;
   int8_t  walLevel;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  cacheLastRow;
   int8_t  replications;
 } SAlterDbReq;
@@ -604,7 +604,7 @@ typedef struct {
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
@@ -639,10 +639,10 @@ void    tFreeSUseDbBatchRsp(SUseDbBatchRsp* pRsp);
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
-} SSyncDbReq, SCompactDbReq;
+} SCompactDbReq;
 
-int32_t tSerializeSSyncDbReq(void* buf, int32_t bufLen, SSyncDbReq* pReq);
-int32_t tDeserializeSSyncDbReq(void* buf, int32_t bufLen, SSyncDbReq* pReq);
+int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
+int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -814,7 +814,7 @@ typedef struct {
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
-  int8_t   quorum;
+  int8_t   strict;
   int8_t   update;
   int8_t   cacheLastRow;
   int8_t   replica;

@@ -205,7 +205,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.walLevel = pDb->cfg.walLevel;
   createReq.precision = pDb->cfg.precision;
   createReq.compression = pDb->cfg.compression;
-  createReq.quorum = pDb->cfg.quorum;
+  createReq.strict = pDb->cfg.strict;
   createReq.update = pDb->cfg.update;
   createReq.cacheLastRow = pDb->cfg.cacheLastRow;
   createReq.replica = pVgroup->replica;
@@ -213,7 +213,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.streamMode = pVgroup->streamMode;
   createReq.hashBegin = pVgroup->hashBegin;
   createReq.hashEnd = pVgroup->hashEnd;
-  createReq.hashMethod = pDb->hashMethod;
+  createReq.hashMethod = pDb->cfg.hashMethod;
   createReq.numOfRetensions = pDb->cfg.numOfRetensions;
   createReq.pRetensions = pDb->cfg.pRetensions;
 

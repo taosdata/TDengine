@@ -50,7 +50,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
-    createReq.quorum = 1;
+    createReq.strict = 1;
     createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;
@@ -82,7 +82,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     alterdbReq.daysToKeep2 = 500;
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
-    alterdbReq.quorum = 2;
+    alterdbReq.strict = 2;
     alterdbReq.cacheLastRow = 1;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
@@ -144,7 +144,7 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
-    createReq.quorum = 1;
+    createReq.strict = 1;
     createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;
