@@ -1,11 +1,9 @@
 
-## 配置 StatsD
-
-在 `config.js` 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+在 `config.js` 文件中增加如下内容后启动 StatsD，其中 `taosAdapter host` 和 `port` 请填写 taosAdapter 配置的实际值：
 
 ```
 backends 部分添加 "./backends/repeater"
-repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
+repeater 部分添加 { host:'<taosAdapter host>', port: <port for StatsD>}
 ```
 
 示例配置文件：
@@ -17,8 +15,4 @@ port: 8125
 , repeater: [{ host: '127.0.0.1', port: 6044}]
 }
 ```
-
-## 验证方法
-
-重启 StatsD 后可通过查询 TDengine 中 taosAdapter 参数指定的数据库来验证 StatsD 写入的数据。
 

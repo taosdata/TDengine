@@ -10,8 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## 安装
 
-TDengine 包括服务端、命令行程序 (CLI) 和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接 TDengine，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式, taosAdapter 需要手动启动。
-2.4 之前的版本中 TDengine 服务端，以及所有服务端 lite 版，均使用由 taosd 内置的 http 服务。
+TDengine 完整的软件包包括服务端(taosd)、用于与第三方系统对接并提供RESTful接口的taosAdapter、应用驱动(taosc)、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端taosd、taosAdapter仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 RESTful接口外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTfule 接口均由 taosd 内置的 http 服务提供。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
@@ -84,7 +83,7 @@ systemctl status taosd
 
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
 - 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting，将其设为 0，就可将其关闭。
-- TDengine 采用 FQDN（一般就是 hostname）作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 hostname， 在 TDengine CLI 运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
+- TDengine 采用 FQDN（一般就是 hostname）作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 FQDN，在 TDengine CLI 或应用运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 
 TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 Linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
