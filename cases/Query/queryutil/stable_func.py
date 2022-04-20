@@ -96,7 +96,6 @@ class TDFunction():
     def int_cloumn_n(self):  
         # support all int type \ double type              
         hanshu = ['TOP','BOTTOM']       
-        #column = ['(q_bigint,1)','(q_smallint,20)','(q_tinyint,40)','(q_int,60)','(q_float,80)','(q_double,100)']  
         column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
@@ -114,7 +113,29 @@ class TDFunction():
     def int_cloumn_regular_only(self):   
         # not support stable, if support should together with groupby tbname.  support all int type \ double type \ 
         # TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE/INTERP/Elapsed are not allowed to apply to super table directly 
-        hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']        
+        hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']  
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn_regular_only
+    
+    def int_cloumn_regular_only_1(self):   
+        # 为了支持interval，分开
+        hanshu = ['TWA']      
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn_regular_only
+    def int_cloumn_regular_only_2(self):   
+        # 为了支持interval，分开成1-支持和2-不支持
+        hanshu = ['IRATE']      
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn_regular_only
+    def int_cloumn_regular_only_3(self):   
+        hanshu = ['DIFF','INTERP'] #diff放后面 #CSUM可以和STATE_WINDOW结合 , 有单独的int_cloumn_csum，暂时不考虑csum
+        hanshu = ['INTERP']  
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
@@ -242,7 +263,13 @@ class TDFunction():
         elif i == 2:
             func_stable_special = self.only_inter_query()              
         elif i == 3:
-            func_stable_special = self.int_cloumn_regular_only()            
+            func_stable_special = self.int_cloumn_regular_only()  
+        elif i == 31:
+            func_stable_special = self.int_cloumn_regular_only_1() 
+        elif i == 32:
+            func_stable_special = self.int_cloumn_regular_only_2()    
+        elif i == 33:
+            func_stable_special = self.int_cloumn_regular_only_3() 
         elif i == 4:
             func_stable_special = self.floor_ceil_round()
         elif i == 5:
@@ -783,7 +810,7 @@ class TDFunction():
         
         return only_inter_query 
 
-    def int_cloumn_regular_only_0(self):   
+    def int_cloumn_regular_only_error_0(self):   
         # not support stable, if support should together with groupby tbname.  support all int type \ double type \ 
         # TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE/INTERP/Elapsed are not allowed to apply to super table directly 
         hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']  
@@ -793,7 +820,7 @@ class TDFunction():
         
         return int_cloumn_regular_only
         
-    def int_cloumn_regular_only_1(self):   
+    def int_cloumn_regular_only_error_1(self):   
         # not support stable,  support all int type \ double type \ 
         hanshu = ['LEASTSQUARES']        
         column = ['(q_bigint,1,1)','(q_smallint,10,10)','(q_tinyint,100,100)','(q_int,1,10)','(q_float,10,100)','(q_double,1,100)'] 
@@ -813,9 +840,9 @@ class TDFunction():
         elif i == 4:
             func_stable_error_all = self.only_inter_query_2()
         elif i == 5:
-            func_stable_error_all = self.int_cloumn_regular_only_0()
+            func_stable_error_all = self.int_cloumn_regular_only_error_0()
         elif i == 6:
-            func_stable_error_all = self.int_cloumn_regular_only_1()
+            func_stable_error_all = self.int_cloumn_regular_only_error_1()
 
         return func_stable_error_all
    
