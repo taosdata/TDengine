@@ -113,6 +113,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
                             0) < 0) {
       }
     } break;
+    case TDMT_VND_ALTER_VNODE:
+      break;
     default:
       ASSERT(0);
       break;

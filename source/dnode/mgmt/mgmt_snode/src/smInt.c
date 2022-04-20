@@ -60,11 +60,13 @@ int32_t smOpen(SMgmtWrapper *pWrapper) {
     dError("failed to open snode since %s", terrstr());
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "snode-impl", "initialized");
 
   if (smStartWorker(pMgmt) != 0) {
     dError("failed to start snode worker since %s", terrstr());
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "snode-worker", "initialized");
 
   return 0;
 }

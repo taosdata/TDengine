@@ -45,7 +45,7 @@ sql explain select * from information_schema.user_stables;
 sql explain select count(*),sum(f1) from tb1;
 sql explain select count(*),sum(f1) from st1;
 sql explain select count(*),sum(f1) from st1 group by f1;
-sql explain select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
+#sql explain select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
 sql explain select min(f1) from st1 interval(1m, 2a) sliding(30s); 
 
 print ======== step3 
@@ -65,7 +65,7 @@ sql explain analyze select * from information_schema.user_stables;
 sql explain analyze select count(*),sum(f1) from tb1;
 sql explain analyze select count(*),sum(f1) from st1;
 sql explain analyze select count(*),sum(f1) from st1 group by f1;
-sql explain analyze select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
+#sql explain analyze select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
 sql explain analyze select min(f1) from st1 interval(3m, 2a) sliding(1m); 
 
 print ======== step5 
@@ -78,7 +78,7 @@ sql explain analyze verbose true select * from information_schema.user_stables;
 sql explain analyze verbose true select count(*),sum(f1) from tb1;
 sql explain analyze verbose true select count(*),sum(f1) from st1;
 sql explain analyze verbose true select count(*),sum(f1) from st1 group by f1;
-sql explain analyze verbose true select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
+#sql explain analyze verbose true select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
 sql explain analyze verbose true select ts from tb1 where f1 > 0;
 sql explain analyze verbose true select f1 from st1 where f1 > 0 and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00';
 sql explain analyze verbose true select * from information_schema.user_stables where db_name='db2';

@@ -75,7 +75,7 @@ static const SInfosTableSchema userDBSchema[] = {
     {.name = "vgroups", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "ntables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "replica", .bytes = 2, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "quorum", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "strict", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "days", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "cache", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
