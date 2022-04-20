@@ -441,14 +441,14 @@ static int32_t mndProcessRetrieveFuncReq(SNodeMsg *pReq) {
     funcInfo.signature = pFunc->signature;
     funcInfo.commentSize = pFunc->commentSize;
     funcInfo.codeSize = pFunc->codeSize;
-    funcInfo.pCode = taosMemoryCalloc(1, sizeof(funcInfo.codeSize));
+    funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
     if (funcInfo.pCode == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto RETRIEVE_FUNC_OVER;
     }
     memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
     if (funcInfo.commentSize > 0) {
-      funcInfo.pComment = taosMemoryCalloc(1, sizeof(funcInfo.commentSize));
+      funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
       if (funcInfo.pComment == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         goto RETRIEVE_FUNC_OVER;
