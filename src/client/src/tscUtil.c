@@ -4148,6 +4148,42 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
     return;
   }
 
+  // aggregate results merging occurs in client, intermediate results passed
+  // to client, the size of result may differ from the size of original column
+  SSqlCmd *pCmd = &pSql->cmd;
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
+  SQueryInfo *pParentQueryInfo = pParentSql->cmd.pQueryInfo;
+  SFieldInfo *pFieldInfo = &pParentQueryInfo->fieldsInfo;
+  int32_t num1 = (int32_t)taosArrayGetSize(pQueryInfo->exprList);
+  int32_t num2 = (int32_t)taosArrayGetSize(pParentQueryInfo->exprList);
+  for (int32_t j = 0; j < num1; ++j) {
+    SExprInfo *p1 = taosArrayGetP(pQueryInfo->exprList, j);
+    if (p1->base.functionId >= 0) {
+      continue;
+    }
+
+    for (int32_t k = 0; k < num2; ++k) {
+      SExprInfo *p2 = taosArrayGetP(pParentQueryInfo->exprList, k);
+      size_t l1 = strlen(p1->base.aliasName);
+      size_t l2 = strlen(p2->base.aliasName);
+      if (l1 == l2 && strncasecmp(p1->base.aliasName, p2->base.aliasName, l1) == 0) {
+        p2->base.resBytes = p1->base.resBytes;
+        p2->base.colBytes[0] = p1->base.resBytes;
+      }
+    }
+
+    for (int32_t k = 0; k < pFieldInfo->numOfOutput; ++k) {
+      SInternalField* pField = tscFieldInfoGetInternalField(pFieldInfo, k);
+      if (pField->visible) {
+        size_t l1 = strlen(p1->base.aliasName);
+        size_t l2 = strlen(pField->field.name);
+        if (l1 == l2 && strncasecmp(p1->base.aliasName, pField->field.name, l1) == 0) {
+          pField->field.bytes = p1->base.resBytes;
+        }
+      }
+    }
+  }
+
   pParentSql->cmd.active = pParentSql->cmd.pQueryInfo;
   pParentSql->res.qId = -1;
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
