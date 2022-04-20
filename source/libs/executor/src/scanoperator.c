@@ -129,7 +129,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
 //  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 
   if (true) {
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, sk, ek, &w);
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, &w);
     assert(w.ekey >= pBlockInfo->window.skey);
 
     if (w.ekey < pBlockInfo->window.ekey) {
