@@ -47,6 +47,7 @@ typedef struct SDatabaseOptions {
   SValueNode* pNumOfVgroups;
   SValueNode* pSingleStable;
   SValueNode* pStreamMode;
+  SValueNode* pStrict;
   SNodeList* pRetentions;
 } SDatabaseOptions;
 
