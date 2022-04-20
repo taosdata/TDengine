@@ -4,115 +4,136 @@ sidebar_label: Rust
 title: Rust Connector
 ---
 
-![Crates.io](https://img.shields.io/crates/v/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos)
+[![Crates.io](https://img.shields.io/crates/v/libtaos)](https://crates.io/crates/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos) [![docs.rs](https://img.shields.io/docsrs/libtaos)](https://docs.rs/libtaos)
 
-> Rust 连接器仍然在快速开发中，版本 API 变动在所难免，在 1.0 之前无法保证其向后兼容，请使用时注意版本及对应的文档。
+Rust 连接器 [libtaos][libtaos-rs] 旨在为 Rust 开发者提供连接器官方支持。[libtaos][libtaos-rs] 使用不同的 features 提供对 TDengine 客户端驱动和 REST 接口的支持。以下是可使用的特性列表：
 
-感谢 [@songtianyi](https://github.com/songtianyi) 对 [libtdengine](https://github.com/songtianyi/tdengine-rust-bindings) 的贡献，使 Rust 社区能够使用 Rust 连接[TDengine]. [libtaos-rs] 项目旨在为 Rust 开发者提供官方支持，使用 taosc 接口及 HTTP 接口构建兼容 API 以便于用户切换接口方式。
+| 启用特性 | 支持平台              | 说明                                                              |
+| -------- | --------------------- | ----------------------------------------------------------------- |
+| default  | Windows, Linux        | 使用 TDengine 客户端驱动（taosc），支持 STMT 接口和行协议接口     |
+| rest     | WIndows, Linux, macOS | 使用 HTTP REST API 接口（rest），适用于全平台                     |
+| (+)r2d2  | -                     | 使用 [r2d2] 提供的连接池接口，需要与 default 或 rest 特性配合使用 |
 
-## 依赖
+*NOTE: Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容，请使用时注意版本及对应的文档。*
 
-- [Rust](https://www.rust-lang.org/learn/get-started)
+## 版本支持
 
-默认情况下，[libtaos-rs] 使用 C 接口连接数据库，所以您需要：
+| 驱动  |  平台   |            最小支持版本            |
+| :---: | :-----: | :--------------------------------: |
+| taosc | Windows | 2.0.20.10 (行协议接口 >= 2.4.0.0)  |
+| taosc |  Linux  |  2.0.6.0 (行协议接口 >= 2.4.0.0)   |
+| rest  |   All   | 2.0.0.0 (不支持 STMT 和行协议接口) |
 
-- [TDengine 客户端](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85)
-- `clang`: `bindgen` 使用 `libclangAST` 来生成对应的 Rust 绑定。
+建议使用 2.4 版本以上的 TDengine，以避免已知问题。
 
-## 特性列表
+## 安装
 
-- [x] C 接口的 Rust 绑定
-- [x] 使用 `rest` feature 来启用 RESTful API.
-- [x] [r2d2] 连接池支持（feature `r2d2`）
-- [ ] 迭代器接口
-- [ ] 流式计算接口
-- [ ] 订阅支持
+如需使用 TDengine 客户端驱动（taosc），请参考 [该文档](/reference/connector/#安装客户端驱动) 进行安装。使用 REST 接口无需安装客户端。之后可以按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos-rs] 依赖：
 
-## 构建和测试
+### 使用客户端驱动
 
-```sh
-cargo build
-cargo test
-```
-
-测试使用默认用户名密码和本地连接。您可以根据具体情况设置环境变量：
-
-- `TEST_TAOS_IP`
-- `TEST_TAOS_PORT`
-- `TEST_TAOS_USER`
-- `TEST_TAOS_PASS`
-- `TEST_TAOS_DB`
-
-## 使用
-
-使用默认的 taosc 连接方式，可以在 `Cargo.toml` 中直接添加 `libtaos` 依赖：
+在 `Cargo.toml` 文件中添加 [libtaos][libtaos-rs]：
 
 ```toml
 [dependencies]
-libtaos = "v0.3.8"
+# use default feature
+libtaos = "*"
 ```
 
-添加 feature `r2d2` 来启动连接池：
+### 使用 REST 接口
+
+在 `Cargo.toml` 文件中添加 [libtaos][libtaos-rs]，并启用 `rest` 特性。
 
 ```toml
 [dependencies]
+# use rest feature
+libtaos = { version = "*", features = ["rest"]}
+```
+
+### 使用连接池
+
+选择使用客户端驱动或 REST 接口，并在 `Cargo.toml` 中启用 `r2d2` 特性。
+
+```toml
+[dependencies]
+# with taosc
 libtaos = { version = "*", features = ["r2d2"] }
+# or rest
+libtaos = { version = "*", features = ["rest", "r2d2"] }
 ```
 
-对于 RESTful 接口，可使用 `rest` 特性来替代 taosc，免去安装 TDengine 客户端。
+## 建立连接
 
-```toml
-[dependencies]
-libtaos = { version = "*", features = ["rest"] }
-```
-
-本项目中提供一个 [示例程序](https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs) 如下：
+[TaosCfgBuilder](https://docs.rs/libtaos/latest/libtaos/struct.TaosCfgBuilder.html) 为使用者提供构造器形式的 API，以便于后续创建连接或使用连接池。
 
 ```rust
-// ...
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    init();
-    let taos = taos_connect()?;
-
-    assert_eq!(
-        taos.query("drop database if exists demo").await.is_ok(),
-        true
-    );
-    assert_eq!(taos.query("create database demo").await.is_ok(), true);
-    assert_eq!(taos.query("use demo").await.is_ok(), true);
-    assert_eq!(
-        taos.query("create table m1 (ts timestamp, speed int)")
-            .await
-            .is_ok(),
-        true
-    );
-
-    for i in 0..10i32 {
-        assert_eq!(
-            taos.query(format!("insert into m1 values (now+{}s, {})", i, i).as_str())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-    let rows = taos.query("select * from m1").await?;
-
-    println!("{}", rows.column_meta.into_iter().map(|col| col.name).join(","));
-    for row in rows.rows {
-        println!("{}", row.into_iter().join(","));
-    }
-    Ok(())
+let cfg: TaosCfg = TaosCfgBuilder::default()
+    .ip("127.0.0.1")
+    .user("root")
+    .pass("taosdata")
+    .db("log") // do not set if not require a default database.
+    .port(6030)
+    .build()
+    .expect("TaosCfg builder error");
 }
 ```
 
-您可以在 [bailongma-rs] - 一个 Rust 编写的 Prometheus 远程存储 API 适配器 - 看到如何在具体应用中使用 Rust 连接器。
+现在您可以使用该对象创建连接：
 
-## API 参考
+```rust
+let conn = cfg.connect()?;
+```
 
-[API 参考手册](https://docs.rs/libtaos/latest/libtaos/)
+连接对象可以创建多个：
+
+```rust
+let conn = cfg.connect()?;
+let conn2 = cfg.connect()?;
+```
+
+可以在应用中使用连接池：
+
+```rust
+let pool = r2d2::Pool::builder()
+    .max_size(10000) // 最大连接数
+    .build(cfg)?;
+
+// ...
+// Use pool to get connection
+let conn = pool.get()?;
+```
+
+之后您可以对数据库进行相关操作：
+
+```rust
+async fn demo() -> Result<(), Error> {
+    // get connection ...
+
+    // create database
+    conn.exec("create database if not exists demo").await?;
+    // change database context
+    conn.exec("use demo").await?;
+    // create table
+    conn.exec("create table if not exists tb1 (ts timestamp, v int)").await?;
+    // insert
+    conn.exec("insert into tb1 values(now, 1)").await?;
+    // query
+    let rows = conn.query("select * from tb1").await?;
+    for row in rows.rows {
+        println!("{}", row.into_iter().join(","));
+    }
+}
+```
+
+## 使用示例
+
+| 程序路径       | 程序说明                                                                      |
+| -------------- | ----------------------------------------------------------------------------- |
+| [demo.rs]      | 基本API 使用示例                                                              |
+| [bailongma-rs] | 使用 TDengine 作为存储后端的 Prometheus 远程存储 API 适配器，使用 r2d2 连接池 |
 
 [libtaos-rs]: https://github.com/taosdata/libtaos-rs
 [tdengine]: https://github.com/taosdata/TDengine
 [bailongma-rs]: https://github.com/taosdata/bailongma-rs
 [r2d2]: https://crates.io/crates/r2d2
+[demo.rs]: https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs
