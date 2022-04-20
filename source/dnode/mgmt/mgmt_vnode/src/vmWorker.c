@@ -14,6 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "sync.h"
+#include "syncTools.h"
 #include "vmInt.h"
 
 static inline void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
@@ -180,7 +182,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   SNodeMsg  *pMsg = NULL;
   SRpcMsg    rsp;
 
-  static int64_t version = 0;
+  // static int64_t version = 0;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
 #if 1
@@ -191,10 +193,21 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     rsp.code = 0;
     rsp.pCont = NULL;
     rsp.contLen = 0;
-    if (vnodeProcessWriteReq(pVnode->pImpl, &pMsg->rpcMsg, version++, &rsp) < 0) {
+
+    // get original rpc msg
+    assert(pMsg->rpcMsg.msgType == TDMT_VND_SYNC_APPLY_MSG);
+    SyncApplyMsg *pSyncApplyMsg = syncApplyMsgFromRpcMsg2(&pMsg->rpcMsg);
+    syncApplyMsgLog2("==vmProcessApplyQueue==", pSyncApplyMsg);
+    SRpcMsg originalRpcMsg;
+    syncApplyMsg2OriginalRpcMsg(pSyncApplyMsg, &originalRpcMsg);
+
+    if (vnodeProcessWriteReq(pVnode->pImpl, &originalRpcMsg, pSyncApplyMsg->fsmMeta.index, &rsp) < 0) {
       rsp.code = terrno;
       dTrace("vnodeProcessWriteReq error, code:%d", terrno);
     }
+
+    syncApplyMsgDestroy(pSyncApplyMsg);
+    rpcFreeCont(originalRpcMsg.pCont);
 
     if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
       rsp.ahandle = pMsg->rpcMsg.ahandle;

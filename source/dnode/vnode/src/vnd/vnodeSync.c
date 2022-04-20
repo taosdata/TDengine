@@ -107,14 +107,21 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
         pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-    SRpcMsg applyMsg;
-    applyMsg = *pMsg;
-    applyMsg.pCont = rpcMallocCont(applyMsg.contLen);
-    assert(applyMsg.contLen == pMsg->contLen);
-    memcpy(applyMsg.pCont, pMsg->pCont, applyMsg.contLen);
+    SVnode       *pVnode = (SVnode *)(pFsm->data);
+    SyncApplyMsg *pSyncApplyMsg = syncApplyMsgBuild2(pMsg, pVnode->config.vgId, &cbMeta);
+    SRpcMsg       applyMsg;
+    syncApplyMsg2RpcMsg(pSyncApplyMsg, &applyMsg);
+    syncApplyMsgDestroy(pSyncApplyMsg);
+
+    /*
+        SRpcMsg applyMsg;
+        applyMsg = *pMsg;
+        applyMsg.pCont = rpcMallocCont(applyMsg.contLen);
+        assert(applyMsg.contLen == pMsg->contLen);
+        memcpy(applyMsg.pCont, pMsg->pCont, applyMsg.contLen);
+    */
 
     // recover handle for response
-    SVnode *pVnode = (SVnode *)(pFsm->data);
     SRpcMsg saveRpcMsg;
     int32_t ret = syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &saveRpcMsg);
     if (ret == 1 && cbMeta.state == TAOS_SYNC_STATE_LEADER) {
