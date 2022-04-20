@@ -63,7 +63,7 @@ taos> select * from metrics limit 10;
 Query OK, 10 row(s) in set (0.011146s)
 ```
 
-### 使用 prompql-cli 验证 Prometheus 使用 remote_read 从 TDengine 读取数据
+### 使用 promql-cli 使用 remote_read 从 TDengine 读取数据
 
 安装 promql-cli
 
