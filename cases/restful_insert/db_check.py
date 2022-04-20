@@ -21,19 +21,19 @@ import copy
 class TestDB(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def dbname_length_check(self):
         """
         max length: 32
         """
         self.tdRest.drop_all_db()
-        dbname = self.tdCom.get_long_name(length=32, mode="letters")
+        dbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
         res = self.tdRest.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
-        dbname_exceed = self.tdCom.get_long_name(length=33, mode="letters")
+        dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdRest.error(f'create database if not exists {dbname_exceed}')
         self.tdSql.checkEqual(self.tdRest.resp["desc"], "invalid operation: name too long")
         self.tdRest.request(f'drop database if exists {dbname}')
@@ -62,7 +62,12 @@ class TestDB(TDCase):
         self.tdRest.request(f'alter database {dbname} keep 365')
         self.tdRest.request('show databases')
         res = self.tdRest.getOneRow(0, dbname)
-        self.tdSql.checkEqual(int(res[0][7]), 365)
+        if str(res[0][7]) == '365':
+            self.tdSql.checkEqual(int(res[0][7]), 365)
+        elif str(res[0][7]) == '365,365,365':
+            self.tdSql.checkEqual(str(res[0][7]), '365,365,365')
+        else:
+            self.tdSql.checkEqual(str(res[0][7]), 'unexpected value')
         # comp
         for comp in [0, 1]:
             self.tdRest.request(f'alter database {dbname} comp {comp}')

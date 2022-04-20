@@ -18,7 +18,7 @@ from taostest.util.rest import TDRest
 class TestNcharBoundary(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def nchar_length_check(self):
         """
@@ -26,16 +26,16 @@ class TestNcharBoundary(TDCase):
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
-        str_4093 = self.tdCom.get_long_name(length=4093, mode="letters")
-        str_4094 = self.tdCom.get_long_name(length=4094, mode="letters")
-        self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 nchar(4093)) tags (t1 nchar(4093))')
+        str_4093 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], mode="letters")
+        str_4094 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, mode="letters")
+        self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]})) tags (t1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]}))')
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{str_4093}")')
         self.tdRest.request(f'insert into {dbname}.tb values (now, "{str_4093}")')
         self.tdRest.request(f'select t1, c1 from {dbname}.tb')
         self.tdSql.checkEqual(str(self.tdRest.resp["data"][0][0]), str_4093)
         self.tdSql.checkEqual(str(self.tdRest.resp["data"][0][1]), str_4093)
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 nchar(4093)) tags (t1 nchar(4094))')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 nchar(4094)) tags (t1 nchar(4093))')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]})) tags (t1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1}))')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1})) tags (t1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]}))')
         self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, "{str_4094}")')
         self.tdRest.error(f'insert into {dbname}.tb values (now-1h, "{str_4094}")')
         self.tdRest.request(f'drop database if exists {dbname}')

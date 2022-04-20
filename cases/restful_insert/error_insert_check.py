@@ -19,7 +19,7 @@ import copy
 class TestBool(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def illegal_insertsql_check(self):
         """

@@ -1,0 +1,86 @@
+settings:
+  - name: taosd
+    fqdn: [vm85]
+    spec:
+      version: 2.4.0.0  #
+      config: # common config for all dnodes
+        firstEP: vm85:6030
+      dnodes:
+        - endpoint: vm85:6030
+          config_dir: /data/var/dnode1/config
+          config: # will write into taos.cfg
+            dataDir: /data/var/dnode1/data
+            logDir: /data/var/dnode1/log
+            debugFlag: 131
+        
+  - name: taospy
+    fqdn: [LAPTOP-61HH4N1V]
+    spec:
+      version: 2.2.0  
+      client_version: 2.4.0.0
+      config:
+        firstEP: vm85:6030
+        logDir: f:/run_log
+        debugFlag: 131
+  - name: taosAdapter
+    fqdn: [vm85]
+    spec:
+      version: 2.4.0.0
+      config_file: /data/var/taosadaper/config/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /data/var/taosadaper/config
+        log:
+          path: /data/var/taosadaper/log
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+          ports: [6046, 6047, 6048, 6049]
+          user: "root"
+          password: "taosdata"
+          worker: 200000
+      taos_config:
+        firstEP: vm85:6030
+        logDir: /data/var/taosadaper/log
+        debugFlag: 131
+    
+  - name: taosBenchmark
+    fqdn: [vm83]
+    spec:
+      version: 1.0.0
+      taos_version: 2.4.0.0
+      config_dir: /root/var/taosbenchmark/config/
+      taos_config:
+        firstEP: vm85:6030
+        logDir: /root/var/taosbenchmark/log
+        debugFlag: 131
+
+
+  - name: prometheus
+    fqdn: [BCC-2]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [BCC-2:9090]
+      node_exporter:
+        fqdn: [vm85,vm83]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [vm85,vm83]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark,taosadapter]
+          custom_process:
+            vm85: [taosd,taosadapter]
+            vm83: [taosBenchmark]
+

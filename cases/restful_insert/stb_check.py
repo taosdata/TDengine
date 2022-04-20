@@ -18,8 +18,8 @@ import copy
 
 class TestStb(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = self.get_default_database()
         self.tdRest.request(f'create database if not exists {self.dbname}')
 
@@ -27,12 +27,12 @@ class TestStb(TDCase):
         """
         max length: 192
         """
-        stbname = self.tdCom.get_long_name(length=192, mode="letters")
+        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.error(f'create stable {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'show {self.dbname}.stables')
         self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname)
-        stbname_exceed = self.tdCom.get_long_name(length=193, mode="letters")
+        stbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdRest.error(f'create stable if not exists {self.dbname}.{stbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
 
     def stbname_with_backquote(self):
@@ -99,7 +99,7 @@ class TestStb(TDCase):
         describe stable
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        stbname = self.tdCom.get_long_name(length=192, mode="letters")
+        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')

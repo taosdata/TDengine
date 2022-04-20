@@ -16,8 +16,8 @@ from taostest.util.rest import TDRest
 
 class TestInfluxdbLineRestfulInsert(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         self.tdRest.drop_all_db()
         self.tdCom.sml_type = "influxdb_restful"
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -106,10 +106,10 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         max tag count is 128
         max col count is 4096
         """
-        for input_sql in [self.tdCom.gen_long_sql(128, 1)[0], self.tdCom.gen_long_sql(1, 4094)[0]]:
+        for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"], 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)[0]]:
             self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
             self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
-        for input_sql in [self.tdCom.gen_long_sql(129, 1)[0], self.tdCom.gen_long_sql(1, 4095)[0]]:
+        for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"]+1, 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)[0]]:
             self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
@@ -174,20 +174,20 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         length of stb_name tb_name <= 192
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        stb_name_192 = self.tdCom.get_long_name(length=192, mode="letters")
-        tb_name_192 = self.tdCom.get_long_name(length=192, mode="letters")
+        stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
+        tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name_192, tb_name=tb_name_192)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
         self.tdRest.request(f'select * from {self.dbname}.{stb_name}')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 1)
         if self.tdCom.smlChildTableName_value == "ID":
-            for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=193, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0], self.tdCom.gen_full_type_sql(tb_name=self.tdCom.get_long_name(length=193, mode="letters"))[0]]:
+            for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0], self.tdCom.gen_full_type_sql(tb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters"))[0]]:
                 res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
                 self.tdSql.checkEqual(res.status_code, 500)
                 self.tdSql.checkIn("Table name too long", res.text)
             input_sql = 'Abcdffgg,id=Abcddd,T1=127i8 c0=False 1626006833639000000'
         else:
-            input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=193, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0]
+            input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
             self.tdSql.checkIn("Table name too long", res.text)
@@ -204,9 +204,9 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(4093, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")} c0=f 1626006833639000000'
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
-        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(4094, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
@@ -217,40 +217,40 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         # i8
-        for c1 in ["-127i8", "127i8"]:
+        for c1 in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]}i8']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c1=c1)
             self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-        for c1 in ["-128i8", "128i8"]:
+        for c1 in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]+1}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]+1}i8']:
             input_sql = self.tdCom.gen_full_type_sql(c1=c1)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
             self.tdSql.checkIn("Invalid value in client", res.text)
         # i16
-        for c2 in ["-32767i16"]:
+        for c2 in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]}i16']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c2=c2)
             self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
-        for c2 in ["-32768i16", "32768i16"]:
+        for c2 in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]+1}i16', f'{self.tdCom.boundary_config["SMALLINT_MAX"]+1}i16']:
             input_sql = self.tdCom.gen_full_type_sql(c2=c2)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
             self.tdSql.checkIn("Invalid value in client", res.text)
 
         # i32
-        for c3 in ["-2147483647i32"]:
+        for c3 in [f'-{self.tdCom.boundary_config["INT_MAX"]}i32']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c3=c3)
             self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
-        for c3 in ["-2147483648i32", "2147483648i32"]:
+        for c3 in [f'-{self.tdCom.boundary_config["INT_MAX"]+1}i32', f'{self.tdCom.boundary_config["INT_MAX"]+1}i32']:
             input_sql = self.tdCom.gen_full_type_sql(c3=c3)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
             self.tdSql.checkIn("Invalid value in client", res.text)
 
         # i64
-        for c4 in ["-9223372036854775807i64"]:
+        for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c4=c4)
             self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
-        for c4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
+        for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]+1}i64', f'{self.tdCom.boundary_config["BIGINT_MAX"]+1}i64']:
             input_sql = self.tdCom.gen_full_type_sql(c4=c4)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
@@ -269,9 +269,9 @@ class TestInfluxdbLineRestfulInsert(TDCase):
 
         # # binary
         stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(16374, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}" 1626006833639000000'
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(16375, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters")}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
@@ -279,9 +279,9 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(4093, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}" 1626006833639000000'
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(4094, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
@@ -388,13 +388,13 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
 
         # # * check col，col+ts max in describe ---> 16143
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(16374, "letters")}",c2="{self.tdCom.get_long_name(16374, "letters")}",c3="{self.tdCom.get_long_name(16374, "letters")}",c4="{self.tdCom.get_long_name(12, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c4="{self.tdCom.get_long_name(12, "letters")}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
 
         self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 2)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(16374, "letters")}",c2="{self.tdCom.get_long_name(16374, "letters")}",c3="{self.tdCom.get_long_name(16374, "letters")}",c4="{self.tdCom.get_long_name(13, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c4="{self.tdCom.get_long_name(13, "letters")}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
@@ -413,12 +413,12 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
 
         # * legal nchar could not be larger than 16374/4
-        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(4093, "letters")},t2={self.tdCom.get_long_name(1, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")},t2={self.tdCom.get_long_name(1, "letters")} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 2)
 
-        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(4093, "letters")},t2={self.tdCom.get_long_name(2, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")},t2={self.tdCom.get_long_name(2, "letters")} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
@@ -426,11 +426,11 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 2)
 
-        input_sql = f'{stb_name},t2=f c0=f,c1=L"{self.tdCom.get_long_name(4093, "letters")}",c2=L"{self.tdCom.get_long_name(4093, "letters")}",c3=L"{self.tdCom.get_long_name(4093, "letters")}",c4=L"{self.tdCom.get_long_name(4, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t2=f c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c4=L"{self.tdCom.get_long_name(4, "letters")}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
-        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1, "letters")} c0=f,c1=L"{self.tdCom.get_long_name(4093, "letters")}",c2=L"{self.tdCom.get_long_name(4093, "letters")}",c3=L"{self.tdCom.get_long_name(4093, "letters")}",c4=L"{self.tdCom.get_long_name(5, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1, "letters")} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c4=L"{self.tdCom.get_long_name(5, "letters")}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)

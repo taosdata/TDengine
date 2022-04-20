@@ -24,12 +24,12 @@ class TestDB(TDCase):
         """
         max length: 32
         """
-        dbname = self.tdCom.get_long_name(length=32, mode="letters")
+        dbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         res = self.tdSql.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
-        dbname_exceed = self.tdCom.get_long_name(length=33, mode="letters")
+        dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdSql.error(f'create database if not exists {dbname_exceed}')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -86,6 +86,7 @@ class TestDB(TDCase):
                 d_list_new.insert(i, insert_str)
                 dbname_new = ''.join(d_list_new)
                 self.tdSql.error(f'create database if not exists `{dbname_new}`')
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self) -> bool:
         self.dbname_length_check()

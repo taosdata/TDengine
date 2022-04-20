@@ -1,0 +1,7 @@
+settings:
+  - name: none
+    spec:
+      config:
+        firstEp: "localhost:6030"
+        rpcForceTcp: 1
+        fqdn: localhost

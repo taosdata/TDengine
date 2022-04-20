@@ -18,7 +18,7 @@ from taostest.util.rest import TDRest
 class TestDoubleBoundary(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def double_boundary_check(self):
         """
@@ -27,24 +27,24 @@ class TestDoubleBoundary(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 double) tags (t1 double)')
-        self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags (1.7e+308)')
-        self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-1.7e+308)')
-        self.tdRest.request(f'insert into {dbname}.tb1 values (now, -1.7e+308)')
-        self.tdRest.request(f'insert into {dbname}.tb2 values (now, 1.7e+308)')
+        self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.boundary_config["DOUBLE_MAX"]})')
+        self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-{self.tdCom.boundary_config["DOUBLE_MAX"]})')
+        self.tdRest.request(f'insert into {dbname}.tb1 values (now, -{self.tdCom.boundary_config["DOUBLE_MAX"]})')
+        self.tdRest.request(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["DOUBLE_MAX"]})')
         self.tdRest.request(f'select t1, c1 from {dbname}.tb1')
-        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][0]), 1.7e+308)
-        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][1]), -1.7e+308)
+        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][0]), self.tdCom.boundary_config["DOUBLE_MAX"])
+        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][1]), -self.tdCom.boundary_config["DOUBLE_MAX"])
         self.tdRest.request(f'select t1, c1 from {dbname}.tb2')
-        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][0]), -1.7e+308)
-        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][1]), 1.7e+308)
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 1.7e+308) tags (t1 1.7e+308+1)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 1.7e+308+1) tags (t1 1.7e+308)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 1.7e+308) tags (t1 -1.7e+308-1)')
-        self.tdRest.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -1.7e+308-1) tags (t1 -1.7e+308)')
-        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, 1.7e+308+1)')
-        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -1.7e+308-1)')
-        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, 1.7e+308+1)')
-        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, -1.7e+308-1)')
+        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][0]), -self.tdCom.boundary_config["DOUBLE_MAX"])
+        self.tdSql.checkEqual(float(self.tdRest.resp["data"][0][1]), self.tdCom.boundary_config["DOUBLE_MAX"])
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["DOUBLE_MAX"]}) tags (t1 {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["DOUBLE_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["DOUBLE_MAX"]})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 {self.tdCom.boundary_config["DOUBLE_MAX"]}) tags (t1 -{self.tdCom.boundary_config["DOUBLE_MAX"]-1})')
+        self.tdRest.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -{self.tdCom.boundary_config["DOUBLE_MAX"]-1}) tags (t1 -{self.tdCom.boundary_config["DOUBLE_MAX"]})')
+        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
+        self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -{self.tdCom.boundary_config["DOUBLE_MAX"]-1})')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-1h, -{self.tdCom.boundary_config["DOUBLE_MAX"]-1})')
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def run(self):
@@ -55,7 +55,7 @@ class TestDoubleBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            double_boundary_check <jayden>: [TD-12748] : double boundary check (max 1.7e+308);
+            double_boundary_check <jayden>: [TD-12748] : double boundary check (max {self.tdCom.boundary_config["DOUBLE_MAX"]});
         """
         return case_description
 

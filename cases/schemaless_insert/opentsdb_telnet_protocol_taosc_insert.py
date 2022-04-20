@@ -5,7 +5,7 @@ from taos.error import SchemalessError
 import datetime
 class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
+        self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
         self.tdCom.env_setting = self.env_setting
         self.tdCom.sml_type = "opentsdb_telnet"
         self.tdCom.drop_all_db()
@@ -135,10 +135,10 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         max tag count is 128
         """
-        for input_sql in [self.tdCom.gen_long_sql(128, 1)[0]]:
+        for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"], 1)[0]]:
             self.tdCom.cleanTb()
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        for input_sql in [self.tdCom.gen_long_sql(129, 1)[0]]:
+        for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"]+1, 1)[0]]:
             self.tdCom.cleanTb()
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -209,15 +209,15 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         chech upper tag
         length of stb_name tb_name <= 192
         """
-        stb_name_192 = self.tdCom.get_long_name(length=192, mode="letters")
-        tb_name_192 = self.tdCom.get_long_name(length=192, mode="letters")
+        stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
+        tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name_192, tb_name=tb_name_192)
         self.tdCom.check_res(input_sql, stb_name)
         self.tdSql.query(f'select * from {stb_name}')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         if self.tdCom.smlChildTableName_value == "ID":
-            for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=193, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0], self.tdCom.gen_full_type_sql(tb_name=self.tdCom.get_long_name(length=193, mode="letters"))[0]]:
+            for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0], self.tdCom.gen_full_type_sql(tb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"]+1, mode="letters"))[0]]:
                 try:
                     self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                     raise Exception("should not reach here")
@@ -225,7 +225,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                     self.tdSql.checkNotEqual(err.errno, 0)
             input_sql = 'Abcdffgg 1626006833640 False T1=127i8 id=Abcddd'
         else:
-            input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=193, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0]
+            input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0]
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
@@ -244,10 +244,10 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(4093, "letters")}'
+        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(4094, "letters")}'
+        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")}'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
@@ -260,11 +260,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self.tdCom.cleanTb()
         # i8
-        for value in ["-127i8", "127i8"]:
+        for value in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]}i8']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
         self.tdCom.cleanTb()
-        for value in ["-128i8", "128i8"]:
+        for value in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]+1}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]+1}i8']:
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -273,11 +273,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 self.tdSql.checkNotEqual(err.errno, 0)
         # i16
         self.tdCom.cleanTb()
-        for value in ["-32767i16"]:
+        for value in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]}i16']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
         self.tdCom.cleanTb()
-        for value in ["-32768i16", "32768i16"]:
+        for value in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]+1}i16', f'{self.tdCom.boundary_config["SMALLINT_MAX"]+1}i16']:
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -287,11 +287,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
 
         # i32
         self.tdCom.cleanTb()
-        for value in ["-2147483647i32"]:
+        for value in [f'-{self.tdCom.boundary_config["INT_MAX"]}i32']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
         self.tdCom.cleanTb()
-        for value in ["-2147483648i32", "2147483648i32"]:
+        for value in [f'-{self.tdCom.boundary_config["INT_MAX"]+1}i32', f'{self.tdCom.boundary_config["INT_MAX"]+1}i32']:
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -301,11 +301,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
 
         # i64
         self.tdCom.cleanTb()
-        for value in ["-9223372036854775807i64"]:
+        for value in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
         self.tdCom.cleanTb()
-        for value in ["-9223372036854775808i64", "9223372036854775808i64"]:
+        for value in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]+1}i64', f'{self.tdCom.boundary_config["BIGINT_MAX"]+1}i64']:
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -346,11 +346,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         # # binary
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(16374, "letters")}" t0=t'
+        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}" t0=t'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         self.tdCom.cleanTb()
-        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(16375, "letters")}" t0=t'
+        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters")}" t0=t'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
@@ -361,11 +361,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         # * legal nchar could not be larger than 16374/4
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(4093, "letters")}" t0=t'
+        input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}" t0=t'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         self.tdCom.cleanTb()
-        input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(4094, "letters")}" t0=t'
+        input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")}" t0=t'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
@@ -558,11 +558,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         # * legal nchar could not be larger than 16374/4
-        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(4093, "letters")} t2={self.tdCom.get_long_name(1, "letters")}'
+        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")} t2={self.tdCom.get_long_name(1, "letters")}'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(4093, "letters")} t2={self.tdCom.get_long_name(2, "letters")}'
+        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")} t2={self.tdCom.get_long_name(2, "letters")}'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")

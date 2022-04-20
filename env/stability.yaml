@@ -1,0 +1,168 @@
+settings:
+  - name: taosd
+    fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave]
+    spec:
+      version: 2.4.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: cs219:6030
+      dnodes:
+        - endpoint: cs219:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /data/lib/taos
+            logDir: /data/log/taos
+            debugFlag: 135
+        - endpoint: node221:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: node222:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: node223:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: k8smaster:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: k8sslave:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+
+  - name: taospy
+    fqdn: [cs219, node221, node222, node223]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.0
+      config:
+        firstEP: node221:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+
+  - name: taosAdapter
+    fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave]
+    spec:
+      version: 2.4.0.0
+      config_file: /etc/taos/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb:
+          enable: true
+        influxdb:
+          enable: true
+        statsd:
+          enable: true
+          port: 6044
+          db: statsd
+          user: root
+          password: taosdata
+          worker: 10
+          gatherInterval: 5s
+          protocol: udp
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          allowPendingMessages: 50000
+          deleteCounters: true
+          deleteGauges: true
+          deleteSets: true
+          deleteTimings: true
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp", "collectd", "icinga2", "tcollector"]
+          ports: [6046, 6047, 6048, 6049]
+          user: root
+          password: taosdata
+          worker: 1000
+        node_exporter:
+          enable: false
+          db: node_exporter
+          user: root
+          password: taosdata
+          urls: [http://localhost:9100]
+          responseTimeout: 5s
+          httpUsername: ""
+          httpPassword: ""
+          httpBearerTokenString: ""
+          caCertFile: ""
+          certFile: ""
+          keyFile: ""
+          insecureSkipVerify: true
+          gatherDuration: 5s
+
+      taos_config:
+        firstEP: cs219:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+
+  - name: prometheus
+    fqdn: [ceph02]
+    spec:
+      server:
+        run_dir: /opt/prometheus # 默认path, 选配
+        config: # 所有key都选配
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [localhost:9090]
+      node_exporter:
+        fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave]
+        run_dir: /opt/node_exporter # 默认path, 选配
+      process_exporter:
+        fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave] # 元素个数要大于等于custom_process中的key个数
+        run_dir: /opt/process_exporter # 默认path, 选配
+        config: # common_process和custom_process都选配, 但全配置的话custom_process会覆盖common_process的配置
+          common_process: [taosd, taosadapter]
+
+  - name: taosBenchmark
+    fqdn: [k8sslave]
+    spec:
+      version: 1.0.0
+      taos_version: 2.4.0.0
+      config_dir: /root/var/taosbenchmark/config/
+      taos_config:
+        firstEP: cs219:6030
+        logDir: /root/var/taosbenchmark/log
+        debugFlag: 131
+
+  - name: agent
+    fqdn: [k8smaster]
+    taosadapter_fqdn: [cs219]
+    spec:
+      collectd:
+        count: 2
+        interval: 1
+      node_exporter:
+        port_range: [10000, 10005]
+      statsd:
+        count: 2
+      telegraf:
+        count: 2
+        interval: 1
+      icinga2:
+        count: 2
+        interval: 1
+      tcollector:
+        count: 2

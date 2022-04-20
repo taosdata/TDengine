@@ -20,7 +20,7 @@ import json
 class TestJsonTag(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest()
+        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def insert_after_alter_column(self):
         """
