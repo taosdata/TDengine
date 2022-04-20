@@ -23,7 +23,6 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 ## 配置 Prometheus
 <Prometheus />
 
-
 ## 验证方法
 
 重启 Prometheus 后可参考以下示例验证从 Prometheus 向 TDengine 写入数据并能够正确读出。
