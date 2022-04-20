@@ -222,6 +222,11 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
+int32_t compareJsonContainsKey(const void* pLeft, const void* pRight) {
+  if(pLeft) return 0;
+  return 1;
+}
+
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match

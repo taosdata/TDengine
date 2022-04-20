@@ -725,6 +725,76 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
       pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
       pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
+
+    if (type == TSDB_DATA_TYPE_JSON) {
+      char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
+      if (p == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pResultInfo->convertBuf[i] = p;
+      int32_t len = 0;
+      SResultColumn* pCol = &pResultInfo->pCol[i];
+      for (int32_t j = 0; j < numOfRows; ++j) {
+        if (pCol->offset[j] != -1) {
+          char* pStart = pCol->offset[j] + pCol->pData;
+
+          int32_t jsonInnerType = *pStart;
+          char *jsonInnerData = pStart + CHAR_BYTES;
+          char dst[TSDB_MAX_JSON_TAG_LEN] = {0};
+          if(jsonInnerType == TSDB_DATA_TYPE_NULL){
+            sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else if(jsonInnerType == TSDB_DATA_TYPE_JSON){
+            int32_t length = taosUcs4ToMbs((TdUcs4 *)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(dst));
+
+            if (length <= 0) {
+              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, varDataVal(jsonInnerData));
+              length = 0;
+            }
+            varDataSetLen(dst, length);
+          }else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {   // value -> "value"
+            *(char*)varDataVal(dst) = '\"';
+            int32_t length = taosUcs4ToMbs((TdUcs4 *)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(dst) + CHAR_BYTES);
+            if (length <= 0) {
+              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, varDataVal(jsonInnerData));
+              length = 0;
+            }
+            varDataSetLen(dst, length + CHAR_BYTES*2);
+            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
+          }else if(jsonInnerType == TSDB_DATA_TYPE_DOUBLE){
+            double jsonVd = *(double*)(jsonInnerData);
+            sprintf(varDataVal(dst), "%.9lf", jsonVd);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else if(jsonInnerType == TSDB_DATA_TYPE_BIGINT){
+            int64_t jsonVd = *(int64_t*)(jsonInnerData);
+            sprintf(varDataVal(dst), "%" PRId64, jsonVd);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else if(jsonInnerType == TSDB_DATA_TYPE_BOOL){
+            sprintf(varDataVal(dst), "%s", (*((char *)jsonInnerData) == 1) ? "true" : "false");
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else {
+            ASSERT(0);
+          }
+
+          if(len + varDataTLen(dst) > colLength[i]){
+            p = taosMemoryRealloc(pResultInfo->convertBuf[i], len + varDataTLen(dst));
+            if (p == NULL) {
+              return TSDB_CODE_OUT_OF_MEMORY;
+            }
+
+            pResultInfo->convertBuf[i] = p;
+          }
+          p = pResultInfo->convertBuf[i] + len;
+          memcpy(p, dst, varDataTLen(dst));
+          pCol->offset[j] = len;
+          len += varDataTLen(dst);
+        }
+      }
+
+      pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
+      pResultInfo->row[i] = pResultInfo->pCol[i].pData;
+    }
   }
 
   return TSDB_CODE_SUCCESS;

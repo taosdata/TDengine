@@ -118,7 +118,7 @@ void taosVariantCreate(SVariant *pVar, const char *z, int32_t n, int32_t type) {
     }
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(z, n);
-      pVar->nLen = strRmquote(pVar->pz, n);
+      //pVar->nLen = strRmquote(pVar->pz, n);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
