@@ -394,15 +394,15 @@ static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSch
 }
 
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-  SCoder  coder;
-  int32_t contLen;
-  SName   name = {0};
+  SCoder         coder = {0};
+  int32_t        contLen;
+  SName          name = {0};
+  SVCreateStbReq req = {0};
 
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFName);
 
-  SVCreateStbReq req = {0};
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
   req.rollup = pStb->aggregationMethod > -1 ? 1 : 0;
@@ -432,14 +432,13 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   }
 
   // get length
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
-  if (tEncodeSVCreateStbReq(&coder, &req) < 0) {
+  if (tEnSizeSVCreateStbReq(&req, &contLen) < 0) {
     taosMemoryFree(req.pRSmaParam.pFuncIds);
     return NULL;
   }
-  tCoderClear(&coder);
 
-  contLen = sizeof(SMsgHead) + coder.pos;
+  contLen += sizeof(SMsgHead);
+
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     taosMemoryFree(req.pRSmaParam.pFuncIds);

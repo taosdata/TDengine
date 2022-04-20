@@ -3691,6 +3691,22 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->ast);
 }
 
+int tEnSizeSVCreateStbReq(const SVCreateStbReq *pReq, int32_t *size) {
+  SCoder coder = {0};
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+
+  if (tEncodeSVCreateStbReq(&coder, pReq) < 0) {
+    tCoderClear(&coder);
+    return -1;
+  }
+
+  *size = coder.pos;
+
+  tCoderClear(&coder);
+  return 0;
+}
+
 int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 

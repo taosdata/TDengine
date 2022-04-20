@@ -1482,6 +1482,7 @@ typedef struct SVCreateStbReq {
   SRSmaParam  pRSmaParam;
 } SVCreateStbReq;
 
+int tEnSizeSVCreateStbReq(const SVCreateStbReq *pReq, int32_t *size);
 int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
 int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
