@@ -308,8 +308,8 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, 
   // use literal value directly and not use formula to simplify the codes
   switch (nOffset) {
     case 0:
-      *pDestByte = ((*pDestByte) & 0x3F) | (valType << 6);
       // set the value and clear other partitions for offset 0
+      *pDestByte = (valType << 6);
       // *pDestByte |= (valType << 6);
       break;
     case 1:
@@ -417,8 +417,8 @@ static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, T
   // use literal value directly and not use formula to simplify the codes
   switch (nOffset) {
     case 0:
-      *pDestByte = ((*pDestByte) & 0x7F) | (valType << 7);
       // set the value and clear other partitions for offset 0
+      *pDestByte = (valType << 7);  
       // *pDestByte |= (valType << 7);
       break;
     case 1:
@@ -650,6 +650,8 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
 
   TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
+
+  TASSERT(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
 
   uint32_t len = 0;
   switch (pBuilder->rowType) {
@@ -1165,6 +1167,18 @@ static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, in
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+ * @brief 
+ * 
+ * @param pRow 
+ * @param colId 
+ * @param colType 
+ * @param flen 
+ * @param offset 
+ * @param colIdx start from 0
+ * @param pVal 
+ * @return FORCE_INLINE 
+ */
 static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset,
                                         col_id_t colIdx, SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -1172,10 +1186,20 @@ static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t
     return true;
   }
   void *pBitmap = tdGetBitmapAddrTp(pRow, flen);
-  tdGetTpRowValOfCol(pVal, pRow, pBitmap, colType, offset - sizeof(TSKEY), colIdx - 1);
+  tdGetTpRowValOfCol(pVal, pRow, pBitmap, colType, offset - sizeof(TSKEY), colIdx);
   return true;
 }
 
+/**
+ * @brief 
+ * 
+ * @param pRow 
+ * @param colId 
+ * @param offset 
+ * @param colIdx start from 0
+ * @param pVal 
+ * @return FORCE_INLINE 
+ */
 static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx,
                                         SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -1183,7 +1207,7 @@ static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t o
     return true;
   }
   void *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
-  tdGetKvRowValOfCol(pVal, pRow, pBitmap, offset, colIdx - 1);
+  tdGetKvRowValOfCol(pVal, pRow, pBitmap, offset, colIdx);
   return true;
 }
 
