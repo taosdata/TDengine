@@ -22,15 +22,18 @@ extern "C" {
 
 #include "os.h"
 #include "taosdef.h"
+#include "tcommon.h"
 
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
-  STColumn col;             // column info
+//  STColumn col;             // column info
+  SResSchema col;
   int16_t  functionId;      // sql function id
   int16_t  flag;            // column flag: TAG COLUMN|NORMAL COLUMN
   int16_t  tagIndex;        // index of current tag in SFillTagColInfo array list
-  union {int64_t i; double d;} fillVal;
+  int32_t  offset;
+  union {int64_t i; double d;} val;
 } SFillColInfo;
 
 typedef struct {
@@ -57,7 +60,6 @@ typedef struct SFillInfo {
   char *    nextValues;           // next row of data
   char**    pData;                // original result data block involved in filling data
   int32_t   alloc;                // data buffer size in rows
-  int8_t    precision;            // time resoluation
 
   SFillColInfo* pFillCol;         // column info for fill operations
   SFillTagColInfo* pTags;         // tags value for filling gap
@@ -67,7 +69,19 @@ typedef struct SFillInfo {
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
 
+void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
+void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
+void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const struct SValueNode* val);
+bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
+SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+                                     SInterval* pInterval, int32_t fillType,
+                                     struct SFillColInfo* pCol, const char* id);
+
+void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
+int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
+int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 
 #ifdef __cplusplus
