@@ -32,7 +32,6 @@ extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
-extern bool     tsEnableTelemetryReporting;
 
 // common
 extern int32_t tsRpcTimer;
@@ -81,6 +80,12 @@ extern char     tsMonitorFqdn[];
 extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
+
+// telem
+extern bool     tsEnableTelem;
+extern int32_t  tsTelemInterval;
+extern char     tsTelemServer[];
+extern uint16_t tsTelemPort;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing

@@ -125,9 +125,9 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
   SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
 
-  if (msgType == TDMT_DND_NETWORK_TEST) {
-    dTrace("network test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
-    dmProcessStartupReq(pDnode, pMsg);
+  if (msgType == TDMT_DND_SERVER_STATUS) {
+    dTrace("server status req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+    dmProcessServerStatusReq(pDnode, pMsg);
     return;
   }
 
@@ -519,6 +519,7 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
       .sendRspFp = dmSendRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
+      .reportStartupFp = dmReportStartupByWrapper,
       .pWrapper = pWrapper,
   };
   return msgCb;

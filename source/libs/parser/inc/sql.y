@@ -161,6 +161,7 @@ db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                          
 db_options(A) ::= db_options(B) SINGLE_STABLE NK_INTEGER(C).                      { ((SDatabaseOptions*)B)->pSingleStable = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C); A = B; }
 db_options(A) ::= db_options(B) STREAM_MODE NK_INTEGER(C).                        { ((SDatabaseOptions*)B)->pStreamMode = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C); A = B; }
 db_options(A) ::= db_options(B) RETENTIONS retention_list(C).                     { ((SDatabaseOptions*)B)->pRetentions = C; A = B; }
+db_options(A) ::= db_options(B) STRICT NK_INTEGER(C).                             { ((SDatabaseOptions*)B)->pStrict = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C); A = B; }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createDatabaseOptions(pCxt); A = setDatabaseAlterOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setDatabaseAlterOption(pCxt, B, &C); }
@@ -175,6 +176,7 @@ alter_db_option(A) ::= WAL NK_INTEGER(B).                                       
 alter_db_option(A) ::= QUORUM NK_INTEGER(B).                                      { A.type = DB_OPTION_QUORUM; A.pVal = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
 alter_db_option(A) ::= CACHELAST NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHELAST; A.pVal = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
 alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.pVal = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+alter_db_option(A) ::= STRICT NK_INTEGER(B).                                      { A.type = DB_OPTION_STRICT; A.pVal = (SValueNode*)createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -359,7 +361,7 @@ from_db_opt(A) ::= FROM db_name(B).                                             
 %type func_name_list                                                              { SNodeList* }
 %destructor func_name_list                                                        { nodesDestroyList($$); }
 func_name_list(A) ::= func_name(B).                                               { A = createNodeList(pCxt, B); }
-func_name_list(A) ::= func_name_list(B) NK_COMMA col_name(C).                     { A = addNodeToList(pCxt, B, C); }
+func_name_list(A) ::= func_name_list(B) NK_COMMA func_name(C).                    { A = addNodeToList(pCxt, B, C); }
 
 func_name(A) ::= function_name(B).                                                { A = createFunctionNode(pCxt, &B, NULL); }
 

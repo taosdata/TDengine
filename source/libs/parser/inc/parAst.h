@@ -53,6 +53,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_VGROUPS,
   DB_OPTION_SINGLE_STABLE,
   DB_OPTION_STREAM_MODE,
+  DB_OPTION_STRICT,
   DB_OPTION_RETENTIONS
 } EDatabaseOptionType;
 

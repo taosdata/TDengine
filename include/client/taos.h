@@ -291,6 +291,16 @@ DLL_EXPORT TAOS_RES *tmq_create_stream(TAOS *taos, const char *streamName, const
 typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
 #endif
 
+typedef enum {
+  TSDB_SRV_STATUS_UNAVAILABLE = 0,
+  TSDB_SRV_STATUS_NETWORK_OK = 1,
+  TSDB_SRV_STATUS_SERVICE_OK = 2,
+  TSDB_SRV_STATUS_SERVICE_DEGRADED = 3,
+  TSDB_SRV_STATUS_EXTING = 4,
+} TSDB_SERVER_STATUS;
+
+DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen);
+
 #ifdef __cplusplus
 }
 #endif

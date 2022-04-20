@@ -203,7 +203,6 @@ if $data[0][4] == LEADER then
   $dnodeId = $data[0][3]
 elif $data[0][6] == LEADER then
   $dnodeId = $data[0][5]
-endi
 elif $data[0][8] == LEADER then
   $dnodeId = $data[0][7]
 else 

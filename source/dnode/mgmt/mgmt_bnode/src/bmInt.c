@@ -61,12 +61,14 @@ int32_t bmOpen(SMgmtWrapper *pWrapper) {
     bmClose(pWrapper);
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "bnode-impl", "initialized");
 
   if (bmStartWorker(pMgmt) != 0) {
     dError("failed to start bnode worker since %s", terrstr());
     bmClose(pWrapper);
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "bnode-worker", "initialized");
 
   return 0;
 }
