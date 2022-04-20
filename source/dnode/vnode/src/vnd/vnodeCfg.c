@@ -141,7 +141,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   assert(arraySize == pCfg->syncCfg.replicaNum);
 
   for (int i = 0; i < arraySize; ++i) {
-    cJSON *pNodeInfo = tjsonGetArrayItem(pNodeInfoArr, i);
+    SJson *pNodeInfo = tjsonGetArrayItem(pNodeInfoArr, i);
     assert(pNodeInfo != NULL);
     tjsonGetNumberValue(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort);
     tjsonGetStringValue(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
