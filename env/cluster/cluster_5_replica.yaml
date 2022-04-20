@@ -1,0 +1,41 @@
+settings:
+  - name: taosd
+    fqdn: [dnode_1 , dnode_2 , dnode_3]
+    labels: [service]
+    spec:
+      version: 2.4.0.12  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: dnode_1:6030
+      dnodes:
+        - endpoint: dnode_1:6030
+          config_dir: /data/run/dnode1/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode1/data
+            logDir: /data/run/dnode1/log
+            numOfMnodes: 3
+            debugFlag: 135
+        - endpoint: dnode_2:6030
+          config_dir: /data/run/dnode2/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode2/data
+            logDir: /data/run/dnode2/log
+            numOfMnodes: 3
+            debugFlag: 135
+        - endpoint: dnode_3:6030
+          config_dir: /data/run/dnode3/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode3/data
+            logDir: /data/run/dnode3/log
+            numOfMnodes: 3
+            debugFlag: 135
+  - name: taospy
+    fqdn: [dnode_1 ,dnode_2 , dnode_3]
+    labels: [client]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.12
+      config:
+        firstEP: dnode_1:6030
+        logDir: /data/run/dnode1/log
+        debugFlag: 135
+
