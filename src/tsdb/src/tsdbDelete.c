@@ -208,6 +208,7 @@ static int tsdbDeleteTSData(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo, SArray
   int sFid = TSDB_KEY_FID(win.skey, pCfg->daysPerFile, pCfg->precision);
   int eFid = TSDB_KEY_FID(win.ekey, pCfg->daysPerFile, pCfg->precision);
   if(sFid > eFid) {
+    tsdbError("vgId:%d :SDEL sFid > eFid no fid to delete. sFid=%d eFid=%d", REPO_ID(pRepo), sFid, eFid);
     tsdbDestroyDeleteH(&deleteH);
     return -1;
   }
@@ -357,10 +358,12 @@ static int tsdbInitDeleteH(SDeleteH *pdh, STsdbRepo *pRepo) {
   tsdbFSIterInit(&(pdh->fsIter), REPO_FS(pRepo), TSDB_FS_ITER_FORWARD);
 
   if (tsdbInitReadH(&(pdh->readh), pRepo) < 0) {
+    tsdbError("vgId:%d :SDEL tsdbInitReadH return -1. malloc memory failed.", REPO_ID(pRepo));
     return -1;
   }
 
   if (tsdbInitDeleteTblArray(pdh) < 0) {
+    tsdbError("vgId:%d :SDEL tsdbInitDeleteTblArray return -1. maybe malloc memory failed or lock meta error.", REPO_ID(pRepo));
     tsdbDestroyDeleteH(pdh);
     return -1;
   }
@@ -666,6 +669,8 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
 
   // get pSchema for del table
   if ((pSchema = tsdbGetTableSchemaImpl(pItem->pTable, true, true, -1, -1)) == NULL) {
+    tsdbError("vgId:%d :SDEL tsdbGetTableSchemaImpl return NULL tid=%d. errno=%d (%s)", REPO_ID(pdh->pRepo),
+              pItem->pTable->tableId.tid,  errno, tstrerror(terrno));
     return -1;
   }
   
@@ -700,6 +705,7 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
 
     // border block need load to delete no-use data
     if (tsdbLoadBlockData(pReadh, pBlock, pItem->pInfo) < 0) {
+      tsdbError("vgId:%d :SDEL tsdbLoadBlockData return -1. i=%d. errno=%d (%s)", REPO_ID(pdh->pRepo), i, errno, tstrerror(terrno));
       return -1;
     }
 
@@ -710,6 +716,7 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
 
     SBlock newBlock = {0};
     if (tsdbWriteBlockToFile(pdh, pItem->pTable, pdh->pDCols, ppBuf, ppCBuf, ppExBuf, &newBlock) < 0) {
+      tsdbError("vgId:%d :SDEL tsdbWriteBlockToFile return -1. i=%d. errno=%d (%s)", REPO_ID(pdh->pRepo), i, errno, tstrerror(terrno));
       return -1;
     }
 
@@ -720,6 +727,8 @@ static int tsdbModifyBlocks(SDeleteH *pdh, STableDeleteH *pItem) {
   // write block info for each table
   if (tsdbWriteBlockInfoImpl(TSDB_DELETE_HEAD_FILE(pdh), pItem->pTable, pdh->aSupBlk, pdh->aSubBlk,
                               ppBuf, &blkIdx) < 0) {
+    tsdbError("vgId:%d :SDEL tsdbWriteBlockInfoImpl return -1. tid=%d. errno=%d (%s)", REPO_ID(pdh->pRepo),
+              pItem->pTable->tableId.tid,  errno, tstrerror(terrno));
     return -1;
   }
 
@@ -797,6 +806,7 @@ static int tsdbFSetDeleteImpl(SDeleteH *pdh) {
 
   // 3.WRITE INDEX OF ALL TABLE'S BLOCK TO HEAD FILE
   if (tsdbWriteBlockIdx(TSDB_DELETE_HEAD_FILE(pdh), pdh->aBlkIdx, ppBuf) < 0) {
+    tsdbError("vgId:%d :SDEL tsdbWriteBlockIdx return -1. errno=%d (%s)", REPO_ID(pdh->pRepo), terrno, tstrerror(terrno));
     return -1;
   }
 

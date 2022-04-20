@@ -58,11 +58,20 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
 }
 
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+  int64_t fid;
   if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+    fid = ((key + 1) / tsTickPerDay[precision] / days - 1);
   } else {
-    return (int)((key / tsTickPerDay[precision] / days));
+    fid = ((key / tsTickPerDay[precision] / days));
   }
+  
+  // check fid over int max or min, set with int max or min
+  if (fid > INT32_MAX) {
+    fid = INT32_MAX;
+  } else if(fid < INT32_MIN){
+    fid = INT32_MIN;
+  }
+  return (int)fid;
 }
 
 #endif /* _TD_TSDB_COMMIT_H_ */
