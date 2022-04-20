@@ -174,6 +174,11 @@ void dmStopNode(SMgmtWrapper *pWrapper) {
 
 void dmCloseNode(SMgmtWrapper *pWrapper) {
   dInfo("node:%s, start to close", pWrapper->name);
+
+  while (pWrapper->refCount > 0) {
+    taosMsleep(10);
+  }
+
   if (pWrapper->procType == DND_PROC_PARENT) {
     if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
       dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
@@ -186,17 +191,9 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
 
   dmStopNode(pWrapper);
 
-  pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed) {
-    (*pWrapper->fp.closeFp)(pWrapper);
-    pWrapper->deployed = false;
-  }
+  (*pWrapper->fp.closeFp)(pWrapper);
   taosWUnLockLatch(&pWrapper->latch);
-
-  while (pWrapper->refCount > 0) {
-    taosMsleep(10);
-  }
 
   if (pWrapper->procObj) {
     taosProcCleanup(pWrapper->procObj);

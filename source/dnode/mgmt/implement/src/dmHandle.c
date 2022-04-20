@@ -175,9 +175,9 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
-    dmCloseNode(pWrapper);
     pWrapper->required = false;
     pWrapper->deployed = false;
+    dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }
   taosThreadMutexUnlock(&pDnode->mutex);
