@@ -355,10 +355,14 @@ typedef struct {
   int32_t  numOfTags;
   int32_t  numOfSmas;
   int32_t  commentLen;
+  int32_t  ast1Len;
+  int32_t  ast2Len;
   SSchema* pColumns;
   SSchema* pTags;
   SSchema* pSmas;
   char*    comment;
+  char*    pAst1;
+  char*    pAst2;
   SRWLatch lock;
 } SStbObj;
 

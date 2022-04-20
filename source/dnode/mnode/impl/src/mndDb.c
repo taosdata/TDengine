@@ -286,12 +286,12 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) return -1;
-  if (pCfg->strict < TSDB_MIN_DB_STRICT || pCfg->strict > TSDB_MAX_DB_STRICT) return -1;
+  if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->strict > pCfg->replications) return -1;
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
-  if (pCfg->streamMode < TSDB_MIN_DB_STREAM_MODE || pCfg->streamMode > TSDB_MAX_DB_STREAM_MODE) return -1;
-  if (pCfg->singleSTable < TSDB_MIN_DB_SINGLE_STABLE || pCfg->streamMode > TSDB_MAX_DB_SINGLE_STABLE) return -1;
+  if (pCfg->streamMode < TSDB_DB_STREAM_MODE_OFF || pCfg->streamMode > TSDB_DB_STREAM_MODE_ON) return -1;
+  if (pCfg->singleSTable < TSDB_DB_SINGLE_STABLE_ON || pCfg->streamMode > TSDB_DB_SINGLE_STABLE_OFF) return -1;
   if (pCfg->hashMethod != 1) return -1;
   return TSDB_CODE_SUCCESS;
 }
@@ -859,6 +859,8 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
 
   pReq->pRsp = pRsp;
   pReq->rspLen = contLen;
+
+  code = 0;
 
 GET_DB_CFG_OVER:
 

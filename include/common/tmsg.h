@@ -280,10 +280,14 @@ typedef struct {
   int32_t numOfTags;
   int32_t numOfSmas;
   int32_t commentLen;
+  int32_t ast1Len;
+  int32_t ast2Len;
   SArray* pColumns;  // array of SField
   SArray* pTags;     // array of SField
   SArray* pSmas;     // array of SField
   char*   comment;
+  char*   pAst1;
+  char*   pAst2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -609,6 +613,8 @@ typedef struct {
   int8_t  cacheLastRow;
   int8_t  streamMode;
   int8_t  singleSTable;
+  int32_t numOfRetensions;
+  SArray* pRetensions;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
