@@ -1561,6 +1561,7 @@ int32_t tSerializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pReq
   if (tEncodeI8(&encoder, pReq->outputType) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->outputLen) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->bufSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->codeLen) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->signature) < 0) return -1;
 
   int32_t codeSize = 0;
@@ -1600,6 +1601,7 @@ int32_t tDeserializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pR
   if (tDecodeI8(&decoder, &pReq->outputType) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->outputLen) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->bufSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->codeLen) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->signature) < 0) return -1;
 
   int32_t codeSize = 0;
@@ -3758,4 +3760,28 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
 
   tEndDecode(pCoder);
   return 0;
+}
+
+STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
+  STSchemaBuilder schemaBuilder = {0};
+  if (tdInitTSchemaBuilder(&schemaBuilder, 0) < 0) {
+    return NULL;
+  }
+
+  for (int i = 0; i < nCols; i++) {
+    SSchema *schema = *pSchema + i;
+    if (tdAddColToSchema(&schemaBuilder, schema->type, schema->flags, schema->colId, schema->bytes) < 0) {
+      tdDestroyTSchemaBuilder(&schemaBuilder);
+      return NULL;
+    }
+  }
+
+  STSchema *pNSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+  if (pNSchema == NULL) {
+    tdDestroyTSchemaBuilder(&schemaBuilder);
+    return NULL;
+  }
+
+  tdDestroyTSchemaBuilder(&schemaBuilder);
+  return pNSchema;
 }

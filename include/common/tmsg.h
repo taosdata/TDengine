@@ -269,6 +269,8 @@ typedef struct SSchema {
 #define SSCHMEA_BYTES(s) ((s)->bytes)
 #define SSCHMEA_NAME(s)  ((s)->name)
 
+STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
@@ -658,6 +660,7 @@ typedef struct {
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
+  int32_t codeLen;
   int64_t signature;
   char*   pComment;
   char*   pCode;

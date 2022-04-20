@@ -167,7 +167,7 @@ SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions,
 SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
 SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups);
-SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize);
+SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize);
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName);
 SNode* createStreamOptions(SAstCreateContext* pCxt);
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable, SNode* pOptions, SNode* pQuery);
