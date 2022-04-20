@@ -34,8 +34,8 @@ class TDTestCase:
         tdSql.query("select timezone() from normaltb")
         tdSql.checkRows(2)
 
-        # tdSql.checkData(0,0,"Asia/Shanghai (CST, +0800)")
-        # tdSql.checkData(1,0,"Asia/Shanghai (CST, +0800)")
+        tdSql.checkData(0,0,"Asia/Shanghai (CST, +0800)")
+        tdSql.checkData(1,0,"Asia/Shanghai (CST, +0800)")
 
         tdSql.execute("insert into normaltb values(today(),3,3.333,333.333333)")
         tdSql.query("select * from normaltb where ts=today()")
