@@ -16,7 +16,7 @@
 #ifndef _TD_SHELL_COMMAND_H_
 #define _TD_SHELL_COMMAND_H_
 
-#include "shell.h"
+#include "shellInt.h"
 
 #define LEFT  1
 #define RIGHT 2

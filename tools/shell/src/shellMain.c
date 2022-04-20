@@ -16,7 +16,6 @@
 #define __USE_XOPEN
 #include "shellCommand.h"
 #include "tglobal.h"
-#include "tlog.h"
 
 #include <argp.h>
 #include <termio.h>
@@ -407,7 +406,7 @@ void *shellLoopQuery(void *arg) {
 
   char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
   if (command == NULL) {
-    uError("failed to malloc command");
+    printf("failed to malloc command\n");
     return NULL;
   }
 

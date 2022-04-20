@@ -21,14 +21,10 @@
 #include "taos.h"
 #include "taosdef.h"
 
-#define MAX_USERNAME_SIZE      64
-#define MAX_DBNAME_SIZE        64
-#define MAX_IP_SIZE            20
-#define MAX_HISTORY_SIZE       1000
-#define MAX_COMMAND_SIZE       1048586
-#define HISTORY_FILE           ".taos_history"
-
-#define DEFAULT_RES_SHOW_NUM   100
+#define MAX_HISTORY_SIZE     1000
+#define MAX_COMMAND_SIZE     1048586
+#define HISTORY_FILE         ".taos_history"
+#define DEFAULT_RES_SHOW_NUM 100
 
 typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];

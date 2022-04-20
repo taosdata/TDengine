@@ -17,7 +17,7 @@
 
 #include "shellCommand.h"
 #include "os.h"
-#include "shell.h"
+#include "shellInt.h"
 
 #include <regex.h>
 

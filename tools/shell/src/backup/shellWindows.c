@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include "../../../../include/client/taos.h"
 #include "os.h"
-#include "shell.h"
+#include "shellInt.h"
 #include "shellCommand.h"
 
 extern char configDir[];
