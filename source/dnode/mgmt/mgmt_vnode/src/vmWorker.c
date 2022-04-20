@@ -190,6 +190,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     taosGetQitem(qall, (void **)&pMsg);
 
+    // init response rpc msg
     rsp.code = 0;
     rsp.pCont = NULL;
     rsp.contLen = 0;
@@ -201,6 +202,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     SRpcMsg originalRpcMsg;
     syncApplyMsg2OriginalRpcMsg(pSyncApplyMsg, &originalRpcMsg);
 
+    // apply data into tsdb
     if (vnodeProcessWriteReq(pVnode->pImpl, &originalRpcMsg, pSyncApplyMsg->fsmMeta.index, &rsp) < 0) {
       rsp.code = terrno;
       dTrace("vnodeProcessWriteReq error, code:%d", terrno);
@@ -209,6 +211,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     syncApplyMsgDestroy(pSyncApplyMsg);
     rpcFreeCont(originalRpcMsg.pCont);
 
+    // if leader, send response
     if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
       rsp.ahandle = pMsg->rpcMsg.ahandle;
       rsp.handle = pMsg->rpcMsg.handle;
