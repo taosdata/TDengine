@@ -69,26 +69,6 @@ function run() {
             date
             echo -e "\e[33m $i >>>>> \e[0m $line"
             cmd="$line"
-            echo "$cmd" | grep -q "\-\-use"
-            if [ $? -eq 0 ]; then
-                # setup env if it is referenced the first time
-                local use_param=`echo "$cmd" | grep "\-\-use.*"`
-                local use_file=""
-                echo "$use_param" | grep -q "\-\-use="
-                if [ $? -eq 0 ]; then
-                    use_file=`echo "$use_param" | cut -d= -f2 | cut -d' ' -f1`
-                else
-                    use_file=`echo "$use_param" | awk '{print $2}'`
-                fi
-                if [ ! -z "$use_file" ]; then
-                    echo "grep -q \"$use_file\" $env_file"
-                    grep -q "$use_file" $env_file
-                    if [ $? -ne 0 ]; then
-                        echo "replace use with setup"
-                        cmd="${cmd/--use/--setup}"
-                    fi
-                fi
-            fi
             echo "$cmd" | grep -q "\-\-setup"
             if [ $? -eq 0 ]; then
                 local setup_param=`echo "$cmd" | grep "\-\-setup.*"`
