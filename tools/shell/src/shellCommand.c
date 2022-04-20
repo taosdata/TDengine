@@ -15,9 +15,9 @@
 
 #define __USE_XOPEN
 
+#include "shellCommand.h"
 #include "os.h"
 #include "shell.h"
-#include "shellCommand.h"
 
 #include <regex.h>
 
@@ -48,7 +48,7 @@ void getPrevCharSize(const char *str, int pos, int *size, int *width) {
   while (--pos >= 0) {
     *size += 1;
 
-    if (str[pos] > 0 || countPrefixOnes((unsigned char )str[pos]) > 1) break;
+    if (str[pos] > 0 || countPrefixOnes((unsigned char)str[pos]) > 1) break;
   }
 
   int rc = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
@@ -106,8 +106,7 @@ void clearLineBefore(Command *cmd) {
   assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
 
   clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
-  memmove(cmd->command, cmd->command + cmd->cursorOffset,
-          cmd->commandSize - cmd->cursorOffset);
+  memmove(cmd->command, cmd->command + cmd->cursorOffset, cmd->commandSize - cmd->cursorOffset);
   cmd->commandSize -= cmd->cursorOffset;
   cmd->cursorOffset = 0;
   cmd->screenOffset = 0;
@@ -235,8 +234,8 @@ int isReadyGo(Command *cmd) {
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
   char *reg_str =
-    "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
-    "\\s*clear\\s*$)";
+      "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
+      "\\s*clear\\s*$)";
   if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
     return 1;

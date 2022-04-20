@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "mockCatalog.h"
+#include "planTestUtil.h"
 
 class PlannerEnv : public testing::Environment {
 public:
@@ -34,8 +35,27 @@ public:
   virtual ~PlannerEnv() {}
 };
 
+static void parseArg(int argc, char* argv[]) {
+  int opt = 0;
+  const char *optstring = "";  
+  static struct option long_options[] = {
+      {"dump", no_argument, NULL, 'd'},
+      {0, 0, 0, 0}
+  };
+  while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
+    switch (opt) {
+      case 'd':
+        g_isDump = true;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 int main(int argc, char* argv[]) {
 	testing::AddGlobalTestEnvironment(new PlannerEnv());
 	testing::InitGoogleTest(&argc, argv);
+  parseArg(argc, argv);
 	return RUN_ALL_TESTS();
 }

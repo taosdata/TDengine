@@ -32,6 +32,7 @@ typedef struct SAstCreateContext {
   bool notSupport;
   bool valid;
   SNode* pRootNode;
+  int16_t placeholderNo;
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {
@@ -52,6 +53,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_VGROUPS,
   DB_OPTION_SINGLE_STABLE,
   DB_OPTION_STREAM_MODE,
+  DB_OPTION_STRICT,
   DB_OPTION_RETENTIONS
 } EDatabaseOptionType;
 
@@ -86,7 +88,7 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt);
-SNode* createPlaceholderValueNode(SAstCreateContext* pCxt);
+SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias);
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2);
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);

@@ -219,10 +219,14 @@ static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
 
 static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   mTrace("db:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+  taosWLockLatch(&pOld->lock);
+  SArray *pOldRetensions = pOld->cfg.pRetensions;
   pOld->updateTime = pNew->updateTime;
   pOld->cfgVersion = pNew->cfgVersion;
   pOld->vgVersion = pNew->vgVersion;
   memcpy(&pOld->cfg, &pNew->cfg, sizeof(SDbCfg));
+  pNew->cfg.pRetensions = pOldRetensions;
+  taosWUnLockLatch(&pOld->lock);
   return 0;
 }
 
@@ -758,27 +762,29 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
     goto GET_DB_CFG_OVER;
   }
 
-  cfgRsp.numOfVgroups   = pDb->cfg.numOfVgroups;
-  cfgRsp.cacheBlockSize = pDb->cfg.cacheBlockSize;
-  cfgRsp.totalBlocks    = pDb->cfg.totalBlocks;
-  cfgRsp.daysPerFile    = pDb->cfg.daysPerFile;
-  cfgRsp.daysToKeep0    = pDb->cfg.daysToKeep0;
-  cfgRsp.daysToKeep1    = pDb->cfg.daysToKeep1;
-  cfgRsp.daysToKeep2    = pDb->cfg.daysToKeep2;
-  cfgRsp.minRows        = pDb->cfg.minRows;
-  cfgRsp.maxRows        = pDb->cfg.maxRows;
-  cfgRsp.commitTime     = pDb->cfg.commitTime;
-  cfgRsp.fsyncPeriod    = pDb->cfg.fsyncPeriod;
-  cfgRsp.ttl            = pDb->cfg.ttl;
-  cfgRsp.walLevel       = pDb->cfg.walLevel;
-  cfgRsp.precision      = pDb->cfg.precision;
-  cfgRsp.compression    = pDb->cfg.compression;
-  cfgRsp.replications   = pDb->cfg.replications;
-  cfgRsp.quorum         = pDb->cfg.quorum;
-  cfgRsp.update         = pDb->cfg.update;
-  cfgRsp.cacheLastRow   = pDb->cfg.cacheLastRow;
-  cfgRsp.streamMode     = pDb->cfg.streamMode;
-  cfgRsp.singleSTable   = pDb->cfg.singleSTable;
+  cfgRsp.numOfVgroups    = pDb->cfg.numOfVgroups;
+  cfgRsp.cacheBlockSize  = pDb->cfg.cacheBlockSize;
+  cfgRsp.totalBlocks     = pDb->cfg.totalBlocks;
+  cfgRsp.daysPerFile     = pDb->cfg.daysPerFile;
+  cfgRsp.daysToKeep0     = pDb->cfg.daysToKeep0;
+  cfgRsp.daysToKeep1     = pDb->cfg.daysToKeep1;
+  cfgRsp.daysToKeep2     = pDb->cfg.daysToKeep2;
+  cfgRsp.minRows         = pDb->cfg.minRows;
+  cfgRsp.maxRows         = pDb->cfg.maxRows;
+  cfgRsp.commitTime      = pDb->cfg.commitTime;
+  cfgRsp.fsyncPeriod     = pDb->cfg.fsyncPeriod;
+  cfgRsp.ttl             = pDb->cfg.ttl;
+  cfgRsp.walLevel        = pDb->cfg.walLevel;
+  cfgRsp.precision       = pDb->cfg.precision;
+  cfgRsp.compression     = pDb->cfg.compression;
+  cfgRsp.replications    = pDb->cfg.replications;
+  cfgRsp.quorum          = pDb->cfg.quorum;
+  cfgRsp.update          = pDb->cfg.update;
+  cfgRsp.cacheLastRow    = pDb->cfg.cacheLastRow;
+  cfgRsp.streamMode      = pDb->cfg.streamMode;
+  cfgRsp.singleSTable    = pDb->cfg.singleSTable;
+  cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
+  cfgRsp.pRetensions     = pDb->cfg.pRetensions;
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
@@ -792,6 +798,8 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
 
   pReq->pRsp = pRsp;
   pReq->rspLen = contLen;
+
+  code = 0;
 
 GET_DB_CFG_OVER:
 
@@ -1354,7 +1362,7 @@ char *mndGetDbStr(char *src) {
   return pos;
 }
 
-static void dumpDbInfoData(SSDataBlock* pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables) {
+static void dumpDbInfoData(SSDataBlock* pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables, bool sysDb) {
   int32_t cols = 0;
 
   char* buf = taosMemoryMalloc(pShow->bytes[cols]);
@@ -1366,100 +1374,117 @@ static void dumpDbInfoData(SSDataBlock* pBlock, SDbObj *pDb, SShowObj *pShow, in
     ASSERT(0);
   }
 
-  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, buf, false);
-  taosMemoryFree(buf);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.quorum, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
-
-  char tmp[128] = {0};
-  int32_t len = 0;
-  if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-    len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
-  } else {
-    len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
-  }
-
-  varDataSetLen(tmp, len);
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)tmp, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheBlockSize, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.totalBlocks, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.fsyncPeriod, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastRow, false);
-
-  char *prec = NULL;
-  switch (pDb->cfg.precision) {
-    case TSDB_TIME_PRECISION_MILLI:
-      prec = TSDB_TIME_PRECISION_MILLI_STR;
-      break;
-    case TSDB_TIME_PRECISION_MICRO:
-      prec = TSDB_TIME_PRECISION_MICRO_STR;
-      break;
-    case TSDB_TIME_PRECISION_NANO:
-      prec = TSDB_TIME_PRECISION_NANO_STR;
-      break;
-    default:
-      prec = "none";
-      break;
-  }
-
-  char t[10] = {0};
-  STR_WITH_SIZE_TO_VARSTR(t, prec, 2);
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)t, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.ttl, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.singleSTable, false);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.streamMode, false);
-
   char *status = "ready";
-  char b[24] = {0};
+  char  b[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(b, status, strlen(status));
 
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataAppend(pColInfo, rows, (const char *)b, false);
+  if (sysDb) {
+    for(int32_t i = 0; i < pShow->numOfColumns; ++i) {
+      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+      if (i == 0) {
+        colDataAppend(pColInfo, rows, buf, false);
+      } else if (i == 3) {
+        colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+      } else if (i == 20) {
+        colDataAppend(pColInfo, rows, b, false);
+      } else {
+        colDataAppendNULL(pColInfo, rows);
+      }
+    }
+  } else {
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, buf, false);
+    taosMemoryFree(buf);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.quorum, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
+
+    char    tmp[128] = {0};
+    int32_t len = 0;
+    if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
+      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
+                    pDb->cfg.daysToKeep0);
+    } else {
+      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
+                    pDb->cfg.daysToKeep2);
+    }
+
+    varDataSetLen(tmp, len);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)tmp, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheBlockSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.totalBlocks, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.fsyncPeriod, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastRow, false);
+
+    char *prec = NULL;
+    switch (pDb->cfg.precision) {
+      case TSDB_TIME_PRECISION_MILLI:
+        prec = TSDB_TIME_PRECISION_MILLI_STR;
+        break;
+      case TSDB_TIME_PRECISION_MICRO:
+        prec = TSDB_TIME_PRECISION_MICRO_STR;
+        break;
+      case TSDB_TIME_PRECISION_NANO:
+        prec = TSDB_TIME_PRECISION_NANO_STR;
+        break;
+      default:
+        prec = "none";
+        break;
+    }
+
+    char t[10] = {0};
+    STR_WITH_SIZE_TO_VARSTR(t, prec, 2);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)t, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.ttl, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.singleSTable, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.streamMode, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataAppend(pColInfo, rows, (const char *)b, false);
+  }
 
   //  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
   //  *(int8_t *)pWrite = pDb->cfg.update;
@@ -1508,13 +1533,13 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14);
+    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3);
+    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
@@ -1529,7 +1554,7 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
     int32_t numOfTables = 0;
     sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
 
-    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables);
+    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false);
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }

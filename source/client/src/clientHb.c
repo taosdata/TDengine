@@ -630,10 +630,29 @@ void appHbMgrCleanup(void) {
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
     SAppHbMgr *pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+    
+    void   *pIter = taosHashIterate(pTarget->activeInfo, NULL);
+    while (pIter != NULL) {
+      SClientHbReq *pOneReq = pIter;
+      hbFreeReq(pOneReq);
+      taosHashCleanup(pOneReq->info);
+      pIter = taosHashIterate(pTarget->activeInfo, pIter);
+    }    
     taosHashCleanup(pTarget->activeInfo);
     pTarget->activeInfo = NULL;
+
+
+    pIter = taosHashIterate(pTarget->connInfo, NULL);
+    while (pIter != NULL) {
+      SHbConnInfo *info = pIter;
+      taosMemoryFree(info->param);
+      pIter = taosHashIterate(pTarget->connInfo, pIter);
+    }    
     taosHashCleanup(pTarget->connInfo);
     pTarget->connInfo = NULL;
+
+    taosMemoryFree(pTarget->key);
+    taosMemoryFree(pTarget);
   }
 }
 
@@ -716,12 +735,23 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
 }
 
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
-  int32_t code = 0;
-  code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
-  code = taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
-  if (code) {
+  SClientHbReq *pReq = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+  if (pReq) {
+    hbFreeReq(pReq);
+    taosHashCleanup(pReq->info);
+    taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+  }
+
+  SHbConnInfo *info = taosHashGet(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
+  if (info) {
+    taosMemoryFree(info->param);
+    taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
+  }
+  
+  if (NULL == pReq || NULL == info) {
     return;
   }
+  
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
 }
 
