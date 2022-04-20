@@ -1,5 +1,6 @@
 ---
 title: 配置参数
+description: "TDengine 客户端和服务配置列表"
 ---
 
 ## 为服务端指定配置文件
@@ -87,7 +88,7 @@ taos --dump-config
 | TCP  | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。                                                                                                   |
 | TCP  | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。                                                                                                           |
 | TCP  | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。                                                                                                           |
-| TCP  | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。 |
+| TCP  | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
 | TCP  | 6042      | Arbitrator 的服务端口。             | 随 Arbitrator 启动参数设置变化。                                                                                                   |
 | TCP  | 6043      | TaosKeeper 监控服务端口。           | 随 TaosKeeper 启动参数设置变化。                                                                                                   |
 | TCP  | 6044      | 支持 StatsD 的数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |
@@ -783,7 +784,7 @@ taos --dump-config
 
 :::note
 HTTP服务在2.4.0.0（不含）以前的版本中由taosd提供，在2.4.0.0以后（含）由taosAdapter提供。
-本节的配置参数仅在2.4.0.0（不含）以前的版本中生效。如果您使用的是2.4.0.0（含）及以后的版本请参考[文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。
+本节的配置参数仅在2.4.0.0（不含）以前的版本中生效。如果您使用的是2.4.0.0（含）及以后的版本请参考[文档](/reference/taosadapter/)。
 
 :::
 
@@ -810,7 +811,7 @@ HTTP服务在2.4.0.0（不含）以前的版本中由taosd提供，在2.4.0.0以
 | 属性     | 说明                                                                                                                        |
 | -------- | --------------------------------------------------------------------------------------------------------------------------- |
 | 适用范围 | 仅服务端适用                                                                                                                |
-| 含义     | RESTFul 接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。 |
+| 含义     | RESTFul 接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
 | 缺省值   | 2                                                                                                                           |
 
 ### restfulRowLimit
@@ -818,7 +819,7 @@ HTTP服务在2.4.0.0（不含）以前的版本中由taosd提供，在2.4.0.0以
 | 属性     | 说明                                                                                                                                  |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | 适用范围 | 仅服务端适用                                                                                                                          |
-| 含义     | RESTFul 接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。 |
+| 含义     | RESTFul 接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
 | 缺省值   | 10240                                                                                                                                 |
 | 补充说明 | 最大 10,000,000                                                                                                                       |
 

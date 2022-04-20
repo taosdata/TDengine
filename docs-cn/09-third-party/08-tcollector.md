@@ -3,14 +3,30 @@ sidebar_label: TCollector
 title: TCollector 写入
 ---
 
-安装 TCollector
-请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
+import Tcollector from "../14-reference/_tcollector.mdx"
 
-TDengine 新版本（2.4.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 TCollector 的多种应用的数据写入。
+TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。
 
-TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
+将 TCollector 采集的日志数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
 
-使能 taosAdapter 配置项 `opentsdb_telnet.enable`
-修改 TCollector 配置文件，修改 OpenTSDB 宿主机地址为 taosAdapter 被部署的地址，并修改端口号为 taosAdapter 使用的端口（默认 6049）。
+安装 TCollector 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
+
+## 依赖配置
+
+TDengine（2.4.0.0+）包含一个 taosAdapter 独立程序，可以接收包括 TCollector 在内的多种应用的数据写入。只需要将 TCollector 的配置修改指向 taosAdapter 对应的地址和端口即可。taosAdapter 可以和 TDengine 部署在同一个系统中，也可以分离部署，taosAdapter 的详细使用方法请参考相关文档。
+
+启动 taosAdapter：
+
+```
+systemctl start taosadapter
+```
+
+检查 taosAdapter 的运行状态：
+
+```
+systemctl status taosadapter
+```
+
+<Tcollector />
 
 taosAdapter 相关配置参数请参考 `taosadapter --help` 命令输出以及相关文档。
