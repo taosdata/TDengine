@@ -24,9 +24,8 @@ const uint8_t tdVTypeByte[2][3] = {{
                                    },
                                    {
                                        // 1 bit
-                                       TD_VTYPE_NORM_BYTE_I,
-                                       TD_VTYPE_NULL_BYTE_I,
-                                       TD_VTYPE_NULL_BYTE_I, // padding
+                                       TD_VTYPE_NORM_BYTE_I, TD_VTYPE_NULL_BYTE_I,
+                                       TD_VTYPE_NULL_BYTE_I,  // padding
                                    }
 
 };
@@ -224,17 +223,40 @@ static uint8_t tdGetMergedBitmapByte(uint8_t byte) {
  * @brief Merge bitmap from 2 bits to 1 bits, and the memory buffer should be guaranteed by the invoker.
  *
  * @param srcBitmap
- * @param srcLen
+ * @param nBits
  * @param dstBitmap
  */
-void tdMergeBitmap(uint8_t *srcBitmap, int32_t srcLen, uint8_t *dstBitmap) {
+void tdMergeBitmap(uint8_t *srcBitmap, int32_t nBits, uint8_t *dstBitmap) {
   int32_t i = 0, j = 0;
+  int32_t nBytes = TD_BITMAP_BYTES(nBits);
+  int32_t nStrictBytes = nBits / 4;
+  int32_t nPartialBits = nBits - nStrictBytes * 4;
 
-  if (srcLen > 0) {
+  switch (nPartialBits) {
+    case 0:
+      // NOTHING TODO
+      break;
+    case 1: {
+      void *lastByte = POINTER_SHIFT(srcBitmap, nStrictBytes);
+      *(uint8_t *)lastByte &= 0xC0;
+    } break;
+    case 2: {
+      void *lastByte = POINTER_SHIFT(srcBitmap, nStrictBytes);
+      *(uint8_t *)lastByte &= 0xF0;
+    } break;
+    case 3: {
+      void *lastByte = POINTER_SHIFT(srcBitmap, nStrictBytes);
+      *(uint8_t *)lastByte &= 0xFC;
+    } break;
+    default:
+      ASSERT(0);
+  }
+
+  if (nBytes > 0) {
     dstBitmap[j] = (tdGetMergedBitmapByte(srcBitmap[i]) << 4);
   }
 
-  while ((++i) < srcLen) {
+  while ((++i) < nBytes) {
     if ((i & 1) == 0) {
       dstBitmap[j] = (tdGetMergedBitmapByte(srcBitmap[i]) << 4);
     } else {
@@ -381,17 +403,18 @@ STSRow *tdRowDup(STSRow *row) {
 }
 
 /**
- * @brief 
- * 
- * @param pCol 
- * @param valType 
- * @param val 
- * @param numOfRows 
- * @param maxPoints 
+ * @brief
+ *
+ * @param pCol
+ * @param valType
+ * @param val
+ * @param numOfRows
+ * @param maxPoints
  * @param bitmapMode  default is 0(2 bits), otherwise 1(1 bit)
- * @return int 
+ * @return int
  */
-int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int numOfRows, int maxPoints, int8_t bitmapMode) {
+int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int numOfRows, int maxPoints,
+                         int8_t bitmapMode) {
   TASSERT(pCol != NULL);
 
   // Assume that the columns not specified during insert/upsert mean None.
@@ -426,7 +449,7 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
     pCol->len += pCol->bytes;
   }
 #ifdef TD_SUPPORT_BITMAP
-    tdSetBitmapValType(pCol->pBitmap, numOfRows, valType, bitmapMode);
+  tdSetBitmapValType(pCol->pBitmap, numOfRows, valType, bitmapMode);
 #endif
   return 0;
 }
@@ -537,7 +560,8 @@ int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCol
   return TSDB_CODE_SUCCESS;
 }
 
-int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset, bool forceSetNull, TDRowVerT maxVer) {
+int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset, bool forceSetNull,
+                    TDRowVerT maxVer) {
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
   ASSERT(target->numOfCols == source->numOfCols);
   int offset = 0;
@@ -558,7 +582,8 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
           if (tdGetColDataOfRow(&sVal, source->cols + j, i + (*pOffset), source->bitmapMode) < 0) {
             TASSERT(0);
           }
-          tdAppendValToDataCol(target->cols + j, sVal.valType, sVal.val, target->numOfRows, target->maxPoints, target->bitmapMode);
+          tdAppendValToDataCol(target->cols + j, sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
+                               target->bitmapMode);
         }
       }
       ++target->numOfRows;
@@ -605,7 +630,8 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
           if (tdGetColDataOfRow(&sVal, src1->cols + i, *iter1, src1->bitmapMode) < 0) {
             TASSERT(0);
           }
-          tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints, target->bitmapMode);
+          tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
+                               target->bitmapMode);
         }
       }
 
@@ -621,12 +647,14 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
             TASSERT(0);
           }
           if (src2->cols[i].len > 0 && !tdValTypeIsNull(sVal.valType)) {
-            tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints, target->bitmapMode);
+            tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
+                                 target->bitmapMode);
           } else if (!forceSetNull && key1 == key2 && src1->cols[i].len > 0) {
             if (tdGetColDataOfRow(&sVal, src1->cols + i, *iter1, src1->bitmapMode) < 0) {
               TASSERT(0);
             }
-            tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints, target->bitmapMode);
+            tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
+                                 target->bitmapMode);
           } else if (target->cols[i].len > 0) {
             dataColSetNullAt(&target->cols[i], target->numOfRows, true, target->bitmapMode);
           }

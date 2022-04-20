@@ -1349,6 +1349,22 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static int32_t translateSetOperatorImpl(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateQuery(pCxt, pSetOperator->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateSetOperatorImpl(pCxt, pSetOperator);
+  }
+  return code;
+}
+
 static int64_t getUnitPerMinute(uint8_t precision) {
   switch (precision) {
     case TSDB_TIME_PRECISION_MILLI:
@@ -1403,22 +1419,22 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->daysToKeep0 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 0), TSDB_DEFAULT_KEEP);
   pReq->daysToKeep1 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 1), TSDB_DEFAULT_KEEP);
   pReq->daysToKeep2 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 2), TSDB_DEFAULT_KEEP);
-  pReq->minRows = GET_OPTION_VAL(pStmt->pOptions->pMinRowsPerBlock, TSDB_DEFAULT_MIN_ROW_FBLOCK);
-  pReq->maxRows = GET_OPTION_VAL(pStmt->pOptions->pMaxRowsPerBlock, TSDB_DEFAULT_MAX_ROW_FBLOCK);
+  pReq->minRows = GET_OPTION_VAL(pStmt->pOptions->pMinRowsPerBlock, TSDB_DEFAULT_MINROWS_FBLOCK);
+  pReq->maxRows = GET_OPTION_VAL(pStmt->pOptions->pMaxRowsPerBlock, TSDB_DEFAULT_MAXROWS_FBLOCK);
   pReq->commitTime = -1;
   pReq->fsyncPeriod = GET_OPTION_VAL(pStmt->pOptions->pFsyncPeriod, TSDB_DEFAULT_FSYNC_PERIOD);
   pReq->walLevel = GET_OPTION_VAL(pStmt->pOptions->pWalLevel, TSDB_DEFAULT_WAL_LEVEL);
   pReq->precision = GET_OPTION_VAL(pStmt->pOptions->pPrecision, TSDB_TIME_PRECISION_MILLI);
   pReq->compression = GET_OPTION_VAL(pStmt->pOptions->pCompressionLevel, TSDB_DEFAULT_COMP_LEVEL);
-  pReq->replications = GET_OPTION_VAL(pStmt->pOptions->pReplica, TSDB_DEFAULT_DB_REPLICA_OPTION);
-  pReq->quorum = GET_OPTION_VAL(pStmt->pOptions->pQuorum, TSDB_DEFAULT_DB_QUORUM_OPTION);
+  pReq->replications = GET_OPTION_VAL(pStmt->pOptions->pReplica, TSDB_DEFAULT_DB_REPLICA);
   pReq->update = -1;
   pReq->cacheLastRow = GET_OPTION_VAL(pStmt->pOptions->pCachelast, TSDB_DEFAULT_CACHE_LAST_ROW);
   pReq->ignoreExist = pStmt->ignoreExists;
-  pReq->streamMode = GET_OPTION_VAL(pStmt->pOptions->pStreamMode, TSDB_DEFAULT_DB_STREAM_MODE_OPTION);
-  pReq->ttl = GET_OPTION_VAL(pStmt->pOptions->pTtl, TSDB_DEFAULT_DB_TTL_OPTION);
-  pReq->singleSTable = GET_OPTION_VAL(pStmt->pOptions->pSingleStable, TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION);
-  // pReq->strict = GET_OPTION_VAL(pStmt->pOptions->pStrict, TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION);
+  pReq->streamMode = GET_OPTION_VAL(pStmt->pOptions->pStreamMode, TSDB_DEFAULT_DB_STREAM_MODE);
+  pReq->ttl = GET_OPTION_VAL(pStmt->pOptions->pTtl, TSDB_DEFAULT_DB_TTL);
+  pReq->singleSTable = GET_OPTION_VAL(pStmt->pOptions->pSingleStable, TSDB_DEFAULT_DB_SINGLE_STABLE);
+  pReq->strict = GET_OPTION_VAL(pStmt->pOptions->pStrict, TSDB_DEFAULT_DB_STRICT);
+
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -1485,8 +1501,8 @@ static int32_t checkTtlOption(STranslateContext* pCxt, SValueNode* pVal) {
       return pCxt->errCode;
     }
     int64_t val = pVal->datum.i;
-    if (val < TSDB_MIN_DB_TTL_OPTION) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_TTL_OPTION, val, TSDB_MIN_DB_TTL_OPTION);
+    if (val < TSDB_MIN_DB_TTL) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_TTL_OPTION, val, TSDB_MIN_DB_TTL);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -1593,12 +1609,12 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, SDatabaseOptions* p
     code = checkRangeOption(pCxt, "fsyncPeriod", pOptions->pFsyncPeriod, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "maxRowsPerBlock", pOptions->pMaxRowsPerBlock, TSDB_MIN_MAX_ROW_FBLOCK,
-                            TSDB_MAX_MAX_ROW_FBLOCK);
+    code = checkRangeOption(pCxt, "maxRowsPerBlock", pOptions->pMaxRowsPerBlock, TSDB_MIN_MAXROWS_FBLOCK,
+                            TSDB_MAX_MAXROWS_FBLOCK);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "minRowsPerBlock", pOptions->pMinRowsPerBlock, TSDB_MIN_MIN_ROW_FBLOCK,
-                            TSDB_MAX_MIN_ROW_FBLOCK);
+    code = checkRangeOption(pCxt, "minRowsPerBlock", pOptions->pMinRowsPerBlock, TSDB_MIN_MINROWS_FBLOCK,
+                            TSDB_MAX_MINROWS_FBLOCK);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkKeepOption(pCxt, pOptions->pKeep);
@@ -1607,11 +1623,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, SDatabaseOptions* p
     code = checkDbPrecisionOption(pCxt, pOptions->pPrecision);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "quorum", pOptions->pQuorum, TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "replications", pOptions->pReplica, TSDB_MIN_DB_REPLICA_OPTION,
-                             TSDB_MAX_DB_REPLICA_OPTION);
+    code = checkDbEnumOption(pCxt, "replications", pOptions->pReplica, TSDB_MIN_DB_REPLICA, TSDB_MAX_DB_REPLICA);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTtlOption(pCxt, pOptions->pTtl);
@@ -1623,19 +1635,18 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, SDatabaseOptions* p
     code = checkRangeOption(pCxt, "vgroups", pOptions->pNumOfVgroups, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "singleStable", pOptions->pSingleStable, TSDB_MIN_DB_SINGLE_STABLE_OPTION,
-                             TSDB_MAX_DB_SINGLE_STABLE_OPTION);
+    code = checkDbEnumOption(pCxt, "singleStable", pOptions->pSingleStable, TSDB_DB_SINGLE_STABLE_ON,
+                             TSDB_DB_SINGLE_STABLE_OFF);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "streamMode", pOptions->pStreamMode, TSDB_DB_STREAM_MODE_OPTION_OFF,
-                             TSDB_DB_STREAM_MODE_OPTION_ON);
+    code =
+        checkDbEnumOption(pCxt, "streamMode", pOptions->pStreamMode, TSDB_DB_STREAM_MODE_OFF, TSDB_DB_STREAM_MODE_ON);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRetentionsOption(pCxt, pOptions->pRetentions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "strict", pOptions->pStrict, TSDB_DB_STRICT_OPTION_OFF,
-                             TSDB_DB_STRICT_OPTION_ON);
+    code = checkDbEnumOption(pCxt, "strict", pOptions->pStrict, TSDB_DB_STRICT_OFF, TSDB_DB_STRICT_ON);
   }
   return code;
 }
@@ -1698,7 +1709,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->daysToKeep2 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 2), -1);
   pReq->fsyncPeriod = GET_OPTION_VAL(pStmt->pOptions->pFsyncPeriod, -1);
   pReq->walLevel = GET_OPTION_VAL(pStmt->pOptions->pWalLevel, -1);
-  pReq->quorum = GET_OPTION_VAL(pStmt->pOptions->pQuorum, -1);
+  pReq->strict = GET_OPTION_VAL(pStmt->pOptions->pQuorum, -1);
   pReq->cacheLastRow = GET_OPTION_VAL(pStmt->pOptions->pCachelast, -1);
   pReq->replications = GET_OPTION_VAL(pStmt->pOptions->pReplica, -1);
   return;
@@ -2595,11 +2606,63 @@ static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pSt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t readFromFile(char* pName, int32_t *len, char **buf) {
+  int64_t filesize = 0;
+  if (taosStatFile(pName, &filesize, NULL) < 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  *len = filesize;
+
+  if (*len <= 0) {
+    return TSDB_CODE_TSC_FILE_EMPTY;
+  }
+
+  *buf = taosMemoryCalloc(1, *len);
+  if (*buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  TdFilePtr tfile = taosOpenFile(pName, O_RDONLY | O_BINARY);
+  if (NULL == tfile) {
+    taosMemoryFreeClear(*buf);
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  int64_t s = taosReadFile(tfile, *buf, *len);
+  if (s != *len) {
+    taosCloseFile(&tfile);
+    taosMemoryFreeClear(*buf);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+  taosCloseFile(&tfile);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionStmt* pStmt) {
+  SCreateFuncReq req = {0};
+  strcpy(req.name, pStmt->funcName);
+  req.igExists = pStmt->ignoreExists;
+  req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
+  req.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+  req.outputType = pStmt->outputDt.type;
+  req.outputLen = pStmt->outputDt.bytes;
+  req.bufSize = pStmt->bufSize;
+  int32_t code = readFromFile(pStmt->libraryPath, &req.codeLen, &req.pCode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_FUNC, (FSerializeFunc)tSerializeSCreateFuncReq, &req);
+  }
+  return code;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
+      break;
+    case QUERY_NODE_SET_OPERATOR:
+      code = translateSetOperator(pCxt, (SSetOperator*)pNode);
       break;
     case QUERY_NODE_CREATE_DATABASE_STMT:
       code = translateCreateDatabase(pCxt, (SCreateDatabaseStmt*)pNode);
@@ -2692,6 +2755,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_STREAM_STMT:
       code = translateDropStream(pCxt, (SDropStreamStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+      code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
       break;
     default:
       break;
@@ -2807,6 +2873,7 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
       return TSDB_INFORMATION_SCHEMA_DB;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
@@ -2849,6 +2916,8 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_SNODES;
     case QUERY_NODE_SHOW_LICENCE_STMT:
       return TSDB_INS_TABLE_LICENCES;
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
+      return TSDB_INS_TABLE_CLUSTER;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
       return TSDB_PERFS_TABLE_CONNECTIONS;
     case QUERY_NODE_SHOW_QUERIES_STMT:
@@ -3365,6 +3434,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
