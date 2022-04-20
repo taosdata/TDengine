@@ -560,7 +560,7 @@ class TDCreateData():
                 #print("jjjj=%d"%j1)
                 #print("data=%s" %(self.tdSql.getData(i1,j1)))
                 list1.append(self.tdSql.getData(i1,j1))
-                #print("=====list1-------list1---=%s" %set(list1))
+            print("=====list1-------list1---=%s" %set(list1))
         
         self.tdSql.execute("reset query cache;")
         self.sql2 = sql2  
@@ -572,7 +572,7 @@ class TDCreateData():
                 #print("jjjj222=%d"%j2)
                 #print("data=%s" %(self.tdSql.getData(i2,j2)))
                 list2.append(self.tdSql.getData(i2,j2))
-                #print("=====list2-------list2---=%s" %set(list2)) 
+            print("=====list2-------list2---=%s" %set(list2)) 
        
         if  (list1 == list2) and len(list2)>0:
             # print(("=====matrix===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
