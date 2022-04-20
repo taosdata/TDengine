@@ -3608,7 +3608,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
           if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+//            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
