@@ -735,9 +735,6 @@ int taos_stmt_affected_rows(TAOS_STMT *stmt) {
   return stmtAffectedRows(stmt);
 }
 
-
-
-
 int taos_stmt_close(TAOS_STMT *stmt) {
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
