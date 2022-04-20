@@ -600,7 +600,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t subLen = INT16_MAX;
   if (inputNum == 3) {
     GET_TYPED_DATA(subLen, int32_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
-    if (subLen < 0) { //subLen cannot be negative
+    if (subLen < 0 || subLen > INT16_MAX) { //subLen cannot be negative
       return TSDB_CODE_FAILED;
     }
     subLen = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR) ? subLen : subLen * TSDB_NCHAR_SIZE;
