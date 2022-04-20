@@ -214,7 +214,7 @@ void positionCursor(int step, int direction) {
 void updateBuffer(Command *cmd) {
   assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
 
-  if (regex_match(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
+  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
   strcat(cmd->buffer, cmd->command);
   cmd->bufferSize += cmd->commandSize;
 
@@ -236,7 +236,7 @@ int isReadyGo(Command *cmd) {
   char *reg_str =
       "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
       "\\s*clear\\s*$)";
-  if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
     return 1;
   }

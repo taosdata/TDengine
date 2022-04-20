@@ -67,7 +67,7 @@ char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Clien
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
-void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
+void shellParseArgs(int argc, char *argv[], SShellArgs *arguments) {
   wordexp_t full_path;
   for (int i = 1; i < argc; i++) {
     // for host
@@ -238,8 +238,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           taos_close(con);
           // write the history
-          write_history();
-          exitShell();
+          shellWriteHistory();
+          shellExit();
           break;
         case 5:  // ctrl E
           positionCursorEnd(&cmd);
@@ -355,7 +355,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   return 0;
 }
 
-void *shellLoopQuery(void *arg) {
+void *shellThreadLoop(void *arg) {
   if (indicator) {
     getOldTerminalMode();
     indicator = 0;
@@ -363,9 +363,9 @@ void *shellLoopQuery(void *arg) {
 
   TAOS *con = (TAOS *)arg;
 
-  setThreadName("shellLoopQuery");
+  setThreadName("shellThreadLoop");
 
-  taosThreadCleanupPush(cleanup_handler, NULL);
+  taosThreadCleanupPush(shellCleanup, NULL);
 
     char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
     if (command == NULL){
@@ -387,14 +387,14 @@ void *shellLoopQuery(void *arg) {
     } while (shellRunCommand(con, command) == 0);
 
   taosMemoryFreeClear(command);
-  exitShell();
+  shellExit();
 
   taosThreadCleanupPop(1);
 
   return NULL;
 }
 
-void get_history_path(char *history) { sprintf(history, "%s/%s", getpwuid(getuid())->pw_dir, HISTORY_FILE); }
+void shellHistoryPath(char *history) { sprintf(history, "%s/%s", getpwuid(getuid())->pw_dir, HISTORY_FILE); }
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
@@ -490,9 +490,9 @@ void showOnScreen(Command *cmd) {
   fflush(stdout);
 }
 
-void cleanup_handler(void *arg) { resetTerminalMode(); }
+void shellCleanup(void *arg) { resetTerminalMode(); }
 
-void exitShell() {
+void shellExit() {
   resetTerminalMode();
   exit(EXIT_SUCCESS);
 }

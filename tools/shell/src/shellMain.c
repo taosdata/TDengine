@@ -64,7 +64,7 @@ static struct argp_option options[] = {
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   /* Get the input argument from argp_parse, which we
   know is a pointer to our arguments structure. */
-  SShellArguments *arguments = state->input;
+  SShellArgs *arguments = state->input;
   wordexp_t        full_path;
 
   switch (key) {
@@ -188,7 +188,7 @@ char LINUXCLIENT_VERSION[] =
     "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
-static void parse_args(int argc, char *argv[], SShellArguments *arguments) {
+static void parse_args(int argc, char *argv[], SShellArgs *arguments) {
   for (int i = 1; i < argc; i++) {
     if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
       printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
@@ -212,7 +212,7 @@ static void parse_args(int argc, char *argv[], SShellArguments *arguments) {
   }
 }
 
-void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
+int32_t shellParseArgs(int argc, char *argv[], SShellArgs *arguments) {
   static char verType[32] = {0};
   sprintf(verType, "version: %s\n", version);
 
@@ -232,6 +232,8 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     abort();
 #endif
   }
+
+  return 0;
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
@@ -275,8 +277,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           taos_close(con);
           // write the history
-          write_history();
-          exitShell();
+          shellWriteHistory();
+          shellExit();
           break;
         case 5:  // ctrl E
           positionCursorEnd(&cmd);
@@ -392,7 +394,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   return 0;
 }
 
-void *shellLoopQuery(void *arg) {
+void *shellThreadLoop(void *arg) {
   if (indicator) {
     getOldTerminalMode();
     indicator = 0;
@@ -400,9 +402,9 @@ void *shellLoopQuery(void *arg) {
 
   TAOS *con = (TAOS *)arg;
 
-  setThreadName("shellLoopQuery");
+  setThreadName("shellThreadLoop");
 
-  taosThreadCleanupPush(cleanup_handler, NULL);
+  taosThreadCleanupPush(shellCleanup, NULL);
 
   char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
   if (command == NULL) {
@@ -424,14 +426,14 @@ void *shellLoopQuery(void *arg) {
   } while (shellRunCommand(con, command) == 0);
 
   taosMemoryFreeClear(command);
-  exitShell();
+  shellExit();
 
   taosThreadCleanupPop(1);
 
   return NULL;
 }
 
-void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
+void shellHistoryPath(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
@@ -527,9 +529,9 @@ void showOnScreen(Command *cmd) {
   fflush(stdout);
 }
 
-void cleanup_handler(void *arg) { resetTerminalMode(); }
+void shellCleanup(void *arg) { resetTerminalMode(); }
 
-void exitShell() {
+void shellExit() {
   taos_cleanup();
   exit(EXIT_SUCCESS);
 }
@@ -547,7 +549,7 @@ void *cancelHandler(void *arg) {
 
     resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
-    exitShell();
+    shellExit();
   }
 
   return NULL;
@@ -574,7 +576,7 @@ int checkVersion() {
 }
 
 // Global configurations
-SShellArguments args = {
+SShellArgs args = {
     .host = NULL,
     .user = NULL,
     .database = NULL,
@@ -604,13 +606,13 @@ void shellDumpConfig() {
     exit(EXIT_FAILURE);
   }
   cfgDumpCfg(pCfg, 0, 1);
-  exitShell();
+  shellExit();
 }
 
 void shellTestNetWork() {
   if (args.netTestRole && args.netTestRole[0] != 0) {
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
-    exitShell();
+    shellExit();
   }
 }
 
@@ -648,18 +650,18 @@ void shellCheckServerStatus() {
     }
   } while (1);
 
-  exitShell();
+  shellExit();
 }
 
 void shellExecute() {
   TAOS *con = shellInit(&args);
   if (con == NULL) {
-    exitShell();
+    shellExit();
   }
 
   if (tsem_init(&cancelSem, 0, 0) != 0) {
     printf("failed to create cancel semphore\n");
-    exitShell();
+    shellExit();
   }
 
   TdThread spid;
@@ -673,15 +675,15 @@ void shellExecute() {
   shellGetGrantInfo(con);
 
   while (1) {
-    taosThreadCreate(&pid, NULL, shellLoopQuery, con);
+    taosThreadCreate(&pid, NULL, shellThreadLoop, con);
     taosThreadJoin(pid, NULL);
   }
 }
 
 int main(int argc, char *argv[]) {
-  if (!checkVersion()) exitShell();
+  if (!checkVersion()) shellExit();
 
-  shellParseArgument(argc, argv, &args);
+  shellParseArgs(argc, argv, &args);
 
   taos_init();
   shellDumpConfig();

@@ -13,11 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_SHELL_H_
-#define _TD_SHELL_H_
+#ifndef _TD_SHELL_INT_H_
+#define _TD_SHELL_INT_H_
 
 #include "os.h"
-
 #include "taos.h"
 #include "taosdef.h"
 
@@ -26,64 +25,65 @@
 #define HISTORY_FILE         ".taos_history"
 #define DEFAULT_RES_SHOW_NUM 100
 
-typedef struct SShellHistory {
-  char* hist[MAX_HISTORY_SIZE];
-  int   hstart;
-  int   hend;
+typedef struct {
+  char*   hist[MAX_HISTORY_SIZE];
+  int32_t hstart;
+  int32_t hend;
 } SShellHistory;
 
-typedef struct SShellArguments {
-  char* host;
-  char* password;
-  char* user;
-  char* auth;
-  char* database;
-  char* timezone;
-  bool  is_raw_time;
-  bool  is_use_passwd;
-  bool  dump_config;
-  char  file[TSDB_FILENAME_LEN];
-  char  dir[TSDB_FILENAME_LEN];
-  int   threadNum;
-  int   check;
-  bool  status;
-  bool  verbose;
-  char* commands;
-  int   abort;
-  int   port;
-  int   pktLen;
-  int   pktNum;
-  char* pktType;
-  char* netTestRole;
-} SShellArguments;
+typedef struct {
+  const char* host;
+  const char* password;
+  const char* user;
+  const char* auth;
+  const char* database;
+  const char* file;
+  const char* cfgdir;
+  const char* commands;
+  bool        is_gen_auth;
+  bool        is_raw_time;
+  bool        is_client;
+  bool        is_server;
+  bool        is_version;
+  bool        is_dump_config;
+  bool        is_check;
+  bool        is_startup;
+  bool        is_help;
+  uint16_t    port;
+  int32_t     pktLen;
+  int32_t     pktNum;
+  int32_t     abort;
+} SShellArgs;
 
-/**************** Function declarations ****************/
-extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
-extern TAOS* shellInit(SShellArguments* args);
-extern void* shellLoopQuery(void* arg);
-extern void taos_error(TAOS_RES* tres, int64_t st);
-extern int regex_match(const char* s, const char* reg, int cflags);
-int32_t shellReadCommand(TAOS* con, char command[]);
-int32_t shellRunCommand(TAOS* con, char* command);
-void shellRunCommandOnServer(TAOS* con, char command[]);
-void read_history();
-void write_history();
-void source_file(TAOS* con, char* fptr);
-void source_dir(TAOS* con, SShellArguments* args);
-void get_history_path(char* history);
-void shellCheck(TAOS* con, SShellArguments* args);
-void cleanup_handler(void* arg);
-void exitShell();
-int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
-void shellGetGrantInfo(void *con);
-int isCommentLine(char *line);
+typedef struct {
+  SShellArgs    args;
+  SShellHistory history;
+  TAOS*         conn;
+  int64_t       result;
+} SShellObj;
 
-/**************** Global variable declarations ****************/
-extern char           PROMPT_HEADER[];
-extern char           CONTINUE_PROMPT[];
-extern int            prompt_size;
-extern SShellHistory  history;
-extern SShellArguments args;
-extern int64_t         result;
+int32_t shellParseArgs(int32_t argc, char* argv[]);
+int32_t shellInit();
+void    shellCleanup(void* arg);
+void    shellExit();
 
-#endif
+void*   shellThreadLoop(void* arg);
+void    shellPrintError(TAOS_RES* tres, int64_t st);
+int32_t shellRegexMatch(const char* s, const char* reg, int32_t cflags);
+void    shellGetGrantInfo();
+void    shellReadHistory();
+void    shellWriteHistory();
+void    shellHistoryPath(char* history);
+
+int32_t shellReadCommand(char command[]);
+int32_t shellRunCommand(char* command);
+void    shellRunCommandImp(char command[]);
+void    shellSourceFile(TAOS* con, char* fptr);
+int32_t shellDumpResult(TAOS_RES* con, char* fname, int32_t* error_no, bool printMode);
+
+extern char      PROMPT_HEADER[];
+extern char      CONTINUE_PROMPT[];
+extern int32_t   prompt_size;
+extern SShellObj shell;
+
+#endif /*_TD_SHELL_INT_H_*/

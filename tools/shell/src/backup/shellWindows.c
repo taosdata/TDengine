@@ -70,7 +70,7 @@ void printHelp() {
 
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
-void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
+void shellParseArgs(int argc, char *argv[], SShellArgs *arguments) {
   for (int i = 1; i < argc; i++) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
@@ -231,7 +231,7 @@ void shellPrintContinuePrompt() { printf("%s", CONTINUE_PROMPT); }
 void shellPrintPrompt() { printf("%s", PROMPT_HEADER); }
 
 void updateBuffer(Command *cmd) {
-  if (regex_match(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
+  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
   strcat(cmd->buffer, cmd->command);
 
   memset(cmd->command, 0, MAX_COMMAND_SIZE);
@@ -246,7 +246,7 @@ int isReadyGo(Command *cmd) {
   char *reg_str =
       "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
       "\\s*clear\\s*$)";
-  if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
     return 1;
   }
@@ -299,7 +299,7 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
   return 0;
 }
 
-void *shellLoopQuery(void *arg) {
+void *shellThreadLoop(void *arg) {
   TAOS *con = (TAOS *)arg;
   char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
@@ -320,6 +320,6 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void get_history_path(char *history) { sprintf(history, "C:/TDengine/%s", HISTORY_FILE); }
+void shellHistoryPath(char *history) { sprintf(history, "C:/TDengine/%s", HISTORY_FILE); }
 
-void exitShell() { exit(EXIT_SUCCESS); }
+void shellExit() { exit(EXIT_SUCCESS); }

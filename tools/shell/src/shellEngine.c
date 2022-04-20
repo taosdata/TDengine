@@ -68,7 +68,7 @@ extern TAOS   *taos_connect_auth(const char *ip, const char *user, const char *a
 /*
  * FUNCTION: Initialize the shell.
  */
-TAOS *shellInit(SShellArguments *_args) {
+TAOS *shellInit(SShellArgs *_args) {
   printf("\n");
   if (!_args->is_use_passwd) {
 #ifdef TD_WINDOWS
@@ -108,7 +108,7 @@ TAOS *shellInit(SShellArguments *_args) {
   }
 
   /* Read history TODO : release resources here*/
-  read_history();
+  shellReadHistory();
 
   // Check if it is temperory run
   if (_args->commands != NULL || _args->file[0] != 0) {
@@ -118,29 +118,14 @@ TAOS *shellInit(SShellArguments *_args) {
     }
 
     if (_args->file[0] != 0) {
-      source_file(con, _args->file);
+      shellSourceFile(con, _args->file);
     }
 
     taos_close(con);
-    write_history();
+    shellWriteHistory();
     exit(EXIT_SUCCESS);
   }
 
-#if 0
-#ifndef WINDOWS
-  if (_args->dir[0] != 0) {
-    source_dir(con, _args);
-    taos_close(con);
-    exit(EXIT_SUCCESS);
-  }
-
-  if (_args->check != 0) {
-    shellCheck(con, _args);
-    taos_close(con);
-    exit(EXIT_SUCCESS);
-  }
-#endif
-#endif
 
   return con;
 }
@@ -161,22 +146,22 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   }
 
   // Analyse the command.
-  if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     taos_close(con);
-    write_history();
+    shellWriteHistory();
 #ifdef WINDOWS
     exit(EXIT_SUCCESS);
 #endif
     return -1;
   }
 
-  if (regex_match(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     // If clear the screen.
     system("clear");
     return 0;
   }
 
-  if (regex_match(command, "^[\t ]*set[ \t]+max_binary_display_width[ \t]+(default|[1-9][0-9]*)[ \t;]*$",
+  if (shellRegexMatch(command, "^[\t ]*set[ \t]+max_binary_display_width[ \t]+(default|[1-9][0-9]*)[ \t;]*$",
                   REG_EXTENDED | REG_ICASE)) {
     strtok(command, " \t");
     strtok(NULL, " \t");
@@ -189,17 +174,17 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
     return 0;
   }
 
-  if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
     assert(c_ptr != NULL);
     c_ptr = strtok(NULL, " ;");
     assert(c_ptr != NULL);
-    source_file(con, c_ptr);
+    shellSourceFile(con, c_ptr);
     return 0;
   }
 
-  shellRunCommandOnServer(con, command);
+  shellRunCommandImp(con, command);
   return 0;
 }
 
@@ -294,7 +279,7 @@ void freeResultWithRid(int64_t rid) {
 #endif
 }
 
-void shellRunCommandOnServer(TAOS *con, char command[]) {
+void shellRunCommandImp(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
   char     *sptr = NULL;
@@ -330,13 +315,13 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   TAOS_RES *pSql = taos_query(con, command);
   if (taos_errno(pSql)) {
-    taos_error(pSql, st);
+    shellPrintError(pSql, st);
     return;
   }
 
   int64_t oresult = atomic_load_64(&result);
 
-  if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
@@ -383,14 +368,14 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 }
 
 /* Function to do regular expression check */
-int regex_match(const char *s, const char *reg, int cflags) {
+int shellRegexMatch(const char *s, const char *reg, int cflags) {
   regex_t regex;
   char    msgbuf[100] = {0};
 
   /* Compile regular expression */
   if (regcomp(&regex, reg, cflags) != 0) {
     fprintf(stderr, "Fail to compile regex");
-    exitShell();
+    shellExit();
   }
 
   /* Execute regular expression */
@@ -405,7 +390,7 @@ int regex_match(const char *s, const char *reg, int cflags) {
     regerror(reti, &regex, msgbuf, sizeof(msgbuf));
     fprintf(stderr, "Regex match failed: %s\n", msgbuf);
     regfree(&regex);
-    exitShell();
+    shellExit();
   }
 
   return 0;
@@ -695,7 +680,7 @@ bool isSelectQuery(TAOS_RES *tres) {
 #if 0
   char *sql = tscGetSqlStr(tres);
 
-  if (regex_match(sql, "^[\t ]*select[ \t]*", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(sql, "^[\t ]*select[ \t]*", REG_EXTENDED | REG_ICASE)) {
     return true;
   }
 #endif
@@ -900,7 +885,7 @@ int shellDumpResult(TAOS_RES *tres, char *fname, int *error_no, bool vertical) {
   return numOfRows;
 }
 
-void read_history() {
+void shellReadHistory() {
   // Initialize history
   memset(history.hist, 0, sizeof(char *) * MAX_HISTORY_SIZE);
   history.hstart = 0;
@@ -909,7 +894,7 @@ void read_history() {
   int   read_size = 0;
 
   char f_history[TSDB_FILENAME_LEN];
-  get_history_path(f_history);
+  shellHistoryPath(f_history);
 
   // FILE *f = fopen(f_history, "r");
   TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_READ | TD_FILE_STREAM);
@@ -937,9 +922,9 @@ void read_history() {
   taosCloseFile(&pFile);
 }
 
-void write_history() {
+void shellWriteHistory() {
   char f_history[TSDB_FILENAME_LEN];
-  get_history_path(f_history);
+  shellHistoryPath(f_history);
 
   // FILE *f = fopen(f_history, "w");
   TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
@@ -960,7 +945,7 @@ void write_history() {
   taosCloseFile(&pFile);
 }
 
-void taos_error(TAOS_RES *tres, int64_t st) {
+void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
   atomic_store_ptr(&result, 0);
   fprintf(stderr, "\nDB error: %s (%.6fs)\n", taos_errstr(tres), (et - st) / 1E6);
@@ -970,10 +955,10 @@ void taos_error(TAOS_RES *tres, int64_t st) {
 int isCommentLine(char *line) {
   if (line == NULL) return 1;
 
-  return regex_match(line, "^\\s*#.*", REG_EXTENDED);
+  return shellRegexMatch(line, "^\\s*#.*", REG_EXTENDED);
 }
 
-void source_file(TAOS *con, char *fptr) {
+void shellSourceFile(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
   char     *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
