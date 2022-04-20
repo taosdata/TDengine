@@ -23,7 +23,6 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 ## 配置 Prometheus
 <Prometheus />
 
-
 ## 验证方法
 
 重启 Prometheus 后可参考以下示例验证从 Prometheus 向 TDengine 写入数据并能够正确读出。
@@ -64,7 +63,7 @@ taos> select * from metrics limit 10;
 Query OK, 10 row(s) in set (0.011146s)
 ```
 
-### 使用 prompql-cli 验证 Prometheus 使用 remote_read 从 TDengine 读取数据
+### 使用 promql-cli 使用 remote_read 从 TDengine 读取数据
 
 安装 promql-cli
 
