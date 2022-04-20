@@ -496,8 +496,9 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
     SKvRowIdx *pIdx = tdKvRowColIdxAt(pRow, rcol);
     int16_t    colIdx = -1;
     if (pIdx) {
-      colIdx = POINTER_DISTANCE(pRow->data, pIdx) / sizeof(SKvRowIdx);
+      colIdx = POINTER_DISTANCE(pIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx);
     }
+    TASSERT(colIdx >= 0);
     SCellVal sVal = {0};
     if (pIdx->colId == pDataCol->colId) {
       if (tdGetKvRowValOfCol(&sVal, pRow, pBitmap, pIdx->offset, colIdx) < 0) {
