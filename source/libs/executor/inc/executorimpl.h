@@ -382,7 +382,7 @@ typedef struct SSysTableScanInfo {
   void*   pCur;        // cursor for iterate the local table meta store.
   SArray* scanCols;    // SArray<int16_t> scan column id list
 
-  int32_t             type;  // show type, TODO remove it
+//  int32_t             type;  // show type, TODO remove it
   SName               name;
   SSDataBlock*        pRes;
   int32_t             capacity;
@@ -600,7 +600,6 @@ typedef struct SJoinOperatorInfo {
   int32_t            rightPos;
   SColumnInfo        rightCol;
   SNode             *pOnCondition;
-//  SRspResultInfo     resultInfo;
 } SJoinOperatorInfo;
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
