@@ -146,7 +146,7 @@ int32_t mndCheckFuncAuth(SUserObj *pOperUser) {
 
 int32_t mndCheckCreateDbAuth(SUserObj *pOperUser) { return 0; }
 
-int32_t mndCheckAlterDropCompactSyncDbAuth(SUserObj *pOperUser, SDbObj *pDb) {
+int32_t mndCheckAlterDropCompactDbAuth(SUserObj *pOperUser, SDbObj *pDb) {
   if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
     return 0;
   }

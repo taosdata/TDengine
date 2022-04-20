@@ -52,6 +52,8 @@ int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
+int32_t mmProcessGetMnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
+void    mmGetMnodeLoads(SMgmtWrapper *pWrapper, SMonMloadInfo *pInfo);
 
 // mmWorker.c
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);

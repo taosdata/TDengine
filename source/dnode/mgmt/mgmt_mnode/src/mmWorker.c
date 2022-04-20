@@ -36,6 +36,8 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     code = mmProcessAlterReq(pMgmt, pMsg);
   } else if (pMsg->rpcMsg.msgType == TDMT_MON_MM_INFO) {
     code = mmProcessGetMonMmInfoReq(pMgmt->pWrapper, pMsg);
+  } else if (pMsg->rpcMsg.msgType == TDMT_MON_MM_LOAD) {
+    code = mmProcessGetMnodeLoadsReq(pMgmt->pWrapper, pMsg);
   } else {
     pMsg->pNode = pMgmt->pMnode;
     code = mndProcessMsg(pMsg);

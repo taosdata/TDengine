@@ -601,26 +601,26 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
 
   // Check minRowsPerFileBlock and maxRowsPerFileBlock
   if (pCfg->minRowsPerFileBlock == -1) {
-    pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+    pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MINROWS_FBLOCK;
   } else {
-    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
+    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MINROWS_FBLOCK) {
       tsdbError(
-          "vgId:%d invalid minRowsPerFileBlock configuration! minRowsPerFileBlock %d TSDB_MIN_MIN_ROW_FBLOCK %d "
-          "TSDB_MAX_MIN_ROW_FBLOCK %d",
-          pCfg->tsdbId, pCfg->minRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+          "vgId:%d invalid minRowsPerFileBlock configuration! minRowsPerFileBlock %d TSDB_MIN_MINROWS_FBLOCK %d "
+          "TSDB_MAX_MINROWS_FBLOCK %d",
+          pCfg->tsdbId, pCfg->minRowsPerFileBlock, TSDB_MIN_MINROWS_FBLOCK, TSDB_MAX_MINROWS_FBLOCK);
       terrno = TSDB_CODE_TDB_INVALID_CONFIG;
       return -1;
     }
   }
 
   if (pCfg->maxRowsPerFileBlock == -1) {
-    pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+    pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAXROWS_FBLOCK;
   } else {
-    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
+    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAXROWS_FBLOCK) {
       tsdbError(
-          "vgId:%d invalid maxRowsPerFileBlock configuration! maxRowsPerFileBlock %d TSDB_MIN_MAX_ROW_FBLOCK %d "
-          "TSDB_MAX_MAX_ROW_FBLOCK %d",
-          pCfg->tsdbId, pCfg->maxRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+          "vgId:%d invalid maxRowsPerFileBlock configuration! maxRowsPerFileBlock %d TSDB_MIN_MAXROWS_FBLOCK %d "
+          "TSDB_MAX_MAXROWS_FBLOCK %d",
+          pCfg->tsdbId, pCfg->maxRowsPerFileBlock, TSDB_MIN_MINROWS_FBLOCK, TSDB_MAX_MINROWS_FBLOCK);
       terrno = TSDB_CODE_TDB_INVALID_CONFIG;
       return -1;
     }
