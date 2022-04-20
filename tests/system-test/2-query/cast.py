@@ -1,5 +1,6 @@
 import taos
 import sys
+from datetime import datetime, timezone, timedelta
 
 from util.log import *
 from util.sql import *
@@ -106,7 +107,7 @@ class TDTestCase:
         # for i in range(len(data_t1)):
         #     tdSql.checkData( i, 0, data_t1[i])
 
-        tdLog.printNoPrefix("==========step5: cast int to binary, expect no changes")
+        tdLog.printNoPrefix("==========step5: cast int to binary, expect changes to str(int) ")
 
         tdSql.query("select cast(c1 as binary(32)) as b from ct4")
         for i in range(len(data_ct4)):
@@ -115,7 +116,7 @@ class TDTestCase:
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, str(data_t1[i]) )
 
-        tdLog.printNoPrefix("==========step6: cast int to nchar, expect no changes")
+        tdLog.printNoPrefix("==========step6: cast int to nchar, expect changes to str(int) ")
 
         tdSql.query("select cast(c1 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4)):
@@ -124,11 +125,19 @@ class TDTestCase:
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, str(data_t1[i]) )
 
-        tdLog.printNoPrefix("==========step7: cast int to timestamp, expect no changes")
+        tdLog.printNoPrefix("==========step7: cast int to timestamp, expect changes to timestamp ")
 
         tdSql.query("select cast(c1 as timestamp) as b from ct4")
         for i in range(len(data_ct4)):
-            tdSql.checkData( i, 0, data_ct4[i])
+            if data_ct4[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                print("==========")
+                # date_data = datetime.datetime.utcfromtimestamp(data_ct4[i]/1000).strftime("%Y-%m-%d %H:%M:%S.%f")
+                # date_data = datetime.datetime.utcfromtimestamp(data_ct4[i]/1000).replace(tzinfo=datetime.timezone.utcoffset)
+                date_data = datetime.utcfromtimestamp(8/1000).replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
+                print(date_data)
+                tdSql.checkData( i, 0, date_data)
         tdSql.query("select cast(c1 as timestamp) as b from t1")
         for i in range(len(data_t1)):
             tdSql.checkData( i, 0, data_t1[i])
