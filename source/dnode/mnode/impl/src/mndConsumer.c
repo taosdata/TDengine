@@ -127,7 +127,6 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) break;
 
-    taosRLockLatch(&pConsumer->lock);
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
     if (status == MQ_CONSUMER_STATUS__READY && hbStatus > MND_CONSUMER_LOST_HB_CNT) {
@@ -143,6 +142,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
     if (status == MQ_CONSUMER_STATUS__LOST_REBD || status == MQ_CONSUMER_STATUS__READY) {
       // do nothing
     } else if (status == MQ_CONSUMER_STATUS__LOST) {
+      taosRLockLatch(&pConsumer->lock);
       int32_t topicNum = taosArrayGetSize(pConsumer->currentTopics);
       for (int32_t i = 0; i < topicNum; i++) {
         char  key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -151,7 +151,9 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
         SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
+      taosRUnLockLatch(&pConsumer->lock);
     } else if (status == MQ_CONSUMER_STATUS__MODIFY) {
+      taosRLockLatch(&pConsumer->lock);
       int32_t newTopicNum = taosArrayGetSize(pConsumer->rebNewTopics);
       for (int32_t i = 0; i < newTopicNum; i++) {
         char  key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -169,11 +171,11 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
         SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
+      taosRUnLockLatch(&pConsumer->lock);
     } else {
       // do nothing
     }
 
-    taosRUnLockLatch(&pConsumer->lock);
     mndReleaseConsumer(pMnode, pConsumer);
   }
 
@@ -188,7 +190,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
   } else {
     taosHashCleanup(pRebMsg->rebSubHash);
     rpcFreeCont(pRebMsg);
-    mInfo("mq rebalance finished, no modification");
+    mTrace("mq rebalance finished, no modification");
     atomic_store_8(&mqInRebFlag, 0);
   }
   return 0;
@@ -213,12 +215,12 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
 
   // 1. check consumer status
   int32_t status = atomic_load_32(&pConsumer->status);
+
   if (status == MQ_CONSUMER_STATUS__LOST) {
-    // recover consumer
+    // TODO: recover consumer
   }
 
   if (status != MQ_CONSUMER_STATUS__READY) {
-    mndReleaseConsumer(pMnode, pConsumer);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
   }
@@ -228,11 +230,13 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
   // 2. check epoch, only send ep info when epoches do not match
   if (epoch != serverEpoch) {
     taosRLockLatch(&pConsumer->lock);
+    mInfo("process ask ep, consumer %ld(epoch %d), server epoch %d", consumerId, epoch, serverEpoch);
     int32_t numOfTopics = taosArrayGetSize(pConsumer->currentTopics);
 
     rsp.topics = taosArrayInit(numOfTopics, sizeof(SMqSubTopicEp));
     if (rsp.topics == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosRUnLockLatch(&pConsumer->lock);
       goto FAIL;
     }
 
@@ -265,6 +269,7 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
       topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
       if (topicEp.vgs == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
+        taosRUnLockLatch(&pConsumer->lock);
         goto FAIL;
       }
 

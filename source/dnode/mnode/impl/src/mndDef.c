@@ -250,13 +250,28 @@ void tDeleteSMqConsumerEpInSub(SMqConsumerEpInSub *pEpInSub) {
 int32_t tEncodeSMqConsumerEpInSub(void **buf, const SMqConsumerEpInSub *pEpInSub) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pEpInSub->consumerId);
-  tlen += taosEncodeArray(buf, pEpInSub->vgs, (FEncode)tEncodeSMqVgEp);
+  int32_t sz = taosArrayGetSize(pEpInSub->vgs);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqVgEp *pVgEp = taosArrayGetP(pEpInSub->vgs, i);
+    tlen += tEncodeSMqVgEp(buf, pVgEp);
+  }
+  /*tlen += taosEncodeArray(buf, pEpInSub->vgs, (FEncode)tEncodeSMqVgEp);*/
   return tlen;
 }
 
 void *tDecodeSMqConsumerEpInSub(const void *buf, SMqConsumerEpInSub *pEpInSub) {
   buf = taosDecodeFixedI64(buf, &pEpInSub->consumerId);
-  buf = taosDecodeArray(buf, &pEpInSub->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqSubVgEp));
+  /*buf = taosDecodeArray(buf, &pEpInSub->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqSubVgEp));*/
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pEpInSub->vgs = taosArrayInit(sz, sizeof(void *));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqVgEp *pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
+    buf = tDecodeSMqVgEp(buf, pVgEp);
+    taosArrayPush(pEpInSub->vgs, &pVgEp);
+  }
+
   return (void *)buf;
 }
 
@@ -268,10 +283,12 @@ SMqSubscribeObj *tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]) {
   pSubNew->vgNum = -1;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   // TODO set free fp
-  SMqConsumerEpInSub *pEpInSub = taosMemoryMalloc(sizeof(SMqConsumerEpInSub));
-  pEpInSub->vgs = taosArrayInit(0, sizeof(SMqVgEp));
+  SMqConsumerEpInSub epInSub = {
+      .consumerId = -1,
+      .vgs = taosArrayInit(0, sizeof(void *)),
+  };
   int64_t unexistKey = -1;
-  taosHashPut(pSubNew->consumerHash, &unexistKey, sizeof(int64_t), pEpInSub, sizeof(SMqConsumerEpInSub));
+  taosHashPut(pSubNew->consumerHash, &unexistKey, sizeof(int64_t), &epInSub, sizeof(SMqConsumerEpInSub));
   return pSubNew;
 }
 
@@ -287,7 +304,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   void               *pIter = NULL;
   SMqConsumerEpInSub *pEpInSub = NULL;
   while (1) {
-    pIter = taosHashIterate(pSubNew->consumerHash, pIter);
+    pIter = taosHashIterate(pSub->consumerHash, pIter);
     if (pIter == NULL) break;
     pEpInSub = (SMqConsumerEpInSub *)pIter;
     SMqConsumerEpInSub newEp = {

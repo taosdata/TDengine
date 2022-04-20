@@ -76,7 +76,7 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 }
 
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
-  if (pArray == NULL || pData == NULL) {
+  if (pData == NULL) {
     return NULL;
   }
 
@@ -318,7 +318,6 @@ void taosArrayClearEx(SArray* pArray, void (*fp)(void*)) {
   pArray->size = 0;
 }
 
-
 void* taosArrayDestroy(SArray* pArray) {
   if (pArray) {
     taosMemoryFree(pArray->pData);
@@ -445,7 +444,8 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
 }
 
 SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy) {
-  SArray* pArray = taosArrayInit(pSrc->size, pSrc->elemSize);
+  ASSERT(pSrc->elemSize == sizeof(void*));
+  SArray* pArray = taosArrayInit(pSrc->size, sizeof(void*));
   for (int32_t i = 0; i < pSrc->size; i++) {
     void* clone = deepCopy(taosArrayGetP(pSrc, i));
     taosArrayPush(pArray, &clone);
@@ -471,6 +471,7 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
   for (int32_t i = 0; i < sz; i++) {
     void* data = taosMemoryCalloc(1, dataSz);
     buf = decode(buf, data);
+    taosArrayPush(*pArray, &data);
   }
   return (void*)buf;
 }

@@ -22,12 +22,14 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
+#include "mndGrant.h"
 #include "mndInfoSchema.h"
-#include "mndPerfSchema.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
+#include "mndPerfSchema.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
+#include "mndQuery.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
@@ -40,8 +42,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndQuery.h"
-#include "mndGrant.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000

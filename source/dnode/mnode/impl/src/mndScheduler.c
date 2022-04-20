@@ -434,7 +434,9 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     return -1;
   }
 
-  ASSERT(pSub->vgNum == 0);
+  ASSERT(pSub->vgNum == -1);
+
+  pSub->vgNum = 0;
 
   int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
   if (levelNum != 1) {
@@ -455,6 +457,9 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
   int64_t             unexistKey = -1;
   SMqConsumerEpInSub* pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
+  ASSERT(pEpInSub);
+
+  ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
 
   void* pIter = NULL;
   while (1) {
@@ -492,10 +497,18 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     }
     taosArrayPush(pEpInSub->vgs, &pVgEp);
 
+    ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
+
     /*taosArrayPush(pSub->unassignedVg, &consumerEp);*/
   }
 
-  taosHashRelease(pSub->consumerHash, pEpInSub);
+  ASSERT(pEpInSub->vgs->size > 0);
+  pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
+
+  ASSERT(pEpInSub->vgs->size > 0);
+
+  ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
+
   qDestroyQueryPlan(pPlan);
 
   return 0;

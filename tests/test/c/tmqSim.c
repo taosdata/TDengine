@@ -276,7 +276,7 @@ tmq_t* build_consumer() {
   }
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
+  ASSERT(TMQ_CONF_OK == tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName));
   tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
   assert(tmq);
   tmq_conf_destroy(conf);
@@ -437,12 +437,14 @@ void* threadFunc(void* param) {
   pInfo->consumeMsgCnt = parallel_consume(tmq, 1);
   //}
 
+#if 0
   err = tmq_unsubscribe(tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
     pInfo->consumeMsgCnt = -1;
     return NULL;
   }
+#endif
 
   return NULL;
 }
@@ -485,11 +487,13 @@ int main(int32_t argc, char* argv[]) {
     totalMsgs = parallel_consume(tmq, 0);
   }
 
+#if 0
   err = tmq_unsubscribe(tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
+#endif
 
   if (g_stConfInfo.numOfTopic1) {
     for (int32_t i = 0; i < numOfThreads; i++) {
