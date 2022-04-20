@@ -392,7 +392,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
       SColumnInfoData colInfo = {{0}, 0};
       colInfo.info = pCond->colList[i];
 
-      int32_t code = colInfoDataEnsureCapacity(&colInfo, pReadHandle->outputCapacity);
+      int32_t code = colInfoDataEnsureCapacity(&colInfo, 0, pReadHandle->outputCapacity);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
@@ -1561,12 +1561,19 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     if (isChosenRowDataRow) {
       colId = pSchema->columns[chosen_itr].colId;
       offset = pSchema->columns[chosen_itr].offset;
-      tdSTpRowGetVal(row, colId, pSchema->columns[chosen_itr].type, pSchema->flen, offset, chosen_itr, &sVal);
+      // TODO: use STSRowIter
+      tdSTpRowGetVal(row, colId, pSchema->columns[chosen_itr].type, pSchema->flen, offset, chosen_itr - 1, &sVal);
     } else {
-      SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr);
-      colId = pColIdx->colId;
-      offset = pColIdx->offset;
-      tdSKvRowGetVal(row, colId, offset, chosen_itr, &sVal);
+      // TODO: use STSRowIter
+      if (chosen_itr == 0) {
+        colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+        tdSKvRowGetVal(row, PRIMARYKEY_TIMESTAMP_COL_ID, -1, -1, &sVal);
+      } else {
+        SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr - 1);
+        colId = pColIdx->colId;
+        offset = pColIdx->offset;
+        tdSKvRowGetVal(row, colId, offset, chosen_itr - 1, &sVal);
+      }
     }
 
     if (colId == pColInfo->info.colId) {

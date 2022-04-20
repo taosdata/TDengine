@@ -98,7 +98,7 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
       *colIdx = schemaIdx;
     } else {
-      *toffset = idx * sizeof(SKvRowIdx);  // the offset of SColIdx
+      *toffset = idx * sizeof(SKvRowIdx);  // the offset of SKvRowIdx
       *colIdx = idx;
     }
   } else {
