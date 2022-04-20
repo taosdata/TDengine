@@ -502,7 +502,7 @@ typedef struct {
 
 #define TD_KV_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
-#define kvRowLen(r)            (*(TDRowLenT *)(r))
+#define kvRowLen(r)            (*(uint16_t *)(r))
 #define kvRowNCols(r)          (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
 #define kvRowSetLen(r, len)    kvRowLen(r) = (len)
 #define kvRowSetNCols(r, n)    kvRowNCols(r) = (n)
@@ -608,7 +608,7 @@ void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
 void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
 SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, int8_t type, const void *value) {
+static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, const void *value, int32_t tlen) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
     SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
@@ -621,7 +621,6 @@ static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t co
 
   pBuilder->nCols++;
 
-  int32_t tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
   if (tlen > pBuilder->alloc - pBuilder->size) {
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;

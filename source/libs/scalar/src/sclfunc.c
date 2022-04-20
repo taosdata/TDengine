@@ -4,6 +4,7 @@
 #include "ttime.h"
 #include "sclInt.h"
 #include "sclvector.h"
+#include "tjson.h"
 
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
@@ -866,6 +867,59 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
     colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
   }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t type = GET_PARAM_TYPE(pInput);
+  if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (inputNum != 1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
+  char *tmp = taosMemoryCalloc(pInput[0].columnData->info.bytes + 1, 1);
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    if(type == TSDB_DATA_TYPE_NCHAR){
+      if (varDataTLen(input) > TSDB_MAX_JSON_TAG_LEN){
+        colDataAppendNULL(pOutput->columnData, i);
+        continue;
+      }
+      int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), tmp);
+      if (len < 0) {
+        colDataAppendNULL(pOutput->columnData, i);
+        continue;
+      }
+      tmp[len] = 0;
+    }else{
+      if (varDataLen(input) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+        colDataAppendNULL(pOutput->columnData, i);
+        continue;
+      }
+      memcpy(tmp, varDataVal(input), varDataLen(input));
+      tmp[varDataTLen(input)] = 0;
+    }
+
+    if(!tjsonValidateJson(tmp)){
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    colDataAppend(pOutput->columnData, i, input, false);
+    input += varDataTLen(input);
+  }
+  taosMemoryFree(tmp);
 
   pOutput->numOfRows = pInput->numOfRows;
 

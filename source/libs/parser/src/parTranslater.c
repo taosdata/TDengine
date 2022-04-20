@@ -543,14 +543,18 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
     }
   } else if (nodesIsComparisonOp(pOp)) {
-    if (TSDB_DATA_TYPE_JSON == ldt.type || TSDB_DATA_TYPE_BLOB == ldt.type || TSDB_DATA_TYPE_JSON == rdt.type ||
+    if (TSDB_DATA_TYPE_BLOB == ldt.type || TSDB_DATA_TYPE_JSON == rdt.type ||
         TSDB_DATA_TYPE_BLOB == rdt.type) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
     }
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  } else {
-    // todo json operator
+  } else if (nodesIsJsonOp(pOp)){
+    if (TSDB_DATA_TYPE_JSON != ldt.type || TSDB_DATA_TYPE_BINARY != rdt.type) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+    }
+    pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_JSON].bytes;
   }
   return DEAL_RES_CONTINUE;
 }
@@ -1813,6 +1817,17 @@ static int32_t checkTableSmaOption(STranslateContext* pCxt, SCreateTableStmt* pS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkTableTags(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  SNode* pNode;
+  FOREACH(pNode, pStmt->pTags) {
+    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+    if(pCol->dataType.type == TSDB_DATA_TYPE_JSON && LIST_LENGTH(pStmt->pTags) > 1){
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs) {
   if (NULL == pFuncs) {
     return TSDB_CODE_SUCCESS;
@@ -1847,6 +1862,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "delay", pStmt->pOptions->pDelay, TSDB_MIN_DB_DELAY, TSDB_MAX_DB_DELAY);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableTags(pCxt, pStmt);
   }
   return code;
 }
@@ -3249,17 +3267,25 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, c
 
 static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SSchema* pSchema,
                              SKVRowBuilder* pBuilder) {
+  if(pSchema->type == TSDB_DATA_TYPE_JSON){
+    if(pVal->literal && strlen(pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+      return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pVal->literal);
+    }
+
+    return parseJsontoTagData(pVal->literal, pBuilder, &pCxt->msgBuf, pSchema->colId);
+  }
+
   if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
     return pCxt->errCode;
   }
-  SVariant var;
-  valueNodeToVariant(pVal, &var);
-  char    tagVal[TSDB_MAX_TAGS_LEN] = {0};
-  int32_t code = taosVariantDump(&var, tagVal, pSchema->type, true);
-  if (TSDB_CODE_SUCCESS == code) {
-    tdAddColToKVRow(pBuilder, pSchema->colId, pSchema->type, tagVal);
+
+  if(pVal->node.resType.type == TSDB_DATA_TYPE_NULL){
+    // todo
+  }else{
+    tdAddColToKVRow(pBuilder, pSchema->colId, &(pVal->datum.p), IS_VAR_DATA_TYPE(pSchema->type) ? varDataTLen(pVal->datum.p) : TYPE_BYTES[pSchema->type]);
   }
-  return code;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableClause* pStmt, STableMeta* pSuperTableMeta,
