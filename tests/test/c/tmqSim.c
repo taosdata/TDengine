@@ -437,7 +437,7 @@ void* threadFunc(void* param) {
   pInfo->consumeMsgCnt = parallel_consume(tmq, 1);
   //}
 
-#if 0
+#if 1
   err = tmq_unsubscribe(tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
@@ -487,7 +487,7 @@ int main(int32_t argc, char* argv[]) {
     totalMsgs = parallel_consume(tmq, 0);
   }
 
-#if 0
+#if 1
   err = tmq_unsubscribe(tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));

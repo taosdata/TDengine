@@ -376,7 +376,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
 
   } else {
-    taosRLockLatch(&pConsumerOld->lock);
+    /*taosRLockLatch(&pConsumerOld->lock);*/
     int32_t status = atomic_load_32(&pConsumerOld->status);
     if (status != MQ_CONSUMER_STATUS__READY) {
       terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
@@ -440,7 +440,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
 
 SUBSCRIBE_OVER:
   if (pConsumerOld) {
-    taosRUnLockLatch(&pConsumerOld->lock);
+    /*taosRUnLockLatch(&pConsumerOld->lock);*/
     mndReleaseConsumer(pMnode, pConsumerOld);
   }
   if (pConsumerNew) {
@@ -628,9 +628,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     // remove from removed topic
     for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->rebRemovedTopics); i++) {
-      char *topic = taosArrayGetP(pOldConsumer->rebNewTopics, i);
+      char *topic = taosArrayGetP(pOldConsumer->rebRemovedTopics, i);
       if (strcmp(removedTopic, topic) == 0) {
-        taosArrayRemove(pOldConsumer->rebNewTopics, i);
+        taosArrayRemove(pOldConsumer->rebRemovedTopics, i);
         taosMemoryFree(topic);
         break;
       }
