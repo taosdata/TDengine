@@ -28,6 +28,75 @@
 #define LEFT_COL ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pRightCol : pRightCol->pData))
 
+void convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType){
+  switch (outType) {
+    case TSDB_DATA_TYPE_BOOL: {
+      GET_TYPED_DATA(*((bool *)outData), bool, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      GET_TYPED_DATA(*((int8_t *)outData), int8_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      GET_TYPED_DATA(*((int16_t *)outData), int16_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      GET_TYPED_DATA(*((int32_t *)outData), int32_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      GET_TYPED_DATA(*((int64_t *)outData), int64_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      GET_TYPED_DATA(*((uint8_t *)outData), uint8_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      GET_TYPED_DATA(*((uint16_t *)outData), uint16_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      GET_TYPED_DATA(*((uint32_t *)outData), uint32_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      GET_TYPED_DATA(*((uint64_t *)outData), uint64_t, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      GET_TYPED_DATA(*((float *)outData), float, inType, inData);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      GET_TYPED_DATA(*((double *)outData), double, inType, inData);
+      break;
+    }
+    default:{
+      ASSERT(0);
+    }
+  }
+}
+
+void convertStringToDouble(const void *inData, void *outData, int8_t inType, int8_t outType){
+  char *tmp = taosMemoryMalloc(varDataTLen(inData));
+  int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
+  if (len < 0) {
+    sclError("castConvert taosUcs4ToMbs error 1");
+  }
+
+  tmp[len] = 0;
+
+  ASSERT(outType == TSDB_DATA_TYPE_DOUBLE);
+  double value = strtod(tmp, NULL);
+
+  *((double *)outData) = value;
+  taosMemoryFreeClear(tmp);
+}
+
 typedef int64_t (*_getBigintValue_fn_t)(void *src, int32_t index);
 
 int64_t getVectorBigintValue_TINYINT(void *src, int32_t index) {
@@ -64,6 +133,20 @@ int64_t getVectorBigintValue_BOOL(void *src, int32_t index) {
   return (int64_t)*((bool *)src + index);
 }
 
+int64_t getVectorBigintValue_JSON(void *src, int32_t index){
+  ASSERT(!colDataIsNull_var(((SColumnInfoData*)src), index));
+  char *data = colDataGetVarData((SColumnInfoData*)src, index);
+  double out = 0;
+  if (*data == TSDB_DATA_TYPE_NULL){
+    return 0;
+  } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
+    convertStringToDouble(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
+  } else {
+    convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
+  }
+  return (int64_t)out;
+}
+
 _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     _getBigintValue_fn_t p = NULL;
     if(srcType==TSDB_DATA_TYPE_TINYINT) {
@@ -90,6 +173,8 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
         p = getVectorBigintValue_BIGINT;
     }else if(srcType==TSDB_DATA_TYPE_BOOL) {
         p = getVectorBigintValue_BOOL;
+    }else if(srcType==TSDB_DATA_TYPE_JSON) {
+        p = getVectorBigintValue_JSON;
     }else {
         assert(0);
     }
@@ -200,75 +285,6 @@ static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
-void convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType){
-  switch (outType) {
-    case TSDB_DATA_TYPE_BOOL: {
-      GET_TYPED_DATA(*((bool *)outData), bool, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      GET_TYPED_DATA(*((int8_t *)outData), int8_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      GET_TYPED_DATA(*((int16_t *)outData), int16_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      GET_TYPED_DATA(*((int32_t *)outData), int32_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP: {
-      GET_TYPED_DATA(*((int64_t *)outData), int64_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      GET_TYPED_DATA(*((uint8_t *)outData), uint8_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      GET_TYPED_DATA(*((uint16_t *)outData), uint16_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      GET_TYPED_DATA(*((uint32_t *)outData), uint32_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      GET_TYPED_DATA(*((uint64_t *)outData), uint64_t, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      GET_TYPED_DATA(*((float *)outData), float, inType, inData);
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      GET_TYPED_DATA(*((double *)outData), double, inType, inData);
-      break;
-    }
-    default:{
-      ASSERT(0);
-    }
-  }
-}
-
-void convertStringToDouble(const void *inData, void *outData, int8_t inType, int8_t outType){
-  char *tmp = taosMemoryMalloc(varDataTLen(inData));
-  int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
-  if (len < 0) {
-    sclError("castConvert taosUcs4ToMbs error 1");
-  }
-
-  tmp[len] = 0;
-
-  ASSERT(outType == TSDB_DATA_TYPE_DOUBLE);
-  double value = strtod(tmp, NULL);
-
-  *((double *)outData) = value;
-  taosMemoryFreeClear(tmp);
-}
-
 //TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   ASSERT(!IS_VAR_DATA_TYPE(outType));
@@ -345,12 +361,13 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
 }
 
 double getVectorDoubleValue_JSON(void *src, int32_t index){
-  ASSERT(!colDataIsNull_var(((SColumnInfoData*)src), index));
   char *data = colDataGetVarData((SColumnInfoData*)src, index);
   double out = 0;
-  if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
+  if (*data == TSDB_DATA_TYPE_NULL){
+    return out;
+  } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
     convertStringToDouble(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
-  } {
+  } else {
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
   return out;
@@ -569,24 +586,24 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
-/*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG VARB JSON DECI BLOB */
+/*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB */
 /*NULL*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-/*BOOL*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   0,   12,  13,  14,  7,   0,   0,   0,
-/*TINY*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   7,   0,   0,   0,
-/*SMAL*/   0,   0,   0,   0,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   7,   0,   0,   0,
-/*INT */   0,   0,   0,   0,   0,   5,   6,   7,   7,   9,   7,   4,   4,   5,   7,   7,   0,   0,   0,
-/*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   7,   0,   0,   0,
-/*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   7,   0,   0,   0,
-/*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   7,   0,   0,   0,
+/*BOOL*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   0,   12,  13,  14,  0,   7,   0,   0,
+/*TINY*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   0,   7,   0,   0,
+/*SMAL*/   0,   0,   0,   0,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   0,   7,   0,   0,
+/*INT */   0,   0,   0,   0,   0,   5,   6,   7,   7,   9,   7,   4,   4,   5,   7,   0,   7,   0,   0,
+/*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
+/*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
+/*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
 /*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   0,   7,   7,   7,   7,   0,   0,   0,   0,
-/*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   9,   9,   9,   7,   7,   0,   0,   0,
+/*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   9,   9,   9,   7,   0,   7,   0,   0,
 /*NCHA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,   0,   0,   0,
-/*UTIN*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   12,  13,  14,  7,   0,   0,   0,
-/*USMA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   13,  14,  7,   0,   0,   0,
-/*UINT*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   14,  7,   0,   0,   0,
-/*UBIG*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   0,   0,   0,
-/*VARB*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+/*UTIN*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   12,  13,  14,  0,   7,   0,   0,
+/*USMA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   13,  14,  0,   7,   0,   0,
+/*UINT*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   14,  0,   7,   0,   0,
+/*UBIG*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   0,   0,
 /*JSON*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+/*VARB*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 /*DECI*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 /*BLOB*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 };
@@ -677,7 +694,7 @@ enum {
 static int32_t doConvertHelper(SScalarParam* pDest, int32_t* convert, const SScalarParam* pParam, int32_t type) {
   SColumnInfoData* pCol = pParam->columnData;
 
-  if (IS_VAR_DATA_TYPE(pCol->info.type) || pCol->info.type != TSDB_DATA_TYPE_JSON) {
+  if (IS_VAR_DATA_TYPE(pCol->info.type) && pCol->info.type != TSDB_DATA_TYPE_JSON) {
     pDest->numOfRows = pParam->numOfRows;
 
     SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
@@ -718,10 +735,6 @@ static void vectorMathAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                 + getVectorDoubleValueFnRight(RIGHT_COL, 0);
     }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
-    }
   }
 }
 
@@ -735,11 +748,11 @@ static void vectorMathBigintAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      if (colDataIsNull_s(pLeftCol, i)) {
+        colDataAppendNULL(pOutputCol, i);
+        continue;  // TODO set null or ignore
+      }
       *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, 0);
-    }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
     }
   }
 }
@@ -771,8 +784,11 @@ char *getJsonValue(char *json, char *key){    //todo
   for (int i = 0; i < cols; ++i) {
     SColIdx *pColIdx = kvRowColIdxAt(json, i);
     char *data = kvRowColVal(json, pColIdx);
-    if(i == 0 && *data == TSDB_DATA_TYPE_NULL){
-      return NULL;
+    if(i == 0){
+      if(*data == TSDB_DATA_TYPE_NULL) {
+        return NULL;
+      }
+      continue;
     }
     if(memcmp(key, data, varDataTLen(data)) == 0){
       return data + varDataTLen(data);
@@ -798,7 +814,7 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
     }
     char *pLeftData = colDataGetVarData(pLeft->columnData, i);
     char *value = getJsonValue(pLeftData, pRightData);
-    if (!value || *value == TSDB_DATA_TYPE_NULL) {
+    if (!value) {
       colDataSetNull_var(pOutputCol, i);
       pOutputCol->hasNull = true;
       continue;
@@ -835,14 +851,6 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-      if (pOutputCol->hasNull) {
-        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-        for (int32_t j = 0; j < numOfBitLen; ++j) {
-          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-        }
-      }
-
     } else if (pLeft->numOfRows == 1) {
       vectorMathBigintAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
     } else if (pRight->numOfRows == 1) {
@@ -861,15 +869,6 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, i) + getVectorDoubleValueFnRight(RIGHT_COL, i);
       }
-
-      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-      if (pOutputCol->hasNull) {
-        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-        for (int32_t j = 0; j < numOfBitLen; ++j) {
-          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-        }
-      }
-
     } else if (pLeft->numOfRows == 1) {
       vectorMathAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
     } else if (pRight->numOfRows == 1) {
@@ -899,10 +898,6 @@ static void vectorMathSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
       *output = (getVectorDoubleValueFnLeft(LEFT_COL, i)
                  - getVectorDoubleValueFnRight(RIGHT_COL, 0)) * factor;
     }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
-    }
   }
 }
 
@@ -916,11 +911,11 @@ static void vectorMathBigintSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
+      if (colDataIsNull_s(pLeftCol, i)) {
+        colDataAppendNULL(pOutputCol, i);
+        continue;  // TODO set null or ignore
+      }
       *output = (getVectorBigintValueFnLeft(pLeftCol->pData, i) - getVectorBigintValueFnRight(pRightCol->pData, 0)) * factor;
-    }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
     }
   }
 }
@@ -951,15 +946,6 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) - getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-
-      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-      if (pOutputCol->hasNull) {
-        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-        for (int32_t j = 0; j < numOfBitLen; ++j) {
-          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-        }
-      }
-
     } else if (pLeft->numOfRows == 1) {
       vectorMathBigintSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
     } else if (pRight->numOfRows == 1) {
@@ -978,15 +964,6 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, i) - getVectorDoubleValueFnRight(RIGHT_COL, i);
       }
-
-      pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-      if (pOutputCol->hasNull) {
-        int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-        for (int32_t j = 0; j < numOfBitLen; ++j) {
-          pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-        }
-      }
-
     } else if (pLeft->numOfRows == 1) {
       vectorMathSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
     } else if (pRight->numOfRows == 1) {
@@ -1016,10 +993,6 @@ static void vectorMathMultiplyHelper(SColumnInfoData* pLeftCol, SColumnInfoData*
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                 * getVectorDoubleValueFnRight(RIGHT_COL, 0);
     }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
-    }
   }
 }
 
@@ -1047,15 +1020,6 @@ void vectorMathMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam 
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                 * getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
-
-    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-    if (pOutputCol->hasNull) {
-      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-      for (int32_t j = 0; j < numOfBitLen; ++j) {
-        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-      }
-    }
-
   } else if (pLeft->numOfRows == 1) {
     vectorMathMultiplyHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
   } else if (pRight->numOfRows == 1) {
@@ -1090,15 +1054,6 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                  /getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
-
-    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-    if (pOutputCol->hasNull) {
-      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-      for (int32_t j = 0; j < numOfBitLen; ++j) {
-        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-      }
-    }
-
   } else if (pLeft->numOfRows == 1) {
     if (colDataIsNull_s(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
@@ -1110,10 +1065,6 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, 0)
                   / getVectorDoubleValueFnRight(RIGHT_COL, i);
-      }
-      pOutputCol->hasNull = pRightCol->hasNull;
-      if (pOutputCol->hasNull) {
-        memcpy(pOutputCol->nullbitmap, pRightCol->nullbitmap, BitmapLen(pRight->numOfRows));
       }
     }
   } else if (pRight->numOfRows == 1) {
@@ -1127,10 +1078,6 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                   / getVectorDoubleValueFnRight(RIGHT_COL, 0);
-      }
-      pOutputCol->hasNull = pLeftCol->hasNull;
-      if (pOutputCol->hasNull) {
-        memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(pLeft->numOfRows));
       }
     }
   }
@@ -1240,11 +1187,6 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
     *output = - getVectorDoubleValueFnLeft(LEFT_COL, i);
   }
 
-  pOutputCol->hasNull = pLeftCol->hasNull;
-  if (pOutputCol->hasNull) {
-    memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(pLeft->numOfRows));
-  }
-
   doReleaseVec(pLeftCol,  leftConvert);
 }
 
@@ -1315,10 +1257,6 @@ static void vectorBitAndHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRigh
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) & getVectorBigintValueFnRight(RIGHT_COL, 0);
     }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
-    }
   }
 }
 
@@ -1345,15 +1283,6 @@ void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) & getVectorBigintValueFnRight(RIGHT_COL, i);
     }
-
-    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-    if (pOutputCol->hasNull) {
-      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-      for (int32_t j = 0; j < numOfBitLen; ++j) {
-        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] & pRightCol->nullbitmap[j];
-      }
-    }
-
   } else if (pLeft->numOfRows == 1) {
     vectorBitAndHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
   } else if (pRight->numOfRows == 1) {
@@ -1381,10 +1310,6 @@ static void vectorBitOrHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRight
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) | rx;
     }
-    pOutputCol->hasNull = pLeftCol->hasNull;
-    if (pOutputCol->hasNull) {
-      memcpy(pOutputCol->nullbitmap, pLeftCol->nullbitmap, BitmapLen(numOfRows));
-    }
   }
 }
 
@@ -1411,14 +1336,6 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) | getVectorBigintValueFnRight(RIGHT_COL, i);
     }
-
-    pOutputCol->hasNull = (pLeftCol->hasNull || pRightCol->hasNull);
-    if (pOutputCol->hasNull) {
-      int32_t numOfBitLen = BitmapLen(pLeft->numOfRows);
-      for (int32_t j = 0; j < numOfBitLen; ++j) {
-        pOutputCol->nullbitmap[j] = pLeftCol->nullbitmap[j] | pRightCol->nullbitmap[j];
-      }
-    }
   } else if (pLeft->numOfRows == 1) {
     vectorBitOrHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
   } else if (pRight->numOfRows == 1) {
@@ -1439,6 +1356,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i)) {
+        colDataAppendNULL(pOut->columnData, i);
         continue;
       }
 
@@ -1452,6 +1370,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+        colDataAppendNULL(pOut->columnData, i);
         continue;  // TODO set null or ignore
       }
 
@@ -1463,6 +1382,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       bool isJsonnull = false;
       convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
       if(isJsonnull){
+        colDataAppendNULL(pOut->columnData, i);
         continue;  // TODO set null or ignore
       }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
@@ -1472,6 +1392,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
     ASSERT(pLeft->pHashFilter == NULL);
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i)) {
+        colDataAppendNULL(pOut->columnData, i);
         continue;
       }
 
@@ -1482,6 +1403,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       bool isJsonnull = false;
       convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
       if(isJsonnull){
+        colDataAppendNULL(pOut->columnData, i);
         continue;  // TODO set null or ignore
       }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
@@ -1490,6 +1412,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   } else if (pLeft->numOfRows == 1) {
     for (; i >= 0 && i < pRight->numOfRows; i += step) {
       if (colDataIsNull_s(pRight->columnData, i)) {
+        colDataAppendNULL(pOut->columnData, i);
         continue;
       }
 
@@ -1500,6 +1423,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       bool isJsonnull = false;
       convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
       if(isJsonnull){
+        colDataAppendNULL(pOut->columnData, i);
         continue;  // TODO set null or ignore
       }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
@@ -1589,10 +1513,6 @@ void vectorJsonContains(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam 
 void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = colDataIsNull_s(pLeft->columnData, i)? 1:0;
-    if (v && pLeft->columnData->info.type == TSDB_DATA_TYPE_JSON){
-      char *data = colDataGetVarData(pLeft->columnData, i);
-      v = (*data == TSDB_DATA_TYPE_NULL)? 1:0;
-    }
     colDataAppendInt8(pOut->columnData, i, &v);
   }
   pOut->numOfRows = pLeft->numOfRows;
@@ -1601,10 +1521,6 @@ void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = colDataIsNull_s(pLeft->columnData, i)? 0:1;
-    if (v && pLeft->columnData->info.type == TSDB_DATA_TYPE_JSON){
-      char *data = colDataGetVarData(pLeft->columnData, i);
-      v = (*data == TSDB_DATA_TYPE_NULL)? 0:1;
-    }
     colDataAppendInt8(pOut->columnData, i, &v);
   }
   pOut->numOfRows = pLeft->numOfRows;
@@ -1671,3 +1587,4 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return NULL;
   }
 }
+

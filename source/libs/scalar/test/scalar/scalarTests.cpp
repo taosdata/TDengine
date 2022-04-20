@@ -38,6 +38,7 @@
 #include "scalar.h"
 #include "nodes.h"
 #include "tlog.h"
+#include "parUtil.h"
 
 #define _DEBUG_PRINT_ 0
 
@@ -911,17 +912,32 @@ TEST(constantTest, greater_and_lower) {
 }
 
 void makeJsonArrow(SSDataBlock **src, SNode **opNode, void *json, char *key){
-  char key[32] = {0};
-  memcpy(varDataVal(key), key, strlen(key));
-  varDataLen(key) = strlen(key);
+  char keyVar[32] = {0};
+  memcpy(varDataVal(keyVar), key, strlen(key));
+  varDataLen(keyVar) = strlen(key);
 
-  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
-  scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, key);
+  SNode *pLeft = NULL, *pRight = NULL;
+  scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, keyVar);
   scltMakeColumnNode(&pLeft, src, TSDB_DATA_TYPE_JSON, varDataLen(json), 1, json);
   scltMakeOpNode(opNode, OP_TYPE_JSON_GET_VALUE, TSDB_DATA_TYPE_JSON, pLeft, pRight);
 }
 
-void makeOperator(SNode **opNode, SArray *blockList, int32_t resType, EOperatorType opType, int32_t rightType, void *rightData){
+void makeOperator(SNode **opNode, SArray *blockList, EOperatorType opType, int32_t rightType, void *rightData){
+  int32_t resType = TSDB_DATA_TYPE_NULL;
+  if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI ||
+      opType == OP_TYPE_DIV || opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
+    resType = TSDB_DATA_TYPE_DOUBLE;
+  }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
+    resType = TSDB_DATA_TYPE_BIGINT;
+  }else if(opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_GREATER_EQUAL ||
+             opType == OP_TYPE_LOWER_THAN || opType == OP_TYPE_LOWER_EQUAL ||
+             opType == OP_TYPE_EQUAL || opType == OP_TYPE_NOT_EQUAL ||
+             opType == OP_TYPE_IS_NULL || opType == OP_TYPE_IS_NOT_NULL || opType == OP_TYPE_IS_TRUE ||
+             opType == OP_TYPE_LIKE || opType == OP_TYPE_NOT_LIKE || opType == OP_TYPE_MATCH ||
+             opType == OP_TYPE_NMATCH){
+    resType = TSDB_DATA_TYPE_BOOL;
+  }
+
   SNode *right = NULL;
   scltMakeValueNode(&right, rightType, rightData);
   scltMakeOpNode(opNode, opType, resType, *opNode, right);
@@ -932,15 +948,15 @@ void makeOperator(SNode **opNode, SArray *blockList, int32_t resType, EOperatorT
   scltMakeTargetNode(opNode, dataBlockId, slotId, *opNode);
 }
 
-void makeCalculate(void *json, void *key, void *value, double exceptValue, EOperatorType opType){
+void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, double exceptValue, EOperatorType opType){
   SArray *blockList = taosArrayInit(2, POINTER_BYTES);
   SSDataBlock *src = NULL;
   SNode *opNode = NULL;
 
-  makeJsonArrow(&src, &opNode, row, key);
+  makeJsonArrow(&src, &opNode, json, (char*)key);
   taosArrayPush(blockList, &src);
 
-  makeOperator(&opNode, blockList, TSDB_DATA_TYPE_DOUBLE, opType, TSDB_DATA_TYPE_INT, value);
+  makeOperator(&opNode, blockList, opType, rightType, rightData);
 
   int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
@@ -948,39 +964,209 @@ void makeCalculate(void *json, void *key, void *value, double exceptValue, EOper
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
   ASSERT_EQ(res->info.rows, 1);
   SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
-  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(*((double *)colDataGetData(column, 0)), exceptValue);
+
+  if(colDataIsNull_f(column->nullbitmap, 0)){
+    ASSERT_EQ(DBL_MAX, exceptValue);
+    printf("result:NULL\n");
+
+  }else if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI || opType == OP_TYPE_DIV ||
+             opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
+    double tmp = *((double *)colDataGetData(column, 0));
+    ASSERT_TRUE(tmp == exceptValue);
+    printf("result:%lf\n", tmp);
+  }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
+    printf("result:%ld\n", *((int64_t *)colDataGetData(column, 0)));
+  }else if(opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_GREATER_EQUAL || opType == OP_TYPE_LOWER_THAN ||
+             opType == OP_TYPE_LOWER_EQUAL || opType == OP_TYPE_EQUAL || opType == OP_TYPE_NOT_EQUAL ||
+             opType == OP_TYPE_IS_NULL || opType == OP_TYPE_IS_NOT_NULL || opType == OP_TYPE_IS_TRUE ||
+             opType == OP_TYPE_LIKE || opType == OP_TYPE_NOT_LIKE || opType == OP_TYPE_MATCH || opType == OP_TYPE_NMATCH){
+    ASSERT_EQ(*((bool *)colDataGetData(column, 0)), exceptValue);
+    printf("result:%d\n", *((bool *)colDataGetData(column, 0)));
+  }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
 }
 
-TEST(columnTest, int_value_add_json_column) {
+TEST(columnTest, json_column_arith_op) {
   scltInitLogFile();
   char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
-  char *key = "k1";
 
   SKVRowBuilder kvRowBuilder;
   tdInitKVRowBuilder(&kvRowBuilder);
   parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
   SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
 
-  int32_t leftv = 1;
-  makeCalculate(row, key, &leftv, 5.0, OP_TYPE_ADD);
+  const int32_t len = 8;
+  EOperatorType op[len] = {OP_TYPE_ADD, OP_TYPE_SUB, OP_TYPE_MULTI, OP_TYPE_DIV,
+                         OP_TYPE_MOD, OP_TYPE_MINUS, OP_TYPE_BIT_AND, OP_TYPE_BIT_OR};
+  int32_t input[len] = {1, 8, 2, 2, 3, 0, -4, 9};
 
-  leftv = 8;
-  makeCalculate(row, key, &leftv, -4, OP_TYPE_SUB);
+  printf("--------------------json int---------------------\n");
+  char *key = "k1";
+  double eRes[len] = {5.0, -4, 8.0, 2.0, 1.0, -4, 4&-4, 4|9};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes[i], op[i]);
+  }
 
-  leftv = 2;
-  makeCalculate(row, key, &leftv, 8.0, OP_TYPE_MULTI);
+  printf("--------------------json string---------------------\n");
 
-  leftv = 2;
-  makeCalculate(row, key, &leftv, 2.0, OP_TYPE_DIV);
+  key = "k2";
+  double eRes1[len] = {1.0, -8, 0, 0, 0, 0, 0, 9};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes1[i], op[i]);
+  }
 
-  leftv = 3;
-  makeCalculate(row, key, &leftv, 1.0, OP_TYPE_MODE);
+  printf("---------------------json null--------------------\n");
 
-  makeCalculate(row, key, &leftv, -4, OP_TYPE_MINUS);
+  key = "k3";
+  double eRes2[len] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i]);
+  }
+
+  printf("---------------------json bool--------------------\n");
+
+  key = "k4";
+  double eRes3[len] = {2.0, -7, 2, 0.5, 1, -1, 1&-4, 1|9};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes3[i], op[i]);
+  }
+
+  printf("----------------------json double-------------------\n");
+
+  key = "k5";
+  double eRes4[len] = {6.44, -2.56, 10.88, 2.72, 2.44, -5.44, 5&-4, 5|9};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes4[i], op[i]);
+  }
+
+  printf("---------------------json not exist--------------------\n");
+
+  key = "k10";
+  double eRes5[len] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i]);
+  }
+}
+
+void *prepareNchar(char* rightData){
+  int32_t len = 0;
+  int32_t inputLen = strlen(rightData);
+
+  char* t = (char*)taosMemoryCalloc(1,(inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+  taosMbsToUcs4(rightData, inputLen, (TdUcs4*) varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len);
+  varDataSetLen(t, len);
+  return t;
+}
+
+TEST(columnTest, json_column_logic_op) {
+  scltInitLogFile();
+  char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
+
+  SKVRowBuilder kvRowBuilder;
+  tdInitKVRowBuilder(&kvRowBuilder);
+  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
+  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+
+  const int32_t len = 9;
+  const int32_t len1 = 4;
+  EOperatorType op[len+len1] = {OP_TYPE_GREATER_THAN, OP_TYPE_GREATER_EQUAL, OP_TYPE_LOWER_THAN, OP_TYPE_LOWER_EQUAL, OP_TYPE_EQUAL, OP_TYPE_NOT_EQUAL,
+                          OP_TYPE_IS_NULL, OP_TYPE_IS_NOT_NULL, OP_TYPE_IS_TRUE, OP_TYPE_LIKE, OP_TYPE_NOT_LIKE, OP_TYPE_MATCH, OP_TYPE_NMATCH};
+
+  int32_t input[len] = {1, 8, 2, 2, 3, 0, 0, 0, 0};
+  char *inputNchar[len1] = {"hell_", "hel%", "hell", "llll"};
+
+  printf("--------------------json int---------------------\n");
+  char *key = "k1";
+  bool eRes[len+len1] = {true, false, false, false, false, true, false, true, true, false, false, false, false};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes[i], op[i]);
+    taosMemoryFree(rightData);
+  }
+
+  printf("--------------------json string---------------------\n");
+
+  key = "k2";
+  bool eRes1[len+len1] = {false, false, true, true, false, false, false, true, false, true, false, true, true};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes1[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes1[i], op[i]);
+    taosMemoryFree(rightData);
+  }
+
+  printf("--------------------json null---------------------\n");
+
+  key = "k3";
+  double eRes2[len+len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, true, false, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes2[i], op[i]);
+    taosMemoryFree(rightData);
+  }
+
+  printf("--------------------json bool---------------------\n");
+
+  key = "k4";
+  bool eRes3[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes3[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes3[i], op[i]);
+    taosMemoryFree(rightData);
+  }
+
+  printf("--------------------json double---------------------\n");
+
+  key = "k5";
+  bool eRes4[len+len1] = {true, false, false, false, false, true, false, true, true, false, false, false, false};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes4[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes4[i], op[i]);
+    taosMemoryFree(rightData);
+  }
+
+  printf("--------------------json double---------------------\n");
+
+  key = "k6";
+  bool eRes5[len+len1] = {true, false, false, false, false, true, false, true, true, false, false, false, true};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i]);
+    taosMemoryFree(rightData);
+  }
+
+  printf("---------------------json not exist--------------------\n");
+
+  key = "k10";
+  double eRes10[len+len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, true, false, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes10[i], op[i]);
+  }
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes10[i], op[i]);
+    taosMemoryFree(rightData);
+  }
 }
 
 TEST(columnTest, smallint_value_add_int_column) {
@@ -3171,3 +3357,4 @@ int main(int argc, char** argv) {
 }
 
 #pragma GCC diagnostic pop
+
