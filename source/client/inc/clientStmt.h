@@ -51,6 +51,8 @@ typedef struct SStmtBindInfo {
   bool         needParse;
   uint64_t     tbUid;
   uint64_t     tbSuid;
+  int32_t      sBindRowNum;
+  int32_t      sBindLastIdx;
   int8_t       tbType;
   void*        boundTags;  
   char*        tbName;
@@ -77,6 +79,7 @@ typedef struct SStmtSQLInfo {
 typedef struct STscStmt {
   STscObj*      taos;
   SCatalog*     pCatalog;
+  int32_t       affectedRows;
 
   SStmtSQLInfo  sql;
   SStmtExecInfo exec;

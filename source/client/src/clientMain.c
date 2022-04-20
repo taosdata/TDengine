@@ -662,13 +662,13 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int c
     return terrno;
   }
 
-  if (colIdx <= 0) {
+  if (colIdx < 0) {
     tscError("invalid bind column idx %d", colIdx);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
   
-  return stmtBindBatch(stmt, bind, colIdx); /* TODO */
+  return stmtBindBatch(stmt, bind, colIdx);
 }
 
 int taos_stmt_add_batch(TAOS_STMT *stmt) {

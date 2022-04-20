@@ -34,15 +34,20 @@ typedef struct {
 int32_t gVarCharSize = 10;
 int32_t gVarCharLen = 5;
 
+int32_t gExecLoopTimes = 1; // no change
+
+
 int insertMBSETest1(TAOS_STMT *stmt);
 int insertMBSETest2(TAOS_STMT *stmt);
 int insertMBMETest1(TAOS_STMT *stmt);
 int insertMBMETest2(TAOS_STMT *stmt);
 int insertMBMETest3(TAOS_STMT *stmt);
 int insertMBMETest4(TAOS_STMT *stmt);
+int insertMPMETest1(TAOS_STMT *stmt);
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t longColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_FLOAT};
 
 #define tListLen(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -50,7 +55,7 @@ int32_t longColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DAT
 typedef struct {
   char     caseDesc[128];
   int32_t  colNum;
-  int32_t *colList;
+  int32_t *colList;         // full table column list
   bool     autoCreate;
   bool     fullCol;
   int32_t  (*runFn)(TAOS_STMT*);
@@ -66,7 +71,7 @@ CaseCfg gCase[] = {
 #if 0
   {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 10},
   {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 10},
-  
+
   {"insert:MBSE1-FULL", tListLen(longColList), longColList, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 1},
   {"insert:MBSE1-C012", tListLen(longColList), longColList, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 1},
   {"insert:MBSE1-C002", tListLen(longColList), longColList, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 1},
@@ -86,17 +91,39 @@ CaseCfg gCase[] = {
   {"insert:MBME3-FULL", tListLen(longColList), longColList, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 1},
   {"insert:MBME3-C012", tListLen(longColList), longColList, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 1},
   {"insert:MBME3-C002", tListLen(longColList), longColList, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 1},
+
+  {"insert:MBME4-FULL", tListLen(longColList), longColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
+  {"insert:MBME4-C012", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
+  {"insert:MBME4-C002", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
 #endif
 
-//  {"insert:MBME4-FULL", tListLen(longColList), longColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
-  {"insert:MBME4-C012", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
-//  {"insert:MBME4-C002", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
+  {"insert:MPME1-C012", tListLen(longColList), longColList, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1},
 
 };
 
 CaseCfg *gCurCase = NULL;
-int32_t gTestNull = 1;
-bool gTestAutoCreate = false;
+
+typedef struct {
+  int32_t  bindNullNum;
+  bool     autoCreate;
+  bool     checkParamNum;
+  int32_t  bindColNum;
+  int32_t  bindRowNum;
+  int32_t  bindColTypeNum;
+  int32_t* bindColTypeList;
+} CaseCtrl;
+
+CaseCtrl gCaseCtrl = {
+  .bindNullNum = 0,
+  .autoCreate = false,
+  .bindColNum = 0,
+  .bindRowNum = 0,
+  .bindColTypeNum = 0,
+  .bindColTypeList = NULL,
+  .checkParamNum = false,
+//  .bindColTypeNum = tListLen(bindColTypeList),
+//  .bindColTypeList = bindColTypeList,
+};
 
 int32_t taosGetTimeOfDay(struct timeval *tv) {
   return gettimeofday(tv, NULL);
@@ -217,6 +244,9 @@ void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *
     if (gCurCase->fullCol) {
       *dataType = gCurCase->colList[bindIdx];
       return;
+    } else if (gCaseCtrl.bindColTypeNum) {
+      *dataType = gCaseCtrl.bindColTypeList[colIdx];
+      return;
     } else if (0 == colIdx) {
       *dataType = TSDB_DATA_TYPE_TIMESTAMP;
       return;
@@ -251,49 +281,49 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       data->pBind[bindIdx].buffer_length = sizeof(bool);
       data->pBind[bindIdx].buffer = data->boolData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_TINYINT:
       data->pBind[bindIdx].buffer_length = sizeof(int8_t);
       data->pBind[bindIdx].buffer = data->tinyData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       data->pBind[bindIdx].buffer_length = sizeof(int16_t);
       data->pBind[bindIdx].buffer = data->smallData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_INT:
       data->pBind[bindIdx].buffer_length = sizeof(int32_t);
       data->pBind[bindIdx].buffer = data->intData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_BIGINT:
       data->pBind[bindIdx].buffer_length = sizeof(int64_t);
       data->pBind[bindIdx].buffer = data->bigData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_FLOAT:
       data->pBind[bindIdx].buffer_length = sizeof(float);
       data->pBind[bindIdx].buffer = data->floatData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       data->pBind[bindIdx].buffer_length = sizeof(double);
       data->pBind[bindIdx].buffer = data->doubleData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
       data->pBind[bindIdx].buffer_length = gVarCharSize;
       data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       data->pBind[bindIdx].length = data->binaryLen;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       data->pBind[bindIdx].buffer_length = sizeof(int64_t);
@@ -305,31 +335,31 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       data->pBind[bindIdx].buffer_length = gVarCharSize;
       data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       data->pBind[bindIdx].length = data->binaryLen;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint8_t);
       data->pBind[bindIdx].buffer = data->utinyData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint16_t);
       data->pBind[bindIdx].buffer = data->usmallData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_UINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint32_t);
       data->pBind[bindIdx].buffer = data->uintData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint64_t);
       data->pBind[bindIdx].buffer = data->ubigData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
+      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     default:
       printf("invalid col type:%d", dataType);
@@ -417,6 +447,69 @@ void destroyData(BindData *data) {
   taosMemoryFree(data->binaryLen);
   taosMemoryFree(data->isNull);
   taosMemoryFree(data->pBind);
+  taosMemoryFree(data->colTypes);
+}
+
+int32_t bpBindParam(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+  static int32_t n = 0;
+  
+  if (gCurCase->bindRowNum > 1) {
+    if (0 == (n++%2)) {
+      if (taos_stmt_bind_param_batch(stmt, bind)) {
+        printf("taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+    } else {
+      for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
+        if (taos_stmt_bind_single_param_batch(stmt, bind++, i)) {
+          printf("taos_stmt_bind_single_param_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+      }
+    }
+  } else {
+    if (taos_stmt_bind_param(stmt, bind)) {
+      printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+  }
+
+  return 0;
+}
+
+void bpCheckIsInsert(TAOS_STMT *stmt) {
+  int32_t isInsert = 0;
+  if (taos_stmt_is_insert(stmt, &isInsert)) {
+    printf("taos_stmt_is_insert error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  if (0 == isInsert) {
+    printf("is insert failed\n");
+    exit(1);
+  }
+}
+
+void bpCheckParamNum(TAOS_STMT *stmt) {
+  int32_t num = 0;
+  if (taos_stmt_num_params(stmt, &num)) {
+    printf("taos_stmt_num_params error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  if (gCurCase->bindColNum != num) {
+    printf("is insert failed\n");
+    exit(1);
+  }
+}
+
+void bpCheckAffectedRows(TAOS_STMT *stmt, int32_t times) {
+  int32_t rows = taos_stmt_affected_rows(stmt);
+  int32_t insertNum = gCurCase->rowNum * gCurCase->tblNum * times;
+  if (insertNum != rows) {
+    printf("affected rows %d mis-match with insert num %d\n", rows, insertNum);
+    exit(1);
+  }
 }
 
 
@@ -433,6 +526,8 @@ int insertMBSETest1(TAOS_STMT *stmt) {
     exit(1);
   }
 
+  bpCheckIsInsert(stmt);
+
   int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
     if (gCurCase->tblNum > 1) {
@@ -444,10 +539,13 @@ int insertMBSETest1(TAOS_STMT *stmt) {
         exit(1);
       }  
     }
+
+    if (gCaseCtrl.checkParamNum) {
+      bpCheckParamNum(stmt);
+    }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
-      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
         exit(1);
       }
       
@@ -462,6 +560,11 @@ int insertMBSETest1(TAOS_STMT *stmt) {
     printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
+
+  bpCheckIsInsert(stmt);
+  bpCheckAffectedRows(stmt, 1);
+
+  destroyData(&data);
 
   return 0;
 }
@@ -480,6 +583,8 @@ int insertMBSETest2(TAOS_STMT *stmt) {
     exit(1);
   }
 
+  bpCheckIsInsert(stmt);
+
   int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
 
   for (int32_t b = 0; b <bindTimes; ++b) {
@@ -494,11 +599,14 @@ int insertMBSETest2(TAOS_STMT *stmt) {
         }  
       }
     
-      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
         exit(1);
       }
-      
+
+      if (gCaseCtrl.checkParamNum) {
+        bpCheckParamNum(stmt);
+      }
+    
       if (taos_stmt_add_batch(stmt)) {
         printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -510,6 +618,11 @@ int insertMBSETest2(TAOS_STMT *stmt) {
     printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
+
+  bpCheckIsInsert(stmt);
+  bpCheckAffectedRows(stmt, 1);
+
+  destroyData(&data);
 
   return 0;
 }
@@ -527,6 +640,8 @@ int insertMBMETest1(TAOS_STMT *stmt) {
     exit(1);
   }
 
+  bpCheckIsInsert(stmt);
+
   int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
     if (gCurCase->tblNum > 1) {
@@ -538,10 +653,13 @@ int insertMBMETest1(TAOS_STMT *stmt) {
         exit(1);
       }  
     }
+
+    if (gCaseCtrl.checkParamNum) {
+      bpCheckParamNum(stmt);
+    }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
-      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
         exit(1);
       }
       
@@ -557,6 +675,10 @@ int insertMBMETest1(TAOS_STMT *stmt) {
     }
   }
 
+  bpCheckIsInsert(stmt);
+  bpCheckAffectedRows(stmt, 1);
+
+  destroyData(&data);
 
   return 0;
 }
@@ -574,6 +696,8 @@ int insertMBMETest2(TAOS_STMT *stmt) {
     exit(1);
   }
 
+  bpCheckIsInsert(stmt);
+
   int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
     if (gCurCase->tblNum > 1) {
@@ -587,11 +711,14 @@ int insertMBMETest2(TAOS_STMT *stmt) {
     }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
-      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
         exit(1);
       }
-      
+
+      if (gCaseCtrl.checkParamNum) {
+        bpCheckParamNum(stmt);
+      }
+    
       if (taos_stmt_add_batch(stmt)) {
         printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -604,6 +731,10 @@ int insertMBMETest2(TAOS_STMT *stmt) {
     }
   }
 
+  bpCheckIsInsert(stmt);
+  bpCheckAffectedRows(stmt, 1);
+
+  destroyData(&data);
 
   return 0;
 }
@@ -621,6 +752,8 @@ int insertMBMETest3(TAOS_STMT *stmt) {
     exit(1);
   }
 
+  bpCheckIsInsert(stmt);
+
   int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
     if (gCurCase->tblNum > 1) {
@@ -631,6 +764,10 @@ int insertMBMETest3(TAOS_STMT *stmt) {
         printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }  
+    }
+
+    if (gCaseCtrl.checkParamNum) {
+      bpCheckParamNum(stmt);
     }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
@@ -644,8 +781,7 @@ int insertMBMETest3(TAOS_STMT *stmt) {
         }  
       }
       
-      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
         exit(1);
       }
       
@@ -661,6 +797,10 @@ int insertMBMETest3(TAOS_STMT *stmt) {
     }
   }
 
+  bpCheckIsInsert(stmt);
+  bpCheckAffectedRows(stmt, 1);
+
+  destroyData(&data);
 
   return 0;
 }
@@ -679,6 +819,8 @@ int insertMBMETest4(TAOS_STMT *stmt) {
     exit(1);
   }
 
+  bpCheckIsInsert(stmt);
+
   int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
 
   for (int32_t b = 0; b <bindTimes; ++b) {
@@ -693,11 +835,14 @@ int insertMBMETest4(TAOS_STMT *stmt) {
         }  
       }
     
-      if (taos_stmt_bind_param_batch(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
         exit(1);
       }
-      
+
+      if (gCaseCtrl.checkParamNum) {
+        bpCheckParamNum(stmt);
+      }
+    
       if (taos_stmt_add_batch(stmt)) {
         printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -710,8 +855,80 @@ int insertMBMETest4(TAOS_STMT *stmt) {
     }
   }
 
+  bpCheckIsInsert(stmt);
+  bpCheckAffectedRows(stmt, 1);
+
+  destroyData(&data);
+
   return 0;
 }
+
+/* [prepare [settbname [bind add] exec]]   */
+int insertMPMETest1(TAOS_STMT *stmt) {
+  int32_t loop = 0;
+  
+  while (gCurCase->bindColNum >= 2) {
+    BindData data = {0};
+    prepareData(&data);
+
+    printf("SQL: %s\n", data.sql);
+    
+    int code = taos_stmt_prepare(stmt, data.sql, 0);
+    if (code != 0){
+      printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+
+    bpCheckIsInsert(stmt);
+
+    int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+    for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+      if (gCurCase->tblNum > 1) {
+        char buf[32];
+        sprintf(buf, "t%d", t);
+        code = taos_stmt_set_tbname(stmt, buf);
+        if (code != 0){
+          printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }  
+      }
+
+      if (gCaseCtrl.checkParamNum) {
+        bpCheckParamNum(stmt);
+      }
+      
+      for (int32_t b = 0; b <bindTimes; ++b) {
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+          exit(1);
+        }
+        
+        if (taos_stmt_add_batch(stmt)) {
+          printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+      }
+
+      if (taos_stmt_execute(stmt) != 0) {
+        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+    }
+
+    bpCheckIsInsert(stmt);
+
+    destroyData(&data);
+
+    gCurCase->bindColNum -= 2;
+    loop++;
+  }
+
+  bpCheckAffectedRows(stmt, loop);
+
+  gExecLoopTimes = loop;
+  
+  return 0;
+}
+
 
 #if 0
 int stmt_func1(TAOS_STMT *stmt) {
@@ -4015,7 +4232,7 @@ void prepareCheckResult(TAOS     *taos) {
       sprintf(buf, "t%d", 0);
     }
 
-    prepareCheckResultImpl(taos, buf, 1, gCurCase->rowNum);
+    prepareCheckResultImpl(taos, buf, 1, gCurCase->rowNum * gExecLoopTimes);
   }
 }
 
@@ -4347,8 +4564,17 @@ void* runcase(TAOS *taos) {
       gCurCase->bindColNum = gCurCase->colNum;
     }
 
-    gCurCase->bindNullNum = gTestNull;
-    gCurCase->autoCreate = gTestAutoCreate;
+    gCurCase->bindNullNum = gCaseCtrl.bindNullNum;
+    gCurCase->autoCreate = gCaseCtrl.autoCreate;
+    if (gCaseCtrl.bindColNum) {
+      gCurCase->bindColNum = gCaseCtrl.bindColNum;
+    }
+    if (gCaseCtrl.bindRowNum) {
+      gCurCase->bindRowNum = gCaseCtrl.bindRowNum;
+    }
+    if (gCaseCtrl.bindColTypeNum) {
+      gCurCase->bindRowNum = gCaseCtrl.bindColTypeNum;
+    }
     
     for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
       prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->autoCreate);
@@ -4362,6 +4588,8 @@ void* runcase(TAOS *taos) {
       (*gCurCase->runFn)(stmt);
 
       prepareCheckResult(taos);
+
+      taos_stmt_close(stmt);
     }
     
     printf("* Case %d - %s End *\n", i, gCurCase->caseDesc);

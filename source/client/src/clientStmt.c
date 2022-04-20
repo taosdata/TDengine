@@ -185,7 +185,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
 
   void *pIter = taosHashIterate(pStmt->sql.pTableCache, NULL);
   while (pIter) {
-    SStmtTableCache* pCache = *(SStmtTableCache**)pIter;    
+    SStmtTableCache* pCache = (SStmtTableCache*)pIter;    
 
     qDestroyStmtDataBlock(pCache->pDataBlock);
     destroyBoundColumnInfo(pCache->boundTags);
@@ -265,6 +265,20 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stmtResetStmt(STscStmt* pStmt) {
+  STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
+
+  pStmt->sql.pTableCache = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (NULL == pStmt->sql.pTableCache) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    STMT_ERR_RET(terrno);
+  }
+
+  pStmt->sql.status = STMT_INIT;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 TAOS_STMT *stmtInit(TAOS *taos) {
   STscObj* pObj = (STscObj*)taos;
@@ -294,7 +308,7 @@ int stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   if (pStmt->sql.status >= STMT_PREPARE) {
-    STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
+    STMT_ERR_RET(stmtResetStmt(pStmt));
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_PREPARE));
@@ -424,8 +438,23 @@ int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int32_t colIdx) {
     tscError("table uid %" PRIx64 "not found in exec blockHash", pStmt->bInfo.tbUid);
     STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
-  
-  qBindStmtColsValue(*pDataBlock, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
+
+  if (colIdx < 0) {
+    qBindStmtColsValue(*pDataBlock, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
+  } else {
+    if (colIdx != (pStmt->bInfo.sBindLastIdx + 1) && colIdx != 0) {
+      tscError("bind column index not in sequence");
+      STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    }
+
+    pStmt->bInfo.sBindLastIdx = colIdx;
+    
+    if (0 == colIdx) {
+      pStmt->bInfo.sBindRowNum = bind->num;
+    }
+    
+    qBindStmtSingleColValue(*pDataBlock, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, colIdx, pStmt->bInfo.sBindRowNum);
+  }
   
   return TSDB_CODE_SUCCESS;
 }
@@ -453,6 +482,8 @@ int stmtExec(TAOS_STMT *stmt) {
 
   STMT_ERR_JRET(pStmt->exec.pRequest->code);
 
+  pStmt->affectedRows += taos_affected_rows(pStmt->exec.pRequest);
+
 _return:
 
   stmtCleanExecInfo(pStmt, (code ? false : true));
@@ -464,7 +495,9 @@ _return:
 
 
 int stmtClose(TAOS_STMT *stmt) {
-  return TSDB_CODE_SUCCESS;
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  STMT_RET(stmtCleanSQLInfo(pStmt));
 }
 
 const char *stmtErrstr(TAOS_STMT *stmt) {
@@ -482,18 +515,24 @@ const char *stmtErrstr(TAOS_STMT *stmt) {
 }
 
 int stmtAffectedRows(TAOS_STMT *stmt) {
-  return TSDB_CODE_SUCCESS;
+  return ((STscStmt*)stmt)->affectedRows;
 }
 
 int stmtIsInsert(TAOS_STMT *stmt, int *insert) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
+  if (pStmt->sql.type) {
+    *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
+  } else {
+    *insert = isInsertSql(pStmt->sql.sqlStr, 0);
+  }
   
   return TSDB_CODE_SUCCESS;
 }
 
 int stmtGetParamNum(TAOS_STMT *stmt, int *nums) {
+  STMT_ERR_RET(stmtFetchColFields(stmt, nums, NULL));
+  
   return TSDB_CODE_SUCCESS;
 }
 
