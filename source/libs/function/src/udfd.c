@@ -83,18 +83,14 @@ typedef struct SUdfHandle {
 int32_t udfdLoadUdf(char* udfName, SUdf* udf) {
     strcpy(udf->name, udfName);
 
-    // TODO: retrive udf info from mnode
-    char *path = "libudf1.so";
-    int   err = uv_dlopen(path, &udf->lib);
+    int   err = uv_dlopen(udf->path, &udf->lib);
     if (err != 0) {
-      fnError("can not load library %s. error: %s", path, uv_strerror(err));
+      fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
       // TODO set error
     }
-
+    //TODO: find all the functions
     char normalFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(normalFuncName, udfName);
-    // TODO error, multi-thread, same udf, lock it
-    // TODO find all functions normal, init, destroy, normal, merge, finalize
     uv_dlsym(&udf->lib, normalFuncName, (void **)(&udf->scalarProcFunc));
     char  freeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *freeSuffix = "_free";

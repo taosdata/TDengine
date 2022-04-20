@@ -200,10 +200,10 @@ int64_t gUdfTaskSeqNum = 0;
 
 enum {
   UDFC_STATE_INITAL = 0, // initial state
-  UDFC_STATE_STARTNG, // starting after startUdfService
+  UDFC_STATE_STARTNG, // starting after createUdfdProxy
   UDFC_STATE_READY, // started and begin to receive quests
   UDFC_STATE_RESTARTING, // udfd abnormal exit. cleaning up and restart.
-  UDFC_STATE_STOPPING, // stopping after stopUdfService
+  UDFC_STATE_STOPPING, // stopping after destroyUdfdProxy
   UDFC_STATUS_FINAL, // stopped
 };
 int8_t gUdfcState = UDFC_STATE_INITAL;
@@ -929,7 +929,7 @@ void udfStopAsyncCb(uv_async_t *async) {
   }
 }
 
-int32_t startUdfd();
+int32_t udfcSpawnUdfd();
 
 void onUdfdExit(uv_process_t *req, int64_t exit_status, int term_signal) {
   //TODO: pipe close will be first received
@@ -944,12 +944,12 @@ void onUdfdExit(uv_process_t *req, int64_t exit_status, int term_signal) {
   if (gUdfcState == UDFC_STATE_READY) {
     gUdfcState = UDFC_STATE_RESTARTING;
     //TODO: asynchronous without blocking. how to do it
-    cleanUpUvTasks();
-    startUdfd();
+    //cleanUpUvTasks();
+    udfcSpawnUdfd();
   }
 }
 
-int32_t startUdfd() {
+int32_t udfcSpawnUdfd() {
   //TODO: path
   uv_process_options_t options = {0};
   static char path[256] = {0};
@@ -979,9 +979,6 @@ int32_t startUdfd() {
 void constructUdfService(void *argsThread) {
   uv_loop_init(&gUdfdLoop);
 
-  //TODO spawn error
-  startUdfd();
-
   uv_async_init(&gUdfdLoop, &gUdfLoopTaskAync, udfClientAsyncCb);
   uv_async_init(&gUdfdLoop, &gUdfLoopStopAsync, udfStopAsyncCb);
   uv_mutex_init(&gUdfTaskQueueMutex);
@@ -994,7 +991,7 @@ void constructUdfService(void *argsThread) {
 }
 
 
-int32_t startUdfService() {
+int32_t createUdfdProxy(int32_t dnodeId) {
   gUdfcState = UDFC_STATE_STARTNG;
   uv_barrier_init(&gUdfInitBarrier, 2);
   uv_thread_create(&gUdfLoopThread, constructUdfService, 0);
@@ -1002,12 +999,12 @@ int32_t startUdfService() {
   return 0;
 }
 
-int32_t stopUdfService() {
+int32_t destroyUdfdProxy(int32_t dnodeId) {
   gUdfcState = UDFC_STATE_STOPPING;
   uv_barrier_destroy(&gUdfInitBarrier);
-  if (gUdfcState == UDFC_STATE_STOPPING) {
-    uv_process_kill(&gUdfdProcess, SIGINT);
-  }
+//  if (gUdfcState == UDFC_STATE_STOPPING) {
+//    uv_process_kill(&gUdfdProcess, SIGINT);
+//  }
   uv_async_send(&gUdfLoopStopAsync);
   uv_thread_join(&gUdfLoopThread);
   uv_mutex_destroy(&gUdfTaskQueueMutex);

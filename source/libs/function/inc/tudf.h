@@ -38,17 +38,28 @@ enum {
   UDFC_CODE_PIPE_READ_ERR = -3,
 };
 
+/*TODO: no api for dnode startudfd/stopudfd*/
 /**
- * start udf dameon service
- * @return error code
+ * start udfd dameon service
  */
-int32_t startUdfService();
+int32_t startUdfd(int32_t dnodeId);
 
 /**
- * stop udf dameon service
+ * stop udfd dameon service
+ */
+int32_t stopUdfd(int32_t dnodeId);
+
+/**
+ * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
  * @return error code
  */
-int32_t stopUdfService();
+int32_t createUdfdProxy(int32_t dnodeId);
+
+/**
+ * destroy udfd proxy
+ * @return error code
+ */
+int32_t destroyUdfdProxy(int32_t dnodeId);
 
 typedef void *UdfHandle;
 
@@ -104,7 +115,6 @@ typedef struct SUdfInterBuf {
   char* buf;
 } SUdfInterBuf;
 
-//TODO: translate these calls to callUdf
 // output: interBuf
 int32_t callUdfAggInit(UdfHandle handle, SUdfInterBuf *interBuf);
 // input: block, state
