@@ -67,7 +67,6 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  bool     enable;
   SRWLatch lock;
   char     email[TSDB_FQDN_LEN];
 } STelemMgmt;
