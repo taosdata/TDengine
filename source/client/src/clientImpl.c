@@ -725,6 +725,76 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
       pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
       pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
+
+    if (type == TSDB_DATA_TYPE_JSON) {
+      char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
+      if (p == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pResultInfo->convertBuf[i] = p;
+      int32_t len = 0;
+      SResultColumn* pCol = &pResultInfo->pCol[i];
+      for (int32_t j = 0; j < numOfRows; ++j) {
+        if (pCol->offset[j] != -1) {
+          char* pStart = pCol->offset[j] + pCol->pData;
+
+          int32_t jsonInnerType = *pStart;
+          char *jsonInnerData = pStart + CHAR_BYTES;
+          char dst[TSDB_MAX_JSON_TAG_LEN] = {0};
+          if(jsonInnerType == TSDB_DATA_TYPE_NULL){
+            sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else if(jsonInnerType == TSDB_DATA_TYPE_JSON){
+            int32_t length = taosUcs4ToMbs((TdUcs4 *)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(dst));
+
+            if (length <= 0) {
+              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, varDataVal(jsonInnerData));
+              length = 0;
+            }
+            varDataSetLen(dst, length);
+          }else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {   // value -> "value"
+            *(char*)varDataVal(dst) = '\"';
+            int32_t length = taosUcs4ToMbs((TdUcs4 *)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(dst) + CHAR_BYTES);
+            if (length <= 0) {
+              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, varDataVal(jsonInnerData));
+              length = 0;
+            }
+            varDataSetLen(dst, length + CHAR_BYTES*2);
+            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
+          }else if(jsonInnerType == TSDB_DATA_TYPE_DOUBLE){
+            double jsonVd = *(double*)(jsonInnerData);
+            sprintf(varDataVal(dst), "%.9lf", jsonVd);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else if(jsonInnerType == TSDB_DATA_TYPE_BIGINT){
+            int64_t jsonVd = *(int64_t*)(jsonInnerData);
+            sprintf(varDataVal(dst), "%" PRId64, jsonVd);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else if(jsonInnerType == TSDB_DATA_TYPE_BOOL){
+            sprintf(varDataVal(dst), "%s", (*((char *)jsonInnerData) == 1) ? "true" : "false");
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else {
+            ASSERT(0);
+          }
+
+          if(len + varDataTLen(dst) > colLength[i]){
+            p = taosMemoryRealloc(pResultInfo->convertBuf[i], len + varDataTLen(dst));
+            if (p == NULL) {
+              return TSDB_CODE_OUT_OF_MEMORY;
+            }
+
+            pResultInfo->convertBuf[i] = p;
+          }
+          p = pResultInfo->convertBuf[i] + len;
+          memcpy(p, dst, varDataTLen(dst));
+          pCol->offset[j] = len;
+          len += varDataTLen(dst);
+        }
+      }
+
+      pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
+      pResultInfo->row[i] = pResultInfo->pCol[i].pData;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -814,4 +884,69 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   pResultInfo->totalRows += pResultInfo->numOfRows;
   return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows,
                           convertUcs4);
+}
+
+TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* details, int maxlen) {
+  TSDB_SERVER_STATUS code = TSDB_SRV_STATUS_UNAVAILABLE;
+  void*              clientRpc = NULL;
+  SServerStatusRsp   statusRsp = {0};
+  SEpSet             epSet = {.inUse = 0, .numOfEps = 1};
+  SRpcMsg            rpcMsg = {.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
+  SRpcMsg            rpcRsp = {0};
+  SRpcInit           rpcInit = {0};
+  char               pass[TSDB_PASSWORD_LEN + 1] = {0};
+
+  taosEncryptPass_c((uint8_t*)("_pwd"), strlen("_pwd"), pass);
+  rpcInit.label = "CHK";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = NULL;
+  rpcInit.sessions = 16;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.user = "_dnd";
+  rpcInit.ckey = "_key";
+  rpcInit.spi = 1;
+  rpcInit.secret = pass;
+
+  clientRpc = rpcOpen(&rpcInit);
+  if (clientRpc == NULL) {
+    tscError("failed to init server status client");
+    goto _OVER;
+  }
+
+  if (fqdn == NULL) {
+    fqdn = tsLocalFqdn;
+  }
+
+  if (port == 0) {
+    port = tsServerPort;
+  }
+
+  tstrncpy(epSet.eps[0].fqdn, fqdn, TSDB_FQDN_LEN);
+  epSet.eps[0].port = (uint16_t)port;
+  rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
+
+  if (rpcRsp.code != 0 || rpcRsp.contLen <= 0 || rpcRsp.pCont == NULL) {
+    tscError("failed to send server status req since %s", terrstr());
+    goto _OVER;
+  }
+
+  if (tDeserializeSServerStatusRsp(rpcRsp.pCont, rpcRsp.contLen, &statusRsp) != 0) {
+    tscError("failed to parse server status rsp since %s", terrstr());
+    goto _OVER;
+  }
+
+  code = statusRsp.statusCode;
+  if (details != NULL && statusRsp.details != NULL) {
+    tstrncpy(details, statusRsp.details, maxlen);
+  }
+
+_OVER:
+  if (clientRpc != NULL) {
+    rpcClose(clientRpc);
+  }
+  if (rpcRsp.pCont != NULL) {
+    rpcFreeCont(rpcRsp.pCont);
+  }
+  return code;
 }

@@ -93,6 +93,48 @@ typedef struct SServerObj {
 
 static const char* notify = "a";
 
+static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+static void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+static void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
+static void uvOnTimeoutCb(uv_timer_t* handle);
+static void uvOnSendCb(uv_write_t* req, int status);
+static void uvOnPipeWriteCb(uv_write_t* req, int status);
+static void uvOnAcceptCb(uv_stream_t* stream, int status);
+static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf);
+static void uvWorkerAsyncCb(uv_async_t* handle);
+static void uvAcceptAsyncCb(uv_async_t* handle);
+static void uvShutDownCb(uv_shutdown_t* req, int status);
+static void uvWalkCb(uv_handle_t* handle, void* arg);
+static void uvFreeCb(uv_handle_t* handle);
+
+static void uvStartSendRespInternal(SSrvMsg* smsg);
+static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
+static void uvStartSendResp(SSrvMsg* msg);
+
+static void uvNotifyLinkBrokenToApp(SSrvConn* conn);
+
+static void destroySmsg(SSrvMsg* smsg);
+// check whether already read complete packet
+static SSrvConn* createConn(void* hThrd);
+static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/);
+
+static void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd);
+static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
+static void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd);
+static void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd);
+static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
+                                                                       uvHandleRegister};
+
+static void uvDestroyConn(uv_handle_t* handle);
+
+// server and worker thread
+static void* transWorkerThread(void* arg);
+static void* transAcceptThread(void* arg);
+
+// add handle loop
+static bool addHandleToWorkloop(void* arg);
+static bool addHandleToAcceptloop(void* arg);
+
 #define CONN_SHOULD_RELEASE(conn, head)                                     \
   do {                                                                      \
     if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {          \
@@ -114,49 +156,12 @@ static const char* notify = "a";
     }                                                                       \
   } while (0)
 
-static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-static void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-static void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
-static void uvOnTimeoutCb(uv_timer_t* handle);
-static void uvOnSendCb(uv_write_t* req, int status);
-static void uvOnPipeWriteCb(uv_write_t* req, int status);
-static void uvOnAcceptCb(uv_stream_t* stream, int status);
-static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf);
-static void uvWorkerAsyncCb(uv_async_t* handle);
-static void uvAcceptAsyncCb(uv_async_t* handle);
-static void uvShutDownCb(uv_shutdown_t* req, int status);
-
-static void uvFreeCb(uv_handle_t* handle) {
-  //
-  taosMemoryFree(handle);
-}
-
-static void uvStartSendRespInternal(SSrvMsg* smsg);
-static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
-static void uvStartSendResp(SSrvMsg* msg);
-
-static void uvNotifyLinkBrokenToApp(SSrvConn* conn);
-
-static void destroySmsg(SSrvMsg* smsg);
-// check whether already read complete packet
-static SSrvConn* createConn(void* hThrd);
-static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/);
-
-static void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd);
-static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
-static void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd);
-static void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd);
-static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease, uvHandleRegister};
-
-static void uvDestroyConn(uv_handle_t* handle);
-
-// server and worker thread
-static void* transWorkerThread(void* arg);
-static void* transAcceptThread(void* arg);
-
-// add handle loop
-static bool addHandleToWorkloop(void* arg);
-static bool addHandleToAcceptloop(void* arg);
+#define SRV_RELEASE_UV(loop)       \
+  do {                             \
+    uv_walk(loop, uvWalkCb, NULL); \
+    uv_run(loop, UV_RUN_DEFAULT);  \
+    uv_loop_close(loop);           \
+  } while (0);
 
 void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SSrvConn*    conn = handle->data;
@@ -209,12 +214,13 @@ static void uvHandleReq(SSrvConn* pConn) {
   }
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
-    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr),
-           ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen);
+    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
+           taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr),
+           ntohs(pConn->locaddr.sin_port), transMsg.contLen);
   } else {
-    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d ", pConn, TMSG_INFO(transMsg.msgType),
-           taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port),
-           transMsg.contLen, pHead->noResp);
+    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d ", pConn,
+           TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+           taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen, pHead->noResp);
     // no ref here
   }
 
@@ -354,8 +360,9 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
 
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);
-  tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d", pConn, TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr),
-         ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+  tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d", pConn, TMSG_INFO(pHead->msgType),
+         taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr),
+         ntohs(pConn->locaddr.sin_port));
   pHead->msgLen = htonl(len);
 
   wb->base = msg;
@@ -367,7 +374,7 @@ static void uvStartSendRespInternal(SSrvMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   SSrvConn* pConn = smsg->pConn;
-  uv_timer_stop(&pConn->pTimer);
+  // uv_timer_stop(&pConn->pTimer);
   uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSrvMsg* smsg) {
@@ -436,36 +443,17 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
 static void uvWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
     uv_close(handle, NULL);
-    // uv_unref(handle);
-    tDebug("handle: %p -----test----", handle);
   }
 }
-#define MAKE_VALGRIND_HAPPY(loop)  \
-  do {                             \
-    uv_walk(loop, uvWalkCb, NULL); \
-    uv_run(loop, UV_RUN_DEFAULT);  \
-    uv_loop_close(loop);           \
-  } while (0);
+static void uvFreeCb(uv_handle_t* handle) {
+  //
+  taosMemoryFree(handle);
+}
 
 static void uvAcceptAsyncCb(uv_async_t* async) {
   SServerObj* srv = async->data;
   tDebug("close server port %d", srv->port);
   uv_walk(srv->loop, uvWalkCb, NULL);
-  // uv_close((uv_handle_t*)async, NULL);
-  // uv_close((uv_handle_t*)&srv->server, NULL);
-  // uv_stop(srv->loop);
-  // uv_print_all_handles(srv->loop, stderr);
-  // int ref = uv_loop_alive(srv->loop);
-  // assert(ref == 0);
-  // tError("active size %d", ref);
-  // uv_stop(srv->loop);
-  // uv_run(srv->loop, UV_RUN_DEFAULT);
-  // fprintf(stderr, "------------------------------------");
-  // uv_print_all_handles(srv->loop, stderr);
-
-  // int ret = uv_loop_close(srv->loop);
-  // tError("(loop)->active_reqs.count: %d, ret: %d", (srv->loop)->active_reqs.count, ret);
-  // assert(ret == 0);
 }
 
 static void uvShutDownCb(uv_shutdown_t* req, int status) {
@@ -532,8 +520,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
   pConn->pTransInst = pThrd->pTransInst;
   /* init conn timer*/
-  uv_timer_init(pThrd->loop, &pConn->pTimer);
-  pConn->pTimer.data = pConn;
+  // uv_timer_init(pThrd->loop, &pConn->pTimer);
+  // pConn->pTimer.data = pConn;
 
   pConn->hostThrd = pThrd;
 
@@ -677,17 +665,17 @@ static void uvDestroyConn(uv_handle_t* handle) {
   SWorkThrdObj* thrd = conn->hostThrd;
 
   tDebug("server conn %p destroy", conn);
-  uv_timer_stop(&conn->pTimer);
+  // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
-  // taosMemoryFree(conn);
+  taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     tTrace("work thread quit");
-    // uv_walk(thrd->loop, uvWalkCb, NULL);
-    uv_loop_close(thrd->loop);
-    uv_stop(thrd->loop);
+    uv_walk(thrd->loop, uvWalkCb, NULL);
+    // uv_loop_close(thrd->loop);
+    // uv_stop(thrd->loop);
   }
 }
 
@@ -749,9 +737,9 @@ End:
 void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
   thrd->quit = true;
   if (QUEUE_IS_EMPTY(&thrd->conn)) {
-    // uv_walk(thrd->loop, uvWalkCb, NULL);
-    uv_loop_close(thrd->loop);
-    uv_stop(thrd->loop);
+    uv_walk(thrd->loop, uvWalkCb, NULL);
+    // uv_loop_close(thrd->loop);
+    // uv_stop(thrd->loop);
   } else {
     destroyAllConn(thrd);
   }
@@ -802,7 +790,7 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
     return;
   }
   taosThreadJoin(pThrd->thread, NULL);
-  // MAKE_VALGRIND_HAPPY(pThrd->loop);
+  SRV_RELEASE_UV(pThrd->loop);
   transDestroyAsyncPool(pThrd->asyncPool);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
@@ -822,7 +810,7 @@ void transCloseServer(void* arg) {
   uv_async_send(srv->pAcceptAsync);
   taosThreadJoin(srv->thread, NULL);
 
-  MAKE_VALGRIND_HAPPY(srv->loop);
+  SRV_RELEASE_UV(srv->loop);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     sendQuitToWorkThrd(srv->pThreadObj[i]);

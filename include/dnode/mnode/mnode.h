@@ -80,6 +80,7 @@ void    mndStop(SMnode *pMnode);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pCluster, SMonVgroupInfo *pVgroup, SMonGrantInfo *pGrant);
+int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 /**
  * @brief Process the read, write, sync request.

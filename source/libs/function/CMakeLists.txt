@@ -5,13 +5,16 @@ target_include_directories(
     function
     PUBLIC
         "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
         "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
 target_link_libraries(
     function
-    PRIVATE os util common nodes scalar
+    PRIVATE os util common nodes scalar catalog qcom transport
     PUBLIC uv_a
 )
 
@@ -21,6 +24,9 @@ target_include_directories(
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
             "${TD_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
@@ -35,6 +41,9 @@ target_include_directories(
         udf1
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
@@ -46,6 +55,10 @@ target_include_directories(
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
             "${TD_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/libs/transport"
+            "${TD_SOURCE_DIR}/include/client"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

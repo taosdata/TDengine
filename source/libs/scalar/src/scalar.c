@@ -132,6 +132,7 @@ void sclFreeRes(SHashObj *res) {
 void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
+    taosMemoryFree(param->columnData);
   }
 
   if (param->pHashFilter != NULL) {
@@ -605,37 +606,48 @@ EDealRes sclWalkOperator(SNode* pNode, SScalarCtx *ctx) {
 
 EDealRes sclWalkTarget(SNode* pNode, SScalarCtx *ctx) {
   STargetNode *target = (STargetNode *)pNode;
-  
+
   if (target->dataBlockId >= taosArrayGetSize(ctx->pBlockList)) {
     sclError("target tupleId is too big, tupleId:%d, dataBlockNum:%d", target->dataBlockId, (int32_t)taosArrayGetSize(ctx->pBlockList));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
   }
 
-  SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, target->dataBlockId);
+  int32_t index = -1;
+  for(int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
+    SSDataBlock* pb = taosArrayGetP(ctx->pBlockList, i);
+    if (pb->info.blockId == target->dataBlockId) {
+      index = i;
+      break;
+    }
+  }
+
+  if (index == -1) {
+    sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", target->dataBlockId, (int32_t)taosArrayGetSize(ctx->pBlockList));
+    ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
+    return DEAL_RES_ERROR;
+  }
+
+  SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, index);
+
   if (target->slotId >= taosArrayGetSize(block->pDataBlock)) {
     sclError("target slot not exist, dataBlockId:%d, slotId:%d, dataBlockNum:%d", target->dataBlockId, target->slotId, (int32_t)taosArrayGetSize(block->pDataBlock));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
   }
 
+  // if block->pDataBlock is not enough, there are problems if target->slotId bigger than the size of block->pDataBlock,
   SColumnInfoData *col = taosArrayGet(block->pDataBlock, target->slotId);
-  
+
   SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
   if (NULL == res) {
     sclError("no valid res in hash, node:%p, type:%d", target->pExpr, nodeType(target->pExpr));
     ctx->code = TSDB_CODE_QRY_APP_ERROR;
     return DEAL_RES_ERROR;
   }
-  
-  for (int32_t i = 0; i < res->numOfRows; ++i) {
-    if (colDataIsNull(res->columnData, res->numOfRows, i, NULL)) {
-      colDataAppend(col, i, NULL, true);
-    } else {
-      char *p = colDataGetData(res->columnData, i);
-      colDataAppend(col, i, p, false);
-    }
-  }
+
+  colDataAssign(col, res->columnData, res->numOfRows);
+  block->info.rows = res->numOfRows;
 
   sclFreeParam(res);
   taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);

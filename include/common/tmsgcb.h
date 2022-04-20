@@ -44,6 +44,7 @@ typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp);
 typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
 typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
+typedef void (*ReportStartup)(SMgmtWrapper* pWrapper, const char* name, const char* desc);
 
 typedef struct {
   SMgmtWrapper*           pWrapper;
@@ -53,6 +54,7 @@ typedef struct {
   SendRspFp               sendRspFp;
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
+  ReportStartup           reportStartupFp;
 } SMsgCb;
 
 void    tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb);
@@ -62,6 +64,7 @@ int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq);
 void    tmsgSendRsp(const SRpcMsg* pRsp);
 void    tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg);
 void    tmsgReleaseHandle(void* handle, int8_t type);
+void    tmsgReportStartup(const char* name, const char* desc);
 
 #ifdef __cplusplus
 }

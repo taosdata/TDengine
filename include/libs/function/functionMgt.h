@@ -110,7 +110,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_QENDTS,
   FUNCTION_TYPE_WSTARTTS,
   FUNCTION_TYPE_WENDTS,
-  FUNCTION_TYPE_WDURATION
+  FUNCTION_TYPE_WDURATION,
+
+  // user defined funcion
+  FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
 
 struct SqlFunctionCtx;
@@ -138,6 +141,7 @@ bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 bool fmIsMultiResFunc(int32_t funcId);
+bool fmIsUserDefinedFunc(int32_t funcId);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

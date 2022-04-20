@@ -441,6 +441,12 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
   // if ((fd = fopen(filename, "r")) != NULL) {
   if ((pFile = taosOpenFile(filename, TD_FILE_READ)) != NULL) {
     taosReadFile(pFile, script->system_ret_content, MAX_SYSTEM_RESULT_LEN - 1);
+    int32_t len = strlen(script->system_ret_content);
+    for (int32_t i = 0; i < len; ++i) {
+      if (script->system_ret_content[i] == '\n' || script->system_ret_content[i] == '\r') {
+        script->system_ret_content[i] = 0;
+      }
+    }
     taosCloseFile(&pFile);
     char rmCmd[MAX_FILE_NAME_LEN] = {0};
     sprintf(rmCmd, "rm -f %s", filename);

@@ -652,7 +652,7 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
   STbData** pMem = NULL;
   STbData** pIMem = NULL;
 
-  TSKEY tLastKey = 0;  /// keyToTkey(pCheckInfo->lastKey);
+  TSKEY tLastKey = keyToTkey(pCheckInfo->lastKey);
   if (pHandle->pTsdb->mem != NULL) {
     pMem = taosHashGet(pHandle->pTsdb->mem->pHashIdx, &pCheckInfo->tableId, sizeof(pCheckInfo->tableId));
     if (pMem != NULL) {
@@ -1410,30 +1410,33 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
     if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
       if (!IS_VAR_DATA_TYPE(pColInfo->info.type)) {  // todo opt performance
         //        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
-        for (int32_t k = start; k < num + start; ++k) {
+        int32_t rowIndex = numOfRows;
+        for (int32_t k = start; k <= end; ++k, ++rowIndex) {
           SCellVal sVal = {0};
           if (tdGetColDataOfRow(&sVal, src, k, pCols->bitmapMode) < 0) {
             TASSERT(0);
           }
 
           if (sVal.valType == TD_VTYPE_NULL) {
-            colDataAppendNULL(pColInfo, k);
+            colDataAppendNULL(pColInfo, rowIndex);
           } else {
-            colDataAppend(pColInfo, k, sVal.val, false);
+            colDataAppend(pColInfo, rowIndex, sVal.val, false);
           }
         }
       } else {  // handle the var-string
+        int32_t rowIndex = numOfRows;
+
         // todo refactor, only copy one-by-one
-        for (int32_t k = start; k < num + start; ++k) {
+        for (int32_t k = start; k < num + start; ++k, ++rowIndex) {
           SCellVal sVal = {0};
           if (tdGetColDataOfRow(&sVal, src, k, pCols->bitmapMode) < 0) {
             TASSERT(0);
           }
 
           if (sVal.valType == TD_VTYPE_NULL) {
-            colDataAppendNULL(pColInfo, k);
+            colDataAppendNULL(pColInfo, rowIndex);
           } else {
-            colDataAppend(pColInfo, k, sVal.val, false);
+            colDataAppend(pColInfo, rowIndex, sVal.val, false);
           }
         }
       }
@@ -1441,8 +1444,9 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
       j++;
       i++;
     } else {                                           // pColInfo->info.colId < src->colId, it is a NULL data
-      for (int32_t k = start; k < num + start; ++k) {  // TODO opt performance
-        colDataAppend(pColInfo, k, NULL, true);
+      int32_t rowIndex = numOfRows;
+      for (int32_t k = start; k < num + start; ++k, ++rowIndex) {  // TODO opt performance
+        colDataAppend(pColInfo, rowIndex, NULL, true);
       }
       i++;
     }
@@ -1450,8 +1454,10 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 
   while (i < requiredNumOfCols) {  // the remain columns are all null data
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-    for (int32_t k = start; k < num + start; ++k) {
-      colDataAppend(pColInfo, k, NULL, true);  // TODO add a fast version to set a number of consecutive NULL value.
+    int32_t rowIndex = numOfRows;
+
+    for (int32_t k = start; k < num + start; ++k, ++rowIndex) {
+      colDataAppend(pColInfo, rowIndex, NULL, true);  // TODO add a fast version to set a number of consecutive NULL value.
     }
     i++;
   }
@@ -1561,12 +1567,19 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     if (isChosenRowDataRow) {
       colId = pSchema->columns[chosen_itr].colId;
       offset = pSchema->columns[chosen_itr].offset;
-      tdSTpRowGetVal(row, colId, pSchema->columns[chosen_itr].type, pSchema->flen, offset, chosen_itr, &sVal);
+      // TODO: use STSRowIter
+      tdSTpRowGetVal(row, colId, pSchema->columns[chosen_itr].type, pSchema->flen, offset, chosen_itr - 1, &sVal);
     } else {
-      SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr);
-      colId = pColIdx->colId;
-      offset = pColIdx->offset;
-      tdSKvRowGetVal(row, colId, offset, chosen_itr, &sVal);
+      // TODO: use STSRowIter
+      if (chosen_itr == 0) {
+        colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+        tdSKvRowGetVal(row, PRIMARYKEY_TIMESTAMP_COL_ID, -1, -1, &sVal);
+      } else {
+        SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr - 1);
+        colId = pColIdx->colId;
+        offset = pColIdx->offset;
+        tdSKvRowGetVal(row, colId, offset, chosen_itr - 1, &sVal);
+      }
     }
 
     if (colId == pColInfo->info.colId) {
@@ -1742,7 +1755,7 @@ int32_t getEndPosInDataBlock(STsdbReadHandle* pTsdbReadHandle, SDataBlockInfo* p
 // be included in the query time window will be discarded
 static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock) {
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
-  SDataBlockInfo blockInfo = {0};  // GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
+  SDataBlockInfo blockInfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
   STsdbCfg*      pCfg = &pTsdbReadHandle->pTsdb->config;
 
   initTableMemIterator(pTsdbReadHandle, pCheckInfo);
@@ -1764,9 +1777,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   STable* pTable = NULL;
   int32_t endPos = getEndPosInDataBlock(pTsdbReadHandle, &blockInfo);
 
-  tsdbDebug("%p uid:%" PRIu64 " start merge data block, file block range:%" PRIu64 "-%" PRIu64
-            " rows:%d, start:%d,"
-            "end:%d, %s",
+  tsdbDebug("%p uid:%" PRIu64 " start merge data block, file block range:%" PRIu64 "-%" PRIu64 " rows:%d, start:%d, end:%d, %s",
             pTsdbReadHandle, pCheckInfo->tableId, blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows,
             cur->pos, endPos, pTsdbReadHandle->idStr);
 

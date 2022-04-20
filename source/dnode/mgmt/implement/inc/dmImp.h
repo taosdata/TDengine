@@ -49,6 +49,7 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
 
 // dmMonitor.c
 void dmGetVnodeLoads(SDnode *pDnode, SMonVloadInfo *pInfo);
+void dmGetMnodeLoads(SDnode *pDnode, SMonMloadInfo *pInfo);
 void dmSendMonitorReport(SDnode *pDnode);
 
 // dmWorker.c
@@ -70,6 +71,7 @@ void vmSetMgmtFp(SMgmtWrapper *pWrapper);
 void mmSetMgmtFp(SMgmtWrapper *pWrapper);
 
 void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
+void mmGetMnodeLoads(SMgmtWrapper *pWrapper, SMonMloadInfo *pInfo);
 void mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonMmInfo *mmInfo);
 void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *vmInfo);
 void qmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonQmInfo *qmInfo);

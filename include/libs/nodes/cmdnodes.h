@@ -47,6 +47,7 @@ typedef struct SDatabaseOptions {
   SValueNode* pNumOfVgroups;
   SValueNode* pSingleStable;
   SValueNode* pStreamMode;
+  SValueNode* pStrict;
   SNodeList* pRetentions;
 } SDatabaseOptions;
 
@@ -293,6 +294,16 @@ typedef struct SDropStreamStmt {
   char streamName[TSDB_TABLE_NAME_LEN];
   bool ignoreNotExists;
 } SDropStreamStmt;
+
+typedef struct SCreateFunctionStmt {
+  ENodeType type;
+  bool ignoreExists;
+  char funcName[TSDB_FUNC_NAME_LEN];
+  bool isAgg;
+  char libraryPath[PATH_MAX];
+  SDataType outputDt;
+  int32_t bufSize;
+} SCreateFunctionStmt;
 
 #ifdef __cplusplus
 }

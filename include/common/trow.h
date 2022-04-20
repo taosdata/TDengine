@@ -219,7 +219,7 @@ static FORCE_INLINE void *tdKVRowColVal(STSRow *pRow, SKvRowIdx *pIdx) { return 
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);  // During ParseInsert when without STSchema, how to get the offset for STpRow?
 
-void                        tdMergeBitmap(uint8_t *srcBitmap, int32_t srcLen, uint8_t *dstBitmap);
+void                        tdMergeBitmap(uint8_t *srcBitmap, int32_t nBits, uint8_t *dstBitmap);
 static FORCE_INLINE void    tdRowCopy(void *dst, STSRow *row) { memcpy(dst, row, TD_ROW_LEN(row)); }
 static FORCE_INLINE int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType);
 static FORCE_INLINE int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT valType);
@@ -650,6 +650,8 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
 
   TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
+
+  TASSERT(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
 
   uint32_t len = 0;
   switch (pBuilder->rowType) {
@@ -1105,11 +1107,11 @@ static FORCE_INLINE bool tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col
   if (TD_IS_TP_ROW(pIter->pRow)) {
     STColumn *pCol = NULL;
     STSchema *pSchema = pIter->pSchema;
-    while (pIter->colIdx <= pSchema->numOfCols) {
+    while (pIter->colIdx < pSchema->numOfCols) {
       pCol = &pSchema->columns[pIter->colIdx];  // 1st column of schema is primary TS key
       if (colId == pCol->colId) {
         break;
-      } else if (colId < pCol->colId) {
+      } else if (pCol->colId < colId) {
         ++pIter->colIdx;
         continue;
       } else {
@@ -1165,6 +1167,18 @@ static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, in
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+ * @brief 
+ * 
+ * @param pRow 
+ * @param colId 
+ * @param colType 
+ * @param flen 
+ * @param offset 
+ * @param colIdx start from 0
+ * @param pVal 
+ * @return FORCE_INLINE 
+ */
 static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset,
                                         col_id_t colIdx, SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -1172,10 +1186,20 @@ static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t
     return true;
   }
   void *pBitmap = tdGetBitmapAddrTp(pRow, flen);
-  tdGetTpRowValOfCol(pVal, pRow, pBitmap, colType, offset - sizeof(TSKEY), colIdx - 1);
+  tdGetTpRowValOfCol(pVal, pRow, pBitmap, colType, offset - sizeof(TSKEY), colIdx);
   return true;
 }
 
+/**
+ * @brief 
+ * 
+ * @param pRow 
+ * @param colId 
+ * @param offset 
+ * @param colIdx start from 0
+ * @param pVal 
+ * @return FORCE_INLINE 
+ */
 static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx,
                                         SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -1183,7 +1207,7 @@ static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t o
     return true;
   }
   void *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
-  tdGetKvRowValOfCol(pVal, pRow, pBitmap, offset, colIdx - 1);
+  tdGetKvRowValOfCol(pVal, pRow, pBitmap, offset, colIdx);
   return true;
 }
 
@@ -1211,6 +1235,101 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows, 
   ASSERT(pDataCol->len == result);
 
   return result;
+}
+
+static void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
+  if (tdValTypeIsNull(pVal->valType)) {
+    printf("NULL ");
+    return;
+  } else if (tdValTypeIsNone(pVal->valType)) {
+    printf("NONE ");
+    return;
+  }
+  switch (colType) {
+    case TSDB_DATA_TYPE_BOOL:
+      printf("%s ", (*(int8_t *)pVal->val) == 0 ? "false" : "true");
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      printf("%" PRIi8 " ", *(int8_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      printf("%" PRIi16 " ", *(int16_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_INT:
+      printf("%" PRIi32 " ", *(int32_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      printf("%" PRIi64 " ", *(int64_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      printf("%f ", *(float *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      printf("%lf ", *(double *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+      printf("VARCHAR ");
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      printf("%" PRIi64 " ", *(int64_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+      printf("NCHAR ");
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      printf("%" PRIu8 " ", *(uint8_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      printf("%" PRIu16 " ", *(uint16_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      printf("%" PRIu32 " ", *(uint32_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      printf("%" PRIu64 " ", *(uint64_t *)pVal->val);
+      break;
+    case TSDB_DATA_TYPE_JSON:
+      printf("JSON ");
+      break;
+    case TSDB_DATA_TYPE_VARBINARY:
+      printf("VARBIN ");
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+      printf("DECIMAL ");
+      break;
+    case TSDB_DATA_TYPE_BLOB:
+      printf("BLOB ");
+      break;
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      printf("MedBLOB ");
+      break;
+    // case TSDB_DATA_TYPE_BINARY:
+    //   printf("BINARY ");
+    //   break;
+    case TSDB_DATA_TYPE_MAX:
+      printf("UNDEF ");
+      break;
+    default:
+      printf("UNDEF ");
+      break;
+  }
+}
+
+static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
+  STSRowIter iter = {0};
+  tdSTSRowIterInit(&iter, pSchema);
+  tdSTSRowIterReset(&iter, row);
+  printf(">>>");
+  for (int i = 0; i < pSchema->numOfCols; ++i) {
+    STColumn *stCol = pSchema->columns + i;
+    SCellVal  sVal = {.valType = 255, .val = NULL};
+    if (!tdSTSRowIterNext(&iter, stCol->colId, stCol->type, &sVal)) {
+      break;
+    }
+    ASSERT(sVal.valType == 0 || sVal.valType == 1 || sVal.valType == 2);
+    tdSCellValPrint(&sVal, stCol->type);
+  }
+  printf("\n");
 }
 
 #ifdef TROW_ORIGIN_HZ

@@ -22,14 +22,13 @@
 extern "C" {
 #endif
 
-int32_t     mndInitMnode(SMnode *pMnode);
-void        mndCleanupMnode(SMnode *pMnode);
-SMnodeObj  *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId);
-void        mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj);
-bool        mndIsMnode(SMnode *pMnode, int32_t dnodeId);
-void        mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
-void        mndUpdateMnodeRole(SMnode *pMnode);
-const char *mndGetRoleStr(int32_t role);
+int32_t    mndInitMnode(SMnode *pMnode);
+void       mndCleanupMnode(SMnode *pMnode);
+SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId);
+void       mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj);
+bool       mndIsMnode(SMnode *pMnode, int32_t dnodeId);
+void       mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
+void       mndUpdateMnodeRole(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

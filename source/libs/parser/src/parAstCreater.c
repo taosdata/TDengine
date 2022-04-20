@@ -48,6 +48,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
 }
 
 static void trimEscape(SToken* pName) {
+  // todo need to deal with `ioo``ii` -> ioo`ii
   if (NULL != pName && pName->n > 1 && '`' == pName->z[0]) {
     pName->z += 1;
     pName->n -= 2;
@@ -677,9 +678,6 @@ SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOp
     case DB_OPTION_PRECISION:
       ((SDatabaseOptions*)pOptions)->pPrecision = pAlterOption->pVal;
       break;
-    case DB_OPTION_QUORUM:
-      ((SDatabaseOptions*)pOptions)->pQuorum = pAlterOption->pVal;
-      break;
     case DB_OPTION_REPLICA:
       ((SDatabaseOptions*)pOptions)->pReplica = pAlterOption->pVal;
       break;
@@ -1184,10 +1182,21 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups) {
   return pStmt;
 }
 
-SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
+SNode* createCreateFunctionStmt(SAstCreateContext* pCxt,
+    bool ignoreExists, bool aggFunc, const SToken* pFuncName, const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
+  if (pLibPath->n <= 2) {
+    pCxt->valid = false;
+    return NULL;
+  }
+  SCreateFunctionStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->ignoreExists = ignoreExists;
+  strncpy(pStmt->funcName, pFuncName->z, pFuncName->n);
+  pStmt->isAgg = aggFunc;
+  strncpy(pStmt->libraryPath, pLibPath->z + 1, pLibPath->n - 2);
+  pStmt->outputDt = dataType;
+  pStmt->bufSize = bufSize;
+  return (SNode*)pStmt;
 }
 
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName) {
