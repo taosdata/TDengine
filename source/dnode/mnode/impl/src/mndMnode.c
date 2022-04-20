@@ -75,19 +75,6 @@ void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
   sdbRelease(pMnode->pSdb, pObj);
 }
 
-const char *mndGetRoleStr(int32_t showType) {
-  switch (showType) {
-    case TAOS_SYNC_STATE_FOLLOWER:
-      return "FOLLOWER";
-    case TAOS_SYNC_STATE_CANDIDATE:
-      return "CANDIDATE";
-    case TAOS_SYNC_STATE_LEADER:
-      return "LEADER";
-    default:
-      return "ERROR";
-  }
-}
-
 void mndUpdateMnodeRole(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -637,7 +624,7 @@ static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    const char *roles = mndGetRoleStr(pObj->role);
+    const char *roles = syncStr(pObj->role);
     char       *b2 = taosMemoryCalloc(1, strlen(roles) + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->bytes[cols]);
 

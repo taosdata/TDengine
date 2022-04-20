@@ -24,20 +24,60 @@
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT   80
 
-static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
-  SMnodeLoad load = {0};
-  mndGetLoad(pMnode, &load);
+typedef struct {
+  int64_t numOfDnode;
+  int64_t numOfMnode;
+  int64_t numOfVgroup;
+  int64_t numOfDatabase;
+  int64_t numOfSuperTable;
+  int64_t numOfChildTable;
+  int64_t numOfNormalTable;
+  int64_t numOfColumn;
+  int64_t totalPoints;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SMnodeStat;
 
-  tjsonAddDoubleToObject(pJson, "numOfDnode", load.numOfDnode);
-  tjsonAddDoubleToObject(pJson, "numOfMnode", load.numOfMnode);
-  tjsonAddDoubleToObject(pJson, "numOfVgroup", load.numOfVgroup);
-  tjsonAddDoubleToObject(pJson, "numOfDatabase", load.numOfDatabase);
-  tjsonAddDoubleToObject(pJson, "numOfSuperTable", load.numOfSuperTable);
-  tjsonAddDoubleToObject(pJson, "numOfChildTable", load.numOfChildTable);
-  tjsonAddDoubleToObject(pJson, "numOfColumn", load.numOfColumn);
-  tjsonAddDoubleToObject(pJson, "numOfPoint", load.totalPoints);
-  tjsonAddDoubleToObject(pJson, "totalStorage", load.totalStorage);
-  tjsonAddDoubleToObject(pJson, "compStorage", load.compStorage);
+static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
+  memset(pStat, 0, sizeof(SMnodeStat));
+
+  SSdb* pSdb = pMnode->pSdb;
+  pStat->numOfDnode = sdbGetSize(pSdb, SDB_DNODE);
+  pStat->numOfMnode = sdbGetSize(pSdb, SDB_MNODE);
+  pStat->numOfVgroup = sdbGetSize(pSdb, SDB_VGROUP);
+  pStat->numOfDatabase = sdbGetSize(pSdb, SDB_DB);
+  pStat->numOfSuperTable = sdbGetSize(pSdb, SDB_STB);
+
+  void* pIter = NULL;
+  while (1) {
+    SVgObj* pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+    if (pIter == NULL) break;
+
+    pStat->numOfChildTable += pVgroup->numOfTables;
+    pStat->numOfColumn += pVgroup->numOfTimeSeries;
+    pStat->totalPoints += pVgroup->pointsWritten;
+    pStat->totalStorage += pVgroup->totalStorage;
+    pStat->compStorage += pVgroup->compStorage;
+
+    sdbRelease(pSdb, pVgroup);
+  }
+}
+
+static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
+  SMnodeStat mstat = {0};
+  mndGetStat(pMnode, &mstat);
+
+  tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode);
+  tjsonAddDoubleToObject(pJson, "numOfMnode", mstat.numOfMnode);
+  tjsonAddDoubleToObject(pJson, "numOfVgroup", mstat.numOfVgroup);
+  tjsonAddDoubleToObject(pJson, "numOfDatabase", mstat.numOfDatabase);
+  tjsonAddDoubleToObject(pJson, "numOfSuperTable", mstat.numOfSuperTable);
+  tjsonAddDoubleToObject(pJson, "numOfChildTable", mstat.numOfChildTable);
+  tjsonAddDoubleToObject(pJson, "numOfColumn", mstat.numOfColumn);
+  tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints);
+  tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage);
+  tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage);
 }
 
 static char* mndBuildTelemetryReport(SMnode* pMnode) {

@@ -168,6 +168,7 @@ static SKeyword keywordTable[] = {
     {"STREAM",        TK_STREAM},
     {"STREAMS",       TK_STREAMS},
     {"STREAM_MODE",   TK_STREAM_MODE},
+    {"STRICT",        TK_STRICT},
     {"SYNCDB",        TK_SYNCDB},
     {"TABLE",         TK_TABLE},
     {"TABLES",        TK_TABLES},

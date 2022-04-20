@@ -64,12 +64,14 @@ static int32_t qmOpen(SMgmtWrapper *pWrapper) {
     qmClose(pWrapper);
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "qnode-impl", "initialized");
 
   if (qmStartWorker(pMgmt) != 0) {
     dError("failed to start qnode worker since %s", terrstr());
     qmClose(pWrapper);
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "qnode-worker", "initialized");
 
   dInfo("qnode-mgmt is initialized");
   return 0;

@@ -473,7 +473,7 @@ int32_t tSerializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo)
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(pInfo->pVloads, i);
     if (tEncodeI32(&encoder, pLoad->vgId) < 0) return -1;
-    if (tEncodeI8(&encoder, pLoad->role) < 0) return -1;
+    if (tEncodeI32(&encoder, pLoad->syncState) < 0) return -1;
     if (tEncodeI64(&encoder, pLoad->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pLoad->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pLoad->totalStorage) < 0) return -1;
@@ -507,7 +507,7 @@ int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInf
   for (int32_t i = 0; i < arraySize; ++i) {
     SVnodeLoad load = {0};
     if (tDecodeI32(&decoder, &load.vgId) < 0) return -1;
-    if (tDecodeI8(&decoder, &load.role) < 0) return -1;
+    if (tDecodeI32(&decoder, &load.syncState) < 0) return -1;
     if (tDecodeI64(&decoder, &load.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &load.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &load.totalStorage) < 0) return -1;
@@ -529,4 +529,31 @@ int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInf
 void tFreeSMonVloadInfo(SMonVloadInfo *pInfo) {
   taosArrayDestroy(pInfo->pVloads);
   pInfo->pVloads = NULL;
+}
+
+int32_t tSerializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI8(&encoder, pInfo->isMnode) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->load.syncState) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI8(&decoder, &pInfo->isMnode) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->load.syncState) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
 }
