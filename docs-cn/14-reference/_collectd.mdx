@@ -1,5 +1,4 @@
-## 配置 collectd
-#
+
 collectd 使用插件机制可以以多种形式将采集到的监控数据写入到不同的数据存储软件。TDengine 支持直接采集插件和 write_tsdb 插件。
 
 ### 配置接收直接采集插件数据
@@ -35,8 +34,4 @@ LoadPlugin write_tsdb
 ```
 systemctl restart collectd
 ```
-
-## 验证方法
-
-重启 collectd 后可通过查询 TDengine 中数据库 `collectd` 来验证 collectd 写入的数据。
 
