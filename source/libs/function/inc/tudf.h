@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+#define UDF_LISTEN_PIPE_NAME_LEN 32
+#define UDF_LISTEN_PIPE_NAME_PREFIX "udf.sock."
+
 //======================================================================================
 //begin API to taosd and qworker
 
