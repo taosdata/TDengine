@@ -63,7 +63,7 @@ CaseCfg gCase[] = {
 //  {"insert:MBSE", tListLen(shortColList), shortColList, false, true, insertMBSETest, 10, 100, 10, 0, 0, 10},
 //  {"insert:MBSE", tListLen(longColList), longColList, false, true, insertMBSETest, 10, 10, 2, 0, 0, 1},
 //  {"insert:MBSE", tListLen(longColList), longColList, false, false, insertMBSETest, 10, 10, 2, 6, 0, 1},
-  {"insert:MBSE", tListLen(longColList), longColList, false, false, insertMBMETest, 10, 10, 2, 6, 0, 1},
+  {"insert:MBME", tListLen(longColList), longColList, false, false, insertMBMETest, 10, 10, 2, 6, 0, 1},
 };
 
 CaseCfg *gCurCase = NULL;
@@ -5097,7 +5097,7 @@ void* runcase(TAOS *taos) {
 
   for (int32_t i = 0; i < sizeof(gCase)/sizeof(gCase[0]); ++i) {
     gCurCase = &gCase[i];
-    printf("Case %d Begin\n", i);
+    printf("Case %d - %s Begin\n", i, gCurCase->caseDesc);
 
     if (gCurCase->fullCol) {
       gCurCase->bindColNum = gCurCase->colNum;

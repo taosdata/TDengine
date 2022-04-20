@@ -1009,7 +1009,6 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
 }
 
 void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
-  taosMemoryFreeClear(pReq->dbFName);
   taosMemoryFreeClear(pReq->name);
   taosMemoryFreeClear(pReq->ctbCfg.pTag);
 }
