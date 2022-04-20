@@ -490,6 +490,7 @@ typedef struct SGroupbyOperatorInfo {
   SExprInfo*      pScalarExprInfo;
   int32_t         numOfScalarExpr;  // the number of scalar expression in group operator
   SqlFunctionCtx* pScalarFuncCtx;
+  int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {

@@ -659,27 +659,22 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType  = pInput[0].columnData->info.type;
   int16_t outputType = pOutput[0].columnData->info.type;
-  if (outputType != TSDB_DATA_TYPE_BIGINT && outputType != TSDB_DATA_TYPE_UBIGINT &&
-      outputType != TSDB_DATA_TYPE_VARCHAR && outputType != TSDB_DATA_TYPE_NCHAR &&
-      outputType != TSDB_DATA_TYPE_TIMESTAMP) {
-    return TSDB_CODE_FAILED;
-  }
   int64_t outputLen = pOutput[0].columnData->info.bytes;
 
-  char *input = NULL;
+  if (IS_VAR_DATA_TYPE(outputType)) {
+    int32_t factor = (TSDB_DATA_TYPE_NCHAR == outputType) ? TSDB_NCHAR_SIZE : 1;
+    outputLen = outputLen * factor + VARSTR_HEADER_SIZE;
+  }
+
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;
-  if (IS_VAR_DATA_TYPE(inputType)) {
-    input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
-  } else {
-    input = pInput[0].columnData->pData;
-  }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
       continue;
     }
+    char *input = colDataGetData(pInput[0].columnData, i);
 
     switch(outputType) {
       case TSDB_DATA_TYPE_BIGINT: {
@@ -736,7 +731,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE), varDataVal(input));
           varDataSetLen(output, len);
-        } else if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           //not support
           return TSDB_CODE_FAILED;
         } else {
@@ -789,11 +784,6 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     }
 
     colDataAppend(pOutput->columnData, i, output, false);
-    if (IS_VAR_DATA_TYPE(inputType)) {
-      input  += varDataTLen(input);
-    } else {
-      input  += tDataTypes[inputType].bytes;
-    }
     if (IS_VAR_DATA_TYPE(outputType)) {
       output += varDataTLen(output);
     } else {
