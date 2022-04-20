@@ -68,4 +68,3 @@ Query OK, 1 row(s) in set (0.004179s)
 
 taos>
 ```
-

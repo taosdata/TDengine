@@ -1,11 +1,11 @@
 
-配置方法，在 `/etc/telegraf/telegraf.conf` 增加如下配置，其中 `database name` 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，`TDengine cluster host`、`username` 和 `password` 填写 TDengine 集群中的实际配置：
+配置方法，在 `/etc/telegraf/telegraf.conf` 增加如下配置，其中 `database name` 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，`taosAdapter host`、`username` 和 `password` 填写 taosAdapter 服务的实际配置：
 
 示例 telegraf.conf 如下：
 
 ```
 [[outputs.http]]
-  url = "http://<TDengine cluster host>:6041/influxdb/v1/write?db=<database name>"
+  url = "http://<taosAdapter host>:6041/influxdb/v1/write?db=<database name>"
   method = "POST"
   timeout = "5s"
   username = "<TDengine's username>"
