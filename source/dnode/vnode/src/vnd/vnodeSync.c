@@ -85,9 +85,15 @@ int32_t vnodeSendMsg(void *rpcHandle, const SEpSet *pEpSet, SRpcMsg *pMsg) {
 }
 
 int32_t vnodeSyncGetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+  SVnode *pVnode = (SVnode *)(pFsm->data);
+  vnodeGetSnapshot(pVnode, pSnapshot);
+
+  /*
   pSnapshot->data = NULL;
   pSnapshot->lastApplyIndex = 0;
   pSnapshot->lastApplyTerm = 0;
+  */
+
   return 0;
 }
 

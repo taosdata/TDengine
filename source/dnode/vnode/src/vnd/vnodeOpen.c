@@ -35,6 +35,8 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
   info.config = *pCfg;
+  info.state.committed = -1;
+  info.state.applied = -1;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
     vError("vgId: %d failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
