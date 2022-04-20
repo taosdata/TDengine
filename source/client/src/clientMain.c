@@ -14,12 +14,12 @@
  */
 
 #include "catalog.h"
-#include "scheduler.h"
 #include "clientInt.h"
-#include "clientStmt.h"
 #include "clientLog.h"
+#include "clientStmt.h"
 #include "os.h"
 #include "query.h"
+#include "scheduler.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
@@ -177,25 +177,24 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doFetchRows(pRequest, true, true);
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj *msg = ((SMqRspObj *)res);
-    if (msg->resIter == -1) msg->resIter++;
-    SReqResultInfo *pResultInfo = taosArrayGet(msg->res, msg->resIter);
+    SMqRspObj      *msg = ((SMqRspObj *)res);
+    SReqResultInfo *pResultInfo;
+    if (msg->resIter == -1) {
+      pResultInfo = tmqGetNextResInfo(res, true);
+    } else {
+      pResultInfo = tmqGetCurResInfo(res);
+    }
     if (pResultInfo->current < pResultInfo->numOfRows) {
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
-      msg->resIter++;
-      if (msg->resIter < taosArrayGetSize(msg->res)) {
-        pResultInfo = taosArrayGet(msg->res, msg->resIter);
-        doSetOneRowPtr(pResultInfo);
-        pResultInfo->current += 1;
-        return pResultInfo->row;
-      } else {
-        return NULL;
-      }
+      pResultInfo = tmqGetNextResInfo(res, true);
+      if (pResultInfo == NULL) return NULL;
+      doSetOneRowPtr(pResultInfo);
+      pResultInfo->current += 1;
+      return pResultInfo->row;
     }
-
   } else {
     // assert to avoid un-initialization error
     ASSERT(0);
@@ -455,7 +454,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*numOfRows) = pResultInfo->numOfRows;
     return pRequest->code;
   } else if (TD_RES_TMQ(res)) {
-    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
+    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, true);
     if (pResultInfo == NULL) return -1;
 
     pResultInfo->current = pResultInfo->numOfRows;
@@ -474,7 +473,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   }
 
   if (TD_RES_TMQ(res)) {
-    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
+    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, false);
     if (pResultInfo == NULL) {
       (*numOfRows) = 0;
       return 0;
@@ -710,10 +709,8 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   return stmtBindBatch(stmt, bind);
 }
 
-
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
   // TODO
   return NULL;
 }
-
 
