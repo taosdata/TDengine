@@ -355,6 +355,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
          TD_VID(pTq->pVnode), fetchOffset, consumerId, pReq->epoch, rsp.blockNum, rsp.reqOffset, rsp.rspOffset);
 
   // TODO destroy
+  taosArrayDestroy(rsp.blockData);
+  taosArrayDestroy(rsp.blockDataLen);
   return 0;
 }
 
@@ -599,19 +601,20 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     taosHashPut(pTq->tqMetaNew, req.subKey, strlen(req.subKey), pExec, sizeof(STqExec));
     return 0;
   } else {
-    if (req.newConsumerId != -1) {
-      /*taosWLockLatch(&pExec->lock);*/
-      ASSERT(pExec->consumerId == req.oldConsumerId);
-      // TODO handle qmsg and exec modification
-      atomic_store_64(&pExec->consumerId, req.newConsumerId);
-      atomic_add_fetch_32(&pExec->epoch, 1);
-      /*taosWUnLockLatch(&pExec->lock);*/
-      return 0;
-    } else {
-      // TODO
-      /*taosHashRemove(pTq->tqMetaNew, req.subKey, strlen(req.subKey));*/
-      return 0;
-    }
+    /*if (req.newConsumerId != -1) {*/
+    /*taosWLockLatch(&pExec->lock);*/
+    ASSERT(pExec->consumerId == req.oldConsumerId);
+    // TODO handle qmsg and exec modification
+    atomic_store_32(&pExec->epoch, -1);
+    atomic_store_64(&pExec->consumerId, req.newConsumerId);
+    atomic_add_fetch_32(&pExec->epoch, 1);
+    /*taosWUnLockLatch(&pExec->lock);*/
+    return 0;
+    /*} else {*/
+    // TODO
+    /*taosHashRemove(pTq->tqMetaNew, req.subKey, strlen(req.subKey));*/
+    /*return 0;*/
+    /*}*/
   }
 }
 

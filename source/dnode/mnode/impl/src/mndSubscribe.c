@@ -813,6 +813,20 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     SMqConsumerEpInSub *pEpInSub = (SMqConsumerEpInSub *)pIter;
     if (pEpInSub->consumerId == -1) continue;
     ASSERT(pEpInSub->consumerId > 0);
+
+    // push until equal minVg
+    while (taosArrayGetSize(pEpInSub->vgs) < minVgCnt) {
+      // iter hash and find one vg
+      pRemovedIter = taosHashIterate(pHash, pRemovedIter);
+      ASSERT(pRemovedIter);
+      pRebVg = (SMqRebOutputVg *)pRemovedIter;
+      // push
+      taosArrayPush(pEpInSub->vgs, &pRebVg->pVgEp);
+      pRebVg->newConsumerId = pEpInSub->consumerId;
+      taosArrayPush(pOutput->rebVgs, pRebVg);
+    }
+
+#if 0
     /*int32_t consumerVgNum = taosArrayGetSize(pEpInSub->vgs);*/
     if (imbCnt < imbConsumerNum) {
       imbCnt++;
@@ -840,13 +854,25 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
         taosArrayPush(pOutput->rebVgs, pRebVg);
       }
     }
+#endif
   }
 
   // 7. handle unassigned vg
   if (taosHashGetSize(pOutput->pSub->consumerHash) != 1) {
-    // if has consumer, vg should be all assigned
-    pRemovedIter = taosHashIterate(pHash, pRemovedIter);
-    ASSERT(pRemovedIter == NULL);
+    // if has consumer, assign all left vg
+    while (1) {
+      pRemovedIter = taosHashIterate(pHash, pRemovedIter);
+      if (pRemovedIter == NULL) break;
+      pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
+      ASSERT(pIter);
+      pRebVg = (SMqRebOutputVg *)pRemovedIter;
+      SMqConsumerEpInSub *pEpInSub = (SMqConsumerEpInSub *)pIter;
+      if (pEpInSub->consumerId == -1) continue;
+      ASSERT(pEpInSub->consumerId > 0);
+      taosArrayPush(pEpInSub->vgs, &pRebVg->pVgEp);
+      pRebVg->newConsumerId = pEpInSub->consumerId;
+      taosArrayPush(pOutput->rebVgs, pRebVg);
+    }
   } else {
     // if all consumer is removed, put all vg into unassigned
     int64_t             unexistKey = -1;
@@ -992,7 +1018,9 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
 
     // TODO replace assert with error check
     ASSERT(mndDoRebalance(pMnode, &rebInput, &rebOutput) == 0);
-    ASSERT(taosArrayGetSize(rebOutput.rebVgs) != 0);
+    // if add more consumer to balanced subscribe,
+    // possibly no vg is changed
+    /*ASSERT(taosArrayGetSize(rebOutput.rebVgs) != 0);*/
     ASSERT(mndPersistRebResult(pMnode, pMsg, &rebOutput) == 0);
 
     if (rebInput.pTopic) {
