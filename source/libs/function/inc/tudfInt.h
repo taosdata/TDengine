@@ -15,7 +15,6 @@
 
 #ifndef TDENGINE_TUDF_INT_H
 #define TDENGINE_TUDF_INT_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,36 +29,37 @@ enum {
 
 };
 
+enum {
+  TSDB_UDF_CALL_AGG_INIT = 0,
+  TSDB_UDF_CALL_AGG_PROC,
+  TSDB_UDF_CALL_AGG_MERGE,
+  TSDB_UDF_CALL_AGG_FIN,
+  TSDB_UDF_CALL_SCALA_PROC,
+};
+
 typedef struct SUdfSetupRequest {
-  char udfName[16]; //
-  int8_t scriptType; // 0:c, 1: lua, 2:js
-  int8_t udfType; //udaf, udf
-  int16_t pathSize;
-  char *path;
+  char udfName[TSDB_FUNC_NAME_LEN];
+  SEpSet epSet;
 } SUdfSetupRequest;
 
 typedef struct SUdfSetupResponse {
   int64_t udfHandle;
 } SUdfSetupResponse;
 
-
 typedef struct SUdfCallRequest {
   int64_t udfHandle;
-  int8_t step;
+  int8_t callType;
 
-  int32_t inputBytes;
-  char *input;
-
-  int32_t stateBytes;
-  char *state;
+  SSDataBlock block;
+  SUdfInterBuf interBuf;
+  SUdfInterBuf interBuf2;
+  int8_t initFirst;
 } SUdfCallRequest;
 
-
 typedef struct SUdfCallResponse {
-  int32_t outputBytes;
-  char *output;
-  int32_t newStateBytes;
-  char *newState;
+  int8_t callType;
+  SSDataBlock resultData;
+  SUdfInterBuf resultBuf;
 } SUdfCallResponse;
 
 
@@ -76,7 +76,11 @@ typedef struct SUdfRequest {
   int64_t seqNum;
 
   int8_t type;
-  void *subReq;
+  union {
+    SUdfSetupRequest setup;
+    SUdfCallRequest call;
+    SUdfTeardownRequest teardown;
+  };
 } SUdfRequest;
 
 typedef struct SUdfResponse {
@@ -85,13 +89,25 @@ typedef struct SUdfResponse {
 
   int8_t type;
   int32_t code;
-  void *subRsp;
+  union {
+    SUdfSetupResponse setupRsp;
+    SUdfCallResponse callRsp;
+    SUdfTeardownResponse teardownRsp;
+  };
 } SUdfResponse;
 
-int32_t decodeRequest(char *buf, int32_t bufLen, SUdfRequest **pRequest);
-int32_t encodeResponse(char **buf, int32_t *bufLen, SUdfResponse *response);
-int32_t encodeRequest(char **buf, int32_t *bufLen, SUdfRequest *request);
-int32_t decodeResponse(char *buf, int32_t bufLen, SUdfResponse **pResponse);
+int32_t encodeUdfRequest(void **buf, const SUdfRequest* request);
+void* decodeUdfRequest(const void *buf, SUdfRequest* request);
+
+int32_t encodeUdfResponse(void **buf, const SUdfResponse *response);
+void* decodeUdfResponse(const void* buf, SUdfResponse *response);
+
+void freeUdfColumnData(SUdfColumnData *data);
+void freeUdfColumn(SUdfColumn* col);
+void freeUdfDataDataBlock(SUdfDataBlock *block);
+
+int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock);
+int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block);
 
 #ifdef __cplusplus
 }

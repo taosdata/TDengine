@@ -129,7 +129,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
 //  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 
   if (true) {
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, sk, ek, &w);
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, &w);
     assert(w.ekey >= pBlockInfo->window.skey);
 
     if (w.ekey < pBlockInfo->window.ekey) {
@@ -451,8 +451,8 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator, bool* newgroup) {
   STableBlockDistInfo tableBlockDist = {0};
   tableBlockDist.numOfTables = 1;  // TODO set the correct number of tables
 
-  int32_t numRowSteps = TSDB_DEFAULT_MAX_ROW_FBLOCK / TSDB_BLOCK_DIST_STEP_ROWS;
-  if (TSDB_DEFAULT_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+  int32_t numRowSteps = TSDB_DEFAULT_MAXROWS_FBLOCK / TSDB_BLOCK_DIST_STEP_ROWS;
+  if (TSDB_DEFAULT_MAXROWS_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
     ++numRowSteps;
   }
 
@@ -539,7 +539,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
   pTaskInfo->code = pOperator->_openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
@@ -547,6 +547,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     size_t total = taosArrayGetSize(pInfo->pBlockLists);
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
+      pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
 
@@ -560,11 +561,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
       pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
         terrno = pTaskInfo->code;
+        pOperator->status = OP_EXEC_DONE;
         return NULL;
       }
 
       if (pBlockInfo->rows == 0) {
-        return NULL;
+        break;
       }
 
       SArray* pCols = tqRetrieveDataBlock(pInfo->readerHandle);
@@ -583,6 +585,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
 
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
+        pOperator->status = OP_EXEC_DONE;
         pTaskInfo->code = terrno;
         return NULL;
       }
@@ -593,6 +596,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     // record the scan action.
     pInfo->numOfExec++;
     pInfo->numOfRows += pBlockInfo->rows;
+
+    if (pBlockInfo->rows == 0) {
+      pOperator->status = OP_EXEC_DONE;
+    }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
   }

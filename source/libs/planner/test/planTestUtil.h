@@ -32,4 +32,6 @@ private:
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
+extern bool g_isDump;
+
 #endif  // PLAN_TEST_UTIL_H

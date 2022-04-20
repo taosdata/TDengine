@@ -23,40 +23,43 @@
 #include "shellCommand.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tconfig.h"
 #include "tglobal.h"
 #include "ttypes.h"
 #include "tutil.h"
-#include "tconfig.h"
 
 #include <regex.h>
 #include <wordexp.h>
 
 /**************** Global variables ****************/
 #ifdef _TD_POWER_
-char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "power> ";
+char CLIENT_VERSION[] =
+    "Welcome to the PowerDB shell from %s, Client Version:%s\n"
+    "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
+char PROMPT_HEADER[] = "power> ";
 
-char      CONTINUE_PROMPT[] = "    -> ";
-int       prompt_size = 7;
+char CONTINUE_PROMPT[] = "    -> ";
+int  prompt_size = 7;
 #elif (_TD_TQ_ == true)
-char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "tq> ";
+char CLIENT_VERSION[] =
+    "Welcome to the TQ shell from %s, Client Version:%s\n"
+    "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
+char PROMPT_HEADER[] = "tq> ";
 
-char      CONTINUE_PROMPT[] = "    -> ";
-int       prompt_size = 4;
+char CONTINUE_PROMPT[] = "    -> ";
+int  prompt_size = 4;
 #else
-char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "taos> ";
+char CLIENT_VERSION[] =
+    "Welcome to the TDengine shell from %s, Client Version:%s\n"
+    "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char PROMPT_HEADER[] = "taos> ";
 
-char      CONTINUE_PROMPT[] = "   -> ";
-int       prompt_size = 6;
+char CONTINUE_PROMPT[] = "   -> ";
+int  prompt_size = 6;
 #endif
 
-int64_t result = 0;
-SShellHistory   history;
+int64_t       result = 0;
+SShellHistory history;
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
 extern int32_t tsMaxBinaryDisplayWidth;
@@ -90,11 +93,6 @@ TAOS *shellInit(SShellArguments *_args) {
   if (_args->user == NULL) {
     _args->user = TSDB_DEFAULT_USER;
   }
-
-  SConfig *pCfg = cfgInit();
-  if (NULL == pCfg) return NULL;
-
-  if (0 != taosAddClientLogCfg(pCfg)) return NULL;
 
   // Connect to the database.
   TAOS *con = NULL;
@@ -308,12 +306,12 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
     atomic_store_64(&result, 0);
     freeResultWithRid(oresult);
-    taos_free_result(pSql);    
-    
+    taos_free_result(pSql);
+
     return;
   }
 
-  TAOS_FIELD* pFields = taos_fetch_fields(pSql);
+  TAOS_FIELD *pFields = taos_fetch_fields(pSql);
   if (pFields != NULL) {  // select and show kinds of commands
     int error_no = 0;
 
@@ -330,7 +328,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     } else {
       printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
-    taos_free_result(pSql);    
+    taos_free_result(pSql);
   } else {
     int num_rows_affacted = taos_affected_rows(pSql);
     taos_free_result(pSql);
@@ -490,7 +488,8 @@ static int dumpResultToFile(const char *fname, TAOS_RES *tres) {
   }
 
   // FILE *fp = fopen(full_path.we_wordv[0], "w");
-  TdFilePtr pFile = taosOpenFile(full_path.we_wordv[0], TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  TdFilePtr pFile =
+      taosOpenFile(full_path.we_wordv[0], TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
     wordfree(&full_path);
@@ -875,8 +874,8 @@ void read_history() {
   memset(history.hist, 0, sizeof(char *) * MAX_HISTORY_SIZE);
   history.hstart = 0;
   history.hend = 0;
-  char  *line = NULL;
-  int    read_size = 0;
+  char *line = NULL;
+  int   read_size = 0;
 
   char f_history[TSDB_FILENAME_LEN];
   get_history_path(f_history);
@@ -903,7 +902,7 @@ void read_history() {
     }
   }
 
-  if(line != NULL) taosMemoryFree(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 }
 
@@ -1000,7 +999,7 @@ void source_file(TAOS *con, char *fptr) {
   }
 
   taosMemoryFree(cmd);
-  if(line != NULL) taosMemoryFree(line);
+  if (line != NULL) taosMemoryFree(line);
   wordfree(&full_path);
   taosCloseFile(&pFile);
 }

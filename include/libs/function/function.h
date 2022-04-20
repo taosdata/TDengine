@@ -295,19 +295,19 @@ typedef struct SPoint {
   void *  val;
 } SPoint;
 
-void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
-void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const int64_t* fillVal);
-bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
-
-struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-                              int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                              struct SFillColInfo* pFillCol, const char* id);
-
-void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
-int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
-int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
+//void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
+//void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
+//void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+//struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const SValueNode* val);
+//bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
+//
+//struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+//                                     SInterval* pInterval, int32_t fillType,
+//                                     struct SFillColInfo* pCol, const char* id);
+//
+//void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
+//int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
+//int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 

@@ -253,21 +253,15 @@ typedef struct {
   SSubmitRspBlock failedBlocks[];
 } SSubmitRsp;
 
+#define SCHEMA_SMA_ON 0x1
+#define SCHEMA_IDX_ON 0x2
 typedef struct SSchema {
   int8_t   type;
-  int8_t   index;  // default is 0, not index created
+  int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
-
-typedef struct {
-  int8_t   type;
-  int8_t   sma;  // ETsdbBSmaType and default is TSDB_BSMA_TYPE_I
-  col_id_t colId;
-  int32_t  bytes;
-  char     name[TSDB_COL_NAME_LEN];
-} SSchemaEx;
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_SMA(s)   ((s)->sma)
@@ -286,10 +280,14 @@ typedef struct {
   int32_t numOfTags;
   int32_t numOfSmas;
   int32_t commentLen;
+  int32_t ast1Len;
+  int32_t ast2Len;
   SArray* pColumns;  // array of SField
   SArray* pTags;     // array of SField
   SArray* pSmas;     // array of SField
   char*   comment;
+  char*   pAst1;
+  char*   pAst2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -515,7 +513,7 @@ typedef struct {
   int8_t  precision;  // time resolution
   int8_t  compression;
   int8_t  replications;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
@@ -537,7 +535,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t fsyncPeriod;
   int8_t  walLevel;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  cacheLastRow;
   int8_t  replications;
 } SAlterDbReq;
@@ -610,11 +608,13 @@ typedef struct {
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
-  int8_t  quorum;
+  int8_t  strict;
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
   int8_t  singleSTable;
+  int32_t numOfRetensions;
+  SArray* pRetensions;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
@@ -645,10 +645,10 @@ void    tFreeSUseDbBatchRsp(SUseDbBatchRsp* pRsp);
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
-} SSyncDbReq, SCompactDbReq;
+} SCompactDbReq;
 
-int32_t tSerializeSSyncDbReq(void* buf, int32_t bufLen, SSyncDbReq* pReq);
-int32_t tDeserializeSSyncDbReq(void* buf, int32_t bufLen, SSyncDbReq* pReq);
+int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
+int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -729,7 +729,7 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-  int8_t  role;
+  int32_t syncState;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
   int64_t totalStorage;
@@ -741,6 +741,10 @@ typedef struct {
   int64_t numOfBatchInsertReqs;
   int64_t numOfBatchInsertSuccessReqs;
 } SVnodeLoad;
+
+typedef struct {
+  int32_t syncState;
+} SMnodeLoad;
 
 typedef struct {
   int32_t     sver;      // software version
@@ -816,7 +820,7 @@ typedef struct {
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
-  int8_t   quorum;
+  int8_t   strict;
   int8_t   update;
   int8_t   cacheLastRow;
   int8_t   replica;
@@ -825,7 +829,7 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
-} SCreateVnodeReq, SAlterVnodeReq;
+} SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
 int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -836,10 +840,35 @@ typedef struct {
   int32_t dnodeId;
   int64_t dbUid;
   char    db[TSDB_DB_FNAME_LEN];
-} SDropVnodeReq, SSyncVnodeReq, SCompactVnodeReq;
+} SDropVnodeReq;
 
 int32_t tSerializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
 int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
+
+typedef struct {
+  int64_t dbUid;
+  char    db[TSDB_DB_FNAME_LEN];
+} SCompactVnodeReq;
+
+int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
+int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
+
+typedef struct {
+  int32_t  vgVersion;
+  int32_t  totalBlocks;
+  int32_t  daysToKeep0;
+  int32_t  daysToKeep1;
+  int32_t  daysToKeep2;
+  int8_t   walLevel;
+  int8_t   strict;
+  int8_t   cacheLastRow;
+  int8_t   replica;
+  int8_t   selfIndex;
+  SReplica replicas[TSDB_MAX_REPLICA];
+} SAlterVnodeReq;
+
+int32_t tSerializeSAlterVnodeReq(void* buf, int32_t bufLen, SAlterVnodeReq* pReq);
+int32_t tDeserializeSAlterVnodeReq(void* buf, int32_t bufLen, SAlterVnodeReq* pReq);
 
 typedef struct {
   SMsgHead header;
@@ -1077,10 +1106,12 @@ int32_t tSerializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
 int32_t tDeserializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
 
 typedef struct {
-  int8_t finished;
-  char   name[TSDB_STEP_NAME_LEN];
-  char   desc[TSDB_STEP_DESC_LEN];
-} SStartupReq;
+  int32_t statusCode;
+  char    details[1024];
+} SServerStatusRsp;
+
+int32_t tSerializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp* pRsp);
+int32_t tDeserializeSServerStatusRsp(void* buf, int32_t bufLen, SServerStatusRsp* pRsp);
 
 /**
  * The layout of the query message payload is as following:
@@ -1437,8 +1468,6 @@ typedef struct {
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
-  int64_t  ver;  // use a general definition
-  char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
@@ -1454,7 +1483,7 @@ typedef struct SVCreateTbReq {
       tb_uid_t    suid;
       col_id_t    nCols;
       col_id_t    nBSmaCols;
-      SSchemaEx*  pSchema;
+      SSchema*    pSchema;
       col_id_t    nTagCols;
       SSchema*    pTagSchema;
       SRSmaParam* pRSmaParam;
@@ -1466,7 +1495,7 @@ typedef struct SVCreateTbReq {
     struct {
       col_id_t    nCols;
       col_id_t    nBSmaCols;
-      SSchemaEx*  pSchema;
+      SSchema*    pSchema;
       SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
@@ -2031,16 +2060,13 @@ int32_t tDecodeSMqCMCommitOffsetReq(SCoder* decoder, SMqCMCommitOffsetReq* pReq)
 
 typedef struct {
   uint32_t nCols;
-  union {
-    SSchema*   pSchema;
-    SSchemaEx* pSchemaEx;
-  };
+  SSchema* pSchema;
 } SSchemaWrapper;
 
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);
-  tlen += taosEncodeFixedI8(buf, pSchema->index);
+  tlen += taosEncodeFixedI8(buf, pSchema->flags);
   tlen += taosEncodeFixedI32(buf, pSchema->bytes);
   tlen += taosEncodeFixedI16(buf, pSchema->colId);
   tlen += taosEncodeString(buf, pSchema->name);
@@ -2049,7 +2075,7 @@ static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema
 
 static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
   buf = taosDecodeFixedI8(buf, &pSchema->type);
-  buf = taosDecodeFixedI8(buf, &pSchema->index);
+  buf = taosDecodeFixedI8(buf, &pSchema->flags);
   buf = taosDecodeFixedI32(buf, &pSchema->bytes);
   buf = taosDecodeFixedI16(buf, &pSchema->colId);
   buf = taosDecodeStringTo(buf, pSchema->name);
@@ -2058,7 +2084,7 @@ static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
 
 static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
   if (tEncodeI8(pEncoder, pSchema->type) < 0) return -1;
-  if (tEncodeI8(pEncoder, pSchema->index) < 0) return -1;
+  if (tEncodeI8(pEncoder, pSchema->flags) < 0) return -1;
   if (tEncodeI32(pEncoder, pSchema->bytes) < 0) return -1;
   if (tEncodeI16(pEncoder, pSchema->colId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pSchema->name) < 0) return -1;
@@ -2067,7 +2093,7 @@ static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSch
 
 static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
   if (tDecodeI8(pDecoder, &pSchema->type) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pSchema->index) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pSchema->flags) < 0) return -1;
   if (tDecodeI32(pDecoder, &pSchema->bytes) < 0) return -1;
   if (tDecodeI16(pDecoder, &pSchema->colId) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;

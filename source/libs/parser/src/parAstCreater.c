@@ -678,9 +678,6 @@ SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOp
     case DB_OPTION_PRECISION:
       ((SDatabaseOptions*)pOptions)->pPrecision = pAlterOption->pVal;
       break;
-    case DB_OPTION_QUORUM:
-      ((SDatabaseOptions*)pOptions)->pQuorum = pAlterOption->pVal;
-      break;
     case DB_OPTION_REPLICA:
       ((SDatabaseOptions*)pOptions)->pReplica = pAlterOption->pVal;
       break;

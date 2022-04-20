@@ -42,6 +42,7 @@ static int32_t dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
       dmUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
       dmUpdateEps(pDnode, statusRsp.pDnodeEps);
     }
+    rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
   }
 
@@ -71,9 +72,23 @@ void dmSendStatusReq(SDnode *pDnode) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pDnode->data.latch);
 
-  SMonVloadInfo info = {0};
-  dmGetVnodeLoads(pDnode, &info);
-  req.pVloads = info.pVloads;
+  SMonVloadInfo vinfo = {0};
+  dmGetVnodeLoads(pDnode, &vinfo);
+  req.pVloads = vinfo.pVloads;
+  pDnode->data.unsyncedVgId = 0;
+  pDnode->data.vndState = TAOS_SYNC_STATE_LEADER;
+  for (int32_t i = 0; i < taosArrayGetSize(req.pVloads); ++i) {
+    SVnodeLoad *pLoad = taosArrayGet(req.pVloads, i);
+    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
+      pDnode->data.unsyncedVgId = pLoad->vgId;
+      pDnode->data.vndState = pLoad->syncState;
+    }
+  }
+
+  SMonMloadInfo minfo = {0};
+  dmGetMnodeLoads(pDnode, &minfo);
+  pDnode->data.isMnode = minfo.isMnode;
+  pDnode->data.mndState = minfo.load.syncState;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
@@ -160,9 +175,9 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
-    dmCloseNode(pWrapper);
     pWrapper->required = false;
     pWrapper->deployed = false;
+    dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }
   taosThreadMutexUnlock(&pDnode->mutex);
@@ -230,6 +245,7 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
     dError("failed to init transport since %s", terrstr());
     return -1;
   }
+  dmReportStartup(pDnode, "dnode-transport", "initialized");
 
   dInfo("dnode-mgmt is initialized");
   return 0;

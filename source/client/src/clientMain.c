@@ -71,6 +71,7 @@ void taos_cleanup(void) {
   schedulerDestroy();
 
   tscInfo("all local resources released");
+  taosCleanupCfg();
   taosCloseLog();
 }
 

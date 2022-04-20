@@ -129,6 +129,15 @@ static void transDestroyConnCtx(STransConnCtx* ctx);
 static SCliThrdObj* createThrdObj();
 static void         destroyThrdObj(SCliThrdObj* pThrd);
 
+static void cliWalkCb(uv_handle_t* handle, void* arg);
+
+#define CLI_RELEASE_UV(loop)        \
+  do {                              \
+    uv_walk(loop, cliWalkCb, NULL); \
+    uv_run(loop, UV_RUN_DEFAULT);   \
+    uv_loop_close(loop);            \
+  } while (0);
+
 // snprintf may cause performance problem
 #define CONN_CONSTRUCT_HASH_KEY(key, ip, port)          \
   do {                                                  \
@@ -546,6 +555,7 @@ static void cliDestroy(uv_handle_t* handle) {
   transCtxCleanup(&conn->ctx);
   transQueueDestroy(&conn->cliMsgs);
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
+  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
@@ -675,11 +685,12 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   destroyConnPool(pThrd->pool);
-
   uv_timer_stop(&pThrd->timer);
+  uv_walk(pThrd->loop, cliWalkCb, NULL);
 
   pThrd->quit = true;
-  uv_stop(pThrd->loop);
+
+  // uv_stop(pThrd->loop);
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = pMsg->msg.handle;
@@ -792,7 +803,6 @@ static void* cliWorkThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
   setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
-
   return NULL;
 }
 
@@ -857,8 +867,8 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   if (pThrd == NULL) {
     return;
   }
-  uv_stop(pThrd->loop);
   taosThreadJoin(pThrd->thread, NULL);
+  CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
   transDestroyAsyncPool(pThrd->asyncPool);
 
@@ -879,6 +889,11 @@ void cliSendQuit(SCliThrdObj* thrd) {
   SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   msg->type = Quit;
   transSendAsync(thrd->asyncPool, &msg->q);
+}
+void cliWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
 }
 
 int cliRBChoseIdx(STrans* pTransInst) {
