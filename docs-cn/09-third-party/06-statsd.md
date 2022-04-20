@@ -30,6 +30,7 @@ ubuntu@shuduo-1804 $ node stats.js config.js &
 [1] 8546
 ubuntu@shuduo-1804 ~/work/statsd (master)c47fc48$ 20 Apr 09:54:41 - [8546] reading config file: exampleConfig.js
 20 Apr 09:54:41 - server is up INFO
+```
 
 使用 nc 写入测试数据：
 
