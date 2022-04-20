@@ -51,4 +51,4 @@ void clearScreen(int ecmd_pos, int cursor_pos);
 void printChar(char c, int times);
 void positionCursor(int step, int direction);
 
-#endif
+#endif /*_TD_SHELL_COMMAND_H_*/

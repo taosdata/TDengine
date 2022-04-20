@@ -20,6 +20,9 @@
 #include "taos.h"
 #include "taosdef.h"
 
+#include <regex.h>
+#include <wordexp.h>
+
 #define MAX_HISTORY_SIZE     1000
 #define MAX_COMMAND_SIZE     1048586
 #define HISTORY_FILE         ".taos_history"

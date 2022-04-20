@@ -19,7 +19,6 @@
 #include "os.h"
 #include "shellInt.h"
 
-#include <regex.h>
 
 typedef struct {
   char widthInString;
