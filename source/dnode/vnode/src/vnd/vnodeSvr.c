@@ -196,20 +196,22 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len) {
-  SVCreateTbReq vCreateTbReq = {0};
-  tDeserializeSVCreateTbReq(pReq, &vCreateTbReq);
-  if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
-    // TODO
+  SVCreateStbReq req = {0};
+  SCoder         coder;
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
+
+  if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
+    tCoderClear(&coder);
     return -1;
   }
 
-  // taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
-  // taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
-  // if (vCreateTbReq.stbCfg.pRSmaParam) {
-  //   taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
-  //   taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
-  // }
-  // taosMemoryFree(vCreateTbReq.name);
+  if (metaCreateSTable(pVnode->pMeta, pReq, NULL) < 0) {
+    tCoderClear(&coder);
+    return -1;
+  }
+
+  tCoderClear(&coder);
 
   return 0;
 }

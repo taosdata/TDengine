@@ -1479,7 +1479,7 @@ typedef struct SVCreateStbReq {
   SSchema*    pSchema;
   int16_t     nTags;
   SSchema*    pSchemaTg;
-  SRSmaParam* pRSmaParam;
+  SRSmaParam  pRSmaParam;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);

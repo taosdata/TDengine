@@ -394,66 +394,55 @@ static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSch
 }
 
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-#if 0
-  SName name = {0};
+  SCoder  coder;
+  int32_t contLen;
+  SName   name = {0};
+
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFName);
 
-  SVCreateTbReq req = {0};
+  SVCreateStbReq req = {0};
   req.name = (char *)tNameGetTableName(&name);
-  req.ttl = 0;
-  req.keep = 0;
+  req.suid = pStb->uid;
   req.rollup = pStb->aggregationMethod > -1 ? 1 : 0;
-  req.type = TD_SUPER_TABLE;
-  req.stbCfg.suid = pStb->uid;
-  req.stbCfg.nCols = pStb->numOfColumns;
-  req.stbCfg.nTagCols = pStb->numOfTags;
-  req.stbCfg.pTagSchema = pStb->pTags;
-  req.stbCfg.pSchema = (SSchema *)taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
-  if (req.stbCfg.pSchema == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  req.ttl = 0;
+  req.nCols = pStb->numOfColumns;
+  req.pSchema = pStb->pColumns;
+  req.nTags = pStb->numOfTags;
+  req.pSchemaTg = pStb->pTags;
+
+  // TODO: remove here
+  for (int iCol = 0; iCol < req.nCols; iCol++) {
+    req.pSchema[iCol].flags = SCHEMA_SMA_ON;
+  }
+
+  if (req.rollup) {
+    req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
+    req.pRSmaParam.delay = pStb->delay;
+    req.pRSmaParam.nFuncIds = 1;  // only 1 aggregation method supported currently
+    req.pRSmaParam.pFuncIds = (func_id_t *)taosMemoryCalloc(req.pRSmaParam.nFuncIds, sizeof(func_id_t));
+    if (req.pRSmaParam.pFuncIds == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    for (int32_t f = 0; f < req.pRSmaParam.nFuncIds; ++f) {
+      req.pRSmaParam.pFuncIds[f] = pStb->aggregationMethod;
+    }
+  }
+
+  // get length
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  if (tEncodeSVCreateStbReq(&coder, &req) < 0) {
+    taosMemoryFree(req.pRSmaParam.pFuncIds);
     return NULL;
   }
+  tCoderClear(&coder);
 
-  memcpy(req.stbCfg.pSchema, pStb->pColumns, sizeof(SSchema) * pStb->numOfColumns);
-  for (int i = 0; i < pStb->numOfColumns; i++) {
-    req.stbCfg.pSchema[i].flags = SCHEMA_SMA_ON;
-  }
-
-  SRSmaParam *pRSmaParam = NULL;
-  if (req.rollup) {
-    pRSmaParam = (SRSmaParam *)taosMemoryCalloc(1, sizeof(SRSmaParam));
-    if (pRSmaParam == NULL) {
-      taosMemoryFreeClear(req.stbCfg.pSchema);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-
-    pRSmaParam->xFilesFactor = pStb->xFilesFactor;
-    pRSmaParam->delay = pStb->delay;
-    pRSmaParam->nFuncIds = 1;  // only 1 aggregation method supported currently
-    pRSmaParam->pFuncIds = (func_id_t *)taosMemoryCalloc(pRSmaParam->nFuncIds, sizeof(func_id_t));
-    if (pRSmaParam->pFuncIds == NULL) {
-      taosMemoryFreeClear(req.stbCfg.pRSmaParam);
-      taosMemoryFreeClear(req.stbCfg.pSchema);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-    for (int32_t f = 0; f < pRSmaParam->nFuncIds; ++f) {
-      *(pRSmaParam->pFuncIds + f) = pStb->aggregationMethod;
-    }
-    req.stbCfg.pRSmaParam = pRSmaParam;
-  }
-
-  int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+  contLen = sizeof(SMsgHead) + coder.pos;
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
-    if (pRSmaParam) {
-      taosMemoryFreeClear(pRSmaParam->pFuncIds);
-      taosMemoryFreeClear(pRSmaParam);
-    }
-    // taosMemoryFreeClear(req.stbCfg.pSchema);
+    taosMemoryFree(req.pRSmaParam.pFuncIds);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -462,17 +451,16 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tSerializeSVCreateTbReq(&pBuf, &req);
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
+  if (tEncodeSVCreateStbReq(&coder, &req) < 0) {
+    taosMemoryFree(req.pRSmaParam.pFuncIds);
+    return NULL;
+  }
+  tCoderClear(&coder);
 
   *pContLen = contLen;
-  if (pRSmaParam) {
-    taosMemoryFreeClear(pRSmaParam->pFuncIds);
-    taosMemoryFreeClear(pRSmaParam);
-  }
-  // taosMemoryFreeClear(req.stbCfg.pSchema);
+  taosMemoryFree(req.pRSmaParam.pFuncIds);
   return pHead;
-#endif
-  return NULL;
 }
 
 static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {

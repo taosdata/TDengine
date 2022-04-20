@@ -45,6 +45,9 @@ void metaCloseIdx(SMeta* pMeta);
 int  metaSaveTableToIdx(SMeta* pMeta, const STbCfg* pTbOptions);
 int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 
+// metaTable ==================
+int metaCreateSTable(SMeta* pMeta, SVCreateStbReq* pReq, SVCreateStbRsp* pRsp);
+
 // metaCommit ==================
 int metaBegin(SMeta* pMeta);
 

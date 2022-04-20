@@ -3076,7 +3076,6 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   return 0;
 }
 
-
 int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -3096,7 +3095,7 @@ int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq
     SReplica *pReplica = &pReq->replicas[i];
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
   }
-  
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3128,7 +3127,6 @@ int32_t tDeserializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pR
   tCoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSKillQueryReq(void *buf, int32_t bufLen, SKillQueryReq *pReq) {
   SCoder encoder = {0};
@@ -3723,16 +3721,17 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
   if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
-  if (tDecodeI16v(pCoder, &pReq->nCols) < 0) return -1;
 
-  // TCODER_MALLOC(pReq->pSchema, SSchema, sizeof(SSchema) * pReq->nCols, pCoder);
-  pReq->pSchema = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pReq->nCols);
+  if (tDecodeI16v(pCoder, &pReq->nCols) < 0) return -1;
+  pReq->pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->nCols);
+  if (pReq->pSchema == NULL) return -1;
   for (int iCol = 0; iCol < pReq->nCols; iCol++) {
     if (tDecodeSSchema(pCoder, pReq->pSchema + iCol) < 0) return -1;
   }
 
   if (tDecodeI16v(pCoder, &pReq->nTags) < 0) return -1;
-  // TCODER_MALLOC(pReq->pSchemaTg, SSchema, sizeof(SSchema) * pReq->nTags, pCoder);
+  pReq->pSchemaTg = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->nTags);
+  if (pReq->pSchemaTg == NULL) return -1;
   pReq->pSchemaTg = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pReq->nTags);
   for (int iTag = 0; iTag < pReq->nTags; iTag++) {
     if (tDecodeSSchema(pCoder, pReq->pSchemaTg + iTag) < 0) return -1;

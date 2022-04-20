@@ -15,6 +15,11 @@
 
 #include "vnodeInt.h"
 
+int metaCreateSTable(SMeta *pMeta, SVCreateStbReq *pReq, SVCreateStbRsp *pRsp) {
+  // TODO
+  return 0;
+}
+
 int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
 #ifdef META_REFACT
 #else
