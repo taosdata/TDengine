@@ -15,7 +15,7 @@
 
 #include "vnodeInt.h"
 
-static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq);
+static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
 static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
@@ -43,43 +43,53 @@ int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
 
 int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp) {
   void *ptr = NULL;
+  void *pReq;
+  int   len;
   int   ret;
 
-  if (pVnode->config.streamMode == 0) {
-    // ptr = vnodeMalloc(pVnode, pMsg->contLen);
-    if (ptr == NULL) {
-      // TODO: handle error
-    }
+  vTrace("vgId: %d start to process write request %s, version %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+         version);
 
-    // TODO: copy here need to be extended
-    memcpy(ptr, pMsg->pCont, pMsg->contLen);
-  }
+  // skip header
+  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  len = pMsg->contLen - sizeof(SMsgHead);
 
   // todo: change the interface here
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
-    // TODO: handle error
+    vError("vgId: %d failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
   }
 
   switch (pMsg->msgType) {
+    /* META */
     case TDMT_VND_CREATE_STB:
-      ret = vnodeProcessCreateStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
-      break;
-    case TDMT_VND_CREATE_TABLE:
-      pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
-      vnodeProcessCreateTbReq(pVnode, pMsg, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pRsp);
+      ret = vnodeProcessCreateStbReq(pVnode, pReq, len);
       break;
     case TDMT_VND_ALTER_STB:
-      vnodeProcessAlterStbReq(pVnode, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)));
+      vnodeProcessAlterStbReq(pVnode, pReq);
       break;
     case TDMT_VND_DROP_STB:
       vTrace("vgId:%d, process drop stb req", TD_VID(pVnode));
       break;
+    case TDMT_VND_CREATE_TABLE:
+      pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
+      vnodeProcessCreateTbReq(pVnode, pMsg, pReq, pRsp);
+      break;
+    case TDMT_VND_ALTER_TABLE:
+      break;
     case TDMT_VND_DROP_TABLE:
       break;
+    case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
+      if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
+        // TODO
+      }
+    } break;
+    /* TSDB */
     case TDMT_VND_SUBMIT:
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
       vnodeProcessSubmitReq(pVnode, ptr, pRsp);
       break;
+    /* TQ */
     case TDMT_VND_MQ_SET_CONN: {
       if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
@@ -103,20 +113,6 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
                             0) < 0) {
       }
     } break;
-    case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-
-      if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
-        // TODO
-      }
-      // } break;
-      // case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
-      // } break;
-      // case TDMT_VND_DROP_SMA: {  // timeRangeSMA
-      //   if (tsdbDropTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
-      //     // TODO
-      //   }
-
-    } break;
     default:
       ASSERT(0);
       break;
@@ -125,7 +121,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   pVnode->state.applied = version;
 
   // Check if it needs to commit
-  if (0 /*vnodeShouldCommit(pVnode)*/) {
+  if (vnodeShouldCommit(pVnode)) {
     // tsem_wait(&(pVnode->canCommit));
     if (vnodeAsyncCommit(pVnode) < 0) {
       // TODO: handle error
@@ -197,7 +193,7 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   return 0;
 }
 
-static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
+static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len) {
   SVCreateTbReq vCreateTbReq = {0};
   tDeserializeSVCreateTbReq(pReq, &vCreateTbReq);
   if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
@@ -205,13 +201,13 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
     return -1;
   }
 
-  taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
-  taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
-  if (vCreateTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
-    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
-  }
-  taosMemoryFree(vCreateTbReq.name);
+  // taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
+  // taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
+  // if (vCreateTbReq.stbCfg.pRSmaParam) {
+  //   taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
+  //   taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
+  // }
+  // taosMemoryFree(vCreateTbReq.name);
 
   return 0;
 }
@@ -243,12 +239,12 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     // TODO: to encapsule a free API
     taosMemoryFree(pCreateTbReq->name);
     if (pCreateTbReq->type == TD_SUPER_TABLE) {
-      taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
-      taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
-      if (pCreateTbReq->stbCfg.pRSmaParam) {
-        taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
-        taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
-      }
+      // taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
+      // taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
+      // if (pCreateTbReq->stbCfg.pRSmaParam) {
+      //   taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
+      //   taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
+      // }
     } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
       taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
     } else {
@@ -276,12 +272,12 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   vTrace("vgId:%d, process alter stb req", TD_VID(pVnode));
   tDeserializeSVCreateTbReq(pReq, &vAlterTbReq);
   // TODO: to encapsule a free API
-  taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
-  taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
-  if (vAlterTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
-    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
-  }
+  // taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
+  // taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
+  // if (vAlterTbReq.stbCfg.pRSmaParam) {
+  //   taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
+  //   taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
+  // }
   taosMemoryFree(vAlterTbReq.name);
   return 0;
 }

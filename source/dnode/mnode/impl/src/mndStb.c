@@ -72,7 +72,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags + pStb->numOfSmas) * sizeof(SSchema) +
-                 + pStb->commentLen + pStb->ast1Len + pStb->ast2Len + TSDB_STB_RESERVE_SIZE;
+                 +pStb->commentLen + pStb->ast1Len + pStb->ast2Len + TSDB_STB_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -394,6 +394,7 @@ static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSch
 }
 
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
+#if 0
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
@@ -452,7 +453,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
       taosMemoryFreeClear(pRSmaParam->pFuncIds);
       taosMemoryFreeClear(pRSmaParam);
     }
-    taosMemoryFreeClear(req.stbCfg.pSchema);
+    // taosMemoryFreeClear(req.stbCfg.pSchema);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -468,8 +469,10 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     taosMemoryFreeClear(pRSmaParam->pFuncIds);
     taosMemoryFreeClear(pRSmaParam);
   }
-  taosMemoryFreeClear(req.stbCfg.pSchema);
+  // taosMemoryFreeClear(req.stbCfg.pSchema);
   return pHead;
+#endif
+  return NULL;
 }
 
 static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {

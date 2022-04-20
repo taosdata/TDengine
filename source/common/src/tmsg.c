@@ -478,37 +478,38 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   tlen += taosEncodeString(buf, pReq->name);
   tlen += taosEncodeFixedU32(buf, pReq->ttl);
   tlen += taosEncodeFixedU32(buf, pReq->keep);
-  tlen += taosEncodeFixedU8(buf, pReq->info);
+  tlen += taosEncodeFixedU8(buf, pReq->type);
+  // tlen += taosEncodeFixedU8(buf, pReq->info);
 
   switch (pReq->type) {
-    case TD_SUPER_TABLE:
-      tlen += taosEncodeFixedI64(buf, pReq->stbCfg.suid);
-      tlen += taosEncodeFixedI16(buf, pReq->stbCfg.nCols);
-      for (col_id_t i = 0; i < pReq->stbCfg.nCols; ++i) {
-        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
-        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].flags);
-        tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pSchema[i].colId);
-        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].bytes);
-        tlen += taosEncodeString(buf, pReq->stbCfg.pSchema[i].name);
-      }
-      tlen += taosEncodeFixedI16(buf, pReq->stbCfg.nTagCols);
-      for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; ++i) {
-        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].type);
-        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].flags);
-        tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pTagSchema[i].colId);
-        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].bytes);
-        tlen += taosEncodeString(buf, pReq->stbCfg.pTagSchema[i].name);
-      }
-      if (pReq->rollup && pReq->stbCfg.pRSmaParam) {
-        SRSmaParam *param = pReq->stbCfg.pRSmaParam;
-        tlen += taosEncodeBinary(buf, (const void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
-        tlen += taosEncodeFixedI32(buf, param->delay);
-        tlen += taosEncodeFixedI8(buf, param->nFuncIds);
-        for (int8_t i = 0; i < param->nFuncIds; ++i) {
-          tlen += taosEncodeFixedI32(buf, param->pFuncIds[i]);
-        }
-      }
-      break;
+    // case TD_SUPER_TABLE:
+    //   tlen += taosEncodeFixedI64(buf, pReq->stbCfg.suid);
+    //   tlen += taosEncodeFixedI16(buf, pReq->stbCfg.nCols);
+    //   for (col_id_t i = 0; i < pReq->stbCfg.nCols; ++i) {
+    //     tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
+    //     tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].flags);
+    //     tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pSchema[i].colId);
+    //     tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].bytes);
+    //     tlen += taosEncodeString(buf, pReq->stbCfg.pSchema[i].name);
+    //   }
+    //   tlen += taosEncodeFixedI16(buf, pReq->stbCfg.nTagCols);
+    //   for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; ++i) {
+    //     tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].type);
+    //     tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].flags);
+    //     tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pTagSchema[i].colId);
+    //     tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].bytes);
+    //     tlen += taosEncodeString(buf, pReq->stbCfg.pTagSchema[i].name);
+    //   }
+    //   if (pReq->rollup && pReq->stbCfg.pRSmaParam) {
+    //     SRSmaParam *param = pReq->stbCfg.pRSmaParam;
+    //     tlen += taosEncodeBinary(buf, (const void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
+    //     tlen += taosEncodeFixedI32(buf, param->delay);
+    //     tlen += taosEncodeFixedI8(buf, param->nFuncIds);
+    //     for (int8_t i = 0; i < param->nFuncIds; ++i) {
+    //       tlen += taosEncodeFixedI32(buf, param->pFuncIds[i]);
+    //     }
+    //   }
+    //   break;
     case TD_CHILD_TABLE:
       tlen += taosEncodeFixedI64(buf, pReq->ctbCfg.suid);
       tlen += tdEncodeKVRow(buf, pReq->ctbCfg.pTag);
@@ -534,47 +535,48 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
   buf = taosDecodeString(buf, &(pReq->name));
   buf = taosDecodeFixedU32(buf, &(pReq->ttl));
   buf = taosDecodeFixedU32(buf, &(pReq->keep));
-  buf = taosDecodeFixedU8(buf, &(pReq->info));
+  buf = taosDecodeFixedU8(buf, &pReq->type);
+  // buf = taosDecodeFixedU8(buf, &(pReq->info));
 
   switch (pReq->type) {
-    case TD_SUPER_TABLE:
-      buf = taosDecodeFixedI64(buf, &(pReq->stbCfg.suid));
-      buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nCols));
-      pReq->stbCfg.pSchema = (SSchema *)taosMemoryMalloc(pReq->stbCfg.nCols * sizeof(SSchema));
-      for (col_id_t i = 0; i < pReq->stbCfg.nCols; ++i) {
-        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
-        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].flags));
-        buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.pSchema[i].colId));
-        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].bytes));
-        buf = taosDecodeStringTo(buf, pReq->stbCfg.pSchema[i].name);
-      }
-      buf = taosDecodeFixedI16(buf, &pReq->stbCfg.nTagCols);
-      pReq->stbCfg.pTagSchema = (SSchema *)taosMemoryMalloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
-      for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; ++i) {
-        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
-        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].flags));
-        buf = taosDecodeFixedI16(buf, &pReq->stbCfg.pTagSchema[i].colId);
-        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
-        buf = taosDecodeStringTo(buf, pReq->stbCfg.pTagSchema[i].name);
-      }
-      if (pReq->rollup) {
-        pReq->stbCfg.pRSmaParam = (SRSmaParam *)taosMemoryMalloc(sizeof(SRSmaParam));
-        SRSmaParam *param = pReq->stbCfg.pRSmaParam;
-        buf = taosDecodeBinaryTo(buf, (void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
-        buf = taosDecodeFixedI32(buf, &param->delay);
-        buf = taosDecodeFixedI8(buf, &param->nFuncIds);
-        if (param->nFuncIds > 0) {
-          param->pFuncIds = (func_id_t *)taosMemoryMalloc(param->nFuncIds * sizeof(func_id_t));
-          for (int8_t i = 0; i < param->nFuncIds; ++i) {
-            buf = taosDecodeFixedI32(buf, param->pFuncIds + i);
-          }
-        } else {
-          param->pFuncIds = NULL;
-        }
-      } else {
-        pReq->stbCfg.pRSmaParam = NULL;
-      }
-      break;
+    // case TD_SUPER_TABLE:
+    //   buf = taosDecodeFixedI64(buf, &(pReq->stbCfg.suid));
+    //   buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nCols));
+    //   pReq->stbCfg.pSchema = (SSchema *)taosMemoryMalloc(pReq->stbCfg.nCols * sizeof(SSchema));
+    //   for (col_id_t i = 0; i < pReq->stbCfg.nCols; ++i) {
+    //     buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
+    //     buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].flags));
+    //     buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.pSchema[i].colId));
+    //     buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].bytes));
+    //     buf = taosDecodeStringTo(buf, pReq->stbCfg.pSchema[i].name);
+    //   }
+    //   buf = taosDecodeFixedI16(buf, &pReq->stbCfg.nTagCols);
+    //   pReq->stbCfg.pTagSchema = (SSchema *)taosMemoryMalloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
+    //   for (col_id_t i = 0; i < pReq->stbCfg.nTagCols; ++i) {
+    //     buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
+    //     buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].flags));
+    //     buf = taosDecodeFixedI16(buf, &pReq->stbCfg.pTagSchema[i].colId);
+    //     buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
+    //     buf = taosDecodeStringTo(buf, pReq->stbCfg.pTagSchema[i].name);
+    //   }
+    //   if (pReq->rollup) {
+    //     pReq->stbCfg.pRSmaParam = (SRSmaParam *)taosMemoryMalloc(sizeof(SRSmaParam));
+    //     SRSmaParam *param = pReq->stbCfg.pRSmaParam;
+    //     buf = taosDecodeBinaryTo(buf, (void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
+    //     buf = taosDecodeFixedI32(buf, &param->delay);
+    //     buf = taosDecodeFixedI8(buf, &param->nFuncIds);
+    //     if (param->nFuncIds > 0) {
+    //       param->pFuncIds = (func_id_t *)taosMemoryMalloc(param->nFuncIds * sizeof(func_id_t));
+    //       for (int8_t i = 0; i < param->nFuncIds; ++i) {
+    //         buf = taosDecodeFixedI32(buf, param->pFuncIds + i);
+    //       }
+    //     } else {
+    //       param->pFuncIds = NULL;
+    //     }
+    //   } else {
+    //     pReq->stbCfg.pRSmaParam = NULL;
+    //   }
+    //   break;
     case TD_CHILD_TABLE:
       buf = taosDecodeFixedI64(buf, &pReq->ctbCfg.suid);
       buf = tdDecodeKVRow(buf, &pReq->ctbCfg.pTag);
@@ -3221,7 +3223,7 @@ int32_t tEncodeSMqCMCommitOffsetReq(SCoder *encoder, const SMqCMCommitOffsetReq 
 int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq) {
   if (tStartDecode(decoder) < 0) return -1;
   if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
-  TCODER_MALLOC(pReq->offsets, SMqOffset *, pReq->num * sizeof(SMqOffset), decoder);
+  pReq->offsets = (SMqOffset *)TCODER_MALLOC(decoder, sizeof(SMqOffset) * pReq->num);
   if (pReq->offsets == NULL) return -1;
   for (int32_t i = 0; i < pReq->num; i++) {
     tDecodeSMqOffset(decoder, &pReq->offsets[i]);
@@ -3580,4 +3582,56 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
+}
+
+int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->rollup) < 0) return -1;
+  if (tEncodeI32(pCoder, pReq->ttl) < 0) return -1;
+  if (tEncodeI16v(pCoder, pReq->nCols) < 0) return -1;
+  for (int iCol = 0; iCol < pReq->nCols; iCol++) {
+    if (tEncodeSSchema(pCoder, pReq->pSchema + iCol) < 0) return -1;
+  }
+  if (tEncodeI16v(pCoder, pReq->nTags) < 0) return -1;
+  for (int iTag = 0; iTag < pReq->nTags; iTag++) {
+    if (tEncodeSSchema(pCoder, pReq->pSchemaTg + iTag) < 0) return -1;
+  }
+  // if (pReq->rollup) {
+  //   if (tEncodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
+  // }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
+  if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
+  if (tDecodeI16v(pCoder, &pReq->nCols) < 0) return -1;
+
+  // TCODER_MALLOC(pReq->pSchema, SSchema, sizeof(SSchema) * pReq->nCols, pCoder);
+  pReq->pSchema = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pReq->nCols);
+  for (int iCol = 0; iCol < pReq->nCols; iCol++) {
+    if (tDecodeSSchema(pCoder, pReq->pSchema + iCol) < 0) return -1;
+  }
+
+  if (tDecodeI16v(pCoder, &pReq->nTags) < 0) return -1;
+  // TCODER_MALLOC(pReq->pSchemaTg, SSchema, sizeof(SSchema) * pReq->nTags, pCoder);
+  pReq->pSchemaTg = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pReq->nTags);
+  for (int iTag = 0; iTag < pReq->nTags; iTag++) {
+    if (tDecodeSSchema(pCoder, pReq->pSchemaTg + iTag) < 0) return -1;
+  }
+  // if (pReq->rollup) {
+  //   if (tDecodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
+  // }
+
+  tEndDecode(pCoder);
+  return 0;
 }

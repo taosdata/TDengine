@@ -17,7 +17,8 @@
 #define _TD_UTIL_ENCODE_H_
 
 #include "tcoding.h"
-#include "tfreelist.h"
+#include "tlist.h"
+// #include "tfreelist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,10 +63,14 @@ struct SCoderNode {
   CODER_NODE_FIELDS
 };
 
+typedef struct SCoderMem {
+  struct SCoderMem* next;
+} SCoderMem;
+
 typedef struct {
   td_coder_t  type;
   td_endian_t endian;
-  SFreeList   fl;
+  SCoderMem*  mList;
   CODER_NODE_FIELDS
   TD_SLIST(SCoderNode) stack;
 } SCoder;
@@ -74,7 +79,17 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TCODER_MALLOC(PTR, TYPE, SIZE, CODER)          TFL_MALLOC(PTR, TYPE, SIZE, &((CODER)->fl))
+#define TCODER_MALLOC(PCODER, SIZE)                                         \
+  ({                                                                        \
+    void*      ptr = NULL;                                                  \
+    SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(*pMem) + (SIZE)); \
+    if (pMem) {                                                             \
+      pMem->next = (PCODER)->mList;                                         \
+      (PCODER)->mList = pMem;                                               \
+      ptr = (void*)&pMem[1];                                                \
+    }                                                                       \
+    ptr;                                                                    \
+  })
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);

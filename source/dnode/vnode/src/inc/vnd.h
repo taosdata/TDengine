@@ -41,7 +41,6 @@ int vnodeDecodeConfig(const SJson* pJson, void* pObj);
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
 
 // vnodeBufPool ====================
-#if 1
 typedef struct SVBufPoolNode SVBufPoolNode;
 struct SVBufPoolNode {
   SVBufPoolNode*  prev;
@@ -64,42 +63,6 @@ int   vnodeCloseBufPool(SVnode* pVnode);
 void  vnodeBufPoolReset(SVBufPool* pPool);
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
-#else
-// SVBufPool
-int   vnodeOpenBufPool(SVnode* pVnode);
-void  vnodeCloseBufPool(SVnode* pVnode);
-int   vnodeBufPoolSwitch(SVnode* pVnode);
-int   vnodeBufPoolRecycle(SVnode* pVnode);
-void* vnodeMalloc(SVnode* pVnode, uint64_t size);
-bool  vnodeBufPoolIsFull(SVnode* pVnode);
-
-SMemAllocatorFactory* vBufPoolGetMAF(SVnode* pVnode);
-
-// SVMemAllocator
-typedef struct SVArenaNode {
-  TD_SLIST_NODE(SVArenaNode);
-  uint64_t size;  // current node size
-  void*    ptr;
-  char     data[];
-} SVArenaNode;
-
-typedef struct SVMemAllocator {
-  T_REF_DECLARE()
-  TD_DLIST_NODE(SVMemAllocator);
-  uint64_t     capacity;
-  uint64_t     ssize;
-  uint64_t     lsize;
-  SVArenaNode* pNode;
-  TD_SLIST(SVArenaNode) nlist;
-} SVMemAllocator;
-
-SVMemAllocator* vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);
-void            vmaDestroy(SVMemAllocator* pVMA);
-void            vmaReset(SVMemAllocator* pVMA);
-void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
-void            vmaFree(SVMemAllocator* pVMA, void* ptr);
-bool            vmaIsFull(SVMemAllocator* pVMA);
-#endif
 
 // vnodeQuery ====================
 int  vnodeQueryOpen(SVnode* pVnode);
@@ -108,6 +71,7 @@ int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit ====================
 int vnodeBegin(SVnode* pVnode);
+int vnodeShouldCommit(SVnode* pVnode);
 int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);

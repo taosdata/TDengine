@@ -74,11 +74,11 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
   nCols = pSW->nCols;
   if (pTbCfg->type == META_SUPER_TABLE) {
-    nTagCols = pTbCfg->stbCfg.nTagCols;
-    pTagSchema = pTbCfg->stbCfg.pTagSchema;
+    // nTagCols = pTbCfg->stbCfg.nTagCols;
+    // pTagSchema = pTbCfg->stbCfg.pTagSchema;
   } else if (pTbCfg->type == META_CHILD_TABLE) {
-    nTagCols = pStbCfg->stbCfg.nTagCols;
-    pTagSchema = pStbCfg->stbCfg.pTagSchema;
+    // nTagCols = pStbCfg->stbCfg.nTagCols;
+    // pTagSchema = pStbCfg->stbCfg.pTagSchema;
   } else {
     nTagCols = 0;
     pTagSchema = NULL;
@@ -132,7 +132,7 @@ _exit:
   if (pTbCfg) {
     taosMemoryFreeClear(pTbCfg->name);
     if (pTbCfg->type == META_SUPER_TABLE) {
-      taosMemoryFree(pTbCfg->stbCfg.pTagSchema);
+      // taosMemoryFree(pTbCfg->stbCfg.pTagSchema);
     } else if (pTbCfg->type == META_SUPER_TABLE) {
       kvRowFree(pTbCfg->ctbCfg.pTag);
     }

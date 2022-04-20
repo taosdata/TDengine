@@ -1436,26 +1436,34 @@ typedef struct {
   func_id_t* pFuncIds;
 } SRSmaParam;
 
+int tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
+int tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
+
+typedef struct SVCreateStbReq {
+  const char* name;
+  tb_uid_t    suid;
+  int8_t      rollup;
+  int32_t     ttl;
+  int16_t     nCols;
+  SSchema*    pSchema;
+  int16_t     nTags;
+  SSchema*    pSchemaTg;
+  SRSmaParam* pRSmaParam;
+} SVCreateStbReq;
+
+int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
+int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
+
+typedef struct SVCreateStbRsp {
+  int code;
+} SVCreateStbRsp;
+
 typedef struct SVCreateTbReq {
   char*    name;
   uint32_t ttl;
   uint32_t keep;
+  uint8_t  type;
   union {
-    uint8_t info;
-    struct {
-      uint8_t rollup : 1;  // 1 means rollup sma
-      uint8_t type : 7;
-    };
-  };
-  union {
-    struct {
-      tb_uid_t    suid;
-      int16_t     nCols;
-      SSchema*    pSchema;
-      int16_t     nTagCols;
-      SSchema*    pTagSchema;
-      SRSmaParam* pRSmaParam;
-    } stbCfg;
     struct {
       tb_uid_t suid;
       SKVRow   pTag;
