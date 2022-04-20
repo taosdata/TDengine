@@ -155,6 +155,10 @@ void vnodeClose(SVnode *pVnode) {
     vnodeSyncCommit(pVnode);
     // close vnode
     vnodeQueryClose(pVnode);
+
+    // sync integration
+    vnodeSyncClose(pVnode);
+
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
     tsdbClose(pVnode->pTsdb);
