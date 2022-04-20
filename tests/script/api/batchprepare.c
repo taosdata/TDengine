@@ -9,6 +9,12 @@
 #include <unistd.h>
 #include "../../../include/client/taos.h"
 
+int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
+int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_FLOAT};
+
+#define tListLen(x) (sizeof(x) / sizeof((x)[0]))
+
 typedef struct {
   int64_t*   tsData;
   bool*      boolData;
@@ -35,7 +41,7 @@ int32_t gVarCharSize = 10;
 int32_t gVarCharLen = 5;
 
 int32_t gExecLoopTimes = 1; // no change
-
+int32_t gFullColNum = tListLen(fullColList);
 
 int insertMBSETest1(TAOS_STMT *stmt);
 int insertMBSETest2(TAOS_STMT *stmt);
@@ -45,11 +51,7 @@ int insertMBMETest3(TAOS_STMT *stmt);
 int insertMBMETest4(TAOS_STMT *stmt);
 int insertMPMETest1(TAOS_STMT *stmt);
 
-int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
-int32_t longColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_FLOAT};
 
-#define tListLen(x) (sizeof(x) / sizeof((x)[0]))
 
 
 typedef struct {
@@ -69,35 +71,36 @@ typedef struct {
 
 CaseCfg gCase[] = {
 #if 0
-  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 10},
-  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 10},
+  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 1},
+  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 1},
 
-  {"insert:MBSE1-FULL", tListLen(longColList), longColList, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 1},
-  {"insert:MBSE1-C012", tListLen(longColList), longColList, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 1},
-  {"insert:MBSE1-C002", tListLen(longColList), longColList, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 1},
+  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 1},
+  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 1},
+  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 1},
 
-  {"insert:MBSE2-FULL", tListLen(longColList), longColList, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 1},
-  {"insert:MBSE2-C012", tListLen(longColList), longColList, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 1},
-  {"insert:MBSE2-C002", tListLen(longColList), longColList, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 1},
+  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 1},
+  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 1},
+  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 1},
 
-  {"insert:MBME1-FULL", tListLen(longColList), longColList, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 1},
-  {"insert:MBME1-C012", tListLen(longColList), longColList, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 1},
-  {"insert:MBME1-C002", tListLen(longColList), longColList, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 1},
+  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 1},
+  {"insert:MBME1-C012", tListLen(fullColList), fullColList, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 1},
+  {"insert:MBME1-C002", tListLen(fullColList), fullColList, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 1},
 
-  {"insert:MBME2-FULL", tListLen(longColList), longColList, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 1},
-  {"insert:MBME2-C012", tListLen(longColList), longColList, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 1},
-  {"insert:MBME2-C002", tListLen(longColList), longColList, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 1},
+  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 1},
+  {"insert:MBME2-C012", tListLen(fullColList), fullColList, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 1},
+  {"insert:MBME2-C002", tListLen(fullColList), fullColList, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 1},
 
-  {"insert:MBME3-FULL", tListLen(longColList), longColList, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 1},
-  {"insert:MBME3-C012", tListLen(longColList), longColList, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 1},
-  {"insert:MBME3-C002", tListLen(longColList), longColList, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 1},
+  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 1},
+  {"insert:MBME3-C012", tListLen(fullColList), fullColList, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 1},
+  {"insert:MBME3-C002", tListLen(fullColList), fullColList, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 1},
 
-  {"insert:MBME4-FULL", tListLen(longColList), longColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
-  {"insert:MBME4-C012", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
-  {"insert:MBME4-C002", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
+  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
+  {"insert:MBME4-C012", tListLen(fullColList), fullColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
+  {"insert:MBME4-C002", tListLen(fullColList), fullColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
 #endif
 
-  {"insert:MPME1-C012", tListLen(longColList), longColList, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1},
+  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 1},
+//  {"insert:MPME1-C012", tListLen(fullColList), fullColList, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1},
 
 };
 
@@ -107,22 +110,26 @@ typedef struct {
   int32_t  bindNullNum;
   bool     autoCreate;
   bool     checkParamNum;
+  bool     printRes;
+  int32_t  rowNum;               //row num for one table
   int32_t  bindColNum;
-  int32_t  bindRowNum;
+  int32_t  bindRowNum;           //row num for once bind
   int32_t  bindColTypeNum;
   int32_t* bindColTypeList;
+  int32_t  runTimes;
 } CaseCtrl;
 
 CaseCtrl gCaseCtrl = {
   .bindNullNum = 0,
   .autoCreate = false,
+  .rowNum = 0,
   .bindColNum = 0,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
   .checkParamNum = false,
-//  .bindColTypeNum = tListLen(bindColTypeList),
-//  .bindColTypeList = bindColTypeList,
+  .printRes = true,
+  .runTimes = 0,
 };
 
 int32_t taosGetTimeOfDay(struct timeval *tv) {
@@ -241,11 +248,11 @@ void generateInsertSQL(BindData *data) {
 
 void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
   if (bindIdx < gCurCase->bindColNum) {
-    if (gCurCase->fullCol) {
-      *dataType = gCurCase->colList[bindIdx];
-      return;
-    } else if (gCaseCtrl.bindColTypeNum) {
+    if (gCaseCtrl.bindColTypeNum) {
       *dataType = gCaseCtrl.bindColTypeList[colIdx];
+      return;
+    } else if (gCurCase->fullCol) {
+      *dataType = gCurCase->colList[bindIdx];
       return;
     } else if (0 == colIdx) {
       *dataType = TSDB_DATA_TYPE_TIMESTAMP;
@@ -919,6 +926,7 @@ int insertMPMETest1(TAOS_STMT *stmt) {
     destroyData(&data);
 
     gCurCase->bindColNum -= 2;
+    gCurCase->fullCol = false;
     loop++;
   }
 
@@ -931,379 +939,6 @@ int insertMPMETest1(TAOS_STMT *stmt) {
 
 
 #if 0
-int stmt_func1(TAOS_STMT *stmt) {
-  struct {
-      int64_t ts;
-      int8_t b;
-      int8_t v1;
-      int16_t v2;
-      int32_t v4;
-      int64_t v8;
-      float f4;
-      double f8;
-      char bin[40];
-      char blob[80];
-  } v = {0};
-  
-  TAOS_BIND params[10];
-  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-  params[0].buffer_length = sizeof(v.ts);
-  params[0].buffer = &v.ts;
-  params[0].length = &params[0].buffer_length;
-  params[0].is_null = NULL;
-
-  params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
-  params[1].buffer_length = sizeof(v.b);
-  params[1].buffer = &v.b;
-  params[1].length = &params[1].buffer_length;
-  params[1].is_null = NULL;
-
-  params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-  params[2].buffer_length = sizeof(v.v1);
-  params[2].buffer = &v.v1;
-  params[2].length = &params[2].buffer_length;
-  params[2].is_null = NULL;
-
-  params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-  params[3].buffer_length = sizeof(v.v2);
-  params[3].buffer = &v.v2;
-  params[3].length = &params[3].buffer_length;
-  params[3].is_null = NULL;
-
-  params[4].buffer_type = TSDB_DATA_TYPE_INT;
-  params[4].buffer_length = sizeof(v.v4);
-  params[4].buffer = &v.v4;
-  params[4].length = &params[4].buffer_length;
-  params[4].is_null = NULL;
-
-  params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-  params[5].buffer_length = sizeof(v.v8);
-  params[5].buffer = &v.v8;
-  params[5].length = &params[5].buffer_length;
-  params[5].is_null = NULL;
-
-  params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-  params[6].buffer_length = sizeof(v.f4);
-  params[6].buffer = &v.f4;
-  params[6].length = &params[6].buffer_length;
-  params[6].is_null = NULL;
-
-  params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-  params[7].buffer_length = sizeof(v.f8);
-  params[7].buffer = &v.f8;
-  params[7].length = &params[7].buffer_length;
-  params[7].is_null = NULL;
-
-  params[8].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[8].buffer_length = sizeof(v.bin);
-  params[8].buffer = v.bin;
-  params[8].length = &params[8].buffer_length;
-  params[8].is_null = NULL;
-
-  params[9].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[9].buffer_length = sizeof(v.bin);
-  params[9].buffer = v.bin;
-  params[9].length = &params[9].buffer_length;
-  params[9].is_null = NULL;
-
-  int is_null = 1;
-
-  char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-  }
-  
-  for (int zz = 0; zz < 10; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname(stmt, buf);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
-    }  
-    v.ts = 1591060628000 + zz * 10;
-    for (int i = 0; i < 10; ++i) {
-      v.ts += 1;
-      for (int j = 1; j < 10; ++j) {
-        params[j].is_null = ((i == j) ? &is_null : 0);
-      }
-      v.b = (int8_t)(i+zz*10) % 2;
-      v.v1 = (int8_t)(i+zz*10);
-      v.v2 = (int16_t)((i+zz*10) * 2);
-      v.v4 = (int32_t)((i+zz*10) * 4);
-      v.v8 = (int64_t)((i+zz*10) * 8);
-      v.f4 = (float)((i+zz*10) * 40);
-      v.f8 = (double)((i+zz*10) * 80);
-      for (int j = 0; j < sizeof(v.bin) - 1; ++j) {
-        v.bin[j] = (char)((i+zz)%10 + '0');
-      }
-
-      taos_stmt_bind_param(stmt, params);
-      taos_stmt_add_batch(stmt);
-    }
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  return 0;
-}
-
-
-int stmt_func2(TAOS_STMT *stmt) {
-  struct {
-      int64_t ts;
-      int8_t b;
-      int8_t v1;
-      int16_t v2;
-      int32_t v4;
-      int64_t v8;
-      float f4;
-      double f8;
-      char bin[40];
-      char blob[80];
-  } v = {0};
-  
-  TAOS_BIND params[10];
-  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-  params[0].buffer_length = sizeof(v.ts);
-  params[0].buffer = &v.ts;
-  params[0].length = &params[0].buffer_length;
-  params[0].is_null = NULL;
-
-  params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
-  params[1].buffer_length = sizeof(v.b);
-  params[1].buffer = &v.b;
-  params[1].length = &params[1].buffer_length;
-  params[1].is_null = NULL;
-
-  params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-  params[2].buffer_length = sizeof(v.v1);
-  params[2].buffer = &v.v1;
-  params[2].length = &params[2].buffer_length;
-  params[2].is_null = NULL;
-
-  params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-  params[3].buffer_length = sizeof(v.v2);
-  params[3].buffer = &v.v2;
-  params[3].length = &params[3].buffer_length;
-  params[3].is_null = NULL;
-
-  params[4].buffer_type = TSDB_DATA_TYPE_INT;
-  params[4].buffer_length = sizeof(v.v4);
-  params[4].buffer = &v.v4;
-  params[4].length = &params[4].buffer_length;
-  params[4].is_null = NULL;
-
-  params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-  params[5].buffer_length = sizeof(v.v8);
-  params[5].buffer = &v.v8;
-  params[5].length = &params[5].buffer_length;
-  params[5].is_null = NULL;
-
-  params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-  params[6].buffer_length = sizeof(v.f4);
-  params[6].buffer = &v.f4;
-  params[6].length = &params[6].buffer_length;
-  params[6].is_null = NULL;
-
-  params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-  params[7].buffer_length = sizeof(v.f8);
-  params[7].buffer = &v.f8;
-  params[7].length = &params[7].buffer_length;
-  params[7].is_null = NULL;
-
-  params[8].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[8].buffer_length = sizeof(v.bin);
-  params[8].buffer = v.bin;
-  params[8].length = &params[8].buffer_length;
-  params[8].is_null = NULL;
-
-  params[9].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[9].buffer_length = sizeof(v.bin);
-  params[9].buffer = v.bin;
-  params[9].length = &params[9].buffer_length;
-  params[9].is_null = NULL;
-
-  int is_null = 1;
-
-  char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-  }
-
-  for (int l = 0; l < 100; l++) {
-    for (int zz = 0; zz < 10; zz++) {
-      char buf[32];
-      sprintf(buf, "m%d", zz);
-      code = taos_stmt_set_tbname(stmt, buf);
-      if (code != 0){
-        printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
-      }  
-      v.ts = 1591060628000 + zz * 100 * l;
-      for (int i = 0; i < zz; ++i) {
-        v.ts += 1;
-        for (int j = 1; j < 10; ++j) {
-          params[j].is_null = ((i == j) ? &is_null : 0);
-        }
-        v.b = (int8_t)(i+zz*10) % 2;
-        v.v1 = (int8_t)(i+zz*10);
-        v.v2 = (int16_t)((i+zz*10) * 2);
-        v.v4 = (int32_t)((i+zz*10) * 4);
-        v.v8 = (int64_t)((i+zz*10) * 8);
-        v.f4 = (float)((i+zz*10) * 40);
-        v.f8 = (double)((i+zz*10) * 80);
-        for (int j = 0; j < sizeof(v.bin) - 1; ++j) {
-          v.bin[j] = (char)((i+zz)%10 + '0');
-        }
-
-        taos_stmt_bind_param(stmt, params);
-        taos_stmt_add_batch(stmt);
-      }
-    }
-
-    if (taos_stmt_execute(stmt) != 0) {
-      printf("failed to execute insert statement.\n");
-      exit(1);
-    }
-
-  }
-
-
-  return 0;
-}
-
-
-
-
-int stmt_func3(TAOS_STMT *stmt) {
-  struct {
-      int64_t ts;
-      int8_t b;
-      int8_t v1;
-      int16_t v2;
-      int32_t v4;
-      int64_t v8;
-      float f4;
-      double f8;
-      char bin[40];
-      char blob[80];
-  } v = {0};
-  
-  TAOS_BIND params[10];
-  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-  params[0].buffer_length = sizeof(v.ts);
-  params[0].buffer = &v.ts;
-  params[0].length = &params[0].buffer_length;
-  params[0].is_null = NULL;
-
-  params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
-  params[1].buffer_length = sizeof(v.b);
-  params[1].buffer = &v.b;
-  params[1].length = &params[1].buffer_length;
-  params[1].is_null = NULL;
-
-  params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-  params[2].buffer_length = sizeof(v.v1);
-  params[2].buffer = &v.v1;
-  params[2].length = &params[2].buffer_length;
-  params[2].is_null = NULL;
-
-  params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-  params[3].buffer_length = sizeof(v.v2);
-  params[3].buffer = &v.v2;
-  params[3].length = &params[3].buffer_length;
-  params[3].is_null = NULL;
-
-  params[4].buffer_type = TSDB_DATA_TYPE_INT;
-  params[4].buffer_length = sizeof(v.v4);
-  params[4].buffer = &v.v4;
-  params[4].length = &params[4].buffer_length;
-  params[4].is_null = NULL;
-
-  params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-  params[5].buffer_length = sizeof(v.v8);
-  params[5].buffer = &v.v8;
-  params[5].length = &params[5].buffer_length;
-  params[5].is_null = NULL;
-
-  params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-  params[6].buffer_length = sizeof(v.f4);
-  params[6].buffer = &v.f4;
-  params[6].length = &params[6].buffer_length;
-  params[6].is_null = NULL;
-
-  params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-  params[7].buffer_length = sizeof(v.f8);
-  params[7].buffer = &v.f8;
-  params[7].length = &params[7].buffer_length;
-  params[7].is_null = NULL;
-
-  params[8].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[8].buffer_length = sizeof(v.bin);
-  params[8].buffer = v.bin;
-  params[8].length = &params[8].buffer_length;
-  params[8].is_null = NULL;
-
-  params[9].buffer_type = TSDB_DATA_TYPE_BINARY;
-  params[9].buffer_length = sizeof(v.bin);
-  params[9].buffer = v.bin;
-  params[9].length = &params[9].buffer_length;
-  params[9].is_null = NULL;
-
-  int is_null = 1;
-
-  char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-  }
-
-  for (int l = 0; l < 100; l++) {
-    for (int zz = 0; zz < 10; zz++) {
-      char buf[32];
-      sprintf(buf, "m%d", zz);
-      code = taos_stmt_set_tbname(stmt, buf);
-      if (code != 0){
-        printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
-      }  
-      v.ts = 1591060628000 + zz * 100 * l;
-      for (int i = 0; i < zz; ++i) {
-        v.ts += 1;
-        for (int j = 1; j < 10; ++j) {
-          params[j].is_null = ((i == j) ? &is_null : 0);
-        }
-        v.b = (int8_t)(i+zz*10) % 2;
-        v.v1 = (int8_t)(i+zz*10);
-        v.v2 = (int16_t)((i+zz*10) * 2);
-        v.v4 = (int32_t)((i+zz*10) * 4);
-        v.v8 = (int64_t)((i+zz*10) * 8);
-        v.f4 = (float)((i+zz*10) * 40);
-        v.f8 = (double)((i+zz*10) * 80);
-        for (int j = 0; j < sizeof(v.bin) - 1; ++j) {
-          v.bin[j] = (char)((i+zz)%10 + '0');
-        }
-
-        taos_stmt_bind_param(stmt, params);
-        taos_stmt_add_batch(stmt);
-      }
-    }
-  }
-
-  
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-
-  return 0;
-}
-
-
 
 //1 tables 10 records
 int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
@@ -4177,12 +3812,9 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
 }
 #endif
 
-void prepareCheckResultImpl(TAOS     *taos, char *tname, int printr, int expected) {
+void prepareCheckResultImpl(TAOS     *taos, char *tname, bool printr, int expected) {
   char sql[255] = "SELECT * FROM ";
   TAOS_RES *result;
-
-  //FORCE NO PRINT
-  //printr = 0;
 
   strcat(sql, tname);
 
@@ -4232,7 +3864,7 @@ void prepareCheckResult(TAOS     *taos) {
       sprintf(buf, "t%d", 0);
     }
 
-    prepareCheckResultImpl(taos, buf, 1, gCurCase->rowNum * gExecLoopTimes);
+    prepareCheckResultImpl(taos, buf, gCaseCtrl.printRes, gCurCase->rowNum * gExecLoopTimes);
   }
 }
 
@@ -4555,11 +4187,26 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int autoCreate) {
 
 void* runcase(TAOS *taos) {
   TAOS_STMT *stmt = NULL;
+  int32_t caseIdx = 0;
 
   for (int32_t i = 0; i < sizeof(gCase)/sizeof(gCase[0]); ++i) {
-    gCurCase = &gCase[i];
-    printf("* Case %d - %s Begin *\n", i, gCurCase->caseDesc);
+    CaseCfg cfg = gCase[i];
+    gCurCase = &cfg;
 
+    if ((gCaseCtrl.bindColTypeNum || gCaseCtrl.bindColNum) && (gCurCase->colNum != gFullColNum)) {
+      continue;
+    }
+
+    printf("* Case %d - %s Begin *\n", caseIdx, gCurCase->caseDesc);
+
+    if (gCaseCtrl.runTimes) {
+      gCurCase->runTimes = gCaseCtrl.runTimes;
+    }
+    
+    if (gCaseCtrl.rowNum) {
+      gCurCase->rowNum = gCaseCtrl.rowNum;
+    }
+    
     if (gCurCase->fullCol) {
       gCurCase->bindColNum = gCurCase->colNum;
     }
@@ -4568,12 +4215,14 @@ void* runcase(TAOS *taos) {
     gCurCase->autoCreate = gCaseCtrl.autoCreate;
     if (gCaseCtrl.bindColNum) {
       gCurCase->bindColNum = gCaseCtrl.bindColNum;
+      gCurCase->fullCol = false;
     }
     if (gCaseCtrl.bindRowNum) {
       gCurCase->bindRowNum = gCaseCtrl.bindRowNum;
     }
     if (gCaseCtrl.bindColTypeNum) {
-      gCurCase->bindRowNum = gCaseCtrl.bindColTypeNum;
+      gCurCase->bindColNum = gCaseCtrl.bindColTypeNum;
+      gCurCase->fullCol = false;
     }
     
     for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
@@ -4592,581 +4241,52 @@ void* runcase(TAOS *taos) {
       taos_stmt_close(stmt);
     }
     
-    printf("* Case %d - %s End *\n", i, gCurCase->caseDesc);
+    printf("* Case %d - %s End *\n", caseIdx, gCurCase->caseDesc);
+
+    caseIdx++;
   }
-
-
-#if 0
-    prepare(taos, 0, 1);
-  
-    stmt = taos_stmt_init(taos);
-    if (NULL == stmt) {
-      printf("taos_stmt_init failed\n");
-      exit(1);
-    }
-  
-    printf("1t+1records start\n");
-    stmt_allcol_func1(stmt);
-    printf("1t+1records end\n");
-    printf("check result start\n");
-    check_result(taos, "m0", 1, 1);
-    printf("check result end\n");
-    taos_stmt_close(stmt);
-#endif
-
-
-#if 0
-    prepare(taos, 1, 1);
-  
-    stmt = taos_stmt_init(taos);
-    if (NULL == stmt) {
-      printf("taos_stmt_init failed\n");
-      exit(1);
-    }
-  
-    printf("10t+10records+specifycol start\n");
-    stmt_scol_func1(stmt);
-    printf("10t+10records+specifycol end\n");
-    printf("check result start\n");
-    check_result(taos, "m0", 1, 10);
-    check_result(taos, "m1", 1, 10);
-    check_result(taos, "m2", 1, 10);
-    check_result(taos, "m3", 1, 10);
-    check_result(taos, "m4", 1, 10);
-    check_result(taos, "m5", 1, 10);
-    check_result(taos, "m6", 1, 10);
-    check_result(taos, "m7", 1, 10);
-    check_result(taos, "m8", 1, 10);
-    check_result(taos, "m9", 1, 10);
-    printf("check result end\n");
-    taos_stmt_close(stmt);
-#endif
-
-
-
-
-#if 0
-    prepare(taos, 1, 1);
-  
-    stmt = taos_stmt_init(taos);
-  
-    printf("1t+100records+specifycol start\n");
-    stmt_scol_func2(stmt);
-    printf("1t+100records+specifycol end\n");
-    printf("check result start\n");
-    check_result(taos, "m0", 1, 100);
-    printf("check result end\n");
-    taos_stmt_close(stmt);
-#endif
-
-
-
-#if 0  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("300t+10r+bm+specifycol start\n");
-  stmt_scol_func3(stmt);
-  printf("300t+10r+bm+specifycol end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 20);
-  check_result(taos, "m1", 1, 20);
-  check_result(taos, "m111", 1, 20);  
-  check_result(taos, "m223", 1, 20);
-  check_result(taos, "m299", 1, 20);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 0  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("10t+2r+bm+specifycol start\n");
-  stmt_scol_func4(stmt);
-  printf("10t+2r+bm+specifycol end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 20);
-  check_result(taos, "m1", 1, 20);
-  check_result(taos, "m2", 1, 20);
-  check_result(taos, "m3", 1, 20);
-  check_result(taos, "m4", 1, 20);
-  check_result(taos, "m5", 1, 20);
-  check_result(taos, "m6", 1, 20);
-  check_result(taos, "m7", 1, 20);
-  check_result(taos, "m8", 1, 20);
-  check_result(taos, "m9", 1, 20);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 0 
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+2r+bm+specifycol start\n");
-  stmt_scol_func5(stmt);
-  printf("1t+2r+bm+specifycol end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 40);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 0
-
-
-#if 1
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("10t+10records start\n");
-  stmt_func1(stmt);
-  printf("10t+10records end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
-  check_result(taos, "m1", 1, 10);
-  check_result(taos, "m2", 1, 10);
-  check_result(taos, "m3", 1, 10);
-  check_result(taos, "m4", 1, 10);
-  check_result(taos, "m5", 1, 10);
-  check_result(taos, "m6", 1, 10);
-  check_result(taos, "m7", 1, 10);
-  check_result(taos, "m8", 1, 10);
-  check_result(taos, "m9", 1, 10);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-  
-#endif
-
-#if 1
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("10t+[0,1,2...9]records start\n");
-  stmt_func2(stmt);
-  printf("10t+[0,1,2...9]records end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 0);
-  check_result(taos, "m1", 0, 100);
-  check_result(taos, "m2", 0, 200);
-  check_result(taos, "m3", 0, 300);
-  check_result(taos, "m4", 0, 400);
-  check_result(taos, "m5", 0, 500);
-  check_result(taos, "m6", 0, 600);
-  check_result(taos, "m7", 0, 700);
-  check_result(taos, "m8", 0, 800);
-  check_result(taos, "m9", 0, 900);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-  
-#endif
-
-#if 1
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("10t+[0,100,200...900]records start\n");
-  stmt_func3(stmt);
-  printf("10t+[0,100,200...900]records end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 0);
-  check_result(taos, "m1", 0, 100);
-  check_result(taos, "m2", 0, 200);
-  check_result(taos, "m3", 0, 300);
-  check_result(taos, "m4", 0, 400);
-  check_result(taos, "m5", 0, 500);
-  check_result(taos, "m6", 0, 600);
-  check_result(taos, "m7", 0, 700);
-  check_result(taos, "m8", 0, 800);
-  check_result(taos, "m9", 0, 900);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-  
-#endif
-
-
-#if 1 
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("300t+60r+bm start\n");
-  stmt_funcb1(stmt);
-  printf("300t+60r+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m111", 0, 180000);  
-  check_result(taos, "m223", 0, 180000);
-  check_result(taos, "m299", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb1 start\n");
-  stmt_funcb_autoctb1(stmt);
-  printf("1t+10r+bm+autoctb1 end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb2 start\n");
-  stmt_funcb_autoctb2(stmt);
-  printf("1t+10r+bm+autoctb2 end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb3 start\n");
-  stmt_funcb_autoctb3(stmt);
-  printf("1t+10r+bm+autoctb3 end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb4 start\n");
-  stmt_funcb_autoctb4(stmt);
-  printf("1t+10r+bm+autoctb4 end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-#endif
-
-
-#if 1 
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb+e1 start\n");
-  stmt_funcb_autoctb_e1(stmt);
-  printf("1t+10r+bm+autoctb+e1 end\n");
-  printf("check result start\n");
-  //check_result(taos, "m0", 1, 0);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb+e2 start\n");
-  stmt_funcb_autoctb_e2(stmt);
-  printf("1t+10r+bm+autoctb+e2 end\n");
-  printf("check result start\n");
-  //check_result(taos, "m0", 1, 0);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb+e3 start\n");
-  stmt_funcb_autoctb_e3(stmt);
-  printf("1t+10r+bm+autoctb+e3 end\n");
-  printf("check result start\n");
-  //check_result(taos, "m0", 1, 0);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb+e4 start\n");
-  stmt_funcb_autoctb_e4(stmt);
-  printf("1t+10r+bm+autoctb+e4 end\n");
-  printf("check result start\n");
-  //check_result(taos, "m0", 1, 0);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 0);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+10r+bm+autoctb+e5 start\n");
-  stmt_funcb_autoctb_e5(stmt);
-  printf("1t+10r+bm+autoctb+e5 end\n");
-  printf("check result start\n");
-  //check_result(taos, "m0", 1, 0);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+18000r+bm start\n");
-  stmt_funcb2(stmt);
-  printf("1t+18000r+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m111", 0, 180000);  
-  check_result(taos, "m223", 0, 180000);
-  check_result(taos, "m299", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("300t+60r+disorder+bm start\n");
-  stmt_funcb3(stmt);
-  printf("300t+60r+disorder+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m111", 0, 180000);  
-  check_result(taos, "m223", 0, 180000);
-  check_result(taos, "m299", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("300t+60r+samets+bm start\n");
-  stmt_funcb4(stmt);
-  printf("300t+60r+samets+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 1);
-  check_result(taos, "m1", 0, 1);
-  check_result(taos, "m111", 0, 1);  
-  check_result(taos, "m223", 0, 1);
-  check_result(taos, "m299", 0, 1);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-#endif
-
-#if 1  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+18000r+nodyntable+bm start\n");
-  stmt_funcb5(stmt);
-  printf("1t+18000r+nodyntable+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1 
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("300t+60r+bm+sc start\n");
-  stmt_funcb_sc1(stmt);
-  printf("300t+60r+bm+sc end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m111", 0, 180000);  
-  check_result(taos, "m223", 0, 180000);
-  check_result(taos, "m299", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-#endif
-
-#if 1  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+60r+bm+sc start\n");
-  stmt_funcb_sc2(stmt);
-  printf("1t+60r+bm+sc end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m111", 0, 180000);  
-  check_result(taos, "m223", 0, 180000);
-  check_result(taos, "m299", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-#if 1  
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("10t+[1...10]r+bm+sc start\n");
-  stmt_funcb_sc3(stmt);
-  printf("10t+[1...10]r+bm+sc end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 1, 1);
-  check_result(taos, "m1", 1, 2);
-  check_result(taos, "m2", 1, 3);
-  check_result(taos, "m3", 1, 4);
-  check_result(taos, "m4", 1, 5);
-  check_result(taos, "m5", 1, 6);
-  check_result(taos, "m6", 1, 7);
-  check_result(taos, "m7", 1, 8);
-  check_result(taos, "m8", 1, 9);
-  check_result(taos, "m9", 1, 10);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1 
-  prepare(taos, 1, 1);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+60r+bm start\n");
-  stmt_funcb_s1(stmt);
-  printf("1t+60r+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m111", 0, 180000);  
-  check_result(taos, "m223", 0, 180000);
-  check_result(taos, "m299", 0, 180000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-
-
-#if 1
-  prepare(taos, 1, 1);
-
-  (void)stmt;
-  printf("120t+60r+sql start\n");
-  sql_perf1(taos);
-  printf("120t+60r+sql end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m34", 0, 180000);  
-  check_result(taos, "m67", 0, 180000);
-  check_result(taos, "m99", 0, 180000);
-  printf("check result end\n");
-#endif  
-
-#if 1
-  prepare(taos, 1, 1);
-
-  (void)stmt;
-  printf("1t+60r+sql start\n");
-  sql_perf_s1(taos);
-  printf("1t+60r+sql end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 180000);
-  check_result(taos, "m1", 0, 180000);
-  check_result(taos, "m34", 0, 180000);  
-  check_result(taos, "m67", 0, 180000);
-  check_result(taos, "m99", 0, 180000);
-  printf("check result end\n");
-#endif  
-
-
-#if 1 
-  preparem(taos, 0, idx);
-
-  stmt = taos_stmt_init(taos);
-
-  printf("1t+30000r+bm start\n");
-  stmt_funcb_ssz1(stmt);
-  printf("1t+30000r+bm end\n");
-  printf("check result start\n");
-  check_result(taos, "m0", 0, 300000);
-  check_result(taos, "m1", 0, 300000);
-  check_result(taos, "m111", 0, 300000);  
-  check_result(taos, "m223", 0, 300000);
-  check_result(taos, "m299", 0, 300000);
-  printf("check result end\n");
-  taos_stmt_close(stmt);
-
-#endif
-#endif
 
   printf("test end\n");
 
   return NULL;
 
+}
+
+void runAll(TAOS *taos) {
+#if 0
+  runcase(taos);
+
+  gCaseCtrl.bindNullNum = 1;
+  runcase(taos);
+  gCaseCtrl.bindNullNum = 0;
+
+  gCaseCtrl.bindRowNum = 1;
+  runcase(taos);
+  gCaseCtrl.bindRowNum = 0;
+#endif
+  gCaseCtrl.rowNum = 10000;
+  gCaseCtrl.printRes = false;
+  runcase(taos);
+  gCaseCtrl.rowNum = 0;
+  gCaseCtrl.printRes = true;
+#if 0
+
+  gCaseCtrl.runTimes = 10;
+  runcase(taos);
+  gCaseCtrl.runTimes = 0;
+
+  gCaseCtrl.checkParamNum = true;
+  runcase(taos);
+  gCaseCtrl.checkParamNum = false;
+
+  gCaseCtrl.bindColNum = 6;
+  runcase(taos);
+  gCaseCtrl.bindColNum = 0;
+
+  gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
+  gCaseCtrl.bindColTypeNum = bindColTypeList = bindColTypeList;  
+  runcase(taos);
+#endif  
 }
 
 int main(int argc, char *argv[])
@@ -5187,7 +4307,7 @@ int main(int argc, char *argv[])
     exit(1);
   }   
 
-  runcase(taos);
+  runAll(taos);
 
   return 0;
 }
