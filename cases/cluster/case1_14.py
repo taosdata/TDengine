@@ -178,7 +178,7 @@ class Case12(ClusterCase):
 
         dthread=threading.Thread(target=self.repeatedly_restart_dnode,args=(self.master_node, self.max_restart_interval, self.restart_times, self.slave_node))
         dthread.start()
-
+        time.sleep(3)
         rthread=threading.Thread(target=self.loop_replica_backgroud,args=(self.db_name, 20, 100, self.slave_node))
         rthread.start()
 
@@ -212,6 +212,6 @@ class Case12(ClusterCase):
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for cluster about 1.13 ,1.14  always alter database replica from 3 to 1  ... ;
+            [test]<wenzhouwww> test case for cluster about 1.14  always alter database replica from 3 to 1 or 1 to 3  ... ;
         '''
         return case_description
