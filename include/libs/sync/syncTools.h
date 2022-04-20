@@ -363,6 +363,37 @@ void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg);
 void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg);
 void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg);
 
+// ---------------------------------------------
+typedef struct SyncApplyMsg {
+  uint32_t   bytes;
+  int32_t    vgId;
+  uint32_t   msgType;          // user SyncApplyMsg msgType
+  uint32_t   originalRpcType;  // user RpcMsg msgType
+  SFsmCbMeta fsmMeta;
+  uint32_t   dataLen;  // user RpcMsg.contLen
+  char       data[];   // user RpcMsg.pCont
+} SyncApplyMsg;
+
+SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen);
+SyncApplyMsg* syncApplyMsgBuild2(const SRpcMsg* pOriginalRpcMsg, int32_t vgId, SFsmCbMeta* pMeta);
+void          syncApplyMsgDestroy(SyncApplyMsg* pMsg);
+void          syncApplyMsgSerialize(const SyncApplyMsg* pMsg, char* buf, uint32_t bufLen);
+void          syncApplyMsgDeserialize(const char* buf, uint32_t len, SyncApplyMsg* pMsg);
+char*         syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len);
+SyncApplyMsg* syncApplyMsgDeserialize2(const char* buf, uint32_t len);
+void syncApplyMsg2RpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pRpcMsg);     // SyncApplyMsg to SRpcMsg, put it into ApplyQ
+void syncApplyMsgFromRpcMsg(const SRpcMsg* pRpcMsg, SyncApplyMsg* pMsg);  // get SRpcMsg from ApplyQ, to SyncApplyMsg
+void syncApplyMsg2OriginalRpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pOriginalRpcMsg);  // SyncApplyMsg to OriginalRpcMsg
+SyncApplyMsg* syncApplyMsgFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*        syncApplyMsg2Json(const SyncApplyMsg* pMsg);
+char*         syncApplyMsg2Str(const SyncApplyMsg* pMsg);
+
+// for debug ----------------------
+void syncApplyMsgPrint(const SyncApplyMsg* pMsg);
+void syncApplyMsgPrint2(char* s, const SyncApplyMsg* pMsg);
+void ssyncApplyMsgLog(const SyncApplyMsg* pMsg);
+void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg);
+
 // on message ----------------------
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
@@ -373,7 +404,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);
 int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
-//---------------------
+// ---------------------------------------------
 
 #ifdef __cplusplus
 }

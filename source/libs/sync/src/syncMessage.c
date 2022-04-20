@@ -1531,3 +1531,31 @@ void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
   sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
+
+// ---- message process SyncApplyMsg----
+SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen) { return NULL; }
+SyncApplyMsg* syncApplyMsgBuild2(const SRpcMsg* pOriginalRpcMsg, int32_t vgId, SFsmCbMeta* pMeta) { return NULL; }
+void          syncApplyMsgDestroy(SyncApplyMsg* pMsg) {}
+void          syncApplyMsgSerialize(const SyncApplyMsg* pMsg, char* buf, uint32_t bufLen) {}
+void          syncApplyMsgDeserialize(const char* buf, uint32_t len, SyncApplyMsg* pMsg) {}
+char*         syncApplyMsgSerialize2(const SyncApplyMsg* pMsg, uint32_t* len) { return NULL; }
+SyncApplyMsg* syncApplyMsgDeserialize2(const char* buf, uint32_t len) { return NULL; }
+
+// SyncApplyMsg to SRpcMsg, put it into ApplyQ
+void syncApplyMsg2RpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pRpcMsg) {}
+
+// get SRpcMsg from ApplyQ, to SyncApplyMsg
+void syncApplyMsgFromRpcMsg(const SRpcMsg* pRpcMsg, SyncApplyMsg* pMsg) {}
+
+// SyncApplyMsg to OriginalRpcMsg
+void syncApplyMsg2OriginalRpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pOriginalRpcMsg) {}
+
+SyncApplyMsg* syncApplyMsgFromRpcMsg2(const SRpcMsg* pRpcMsg) { return NULL; }
+cJSON*        syncApplyMsg2Json(const SyncApplyMsg* pMsg) { return NULL; }
+char*         syncApplyMsg2Str(const SyncApplyMsg* pMsg) { return NULL; }
+
+// for debug ----------------------
+void syncApplyMsgPrint(const SyncApplyMsg* pMsg) {}
+void syncApplyMsgPrint2(char* s, const SyncApplyMsg* pMsg) {}
+void ssyncApplyMsgLog(const SyncApplyMsg* pMsg) {}
+void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg) {}
