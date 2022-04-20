@@ -41,11 +41,11 @@ class TDTestCase:
         tdSql.query("select * from normaltb where ts=today()")
         tdSql.checkRows(1)
         tdSql.checkData(0,1,3)
-        # for i in range(0,50):
-        #     tdSql.query("select timezone() from db.normaltb")
-        #     tdSql.checkData(0,0,"Asia/Shanghai (CST, +0800)")
-        #     i+=1
-        #     sleep(0.5)
+        for i in range(0,50):
+            tdSql.query("select timezone() from db.normaltb")
+            tdSql.checkData(0,0,"Asia/Shanghai (CST, +0800)")
+            i+=1
+            sleep(0.5)
         
 
         tdSql.query("select now() from db.normaltb")
