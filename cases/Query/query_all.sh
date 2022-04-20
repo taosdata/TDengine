@@ -52,4 +52,4 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_tail.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_mode.py --keep
-taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py --keep
