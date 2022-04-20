@@ -24,51 +24,46 @@ static int      tsdbTbDataComp(const void *arg1, const void *arg2);
 static char    *tsdbTbDataGetUid(const void *arg);
 static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row);
 
-STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
-  STsdbMemTable *pMemTable = (STsdbMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
+int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
+  STsdbMemTable *pMemTable;
+  SVnode        *pVnode;
+
+  *ppMemTable = NULL;
+  pVnode = pTsdb->pVnode;
+
+  // alloc handle
+  pMemTable = (STsdbMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return -1;
   }
 
+  pMemTable->pPool = pTsdb->pVnode->inUse;
   T_REF_INIT_VAL(pMemTable, 1);
-  taosInitRWLatch(&(pMemTable->latch));
-  pMemTable->keyMax = TSKEY_MIN;
+  taosInitRWLatch(&pMemTable->latch);
   pMemTable->keyMin = TSKEY_MAX;
+  pMemTable->keyMax = TSKEY_MIN;
   pMemTable->nRow = 0;
-  pMemTable->pMA = pTsdb->pmaf->create(pTsdb->pmaf);
-  if (pMemTable->pMA == NULL) {
-    taosMemoryFree(pMemTable);
-    return NULL;
-  }
-
-  // Initialize the container
-  pMemTable->pSlIdx =
-      tSkipListCreate(5, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t), tsdbTbDataComp, SL_DISCARD_DUP_KEY, tsdbTbDataGetUid);
+  pMemTable->pSlIdx = tSkipListCreate(pVnode->config.tsdbCfg.slLevel, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t),
+                                      tsdbTbDataComp, SL_DISCARD_DUP_KEY, tsdbTbDataGetUid);
   if (pMemTable->pSlIdx == NULL) {
-    pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
     taosMemoryFree(pMemTable);
-    return NULL;
+    return -1;
   }
 
   pMemTable->pHashIdx = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pMemTable->pHashIdx == NULL) {
-    pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
     tSkipListDestroy(pMemTable->pSlIdx);
     taosMemoryFree(pMemTable);
-    return NULL;
+    return -1;
   }
 
-  return pMemTable;
+  return 0;
 }
 
-void tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable) {
+void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
     tSkipListDestroy(pMemTable->pSlIdx);
-    if (pMemTable->pMA) {
-      pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
-    }
     taosMemoryFree(pMemTable);
   }
 }

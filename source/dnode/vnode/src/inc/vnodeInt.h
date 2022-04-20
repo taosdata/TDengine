@@ -91,7 +91,10 @@ struct SVnode {
   SVState    state;
   STfs*      pTfs;
   SMsgCb     msgCb;
-  SVBufPool* pBufPool;
+  SVBufPool* pPool;
+  SVBufPool* inUse;
+  SVBufPool* onCommit;
+  SVBufPool* onRecycle;
   SMeta*     pMeta;
   STsdb*     pTsdb;
   SWal*      pWal;

@@ -15,8 +15,10 @@
 
 #include "vnodeInt.h"
 
-int metaBegin(SMeta *pMeta) {
-  if (tdbBegin(pMeta->pEnv, NULL) < 0) {
+int tsdbBegin(STsdb *pTsdb) {
+  STsdbMemTable *pMem;
+
+  if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
     return -1;
   }
 

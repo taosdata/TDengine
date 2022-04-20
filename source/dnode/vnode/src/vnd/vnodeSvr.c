@@ -46,7 +46,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   int   ret;
 
   if (pVnode->config.streamMode == 0) {
-    ptr = vnodeMalloc(pVnode, pMsg->contLen);
+    // ptr = vnodeMalloc(pVnode, pMsg->contLen);
     if (ptr == NULL) {
       // TODO: handle error
     }
@@ -125,7 +125,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   pVnode->state.applied = version;
 
   // Check if it needs to commit
-  if (vnodeShouldCommit(pVnode)) {
+  if (0 /*vnodeShouldCommit(pVnode)*/) {
     // tsem_wait(&(pVnode->canCommit));
     if (vnodeAsyncCommit(pVnode) < 0) {
       // TODO: handle error

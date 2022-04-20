@@ -19,7 +19,7 @@ int32_t tqInit() { return tqPushMgrInit(); }
 
 void tqCleanUp() { tqPushMgrCleanUp(); }
 
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
@@ -29,13 +29,6 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, SMe
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
   pTq->pVnodeMeta = pVnodeMeta;
-#if 0
-  pTq->tqMemRef.pAllocatorFactory = allocFac;
-  pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
-  if (pTq->tqMemRef.pAllocator == NULL) {
-    // TODO: error code of buffer pool
-  }
-#endif
   pTq->tqMeta = tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer,
                             (FTqDelete)taosMemoryFree, 0);
   if (pTq->tqMeta == NULL) {

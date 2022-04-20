@@ -40,22 +40,31 @@ int vnodeDecodeConfig(const SJson* pJson, void* pObj);
 // vnodeModule ====================
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
 
-// vnodeQuery ====================
-int  vnodeQueryOpen(SVnode* pVnode);
-void vnodeQueryClose(SVnode* pVnode);
-int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
-
-// vnodeCommit ====================
-int vnodeBegin(SVnode* pVnode);
-int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
-int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
-int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
-int vnodeSyncCommit(SVnode* pVnode);
-int vnodeAsyncCommit(SVnode* pVnode);
-
-#define vnodeShouldCommit vnodeBufPoolIsFull
-
+// vnodeBufPool ====================
 #if 1
+typedef struct SVBufPoolNode SVBufPoolNode;
+struct SVBufPoolNode {
+  SVBufPoolNode*  prev;
+  SVBufPoolNode** pnext;
+  int64_t         size;
+  uint8_t         data[];
+};
+
+struct SVBufPool {
+  SVBufPool*     next;
+  int64_t        nRef;
+  int64_t        size;
+  uint8_t*       ptr;
+  SVBufPoolNode* pTail;
+  SVBufPoolNode  node;
+};
+
+int   vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int   vnodeCloseBufPool(SVnode* pVnode);
+void  vnodeBufPoolReset(SVBufPool* pPool);
+void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+#else
 // SVBufPool
 int   vnodeOpenBufPool(SVnode* pVnode);
 void  vnodeCloseBufPool(SVnode* pVnode);
@@ -90,8 +99,20 @@ void            vmaReset(SVMemAllocator* pVMA);
 void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
-
 #endif
+
+// vnodeQuery ====================
+int  vnodeQueryOpen(SVnode* pVnode);
+void vnodeQueryClose(SVnode* pVnode);
+int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+
+// vnodeCommit ====================
+int vnodeBegin(SVnode* pVnode);
+int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
+int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
+int vnodeSyncCommit(SVnode* pVnode);
+int vnodeAsyncCommit(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

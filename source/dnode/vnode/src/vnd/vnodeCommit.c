@@ -26,7 +26,19 @@ static int  vnodeCommit(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
 
 int vnodeBegin(SVnode *pVnode) {
-  // begin buffer pool
+  // alloc buffer pool
+  /* pthread_mutex_lock(); */
+
+  while (pVnode->pPool == NULL) {
+    /* pthread_cond_wait(); */
+  }
+
+  pVnode->inUse = pVnode->pPool;
+  pVnode->pPool = pVnode->inUse->next;
+  pVnode->inUse->next = NULL;
+  /* ref pVnode->inUse buffer pool */
+
+  /* pthread_mutex_unlock(); */
 
   // begin meta
   if (metaBegin(pVnode->pMeta) < 0) {
@@ -35,12 +47,10 @@ int vnodeBegin(SVnode *pVnode) {
   }
 
   // begin tsdb
-#if 0
   if (tsdbBegin(pVnode->pTsdb) < 0) {
     vError("vgId: %d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
-#endif
 
   return 0;
 }
@@ -162,7 +172,7 @@ _err:
 int vnodeAsyncCommit(SVnode *pVnode) {
   vnodeWaitCommit(pVnode);
 
-  vnodeBufPoolSwitch(pVnode);
+  // vnodeBufPoolSwitch(pVnode);
   tsdbPrepareCommit(pVnode->pTsdb);
 
   vnodeScheduleTask(vnodeCommit, pVnode);
@@ -184,7 +194,7 @@ static int vnodeCommit(void *arg) {
   tqCommit(pVnode->pTq);
   tsdbCommit(pVnode->pTsdb);
 
-  vnodeBufPoolRecycle(pVnode);
+  // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
   return 0;
 }

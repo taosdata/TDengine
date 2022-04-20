@@ -123,6 +123,7 @@ struct STsdbCfg {
   int8_t   precision;
   int8_t   update;
   int8_t   compression;
+  int8_t   slLevel;
   int32_t  days;
   int32_t  minRows;
   int32_t  maxRows;
@@ -139,10 +140,8 @@ struct SVnodeCfg {
   uint64_t dbId;
   int32_t  szPage;
   int32_t  szCache;
-  uint64_t wsize;
-  uint64_t ssize;
-  uint64_t lsize;
-  bool     isHeapAllocator;
+  uint64_t szBuf;
+  bool     isHeap;
   uint32_t ttl;
   uint32_t keep;
   int8_t   streamMode;

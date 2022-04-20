@@ -83,7 +83,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   tsem_init(&(pVnode->canCommit), 0, 1);
 
   // open buffer pool
-  if (vnodeOpenBufPool(pVnode) < 0) {
+  if (vnodeOpenBufPool(pVnode, pVnode->config.isHeap ? 0 : pVnode->config.szBuf / 3) < 0) {
     vError("vgId: %d failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -95,9 +95,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open tsdb
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TSDB_DIR);
-  pVnode->pTsdb = tsdbOpen(tdir, pVnode, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode));
-  if (pVnode->pTsdb == NULL) {
+  if (tsdbOpen(pVnode, &pVnode->pTsdb) < 0) {
     vError("vgId: %d failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -112,7 +110,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   // open tq
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
-  pVnode->pTq = tqOpen(tdir, pVnode, pVnode->pWal, pVnode->pMeta, vBufPoolGetMAF(pVnode));
+  pVnode->pTq = tqOpen(tdir, pVnode, pVnode->pWal, pVnode->pMeta);
   if (pVnode->pTq == NULL) {
     vError("vgId: %d failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;

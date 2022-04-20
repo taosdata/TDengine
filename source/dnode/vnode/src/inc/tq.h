@@ -250,7 +250,7 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta);
 void tqClose(STQ*);
 // required by vnode
 int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
