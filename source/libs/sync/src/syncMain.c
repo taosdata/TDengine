@@ -890,6 +890,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   // use this now
   syncNodeAppendNoop(pSyncNode);
+  syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
 
   // do not use this
   // syncNodeEqNoop(pSyncNode);
