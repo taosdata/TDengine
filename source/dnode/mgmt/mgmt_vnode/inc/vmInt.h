@@ -89,10 +89,7 @@ void       vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 // vmHandle.c
 void    vmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
-int32_t vmProcessAlterVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
-int32_t vmProcessSyncVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
-int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);

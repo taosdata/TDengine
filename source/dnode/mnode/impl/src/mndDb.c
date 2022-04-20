@@ -614,7 +614,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   return terrno;
 }
 
-static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
@@ -623,7 +623,7 @@ static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pO
   return 0;
 }
 
-static int32_t mndSetUpdateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
@@ -632,7 +632,60 @@ static int32_t mndSetUpdateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
   return 0;
 }
 
-static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+void *mndBuildAlterVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
+  SAlterVnodeReq alterReq = {0};
+  alterReq.vgVersion = pVgroup->version;
+  alterReq.totalBlocks = pDb->cfg.totalBlocks;
+  alterReq.daysToKeep0 = pDb->cfg.daysToKeep0;
+  alterReq.daysToKeep1 = pDb->cfg.daysToKeep1;
+  alterReq.daysToKeep2 = pDb->cfg.daysToKeep2;
+  alterReq.walLevel = pDb->cfg.walLevel;
+  alterReq.strict = pDb->cfg.strict;
+  alterReq.cacheLastRow = pDb->cfg.cacheLastRow;
+  alterReq.replica = pVgroup->replica;
+  alterReq.selfIndex = -1;
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SReplica  *pReplica = &alterReq.replicas[v];
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pVgidDnode == NULL) {
+      return NULL;
+    }
+
+    pReplica->id = pVgidDnode->id;
+    pReplica->port = pVgidDnode->port;
+    memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
+    mndReleaseDnode(pMnode, pVgidDnode);
+
+    if (pDnode->id == pVgid->dnodeId) {
+      alterReq.selfIndex = v;
+    }
+  }
+
+  if (alterReq.selfIndex == -1) {
+    terrno = TSDB_CODE_MND_APP_ERROR;
+    return NULL;
+  }
+
+  int32_t contLen = tSerializeSAlterVnodeReq(NULL, 0, &alterReq);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSAlterVnodeReq(pReq, contLen, &alterReq);
+  *pContLen = contLen;
+  return pReq;
+}
+
+static int32_t mndBuilAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
     STransAction action = {0};
     SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
@@ -643,7 +696,7 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
     mndReleaseDnode(pMnode, pDnode);
 
     int32_t contLen = 0;
-    void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+    void   *pReq = mndBuildAlterVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
@@ -658,7 +711,7 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
-static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -668,7 +721,7 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     if (pIter == NULL) break;
 
     if (pVgroup->dbUid == pNew->uid) {
-      if (mndBuildUpdateVgroupAction(pMnode, pTrans, pNew, pVgroup) != 0) {
+      if (mndBuilAlterVgroupAction(pMnode, pTrans, pNew, pVgroup) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         return -1;
@@ -681,17 +734,17 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndUpdateDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndAlterDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto UPDATE_DB_OVER;
 
-  mDebug("trans:%d, used to update db:%s", pTrans->id, pOld->name);
+  mDebug("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
 
   mndTransSetDbInfo(pTrans, pOld);
-  if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
-  if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
-  if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
+  if (mndSetAlterDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
+  if (mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
+  if (mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto UPDATE_DB_OVER;
 
   code = 0;
@@ -740,7 +793,7 @@ static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndUpdateDb(pMnode, pReq, pDb, &dbObj);
+  code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 ALTER_DB_OVER:
