@@ -35,7 +35,8 @@ void   dmSetStatus(SDnode *pDnode, EDndRunStatus stat);
 void   dmSetEvent(SDnode *pDnode, EDndEvent event);
 void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
 void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-void   dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+void   dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc);
+void   dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pMsg);
 void   dmGetMonitorSysInfo(SMonSysInfo *pInfo);
 
 // dmFile.c

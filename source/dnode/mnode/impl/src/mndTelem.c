@@ -21,23 +21,66 @@
 #include "thttp.h"
 #include "tjson.h"
 
-#define TELEMETRY_SERVER "telemetry.taosdata.com"
-#define TELEMETRY_PORT   80
+typedef struct {
+  int64_t numOfDnode;
+  int64_t numOfMnode;
+  int64_t numOfVgroup;
+  int64_t numOfDatabase;
+  int64_t numOfSuperTable;
+  int64_t numOfChildTable;
+  int64_t numOfNormalTable;
+  int64_t numOfColumn;
+  int64_t totalPoints;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SMnodeStat;
+
+static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
+  memset(pStat, 0, sizeof(SMnodeStat));
+
+  SSdb* pSdb = pMnode->pSdb;
+  pStat->numOfDnode = sdbGetSize(pSdb, SDB_DNODE);
+  pStat->numOfMnode = sdbGetSize(pSdb, SDB_MNODE);
+  pStat->numOfVgroup = sdbGetSize(pSdb, SDB_VGROUP);
+  pStat->numOfDatabase = sdbGetSize(pSdb, SDB_DB);
+  pStat->numOfSuperTable = sdbGetSize(pSdb, SDB_STB);
+
+  void* pIter = NULL;
+  while (1) {
+    SVgObj* pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+    if (pIter == NULL) break;
+
+    pStat->numOfChildTable += pVgroup->numOfTables;
+    pStat->numOfColumn += pVgroup->numOfTimeSeries;
+    pStat->totalPoints += pVgroup->pointsWritten;
+    pStat->totalStorage += pVgroup->totalStorage;
+    pStat->compStorage += pVgroup->compStorage;
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  pStat->numOfChildTable = 100;
+  pStat->numOfColumn = 200;
+  pStat->totalPoints = 300;
+  pStat->totalStorage = 400;
+  pStat->compStorage = 500;
+}
 
 static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
-  SMnodeLoad load = {0};
-  mndGetLoad(pMnode, &load);
+  SMnodeStat mstat = {0};
+  mndGetStat(pMnode, &mstat);
 
-  tjsonAddDoubleToObject(pJson, "numOfDnode", load.numOfDnode);
-  tjsonAddDoubleToObject(pJson, "numOfMnode", load.numOfMnode);
-  tjsonAddDoubleToObject(pJson, "numOfVgroup", load.numOfVgroup);
-  tjsonAddDoubleToObject(pJson, "numOfDatabase", load.numOfDatabase);
-  tjsonAddDoubleToObject(pJson, "numOfSuperTable", load.numOfSuperTable);
-  tjsonAddDoubleToObject(pJson, "numOfChildTable", load.numOfChildTable);
-  tjsonAddDoubleToObject(pJson, "numOfColumn", load.numOfColumn);
-  tjsonAddDoubleToObject(pJson, "numOfPoint", load.totalPoints);
-  tjsonAddDoubleToObject(pJson, "totalStorage", load.totalStorage);
-  tjsonAddDoubleToObject(pJson, "compStorage", load.compStorage);
+  tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode);
+  tjsonAddDoubleToObject(pJson, "numOfMnode", mstat.numOfMnode);
+  tjsonAddDoubleToObject(pJson, "numOfVgroup", mstat.numOfVgroup);
+  tjsonAddDoubleToObject(pJson, "numOfDatabase", mstat.numOfDatabase);
+  tjsonAddDoubleToObject(pJson, "numOfSuperTable", mstat.numOfSuperTable);
+  tjsonAddDoubleToObject(pJson, "numOfChildTable", mstat.numOfChildTable);
+  tjsonAddDoubleToObject(pJson, "numOfColumn", mstat.numOfColumn);
+  tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints);
+  tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage);
+  tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage);
 }
 
 static char* mndBuildTelemetryReport(SMnode* pMnode) {
@@ -82,12 +125,14 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
 static int32_t mndProcessTelemTimer(SNodeMsg* pReq) {
   SMnode*     pMnode = pReq->pNode;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  if (!pMgmt->enable) return 0;
+  if (!tsEnableTelem) return 0;
 
   taosWLockLatch(&pMgmt->lock);
   char* pCont = mndBuildTelemetryReport(pMnode);
   if (pCont != NULL) {
-    taosSendHttpReport(TELEMETRY_SERVER, TELEMETRY_PORT, pCont, strlen(pCont), HTTP_FLAT);
+    if (taosSendHttpReport(tsTelemServer, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
+      mError("failed to send telemetry msg");
+    }
     taosMemoryFree(pCont);
   }
   taosWUnLockLatch(&pMgmt->lock);
@@ -98,7 +143,6 @@ int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
   taosInitRWLatch(&pMgmt->lock);
-  pMgmt->enable = tsEnableTelemetryReporting;
   taosGetEmail(pMgmt->email, sizeof(pMgmt->email));
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 

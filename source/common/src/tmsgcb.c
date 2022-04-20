@@ -41,3 +41,7 @@ void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
 void tmsgReleaseHandle(void* handle, int8_t type) {
   (*tsDefaultMsgCb.releaseHandleFp)(tsDefaultMsgCb.pWrapper, handle, type);
 }
+
+void tmsgReportStartup(const char* name, const char* desc) {
+  (*tsDefaultMsgCb.reportStartupFp)(tsDefaultMsgCb.pWrapper, name, desc);
+}

@@ -888,10 +888,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
 
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       TSKEY tsKey = TD_ROW_KEY(row);
-      if (checkTimestamp(pDataBlocks, (const char*)&tsKey) != TSDB_CODE_SUCCESS) {
-        buildSyntaxErrMsg(&pCxt->msg, "client time/server time can not be mixed up", sToken.z);
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
-      }
+      checkTimestamp(pDataBlocks, (const char*)&tsKey);
     }
   }
 

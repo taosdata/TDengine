@@ -32,6 +32,7 @@ void MndTestFunc::SetCode(SCreateFuncReq* pReq, const char* pCode) {
   int32_t len = strlen(pCode);
   pReq->pCode = (char*)taosMemoryCalloc(1, len + 1);
   strcpy(pReq->pCode, pCode);
+  pReq->codeLen = len;
 }
 
 void MndTestFunc::SetComment(SCreateFuncReq* pReq, const char* pComment) {
@@ -63,21 +64,6 @@ TEST_F(MndTestFunc, 02_Create_Func) {
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "f1");
-    SetCode(&createReq, "code1");
-
-    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
-    void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
-    tFreeSCreateFuncReq(&createReq);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_COMMENT);
-  }
-
-  {
-    SCreateFuncReq createReq = {0};
-    strcpy(createReq.name, "f1");
     SetComment(&createReq, "comment1");
 
     int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
@@ -88,22 +74,6 @@ TEST_F(MndTestFunc, 02_Create_Func) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_CODE);
-  }
-
-  {
-    SCreateFuncReq createReq = {0};
-    strcpy(createReq.name, "f1");
-    SetCode(&createReq, "code1");
-    SetComment(&createReq, "");
-
-    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
-    void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
-    tFreeSCreateFuncReq(&createReq);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_COMMENT);
   }
 
   {
@@ -329,7 +299,6 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     EXPECT_EQ(pFuncInfo->bufSize, 6);
     EXPECT_EQ(pFuncInfo->signature, 18);
     EXPECT_EQ(pFuncInfo->commentSize, strlen("comment2") + 1);
-    EXPECT_EQ(pFuncInfo->codeSize, strlen("code2") + 1);
 
     EXPECT_STREQ("comment2", pFuncInfo->pComment);
     EXPECT_STREQ("code2", pFuncInfo->pCode);
@@ -368,7 +337,6 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
       EXPECT_EQ(pFuncInfo->bufSize, 6);
       EXPECT_EQ(pFuncInfo->signature, 18);
       EXPECT_EQ(pFuncInfo->commentSize, strlen("comment2") + 1);
-      EXPECT_EQ(pFuncInfo->codeSize, strlen("code2") + 1);
       EXPECT_STREQ("comment2", pFuncInfo->pComment);
       EXPECT_STREQ("code2", pFuncInfo->pCode);
     }

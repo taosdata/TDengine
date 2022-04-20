@@ -203,6 +203,14 @@ int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInf
 void    tFreeSMonVloadInfo(SMonVloadInfo *pInfo);
 
 typedef struct {
+  int8_t     isMnode;
+  SMnodeLoad load;
+} SMonMloadInfo;
+
+int32_t tSerializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo);
+int32_t tDeserializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo);
+
+typedef struct {
   const char *server;
   uint16_t    port;
   int32_t     maxLogs;
