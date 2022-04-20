@@ -660,6 +660,7 @@ typedef struct {
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
+  int32_t codeLen;
   int64_t signature;
   char*   pComment;
   char*   pCode;

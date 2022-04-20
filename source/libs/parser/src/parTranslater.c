@@ -1349,6 +1349,22 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static int32_t translateSetOperatorImpl(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateQuery(pCxt, pSetOperator->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateSetOperatorImpl(pCxt, pSetOperator);
+  }
+  return code;
+}
+
 static int64_t getUnitPerMinute(uint8_t precision) {
   switch (precision) {
     case TSDB_TIME_PRECISION_MILLI:
@@ -2590,11 +2606,63 @@ static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pSt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t readFromFile(char* pName, int32_t *len, char **buf) {
+  int64_t filesize = 0;
+  if (taosStatFile(pName, &filesize, NULL) < 0) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  *len = filesize;
+
+  if (*len <= 0) {
+    return TSDB_CODE_TSC_FILE_EMPTY;
+  }
+
+  *buf = taosMemoryCalloc(1, *len);
+  if (*buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  TdFilePtr tfile = taosOpenFile(pName, O_RDONLY | O_BINARY);
+  if (NULL == tfile) {
+    taosMemoryFreeClear(*buf);
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  int64_t s = taosReadFile(tfile, *buf, *len);
+  if (s != *len) {
+    taosCloseFile(&tfile);
+    taosMemoryFreeClear(*buf);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+  taosCloseFile(&tfile);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionStmt* pStmt) {
+  SCreateFuncReq req = {0};
+  strcpy(req.name, pStmt->funcName);
+  req.igExists = pStmt->ignoreExists;
+  req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
+  req.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+  req.outputType = pStmt->outputDt.type;
+  req.outputLen = pStmt->outputDt.bytes;
+  req.bufSize = pStmt->bufSize;
+  int32_t code = readFromFile(pStmt->libraryPath, &req.codeLen, &req.pCode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_FUNC, (FSerializeFunc)tSerializeSCreateFuncReq, &req);
+  }
+  return code;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
+      break;
+    case QUERY_NODE_SET_OPERATOR:
+      code = translateSetOperator(pCxt, (SSetOperator*)pNode);
       break;
     case QUERY_NODE_CREATE_DATABASE_STMT:
       code = translateCreateDatabase(pCxt, (SCreateDatabaseStmt*)pNode);
@@ -2687,6 +2755,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_STREAM_STMT:
       code = translateDropStream(pCxt, (SDropStreamStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+      code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
       break;
     default:
       break;
@@ -2802,6 +2873,7 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
       return TSDB_INFORMATION_SCHEMA_DB;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
@@ -2844,6 +2916,8 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_SNODES;
     case QUERY_NODE_SHOW_LICENCE_STMT:
       return TSDB_INS_TABLE_LICENCES;
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
+      return TSDB_INS_TABLE_CLUSTER;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
       return TSDB_PERFS_TABLE_CONNECTIONS;
     case QUERY_NODE_SHOW_QUERIES_STMT:
@@ -3360,6 +3434,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:

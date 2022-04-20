@@ -20,16 +20,22 @@
 #include "taoserror.h"
 #include "thash.h"
 #include "builtins.h"
+#include "catalog.h"
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
+  SArray* pUdfTable; // SUdfInfo
 } SFuncMgtService;
+
+typedef struct SUdfInfo {
+  SDataType outputDt;
+} SUdfInfo;
 
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t initFunctionCode = 0;
 
-static void doInitFunctionHashTable() {
+static void doInitFunctionTable() {
   gFunMgtService.pFuncNameHashTable = taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {
     initFunctionCode = TSDB_CODE_FAILED;
@@ -42,6 +48,8 @@ static void doInitFunctionHashTable() {
       return;
     }
   }
+
+  gFunMgtService.pUdfTable = NULL;
 }
 
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
@@ -51,25 +59,56 @@ static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, classification);
 }
 
+static int32_t getUdfId(const char* pFuncName) {
+  // todo: udf by call catalog
+  if (1) {
+    return -1;
+  }
+  if (NULL == gFunMgtService.pUdfTable) {
+    gFunMgtService.pUdfTable = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SUdfInfo));
+  }
+  SUdfInfo info = {0}; //todo
+  taosArrayPush(gFunMgtService.pUdfTable, &info);
+  return taosArrayGetSize(gFunMgtService.pUdfTable) + FUNC_UDF_ID_START_OFFSET_VAL;
+}
+
+static int32_t getFuncId(const char* pFuncName) {
+  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFuncName, strlen(pFuncName));
+  if (NULL == pVal) {
+    return getUdfId(pFuncName);
+  }
+  return *(int32_t*)pVal;
+}
+
+static int32_t getUdfResultType(SFunctionNode* pFunc) {
+  SUdfInfo* pUdf = taosArrayGet(gFunMgtService.pUdfTable, pFunc->funcId - FUNC_UDF_ID_START_OFFSET_VAL - 1);
+  pFunc->node.resType = pUdf->outputDt;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t fmFuncMgtInit() {
-  taosThreadOnce(&functionHashTableInit, doInitFunctionHashTable);
+  taosThreadOnce(&functionHashTableInit, doInitFunctionTable);
   return initFunctionCode;
 }
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
-  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFuncName, strlen(pFuncName));
-  if (NULL == pVal) {
+  *pFuncId = getFuncId(pFuncName);
+  if (*pFuncId < 0) {
     return TSDB_CODE_FAILED;
   }
-  *pFuncId = *(int32_t*)pVal;
-  if (*pFuncId < 0 || *pFuncId >= funcMgtBuiltinsNum) {
-    return TSDB_CODE_FAILED;
+  if (fmIsUserDefinedFunc(*pFuncId)) {
+    *pFuncType = FUNCTION_TYPE_UDF;
+  } else {
+    *pFuncType = funcMgtBuiltins[*pFuncId].type;
   }
-  *pFuncType = funcMgtBuiltins[*pFuncId].type;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (fmIsUserDefinedFunc(pFunc->funcId)) {
+    return getUdfResultType(pFunc);
+  }
+
   if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
@@ -77,7 +116,7 @@ int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
-  if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
+  if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   if (NULL == funcMgtBuiltins[pFunc->funcId].dataRequiredFunc) {
@@ -87,7 +126,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 }
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
-  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
   pFpSet->getEnv = funcMgtBuiltins[funcId].getEnvFunc;
@@ -98,7 +137,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
 }
 
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
-  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
   pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
@@ -140,6 +179,10 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
 
 bool fmIsMultiResFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC);
+}
+
+bool fmIsUserDefinedFunc(int32_t funcId) {
+  return funcId > FUNC_UDF_ID_START_OFFSET_VAL;
 }
 
 void fmFuncMgtDestroy() {
