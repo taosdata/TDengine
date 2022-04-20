@@ -88,9 +88,9 @@ CaseCfg gCase[] = {
   {"insert:MBME3-C002", tListLen(longColList), longColList, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 1},
 #endif
 
-  {"insert:MBME4-FULL", tListLen(longColList), longColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
+//  {"insert:MBME4-FULL", tListLen(longColList), longColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
   {"insert:MBME4-C012", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
-  {"insert:MBME4-C002", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
+//  {"insert:MBME4-C002", tListLen(longColList), longColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
 
 };
 
@@ -251,49 +251,49 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       data->pBind[bindIdx].buffer_length = sizeof(bool);
       data->pBind[bindIdx].buffer = data->boolData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_TINYINT:
       data->pBind[bindIdx].buffer_length = sizeof(int8_t);
       data->pBind[bindIdx].buffer = data->tinyData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       data->pBind[bindIdx].buffer_length = sizeof(int16_t);
       data->pBind[bindIdx].buffer = data->smallData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_INT:
       data->pBind[bindIdx].buffer_length = sizeof(int32_t);
       data->pBind[bindIdx].buffer = data->intData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_BIGINT:
       data->pBind[bindIdx].buffer_length = sizeof(int64_t);
       data->pBind[bindIdx].buffer = data->bigData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_FLOAT:
       data->pBind[bindIdx].buffer_length = sizeof(float);
       data->pBind[bindIdx].buffer = data->floatData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       data->pBind[bindIdx].buffer_length = sizeof(double);
       data->pBind[bindIdx].buffer = data->doubleData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
       data->pBind[bindIdx].buffer_length = gVarCharSize;
       data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       data->pBind[bindIdx].length = data->binaryLen;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       data->pBind[bindIdx].buffer_length = sizeof(int64_t);
@@ -305,31 +305,31 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       data->pBind[bindIdx].buffer_length = gVarCharSize;
       data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       data->pBind[bindIdx].length = data->binaryLen;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint8_t);
       data->pBind[bindIdx].buffer = data->utinyData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint16_t);
       data->pBind[bindIdx].buffer = data->usmallData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_UINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint32_t);
       data->pBind[bindIdx].buffer = data->uintData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       data->pBind[bindIdx].buffer_length = sizeof(uint64_t);
       data->pBind[bindIdx].buffer = data->ubigData + rowIdx;
       data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull;
+      data->pBind[bindIdx].is_null = data->isNull + rowIdx;
       break;
     default:
       printf("invalid col type:%d", dataType);
@@ -3995,9 +3995,9 @@ void prepareCheckResultImpl(TAOS     *taos, char *tname, int printr, int expecte
   }
   
   if (rows == expected) {
-    printf("%d rows are fetched as expectation\n", rows);
+    printf("%d rows are fetched as expected from %s\n", rows, tname);
   } else {
-    printf("!!!expect %d rows, but %d rows are fetched\n", expected, rows);
+    printf("!!!expect %d rows, but %d rows are fetched from %s\n", expected, rows, tname);
     exit(1);
   }
 
