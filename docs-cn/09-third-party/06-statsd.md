@@ -26,16 +26,16 @@ StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年�
 运行 StatsD：
 
 ```
-ubuntu@shuduo-1804 $ node stats.js config.js &
+$ node stats.js config.js &
 [1] 8546
-ubuntu@shuduo-1804 ~/work/statsd (master)c47fc48$ 20 Apr 09:54:41 - [8546] reading config file: exampleConfig.js
+$ 20 Apr 09:54:41 - [8546] reading config file: exampleConfig.js
 20 Apr 09:54:41 - server is up INFO
 ```
 
 使用 nc 写入测试数据：
 
 ```
-ubuntu@shuduo-1804 ~/work/statsd (master)c47fc48$ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
+$ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 ```
 
 使用 TDengine CLI 验证从 StatsD 向 TDengine 写入数据并能够正确读出：
