@@ -682,6 +682,7 @@ int32_t tDeserializeSDropFuncReq(void* buf, int32_t bufLen, SDropFuncReq* pReq);
 
 typedef struct {
   int32_t numOfFuncs;
+  bool    ignoreCodeComment;
   SArray* pFuncNames;
 } SRetrieveFuncReq;
 
@@ -710,6 +711,7 @@ typedef struct {
 
 int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
 int32_t tDeserializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
+void tFreeSFuncInfo(SFuncInfo *pInfo);
 void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
