@@ -76,9 +76,9 @@ typedef struct SUdf {
 
 // TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
 // TODO: add private udf structure.
-typedef struct SUdfHandle {
+typedef struct SUdfcFuncHandle {
   SUdf *udf;
-} SUdfHandle;
+} SUdfcFuncHandle;
 
 int32_t udfdLoadUdf(char* udfName, SUdf* udf) {
     strcpy(udf->name, udfName);
@@ -143,7 +143,7 @@ void udfdProcessRequest(uv_work_t *req) {
         }
         uv_mutex_unlock(&udf->lock);
       }
-      SUdfHandle *handle = taosMemoryMalloc(sizeof(SUdfHandle));
+      SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
       handle->udf = udf;
       // TODO: allocate private structure and call init function and set it to handle
       SUdfResponse rsp;
@@ -166,7 +166,7 @@ void udfdProcessRequest(uv_work_t *req) {
     case UDF_TASK_CALL: {
       SUdfCallRequest *call = &request.call;
       fnDebug("%"PRId64 "call request. call type %d, handle: %"PRIx64, request.seqNum, call->callType, call->udfHandle);
-      SUdfHandle      *handle = (SUdfHandle *)(call->udfHandle);
+      SUdfcFuncHandle      *handle = (SUdfcFuncHandle *)(call->udfHandle);
       SUdf            *udf = handle->udf;
 
       SUdfDataBlock input = {0};
@@ -204,7 +204,7 @@ void udfdProcessRequest(uv_work_t *req) {
     case UDF_TASK_TEARDOWN: {
       SUdfTeardownRequest *teardown = &request.teardown;
       fnInfo("teardown. %"PRId64"handle:%"PRIx64, request.seqNum, teardown->udfHandle)
-      SUdfHandle          *handle = (SUdfHandle *)(teardown->udfHandle);
+      SUdfcFuncHandle          *handle = (SUdfcFuncHandle *)(teardown->udfHandle);
       SUdf                *udf = handle->udf;
       bool unloadUdf = false;
       uv_mutex_lock(&global.udfsMutex);
