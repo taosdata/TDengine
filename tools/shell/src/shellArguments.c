@@ -207,7 +207,6 @@ static struct argp_option shellOptions[] = {
 
 static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) {
   SShellArgs *arguments = &shell.args;
-  wordexp_t   full_path = {0};
 
   switch (key) {
     case 'h':

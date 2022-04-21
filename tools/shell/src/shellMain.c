@@ -20,11 +20,11 @@ SShellObj shell = {0};
 
 int main(int argc, char *argv[]) {
   if (shellCheckIntSize() != 0) {
-    return 0;
+    return -1;
   }
 
   if (shellParseArgs(argc, argv) != 0) {
-    return 0;
+    return -1;
   }
 
   if (shell.args.is_version) {
@@ -38,6 +38,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (shell.args.is_help) {
+    shellPrintVersion();
     return 0;
   }
 

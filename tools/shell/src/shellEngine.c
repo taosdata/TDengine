@@ -177,12 +177,11 @@ int32_t shellRunCommand(char *command) {
 }
 
 void shellRunSingleCommandImp(char *command) {
-  int64_t   st, et;
-  wordexp_t full_path;
-  char     *sptr = NULL;
-  char     *cptr = NULL;
-  char     *fname = NULL;
-  bool      printMode = false;
+  int64_t st, et;
+  char   *sptr = NULL;
+  char   *cptr = NULL;
+  char   *fname = NULL;
+  bool    printMode = false;
 
   if ((sptr = strstr(command, ">>")) != NULL) {
     cptr = strstr(command, ";");
@@ -249,10 +248,6 @@ void shellRunSingleCommandImp(char *command) {
   }
 
   printf("\n");
-
-  if (fname != NULL) {
-    wordfree(&full_path);
-  }
 
   atomic_store_64(&shell.result, 0);
 }
@@ -396,7 +391,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
     row = taos_fetch_row(tres);
   } while (row != NULL);
 
-  shell.result = 0;
+  atomic_store_64(&shell.result, 0);
   taosCloseFile(&pFile);
 
   return numOfRows;
@@ -862,7 +857,7 @@ void shellGetGrantInfo() {
               taos_get_server_info(shell.conn), expiretime);
     }
 
-    shell.result = 0;
+    atomic_store_64(&shell.result, 0);
     taos_free_result(tres);
   }
 
