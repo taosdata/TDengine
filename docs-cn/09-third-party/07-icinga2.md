@@ -23,8 +23,8 @@ icinga2 是一款开源主机、网络监控软件，最初由 Nagios 网络监�
 
 ## 验证方法
 
-使用 systemctl restart taosadapter 重启 taosAdapter。
-使用 systemctl restart icinga2 重启 icinga2。
+使用 `systemctl restart taosadapter` 重启 taosAdapter。
+使用 `systemctl restart icinga2` 重启 icinga2。
 等待 10 秒左右后，使用 TDengine CLI 查询 TDengine 是否创建相应数据库并写入数据。
 
 ```
