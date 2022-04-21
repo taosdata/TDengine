@@ -1,6 +1,6 @@
 
 配置 taosAdapter 接收 TCollector 数据的方法：
 
-- 使能 taosAdapter 配置项 `opentsdb_telnet.enable`
-- 修改 TCollector 配置文件，修改 OpenTSDB 宿主机地址为 taosAdapter 被部署的地址，并修改端口号为 taosAdapter 使用的端口（默认 6049）。注意：TCollector 各个版本变化较大，以 master 分支代码为例，需要修改 collectors/etc/config.py 和 tcollector.py 中相应设置。其他版本需要修改的文件可能有所不同。
+- 在 taosAdapter 配置文件 taosadapter.yaml 中使能配置项 `opentsdb_telnet.enable=True`。taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件来指定不同的名称。
+- 修改 TCollector 配置项，将 OpenTSDB 宿主机地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口号为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。注意：TCollector 各个版本变化较大，以 master 分支代码为例，需要修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容。其他版本需要修改的文件可能有所不同。
 

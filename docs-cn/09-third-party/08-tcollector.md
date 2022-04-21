@@ -7,23 +7,21 @@ import Tcollector from "../14-reference/_tcollector.mdx"
 
 TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。
 
-只需要将 TCollect 的配置修改指向 taosAdapter 对应的服务器和端口即可将 icinga2 采集的数据存在到 TDengine 中，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
-
-安装 TCollector 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
+只需要将 TCollector 的配置修改指向运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 TCollector 采集的数据存在到 TDengine 中，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
 
 ## 前置条件
 
-要将 TCollect 数据写入 TDengine, 需要几方面的准备工作。
+要将 TCollector 数据写入 TDengine, 需要几方面的准备工作。
 - TDengine 集群已经部署并正在运行
-- taosAdapter 已经安装, 具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- TCollect 已经安装
+- taosAdapter 已经安装但并未运行，或者停止正在运行中的 taosAdapter，修改完配置文件再运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- TCollector 已经安装且并未运行，或者停止正在运行中的 TCollector ，修改完配置文件再运行。安装 TCollector 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
 ## 配置 TCollector
 <Tcollector />
 
 ## 验证方法
 
-手动执行 sudo ./tcollector.py 后使用 TDengine CLI 查询 TDengine 是否创建相应数据库并写入数据。
+手动执行 `sudo ./tcollector.py` 后使用 TDengine CLI 查询 TDengine 是否创建相应数据库并写入数据。
 
 ```
 taos> show databases;
