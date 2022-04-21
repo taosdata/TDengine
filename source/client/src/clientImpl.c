@@ -157,7 +157,7 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
@@ -170,6 +170,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
       .pMsg = pRequest->msgBuf,
       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
       .pTransporter = pTscObj->pAppInfo->pTransporter,
+      .pStmtCb = pStmtCb,
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -298,15 +299,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   return pRequest->code;
 }
 
-SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
-  SRequestObj* pRequest = NULL;
-  SQuery*      pQuery = NULL;
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery) {
   SArray*      pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-
-  int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = parseSql(pRequest, false, &pQuery);
-  }
 
   if (TSDB_CODE_SUCCESS == code) {
     switch (pQuery->execMode) {
@@ -331,12 +325,28 @@ SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   }
 
   taosArrayDestroy(pNodeList);
-  qDestroyQuery(pQuery);
+  if (!keepQuery) {
+    qDestroyQuery(pQuery);
+  }
+  
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 
   return pRequest;
+}
+
+
+SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
+  SRequestObj* pRequest = NULL;
+  SQuery*      pQuery = NULL;
+
+  int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseSql(pRequest, false, &pQuery, NULL);
+  }
+
+  return launchQueryImpl(pRequest, pQuery, code, false);
 }
 
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
@@ -383,7 +393,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   int32_t      code = 0;
 
   while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
-    pRequest = execQueryImpl(pTscObj, sql, sqlLen);
+    pRequest = launchQuery(pTscObj, sql, sqlLen);
     if (TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
@@ -715,7 +725,8 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
 
           int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p));
           ASSERT(len <= bytes);
-
+          ASSERT((p + len) < (pResultInfo->convertBuf[i] + colLength[i]));
+          
           varDataSetLen(p, len);
           pCol->offset[j] = (p - pResultInfo->convertBuf[i]);
           p += (len + VARSTR_HEADER_SIZE);

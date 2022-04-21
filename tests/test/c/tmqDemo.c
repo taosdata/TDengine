@@ -340,7 +340,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
-  tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
   tmq_conf_destroy(conf);
   return tmq;
@@ -367,7 +367,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       /*msg_process(tmqmessage);*/
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
 
       if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
     }
@@ -400,7 +400,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
       if (0 != g_stConfInfo.showMsgFlag) {
         /*msg_process(tmqmessage);*/
       }
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
     } else {
       break;
     }
