@@ -1473,6 +1473,8 @@ typedef struct {
   int32_t    delay;
   int8_t     nFuncIds;
   func_id_t* pFuncIds;
+  char*      qmsg1;  // not null: pAst1:qmsg1:SRetention1 => trigger aggr task1
+  char*      qmsg2;  // not null: pAst2:qmsg2:SRetention2 => trigger aggr task2
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
@@ -2298,9 +2300,10 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
   }
 }
 
-static FORCE_INLINE void tdFreeTSmaWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW) {
   tdDestroyTSmaWrapper(pSW);
-  taosMemoryFreeClear(pSW);
+  taosMemoryFree(pSW);
+  return NULL;
 }
 
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {

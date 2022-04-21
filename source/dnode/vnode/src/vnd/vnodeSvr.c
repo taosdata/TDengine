@@ -215,10 +215,20 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
     return -1;
   }
 
+  // TODO: remove the log
+  if (vCreateTbReq.stbCfg.pRSmaParam) {
+    printf("qmsg1 len = %d, body = %s\n", (int32_t)strlen(vCreateTbReq.stbCfg.pRSmaParam->qmsg1),
+           vCreateTbReq.stbCfg.pRSmaParam->qmsg1);
+    printf("qmsg2 len = %d, body = %s\n", (int32_t)strlen(vCreateTbReq.stbCfg.pRSmaParam->qmsg2),
+           vCreateTbReq.stbCfg.pRSmaParam->qmsg2);
+  }
+
   taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
   taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
   if (vCreateTbReq.stbCfg.pRSmaParam) {
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
+    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg1);
+    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg2);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
   }
   taosMemoryFree(vCreateTbReq.name);

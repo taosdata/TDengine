@@ -443,6 +443,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     for (int32_t f = 0; f < pRSmaParam->nFuncIds; ++f) {
       *(pRSmaParam->pFuncIds + f) = pStb->aggregationMethod;
     }
+    if (pStb->ast1Len > 0) {
+      pRSmaParam->qmsg1 = strdup(pStb->pAst1);
+    }
+    if (pStb->ast2Len > 0) {
+      pRSmaParam->qmsg2 = strdup(pStb->pAst2);
+    }
+
+    TASSERT(pRSmaParam->qmsg1 && pRSmaParam->qmsg2);
+
     req.stbCfg.pRSmaParam = pRSmaParam;
   }
 
@@ -451,6 +460,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   if (pHead == NULL) {
     if (pRSmaParam) {
       taosMemoryFreeClear(pRSmaParam->pFuncIds);
+      taosMemoryFreeClear(pRSmaParam->qmsg1);
+      taosMemoryFreeClear(pRSmaParam->qmsg2);
       taosMemoryFreeClear(pRSmaParam);
     }
     taosMemoryFreeClear(req.stbCfg.pSchema);
@@ -467,6 +478,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   *pContLen = contLen;
   if (pRSmaParam) {
     taosMemoryFreeClear(pRSmaParam->pFuncIds);
+    taosMemoryFreeClear(pRSmaParam->qmsg1);
+    taosMemoryFreeClear(pRSmaParam->qmsg2);
     taosMemoryFreeClear(pRSmaParam);
   }
   taosMemoryFreeClear(req.stbCfg.pSchema);

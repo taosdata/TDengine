@@ -434,6 +434,8 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
         for (int8_t i = 0; i < param->nFuncIds; ++i) {
           tlen += taosEncodeFixedI32(buf, param->pFuncIds[i]);
         }
+        tlen += taosEncodeString(buf, param->qmsg1);
+        tlen += taosEncodeString(buf, param->qmsg2);
       }
       break;
     case TD_CHILD_TABLE:
@@ -496,19 +498,19 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
         buf = taosDecodeStringTo(buf, pReq->stbCfg.pTagSchema[i].name);
       }
       if (pReq->rollup) {
-        pReq->stbCfg.pRSmaParam = (SRSmaParam *)taosMemoryMalloc(sizeof(SRSmaParam));
+        pReq->stbCfg.pRSmaParam = (SRSmaParam *)taosMemoryCalloc(1, sizeof(SRSmaParam));
         SRSmaParam *param = pReq->stbCfg.pRSmaParam;
         buf = taosDecodeBinaryTo(buf, (void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
         buf = taosDecodeFixedI32(buf, &param->delay);
         buf = taosDecodeFixedI8(buf, &param->nFuncIds);
         if (param->nFuncIds > 0) {
-          param->pFuncIds = (func_id_t *)taosMemoryMalloc(param->nFuncIds * sizeof(func_id_t));
+          param->pFuncIds = (func_id_t *)taosMemoryCalloc(param->nFuncIds, sizeof(func_id_t));
           for (int8_t i = 0; i < param->nFuncIds; ++i) {
             buf = taosDecodeFixedI32(buf, param->pFuncIds + i);
           }
-        } else {
-          param->pFuncIds = NULL;
         }
+        buf = taosDecodeString(buf, &param->qmsg1);
+        buf = taosDecodeString(buf, &param->qmsg2);
       } else {
         pReq->stbCfg.pRSmaParam = NULL;
       }

@@ -851,6 +851,8 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
   cfgRsp.cacheLastRow = pDb->cfg.cacheLastRow;
   cfgRsp.streamMode = pDb->cfg.streamMode;
   cfgRsp.singleSTable = pDb->cfg.singleSTable;
+  cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
+  cfgRsp.pRetensions = pDb->cfg.pRetensions;
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
