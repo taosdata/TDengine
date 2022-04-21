@@ -46,7 +46,6 @@ typedef struct SSrvConn {
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
 
-  char secured;
   int  spi;
   char info[64];
   char user[TSDB_UNI_LEN];  // user ID for the link
@@ -181,16 +180,9 @@ static void uvHandleReq(SSrvConn* pConn) {
   uint32_t     msgLen = pBuf->len;
 
   STransMsgHead* pHead = (STransMsgHead*)msg;
-  if (pHead->secured == 1) {
-    STransUserMsg* uMsg = (STransUserMsg*)((char*)msg + msgLen - sizeof(STransUserMsg));
-    memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
-    memcpy(pConn->secret, uMsg->secret, tListLen(uMsg->secret));
-  }
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
-  if (pHead->secured == 1) {
-    pHead->msgLen -= sizeof(STransUserMsg);
-  }
+  memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   CONN_SHOULD_RELEASE(pConn, pHead);
 
@@ -343,12 +335,6 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->ahandle = (uint64_t)pMsg->ahandle;
-
-  // pHead->secured = pMsg->code == 0 ? 1 : 0;  //
-  if (!pConn->secured) {
-    pConn->secured = pMsg->code == 0 ? 1 : 0;
-  }
-  pHead->secured = pConn->secured;
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = pConn->inType + 1;

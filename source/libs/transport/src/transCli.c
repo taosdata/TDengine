@@ -614,35 +614,16 @@ void cliSend(SCliConn* pConn) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
   }
-  STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
-  pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
-
   int msgLen = transMsgLenFromCont(pMsg->contLen);
 
-  if (!pConn->secured) {
-    char* buf = taosMemoryCalloc(1, msgLen + sizeof(STransUserMsg));
-    memcpy(buf, (char*)pHead, msgLen);
-
-    STransUserMsg* uMsg = (STransUserMsg*)(buf + msgLen);
-    memcpy(uMsg->user, pTransInst->user, tListLen(uMsg->user));
-    memcpy(uMsg->secret, pTransInst->secret, tListLen(uMsg->secret));
-
-    // to avoid mem leak
-    destroyUserdata(pMsg);
-
-    pMsg->pCont = (char*)buf + sizeof(STransMsgHead);
-    pMsg->contLen = msgLen + sizeof(STransUserMsg) - sizeof(STransMsgHead);
-
-    pHead = (STransMsgHead*)buf;
-    pHead->secured = 1;
-    msgLen += sizeof(STransUserMsg);
-  }
-
+  STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+  pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
   pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
   pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
   pHead->msgType = pMsg->msgType;
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
   pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
+  memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
   tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
