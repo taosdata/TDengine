@@ -847,9 +847,9 @@ void tFreeSMAltertbReq(SMAltertbReq *pReq) {
 int32_t tSerializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
-  if (tEncodeSEpSet(&encoder, &pReq->epSet) < 0) {
-    return -1;
-  }
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeSEpSet(&encoder, &pReq->epSet) < 0) return -1;
+
   tEndEncode(&encoder);
   int32_t tlen = encoder.pos;
   tCoderClear(&encoder);
@@ -858,9 +858,8 @@ int32_t tSerializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
 int32_t tDeserializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
-  if (tDecodeSEpSet(&decoder, &pReq->epSet) < 0) {
-    return -1;
-  }
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeSEpSet(&decoder, &pReq->epSet) < 0) return -1;
 
   tEndDecode(&decoder);
   tCoderClear(&decoder);
