@@ -15,7 +15,50 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def __cast_to_bigint(self, col_name, tbname):
+        __sql = f"select cast({col_name} as bigint), {col_name} from {tbname}"
+        tdSql.query(sql=__sql)
+        data_tb_col = [result[1] for result in tdSql.queryResult]
+        for i in range(len(tdSql.queryRows)):
+            tdSql.checkData( i, 0, None ) if data_tb_col[i] is None else tdSql.checkData( i, 0, int(data_tb_col[i]) )
+
+    def __range_to_bigint(self,cols,tables):
+        for col in cols:
+            for table in tables:
+                self.__cast_to_bigint(col_name=col, tbname=table)
+
+    def __cast_to_timestamp(self, col_name, tbname):
+        __sql = f"select cast({col_name} as timestamp), {col_name} from {tbname}"
+        tdSql.query(sql=__sql)
+        data_tb_col = [result[1] for result in tdSql.queryResult]
+        for i in range(len(tdSql.queryRows)):
+            if data_tb_col[i] is None:
+                tdSql.checkData( i, 0 , None )
+            if (col_name == "c2" or col_name == "double" ) and tbname == "t1" and i == 10:
+                continue
+            else:
+                utc_zone = datetime.timezone.utc
+                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
+                date_init_stamp = datetime.datetime.utcfromtimestamp(data_tb_col[i]/1000)
+                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
+                tdSql.checkData( i, 0, date_data)
+
+    def __range_to_timestamp(self, cols, tables):
+        for col in cols:
+            for table in tables:
+                self.__cast_to_timestamp(col_name=col, tbname=table)
+
+    def __test_bigint(self):
+        __table_list = ["ct1", "ct4", "t1"]
+        __col_list = ["c1","c2","c3","c4","c5","c6","c7","c10","c1+c2"]
+        self.__range_to_bigint(cols=__col_list, tables=__table_list)
+
+    def __test_timestamp(self):
+        __table_list = ["ct1", "ct4", "t1"]
+        __col_list = ["c1","c2","c3","c4","c5","c6","c7","c1+c2"]
+        self.__range_to_timestamp(cols=__col_list, tables=__table_list)
+
+    def run(self):
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
