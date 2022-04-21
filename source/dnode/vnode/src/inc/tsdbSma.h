@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq);
+int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, SSubmitReq *pMsg);
 
 #ifdef __cplusplus
 }

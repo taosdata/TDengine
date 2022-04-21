@@ -215,7 +215,6 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
     return -1;
   }
 
-  // deploy Rollup SMA
   tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &vCreateTbReq);
 
   taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
