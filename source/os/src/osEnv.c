@@ -37,6 +37,7 @@ int64_t         tsOpenMax = 0;
 int64_t         tsStreamMax = 0;
 float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
+char*           tsProcPath = NULL;
 
 void osDefaultInit() {
   taosSeedRand(taosSafeRand());
