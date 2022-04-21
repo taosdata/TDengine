@@ -124,6 +124,7 @@ pipeline {
               ./test-all.sh b1fq
               '''
               sh'''
+              export LD_LIBRARY_PATH=${WKC}/debug/build/lib
               cd ${WKC}/tests/system-test
               ./fulltest.sh
               '''
