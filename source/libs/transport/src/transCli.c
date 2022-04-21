@@ -886,9 +886,11 @@ void cliAppCb(SCliConn* pConn, STransMsg* transMsg) {
   STrans*      pTransInst = pThrd->pTransInst;
 
   if (transMsg->code == TSDB_CODE_RPC_REDIRECT && pTransInst->retry != NULL) {
-    // impl retry
+    SMEpSet emsg = {0};
+    tDeserializeSMEpSet(transMsg->pCont, transMsg->contLen, &emsg);
+    pTransInst->retry(pTransInst, transMsg, &(emsg.epSet));
   } else {
-    (*pTransInst->cfp)(pTransInst->parent, transMsg, NULL);
+    pTransInst->cfp(pTransInst->parent, transMsg, NULL);
   }
 }
 
