@@ -13,27 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+#define _GNU_SOURCE
+#include "shellInt.h"
+
+void shellTestNetWork() {}
+
+#if 0
 #define ALLOW_FORBID_FUNC
 #include "os.h"
-#include "taosdef.h"
-#include "tmsg.h"
-#include "taoserror.h"
-#include "tlog.h"
-#include "tglobal.h"
-#include "trpc.h"
 #include "rpcHead.h"
-#include "tchecksum.h"
 #include "syncMsg.h"
+#include "taosdef.h"
+#include "taoserror.h"
+#include "tchecksum.h"
+#include "tglobal.h"
+#include "tlog.h"
+#include "tmsg.h"
+#include "trpc.h"
 
 #include "osSocket.h"
 
-#define MAX_PKG_LEN (64 * 1000)
+#define MAX_PKG_LEN       (64 * 1000)
 #define MAX_SPEED_PKG_LEN (1024 * 1024 * 1024)
 #define MIN_SPEED_PKG_LEN 1024
 #define MAX_SPEED_PKG_NUM 10000
 #define MIN_SPEED_PKG_NUM 1
-#define BUFFER_SIZE (MAX_PKG_LEN + 1024)
+#define BUFFER_SIZE       (MAX_PKG_LEN + 1024)
 
 extern int tsRpcMaxUdpSize;
 
@@ -321,9 +326,8 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
   iDataNum = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&serverAddr, &sin_size);
 
   if (iDataNum < 0 || iDataNum != info->pktLen) {
-    uError("UDP: received ack:%d bytes(expect:%d) from port:%d since %s", iDataNum, info->pktLen, info->port, strerror(errno));
-    taosCloseSocket(&pSocket);
-    return -1;
+    uError("UDP: received ack:%d bytes(expect:%d) from port:%d since %s", iDataNum, info->pktLen, info->port,
+    strerror(errno)); taosCloseSocket(&pSocket); return -1;
   }
 
   taosCloseSocket(&pSocket);
@@ -408,7 +412,7 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
 static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
                               int32_t pkgNum, char *pkgType) {
 #if 0
-                              
+
   // record config
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
@@ -468,11 +472,13 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
 
     uint64_t endTime = taosGetTimestampUs();
     uint64_t el = endTime - startTime;
-    printf("progress:%5d/%d\tstatus:%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", i, pkgNum, code, el/1000.0, pkgLen/(el/1000000.0)/1024.0/1024.0);
+    printf("progress:%5d/%d\tstatus:%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", i, pkgNum, code, el/1000.0,
+    pkgLen/(el/1000000.0)/1024.0/1024.0);
   }
   int64_t endT = taosGetTimestampUs();
   uint64_t elT = endT - startT;
-  printf("\ntotal succ:%5d/%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", totalSucc, pkgNum, elT/1000.0, pkgLen/(elT/1000000.0)/1024.0/1024.0*totalSucc);
+  printf("\ntotal succ:%5d/%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", totalSucc, pkgNum, elT/1000.0,
+  pkgLen/(elT/1000000.0)/1024.0/1024.0*totalSucc);
 
   rpcClose(pRpcConn);
 
@@ -512,3 +518,5 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen, int32_t p
 
   tsLogEmbedded = 0;
 }
+
+#endif

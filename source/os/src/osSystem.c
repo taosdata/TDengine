@@ -119,7 +119,7 @@ int taosSetConsoleEcho(bool on) {
 #endif
 }
 
-void setTerminalMode() {
+void taosSetTerminalMode() {
 #if defined(WINDOWS)
 
 #else
@@ -152,7 +152,7 @@ void setTerminalMode() {
 #endif
 }
 
-int32_t getOldTerminalMode() {
+int32_t taosGetOldTerminalMode() {
 #if defined(WINDOWS)
   
 #else
@@ -170,7 +170,7 @@ int32_t getOldTerminalMode() {
 #endif
 }
 
-void resetTerminalMode() {
+void taosResetTerminalMode() {
 #if defined(WINDOWS)
 
 #else

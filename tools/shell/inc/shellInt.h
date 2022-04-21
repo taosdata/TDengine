@@ -19,34 +19,37 @@
 #include "os.h"
 #include "taos.h"
 #include "taosdef.h"
+#include "taoserror.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "ttypes.h"
+#include "tutil.h"
 
-#include <regex.h>
-#include <wordexp.h>
-
-#define MAX_HISTORY_SIZE     1000
-#define MAX_COMMAND_SIZE     1048586
-#define HISTORY_FILE         ".taos_history"
-#define DEFAULT_RES_SHOW_NUM 100
+#define SHELL_MAX_HISTORY_SIZE                 1000
+#define SHELL_MAX_COMMAND_SIZE                 1048586
+#define SHELL_HISTORY_FILE                     ".taos_history"
+#define SHELL_DEFAULT_RES_SHOW_NUM             100
+#define SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
 
 typedef struct {
-  char*   hist[MAX_HISTORY_SIZE];
+  char*   hist[SHELL_MAX_HISTORY_SIZE];
+  char    file[TSDB_FILENAME_LEN];
   int32_t hstart;
   int32_t hend;
 } SShellHistory;
 
 typedef struct {
   const char* host;
-  const char* password;
   const char* user;
   const char* auth;
   const char* database;
   const char* file;
   const char* cfgdir;
   const char* commands;
+  const char* netrole;
+  char        password[TSDB_USET_PASSWORD_LEN];
   bool        is_gen_auth;
   bool        is_raw_time;
-  bool        is_client;
-  bool        is_server;
   bool        is_version;
   bool        is_dump_config;
   bool        is_check;
@@ -55,38 +58,51 @@ typedef struct {
   uint16_t    port;
   int32_t     pktLen;
   int32_t     pktNum;
+  int32_t     displayWidth;
   int32_t     abort;
 } SShellArgs;
 
 typedef struct {
-  SShellArgs    args;
-  SShellHistory history;
-  TAOS*         conn;
-  int64_t       result;
+  const char* clientVersion;
+  const char* promptHeader;
+  const char* promptContinue;
+  const char* osname;
+  int32_t     promptSize;
+  char        programVersion[32];
+} SShellOsDetails;
+
+typedef struct {
+  SShellArgs      args;
+  SShellHistory   history;
+  SShellOsDetails info;
+  TAOS*           conn;
+  TdThread        pid;
+  tsem_t          cancelSem;
+  int64_t         result;
 } SShellObj;
 
+// shellArguments.c
 int32_t shellParseArgs(int32_t argc, char* argv[]);
-int32_t shellInit();
-void    shellCleanup(void* arg);
-void    shellExit();
 
-void*   shellThreadLoop(void* arg);
-void    shellPrintError(TAOS_RES* tres, int64_t st);
-int32_t shellRegexMatch(const char* s, const char* reg, int32_t cflags);
-void    shellGetGrantInfo();
-void    shellReadHistory();
-void    shellWriteHistory();
-void    shellHistoryPath(char* history);
+// shellCommand.c
+int32_t shellReadCommand(char* command);
 
-int32_t shellReadCommand(char command[]);
-int32_t shellRunCommand(char* command);
-void    shellRunCommandImp(char command[]);
-void    shellSourceFile(TAOS* con, char* fptr);
-int32_t shellDumpResult(TAOS_RES* con, char* fname, int32_t* error_no, bool printMode);
+// shellEngine.c
+int32_t shellExecute();
 
-extern char      PROMPT_HEADER[];
-extern char      CONTINUE_PROMPT[];
-extern int32_t   prompt_size;
+// shellUtil.c
+int32_t shellCheckIntSize();
+void    shellPrintVersion();
+void    shellGenerateAuth();
+void    shellDumpConfig();
+void    shellCheckServerStatus();
+bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
+
+// shellNettest.c
+void shellTestNetWork();
+
+// shellMain.c
 extern SShellObj shell;
+extern void      taos_init();
 
 #endif /*_TD_SHELL_INT_H_*/
