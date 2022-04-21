@@ -148,13 +148,7 @@ SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
   if (pVgEpNew == NULL) return NULL;
   pVgEpNew->vgId = pVgEp->vgId;
-  pVgEpNew->subType = pVgEp->subType;
-  pVgEpNew->withTbName = pVgEp->withTbName;
-  pVgEpNew->withSchema = pVgEp->withSchema;
-  pVgEpNew->withTag = pVgEp->withTag;
-  pVgEpNew->withTagSchema = pVgEp->withTagSchema;
   pVgEpNew->qmsg = strdup(pVgEp->qmsg);
-  /*memcpy(pVgEpNew->topic, pVgEp->topic, TSDB_TOPIC_FNAME_LEN);*/
   pVgEpNew->epSet = pVgEp->epSet;
   return pVgEpNew;
 }
@@ -164,26 +158,14 @@ void tDeleteSMqVgEp(SMqVgEp *pVgEp) { taosMemoryFree(pVgEp->qmsg); }
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
-  tlen += taosEncodeFixedI8(buf, pVgEp->subType);
-  tlen += taosEncodeFixedI8(buf, pVgEp->withTbName);
-  tlen += taosEncodeFixedI8(buf, pVgEp->withSchema);
-  tlen += taosEncodeFixedI8(buf, pVgEp->withTag);
-  tlen += taosEncodeFixedI8(buf, pVgEp->withTagSchema);
   tlen += taosEncodeString(buf, pVgEp->qmsg);
-  /*tlen += taosEncodeString(buf, pVgEp->topic);*/
   tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
   return tlen;
 }
 
 void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp) {
   buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
-  buf = taosDecodeFixedI8(buf, &pVgEp->subType);
-  buf = taosDecodeFixedI8(buf, &pVgEp->withTbName);
-  buf = taosDecodeFixedI8(buf, &pVgEp->withSchema);
-  buf = taosDecodeFixedI8(buf, &pVgEp->withTag);
-  buf = taosDecodeFixedI8(buf, &pVgEp->withTagSchema);
   buf = taosDecodeString(buf, &pVgEp->qmsg);
-  /*buf = taosDecodeStringTo(buf, pVgEp->topic);*/
   buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
   return (void *)buf;
 }

@@ -490,11 +490,6 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-  int8_t  subType;
-  int8_t  withTbName;
-  int8_t  withSchema;
-  int8_t  withTag;
-  int8_t  withTagSchema;
   char*   qmsg;
   SEpSet  epSet;
 } SMqVgEp;

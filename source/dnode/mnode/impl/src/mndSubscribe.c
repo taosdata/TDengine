@@ -85,6 +85,12 @@ static SMqSubscribeObj *mndCreateSub(SMnode *pMnode, const SMqTopicObj *pTopic, 
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  pSub->subType = pTopic->subType;
+  pSub->withTbName = pTopic->withTbName;
+  pSub->withSchema = pTopic->withSchema;
+  pSub->withTag = pTopic->withTag;
+  pSub->withTagSchema = pTopic->withTagSchema;
+
   ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
 
   if (mndSchedInitSubEp(pMnode, pTopic, pSub) < 0) {
@@ -98,13 +104,19 @@ static SMqSubscribeObj *mndCreateSub(SMnode *pMnode, const SMqTopicObj *pTopic, 
   return pSub;
 }
 
-static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const char *subKey, const SMqRebOutputVg *pRebVg) {
+static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscribeObj *pSub,
+                                    const SMqRebOutputVg *pRebVg) {
   SMqRebVgReq req = {0};
   req.oldConsumerId = pRebVg->oldConsumerId;
   req.newConsumerId = pRebVg->newConsumerId;
   req.vgId = pRebVg->pVgEp->vgId;
   req.qmsg = pRebVg->pVgEp->qmsg;
-  strncpy(req.subKey, subKey, TSDB_SUBSCRIBE_KEY_LEN);
+  req.subType = pSub->subType;
+  req.withTbName = pSub->withTbName;
+  req.withSchema = pSub->withSchema;
+  req.withTag = pSub->withTag;
+  req.withTagSchema = pSub->withTagSchema;
+  strncpy(req.subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
   int32_t tlen = sizeof(SMsgHead) + tEncodeSMqRebVgReq(NULL, &req);
   void   *buf = taosMemoryMalloc(tlen);
@@ -125,13 +137,13 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const char *subK
   return 0;
 }
 
-static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const char *subKey,
+static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SMqSubscribeObj *pSub,
                                         const SMqRebOutputVg *pRebVg) {
   ASSERT(pRebVg->oldConsumerId != pRebVg->newConsumerId);
 
   void   *buf;
   int32_t tlen;
-  if (mndBuildSubChangeReq(&buf, &tlen, subKey, pRebVg) < 0) {
+  if (mndBuildSubChangeReq(&buf, &tlen, pSub, pRebVg) < 0) {
     return -1;
   }
 
@@ -395,7 +407,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
   int32_t       vgNum = taosArrayGetSize(rebVgs);
   for (int32_t i = 0; i < vgNum; i++) {
     SMqRebOutputVg *pRebVg = taosArrayGet(rebVgs, i);
-    if (mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub->key, pRebVg) < 0) {
+    if (mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub, pRebVg) < 0) {
       goto REB_FAIL;
     }
   }
