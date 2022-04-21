@@ -1898,39 +1898,39 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->numOfParams = pExpr->base.numOfParams;
 
     pCtx->param = pFunct->pParam;
-    for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
-      // set the order information for top/bottom query
-      int32_t functionId = pCtx->functionId;
-      if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
-        int32_t f = getExprFunctionId(&pExpr[0]);
-        assert(f == FUNCTION_TS || f == FUNCTION_TS_DUMMY);
-
-        //      pCtx->param[2].i = pQueryAttr->order.order;
-        //      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-        //      pCtx->param[3].i = functionId;
-        //      pCtx->param[3].nType = TSDB_DATA_TYPE_BIGINT;
-
-        //      pCtx->param[1].i = pQueryAttr->order.col.info.colId;
-      } else if (functionId == FUNCTION_INTERP) {
-        //      pCtx->param[2].i = (int8_t)pQueryAttr->fillType;
-        //      if (pQueryAttr->fillVal != NULL) {
-        //        if (isNull((const char *)&pQueryAttr->fillVal[i], pCtx->inputType)) {
-        //          pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
-        //        } else {  // todo refactor, taosVariantCreateFromBinary should handle the NULL value
-        //          if (pCtx->inputType != TSDB_DATA_TYPE_BINARY && pCtx->inputType != TSDB_DATA_TYPE_NCHAR) {
-        //            taosVariantCreateFromBinary(&pCtx->param[1], (char *)&pQueryAttr->fillVal[i], pCtx->inputBytes, pCtx->inputType);
-        //          }
-        //        }
-        //      }
-      } else if (functionId == FUNCTION_TWA) {
-        //      pCtx->param[1].i = pQueryAttr->window.skey;
-        //      pCtx->param[1].nType = TSDB_DATA_TYPE_BIGINT;
-        //      pCtx->param[2].i = pQueryAttr->window.ekey;
-        //      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-      } else if (functionId == FUNCTION_ARITHM) {
-        //      pCtx->param[1].pz = (char*) getScalarFuncSupport(pRuntimeEnv->scalarSup, i);
-      }
-    }
+//    for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
+//      // set the order information for top/bottom query
+//      int32_t functionId = pCtx->functionId;
+//      if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
+//        int32_t f = getExprFunctionId(&pExpr[0]);
+//        assert(f == FUNCTION_TS || f == FUNCTION_TS_DUMMY);
+//
+//        //      pCtx->param[2].i = pQueryAttr->order.order;
+//        //      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
+//        //      pCtx->param[3].i = functionId;
+//        //      pCtx->param[3].nType = TSDB_DATA_TYPE_BIGINT;
+//
+//        //      pCtx->param[1].i = pQueryAttr->order.col.info.colId;
+//      } else if (functionId == FUNCTION_INTERP) {
+//        //      pCtx->param[2].i = (int8_t)pQueryAttr->fillType;
+//        //      if (pQueryAttr->fillVal != NULL) {
+//        //        if (isNull((const char *)&pQueryAttr->fillVal[i], pCtx->inputType)) {
+//        //          pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
+//        //        } else {  // todo refactor, taosVariantCreateFromBinary should handle the NULL value
+//        //          if (pCtx->inputType != TSDB_DATA_TYPE_BINARY && pCtx->inputType != TSDB_DATA_TYPE_NCHAR) {
+//        //            taosVariantCreateFromBinary(&pCtx->param[1], (char *)&pQueryAttr->fillVal[i], pCtx->inputBytes, pCtx->inputType);
+//        //          }
+//        //        }
+//        //      }
+//      } else if (functionId == FUNCTION_TWA) {
+//        //      pCtx->param[1].i = pQueryAttr->window.skey;
+//        //      pCtx->param[1].nType = TSDB_DATA_TYPE_BIGINT;
+//        //      pCtx->param[2].i = pQueryAttr->window.ekey;
+//        //      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
+//      } else if (functionId == FUNCTION_ARITHM) {
+//        //      pCtx->param[1].pz = (char*) getScalarFuncSupport(pRuntimeEnv->scalarSup, i);
+//      }
+//    }
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
