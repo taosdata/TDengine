@@ -14,8 +14,8 @@ import random
 import threading
 
 import taos
-from queryutil.createdata import *
-from queryutil.where import *
+from Query.queryutil.createdata import *
+from Query.queryutil.where import *
 from taostest import TDCase
 
 

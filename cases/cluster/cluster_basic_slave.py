@@ -28,8 +28,8 @@ import subprocess
 import logging
 from faker import Faker
 from taostest import TDCase
-from queryutil.createdata import *
-from queryutil.where import *
+from Query.queryutil.createdata import *
+from Query.queryutil.where import *
 from itertools import product
 from itertools import combinations
 import subprocess

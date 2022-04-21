@@ -23,8 +23,8 @@ from itertools import combinations
 from tracemalloc import start
 
 import taos
-from queryutil.where import *
-from queryutil.createdata import *
+from Query.queryutil.createdata import *
+from Query.queryutil.where import *
 
 from faker import Faker
 fake = Faker('zh_CN')

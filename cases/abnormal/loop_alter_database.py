@@ -24,8 +24,8 @@ import subprocess
 import logging
 from taostest import TDCase
 from distutils.log import warn as printf
-from queryutil.createdata import *
-from queryutil.where import *
+from Query.queryutil.createdata import *
+from Query.queryutil.where import *
 from itertools import product
 from itertools import combinations
 import subprocess
