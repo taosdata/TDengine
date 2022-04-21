@@ -45,7 +45,6 @@ class Case15(ClusterCase):
 
     def prepare_datas(self,db_nums, query_endpoint):
 
-        self.tasks = []
         for i in range(db_nums):
             db_name = "pre_db_%s"%i
             self.dbnames.append(db_name)
