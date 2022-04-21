@@ -491,27 +491,27 @@ class TDTestCase:
         for i in range(len(data_ct4_c8)):
             if data_ct4_c8[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_ct4_c8[i].strip()[:2]:
-                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i].strip()[:2]}" )
+            elif tdSql.getData(i,0) == data_ct4_c8[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i][:2]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
-                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i].strip()[:2]}")
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i].[:2]}")
         tdSql.query("select cast(c8 as binary(2)) as b from t1")
         for i in range(len(data_t1_c8)):
             if data_t1_c8[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_t1_c8[i].strip()[:2]:
-                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i].strip()[:2]}" )
+            elif tdSql.getData(i,0) == data_t1_c8[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i][:2]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
-                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i].strip()[:2]}")
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i][:2]}")
 
         tdLog.printNoPrefix("==========step34: cast binary to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c8 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c8)):
             if data_ct4_c8[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_ct4_c8[i].strip():
+            elif tdSql.getData(i,0) == data_ct4_c8[i]:
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -520,7 +520,7 @@ class TDTestCase:
         for i in range(len(data_t1_c8)):
             if data_t1_c8[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_t1_c8[i].strip():
+            elif tdSql.getData(i,0) == data_t1_c8[i]:
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -538,7 +538,7 @@ class TDTestCase:
         for i in range(len(data_ct4_c9)):
             if data_ct4_c9[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_ct4_c9[i].strip():
+            elif tdSql.getData(i,0) == data_ct4_c9[i]:
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -548,7 +548,7 @@ class TDTestCase:
             tdSql.checkData( i, 0, data_t1_c9[i] )
             if data_t1_c9[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_t1_c9[i].strip():
+            elif tdSql.getData(i,0) == data_t1_c9[i]:
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -559,20 +559,20 @@ class TDTestCase:
         for i in range(len(data_ct4_c9)):
             if data_ct4_c9[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_ct4_c9[i].strip()[:2]:
-                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i].strip()[:2]}" )
+            elif tdSql.getData(i,0) == data_ct4_c9[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i][:2]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
-                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c9[i].strip()[:2]}")
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c9[i][:2]}")
         tdSql.query("select cast(c9 as nchar(2)) as b from t1")
         for i in range(len(data_t1_c9)):
             if data_t1_c9[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_t1_c9[i].strip()[:2]:
-                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i].strip()[:2]}" )
+            elif tdSql.getData(i,0) == data_t1_c9[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i][:2]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
-                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c9[i].strip()[:2]}")
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c9[i][:2]}")
 
         tdSql.query("select c10  from ct4")
         data_ct4_c10 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
