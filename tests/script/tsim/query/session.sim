@@ -279,7 +279,8 @@ endi
 
 print ================> syntax error check not active ================> reactive
 sql_error select * from dev_001 session(ts,1w)
-sql_error select count(*) from st session(ts,1w)
+print disable this temporarily, session can not be directly applied to super table.
+#sql_error select count(*) from st session(ts,1w)
 sql_error select count(*) from dev_001 group by tagtype session(ts,1w)
 sql_error sql select count(*) from dev_001 session(ts,1n)
 sql_error sql select count(*) from dev_001 session(ts,1y)

@@ -380,7 +380,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  /*assert(pFile->fd >= 0); // Please check if you have closed the file.*/
+  assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
   int64_t nleft = count;
   int64_t nwritten = 0;
