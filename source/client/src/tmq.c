@@ -24,6 +24,7 @@
 #include "tqueue.h"
 #include "tref.h"
 
+#if 0
 struct tmq_message_t {
   SMqPollRsp msg;
   char*      topic;
@@ -31,6 +32,7 @@ struct tmq_message_t {
   int32_t    vgId;
   int32_t    resIter;
 };
+#endif
 
 typedef struct {
   int8_t  tmqRspType;
@@ -52,9 +54,7 @@ struct tmq_topic_vgroup_t {
 };
 
 struct tmq_topic_vgroup_list_t {
-  int32_t             cnt;
-  int32_t             size;
-  tmq_topic_vgroup_t* elems;
+  SArray container;  // SArray<tmq_topic_vgroup_t*>
 };
 
 struct tmq_conf_t {
@@ -63,6 +63,7 @@ struct tmq_conf_t {
   int8_t         autoCommit;
   int8_t         resetOffset;
   uint16_t       port;
+  uint16_t       autoCommitInterval;
   char*          ip;
   char*          user;
   char*          pass;
@@ -202,6 +203,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
+  if (strcmp(key, "auto.commit.interval.ms") == 0) {
+    conf->autoCommitInterval = atoi(value);
+    return TMQ_CONF_OK;
+  }
+
   if (strcmp(key, "auto.offset.reset") == 0) {
     if (strcmp(value, "none") == 0) {
       conf->resetOffset = TMQ_CONF__RESET_OFFSET__NONE;
@@ -300,7 +306,7 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqCommitCbParam* pParam = (SMqCommitCbParam*)param;
   pParam->rspErr = code == 0 ? TMQ_RESP_ERR__SUCCESS : TMQ_RESP_ERR__FAIL;
   if (pParam->tmq->commit_cb) {
-    pParam->tmq->commit_cb(pParam->tmq, pParam->rspErr, NULL, NULL);
+    pParam->tmq->commit_cb(pParam->tmq, pParam->rspErr, NULL);
   }
   if (!pParam->async) tsem_post(&pParam->rspSem);
   return 0;
@@ -322,6 +328,7 @@ tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq) {
   return tmq_subscribe(tmq, lst);
 }
 
+#if 0
 tmq_t* tmq_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   tmq_t* pTmq = taosMemoryCalloc(sizeof(tmq_t), 1);
   if (pTmq == NULL) {
@@ -357,8 +364,9 @@ tmq_t* tmq_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errs
 
   return pTmq;
 }
+#endif
 
-tmq_t* tmq_consumer_new1(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
+tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   tmq_t* pTmq = taosMemoryCalloc(1, sizeof(tmq_t));
   if (pTmq == NULL) {
     return NULL;
@@ -369,6 +377,7 @@ tmq_t* tmq_consumer_new1(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   ASSERT(user);
   ASSERT(pass);
   ASSERT(conf->db);
+  ASSERT(conf->groupId[0]);
 
   pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, conf->db, conf->port, CONN_TYPE__TMQ);
   if (pTmq->pTscObj == NULL) return NULL;
@@ -429,8 +438,8 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
     req.num = pArray->size;
     req.offsets = pArray->pData;
   } else {
-    req.num = offsets->cnt;
-    req.offsets = (SMqOffset*)offsets->elems;
+    req.num = taosArrayGetSize(&offsets->container);
+    req.offsets = (SMqOffset*)offsets->container.pData;
   }
 
   SCoder encoder;
@@ -615,7 +624,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
 
   int32_t code = 0;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQueryNode), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQueryNode, NULL), _return);
 
   // todo check for invalid sql statement and return with error code
 
@@ -1535,16 +1544,6 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* tmq_topic_v
   }
 
   return 0;
-}
-#endif
-
-#if 0
-void tmq_message_destroy(tmq_message_t* tmq_message) {
-  if (tmq_message == NULL) return;
-  SMqPollRsp* pRsp = &tmq_message->msg;
-  tDeleteSMqConsumeRsp(pRsp);
-  /*taosMemoryFree(tmq_message);*/
-  taosFreeQitem(tmq_message);
 }
 #endif
 

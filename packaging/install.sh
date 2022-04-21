@@ -30,6 +30,15 @@ bin_dir="/usr/local/taos/bin"
 
 service_config_dir="/etc/systemd/system"
 
+#taos-tools para
+demoName="taosdemo"
+benchmarkName="taosBenchmark"
+dumpName="taosdump"
+emailName="taosdata.com"
+taosName="taos"
+toolsName="taostools"
+
+
 # Color setting
 RED='\033[0;31m'
 GREEN='\033[1;32m'
@@ -230,8 +239,20 @@ function install_header() {
 
 # temp install taosBenchmark
 function install_taosTools() {
-    cd ${script_dir}/taos-tools/
-    tar xvf taosTools-1.4.1-Linux-x64.tar.gz && cd  taosTools-1.4.1/ && ./install-taostools.sh
+    ${csudo} rm -f ${bin_link_dir}/${benchmarkName}    || :
+    ${csudo} rm -f ${bin_link_dir}/${dumpName}         || :
+    ${csudo} rm -f ${bin_link_dir}/rm${toolsName}      || :
+
+    ${csudo} /usr/bin/install -c -m 755 ${script_dir}/bin/${dumpName} ${install_main_dir}/bin/${dumpName}
+    ${csudo} /usr/bin/install -c -m 755 ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin/${benchmarkName}
+    ${csudo} ln -sf ${install_main_dir}/bin/${benchmarkName} ${install_main_dir}/bin/${demoName}
+    #Make link
+    [[ -x ${install_main_dir}/bin/${benchmarkName} ]] && \
+        ${csudo} ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName}        || :
+    [[ -x ${install_main_dir}/bin/${demoName} ]] && \
+        ${csudo} ln -s ${install_main_dir}/bin/${demoName} ${bin_link_dir}/${demoName}                  || :
+    [[ -x ${install_main_dir}/bin/${dumpName} ]] && \
+        ${csudo} ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName}                  || :
 }
 
 function add_newHostname_to_hosts() {

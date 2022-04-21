@@ -30,6 +30,7 @@ typedef struct SPlanContext {
   SNode* pAstRoot;
   bool topicQuery;
   bool streamQuery;
+  bool rSmaQuery;
   bool showRewrite;
   int8_t triggerType;
   int64_t watermark;
@@ -45,7 +46,6 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @pSource one execution location of this group of datasource subplans 
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
-typedef TAOS_MULTI_BIND TAOS_BIND_v2; // todo remove
 int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_BIND_v2* pParams);
 
 // Convert to subplan to string for the scheduler to send to the executor

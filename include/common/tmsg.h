@@ -331,6 +331,8 @@ typedef struct {
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  char    passwd[TSDB_PASSWORD_LEN];
   int64_t startTime;
 } SConnectReq;
 
@@ -482,7 +484,7 @@ typedef struct {
   char    intervalUnit;
   char    slidingUnit;
   char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+          offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
