@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 #set output directory
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
@@ -43,11 +45,14 @@ ENDIF ()
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(CMAKE_GENERATOR "NMake Makefiles" CACHE INTERNAL "" FORCE)
-    SET(COMMON_FLAGS "/nologo /WX /wd4018 /wd4999 /Oi /Oy- /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:prompt /analyze-")
+    SET(COMMON_FLAGS "/W3 /D_WIN32")
 
-    IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
-      SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
-    ENDIF ()
+    # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
+    #  SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
+    # ENDIF ()
+
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
 
 ELSE ()
     IF (${SANITIZER} MATCHES "true")

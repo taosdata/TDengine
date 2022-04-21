@@ -32,6 +32,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#include "os.h"
 #include "functionMgt.h"
 #include "nodes.h"
 #include "parToken.h"

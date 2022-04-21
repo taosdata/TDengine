@@ -138,13 +138,15 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     uError("failed to expand dir:%s since %s", inputDir, terrstr());
     return -1;
   }
+  printf("%s(%d) %s fullDir = %s\n", __FILE__, __LINE__,__func__,fullDir);
 
-  if (taosRealPath(fullDir, PATH_MAX) != 0) {
+  if (taosRealPath(fullDir, NULL, PATH_MAX) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to get realpath of dir:%s since %s", inputDir, terrstr());
     return -1;
   }
 
+  printf("%s(%d) %s fullDir = %s\n", __FILE__, __LINE__,__func__,fullDir);
   taosMemoryFreeClear(pItem->str);
   pItem->str = strdup(fullDir);
   if (pItem->str == NULL) {
@@ -424,6 +426,7 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bo
 
 int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc) {
   SConfigItem item = {.dtype = CFG_DTYPE_DIR, .tsc = tsc};
+  printf("%s(%d) %s defaultVal = %s\n", __FILE__, __LINE__,__func__,defaultVal);
   if (cfgCheckAndSetDir(&item, defaultVal) != 0) {
     return -1;
   }
