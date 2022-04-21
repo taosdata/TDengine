@@ -467,7 +467,7 @@ class TDTestCase:
         for i in range(len(data_ct4_c8)):
             if data_ct4_c8[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_ct4_c8[i].strip():
+            elif tdSql.getData(i,0).strip("\07") == data_ct4_c8[i].strip():
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -477,7 +477,7 @@ class TDTestCase:
         for i in range(len(data_t1_c8)):
             if data_t1_c8[i] is None:
                 tdSql.checkData( i, 0, None)
-            elif tdSql.getData(i,0).strip() == data_t1_c8[i].strip():
+            elif tdSql.getData(i,0).strip("\07") == data_t1_c8[i].strip():
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -486,7 +486,6 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step33: cast binary to binary, expect truncate ")
         tdSql.query("select cast(c8 as binary(2)) as b from ct4")
         for i in range(len(data_ct4_c8)):
-            tdSql.checkData( i, 0, data_ct4_c8[i][:2] )
             if data_ct4_c8[i] is None:
                 tdSql.checkData( i, 0, None)
             elif tdSql.getData(i,0).strip() == data_ct4_c8[i].strip()[:2]:
@@ -578,10 +577,18 @@ class TDTestCase:
         data_t1_c10 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
 
         tdLog.printNoPrefix("==========step37: cast timestamp to nchar, expect no changes ")
-        tdSql.query("select cast(c9 as nchar(32)) as b from ct4")
+        tdSql.query("select cast(c10 as nchar(32)) as b from ct4")
+        for i in range(len(data_ct4_c10)):
+            tdSql.checkData( i, 0, str(data_ct4_c10[i]) )
+        tdSql.query("select cast(c10 as nchar(32)) as b from t1")
+        for i in range(len(data_t1_c10)):
+            tdSql.checkData( i, 0, str(data_t1_c10[i] ))
+
+        tdLog.printNoPrefix("==========step38: cast timestamp to binary, expect no changes ")
+        tdSql.query("select cast(c10 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c10)):
             tdSql.checkData( i, 0, data_ct4_c10[i])
-        tdSql.query("select cast(c9 as nchar(32)) as b from t1")
+        tdSql.query("select cast(c10 as binary(32)) as b from t1")
         for i in range(len(data_t1_c10)):
             tdSql.checkData( i, 0, data_t1_c10[i] )
 
@@ -604,12 +611,9 @@ class TDTestCase:
         tdSql.error("select cast(c7 as double) as b from ct4")
         tdSql.error("select cast(c8 as tinyint unsigned) as b from ct4")
 
-        tdSql.query("select cast(c8 as timestamp ) as b from ct4")
-        tdSql.query("select cast(c9 as timestamp ) as b from ct4")
-
+        tdSql.error("select cast(c8 as timestamp ) as b from ct4")
+        tdSql.error("select cast(c9 as timestamp ) as b from ct4")
         tdSql.error("select cast(c9 as binary(64) ) as b from ct4")
-        tdSql.error("select cast(c10 as binary(64) ) as b from ct4")
-        tdSql.error("select cast(c10 as nchar(64) ) as b from ct4")
 
 
     def stop(self):
