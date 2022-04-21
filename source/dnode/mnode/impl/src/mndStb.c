@@ -20,6 +20,7 @@
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
+#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -443,6 +444,25 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     for (int32_t f = 0; f < pRSmaParam->nFuncIds; ++f) {
       *(pRSmaParam->pFuncIds + f) = pStb->aggregationMethod;
     }
+    if (pStb->ast1Len > 0) {
+      if (mndConvertRSmaTask(pStb->pAst1, 0, 0, &pRSmaParam->qmsg1, &pRSmaParam->qmsg1Len) != TSDB_CODE_SUCCESS) {
+        taosMemoryFreeClear(pRSmaParam->pFuncIds);
+        taosMemoryFreeClear(req.stbCfg.pRSmaParam);
+        taosMemoryFreeClear(req.stbCfg.pSchema);
+        return NULL;
+      }
+    }
+    if (pStb->ast2Len > 0) {
+      int32_t qmsgLen2 = 0;
+      if (mndConvertRSmaTask(pStb->pAst2, 0, 0, &pRSmaParam->qmsg2, &pRSmaParam->qmsg2Len) != TSDB_CODE_SUCCESS) {
+        taosMemoryFreeClear(pRSmaParam->pFuncIds);
+        taosMemoryFreeClear(pRSmaParam->qmsg1);
+        taosMemoryFreeClear(req.stbCfg.pRSmaParam);
+        taosMemoryFreeClear(req.stbCfg.pSchema);
+        return NULL;
+      }
+    }
+
     req.stbCfg.pRSmaParam = pRSmaParam;
   }
 
@@ -451,6 +471,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   if (pHead == NULL) {
     if (pRSmaParam) {
       taosMemoryFreeClear(pRSmaParam->pFuncIds);
+      taosMemoryFreeClear(pRSmaParam->qmsg1);
+      taosMemoryFreeClear(pRSmaParam->qmsg2);
       taosMemoryFreeClear(pRSmaParam);
     }
     taosMemoryFreeClear(req.stbCfg.pSchema);
@@ -467,6 +489,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   *pContLen = contLen;
   if (pRSmaParam) {
     taosMemoryFreeClear(pRSmaParam->pFuncIds);
+    taosMemoryFreeClear(pRSmaParam->qmsg1);
+    taosMemoryFreeClear(pRSmaParam->qmsg2);
     taosMemoryFreeClear(pRSmaParam);
   }
   taosMemoryFreeClear(req.stbCfg.pSchema);
