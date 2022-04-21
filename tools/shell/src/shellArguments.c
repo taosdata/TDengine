@@ -278,7 +278,7 @@ static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
 
 static void shellParseArgsInLinux(int argc, char *argv[]) {
   argp_program_version = shell.info.programVersion;
-  argp_parse(&shellArgp, argc, argv, 0, 0, NULL);
+  argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
 }
 
 #endif

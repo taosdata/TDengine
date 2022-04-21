@@ -907,6 +907,8 @@ void *shellThreadLoop(void *arg) {
   } while (shellRunCommand(command) == 0);
 
   taosMemoryFreeClear(command);
+  // shellExit();
+
   taosThreadCleanupPop(1);
   return NULL;
 }

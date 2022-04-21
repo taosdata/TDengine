@@ -21,13 +21,13 @@
 #include "shellInt.h"
 
 bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
-  regex_t regex;
+  regex_t regex = {0};
   char    msgbuf[100] = {0};
 
   /* Compile regular expression */
   if (regcomp(&regex, reg, cflags) != 0) {
     fprintf(stderr, "Fail to compile regex");
-    return false;
+    shellExit();
   }
 
   /* Execute regular expression */
@@ -42,7 +42,7 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
     regerror(reti, &regex, msgbuf, sizeof(msgbuf));
     fprintf(stderr, "Regex match failed: %s\n", msgbuf);
     regfree(&regex);
-    return false;
+    shellExit();
   }
 
   return false;
@@ -114,3 +114,5 @@ void shellCheckServerStatus() {
     }
   } while (1);
 }
+
+void shellExit() { exit(EXIT_FAILURE); }
