@@ -725,7 +725,8 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
 
           int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p));
           ASSERT(len <= bytes);
-
+          ASSERT((p + len) < (pResultInfo->convertBuf[i] + colLength[i]));
+          
           varDataSetLen(p, len);
           pCol->offset[j] = (p - pResultInfo->convertBuf[i]);
           p += (len + VARSTR_HEADER_SIZE);

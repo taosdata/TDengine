@@ -108,6 +108,10 @@ int32_t stmtParseSql(STscStmt* pStmt) {
     .setExecInfoFn = stmtSetExecInfo,
     .getExecInfoFn = stmtGetExecInfo,
   };
+
+  if (NULL == pStmt->exec.pRequest) {
+    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
+  }
   
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
 

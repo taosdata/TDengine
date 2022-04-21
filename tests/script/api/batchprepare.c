@@ -11,7 +11,7 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_FLOAT};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR};
 
 #define tListLen(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -70,7 +70,6 @@ typedef struct {
 } CaseCfg;
 
 CaseCfg gCase[] = {
-#if 0
   {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 1},
   {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 1},
 
@@ -97,10 +96,10 @@ CaseCfg gCase[] = {
   {"insert:MBME4-FULL", tListLen(fullColList), fullColList, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1},
   {"insert:MBME4-C012", tListLen(fullColList), fullColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
   {"insert:MBME4-C002", tListLen(fullColList), fullColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
-#endif
+
 
   {"insert:MPME1-FULL", tListLen(fullColList), fullColList, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 1},
-//  {"insert:MPME1-C012", tListLen(fullColList), fullColList, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1},
+  {"insert:MPME1-C012", tListLen(fullColList), fullColList, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1},
 
 };
 
@@ -111,6 +110,8 @@ typedef struct {
   bool     autoCreate;
   bool     checkParamNum;
   bool     printRes;
+  bool     printCreateTblSql;
+  bool     printInsertSql;
   int32_t  rowNum;               //row num for one table
   int32_t  bindColNum;
   int32_t  bindRowNum;           //row num for once bind
@@ -122,6 +123,8 @@ typedef struct {
 CaseCtrl gCaseCtrl = {
   .bindNullNum = 0,
   .autoCreate = false,
+  .printCreateTblSql = false,
+  .printInsertSql = true,
   .rowNum = 0,
   .bindColNum = 0,
   .bindRowNum = 0,
@@ -243,7 +246,10 @@ void generateInsertSQL(BindData *data) {
     len += sprintf(data->sql + len, "?");
   }
   len += sprintf(data->sql + len, ")");
-  
+
+  if (gCaseCtrl.printInsertSql) {
+    printf("SQL: %s\n", data->sql);
+  }  
 }
 
 void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
@@ -525,8 +531,6 @@ int insertMBSETest1(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
-  printf("SQL: %s\n", data.sql);
-
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
@@ -582,8 +586,6 @@ int insertMBSETest2(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
-  printf("SQL: %s\n", data.sql);
-
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
@@ -638,8 +640,6 @@ int insertMBSETest2(TAOS_STMT *stmt) {
 int insertMBMETest1(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
-
-  printf("SQL: %s\n", data.sql);
   
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
@@ -695,8 +695,6 @@ int insertMBMETest2(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
-  printf("SQL: %s\n", data.sql);
-  
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
@@ -751,8 +749,6 @@ int insertMBMETest3(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
-  printf("SQL: %s\n", data.sql);
-  
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
@@ -818,8 +814,6 @@ int insertMBMETest4(TAOS_STMT *stmt) {
   BindData data = {0};
   prepareData(&data);
 
-  printf("SQL: %s\n", data.sql);
-
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
@@ -878,8 +872,6 @@ int insertMPMETest1(TAOS_STMT *stmt) {
     BindData data = {0};
     prepareData(&data);
 
-    printf("SQL: %s\n", data.sql);
-    
     int code = taos_stmt_prepare(stmt, data.sql, 0);
     if (code != 0){
       printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
@@ -3866,6 +3858,8 @@ void prepareCheckResult(TAOS     *taos) {
 
     prepareCheckResultImpl(taos, buf, gCaseCtrl.printRes, gCurCase->rowNum * gExecLoopTimes);
   }
+
+  gExecLoopTimes = 1;
 }
 
 
@@ -4133,7 +4127,9 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
 
   blen += sprintf(buf + blen, ")");
 
-  printf("Create SQL:%s\n", buf);
+  if (gCaseCtrl.printCreateTblSql) {
+    printf("Create Table SQL:%s\n", buf);
+  }
 }
 
 void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int autoCreate) {
@@ -4253,40 +4249,45 @@ void* runcase(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
-#if 0
+  printf("Normal Test\n");
   runcase(taos);
 
+  printf("Null Test\n");
   gCaseCtrl.bindNullNum = 1;
   runcase(taos);
   gCaseCtrl.bindNullNum = 0;
 
+  printf("Bind Row Test\n");
   gCaseCtrl.bindRowNum = 1;
   runcase(taos);
   gCaseCtrl.bindRowNum = 0;
-#endif
-  gCaseCtrl.rowNum = 10000;
+
+  printf("Row Num Test\n");
+  gCaseCtrl.rowNum = 1000;
   gCaseCtrl.printRes = false;
   runcase(taos);
   gCaseCtrl.rowNum = 0;
   gCaseCtrl.printRes = true;
-#if 0
 
-  gCaseCtrl.runTimes = 10;
+  printf("Runtimes Test\n");
+  gCaseCtrl.runTimes = 2;
   runcase(taos);
   gCaseCtrl.runTimes = 0;
 
+  printf("Check Param Test\n");
   gCaseCtrl.checkParamNum = true;
   runcase(taos);
   gCaseCtrl.checkParamNum = false;
 
+  printf("Bind Col Num Test\n");
   gCaseCtrl.bindColNum = 6;
   runcase(taos);
   gCaseCtrl.bindColNum = 0;
 
+  printf("Bind Col Type Test\n");
   gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
-  gCaseCtrl.bindColTypeNum = bindColTypeList = bindColTypeList;  
+  gCaseCtrl.bindColTypeList = bindColTypeList;  
   runcase(taos);
-#endif  
 }
 
 int main(int argc, char *argv[])
