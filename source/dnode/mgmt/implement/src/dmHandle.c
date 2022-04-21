@@ -270,6 +270,12 @@ static int32_t dmSpawnUdfd(SDnode *pDnode) {
   return err;
 }
 
+static void dmUdfdCloseWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
+
 void dmWatchUdfd(void *args) {
   SDnode *pDnode = args;
   SUdfdData *pData = &pDnode->udfdData;
@@ -277,10 +283,13 @@ void dmWatchUdfd(void *args) {
   int32_t err = dmSpawnUdfd(pDnode);
   atomic_store_32(&pData->spawnErr, err);
   uv_barrier_wait(&pData->barrier);
-  if (pData->spawnErr == 0) {
+  uv_run(&pData->loop, UV_RUN_DEFAULT);
+  err = uv_loop_close(&pData->loop);
+  while (err == UV_EBUSY) {
+    uv_walk(&pData->loop, dmUdfdCloseWalkCb, NULL);
     uv_run(&pData->loop, UV_RUN_DEFAULT);
+    err = uv_loop_close(&pData->loop);
   }
-  uv_loop_close(&pData->loop);
   return;
 }
 
@@ -312,6 +321,7 @@ int32_t dmStopUdfd(SDnode *pDnode) {
   if (pData->spawnErr == 0) {
     uv_process_kill(&pData->process, SIGINT);
   }
+  uv_stop(&pData->loop);
   uv_thread_join(&pData->thread);
 
   atomic_store_8(&pData->stopping, 0);
