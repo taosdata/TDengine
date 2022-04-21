@@ -133,9 +133,9 @@ OFFSET_DECODE_OVER:
 int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs) {
   int32_t sz = taosArrayGetSize(vgs);
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp *pConsumerEp = taosArrayGet(vgs, i);
-    SMqOffsetObj   offsetObj;
-    if (mndMakePartitionKey(offsetObj.key, cgroup, topicName, pConsumerEp->vgId) < 0) {
+    int32_t      vgId = *(int32_t *)taosArrayGet(vgs, i);
+    SMqOffsetObj offsetObj;
+    if (mndMakePartitionKey(offsetObj.key, cgroup, topicName, vgId) < 0) {
       return -1;
     }
     offsetObj.offset = -1;

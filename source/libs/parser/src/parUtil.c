@@ -118,6 +118,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "sliding value can not less than 1% of interval value";
     case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
       return "Only one tag if there is a json tag";
+    case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
+      return "Query block has incorrect number of result columns";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
