@@ -30,6 +30,7 @@ typedef struct SPlanContext {
   SNode* pAstRoot;
   bool topicQuery;
   bool streamQuery;
+  bool rSmaQuery;
   bool showRewrite;
   int8_t triggerType;
   int64_t watermark;

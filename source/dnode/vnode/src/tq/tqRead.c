@@ -141,7 +141,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, int16_t* pG
       colInfo.info.colId = pColSchema->colId;
       colInfo.info.type = pColSchema->type;
 
-      if (colInfoDataEnsureCapacity(&colInfo, 0, numOfRows) < 0) {
+      if (colInfoDataEnsureCapacity(&colInfo, 0, *pNumOfRows) < 0) {
         goto FAIL;
       }
       taosArrayPush(*ppCols, &colInfo);
