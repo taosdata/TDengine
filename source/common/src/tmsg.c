@@ -2758,6 +2758,8 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tEncodeI32(&encoder, pReq->pid) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->app) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->passwd) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->startTime) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -2775,6 +2777,8 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tDecodeI32(&decoder, &pReq->pid) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->app) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->passwd) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->startTime) < 0) return -1;
   tEndDecode(&decoder);
 
@@ -3034,7 +3038,6 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   return 0;
 }
 
-
 int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -3054,7 +3057,7 @@ int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq
     SReplica *pReplica = &pReq->replicas[i];
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
   }
-  
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3086,7 +3089,6 @@ int32_t tDeserializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pR
   tCoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSKillQueryReq(void *buf, int32_t bufLen, SKillQueryReq *pReq) {
   SCoder encoder = {0};
