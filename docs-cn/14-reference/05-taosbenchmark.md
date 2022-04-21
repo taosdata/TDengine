@@ -5,10 +5,11 @@ sidebar_label: taosBenchmark
 
 ## 简介
 
-taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenchmark 可以测试 TDengine 的插入、查询和订阅功能，它可以模拟由大量设备产生的大量数据，还可以灵活地控制列的数量，数据类型、线程等。以前叫 taosdemo，现在改名为为 taosBenchmark，安装包提供 taosdemo 作为 taosBenchmark 的软链接。
-配置，一种是[命令行配置](#cli)，另一种是[JSON 文件](#json)。
+taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具。taosBenchmark 可以测试 TDengine 的插入、查询和订阅等功能的性能，它可以模拟由大量设备产生的大量数据，还可以灵活地控制数据库、超级表、标签列的数量和类型、普通列的数量和类型、子表的数量、每张子表的数据量、插入数据的时间间隔、taosdump 的工作线程数量等。为了兼容过往用户的使用习惯，安装包提供 了 taosdemo 作为 taosBenchmark 的软链接。
 
-## CLI
+taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配置文件](#json)。
+
+## 命令行参数
 
 | 选项名称                                 | 描述                                                      |
 | :--------------------------------------- | --------------------------------------------------------- |
@@ -46,9 +47,9 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 | -V/--version                             | 显示版本信息并退出                                        |
 | -?/--help                                | 显示帮助信息并退出。                                      |
 
-## JSON
+## JSON 配置文件
 
-### 1、插入 json 配置文件
+### json 配置文件示例 （插入场景）
 
 ```json
 {
@@ -135,7 +136,7 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 }
 ```
 
-### 参数
+### 配置文件参数说明 （插入场景）
 
 | 组           | 选项名称                                      | 描述                                                                                      |
 | ------------ | --------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -204,7 +205,7 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 | columns/tags | max                                           | 数字数据类型列/标签的最大值                                                               |
 | columns/tags | values                                        | nchar/binary 列/标签的值，将从值中随机选择。                                              |
 
-### 2、查询测试 json 配置文件
+### json 配置文件 （查询场景）
 
 ```json
 {
@@ -246,7 +247,7 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 }
 ```
 
-### 查询测试 JSON 文件的参数
+### 配置文件参数说明 (查询场景）
 
 | 组                                      | 选项                     | 描述                                          |
 | --------------------------------------- | ------------------------ | --------------------------------------------- | ------------ |
@@ -266,7 +267,7 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 | sqls                                    | [sql](#sql)              | SQL 命令，必填                                |
 | sqls                                    | result                   | 查询结果的结果文件，没有则为空。              |
 
-### 3、订阅 json 配置文件
+### json 配置文件 （订阅场景）
 
 ```json
 {
@@ -306,7 +307,7 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 }
 ```
 
-### 订阅测试 JSON 文件的参数
+### 配置文件参数说明（订阅场景）
 
 | 组                                      | 选项                     | 描述                                       |
 | --------------------------------------- | ------------------------ | ------------------------------------------ |
@@ -327,55 +328,52 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 | sqls                                    | [sql](#sql)              | SQL 命令，必填                             |
 | sqls                                    | result                   | 查询结果的结果文件，没有则为空。           |
 
-## 参数具体说明
-
-#### [返回](#taosbenchmark)
+## 参数详解
 
 ### insert mode
 
-  可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应 c 接口，restful，参数绑定，schemaless 的 c 接口，taosAdapter schemaless 写入
+  可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应 直接调用 libtao.so 提供的普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、以及taosAdapte 的 schemaless 接口写入
 
 ### insert interval
 
   只有当[interlace rows](#interlace-rows)大于 0 时才起作用。
-  意味着线程在为每个子表插入隔行扫描记录后，会等待该值的时间再进行下一轮写入。
+  意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
 ### partial col num
 
-  若该值为 5， 则仅向前 5 列写入，仅当 [insert_mode](#insert-mode) 为 taosc 和 rest 时生效，为 0 则是向全部列写入。
+  若该值为正数 n 时， 则仅向前 n 列写入，仅当 [insert_mode](#insert-mode) 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
 
 ### batch create tbl num
 
-  创建子表时的批数，默认为 10。
+  创建子表时每批次的建表数量，默认为 10。
 
   注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
 ### auto create table
 
-  仅当 [insert_mode](#insert-mode) 为 taosc, rest, stmt 时 并且 childtable_exists 为 ”no“ 时生效，此参数表示执行写入的 SQL 语句，若为 “yes” 则为 ` insert into tb using stb tags (xxx,xxx,...) values (xxx,xxx,...)` 这样的格式，若为 “no“ 则为 ` insert into tb values (xxx,xxx,...)` 这样的格式，前者不需要提前建立子表，后者需要。
+  仅当 [insert_mode](#insert-mode) 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosdump 在插入数据时会自动创建不存在的表；为 "no" 则表示要插入的表必须提前创建好。
 
 ### interlace rows
 
-  如果它的值为 0，意味着逐个子表逐个子表插入，如果它的值大于零，比如 5，将首先插入
-  到第一个子表的 5 条记录，然后是第二个子表 5 条记录、然后第三个，以此类推。当所有的子表都写入 5 条记录后，线程将从第一个子表继续写入，以此类推。
+  如果它的值为 0，意味着逐个子表逐个子表插入，直到上一张子表的数据插入全部完成才会开始插入下一张子表的数据。如果它的值为正数 n，将首先插入 n 条记录到第一张子表，然后插入 n 条记录到第二张子表，依此类推，在为最后一张子表插入了 n 条记录后会回到第一张子表重复这个过程，直到所有子表数据插入完成。
 
 ### record per request
 
-  每次插入数据请求/调用 api 时包含的数据行数，也是批次数，当批次数过大时，taos 客户端会返回相应的错误信息，此时需要调整这个数来满足写入要求。
+  每次请求插入的数据行数，也即 batch size，当其设置过大时，TDegnine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
 
 ### columns
 
-  如果同时设置了该参数和[-b/--data-type](#data-type)，会比较该参数与[-b/--data-type](#data-type)设置的列类型的列的个数，如果前者大于后者，比如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果前者小于等于后者，比如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`。
+  指定总的普通列的数量。如果同时设置了该参数和[-b/--data-type](#data-type)，则最后的结果列数为两者取大。如果 columns 指定的数量大于 [-b/--data-type](#data-type) 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 [-b/--data-type](#data-type) 指定的列数，则结果为 [-b/--data-type](#data-type) 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`。
 
 ### tag type
 
-  设置超级表的标签类型，nchar 和 binary 也可以设置长度，例如:
+  设置超级表的标签类型，nchar 和 binary 类型可以同时设置长度，例如:
 
   ```
   taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
   ```
 
-  默认是 INT,BINARY(16)。
+  如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16)。
 
   注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：
 
@@ -385,19 +383,19 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 
 ### data type
 
-  与[-A/--tag-type](#tag-type)相同，但用于列，默认为 FLOAT,INT,FLOAT
+  指定普通列类型，如果不使用则默认为有三个普通列，其类型分别为 FLOAT, INT, FLOAT。
 
 ### random
 
-  默认的情况下，数据是模拟电表的采集点的数据，数据值有特定的大小范围，若配置次参数，数据将随机从支持最大的正负 32 位整数中产生。若有修改表结构的其他参数，如 [-l](#columns), [-b](#data-type), [-A](#tag-type)等...，将自动使用从支持最大的正负 32 位整数内随机产生的数据。
+  默认情况下生成的数据是模拟电表的数据采集点，数据值有特定的大小范围。若配置次参数，生成的数据为随机的 32 位整数，其范围为 [-21474836482,147483647]。**若有修改表结构的其他参数，如 [-l](#columns), [-b](#data-type), [-A](#tag-type)等...，将自动使用从支持最大的正负 32 位整数内随机产生的数据。**
 
 ### disorder ratio
 
-  随机乱序时间戳的概率，最大为 50，即为 50%。随机的乱序时间戳为当前应插入数据的时间戳倒退随机[disorder-range](#disorder-range)内的时间戳。
+  随机乱序时间戳的百分比，最大为 50，即为 50%。随机乱序时间戳为当前应插入数据的时间戳倒退随机乱序范围[disorder-range](#disorder-range)范围内的时间戳。
 
 ### disorder range
 
-  只有当[-O/--disorder](#disorder-ratio)大于 0 时才有效，单位与数据库的时间精确度相同。
+  随机乱序时间戳的回退范围，只有当[-O/--disorder](#disorder-ratio)大于 0 时才有效，单位与数据库的时间精度相同。
 
 ### prepared rand
 
@@ -406,7 +404,7 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 
 ### connection pool size
 
-  所有与 taos c 客户端相关的交互都需要 taos 实例，实例会预先创建，以防止运行过程中由于中断导致的失败，该值决定 taos 实例预先创建的数量。若不配置，则与线程数相同。
+  该配置决定 taosBenchmark 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
 
 ### data source
 
@@ -414,63 +412,59 @@ taosBenchmark 是一个用于 TDengine 的性能测试的应用程序。taosBenc
 
 ### line protocol
 
-  行协议，仅当 [insert_mode](#insert-mode) 为 sml 与 sml-rest 时生效，可选项为 line, telnet, json。
+  使用行协议插入数据，仅当 [insert_mode](#insert-mode) 为 sml 或 sml-rest 时生效，可选项为 line, telnet, json。
 
 ### non stop mode
 
-  写入模式是否为不停的持续写入，若为 “yes” 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。
+  指定是否持续写入，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"
 
-  注：即使 insert_rows 失效，但是也必须是一个非零正整数。
+  注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
 
 ### tcp transfer
 
-  仅当 [insert_mode](#insert-mode) 为 sml-rest 并且 [line_protocol](#line-protocol) 为 telnet 时生效，支持两种通讯协议: tcp 与 http， 默认为 http。
+  telnet 模式下的通信协议，仅当 [insert_mode](#insert-mode) 为 sml-rest 并且 [line_protocol](#line-protocol) 为 telnet 时生效。如果不配置，则默认为 http 协议。
 
 ### normal table
 
-  仅当 [insert_mode](#insert-mode) 为 taosc, stmt, rest 模式下可以使用，不创建超级表，只创建普通表。
+  仅当 [insert_mode](#insert-mode) 为 taosc, stmt, rest 模式下可以使用，若指定则不创建超级表，只创建普通表。
 
 ### childtable limit
 
-  仅当 childtable_exists 为 yes 时生效，为使用语句
-  ` select tbname from stable limit x offset y;`
-  中的 limit 的值 x，即为获取插入的现有的子表数量。
+  仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
 
 ### childtable offset
 
-  仅当 childtable_exists 为 yes 时生效，为使用语句
-  ` select tbname from stable limit x offset y;`
-  中的 offset 的值 y，即为获取插入子表的偏移量。
+  仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
 
 ### sample file
 
-  是否使用以 csv 格式的数据作为数据源，仅当 data_source 为 sample 时生效。
+  指定 csv 格式的文件作为数据源，仅当 data_source 为 sample 时生效。
 
-  注：这里与最终生成的数据不同，最终数据源的数据与[prepared_rand](#prepared-rand)的值有关，若 csv 文件内的数据行数小于 prepared_rand，那么会循环读取 csv 文件数据直到与 prepared_rand 相同，若大于，则会只读取 prepared_rand 个数的行的数据。
+  若 csv 文件内的数据行数小于等于 prepared_rand，那么会循环读取 csv 文件数据直到与 prepared_rand 相同；否则则会只读取 prepared_rand 个数的行的数据。也即最终生成的数据行数为二者取小。
 
 ### use sample ts
 
-  仅当 data_source 为 sample 时生效，sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no， 若为 yes， 则使用 csv 文件第一列的时间戳，由于同一子表时间戳不能重复，生成的数据个数必须与 csv 文件内的数据行数相同，此时 insert_rows 失效。
+  仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。 若设置为 yes， 则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
 ### tags file
 
   仅当 [insert_mode](#insert-mode) 为 taosc, rest 的模式下生效。
 
-  注：这里原理与 [sample-file](#sample-file) 类似，最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到与子表数量相同，若大于，则只会读取 childtable_count 行 tag 数据。
+  最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
 ### type
 
-  可选值请参考官方支持的数据类型(https://www.taosdata.com/docs/cn/v2.0/taos-sql#data-type)。
+  可选值请参考 [TDengine 支持的数据类型](reference/taos-sql/data-type)。
 
-  注：JSON 数据类型比较特殊，只有在 tags 里面可以选择，并且有且仅有一列 JSON tag 才可以，此时 [count](#count) 和 [len](#len) 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
+  注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 [count](#count) 和 [len](#len) 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 
 ### count
 
-  该列连续的个数，比如我们想测试 4096 个列的性能时，不用罗列出 4096 个列来表示，直接使用 `"count": 4096` 即可。
+  指定该类型列连续出现的数量，例如 `"count": 4096` 即可生成 4096 个指定类型的列。
 
 ### len
 
-  该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效，若对其他数据类型配置，若为 0 ， 则代表这列始终都是以 null 值写入，若为其他数，则没有意义，不建议配置。
+  指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0 ， 则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
 
 ### name
 
