@@ -103,6 +103,13 @@ static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf)
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
 static void uvShutDownCb(uv_shutdown_t* req, int status);
+
+/*
+ * time-consuming task throwed into BG work thread
+ */
+static void uvWorkDoTask(uv_work_t* req);
+static void uvWorkAfterTask(uv_work_t* req, int status);
+
 static void uvWalkCb(uv_handle_t* handle, void* arg);
 static void uvFreeCb(uv_handle_t* handle);
 
@@ -183,6 +190,13 @@ static void uvHandleReq(SSrvConn* pConn) {
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
+
+  // TODO(dengyihao): time-consuming task throwed into BG Thread
+  //  uv_work_t* wreq = taosMemoryMalloc(sizeof(uv_work_t));
+  //  wreq->data = pConn;
+  //  uv_read_stop((uv_stream_t*)pConn->pTcp);
+  //  transRefSrvHandle(pConn);
+  //  uv_queue_work(((SWorkThrdObj*)pConn->hostThrd)->loop, wreq, uvWorkDoTask, uvWorkAfterTask);
 
   CONN_SHOULD_RELEASE(pConn, pHead);
 
@@ -447,6 +461,24 @@ static void uvShutDownCb(uv_shutdown_t* req, int status) {
     tDebug("conn failed to shut down: %s", uv_err_name(status));
   }
   uv_close((uv_handle_t*)req->handle, uvDestroyConn);
+  taosMemoryFree(req);
+}
+
+static void uvWorkDoTask(uv_work_t* req) {
+  // doing time-consumeing task
+  // only auth conn currently, add more func later
+  tTrace("server conn %p start to be processed in BG Thread", req->data);
+  return;
+}
+
+static void uvWorkAfterTask(uv_work_t* req, int status) {
+  if (status != 0) {
+    tTrace("server conn %p failed to processed ", req->data);
+  }
+  // Done time-consumeing task
+  // add more func later
+  // this func called in main loop
+  tTrace("server conn %p already processed ", req->data);
   taosMemoryFree(req);
 }
 
