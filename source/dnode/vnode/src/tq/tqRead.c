@@ -82,16 +82,7 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
   return false;
 }
 
-int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) {
-  // currently only rows are used
-
-  pBlockInfo->numOfCols = taosArrayGetSize(pHandle->pColIdList);
-  pBlockInfo->rows = pHandle->pBlock->numOfRows;
-  //  pBlockInfo->uid = pHandle->pBlock->uid; // the uid can not be assigned to pBlockData.
-  return 0;
-}
-
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, int16_t* pGroupId, int32_t* pNumOfRows) {
+int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, int32_t* pNumOfRows) {
   /*int32_t         sversion = pHandle->pBlock->sversion;*/
   // TODO set to real sversion
   int32_t sversion = 0;
