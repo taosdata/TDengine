@@ -434,8 +434,15 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
         for (int8_t i = 0; i < param->nFuncIds; ++i) {
           tlen += taosEncodeFixedI32(buf, param->pFuncIds[i]);
         }
-        tlen += taosEncodeString(buf, param->qmsg1);
-        tlen += taosEncodeString(buf, param->qmsg2);
+        tlen += taosEncodeFixedI32(buf, param->qmsg1Len);
+        if (param->qmsg1Len > 0) {
+          tlen += taosEncodeString(buf, param->qmsg1);
+        }
+
+        tlen += taosEncodeFixedI32(buf, param->qmsg2Len);
+        if (param->qmsg2Len > 0) {
+          tlen += taosEncodeString(buf, param->qmsg2);
+        }
       }
       break;
     case TD_CHILD_TABLE:
@@ -509,8 +516,15 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
             buf = taosDecodeFixedI32(buf, param->pFuncIds + i);
           }
         }
-        buf = taosDecodeString(buf, &param->qmsg1);
-        buf = taosDecodeString(buf, &param->qmsg2);
+        buf = taosDecodeFixedI32(buf, &param->qmsg1Len);
+        if (param->qmsg1Len > 0) {
+          buf = taosDecodeString(buf, &param->qmsg1);
+        }
+
+        buf = taosDecodeFixedI32(buf, &param->qmsg2Len);
+        if (param->qmsg2Len > 0) {
+          buf = taosDecodeString(buf, &param->qmsg2);
+        }
       } else {
         pReq->stbCfg.pRSmaParam = NULL;
       }
