@@ -240,7 +240,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_FUNC_NOT_EXIST);
   }
 
   {
@@ -371,7 +371,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_FUNC_NOT_EXIST);
   }
 }
 
