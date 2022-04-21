@@ -27,6 +27,11 @@ extern "C" {
 typedef int32_t (*__compar_fn_t)(const void *, const void *);
 #endif
 
+typedef void *(*FCopy)(void *);
+typedef void (*FDelete)(void *);
+typedef int32_t (*FEncode)(void **buf, const void *dst);
+typedef void *(*FDecode)(const void *buf, void *dst);
+
 #define TD_EQ 0x1
 #define TD_GT 0x2
 #define TD_LT 0x4

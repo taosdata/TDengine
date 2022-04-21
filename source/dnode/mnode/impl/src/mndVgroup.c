@@ -32,7 +32,6 @@ static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
 static int32_t mndProcessCreateVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessAlterVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessDropVnodeRsp(SNodeMsg *pRsp);
-static int32_t mndProcessSyncVnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessCompactVnodeRsp(SNodeMsg *pRsp);
 
 static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
@@ -50,10 +49,9 @@ int32_t mndInitVgroup(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndVgroupActionUpdate};
 
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndProcessCreateVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndProcessDropVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_SYNC_VNODE_RSP, mndProcessSyncVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_COMPACT_VNODE_RSP, mndProcessCompactVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_VNODE_RSP, mndProcessCompactVnodeRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -205,7 +203,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.walLevel = pDb->cfg.walLevel;
   createReq.precision = pDb->cfg.precision;
   createReq.compression = pDb->cfg.compression;
-  createReq.quorum = pDb->cfg.quorum;
+  createReq.strict = pDb->cfg.strict;
   createReq.update = pDb->cfg.update;
   createReq.cacheLastRow = pDb->cfg.cacheLastRow;
   createReq.replica = pVgroup->replica;
@@ -213,7 +211,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.streamMode = pVgroup->streamMode;
   createReq.hashBegin = pVgroup->hashBegin;
   createReq.hashEnd = pVgroup->hashEnd;
-  createReq.hashMethod = pDb->hashMethod;
+  createReq.hashMethod = pDb->cfg.hashMethod;
   createReq.numOfRetensions = pDb->cfg.numOfRetensions;
   createReq.pRetensions = pDb->cfg.pRetensions;
 
@@ -465,8 +463,6 @@ static int32_t mndProcessDropVnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndProcessSyncVnodeRsp(SNodeMsg *pRsp) { return 0; }
-
 static int32_t mndProcessCompactVnodeRsp(SNodeMsg *pRsp) { return 0; }
 
 static bool mndGetVgroupMaxReplicaFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
@@ -545,7 +541,7 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
         colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
 
         char        buf1[20] = {0};
-        const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
+        const char *role = syncStr(pVgroup->vnodeGid[i].role);
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->bytes[cols]);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -636,7 +632,7 @@ static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
       colDataAppend(pColInfo, numOfRows, (const char *)&val, false);
 
       char buf[20] = {0};
-      STR_TO_VARSTR(buf, mndGetRoleStr(pVgid->role));
+      STR_TO_VARSTR(buf, syncStr(pVgid->role));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 

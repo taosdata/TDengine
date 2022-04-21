@@ -305,7 +305,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
       SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
       if (pDataCol->bitmap) {
         ASSERT(pDataCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID);
-        tdMergeBitmap(pDataCol->pBitmap, TD_BITMAP_BYTES(pReadh->pDCols[0]->numOfRows), pDataCol->pBitmap);
+        tdMergeBitmap(pDataCol->pBitmap, pReadh->pDCols[0]->numOfRows, pDataCol->pBitmap);
         tdDataColsSetBitmapI(pReadh->pDCols[0]);
       }
     }

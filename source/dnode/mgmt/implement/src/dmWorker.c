@@ -74,6 +74,7 @@ int32_t dmStartStatusThread(SDnode *pDnode) {
     return -1;
   }
 
+  dmReportStartup(pDnode, "dnode-status", "initialized");
   return 0;
 }
 
@@ -92,6 +93,7 @@ int32_t dmStartMonitorThread(SDnode *pDnode) {
     return -1;
   }
 
+  dmReportStartup(pDnode, "dnode-monitor", "initialized");
   return 0;
 }
 

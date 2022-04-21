@@ -113,14 +113,27 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
 
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
+    int32_t dataLen = varDataTLen(pData);
+    if(type == TSDB_DATA_TYPE_JSON) {
+      if(*pData == TSDB_DATA_TYPE_NULL) {
+        dataLen = 0;
+      }else if(*pData == TSDB_DATA_TYPE_NCHAR) {
+        dataLen = varDataTLen(pData+CHAR_BYTES);
+      }else if(*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
+        dataLen = LONG_BYTES;
+      }else if(*pData == TSDB_DATA_TYPE_BOOL) {
+        dataLen = CHAR_BYTES;
+      }
+      dataLen += CHAR_BYTES;
+    }
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;
-    if (pAttr->allocLen < pAttr->length + varDataTLen(pData)) {
+    if (pAttr->allocLen < pAttr->length + dataLen) {
       uint32_t newSize = pAttr->allocLen;
       if (newSize == 0) {
         newSize = 8;
       }
 
-      while (newSize < pAttr->length + varDataTLen(pData)) {
+      while (newSize < pAttr->length + dataLen) {
         newSize = newSize * 1.5;
       }
 
@@ -136,8 +149,8 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     uint32_t len = pColumnInfoData->varmeta.length;
     pColumnInfoData->varmeta.offset[currentRow] = len;
 
-    memcpy(pColumnInfoData->pData + len, pData, varDataTLen(pData));
-    pColumnInfoData->varmeta.length += varDataTLen(pData);
+    memcpy(pColumnInfoData->pData + len, pData, dataLen);
+    pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow, pData, pColumnInfoData->info.bytes);
   }
@@ -203,6 +216,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
   if (pSource->hasNull) {
     pColumnInfoData->hasNull = pSource->hasNull;
   }
+
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
     char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
@@ -1075,8 +1089,8 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   }
 }
 
-int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) {
-  if (0 == numOfRows) {
+int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, uint32_t numOfRows) {
+  if (0 == numOfRows || numOfRows <= existRows) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1087,19 +1101,16 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
     }
 
     pColumn->varmeta.offset = (int32_t*)tmp;
-    memset(pColumn->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
-
-    pColumn->varmeta.length = 0;
-    pColumn->varmeta.allocLen = 0;
-    taosMemoryFreeClear(pColumn->pData);
+    memset(&pColumn->varmeta.offset[existRows], 0, sizeof(int32_t) * (numOfRows - existRows));
   } else {
     char* tmp = taosMemoryRealloc(pColumn->nullbitmap, BitmapLen(numOfRows));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
+    int32_t oldLen = BitmapLen(existRows);
     pColumn->nullbitmap = tmp;
-    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+    memset(&pColumn->nullbitmap[oldLen], 0, BitmapLen(numOfRows) - oldLen);
 
     if (pColumn->info.type == TSDB_DATA_TYPE_NULL) {
       return TSDB_CODE_SUCCESS;
@@ -1135,7 +1146,7 @@ int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    code = colInfoDataEnsureCapacity(p, numOfRows);
+    code = colInfoDataEnsureCapacity(p, pDataBlock->info.rows, numOfRows);
     if (code) {
       return code;
     }
@@ -1180,7 +1191,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
 
-      int32_t code = colInfoDataEnsureCapacity(pDst, pDataBlock->info.rows);
+      int32_t code = colInfoDataEnsureCapacity(pDst, 0, pDataBlock->info.rows);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }

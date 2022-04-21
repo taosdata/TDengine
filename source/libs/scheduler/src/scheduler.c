@@ -2749,4 +2749,15 @@ void schedulerDestroy(void) {
     taosCloseRef(schMgmt.jobRef);
     schMgmt.jobRef = 0;
   }
+
+  if (schMgmt.hbConnections) {
+    void   *pIter = taosHashIterate(schMgmt.hbConnections, NULL);
+    while (pIter != NULL) {
+      SSchHbTrans *hb = pIter;
+      schFreeRpcCtx(&hb->rpcCtx);
+      pIter = taosHashIterate(schMgmt.hbConnections, pIter);
+    }    
+    taosHashCleanup(schMgmt.hbConnections);
+    schMgmt.hbConnections = NULL;
+  }
 }

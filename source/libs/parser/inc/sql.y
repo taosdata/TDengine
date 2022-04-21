@@ -837,6 +837,8 @@ query_expression(A) ::=
 query_expression_body(A) ::= query_primary(B).                                    { A = B; }
 query_expression_body(A) ::=
   query_expression_body(B) UNION ALL query_expression_body(D).                    { A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, D); }
+query_expression_body(A) ::=
+  query_expression_body(B) UNION query_expression_body(D).                        { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, D); }
 
 query_primary(A) ::= query_specification(B).                                      { A = B; }
 //query_primary(A) ::=

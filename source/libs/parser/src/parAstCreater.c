@@ -48,6 +48,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
 }
 
 static void trimEscape(SToken* pName) {
+  // todo need to deal with `ioo``ii` -> ioo`ii
   if (NULL != pName && pName->n > 1 && '`' == pName->z[0]) {
     pName->z += 1;
     pName->n -= 2;
@@ -676,9 +677,6 @@ SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOp
       break;
     case DB_OPTION_PRECISION:
       ((SDatabaseOptions*)pOptions)->pPrecision = pAlterOption->pVal;
-      break;
-    case DB_OPTION_QUORUM:
-      ((SDatabaseOptions*)pOptions)->pQuorum = pAlterOption->pVal;
       break;
     case DB_OPTION_REPLICA:
       ((SDatabaseOptions*)pOptions)->pReplica = pAlterOption->pVal;

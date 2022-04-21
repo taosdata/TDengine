@@ -19,14 +19,14 @@
 #include "thash.h"
 #include "ttypes.h"
 
+//#include "tfill.h"
 #include "function.h"
 #include "taggfunction.h"
-#include "tfill.h"
-#include "thistogram.h"
-#include "ttszip.h"
-#include "tpercentile.h"
 #include "tbuffer.h"
 #include "tcompression.h"
+#include "thistogram.h"
+#include "tpercentile.h"
+#include "ttszip.h"
 //#include "queryLog.h"
 #include "tdatablock.h"
 #include "tudf.h"
@@ -3608,7 +3608,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
           if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+//            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -3681,7 +3681,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
           if (isNull(start, srcType) || isNull(end, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
+//            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -4034,8 +4034,8 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
 
-    int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
-    if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+    int32_t maxSteps = TSDB_MAX_MAXROWS_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
+    if (TSDB_MAX_MAXROWS_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
       ++maxSteps;
     }
     pDist->dataBlockInfos = taosArrayInit(maxSteps, sizeof(SFileBlockInfo));

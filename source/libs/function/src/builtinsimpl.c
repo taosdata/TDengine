@@ -767,17 +767,21 @@ void percentileFinalize(SqlFunctionCtx* pCtx) {
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = pNode->node.resType.bytes;
+  pEnv->calcMemSize = pNode->node.resType.bytes + sizeof(int64_t);
   return true;
 }
 
-// TODO fix this
-// This ordinary first function only handle the data block in ascending order
-int32_t firstFunction(SqlFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_DESC) {
+static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowIndex) {
+  if (pTsColInfo == NULL) {
     return 0;
   }
 
+  return *(TSKEY*) colDataGetData(pTsColInfo, rowIndex);
+}
+
+// This ordinary first function does not care if current scan is ascending order or descending order scan
+// the OPTIMIZED version of first function will only handle the ascending order scan
+int32_t firstFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = 0;
 
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -785,6 +789,8 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pInputCol = pInput->pData[0];
+
+  int32_t bytes = pInputCol->info.bytes;
 
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
@@ -792,23 +798,69 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
     return 0;
   }
 
-  // Check for the first not null data
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, NULL)) {
-      continue;
+  SColumnDataAgg* pColAgg = (pInput->colDataAggIsSet)? pInput->pColumnDataAgg[0]:NULL;
+
+  TSKEY startKey = getRowPTs(pInput->pPTS, 0);
+  TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
+
+  int32_t blockDataOrder = (startKey <= endKey)? TSDB_ORDER_ASC:TSDB_ORDER_DESC;
+
+  if (blockDataOrder == TSDB_ORDER_ASC) {
+    // filter according to current result firstly
+    if (pResInfo->numOfRes > 0) {
+      TSKEY ts = *(TSKEY*)(buf + bytes);
+      if (ts < startKey) {
+        return TSDB_CODE_SUCCESS;
+      }
     }
 
-    char* data = colDataGetData(pInputCol, i);
-    memcpy(buf, data, pInputCol->info.bytes);
-    // TODO handle the subsidary value
-//    if (pCtx->ptsList != NULL) {
-//      TSKEY k = GET_TS_DATA(pCtx, i);
-//      DO_UPDATE_TAG_COLUMNS(pCtx, k);
-//    }
+    for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
 
-    pResInfo->complete = true;
-    numOfElems++;
-    break;
+      numOfElems++;
+
+      char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
+
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) > cts) {
+        memcpy(buf, data, bytes);
+        *(TSKEY*)(buf + bytes) = cts;
+//        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+
+        pResInfo->numOfRes = 1;
+        break;
+      }
+    }
+  } else {
+    // in case of descending order time stamp serial, which usually happens as the results of the nest query,
+    // all data needs to be check.
+    if (pResInfo->numOfRes > 0) {
+      TSKEY ts = *(TSKEY*)(buf + bytes);
+      if (ts < endKey) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
+    for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+
+      numOfElems++;
+
+      char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
+
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) > cts) {
+        memcpy(buf, data, bytes);
+        *(TSKEY*)(buf + bytes) = cts;
+//        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        pResInfo->numOfRes = 1;
+        break;
+      }
+    }
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -816,10 +868,6 @@ int32_t firstFunction(SqlFunctionCtx *pCtx) {
 }
 
 int32_t lastFunction(SqlFunctionCtx *pCtx) {
-  if (pCtx->order != TSDB_ORDER_DESC) {
-    return 0;
-  }
-
   int32_t numOfElems = 0;
 
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -828,43 +876,55 @@ int32_t lastFunction(SqlFunctionCtx *pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pInputCol = pInput->pData[0];
 
+  int32_t bytes = pInputCol->info.bytes;
+
   // All null data column, return directly.
-  if (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows) {
+  if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
     return 0;
   }
 
-  if (pCtx->order == TSDB_ORDER_DESC) {
+  SColumnDataAgg* pColAgg = (pInput->colDataAggIsSet)? pInput->pColumnDataAgg[0]:NULL;
+
+  TSKEY startKey = getRowPTs(pInput->pPTS, 0);
+  TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
+
+  int32_t blockDataOrder = (startKey <= endKey)? TSDB_ORDER_ASC:TSDB_ORDER_DESC;
+
+  if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
-      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, NULL)) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
         continue;
       }
 
-      char* data = colDataGetData(pInputCol, i);
-      memcpy(buf, data, pInputCol->info.bytes);
-
-//      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
-//      DO_UPDATE_TAG_COLUMNS(pCtx, ts);
-      pResInfo->complete = true;  // set query completed on this column
       numOfElems++;
+
+      char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
+        memcpy(buf, data, bytes);
+        *(TSKEY*)(buf + bytes) = cts;
+        //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        pResInfo->numOfRes = 1;
+      }
       break;
     }
-  } else {  // ascending order
+  } else {  // descending order
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, NULL)) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
         continue;
       }
 
-      char* data = colDataGetData(pInputCol, i);
-      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
+      numOfElems++;
 
-      if (pResInfo->numOfRes == 0 || (*(TSKEY*)buf) < ts) {
-        memcpy(buf, data, pCtx->inputBytes);
-        *(TSKEY*)buf = ts;
+      char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
+        memcpy(buf, data, bytes);
+        *(TSKEY*)(buf + bytes) = cts;
+        pResInfo->numOfRes = 1;
 //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
-
-      numOfElems++;
       break;
     }
   }

@@ -130,8 +130,7 @@ OFFSET_DECODE_OVER:
   return pRow;
 }
 
-int32_t mndCreateOffset(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs) {
-  int32_t code = 0;
+int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs) {
   int32_t sz = taosArrayGetSize(vgs);
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp *pConsumerEp = taosArrayGet(vgs, i);
@@ -170,13 +169,22 @@ static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
       return -1;
     }
+    bool          create = false;
     SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, key);
-    ASSERT(pOffsetObj);
+    if (pOffsetObj == NULL) {
+      pOffsetObj = taosMemoryMalloc(sizeof(SMqOffset));
+      memcpy(pOffsetObj->key, key, TSDB_PARTITION_KEY_LEN);
+      create = true;
+    }
     pOffsetObj->offset = pOffset->offset;
     SSdbRaw *pOffsetRaw = mndOffsetActionEncode(pOffsetObj);
     sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
     mndTransAppendRedolog(pTrans, pOffsetRaw);
-    mndReleaseOffset(pMnode, pOffsetObj);
+    if (create) {
+      taosMemoryFree(pOffsetObj);
+    } else {
+      mndReleaseOffset(pMnode, pOffsetObj);
+    }
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
@@ -201,7 +209,7 @@ static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset) {
 
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOldOffset, SMqOffsetObj *pNewOffset) {
   mTrace("offset:%s, perform update action", pOldOffset->key);
-  pOldOffset->offset = pNewOffset->offset;
+  atomic_store_64(&pOldOffset->offset, pNewOffset->offset);
   return 0;
 }
 

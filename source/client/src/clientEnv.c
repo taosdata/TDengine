@@ -186,6 +186,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
   pRequest->pTscObj = pObj;
   pRequest->body.fp = fp;  // not used it yet
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
+  pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);
@@ -307,164 +308,50 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
-#if 0  
-  SGlobalCfg *cfg = NULL;
+  if (option != TSDB_OPTION_CONFIGDIR) {
+    taos_init();  // initialize global config
+  } else {
+    tstrncpy(configDir, str, PATH_MAX);
+    tscInfo("set cfg:%s to %s", configDir, str);
+    return 0;
+  }
+
+  SConfig     *pCfg = taosGetCfg();
+  SConfigItem *pItem = NULL;
 
   switch (option) {
     case TSDB_OPTION_CONFIGDIR:
-      cfg = taosGetConfigOption("configDir");
-      assert(cfg != NULL);
-
-      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(configDir, str, TSDB_FILENAME_LEN);
-        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscInfo("set config file directory:%s", str);
-      } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str,
-                tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
-      }
+      pItem = cfgGetItem(pCfg, "configDir");
       break;
-
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
-      cfg = taosGetConfigOption("shellActivityTimer");
-      assert(cfg != NULL);
-
-      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tsShellActivityTimer = atoi(str);
-        if (tsShellActivityTimer < 1) tsShellActivityTimer = 1;
-        if (tsShellActivityTimer > 3600) tsShellActivityTimer = 3600;
-        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscInfo("set shellActivityTimer:%d", tsShellActivityTimer);
-      } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, str,
-                tsCfgStatusStr[cfg->cfgStatus], *(int32_t *)cfg->ptr);
-      }
+      pItem = cfgGetItem(pCfg, "shellActivityTimer");
       break;
-
-    case TSDB_OPTION_LOCALE: {  // set locale
-      cfg = taosGetConfigOption("locale");
-      assert(cfg != NULL);
-
-      size_t len = strlen(str);
-      if (len == 0 || len > TD_LOCALE_LEN) {
-        tscInfo("Invalid locale:%s, use default", str);
-        return -1;
-      }
-
-      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        char sep = '.';
-
-        if (strlen(tsLocale) == 0) {  // locale does not set yet
-          char *defaultLocale = setlocale(LC_CTYPE, "");
-
-          // The locale of the current OS does not be set correctly, so the default locale cannot be acquired.
-          // The launch of current system will abort soon.
-          if (defaultLocale == NULL) {
-            tscError("failed to get default locale, please set the correct locale in current OS");
-            return -1;
-          }
-
-          tstrncpy(tsLocale, defaultLocale, TD_LOCALE_LEN);
-        }
-
-        // set the user specified locale
-        char *locale = setlocale(LC_CTYPE, str);
-
-        if (locale != NULL) {  // failed to set the user specified locale
-          tscInfo("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
-          cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        } else {  // set the user specified locale failed, use default LC_CTYPE as current locale
-          locale = setlocale(LC_CTYPE, tsLocale);
-          tscInfo("failed to set locale:%s, current locale:%s", str, tsLocale);
-        }
-
-        tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
-
-        char *charset = strrchr(tsLocale, sep);
-        if (charset != NULL) {
-          charset += 1;
-
-          charset = taosCharsetReplace(charset);
-
-          if (taosValidateEncodec(charset)) {
-            if (strlen(tsCharset) == 0) {
-              tscInfo("charset set:%s", charset);
-            } else {
-              tscInfo("charset changed from %s to %s", tsCharset, charset);
-            }
-
-            tstrncpy(tsCharset, charset, TD_LOCALE_LEN);
-            cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-
-          } else {
-            tscInfo("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
-          }
-
-          taosMemoryFree(charset);
-        } else {  // it may be windows system
-          tscInfo("charset remains:%s", tsCharset);
-        }
-      } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str,
-                tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
-      }
+    case TSDB_OPTION_LOCALE:
+      pItem = cfgGetItem(pCfg, "locale");
       break;
-    }
-
-    case TSDB_OPTION_CHARSET: {
-      /* set charset will override the value of charset, assigned during system locale changed */
-      cfg = taosGetConfigOption("charset");
-      assert(cfg != NULL);
-
-      size_t len = strlen(str);
-      if (len == 0 || len > TD_LOCALE_LEN) {
-        tscInfo("failed to set charset:%s", str);
-        return -1;
-      }
-
-      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        if (taosValidateEncodec(str)) {
-          if (strlen(tsCharset) == 0) {
-            tscInfo("charset is set:%s", str);
-          } else {
-            tscInfo("charset changed from %s to %s", tsCharset, str);
-          }
-
-          tstrncpy(tsCharset, str, TD_LOCALE_LEN);
-          cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        } else {
-          tscInfo("charset:%s not valid", str);
-        }
-      } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str,
-                tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
-      }
-
+    case TSDB_OPTION_CHARSET:
+      pItem = cfgGetItem(pCfg, "charset");
       break;
-    }
-
     case TSDB_OPTION_TIMEZONE:
-      cfg = taosGetConfigOption("timezone");
-      assert(cfg != NULL);
-
-      if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(tsTimezoneStr, str, TD_TIMEZONE_LEN);
-        tsSetTimeZone();
-        cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscDebug("timezone set:%s, input:%s by taos_options", tsTimezoneStr, str);
-      } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str,
-                tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
-      }
+      pItem = cfgGetItem(pCfg, "timezone");
       break;
-
     default:
-      // TODO return the correct error code to client in the format for taos_errstr()
-      tscError("Invalid option %d", option);
-      return -1;
+      break;
   }
-#endif
-  return 0;
+
+  if (pItem == NULL) {
+    tscError("Invalid option %d", option);
+    return -1;
+  }
+
+  int code = cfgSetItem(pCfg, pItem->name, str, CFG_STYPE_TAOS_OPTIONS);
+  if (code != 0) {
+    tscError("failed to set cfg:%s to %s since %s", pItem->name, str, terrstr());
+  } else {
+    tscInfo("set cfg:%s to %s", pItem->name, str);
+  }
+
+  return code;
 }
 
 /**
