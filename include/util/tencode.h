@@ -91,6 +91,20 @@ typedef struct {
     ptr;                                                                    \
   })
 
+#define tEncodeSize(E, S, SIZE)                                \
+  ({                                                           \
+    SCoder coder = {0};                                        \
+    int    ret = 0;                                            \
+    tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER); \
+    if ((E)(&coder, S) == 0) {                                 \
+      SIZE = coder.pos;                                        \
+    } else {                                                   \
+      ret = -1;                                                \
+    }                                                          \
+    tCoderClear(&coder);                                       \
+    ret;                                                       \
+  })
+
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);
 

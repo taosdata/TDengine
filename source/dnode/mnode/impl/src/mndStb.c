@@ -406,8 +406,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
   req.rollup = pStb->aggregationMethod > -1 ? 1 : 0;
-  req.ttl = 0;
   req.nCols = pStb->numOfColumns;
+  req.sver = 0;  // TODO
   req.pSchema = pStb->pColumns;
   req.nTags = pStb->numOfTags;
   req.pSchemaTg = pStb->pTags;
@@ -432,7 +432,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   }
 
   // get length
-  if (tEnSizeSVCreateStbReq(&req, &contLen) < 0) {
+  if (tEncodeSize(tEncodeSVCreateStbReq, &req, contLen) < 0) {
     taosMemoryFree(req.pRSmaParam.pFuncIds);
     return NULL;
   }

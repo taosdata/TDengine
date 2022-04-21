@@ -15,9 +15,12 @@
 
 #include "vnodeInt.h"
 
-static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len);
+static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len, SRpcMsg *pRsp);
+static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessDropStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp);
-static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessDropTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
@@ -50,6 +53,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   vTrace("vgId: %d start to process write request %s, version %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
+  pVnode->state.applied = version;
+
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
@@ -63,21 +68,22 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   switch (pMsg->msgType) {
     /* META */
     case TDMT_VND_CREATE_STB:
-      ret = vnodeProcessCreateStbReq(pVnode, pReq, len);
+      if (vnodeProcessCreateStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_STB:
-      vnodeProcessAlterStbReq(pVnode, pReq);
+      if (vnodeProcessAlterStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DROP_STB:
-      vTrace("vgId:%d, process drop stb req", TD_VID(pVnode));
+      if (vnodeProcessDropStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_CREATE_TABLE:
-      pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
-      vnodeProcessCreateTbReq(pVnode, pMsg, pReq, pRsp);
+      if (vnodeProcessCreateTbReq(pVnode, pMsg, pReq, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_TABLE:
+      if (vnodeProcessAlterTbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DROP_TABLE:
+      if (vnodeProcessDropTbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
       if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
@@ -128,7 +134,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       break;
   }
 
-  pVnode->state.applied = version;
+  vDebug("vgId: %d process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
 
   // Check if it needs to commit
   if (vnodeShouldCommit(pVnode)) {
@@ -139,6 +145,11 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   }
 
   return 0;
+
+_err:
+  vDebug("vgId: %d process %s request failed since %s, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+         tstrerror(terrno), version);
+  return -1;
 }
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -203,30 +214,45 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   return 0;
 }
 
-static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len) {
+static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateStbReq req = {0};
   SCoder         coder;
 
+  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  // decode and process req
   tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
 
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
-    tCoderClear(&coder);
-    return -1;
+    pRsp->code = terrno;
+    goto _err;
   }
 
   if (metaCreateSTable(pVnode->pMeta, pReq, NULL) < 0) {
-    tCoderClear(&coder);
-    return -1;
+    pRsp->code = terrno;
+    goto _err;
   }
 
   tCoderClear(&coder);
-
   return 0;
+
+_err:
+  tCoderClear(&coder);
+  return -1;
 }
 
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp) {
   SVCreateTbBatchReq vCreateTbBatchReq = {0};
   SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
+
+  pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
   tDeserializeSVCreateTbBatchReq(pReq, &vCreateTbBatchReq);
   int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
   for (int i = 0; i < reqNum; i++) {
@@ -279,7 +305,9 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
   return 0;
 }
 
-static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
+static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  ASSERT(0);
+#if 0
   SVCreateTbReq vAlterTbReq = {0};
   vTrace("vgId:%d, process alter stb req", TD_VID(pVnode));
   tDeserializeSVCreateTbReq(pReq, &vAlterTbReq);
@@ -291,6 +319,25 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   //   taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
   // }
   taosMemoryFree(vAlterTbReq.name);
+#endif
+  return 0;
+}
+
+static int vnodeProcessDropStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+static int vnodeProcessDropTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  // TODO
+  ASSERT(0);
   return 0;
 }
 

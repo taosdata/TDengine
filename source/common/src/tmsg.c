@@ -3691,30 +3691,14 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->ast);
 }
 
-int tEnSizeSVCreateStbReq(const SVCreateStbReq *pReq, int32_t *size) {
-  SCoder coder = {0};
-
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
-
-  if (tEncodeSVCreateStbReq(&coder, pReq) < 0) {
-    tCoderClear(&coder);
-    return -1;
-  }
-
-  *size = coder.pos;
-
-  tCoderClear(&coder);
-  return 0;
-}
-
 int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->rollup) < 0) return -1;
-  if (tEncodeI32(pCoder, pReq->ttl) < 0) return -1;
   if (tEncodeI16v(pCoder, pReq->nCols) < 0) return -1;
+  if (tEncodeI16v(pCoder, pReq->sver) < 0) return -1;
   for (int iCol = 0; iCol < pReq->nCols; iCol++) {
     if (tEncodeSSchema(pCoder, pReq->pSchema + iCol) < 0) return -1;
   }
@@ -3736,9 +3720,9 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
-  if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
 
   if (tDecodeI16v(pCoder, &pReq->nCols) < 0) return -1;
+  if (tDecodeI16v(pCoder, &pReq->sver) < 0) return -1;
   pReq->pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->nCols);
   if (pReq->pSchema == NULL) return -1;
   for (int iCol = 0; iCol < pReq->nCols; iCol++) {

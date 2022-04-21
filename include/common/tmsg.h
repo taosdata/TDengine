@@ -1482,15 +1482,14 @@ typedef struct SVCreateStbReq {
   const char* name;
   tb_uid_t    suid;
   int8_t      rollup;
-  int32_t     ttl;
   int16_t     nCols;
+  int16_t     sver;
   SSchema*    pSchema;
   int16_t     nTags;
   SSchema*    pSchemaTg;
   SRSmaParam  pRSmaParam;
 } SVCreateStbReq;
 
-int tEnSizeSVCreateStbReq(const SVCreateStbReq *pReq, int32_t *size);
 int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
 int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 

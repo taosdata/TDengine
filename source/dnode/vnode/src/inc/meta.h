@@ -39,6 +39,12 @@ typedef struct SMSmaCursor SMSmaCursor;
 int metaOpen(SVnode* pVnode, SMeta** ppMeta);
 int metaClose(SMeta* pMeta);
 
+// metaEntry ==================
+typedef struct SMetaEntry SMetaEntry;
+
+int metaEncodeEntry(SCoder* pCoder, const SMetaEntry* pME);
+int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
+
 // metaIdx ==================
 int  metaOpenIdx(SMeta* pMeta);
 void metaCloseIdx(SMeta* pMeta);
@@ -116,6 +122,34 @@ int64_t         metaSmaCursorNext(SMSmaCursor* pSmaCur);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
+
+struct SMetaEntry {
+  int8_t      type;
+  tb_uid_t    uid;
+  const char* name;
+  union {
+    struct {
+      int16_t  nCols;
+      int16_t  sver;
+      SSchema* pSchema;
+      int16_t  nTags;
+      SSchema* pSchemaTg;
+    } stbEntry;
+    struct {
+      int64_t  ctime;
+      int32_t  ttlDays;
+      tb_uid_t suid;
+      SKVRow   pTags;
+    } ctbEntry;
+    struct {
+      int64_t  ctime;
+      int32_t  ttlDays;
+      int16_t  nCols;
+      int16_t  sver;
+      SSchema* pSchema;
+    } ntbEntry;
+  };
+};
 
 #ifndef META_REFACT
 // SMetaDB

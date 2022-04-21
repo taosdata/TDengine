@@ -23,6 +23,7 @@ target_sources(
     "src/meta/metaTDBImpl.c"
     "src/meta/metaQuery.c"
     "src/meta/metaCommit.c"
+    "src/meta/metaEntry.c"
 
     # tsdb
     "src/tsdb/tsdbTDBImpl.c"
