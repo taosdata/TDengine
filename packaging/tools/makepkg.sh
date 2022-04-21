@@ -67,10 +67,19 @@ else
   wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
       && echo "TDinsight.sh downloaded!" \
       || echo "failed to download TDinsight.sh"
+  # download TDinsight caches
+  orig_pwd=$(pwd)
+  tdinsight_caches=""
+  cd ${build_dir}/bin/ && \
+    chmod +x TDinsight.sh
+  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -i printf "${build_dir}/bin/{} ")
+  cd $orig_pwd
+  echo "TDinsight caches: $tdinsight_caches"
 
   taostools_bin_files=" ${build_dir}/bin/${dumpName} \
       ${build_dir}/bin/${benchmarkName} \
-      ${build_dir}/bin/TDinsight.sh "
+      ${build_dir}/bin/TDinsight.sh \
+      $tdinsight_caches"
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
