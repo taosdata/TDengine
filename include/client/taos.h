@@ -217,17 +217,17 @@ typedef struct tmq_conf_t tmq_conf_t;
 typedef struct tmq_list_t tmq_list_t;
 // typedef struct tmq_message_t tmq_message_t;
 
-typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, void *param));
+typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *));
 
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
 DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
 
-#if 1
+#if 0
 DLL_EXPORT tmq_t *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 #endif
 
-DLL_EXPORT tmq_t *tmq_consumer_new1(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 
@@ -271,14 +271,19 @@ int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
 
 DLL_EXPORT char   *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT int32_t tmq_get_vgroup_id(TAOS_RES *res);
+// TODO
+#if 0
+DLL_EXPORT char   *tmq_get_block_table_name(TAOS_RES *res);
+#endif
+
 #if 0
 DLL_EXPORT TAOS_ROW    tmq_get_row(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_request_offset(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_response_offset(tmq_message_t *message);
 DLL_EXPORT TAOS_FIELD *tmq_get_fields(tmq_t *tmq, const char *topic);
 DLL_EXPORT int32_t     tmq_field_count(tmq_t *tmq, const char *topic);
-#endif
 DLL_EXPORT void tmq_message_destroy(TAOS_RES *res);
+#endif
 /* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
 #if 0
 DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
