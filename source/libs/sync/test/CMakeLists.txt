@@ -31,9 +31,6 @@ add_executable(syncElectTest "")
 add_executable(syncEncodeTest "")
 add_executable(syncWriteTest "")
 add_executable(syncReplicateTest "")
-add_executable(syncReplicateTest2 "")
-add_executable(syncReplicateTest3 "")
-add_executable(syncReplicateLoadTest "")
 add_executable(syncRefTest "")
 add_executable(syncLogStoreCheck "")
 add_executable(syncRaftCfgTest "")
@@ -173,18 +170,6 @@ target_sources(syncWriteTest
 target_sources(syncReplicateTest
     PRIVATE
     "syncReplicateTest.cpp"
-)
-target_sources(syncReplicateTest2
-    PRIVATE
-    "syncReplicateTest2.cpp"
-)
-target_sources(syncReplicateTest3
-    PRIVATE
-    "syncReplicateTest3.cpp"
-)
-target_sources(syncReplicateLoadTest
-    PRIVATE
-    "syncReplicateLoadTest.cpp"
 )
 target_sources(syncRefTest
     PRIVATE
@@ -377,21 +362,6 @@ target_include_directories(syncReplicateTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncReplicateTest2
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncReplicateTest3
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncReplicateLoadTest
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
 target_include_directories(syncRefTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
@@ -553,18 +523,6 @@ target_link_libraries(syncWriteTest
     gtest_main
 )
 target_link_libraries(syncReplicateTest
-    sync
-    gtest_main
-)
-target_link_libraries(syncReplicateTest2
-    sync
-    gtest_main
-)
-target_link_libraries(syncReplicateTest3
-    sync
-    gtest_main
-)
-target_link_libraries(syncReplicateLoadTest
     sync
     gtest_main
 )
