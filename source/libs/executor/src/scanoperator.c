@@ -573,14 +573,27 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
 
       int32_t numOfCols = pInfo->pRes->info.numOfCols;
       for (int32_t i = 0; i < numOfCols; ++i) {
-        SColumnInfoData* p = taosArrayGet(pCols, i);
-        SColMatchInfo*   pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
+        SColMatchInfo* pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
         if (!pColMatchInfo->output) {
           continue;
         }
 
-        ASSERT(pColMatchInfo->colId == p->info.colId);
-        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, p);
+        bool colExists = false;
+        for(int32_t j = 0; j < taosArrayGetSize(pCols); ++j) {
+          SColumnInfoData* pResCol = taosArrayGet(pCols, j);
+          if (pResCol->info.colId == pColMatchInfo->colId) {
+            taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
+            colExists = true;
+            break;
+          }
+        }
+
+        // the required column does not exists in submit block, let's set it to be all null value
+        if (!colExists) {
+          SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
+          colInfoDataEnsureCapacity(pDst, 0, pBlockInfo->rows);
+          colDataAppendNNULL(pDst, 0, pBlockInfo->rows);
+        }
       }
 
       if (pInfo->pRes->pDataBlock == NULL) {
