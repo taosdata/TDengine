@@ -60,6 +60,7 @@ typedef struct SStmtBindInfo {
 } SStmtBindInfo;
 
 typedef struct SStmtExecInfo {
+  int32_t      affectedRows;
   SRequestObj* pRequest;
   SHashObj*    pVgHash;
   SHashObj*    pBlockHash;

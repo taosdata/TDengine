@@ -20,6 +20,7 @@
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
+#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"

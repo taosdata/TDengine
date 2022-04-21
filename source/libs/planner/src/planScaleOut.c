@@ -129,7 +129,7 @@ static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurren
   return code;
 }
 
-static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t* pLevel, SNodeList* pParentsGroup) {
+static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pParentsGroup) {
   SNodeList* pCurrentGroup = nodesMakeList();
   if (NULL == pCurrentGroup) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -138,13 +138,13 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
   int32_t code = TSDB_CODE_SUCCESS;
   switch (pSubplan->subplanType) {
     case SUBPLAN_TYPE_MERGE:
-      code = scaleOutForMerge(pCxt, pSubplan, *pLevel, pCurrentGroup);
+      code = scaleOutForMerge(pCxt, pSubplan, level, pCurrentGroup);
       break;
     case SUBPLAN_TYPE_SCAN:
-      code = scaleOutForScan(pCxt, pSubplan, *pLevel, pCurrentGroup);
+      code = scaleOutForScan(pCxt, pSubplan, level, pCurrentGroup);
       break;
     case SUBPLAN_TYPE_MODIFY:
-      code = scaleOutForModify(pCxt, pSubplan, *pLevel, pCurrentGroup);
+      code = scaleOutForModify(pCxt, pSubplan, level, pCurrentGroup);
       break;
     default:
       break;
@@ -152,13 +152,12 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pushHierarchicalPlan(pParentsGroup, pCurrentGroup);
-    ++(*pLevel);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pChild;
     FOREACH(pChild, pSubplan->pChildren) {
-      code = doScaleOut(pCxt, (SLogicSubplan*)pChild, pLevel, pCurrentGroup);
+      code = doScaleOut(pCxt, (SLogicSubplan*)pChild, level + 1, pCurrentGroup);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
@@ -194,7 +193,7 @@ int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQue
   }
 
   SScaleOutContext cxt = { .pPlanCxt = pCxt, .subplanId = 1 };
-  int32_t code = doScaleOut(&cxt, pLogicSubplan, &(pPlan->totalLevel), pPlan->pTopSubplans);
+  int32_t code = doScaleOut(&cxt, pLogicSubplan, 0, pPlan->pTopSubplans);
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicPlan = pPlan;
   } else {

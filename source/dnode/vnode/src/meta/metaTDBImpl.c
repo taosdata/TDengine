@@ -426,6 +426,71 @@ struct SMSmaCursor {
   int      vLen;
 };
 
+STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
+  // TODO
+  // ASSERT(0);
+  // return NULL;
+#ifdef META_TDB_SMA_TEST
+  STSmaWrapper *pSW = NULL;
+
+  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
+  if (pCur == NULL) {
+    return NULL;
+  }
+
+  void       *pBuf = NULL;
+  SSmaIdxKey *pSmaIdxKey = NULL;
+
+  while (true) {
+    // TODO: lock during iterate?
+    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
+      pSmaIdxKey = pCur->pKey;
+      ASSERT(pSmaIdxKey != NULL);
+
+      void *pSmaVal = metaGetSmaInfoByIndex(pMeta, pSmaIdxKey->smaUid, false);
+
+      if (pSmaVal == NULL) {
+        tsdbWarn("no tsma exists for indexUid: %" PRIi64, pSmaIdxKey->smaUid);
+        continue;
+      }
+
+      if ((pSW == NULL) && ((pSW = taosMemoryCalloc(1, sizeof(*pSW))) == NULL)) {
+        TDB_FREE(pSmaVal);
+        metaCloseSmaCursor(pCur);
+        return NULL;
+      }
+
+      ++pSW->number;
+      STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
+      if (tptr == NULL) {
+        TDB_FREE(pSmaVal);
+        metaCloseSmaCursor(pCur);
+        tdDestroyTSmaWrapper(pSW);
+        taosMemoryFreeClear(pSW);
+        return NULL;
+      }
+      pSW->tSma = tptr;
+      pBuf = pSmaVal;
+      if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
+        TDB_FREE(pSmaVal);
+        metaCloseSmaCursor(pCur);
+        tdDestroyTSmaWrapper(pSW);
+        taosMemoryFreeClear(pSW);
+        return NULL;
+      }
+      TDB_FREE(pSmaVal);
+      continue;
+    }
+    break;
+  }
+
+  metaCloseSmaCursor(pCur);
+
+  return pSW;
+
+#endif
+}
+
 int metaRemoveSmaFromDb(SMeta *pMeta, int64_t indexUid) {
   // TODO
   ASSERT(0);

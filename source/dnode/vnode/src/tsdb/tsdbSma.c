@@ -643,6 +643,7 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock = NULL;
   SInterval      interval = {0};
+  TSKEY          lastWinSKey = INT64_MIN;
 
   if (tInitSubmitMsgIter(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
@@ -657,7 +658,7 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
 
     SSubmitBlkIter blkIter = {0};
     if (tInitSubmitBlkIter(pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
-      tdFreeTSmaWrapper(pSW);
+      pSW = tdFreeTSmaWrapper(pSW);
       break;
     }
 
@@ -667,31 +668,37 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
         tdFreeTSmaWrapper(pSW);
         break;
       }
-      if (pSW == NULL) {
+      if (!pSW || (pTSma->tableUid != pBlock->suid)) {
+        if (pSW) {
+          pSW = tdFreeTSmaWrapper(pSW);
+        }
         if ((pSW = metaGetSmaInfoByTable(REPO_META(pTsdb), pBlock->suid)) == NULL) {
           break;
         }
         if ((pSW->number) <= 0 || (pSW->tSma == NULL)) {
-          tdFreeTSmaWrapper(pSW);
+          pSW = tdFreeTSmaWrapper(pSW);
           break;
         }
-        pTSma = pSW->tSma;
-      }
 
-      interval.interval = pTSma->interval;
-      interval.intervalUnit = pTSma->intervalUnit;
-      interval.offset = pTSma->offset;
-      interval.precision = REPO_CFG(pTsdb)->precision;
-      interval.sliding = pTSma->sliding;
-      interval.slidingUnit = pTSma->slidingUnit;
+        pTSma = pSW->tSma;
+
+        interval.interval = pTSma->interval;
+        interval.intervalUnit = pTSma->intervalUnit;
+        interval.offset = pTSma->offset;
+        interval.precision = REPO_CFG(pTsdb)->precision;
+        interval.sliding = pTSma->sliding;
+        interval.slidingUnit = pTSma->slidingUnit;
+      }
 
       TSKEY winSKey = taosTimeTruncate(TD_ROW_KEY(row), &interval, interval.precision);
 
-      tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, winSKey, version);
-
-      // TODO: release only when suid changes.
-      tdDestroyTSmaWrapper(pSW);
-      taosMemoryFreeClear(pSW);
+      if (lastWinSKey != winSKey) {
+        lastWinSKey = winSKey;
+        tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, winSKey, version);
+      } else {
+        tsdbDebug("vgId:%d smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window ignore as duplicated",
+                  REPO_ID(pTsdb), pTSma->indexUid, winSKey);
+      }
     }
   }
 

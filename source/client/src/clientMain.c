@@ -622,6 +622,10 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   return stmtSetTbName(stmt, name);
 }
 
+int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
+  return taos_stmt_set_tbname(stmt, name);
+}
+
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
