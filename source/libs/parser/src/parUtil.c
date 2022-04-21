@@ -115,6 +115,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "sliding value no larger than the interval value";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
       return "sliding value can not less than 1% of interval value";
+    case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
+      return "Query block has incorrect number of result columns";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

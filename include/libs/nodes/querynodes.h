@@ -229,10 +229,10 @@ typedef struct SFillNode {
 typedef struct SSelectStmt {
   ENodeType type; // QUERY_NODE_SELECT_STMT
   bool isDistinct;
-  SNodeList* pProjectionList; // SNode
+  SNodeList* pProjectionList;
   SNode* pFromTable;
   SNode* pWhere;
-  SNodeList* pPartitionByList; // SNode
+  SNodeList* pPartitionByList;
   SNode* pWindow;
   SNodeList* pGroupByList; // SGroupingSetNode
   SNode* pHaving;
@@ -245,12 +245,14 @@ typedef struct SSelectStmt {
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
-  SET_OP_TYPE_UNION_ALL = 1
+  SET_OP_TYPE_UNION_ALL = 1,
+  SET_OP_TYPE_UNION
 } ESetOperatorType;
 
 typedef struct SSetOperator {
   ENodeType type; // QUERY_NODE_SET_OPERATOR
   ESetOperatorType opType;
+  SNodeList* pProjectionList;
   SNode* pLeft;
   SNode* pRight;
   SNodeList* pOrderByList; // SOrderByExprNode
