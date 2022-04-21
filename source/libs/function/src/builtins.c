@@ -200,7 +200,8 @@ static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_
 }
 
 static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // todo
+  SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -499,9 +500,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_TOP,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateTop,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
-    .processFunc  = maxFunction,
+    .getEnvFunc   = getTopBotFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = topFunction,
     .finalizeFunc = functionFinalize
   },
   {

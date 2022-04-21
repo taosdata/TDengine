@@ -14,10 +14,11 @@
  */
 
 #include "builtinsimpl.h"
-#include "tpercentile.h"
+#include <libs/nodes/querynodes.h>
 #include "querynodes.h"
 #include "taggfunction.h"
 #include "tdatablock.h"
+#include "tpercentile.h"
 
 #define SET_VAL(_info, numOfElem, res)  \
   do {                                  \
@@ -738,9 +739,9 @@ int32_t percentileFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO set the correct parameter.
 void percentileFinalize(SqlFunctionCtx* pCtx) {
-  double v = 50;//pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+  SVariant* pVal = &pCtx->param[1].param;
+  double v = pVal->nType == TSDB_DATA_TYPE_INT ? pVal->i : pVal->d;
 
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
@@ -1180,17 +1181,22 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pColNode = (SColumnNode*) nodesListGetNode(pFunc->pParameterList, 0);
   int32_t bytes = pColNode->node.resType.bytes;
   SValueNode* pkNode = (SValueNode*) nodesListGetNode(pFunc->pParameterList, 1);
+
+  pEnv->calcMemSize = sizeof(STopBotRes) + pkNode->datum.i * bytes;
   return true;
 }
 
 static STopBotRes *getTopBotOutputInfo(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  return GET_ROWCELL_INTERBUF(pResInfo);
+  STopBotRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
+  pRes->pItems = (STopBotResItem*)((char*) pRes + sizeof(STopBotRes));
+
+  return pRes;
 }
 
 static void doAddIntoResult(STopBotRes *pRes, int32_t maxSize, void *pData, uint16_t type, uint64_t uid);
 
-static void topFunction(SqlFunctionCtx *pCtx) {
+int32_t topFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = 0;
 
   STopBotRes *pRes = getTopBotOutputInfo(pCtx);
@@ -1215,11 +1221,12 @@ static void topFunction(SqlFunctionCtx *pCtx) {
     numOfElems++;
 
     char* data = colDataGetData(pCol, i);
-    doAddIntoResult(pRes, pCtx->param[0].i, data, type, pInput->uid);
+    doAddIntoResult(pRes, pCtx->param[1].param.i, data, type, pInput->uid);
   }
 
   // treat the result as only one result
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t topBotResComparFn(const void *p1, const void *p2, const void *param) {
@@ -1266,16 +1273,20 @@ void doAddIntoResult(STopBotRes *pRes, int32_t maxSize, void *pData, uint16_t ty
     pRes->num++;
     taosheapsort((void *) pItem, sizeof(STopBotResItem), pRes->num, (const void *) &type, topBotResComparFn, false);
   } else { // replace the minimum value in the result
-//    if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i > pList[0]->v.i) ||
-//        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u > pList[0]->v.u) ||
-//        (IS_FLOAT_TYPE(type) && val.d > pList[0]->v.d)) {
-//
-//      STopBotResItem* pItem = &pItems[0];
-//      pItem->v   = val;
-//      pItem->uid = uid;
-//      pItem->tuplePos.pageId = -1; // todo set the corresponding tuple data in the disk-based buffer
-//
-//      taosheapadjust((void *) pItem, sizeof(STopBotResItem), 0, pRes->num - 1, (const void *) &type, topBotResComparFn, NULL, false);
-//    }
+    if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i > pItems[0].v.i) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u > pItems[0].v.u) ||
+        (IS_FLOAT_TYPE(type) && val.d > pItems[0].v.d)) {
+      STopBotResItem* pItem = &pItems[pRes->num];
+      pItem->v   = val;
+      pItem->uid = uid;
+      pItem->tuplePos.pageId = -1;  // todo set the corresponding tuple data in the disk-based buffer
+
+      taosheapadjust((void *) pItem, sizeof(STopBotResItem), 0, pRes->num - 1, (const void *) &type, topBotResComparFn, NULL, false);
+    }
   }
+}
+
+void topBotFinalize(SqlFunctionCtx* pCtx) {
+  functionFinalize(pCtx);
+
 }
