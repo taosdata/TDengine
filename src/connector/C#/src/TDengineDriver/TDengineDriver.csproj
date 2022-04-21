@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
- <PropertyGroup>
+  <PropertyGroup>
     <TargetFrameworks>net5;netstandard2.1;</TargetFrameworks>
     <PackageId>TDengine.Connector</PackageId>
     <PackageIcon>logo.jpg</PackageIcon>
@@ -15,11 +15,15 @@
         more information please visit: https://www.taosdata.com
     </Description>
     <RepositoryUrl>https://github.com/taosdata/TDengine/tree/develop/src/connector/C%2523/src/TDengineDriver</RepositoryUrl>
+
+    <!-- <NoWarn>CS1591;CS0168</NoWarn> -->
     <NoWarn>CS1591</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>.\doc\TDengineDriver.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <None Include="resource\logo.jpg" Pack="true" PackagePath="\" />
   </ItemGroup>
- 
+
 
 </Project>

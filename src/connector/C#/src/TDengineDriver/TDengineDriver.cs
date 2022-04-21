@@ -182,7 +182,7 @@ namespace TDengineDriver
     /// FetchRowAsync() in this callback function to obtain the next batch of records for 
     /// processing until the number of records
     /// </summary>
-    /// <param name="param">The parameter passed by <see cref="FetchRowAsync"/></param>
+    /// <param name="param">The parameter passed by "FetchRowAsync"</param>
     /// <param name="taoRes">Query status</param>
     /// <param name="numOfRows"> The number of rows of data obtained (not a function of
     /// the entire query result set). When the number is zero (the result is returned) 
@@ -192,7 +192,7 @@ namespace TDengineDriver
     /// <summary>
     /// In asynchronous mode, the prototype of the callback function.
     /// </summary>
-    /// <param name="subscribe">Subscription object return by <see cref = "Subscribe"> </param>
+    /// <param name="subscribe">Subscription object return by "Subscribe" </param>
     /// <param name="tasRes"> Query retrieve result set. (Note there may be no record in the result set.)</param>
     /// <param name="param"> Additional parameters supplied by the client when taos_subscribe is called.</param>
     /// <param name="code"> Error code.</param>
@@ -307,7 +307,6 @@ namespace TDengineDriver
         /// </summary>
         /// <param name="stmt">could be the value returned by 'StmtInit', that may be a valid object or NULL.</param>
         /// <param name="sql">sql string,used to bind parameters with</param>
-        /// <param name="length">no used</param>
         /// <returns>0 for success, non-zero for failure.</returns>
         [DllImport("taos", EntryPoint = "taos_stmt_prepare", CallingConvention = CallingConvention.Cdecl)]
         static extern public int StmtPrepare(IntPtr stmt, string sql);
@@ -422,10 +421,13 @@ namespace TDengineDriver
         static extern public int StmtClose(IntPtr stmt);
 
         [DllImport("taos", EntryPoint = "taos_load_table_info", CallingConvention = CallingConvention.Cdecl)]
-        /// <summary>
-        /// user application must call this API to  load all tables meta,
+    
+
+        /// <summary> 
+        /// user application must call this API to  load all tables meta.
         /// </summary>
         /// <param name="taos">taos connection</param>
+        /// 
         /// <param name="tableList">tablelist</param>
         /// <returns></returns>
         static extern private int LoadTableInfoDll(IntPtr taos, string tableList);
@@ -484,7 +486,7 @@ namespace TDengineDriver
 
         /// <summary>
         /// Get the result set of asynchronous queries in batch, 
-        /// which can only be used with QueryAsync().<c>FetchRowAsyncCallback<c>
+        /// which can only be used with QueryAsync().<c>FetchRowAsyncCallback</c>
         /// </summary>
         /// <param name="taoRes"> The result set returned when backcall QueryAsyncCallback </param>
         /// <param name="fq"> Callback function.<see cref="FetchRowAsyncCallback"/></param>
@@ -497,7 +499,7 @@ namespace TDengineDriver
         /// <summary>
         /// This function is used for start subscription service.
         /// </summary>
-        /// <param name="taos"> taos connection return by <see cref = "Connect"></param>
+        /// <param name="taos"> taos connection return by <see cref = "Connect"></see></param>
         /// <param name="restart">If the subscription is already exists, to decide whether to
         /// start over or continue with previous subscription.</param>
         /// <param name="topic"> The name of the subscription.(This is the unique identification of the subscription).</param>
@@ -536,7 +538,7 @@ namespace TDengineDriver
         /// record, otherwise it will return an empty result set with no records.
         /// If the return value is NULL, it indicates a system error.
         /// </summary>
-        /// <param name="subscribe"> Subscription object return by <see cref = "Subscribe">. </param>
+        /// <param name="subscribe"> Subscription object return by "Subscribe" </param>
         /// <returns></returns>
         [DllImport("taos", EntryPoint = "taos_consume", CallingConvention = CallingConvention.Cdecl)]
         static extern private IntPtr TaosConsume(IntPtr subscribe);
@@ -558,7 +560,7 @@ namespace TDengineDriver
         /// <summary>
         /// Unsubscribe.
         /// </summary>
-        /// <param name="subscribe"> Subscription object return by <see cref = "Subscribe">.</param>
+        /// <param name="subscribe"> Subscription object return by "Subscribe" </param>
         /// <param name="keep"> If it is not 0, the API will keep the progress of subscription,
         /// and the  and the subsequent call to taos_subscribe can continue
         /// based on this progress; otherwise, the progress information will
