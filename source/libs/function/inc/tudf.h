@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
-#define UDF_LISTEN_PIPE_NAME_PREFIX "udf.sock."
+#define UDF_LISTEN_PIPE_NAME_PREFIX "udfd.sock."
 
 //======================================================================================
 //begin API to taosd and qworker
@@ -37,17 +37,6 @@ enum {
   UDFC_CODE_RESTARTING = -2,
   UDFC_CODE_PIPE_READ_ERR = -3,
 };
-
-/*TODO: no api for dnode startudfd/stopudfd*/
-/**
- * start udfd dameon service
- */
-int32_t startUdfd(int32_t dnodeId);
-
-/**
- * stop udfd dameon service
- */
-int32_t stopUdfd(int32_t dnodeId);
 
 /**
  * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
