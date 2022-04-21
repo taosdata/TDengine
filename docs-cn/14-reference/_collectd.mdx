@@ -5,7 +5,7 @@ collectd 使用插件机制可以以多种形式将采集到的监控数据写�
 
 ### 配置接收直接采集插件数据
 
-修改 collectd 配置文件 `/etc/collectd/collectd.conf` 配置项。其中 <taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址。taosAdapter 默认使用端口 6045 来接收 collectd 直接采集插件的数据。
+修改 collectd 配置文件 `/etc/collectd/collectd.conf` 配置项。其中 <taosAdapter's host\> 填写运行 taosAdapter 的服务器域名或 IP 地址。taosAdapter 默认使用端口 6045 来接收 collectd 直接采集插件的数据。
 
 ```text
 LoadPlugin network
@@ -16,7 +16,7 @@ LoadPlugin network
 
 ### 配置 write_tsdb 插件数据
 
-修改 collectd 配置文件 `/etc/collectd/collectd.conf` 配置项，其中 <taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址。taosAdapter 默认使用端口 6047 来接收 collectd write_tsdb 插件的数据。
+修改 collectd 配置文件 `/etc/collectd/collectd.conf` 配置项，其中 <taosAdapter's host\> 填写运行 taosAdapter 的服务器域名或 IP 地址。taosAdapter 默认使用端口 6047 来接收 collectd write_tsdb 插件的数据。
 
 ```text
 LoadPlugin write_tsdb
