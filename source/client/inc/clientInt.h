@@ -44,7 +44,7 @@ extern "C" {
   } while (0)
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
-#define HEARTBEAT_INTERVAL 1500  // ms
+#define HEARTBEAT_INTERVAL         1500  // ms
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -187,11 +187,13 @@ typedef struct SRequestSendRecvBody {
 } SRequestSendRecvBody;
 
 typedef struct {
-  int8_t  resType;
-  char*   topic;
-  SArray* res;  // SArray<SReqResultInfo>
-  int32_t resIter;
-  int32_t vgId;
+  int8_t         resType;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  int32_t        vgId;
+  SSchemaWrapper schema;
+  int32_t        resIter;
+  SMqDataBlkRsp  rsp;
+  SReqResultInfo resInfo;
 } SMqRspObj;
 
 typedef struct SRequestObj {
@@ -211,16 +213,24 @@ typedef struct SRequestObj {
   SRequestSendRecvBody body;
 } SRequestObj;
 
+void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
+void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
+void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
+void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
-  int32_t    resIter = msg->resIter == -1 ? 0 : msg->resIter;
-  return (SReqResultInfo*)taosArrayGet(msg->res, resIter);
+  return (SReqResultInfo*)&msg->resInfo;
 }
 
-static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res) {
+static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
   SMqRspObj* msg = (SMqRspObj*)res;
-  if (++msg->resIter < taosArrayGetSize(msg->res)) {
-    return (SReqResultInfo*)taosArrayGet(msg->res, msg->resIter);
+  msg->resIter++;
+  if (msg->resIter < msg->rsp.blockNum) {
+    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(msg->rsp.blockData, msg->resIter);
+    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4);
+    return &msg->resInfo;
   }
   return NULL;
 }
@@ -238,25 +248,25 @@ extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t 
 int           genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
-int   taos_init();
+int taos_init();
 
-void* createTscObj(const char* user, const char* auth, const char* db, SAppInstInfo* pAppInfo);
-void  destroyTscObj(void* pObj);
-STscObj *acquireTscObj(int64_t rid);
-int32_t releaseTscObj(int64_t rid);
+void*    createTscObj(const char* user, const char* auth, const char* db, SAppInstInfo* pAppInfo);
+void     destroyTscObj(void* pObj);
+STscObj* acquireTscObj(int64_t rid);
+int32_t  releaseTscObj(int64_t rid);
 
 uint64_t generateRequestId();
 
-void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
-void  destroyRequest(SRequestObj* pRequest);
-SRequestObj *acquireRequest(int64_t rid);
-int32_t releaseRequest(int64_t rid);
+void*        createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
+void         destroyRequest(SRequestObj* pRequest);
+SRequestObj* acquireRequest(int64_t rid);
+int32_t      releaseRequest(int64_t rid);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 void  resetConnectDB(STscObj* pTscObj);
 
-int  taos_options_imp(TSDB_OPTION option, const char* str);
+int taos_options_imp(TSDB_OPTION option, const char* str);
 
 void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
 
@@ -273,12 +283,6 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
-void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
-void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
-void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
-
 // --- heartbeat
 // global, called by mgmt
 int  hbMgrInit();
@@ -290,7 +294,7 @@ SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
 
 // conn level
-int  hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
+int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 
 int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
