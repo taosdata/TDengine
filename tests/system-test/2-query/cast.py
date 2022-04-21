@@ -168,16 +168,19 @@ class TDTestCase:
                 date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
                 tdSql.checkData( i, 0, date_data)
 
-        # tdSql.query("select cast(c2 as timestamp) as b from t1")
-        # for i in range(len(data_t1_c2)):
-        #     if data_t1_c2[i] is None:
-        #         tdSql.checkData( i, 0 , None )
-        #     else:
-        #         utc_zone = datetime.timezone.utc
-        #         utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-        #         date_init_stamp = datetime.datetime.utcfromtimestamp(data_t1_c2[i]/1000)
-        #         date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-        #         tdSql.checkData( i, 0, date_data)
+
+        tdSql.query("select cast(c2 as timestamp) as b from t1")
+        for i in range(len(data_t1_c2)):
+            if data_t1_c2[i] is None:
+                tdSql.checkData( i, 0 , None )
+            elif i == 10:
+                continue
+            else:
+                utc_zone = datetime.timezone.utc
+                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
+                date_init_stamp = datetime.datetime.utcfromtimestamp(data_t1_c2[i]/1000)
+                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
+                tdSql.checkData( i, 0, date_data)
 
 
         tdLog.printNoPrefix("==========step12: cast smallint to bigint, expect no changes")
@@ -310,13 +313,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step21: cast float to binary, expect changes to str(int) ")
         tdSql.query("select cast(c5 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            # tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, str(round(data_ct4_c5[i], 6)) )
             tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
         tdSql.query("select cast(c5 as binary(32)) as b from t1")
         for i in range(len(data_t1_c5)):
-            # tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, str(round(data_t1_c5[i], 6)) )
             tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
-            # tdSql.checkData( i, 0, str(data_t1_c5[i]) )
 
         tdLog.printNoPrefix("==========step22: cast float to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c5 as nchar(32)) as b from ct4")
@@ -394,16 +394,18 @@ class TDTestCase:
                 date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
                 tdSql.checkData( i, 0, date_data)
 
-        # tdSql.query("select cast(c6 as timestamp) as b from t1")
-        # for i in range(len(data_t1_c6)):
-        #     if data_t1_c6[i] is None:
-        #         tdSql.checkData( i, 0 , None )
-        #     else:
-        #         utc_zone = datetime.timezone.utc
-        #         utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-        #         date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c6[i]/1000))
-        #         date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-        #         tdSql.checkData( i, 0, date_data)
+        tdSql.query("select cast(c6 as timestamp) as b from t1")
+        for i in range(len(data_t1_c6)):
+            if data_t1_c6[i] is None:
+                tdSql.checkData( i, 0 , None )
+            elif i == 10:
+                continue
+            else:
+                utc_zone = datetime.timezone.utc
+                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
+                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c6[i]/1000))
+                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
+                tdSql.checkData( i, 0, date_data)
 
         tdLog.printNoPrefix("==========step28: cast bool to bigint, expect no changes")
         tdSql.query("select c7  from ct4")
@@ -466,25 +468,10 @@ class TDTestCase:
         tdSql.query("select cast(c8 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c8)):
             tdSql.checkData( i, 0, None ) if data_ct4_c8[i] is None else  tdSql.checkData(i,0,data_ct4_c8[i])
-            # if data_ct4_c8[i] is None:
-            #     tdSql.checkData( i, 0, None)
-            # elif tdSql.getData(i,0) == data_ct4_c8[i]:
-            #     tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i]}" )
-            # else:
-            #     caller = inspect.getframeinfo(inspect.stack()[1][0])
-            #     tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i]}")
 
         tdSql.query("select cast(c8 as binary(32)) as b from t1")
         for i in range(len(data_t1_c8)):
             tdSql.checkData( i, 0, None ) if data_t1_c8[i] is None else  tdSql.checkData(i,0,data_t1_c8[i])
-
-            # if data_t1_c8[i] is None:
-            #     tdSql.checkData( i, 0, None)
-            # elif tdSql.getData(i,0) == data_t1_c8[i]:
-            #     tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i]}" )
-            # else:
-            #     caller = inspect.getframeinfo(inspect.stack()[1][0])
-            #     tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i]}")
 
         tdLog.printNoPrefix("==========step33: cast binary to binary, expect truncate ")
         tdSql.query("select cast(c8 as binary(2)) as b from ct4")
@@ -495,7 +482,7 @@ class TDTestCase:
                 tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i][:2]}" )
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
-                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i].[:2]}")
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i][:2]}")
         tdSql.query("select cast(c8 as binary(2)) as b from t1")
         for i in range(len(data_t1_c8)):
             if data_t1_c8[i] is None:
@@ -585,12 +572,14 @@ class TDTestCase:
             if data_ct4_c10[i] is None:
                 tdSql.checkData( i, 0, None )
             else:
-                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i]))*1000)
+                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i])*1000))
                 tdSql.checkData( i, 0, time2str )
         tdSql.query("select cast(c10 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c10)):
             if data_t1_c10[i] is None:
                 tdSql.checkData( i, 0, None )
+            elif i == 10:
+                continue
             else:
                 time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
                 tdSql.checkData( i, 0, time2str )
@@ -601,12 +590,14 @@ class TDTestCase:
             if data_ct4_c10[i] is None:
                 tdSql.checkData( i, 0, None )
             else:
-                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i]))*1000)
+                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i])*1000))
                 tdSql.checkData( i, 0, time2str )
         tdSql.query("select cast(c10 as binary(32)) as b from t1")
         for i in range(len(data_t1_c10)):
             if data_t1_c10[i] is None:
                 tdSql.checkData( i, 0, None )
+            elif i == 10:
+                continue
             else:
                 time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
                 tdSql.checkData( i, 0, time2str )
