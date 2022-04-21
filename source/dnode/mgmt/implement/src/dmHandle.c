@@ -291,6 +291,7 @@ int32_t dmStartUdfd(SDnode *pDnode) {
 }
 
 int32_t dmStopUdfd(SDnode *pDnode) {
+  dInfo("dnode-mgmt to stop udfd. spawn err: %d", pDnode->data.udfdErrCode);
   SDnodeData *pData = &pDnode->data;
   if (pData->udfdErrCode != 0) {
     return 0;
