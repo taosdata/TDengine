@@ -16,90 +16,60 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
-int32_t  replicaNum = 1;
-int32_t  myIndex = 0;
-
-SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SWal*      pWal;
-SSyncNode* pSyncNode;
-
-SSyncNode* syncNodeInit(const char* path) {
-  syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
-  syncInfo.FpEqMsg = syncIOEqMsg;
-  syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./log_check");
-
+void init() {
   int code = walInit();
   assert(code == 0);
+}
+
+void cleanup() { walCleanUp(); }
+
+SWal* createWal(char* path, int32_t vgId) {
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
-  walCfg.vgId = syncInfo.vgId;
+  walCfg.vgId = vgId;
   walCfg.fsyncPeriod = 1000;
   walCfg.retentionPeriod = 1000;
   walCfg.rollPeriod = 1000;
   walCfg.retentionSize = 1000;
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
-  pWal = walOpen(path, &walCfg);
+  SWal* pWal = walOpen(path, &walCfg);
   assert(pWal != NULL);
+  return pWal;
+}
 
-  syncInfo.pWal = pWal;
-
-  SSyncCfg* pCfg = &syncInfo.syncCfg;
-  pCfg->myIndex = myIndex;
-  pCfg->replicaNum = replicaNum;
-
-  for (int i = 0; i < replicaNum; ++i) {
-    pCfg->nodeInfo[i].nodePort = ports[i];
-    snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
-    // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
-  }
-
-  pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
-
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-  gSyncIO->pSyncNode = pSyncNode;
-
+SSyncNode* createSyncNode(SWal* pWal) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
+  memset(pSyncNode, 0, sizeof(SSyncNode));
+  pSyncNode->pWal = pWal;
   return pSyncNode;
 }
 
-SSyncNode* logStoreCheck(const char* path) { return syncNodeInit(path); }
+void usage(char* exe) { printf("usage: %s path vgId \n", exe); }
 
 int main(int argc, char** argv) {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
-  tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
-
-  myIndex = 0;
-  if (argc >= 2) {
-    myIndex = atoi(argv[1]);
+  if (argc != 3) {
+    usage(argv[0]);
+    exit(-1);
   }
+  char*   path = argv[1];
+  int32_t vgId = atoi(argv[2]);
 
-  int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
-
-  ret = syncEnvStart();
-  assert(ret == 0);
-
-  pSyncNode = logStoreCheck(argv[1]);
+  init();
+  SWal* pWal = createWal(path, vgId);
+  assert(pWal != NULL);
+  SSyncNode* pSyncNode = createSyncNode(pWal);
   assert(pSyncNode != NULL);
 
-  logStoreLog2((char*)"logStoreCheck", pSyncNode->pLogStore);
+  SSyncLogStore* pLog = logStoreCreate(pSyncNode);
+  assert(pLog != NULL);
 
+  logStorePrint2((char*)"==syncLogStoreCheck==", pLog);
+
+  walClose(pWal);
+  logStoreDestory(pLog);
+  taosMemoryFree(pSyncNode);
+
+  cleanup();
   return 0;
 }
