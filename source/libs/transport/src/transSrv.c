@@ -30,7 +30,6 @@ typedef struct SSrvConn {
   uv_timer_t pTimer;
 
   queue       queue;
-  int         ref;
   int         persist;  // persist connection or not
   SConnBuffer readBuf;  // read buf,
   int         inType;
@@ -692,8 +691,6 @@ static void uvDestroyConn(uv_handle_t* handle) {
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     tTrace("work thread quit");
     uv_walk(thrd->loop, uvWalkCb, NULL);
-    // uv_loop_close(thrd->loop);
-    // uv_stop(thrd->loop);
   }
 }
 
@@ -756,8 +753,6 @@ void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
   thrd->quit = true;
   if (QUEUE_IS_EMPTY(&thrd->conn)) {
     uv_walk(thrd->loop, uvWalkCb, NULL);
-    // uv_loop_close(thrd->loop);
-    // uv_stop(thrd->loop);
   } else {
     destroyAllConn(thrd);
   }
@@ -851,10 +846,8 @@ void transRefSrvHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
-  SSrvConn* conn = handle;
-
   int ref = T_REF_INC((SSrvConn*)handle);
-  UNUSED(ref);
+  tDebug("server conn %p ref count: %d", handle, ref);
 }
 
 void transUnrefSrvHandle(void* handle) {
