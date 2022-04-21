@@ -348,7 +348,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
   memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
   if (pNew->commentLen != 0) {
-    memcpy(pOld->comment, pNew->comment, TSDB_STB_COMMENT_LEN);
+    memcpy(pOld->comment, pNew->comment, pNew->commentLen);
   }
   if (pNew->ast1Len != 0) {
     memcpy(pOld->pAst1, pNew->pAst1, pNew->ast1Len);

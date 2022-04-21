@@ -125,14 +125,14 @@ int32_t taosEncodeSEpSet(void **buf, const SEpSet *pEp) {
   return tlen;
 }
 
-void *taosDecodeSEpSet(void *buf, SEpSet *pEp) {
+void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
   buf = taosDecodeFixedI8(buf, &pEp->inUse);
   buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
     buf = taosDecodeFixedU16(buf, &pEp->eps[i].port);
     buf = taosDecodeStringTo(buf, pEp->eps[i].fqdn);
   }
-  return buf;
+  return (void *)buf;
 }
 
 static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq) {
@@ -3599,8 +3599,6 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->watermark) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
 

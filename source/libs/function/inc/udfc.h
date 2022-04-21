@@ -32,9 +32,9 @@ typedef struct SUdfInfo {
 
 typedef void *UdfHandle;
 
-int32_t startUdfService();
+int32_t createUdfdProxy();
 
-int32_t stopUdfService();
+int32_t destroyUdfdProxy();
 
 //int32_t setupUdf(SUdfInfo *udf, int32_t numOfUdfs, UdfHandle *handles);
 
