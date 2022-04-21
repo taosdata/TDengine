@@ -233,10 +233,7 @@ static int32_t dmSpawnUdfd(SDnodeData *pData) {
   dInfo("dnode start spawning udfd");
   uv_process_options_t options = {0};
 
-  char path[PATH_MAX] = {0};
-  size_t cwdSize;
-  uv_cwd(path, &cwdSize);
-  strcat(path, "/udfd");
+  char path[] = "udfd";
   char* argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
   options.file = path;
@@ -295,6 +292,9 @@ int32_t dmStartUdfd(SDnode *pDnode) {
 
 int32_t dmStopUdfd(SDnode *pDnode) {
   SDnodeData *pData = &pDnode->data;
+  if (pData->udfdErrCode != 0) {
+    return 0;
+  }
   atomic_store_8(&pData->udfdStoping, 1);
 
   uv_barrier_destroy(&pData->udfdBarrier);
