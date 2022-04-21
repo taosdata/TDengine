@@ -76,7 +76,13 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime, TOPIC_ENCODE_OVER);
   SDB_SET_INT64(pRaw, dataPos, pTopic->uid, TOPIC_ENCODE_OVER);
   SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid, TOPIC_ENCODE_OVER);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->subDbUid, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->version, TOPIC_ENCODE_OVER);
+  SDB_SET_INT8(pRaw, dataPos, pTopic->subType, TOPIC_ENCODE_OVER);
+  SDB_SET_INT8(pRaw, dataPos, pTopic->withTbName, TOPIC_ENCODE_OVER);
+  SDB_SET_INT8(pRaw, dataPos, pTopic->withSchema, TOPIC_ENCODE_OVER);
+  SDB_SET_INT8(pRaw, dataPos, pTopic->withTag, TOPIC_ENCODE_OVER);
+  SDB_SET_INT8(pRaw, dataPos, pTopic->withTagSchema, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->astLen, TOPIC_ENCODE_OVER);
@@ -134,7 +140,13 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pTopic->updateTime, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->uid, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->dbUid, TOPIC_DECODE_OVER);
+  SDB_GET_INT64(pRaw, dataPos, &pTopic->subDbUid, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pTopic->subType, TOPIC_DECODE_OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pTopic->withTbName, TOPIC_DECODE_OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pTopic->withSchema, TOPIC_DECODE_OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pTopic->withTag, TOPIC_DECODE_OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pTopic->withTagSchema, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
   pTopic->sql = taosMemoryCalloc(pTopic->sqlLen, sizeof(char));
@@ -254,33 +266,13 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
     terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
     return -1;
   }
+
+  if ((pCreate->ast == NULL || pCreate->ast[0] == 0) && pCreate->subscribeDbName[0] == 0) {
+    terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+    return -1;
+  }
   return 0;
 }
-
-#if 0
-static int32_t mndGetPlanString(const SCMCreateTopicReq *pCreate, char **pStr) {
-  if (NULL == pCreate->ast) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode  *pAst = NULL;
-  int32_t code = nodesStringToNode(pCreate->ast, &pAst);
-
-  SQueryPlan *pPlan = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
-    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString(pPlan, false, pStr, NULL);
-  }
-  nodesDestroyNode(pAst);
-  nodesDestroyNode(pPlan);
-  terrno = code;
-  return code;
-}
-#endif
 
 static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
   mDebug("topic:%s to create", pCreate->name);
@@ -297,28 +289,38 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   topicObj.ast = strdup(pCreate->ast);
   topicObj.astLen = strlen(pCreate->ast) + 1;
 
-  SNode *pAst = NULL;
-  if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
-    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
-  }
+  if (pCreate->ast && pCreate->ast[0]) {
+    topicObj.subType = TOPIC_SUB_TYPE__TABLE;
+    topicObj.withTbName = 0;
+    topicObj.withSchema = 0;
 
-  SQueryPlan *pPlan = NULL;
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
+      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
 
-  SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
-  if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
-    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
-  }
+    SQueryPlan *pPlan = NULL;
 
-  if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
-    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
-  }
+    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
+    if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
+      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
 
-  if (nodesNodeToString(pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
-    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
+      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
+
+    if (nodesNodeToString(pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
+      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
+  } else {
+    topicObj.subType = TOPIC_SUB_TYPE__DB;
+    topicObj.withTbName = 1;
+    topicObj.withSchema = 1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
