@@ -61,8 +61,8 @@ class TestAutoCreateTable(TDCase):
         self.tdRest.error(f'insert into {dbname}.t8 using {dbname}.stb(t11, t12) tags(81, 82) (ts, c11) values (now-4m, 81, 82)')
         self.tdRest.error(f'insert into {dbname}.t9 using {dbname}.stb(t11, t12) tags(91, 92) (ts, c11, c12) values (now-5m, 91)')
         # type nmatch
-        self.tdRest.request(f'insert into {dbname}.t10 using {dbname}.stb(t11, t12) tags(101, 102) (ts, c11, c12) values (now-6m, Nan, 102)')
-        self.tdRest.request(f'insert into {dbname}.t11 using {dbname}.stb(t11, t12) tags(111, 112) (ts, c11, c12) values (now-7m, "Nan", 112)')
+        self.tdRest.error(f'insert into {dbname}.t10 using {dbname}.stb(t11, t12) tags(101, 102) (ts, c11, c12) values (now-6m, Nan, 102)')
+        self.tdRest.error(f'insert into {dbname}.t11 using {dbname}.stb(t11, t12) tags(111, 112) (ts, c11, c12) values (now-7m, "Nan", 112)')
 
         self.tdRest.request(f'select count(*) from {dbname}.stb')
         self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], 3)
