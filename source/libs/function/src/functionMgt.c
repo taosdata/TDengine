@@ -77,8 +77,10 @@ static int32_t getUdfId(SFmGetFuncInfoParam* pParam, const char* pFuncName) {
   if (NULL == gFunMgtService.pUdfTable) {
     gFunMgtService.pUdfTable = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SUdfInfo));
   }
-  SUdfInfo info = { .outputDt.type = pInfo->outputType, .outputDt.byts = pInfo->outputLen, .funcType = pInfo->funcType };
+  SUdfInfo info = { .outputDt.type = pInfo->outputType, .outputDt.bytes = pInfo->outputLen, .funcType = pInfo->funcType };
   taosArrayPush(gFunMgtService.pUdfTable, &info);
+  tFreeSFuncInfo(pInfo);
+  taosMemoryFree(pInfo);
   return taosArrayGetSize(gFunMgtService.pUdfTable) + FUNC_UDF_ID_START_OFFSET_VAL;
 }
 

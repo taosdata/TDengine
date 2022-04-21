@@ -643,7 +643,7 @@ int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *funcName, SFuncInfo *out) {
+int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *funcName, SFuncInfo **out) {
   char *msg = NULL;
   int32_t msgLen = 0;
 
@@ -665,11 +665,17 @@ int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEp
 
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    if (TSDB_CODE_MND_FUNC_NOT_EXIST == rpcRsp.code) {
+      ctgDebug("funcName %s not exist in mnode", funcName);
+      taosMemoryFreeClear(*out);
+      CTG_RET(TSDB_CODE_SUCCESS);
+    }
+    
     ctgError("error rsp for get udf, error:%s, funcName:%s", tstrerror(rpcRsp.code), funcName);
     CTG_ERR_RET(rpcRsp.code);
   }
 
-  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)](out, rpcRsp.pCont, rpcRsp.contLen);
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)](*out, rpcRsp.pCont, rpcRsp.contLen);
   if (code) {
     ctgError("Process get udf rsp failed, code:%x, funcName:%s", code, funcName);
     CTG_ERR_RET(code);
@@ -2848,14 +2854,28 @@ int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, 
   CTG_API_LEAVE(ctgGetIndexInfoFromMnode(pCtg, pRpc, pMgmtEps, indexName, pInfo));
 }
 
-int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo* pInfo) {
+int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo** pInfo) {
   CTG_API_ENTER();
   
   if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == funcName || NULL == pInfo) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_API_LEAVE(ctgGetUdfInfoFromMnode(pCtg, pRpc, pMgmtEps, funcName, pInfo));
+  int32_t code = 0;
+  *pInfo = taosMemoryMalloc(sizeof(SFuncInfo));
+  if (NULL == *pInfo) {
+    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  CTG_ERR_JRET(ctgGetUdfInfoFromMnode(pCtg, pRpc, pMgmtEps, funcName, pInfo));
+  
+_return:
+
+  if (code) {
+    taosMemoryFreeClear(*pInfo);    
+  }
+  
+  CTG_API_LEAVE(code);
 }
 
 

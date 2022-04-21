@@ -164,6 +164,7 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
 
   SRetrieveFuncReq funcReq = {0};
   funcReq.numOfFuncs = 1;
+  funcReq.ignoreCodeComment = true;
   funcReq.pFuncNames = taosArrayInit(1, strlen(input) + 1);
   taosArrayPush(funcReq.pFuncNames, input);
 

@@ -119,9 +119,10 @@ typedef enum EFunctionType {
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
+struct SCatalog;
 
 typedef struct SFmGetFuncInfoParam {
-  SCatalog* pCtg;
+  struct SCatalog* pCtg;
   void *pRpc;
   const SEpSet* pMgmtEps;
 } SFmGetFuncInfoParam;
