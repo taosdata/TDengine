@@ -329,26 +329,29 @@ class TDTestCase:
 
         tdSql.query("select cast(c5 as bigint) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            tdSql.checkData( i, 0, data_ct4_c5[i])
+            tdSql.checkData( i, 0, data_ct4_c5[i] ) if data_ct4_c5[i] is None else tdSql.checkData( i, 0, int(data_ct4_c5[i]) )
         tdSql.query("select cast(c5 as bigint) as b from t1")
         for i in range(len(data_t1_c5)):
-            tdSql.checkData( i, 0, data_t1_c5[i])
+            tdSql.checkData( i, 0, data_t1_c5[i] ) if data_t1_c5[i] is None else tdSql.checkData( i, 0, int(data_t1_c5[i]) )
 
         tdLog.printNoPrefix("==========step21: cast float to binary, expect changes to str(int) ")
         tdSql.query("select cast(c5 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )
+            # tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, str(round(data_ct4_c5[i], 6)) )
+            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
         tdSql.query("select cast(c5 as binary(32)) as b from t1")
         for i in range(len(data_t1_c5)):
-            tdSql.checkData( i, 0, str(data_t1_c5[i]) )
+            # tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, str(round(data_t1_c5[i], 6)) )
+            tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
+            # tdSql.checkData( i, 0, str(data_t1_c5[i]) )
 
         tdLog.printNoPrefix("==========step22: cast float to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c5 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )
+            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
         tdSql.query("select cast(c5 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c5)):
-            tdSql.checkData( i, 0, str(data_t1_c5[i]) )
+            tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step23: cast float to timestamp, expect changes to timestamp ")
         tdSql.query("select cast(c5 as timestamp) as b from ct4")
@@ -380,26 +383,26 @@ class TDTestCase:
 
         tdSql.query("select cast(c6 as bigint) as b from ct4")
         for i in range(len(data_ct4_c6)):
-            tdSql.checkData( i, 0, data_ct4_c6[i])
+            tdSql.checkData( i, 0, data_ct4_c6[i] ) if data_ct4_c6[i] is None else tdSql.checkData( i, 0, int(data_ct4_c6[i]) )
         tdSql.query("select cast(c6 as bigint) as b from t1")
         for i in range(len(data_t1_c6)):
-            tdSql.checkData( i, 0, data_t1_c6[i])
+            tdSql.checkData( i, 0, data_t1_c6[i] ) if data_t1_c6[i] is None else tdSql.checkData( i, 0, int(data_t1_c6[i]) )
 
         tdLog.printNoPrefix("==========step25: cast double to binary, expect changes to str(int) ")
         tdSql.query("select cast(c6 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c6)):
-            tdSql.checkData( i, 0, str(data_ct4_c6[i]) )
+            tdSql.checkData( i, 0, str(data_ct4_c6[i]) )  if data_ct4_c6[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c6[i]:.6f}' )
         tdSql.query("select cast(c6 as binary(32)) as b from t1")
         for i in range(len(data_t1_c6)):
-            tdSql.checkData( i, 0, str(data_t1_c6[i]) )
+            tdSql.checkData( i, 0, str(data_t1_c6[i]) )  if data_t1_c6[i] is None else  tdSql.checkData( i, 0, f'{data_t1_c6[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step26: cast double to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c6 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c6)):
-            tdSql.checkData( i, 0, str(data_ct4_c6[i]) )
+            tdSql.checkData( i, 0, str(data_ct4_c6[i]) )  if data_ct4_c6[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c6[i]:.6f}' )
         tdSql.query("select cast(c6 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c6)):
-            tdSql.checkData( i, 0, str(data_t1_c6[i]) )
+            tdSql.checkData( i, 0, str(data_t1_c6[i]) )  if data_t1_c6[i] is None else  tdSql.checkData( i, 0, f'{data_t1_c6[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step27: cast double to timestamp, expect changes to timestamp ")
         tdSql.query("select cast(c6 as timestamp) as b from ct4")
