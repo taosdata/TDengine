@@ -48,6 +48,7 @@ typedef struct SPoolMem {
 
 struct SSmaEnv {
   TdThreadRwlock lock;
+  int8_t         type;
   TXN            txn;
   SPoolMem      *pPool;
   SDiskID        did;
@@ -57,6 +58,7 @@ struct SSmaEnv {
 };
 
 #define SMA_ENV_LOCK(env)       ((env)->lock)
+#define SMA_ENV_TYPE(env)       ((env)->type)
 #define SMA_ENV_DID(env)        ((env)->did)
 #define SMA_ENV_ENV(env)        ((env)->dbEnv)
 #define SMA_ENV_PATH(env)       ((env)->path)
@@ -141,7 +143,7 @@ static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t
                                      int64_t version);
 static int32_t  tsdbInitSmaStat(SSmaStat **pSmaStat, int8_t smaType);
 static void    *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
-static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat);
+static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, int8_t smaType, const char *path, SDiskID did);
 static int32_t  tsdbInitSmaEnv(STsdb *pTsdb, int8_t smaType, const char *path, SDiskID did, SSmaEnv **pEnv);
 static int32_t  tsdbResetExpiredWindow(STsdb *pTsdb, SSmaStat *pStat, int64_t indexUid, TSKEY skey);
@@ -357,6 +359,8 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, int8_t smaType, const char *pa
     return NULL;
   }
 
+  SMA_ENV_TYPE(pEnv) = smaType;
+
   int code = taosThreadRwlockInit(&(pEnv->lock), NULL);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -365,15 +369,15 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, int8_t smaType, const char *pa
   }
 
   ASSERT(path && (strlen(path) > 0));
-  pEnv->path = strdup(path);
-  if (pEnv->path == NULL) {
+  SMA_ENV_PATH(pEnv) = strdup(path);
+  if (SMA_ENV_PATH(pEnv) == NULL) {
     tsdbFreeSmaEnv(pEnv);
     return NULL;
   }
 
-  pEnv->did = did;
+  SMA_ENV_DID(pEnv) = did;
 
-  if (tsdbInitSmaStat(&pEnv->pStat, smaType) != TSDB_CODE_SUCCESS) {
+  if (tsdbInitSmaStat(&SMA_ENV_STAT(pEnv), smaType) != TSDB_CODE_SUCCESS) {
     tsdbFreeSmaEnv(pEnv);
     return NULL;
   }
@@ -416,7 +420,7 @@ static int32_t tsdbInitSmaEnv(STsdb *pTsdb, int8_t smaType, const char *path, SD
  */
 void tsdbDestroySmaEnv(SSmaEnv *pSmaEnv) {
   if (pSmaEnv) {
-    tsdbDestroySmaState(pSmaEnv->pStat);
+    tsdbDestroySmaState(pSmaEnv->pStat, SMA_ENV_TYPE(pSmaEnv));
     taosMemoryFreeClear(pSmaEnv->pStat);
     taosMemoryFreeClear(pSmaEnv->path);
     taosThreadRwlockDestroy(&(pSmaEnv->lock));
@@ -520,16 +524,28 @@ static void *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
  * @param pSmaStat
  * @return int32_t
  */
-int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
+int32_t tsdbDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
-    void *item = taosHashIterate(pSmaStat->smaStatItems, NULL);
-    while (item != NULL) {
-      SSmaStatItem *pItem = *(SSmaStatItem **)item;
-      tsdbFreeSmaStatItem(pItem);
-      item = taosHashIterate(pSmaStat->smaStatItems, item);
+    if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
+      void *item = taosHashIterate(SSMA_STAT_ITEMS(pSmaStat), NULL);
+      while (item != NULL) {
+        SSmaStatItem *pItem = *(SSmaStatItem **)item;
+        tsdbFreeSmaStatItem(pItem);
+        item = taosHashIterate(SSMA_STAT_ITEMS(pSmaStat), item);
+      }
+      taosHashCleanup(SSMA_STAT_ITEMS(pSmaStat));
+    } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
+      void *infoHash = taosHashIterate(SSMA_STAT_INFO_HASH(pSmaStat), NULL);
+      while (infoHash != NULL) {
+        SRSmaInfo *pInfoHash = *(SRSmaInfo **)infoHash;
+        tsdbFreeRSmaInfo(pInfoHash);
+        infoHash = taosHashIterate(SSMA_STAT_INFO_HASH(pSmaStat), infoHash);
+      }
+      taosHashCleanup(SSMA_STAT_INFO_HASH(pSmaStat));
+    } else {
+      ASSERT(0);
     }
-    taosHashCleanup(pSmaStat->smaStatItems);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1744,7 +1760,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
     }
   }
 
-  if (taosHashPut(pStat->rsmaInfoHash, &pReq->stbCfg.suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) != 0) {
+  if (taosHashPut(SSMA_STAT_INFO_HASH(pStat), &pReq->stbCfg.suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) != 0) {
     return TSDB_CODE_FAILED;
   }
 
