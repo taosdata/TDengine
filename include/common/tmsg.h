@@ -1275,11 +1275,16 @@ typedef struct {
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
-  char   name[TSDB_TOPIC_FNAME_LEN];
-  int8_t igExists;
-  char*  sql;
-  char*  ast;
-  char   subscribeDbName[TSDB_DB_NAME_LEN];
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igExists;
+  int8_t  withTbName;
+  int8_t  withSchema;
+  int8_t  withTag;
+  int8_t  withTagSchema;
+  char*   sql;
+  char*   ast;
+  int64_t subDbUid;
+  char    subscribeDbName[TSDB_DB_NAME_LEN];
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
@@ -1934,12 +1939,22 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
   return buf;
 }
 
+enum {
+  TOPIC_SUB_TYPE__DB = 1,
+  TOPIC_SUB_TYPE__TABLE,
+};
+
 typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;
   int64_t newConsumerId;
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t  subType;
+  int8_t  withTbName;
+  int8_t  withSchema;
+  int8_t  withTag;
+  int8_t  withTagSchema;
   char*   qmsg;
 } SMqRebVgReq;
 
@@ -1950,7 +1965,14 @@ static FORCE_INLINE int32_t tEncodeSMqRebVgReq(void** buf, const SMqRebVgReq* pR
   tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
   tlen += taosEncodeString(buf, pReq->subKey);
-  tlen += taosEncodeString(buf, pReq->qmsg);
+  tlen += taosEncodeFixedI8(buf, pReq->subType);
+  tlen += taosEncodeFixedI8(buf, pReq->withTbName);
+  tlen += taosEncodeFixedI8(buf, pReq->withSchema);
+  tlen += taosEncodeFixedI8(buf, pReq->withTag);
+  tlen += taosEncodeFixedI8(buf, pReq->withTagSchema);
+  if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
+    tlen += taosEncodeString(buf, pReq->qmsg);
+  }
   return tlen;
 }
 
@@ -1960,7 +1982,14 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
   buf = taosDecodeStringTo(buf, pReq->subKey);
-  buf = taosDecodeString(buf, &pReq->qmsg);
+  buf = taosDecodeFixedI8(buf, &pReq->subType);
+  buf = taosDecodeFixedI8(buf, &pReq->withTbName);
+  buf = taosDecodeFixedI8(buf, &pReq->withSchema);
+  buf = taosDecodeFixedI8(buf, &pReq->withTag);
+  buf = taosDecodeFixedI8(buf, &pReq->withTagSchema);
+  if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
+    buf = taosDecodeString(buf, &pReq->qmsg);
+  }
   return (void*)buf;
 }
 
