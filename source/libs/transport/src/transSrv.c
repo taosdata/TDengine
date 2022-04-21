@@ -846,10 +846,8 @@ void transRefSrvHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
-  SSrvConn* conn = handle;
-
   int ref = T_REF_INC((SSrvConn*)handle);
-  UNUSED(ref);
+  tDebug("server conn %p ref count: %d", handle, ref);
 }
 
 void transUnrefSrvHandle(void* handle) {
