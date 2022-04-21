@@ -306,7 +306,6 @@ void hbMgrInitMqHbRspHandle();
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery);
 
-
 #ifdef __cplusplus
 }
 #endif
