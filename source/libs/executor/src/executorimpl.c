@@ -1087,6 +1087,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
     pCtx[i].currentStage = MAIN_SCAN;
 
     SInputColumnInfoData* pInput = &pCtx[i].input;
+    pInput->uid = pBlock->info.uid;
 
     SExprInfo* pOneExpr = &pOperator->pExpr[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
@@ -1101,7 +1102,9 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         pInput->pPTS = taosArrayGet(pBlock->pDataBlock, 0); // todo set the correct timestamp column
         ASSERT(pInput->pData[j] != NULL);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
-        if (createDummyCol) {
+        // todo avoid case: top(k, 12), 12 is the value parameter.
+        // sum(11), 11 is also the value parameter.
+        if (createDummyCol && pOneExpr->base.numOfParams == 1) {
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
           if (code != TSDB_CODE_SUCCESS) {
             return code;
@@ -1876,67 +1879,58 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         }
       }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
-    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR || pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
-      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes; // for simple column, the intermediate buffer needs to hold one element.
+    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR ||
+               pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
+      // for simple column, the intermediate buffer needs to hold one element.
+      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes;
     }
 
     pCtx->input.numOfInputCols = pFunct->numOfParams;
     pCtx->input.pData = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
     pCtx->input.pColumnDataAgg = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
 
-    pCtx->pTsOutput         = NULL;
+    pCtx->pTsOutput = NULL;
     pCtx->resDataInfo.bytes = pFunct->resSchema.bytes;
-    pCtx->resDataInfo.type  = pFunct->resSchema.type;
-    pCtx->order             = TSDB_ORDER_ASC;
-    pCtx->start.key         = INT64_MIN;
-    pCtx->end.key           = INT64_MIN;
-#if 0
-    for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
-//      int16_t type = pFunct->param[j].nType;
-//      int16_t bytes = pFunct->param[j].nLen;
+    pCtx->resDataInfo.type = pFunct->resSchema.type;
+    pCtx->order = TSDB_ORDER_ASC;
+    pCtx->start.key = INT64_MIN;
+    pCtx->end.key = INT64_MIN;
+    pCtx->numOfParams = pExpr->base.numOfParams;
 
-//      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-//        taosVariantCreateFromBinary(&pCtx->param[j], pFunct->param[j].pz, bytes, type);
-//      } else {
-//        taosVariantCreateFromBinary(&pCtx->param[j], (char *)&pFunct->param[j].i, bytes, type);
+    pCtx->param = pFunct->pParam;
+//    for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
+//      // set the order information for top/bottom query
+//      int32_t functionId = pCtx->functionId;
+//      if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
+//        int32_t f = getExprFunctionId(&pExpr[0]);
+//        assert(f == FUNCTION_TS || f == FUNCTION_TS_DUMMY);
+//
+//        //      pCtx->param[2].i = pQueryAttr->order.order;
+//        //      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
+//        //      pCtx->param[3].i = functionId;
+//        //      pCtx->param[3].nType = TSDB_DATA_TYPE_BIGINT;
+//
+//        //      pCtx->param[1].i = pQueryAttr->order.col.info.colId;
+//      } else if (functionId == FUNCTION_INTERP) {
+//        //      pCtx->param[2].i = (int8_t)pQueryAttr->fillType;
+//        //      if (pQueryAttr->fillVal != NULL) {
+//        //        if (isNull((const char *)&pQueryAttr->fillVal[i], pCtx->inputType)) {
+//        //          pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
+//        //        } else {  // todo refactor, taosVariantCreateFromBinary should handle the NULL value
+//        //          if (pCtx->inputType != TSDB_DATA_TYPE_BINARY && pCtx->inputType != TSDB_DATA_TYPE_NCHAR) {
+//        //            taosVariantCreateFromBinary(&pCtx->param[1], (char *)&pQueryAttr->fillVal[i], pCtx->inputBytes, pCtx->inputType);
+//        //          }
+//        //        }
+//        //      }
+//      } else if (functionId == FUNCTION_TWA) {
+//        //      pCtx->param[1].i = pQueryAttr->window.skey;
+//        //      pCtx->param[1].nType = TSDB_DATA_TYPE_BIGINT;
+//        //      pCtx->param[2].i = pQueryAttr->window.ekey;
+//        //      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
+//      } else if (functionId == FUNCTION_ARITHM) {
+//        //      pCtx->param[1].pz = (char*) getScalarFuncSupport(pRuntimeEnv->scalarSup, i);
 //      }
-    }
-
-    // set the order information for top/bottom query
-    int32_t functionId = pCtx->functionId;
-    if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
-      int32_t f = getExprFunctionId(&pExpr[0]);
-      assert(f == FUNCTION_TS || f == FUNCTION_TS_DUMMY);
-
-//      pCtx->param[2].i = pQueryAttr->order.order;
-      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-      pCtx->param[3].i = functionId;
-      pCtx->param[3].nType = TSDB_DATA_TYPE_BIGINT;
-
-//      pCtx->param[1].i = pQueryAttr->order.col.info.colId;
-    } else if (functionId == FUNCTION_INTERP) {
-//      pCtx->param[2].i = (int8_t)pQueryAttr->fillType;
-//      if (pQueryAttr->fillVal != NULL) {
-//        if (isNull((const char *)&pQueryAttr->fillVal[i], pCtx->inputType)) {
-//          pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
-//        } else {  // todo refactor, taosVariantCreateFromBinary should handle the NULL value
-//          if (pCtx->inputType != TSDB_DATA_TYPE_BINARY && pCtx->inputType != TSDB_DATA_TYPE_NCHAR) {
-//            taosVariantCreateFromBinary(&pCtx->param[1], (char *)&pQueryAttr->fillVal[i], pCtx->inputBytes, pCtx->inputType);
-//          }
-//        }
-//      }
-    } else if (functionId == FUNCTION_TS_COMP) {
-//      pCtx->param[0].i = pQueryAttr->vgId;  //TODO this should be the parameter from client
-      pCtx->param[0].nType = TSDB_DATA_TYPE_BIGINT;
-    } else if (functionId == FUNCTION_TWA) {
-//      pCtx->param[1].i = pQueryAttr->window.skey;
-      pCtx->param[1].nType = TSDB_DATA_TYPE_BIGINT;
-//      pCtx->param[2].i = pQueryAttr->window.ekey;
-      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-    } else if (functionId == FUNCTION_ARITHM) {
-//      pCtx->param[1].pz = (char*) getScalarFuncSupport(pRuntimeEnv->scalarSup, i);
-    }
-#endif
+//    }
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -1955,7 +1949,7 @@ static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
-      taosVariantDestroy(&pCtx[i].param[j]);
+      taosVariantDestroy(&pCtx[i].param[j].param);
     }
 
     taosVariantDestroy(&pCtx[i].tag);
@@ -6487,9 +6481,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       int32_t     numOfCols = 0;
       tsdbReaderT pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableGroupInfo, (uint64_t)queryId, taskId);
-      if (pDataReader == NULL) {
-        return NULL;
-      }
 
       SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
       SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
