@@ -479,7 +479,7 @@ typedef struct {
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo  binfo;
-  SArray*         pGroupCols;
+  SArray*         pGroupCols;     // group by columns, SArray<SColumn>
   SArray*         pGroupColVals;  // current group column values, SArray<SGroupKeys>
   SNode*          pCondition;
   bool            isInit;       // denote if current val is initialized or not

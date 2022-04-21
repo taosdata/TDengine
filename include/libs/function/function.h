@@ -166,6 +166,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
+  uint64_t          uid;            // table uid
 } SInputColumnInfoData;
 
 // sql function runtime context
