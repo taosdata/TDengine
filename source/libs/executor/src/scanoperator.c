@@ -320,7 +320,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
   // The read handle is not initialized yet, since no qualified tables exists
-  if (pTableScanInfo->dataReader == NULL) {
+  if (pTableScanInfo->dataReader == NULL || pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
@@ -376,7 +376,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   return p;
 }
 
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
+SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
                                            int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
                                            SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
@@ -396,7 +396,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pInfo->dataBlockLoadFlag= dataLoadFlag;
   pInfo->pResBlock        = pResBlock;
   pInfo->pFilterNode      = pCondition;
-  pInfo->dataReader       = pTsdbReadHandle;
+  pInfo->dataReader       = pDataReader;
   pInfo->times            = repeatTime;
   pInfo->reverseTimes     = reverseTime;
   pInfo->order            = order;
