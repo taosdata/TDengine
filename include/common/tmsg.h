@@ -1506,6 +1506,10 @@ typedef struct SVCreateStbReq {
 int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
 int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
+typedef struct SVDropStbReq {
+  // data
+} SVDropStbReq;
+
 typedef struct SVCreateStbRsp {
   int code;
 } SVCreateStbRsp;

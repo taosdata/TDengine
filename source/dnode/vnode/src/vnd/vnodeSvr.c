@@ -15,7 +15,7 @@
 
 #include "vnodeInt.h"
 
-static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len, SRpcMsg *pRsp);
+static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp);
@@ -68,7 +68,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   switch (pMsg->msgType) {
     /* META */
     case TDMT_VND_CREATE_STB:
-      if (vnodeProcessCreateStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessCreateStbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_STB:
       if (vnodeProcessAlterStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
@@ -214,7 +214,7 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   return 0;
 }
 
-static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len, SRpcMsg *pRsp) {
+static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateStbReq req = {0};
   SCoder         coder;
 
@@ -231,7 +231,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq, int len, SRpcMsg
     goto _err;
   }
 
-  if (metaCreateSTable(pVnode->pMeta, pReq, NULL) < 0) {
+  if (metaCreateSTable(pVnode->pMeta, version, pReq) < 0) {
     pRsp->code = terrno;
     goto _err;
   }

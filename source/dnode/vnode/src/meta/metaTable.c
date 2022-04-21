@@ -15,15 +15,25 @@
 
 #include "vnodeInt.h"
 
-int metaCreateSTable(SMeta *pMeta, SVCreateStbReq *pReq, SVCreateStbRsp *pRsp) {
+static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME);
+static int metaUpdateUidIdx(SMeta *pMeta, tb_uid_t uid, int64_t version);
+static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid);
+
+int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SSkmDbKey   skmDbKey = {0};
   SMetaEntry  me = {0};
-  int         kLen;
-  int         vLen;
-  const void *pKey;
-  const void *pVal;
+  int         kLen = 0;
+  int         vLen = 0;
+  const void *pKey = NULL;
+  const void *pVal = NULL;
+  void       *pBuf = NULL;
+  int32_t     szBuf = 0;
+  void       *p = NULL;
+  SCoder      coder = {0};
 
-  // check name and uid unique
+  {
+    // TODO: validate request (uid and name unique)
+  }
 
   // set structs
   me.type = TSDB_SUPER_TABLE;
@@ -38,33 +48,27 @@ int metaCreateSTable(SMeta *pMeta, SVCreateStbReq *pReq, SVCreateStbRsp *pRsp) {
   skmDbKey.uid = pReq->suid;
   skmDbKey.sver = 0;  // (TODO)
 
-  // save to table.db (TODO)
-  pKey = NULL;
-  kLen = 0;
-  pVal = NULL;
-  vLen = 0;
-  if (tdbDbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, NULL) < 0) {
-    return -1;
-  }
+  // save to table.db
+  if (metaSaveToTbDb(pMeta, version, &me) < 0) goto _err;
 
-  // save to schema.db
-  pKey = &skmDbKey;
-  kLen = sizeof(skmDbKey);
-  pVal = NULL;
-  vLen = 0;
-  if (tdbDbInsert(pMeta->pSkmDb, pKey, kLen, pVal, vLen, NULL) < 0) {
-    return -1;
-  }
+  // update uid idx
+  if (metaUpdateUidIdx(pMeta, me.uid, version) < 0) goto _err;
 
   // update name.idx
-  pKey = pReq->name;
-  kLen = strlen(pReq->name) + 1;
-  pVal = &pReq->suid;
-  vLen = sizeof(tb_uid_t);
-  if (tdbDbInsert(pMeta->pNameIdx, pKey, kLen, pVal, vLen, NULL) < 0) {
-    return -1;
-  }
+  if (metaUpdateNameIdx(pMeta, me.name, me.uid) < 0) goto _err;
 
+  metaDebug("vgId: %d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+
+  return 0;
+
+_err:
+  metaError("vgId: %d failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+            pReq->suid, tstrerror(terrno));
+  return -1;
+}
+
+int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
+  // TODO
   return 0;
 }
 
@@ -98,4 +102,54 @@ int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
 #endif
 
   return 0;
+}
+
+static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME) {
+  void  *pKey = NULL;
+  void  *pVal = NULL;
+  int    kLen = 0;
+  int    vLen = 0;
+  SCoder coder = {0};
+
+  // set key and value
+  pKey = &version;
+  kLen = sizeof(version);
+
+  if (tEncodeSize(metaEncodeEntry, pME, vLen) < 0) {
+    goto _err;
+  }
+
+  pVal = taosMemoryMalloc(vLen);
+  if (pVal == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_ENCODER);
+
+  if (metaEncodeEntry(&coder, pME) < 0) {
+    goto _err;
+  }
+
+  tCoderClear(&coder);
+
+  // write to table.db
+  if (tdbDbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, NULL) < 0) {
+    goto _err;
+  }
+
+  taosMemoryFree(pVal);
+  return 0;
+
+_err:
+  taosMemoryFree(pVal);
+  return -1;
+}
+
+static int metaUpdateUidIdx(SMeta *pMeta, tb_uid_t uid, int64_t version) {
+  return tdbDbInsert(pMeta->pUidIdx, &uid, sizeof(uid), &version, sizeof(version), NULL);
+}
+
+static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid) {
+  return tdbDbInsert(pMeta->pNameIdx, name, strlen(name) + 1, &uid, sizeof(uid), NULL);
 }
