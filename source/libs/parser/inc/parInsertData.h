@@ -89,7 +89,7 @@ static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
          (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
 }
 
-static FORCE_INLINE void getSTSRowAppendInfo(SSchema *pSchema, uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx,
+static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx,
                                              int32_t *toffset, col_id_t *colIdx) {
   col_id_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
@@ -131,7 +131,6 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void    setBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_id_t numOfCols);
-void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
 void destroyBlockArrayList(SArray* pDataBlockList);
 void destroyBlockHashmap(SHashObj* pDataBlockHash);
 int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
@@ -139,5 +138,7 @@ int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
     const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq);
 int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** pVgDataBlocks);
+int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq);
+int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 
 #endif  // TDENGINE_DATABLOCKMGT_H

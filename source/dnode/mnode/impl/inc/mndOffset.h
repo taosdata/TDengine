@@ -31,7 +31,7 @@ void          mndReleaseOffset(SMnode *pMnode, SMqOffsetObj *pOffset);
 SSdbRaw *mndOffsetActionEncode(SMqOffsetObj *pOffset);
 SSdbRow *mndOffsetActionDecode(SSdbRaw *pRaw);
 
-int32_t mndCreateOffset(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs);
+int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs);
 
 static FORCE_INLINE int32_t mndMakePartitionKey(char *key, const char *cgroup, const char *topicName, int32_t vgId) {
   return snprintf(key, TSDB_PARTITION_KEY_LEN, "%d:%s:%s", vgId, cgroup, topicName);

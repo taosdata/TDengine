@@ -13,26 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_SCHEDULER_H_
-#define _TD_MND_SCHEDULER_H_
+#include "planTestUtil.h"
+#include "planner.h"
 
-#include "mndInt.h"
+using namespace std;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+class PlanSetOpTest : public PlannerTestBase {
 
-int32_t mndInitScheduler(SMnode* pMnode);
-void    mndCleanupScheduler(SMnode* pMnode);
+};
 
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
+TEST_F(PlanSetOpTest, unionAll) {
+  useDb("root", "test");
 
-int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
-
-int32_t mndConvertRSmaTask(const char* ast, int8_t triggerType, int64_t watermark, char** pStr, int32_t* pLen);
-
-#ifdef __cplusplus
+  run("select c1, c2 from t1 where c1 > 10 union all select c1, c2 from t1 where c1 > 20");
 }
-#endif
-
-#endif /*_TD_MND_SCHEDULER_H_ */
