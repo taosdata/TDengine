@@ -92,6 +92,7 @@ int32_t tsdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
+int32_t fnDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -753,6 +754,7 @@ void taosSetAllDebugFlag(int32_t flag) {
   tsdbDebugFlag = flag;
   tqDebugFlag = flag;
   fsDebugFlag = flag;
+  fnDebugFlag = flag;
 
   uInfo("all debug flag are set to %d", flag);
 }

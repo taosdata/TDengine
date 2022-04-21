@@ -16,6 +16,13 @@
 #ifndef _TD_VNODE_TQ_H_
 #define _TD_VNODE_TQ_H_
 
+#include "executor.h"
+#include "os.h"
+#include "thash.h"
+#include "tmsg.h"
+#include "ttimer.h"
+#include "wal.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,12 +36,6 @@ extern "C" {
 #define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
-
-enum {
-  TQ_STREAM_TOKEN__DATA = 1,
-  TQ_STREAM_TOKEN__WATERMARK,
-  TQ_STREAM_TOKEN__CHECKPOINT,
-};
 
 #define TQ_BUFFER_SIZE 4
 
@@ -151,22 +152,27 @@ typedef struct {
 } STqMetaStore;
 
 typedef struct {
-  SMemAllocatorFactory* pAllocatorFactory;
-  SMemAllocator*        pAllocator;
-} STqMemRef;
+  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t consumerId;
+  int32_t epoch;
+  char*   qmsg;
+  // SRWLatch        lock;
+  SWalReadHandle* pReadHandle;
+  // number should be identical to fetch thread num
+  qTaskInfo_t task[4];
+} STqExec;
 
 struct STQ {
   // the collection of groups
   // the handle of meta kvstore
   bool          writeTrigger;
   char*         path;
-  STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
-  // STqPushMgr*   tqPushMgr;
-  SHashObj* pStreamTasks;
-  SVnode*   pVnode;
-  SWal*     pWal;
-  SMeta*    pVnodeMeta;
+  SHashObj*     tqMetaNew;  // subKey -> tqExec
+  SHashObj*     pStreamTasks;
+  SVnode*       pVnode;
+  SWal*         pWal;
+  SMeta*        pVnodeMeta;
 };
 
 typedef struct {
@@ -231,10 +237,6 @@ typedef struct {
 } STqStreamPusher;
 
 typedef struct {
-  int8_t type;  // mq or stream
-} STqPusher;
-
-typedef struct {
   SHashObj* pHash;  // <id, STqPush*>
 } STqPushMgr;
 
@@ -257,9 +259,10 @@ int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-int32_t tqProcessRebReq(STQ* pTq, char* msg);
-int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
+int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
+// int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
+// int32_t tqProcessRebReq(STQ* pTq, char* msg);
+// int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
