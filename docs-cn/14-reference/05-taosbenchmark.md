@@ -7,7 +7,7 @@ sidebar_label: taosBenchmark
 
 taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具。taosBenchmark 可以测试 TDengine 的插入、查询和订阅等功能的性能，它可以模拟由大量设备产生的大量数据，还可以灵活地控制数据库、超级表、标签列的数量和类型、普通列的数量和类型、子表的数量、每张子表的数据量、插入数据的时间间隔、taosdump 的工作线程数量等。为了兼容过往用户的使用习惯，安装包提供 了 taosdemo 作为 taosBenchmark 的软链接。
 
-taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配置文件](#json)。
+taosBenchmark 支持两种配置方式：[命令行参数](#命令行参数) 和 [JSON 配置文件](#json-配置文件)。
 
 ## 命令行参数
 
@@ -15,7 +15,7 @@ taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配�
 
 | 选项名称                                 | 描述                                                         |
 | :--------------------------------------- | ------------------------------------------------------------ | --- |
-| [-f/--file](#json)                       | 使用 JSON 配置文件指定所有参数, 与命令行其他参数不能同时使用 |
+| [-f/--file](#json-配置文件)                       | 使用 JSON 配置文件指定所有参数, 与命令行其他参数不能同时使用 |
 | -c/--config-dir                          | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos/       |
 | -h/--host                                | 要连接 TDengine 服务端的 FQDN，默认值为 localhost。          |
 | -P/--port                                | 要连接的 TDengine 服务器的端口号，默认值为 6030。            |
@@ -269,7 +269,7 @@ taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配�
 | sqls                                    | [sql](#sql)              | 执行的 SQL 命令，必填                                  |
 | sqls                                    | result                   | 查询结果的结果文件，没有则为空。                       |
 
-### JSOn 配置文件 （订阅场景）
+### JSON 配置文件 （订阅场景）
 
 ```json
 {
