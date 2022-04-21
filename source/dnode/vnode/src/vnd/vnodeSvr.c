@@ -215,14 +215,8 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
     return -1;
   }
 
-  // TODO: remove the debug log
-  SRSmaParam *param = vCreateTbReq.stbCfg.pRSmaParam;
-  if (param) {
-    printf("qmsg1 len = %d, body = %s\n", param->qmsg1 ? (int32_t)strlen(param->qmsg1) : 0,
-           param->qmsg1 ? param->qmsg1 : "");
-    printf("qmsg1 len = %d, body = %s\n", param->qmsg2 ? (int32_t)strlen(param->qmsg2) : 0,
-           param->qmsg2 ? param->qmsg2 : "");
-  }
+  // deploy Rollup SMA
+  tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &vCreateTbReq);
 
   taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
   taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);

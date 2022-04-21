@@ -1483,8 +1483,8 @@ typedef struct {
   int32_t    qmsg1Len;
   int32_t    qmsg2Len;
   func_id_t* pFuncIds;
-  char*      qmsg1;  // not null: pAst1:qmsg1:SRetention1 => trigger aggr task1
-  char*      qmsg2;  // not null: pAst2:qmsg2:SRetention2 => trigger aggr task2
+  char*      qmsg1;  // pAst1:qmsg1:SRetention1 => trigger aggr task1
+  char*      qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
   int8_t     nFuncIds;
 } SRSmaParam;
 

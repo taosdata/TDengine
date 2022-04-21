@@ -113,6 +113,8 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 #include "tq.h"
 
+#include "tsdbSma.h"
+
 #ifdef __cplusplus
 }
 #endif
