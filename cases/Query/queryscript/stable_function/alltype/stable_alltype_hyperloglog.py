@@ -1230,27 +1230,27 @@ class TDTestQuery(TDCase):
                             print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s_1') %s %s ;"  % (func,self.table,self.table,interval_fill_and,time_window_new)
 
-                            sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts)" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s %s order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts)" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s %s %s order by ts" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s %s %s ) order by ts" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s %s ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts ) order by ts" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s %s order by ts ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
 
