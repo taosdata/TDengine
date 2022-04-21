@@ -16,7 +16,6 @@
 #include "vnodeInt.h"
 
 int metaCreateSTable(SMeta *pMeta, SVCreateStbReq *pReq, SVCreateStbRsp *pRsp) {
-  STbDbKey    tbDbKey = {0};
   SSkmDbKey   skmDbKey = {0};
   SMetaEntry  me = {0};
   int         kLen;
@@ -36,15 +35,12 @@ int metaCreateSTable(SMeta *pMeta, SVCreateStbReq *pReq, SVCreateStbRsp *pRsp) {
   me.stbEntry.nTags = pReq->nTags;
   me.stbEntry.pSchemaTg = pReq->pSchemaTg;
 
-  tbDbKey.uid = pReq->suid;
-  tbDbKey.ver = 0;  // (TODO)
-
   skmDbKey.uid = pReq->suid;
   skmDbKey.sver = 0;  // (TODO)
 
   // save to table.db (TODO)
-  pKey = &tbDbKey;
-  kLen = sizeof(tbDbKey);
+  pKey = NULL;
+  kLen = 0;
   pVal = NULL;
   vLen = 0;
   if (tdbDbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, NULL) < 0) {

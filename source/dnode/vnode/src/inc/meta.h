@@ -73,11 +73,6 @@ struct SMeta {
   SMetaIdx* pIdx;
 };
 
-typedef struct {
-  tb_uid_t uid;
-  int64_t  ver;
-} STbDbKey;
-
 typedef struct __attribute__((__packed__)) {
   tb_uid_t uid;
   int32_t  sver;

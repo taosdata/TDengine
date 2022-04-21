@@ -20,6 +20,7 @@ static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLe
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   SMeta *pMeta = NULL;
@@ -51,7 +52,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pTbDb
-  ret = tdbDbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
+  ret = tdbDbOpen("table.db", sizeof(int64_t), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
   if (ret < 0) {
     metaError("vgId: %d failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -61,6 +62,13 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   ret = tdbDbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
   if (ret < 0) {
     metaError("vgId: %d failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // open pUidIdx
+  ret = tdbDbOpen("uid.db", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
+  if (ret < 0) {
+    metaError("vgId: %d failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -109,6 +117,7 @@ _err:
   if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
   if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
+  if (pMeta->pNameIdx) tdbDbClose(pMeta->pUidIdx);
   if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
   if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
   if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
@@ -123,6 +132,7 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
     if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
     if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
+    if (pMeta->pNameIdx) tdbDbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
@@ -133,18 +143,12 @@ int metaClose(SMeta *pMeta) {
 }
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
-  STbDbKey *pTbDbKey2 = (STbDbKey *)pKey2;
+  int64_t version1 = *(int64_t *)pKey1;
+  int64_t version2 = *(int64_t *)pKey2;
 
-  if (pTbDbKey1->uid > pTbDbKey2->uid) {
+  if (version1 > version2) {
     return 1;
-  } else if (pTbDbKey1->uid < pTbDbKey2->uid) {
-    return -1;
-  }
-
-  if (pTbDbKey1->ver > pTbDbKey2->ver) {
-    return 1;
-  } else if (pTbDbKey1->ver < pTbDbKey2->ver) {
+  } else if (version1 < version2) {
     return -1;
   }
 
@@ -164,6 +168,19 @@ static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLe
   if (pSkmDbKey1->sver > pSkmDbKey2->sver) {
     return 1;
   } else if (pSkmDbKey1->sver < pSkmDbKey2->sver) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  tb_uid_t uid1 = *(tb_uid_t *)pKey1;
+  tb_uid_t uid2 = *(tb_uid_t *)pKey2;
+
+  if (uid1 > uid2) {
+    return 1;
+  } else if (uid1 < uid2) {
     return -1;
   }
 
