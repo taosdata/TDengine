@@ -216,20 +216,21 @@ static void dmStopMgmt(SMgmtWrapper *pWrapper) {
   dmStopStatusThread(pWrapper->pDnode);
 }
 
-static int32_t dmSpawnUdfd(SDnodeData *pData);
+static int32_t dmSpawnUdfd(SDnode *pDnode);
 
 void dmUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   dInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   uv_close((uv_handle_t*)process, NULL);
-  SDnodeData *pData = process->data;
-  if (atomic_load_8(&pData->udfdStoping) != 0) {
+  SDnode *pDnode = process->data;
+  SUdfdData *pData = &pDnode->udfdData;
+  if (atomic_load_8(&pData->stopping) != 0) {
     dDebug("udfd process exit due to stopping");
   } else {
-    dmSpawnUdfd(pData);
+    dmSpawnUdfd(pDnode);
   }
 }
 
-static int32_t dmSpawnUdfd(SDnodeData *pData) {
+static int32_t dmSpawnUdfd(SDnode *pDnode) {
   dInfo("dnode start spawning udfd");
   uv_process_options_t options = {0};
 
@@ -251,16 +252,17 @@ static int32_t dmSpawnUdfd(SDnodeData *pData) {
 
   char dnodeIdEnvItem[32] = {0};
   char thrdPoolSizeEnvItem[32] = {0};
-  snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pData->dnodeId);
+  snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pDnode->data.dnodeId);
+  SUdfdData *pData = &pDnode->udfdData;
   float numCpuCores = 4;
   taosGetCpuCores(&numCpuCores);
   snprintf(thrdPoolSizeEnvItem,32,  "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores*2);
   char* envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, NULL};
   options.env = envUdfd;
 
-  int err = uv_spawn(&pData->udfdLoop, &pData->udfdProcess, &options);
+  int err = uv_spawn(&pData->loop, &pData->process, &options);
 
-  pData->udfdProcess.data = (void*)pData;
+  pData->process.data = (void*)pDnode;
 
   if (err != 0) {
     dError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
@@ -269,40 +271,50 @@ static int32_t dmSpawnUdfd(SDnodeData *pData) {
 }
 
 void dmWatchUdfd(void *args) {
-  SDnodeData *pData = args;
-  uv_loop_init(&pData->udfdLoop);
-  int err = dmSpawnUdfd(pData);
-  pData->udfdErrCode = err;
-  uv_barrier_wait(&pData->udfdBarrier);
-  if (pData->udfdErrCode == 0) {
-    uv_run(&pData->udfdLoop, UV_RUN_DEFAULT);
+  SDnode *pDnode = args;
+  SUdfdData *pData = &pDnode->udfdData;
+  uv_loop_init(&pData->loop);
+  int32_t err = dmSpawnUdfd(pDnode);
+  atomic_store_32(&pData->spawnErr, err);
+  uv_barrier_wait(&pData->barrier);
+  if (pData->spawnErr == 0) {
+    uv_run(&pData->loop, UV_RUN_DEFAULT);
   }
-  uv_loop_close(&pData->udfdLoop);
+  uv_loop_close(&pData->loop);
   return;
 }
 
 int32_t dmStartUdfd(SDnode *pDnode) {
-  SDnodeData *pData = &pDnode->data;
-  uv_barrier_init(&pData->udfdBarrier, 2);
-  pData->udfdStoping = 0;
-  uv_thread_create(&pData->udfdThread, dmWatchUdfd, pData);
-  uv_barrier_wait(&pData->udfdBarrier);
-  return pData->udfdErrCode;
+  SUdfdData *pData = &pDnode->udfdData;
+  if (pData->startCalled) {
+    dInfo("dnode-mgmt start udfd already called");
+    return 0;
+  }
+  uv_barrier_init(&pData->barrier, 2);
+  pData->stopping = 0;
+  uv_thread_create(&pData->thread, dmWatchUdfd, pDnode);
+  uv_barrier_wait(&pData->barrier);
+  pData->startCalled = true;
+  pData->needCleanUp = true;
+  return pData->spawnErr;
 }
 
 int32_t dmStopUdfd(SDnode *pDnode) {
-  dInfo("dnode-mgmt to stop udfd. spawn err: %d", pDnode->data.udfdErrCode);
-  SDnodeData *pData = &pDnode->data;
-  if (pData->udfdErrCode != 0) {
+  dInfo("dnode-mgmt to stop udfd. need cleanup: %d, spawn err: %d",
+        pDnode->udfdData.needCleanUp, pDnode->udfdData.spawnErr);
+  SUdfdData *pData = &pDnode->udfdData;
+  if (!pData->needCleanUp) {
     return 0;
   }
-  atomic_store_8(&pData->udfdStoping, 1);
+  atomic_store_8(&pData->stopping, 1);
 
-  uv_barrier_destroy(&pData->udfdBarrier);
-  uv_process_kill(&pData->udfdProcess, SIGINT);
-  uv_thread_join(&pData->udfdThread);
+  uv_barrier_destroy(&pData->barrier);
+  if (pData->spawnErr == 0) {
+    uv_process_kill(&pData->process, SIGINT);
+  }
+  uv_thread_join(&pData->thread);
 
-  atomic_store_8(&pData->udfdStoping, 0);
+  atomic_store_8(&pData->stopping, 0);
   return 0;
 }
 

@@ -136,19 +136,23 @@ typedef struct {
   int32_t       numOfDisks;
   int32_t       supportVnodes;
   uint16_t      serverPort;
-
-  uv_loop_t udfdLoop;
-  uv_thread_t udfdThread;
-  uv_barrier_t udfdBarrier;
-  uv_process_t udfdProcess;
-  int udfdErrCode;
-  int8_t udfdStoping;
 } SDnodeData;
 
 typedef struct {
   char name[TSDB_STEP_NAME_LEN];
   char desc[TSDB_STEP_DESC_LEN];
 } SStartupInfo;
+
+typedef struct SUdfdData {
+  bool          startCalled;
+  bool          needCleanUp;
+  uv_loop_t     loop;
+  uv_thread_t   thread;
+  uv_barrier_t  barrier;
+  uv_process_t  process;
+  int           spawnErr;
+  int8_t        stopping;
+} SUdfdData;
 
 typedef struct SDnode {
   EDndProcType  ptype;
@@ -158,6 +162,7 @@ typedef struct SDnode {
   SStartupInfo  startup;
   SDnodeTrans   trans;
   SDnodeData    data;
+  SUdfdData     udfdData;
   TdThreadMutex mutex;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
