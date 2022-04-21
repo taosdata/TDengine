@@ -120,11 +120,17 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
 
+typedef struct SFmGetFuncInfoParam {
+  SCatalog* pCtg;
+  void *pRpc;
+  const SEpSet* pMgmtEps;
+} SFmGetFuncInfoParam;
+
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 
 int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 
