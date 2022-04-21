@@ -31,7 +31,7 @@ taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配�
 | -t/--tables                              | 子表的数量，默认值为 10000。                                 |
 | -n/--records                             | 每个子表插入的记录数，默认值为 10000。                       |
 | -d/--database                            | 数据库的名称，默认值为 test。                                |
-| [-l/--columns](#columns)                 | 超级表的数据列数                                             | 。  |
+| [-l/--columns](#columns)                 | 超级表的数据列数                                             |
 | [-A/--tag-type](#tag-type)               | 超级表的标签列的数据类型。                                   |
 | [-b/--data-type](#data-type)             | 超级表的数据列的数据类型                                     |
 | -w/--binwidth                            | nchar 和 binary 数据类型的默认长度，默认值为 64。            |
@@ -51,7 +51,7 @@ taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配�
 
 ## JSON 配置文件
 
-### json 配置文件示例 （插入场景）
+### JSON 配置文件示例 （插入场景）
 
 ```json
 {
@@ -207,7 +207,7 @@ taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配�
 | columns/tags | max                                           | 数字数据类型的 列/标签 的最大值值                                                         |
 | columns/tags | values                                        | nchar/binary 列/标签的值域，将从值中随机选择。                                            |
 
-### json 配置文件 （查询场景）
+### JSON 配置文件 （查询场景）
 
 ```json
 {
@@ -269,7 +269,7 @@ taosBenchmark 支持两种配置方式：[命令行参数](#cli) 和 [JSON 配�
 | sqls                                    | [sql](#sql)              | 执行的 SQL 命令，必填                                  |
 | sqls                                    | result                   | 查询结果的结果文件，没有则为空。                       |
 
-### json 配置文件 （订阅场景）
+### JSOn 配置文件 （订阅场景）
 
 ```json
 {
