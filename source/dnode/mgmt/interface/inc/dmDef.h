@@ -16,6 +16,7 @@
 #ifndef _TD_DM_DEF_H_
 #define _TD_DM_DEF_H_
 
+#include "uv.h"
 #include "dmLog.h"
 
 #include "cJSON.h"
@@ -135,6 +136,13 @@ typedef struct {
   int32_t       numOfDisks;
   int32_t       supportVnodes;
   uint16_t      serverPort;
+
+  uv_loop_t udfdLoop;
+  uv_thread_t udfdThread;
+  uv_barrier_t udfdBarrier;
+  uv_process_t udfdProcess;
+  int udfdErrCode;
+  int8_t udfdStoping;
 } SDnodeData;
 
 typedef struct {
