@@ -579,18 +579,22 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step37: cast timestamp to nchar, expect no changes ")
         tdSql.query("select cast(c10 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c10)):
-            tdSql.checkData( i, 0, str(data_ct4_c10[i]) )
+            time2str = str(int(datetime.datetime.timestamp(datetime.datetime.strptime(data_ct4_c10[i],'%Y-%m-%d %H:%M:%S.%f'))*1000))
+            tdSql.checkData( i, 0, time2str )
         tdSql.query("select cast(c10 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c10)):
-            tdSql.checkData( i, 0, str(data_t1_c10[i] ))
+            time2str = str(int(datetime.datetime.timestamp(datetime.datetime.strptime(data_t1_c10[i],'%Y-%m-%d %H:%M:%S.%f'))*1000))
+            tdSql.checkData( i, 0, time2str )
 
         tdLog.printNoPrefix("==========step38: cast timestamp to binary, expect no changes ")
         tdSql.query("select cast(c10 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c10)):
-            tdSql.checkData( i, 0, data_ct4_c10[i])
+            time2str = str(int(datetime.datetime.timestamp(datetime.datetime.strptime(data_ct4_c10[i],'%Y-%m-%d %H:%M:%S.%f'))*1000))
+            tdSql.checkData( i, 0, time2str )
         tdSql.query("select cast(c10 as binary(32)) as b from t1")
         for i in range(len(data_t1_c10)):
-            tdSql.checkData( i, 0, data_t1_c10[i] )
+            time2str = str(int(datetime.datetime.timestamp(datetime.datetime.strptime(data_t1_c10[i],'%Y-%m-%d %H:%M:%S.%f'))*1000))
+            tdSql.checkData( i, 0, time2str )
 
 
         tdSql.error("select cast(c1 as int) as b from ct4")
