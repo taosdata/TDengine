@@ -35,6 +35,15 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/sta
 
 #stable_fun_math_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_interval.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_abs.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_apercentile.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_derivative.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_histogram.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_leastsquares.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_percentile.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep
 
 #stable_fun_numeric_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interval.py --keep

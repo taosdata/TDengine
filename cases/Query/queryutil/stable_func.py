@@ -366,7 +366,7 @@ class TDFunction():
         for i in range(4):
             if i == 1:
                 bin_type = 'user_input'                
-                bin_description = {1939597}  #9一会转译成，
+                bin_description = {-11111119395555977777}  #9一会转译成，
                 # print(hanshu,column,int_histogram,normalized,bin_description)
                 # print(type(hanshu),type(column),type(int_histogram),type(normalized),type(bin_description))
                 hanshu_column = [hanshu , column, ',',"'%s'" %bin_type, ',',"'%s'" % bin_description, ',', "%d" %normalized,')']
@@ -375,14 +375,14 @@ class TDFunction():
             elif i == 2:
                 bin_type = 'linear_bin'   
                 true_false = random.randint(10, 11)             
-                bin_description = {"ZstartZ": -39, "ZwidthZ":59, "ZcountZ":59, "ZinfinityZ":'%d' %true_false}  #Z一会转译成" ，9一会转译成 ，
+                bin_description = {"ZstartZ": -333339, "ZwidthZ":559, "ZcountZ":59, "ZinfinityZ":'%d' %true_false}  #Z一会转译成" ，9一会转译成 ，
                 hanshu_column = [hanshu , column, ',',"'%s'" %bin_type, ',','%s' % bin_description, ',', "%d" %normalized,')']
                 int_histogram = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("9",",").replace("Z","\"").replace("10","false").replace("11","true").replace("\"{","'{").replace("}\"","}'")
                 
             elif i == 3:
                 bin_type = 'log_bin'   
                 true_false = random.randint(10, 11)             
-                bin_description = {"ZstartZ": -39, "ZfactorZ":59, "ZcountZ":59, "ZinfinityZ":'%d' %true_false}  #Z一会转译成" ，9一会转译成 ，
+                bin_description = {"ZstartZ": -333339, "ZfactorZ":559, "ZcountZ":59, "ZinfinityZ":'%d' %true_false}  #Z一会转译成" ，9一会转译成 ，
                 hanshu_column = [hanshu , column, ',',"'%s'" %bin_type, ',','%s' % bin_description, ',', "%d" %normalized,')']
                 int_histogram = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("9",",").replace("Z","\"").replace("10","false").replace("11","true").replace("\"{","'{").replace("}\"","}'")                
         
