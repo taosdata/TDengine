@@ -205,7 +205,8 @@ typedef struct SRequestObj {
   char*                sqlstr;  // sql string
   int32_t              sqlLen;
   int64_t              self;
-  char*                msgBuf;  // error msg buffer
+  char*                msgBuf;
+  int32_t              msgBufLen;
   int32_t              code;
   SArray*              dbList;
   SArray*              tableList;
@@ -278,7 +279,8 @@ void initMsgHandleFp();
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port, int connType);
 
-int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery);
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
+
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
@@ -301,6 +303,9 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 
 // --- mq
 void hbMgrInitMqHbRspHandle();
+
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery);
+
 
 #ifdef __cplusplus
 }
