@@ -7,16 +7,14 @@ import StatsD from "../14-reference/_statsd.mdx"
 
 StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年来发展迅速，已经变成了一个用于收集应用性能指标的统一的协议。
 
-只需要将 StatsD 的配置修改指向 taosAdapter 对应的服务器地址和端口接口即可将 StatsD 的数据写入到 TDengine 中，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
-
-安装 StatsD 请参考[官方文档](https://github.com/statsd/statsd)。
+只需要在 StatsD 的配置文件中填写运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 StatsD 的数据写入到 TDengine 中，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
 
 ## 前置条件
 
 要将 StatsD 数据写入 TDengine, 需要几方面的准备工作。
 - TDengine 集群已经部署并正在运行
-- taosAdapter 已经安装并正在运行, 具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- StatsD 已经安装
+- taosAdapter 已经安装并正在运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- StatsD 已经安装。安装 StatsD 请参考[官方文档](https://github.com/statsd/statsd)
 
 ## 配置 StatsD
 <StatsD />

@@ -1,13 +1,13 @@
 
 配置 taosAdapter 接收 icinga2 数据的方法：
 
-- 参考链接 https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer 使能 opentsdb-writer
-- 使能 taosAdapter 配置文件 /etc/taos/taosadapter.toml 中配置项 opentsdb_telnet.enable
-- 修改配置文件 /etc/icinga2/features-enabled/opentsdb.conf
+- 使能 icinga2 的 opentsdb-writer（参考链接 https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer）
+- 通过修改配置文件 `/etc/taos/taosadapter.toml` 的配置项 `opentsdb_telnet.enable=True`，或使用 taosAdapter 命令行参数的方式，使能 taosAdapter 接收 icinga2 数据功能。taosAdapter 默认写入数据库名称为 icinga2，如果需要指定不同的数据库名称可以在 taosAdapter 配置文件中修改。taosAdapter 需重新启动
+- 修改配置文件 `/etc/icinga2/features-enabled/opentsdb.conf` 填写 <taosAdapter's host> 为运行 taosAdapter 的服务器的域名或 IP 地址，port 填写 taosAdapter 支持接收 icinga2 数据的相应端口（默认为 6048）
 
 ```
 object OpenTsdbWriter "opentsdb" {
-  host = "host to taosAdapter"
+  host = "<taosAdapter's host>"
   port = 6048
 }
 ```
