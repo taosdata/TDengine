@@ -65,6 +65,7 @@ struct SMeta {
   TENV*     pEnv;
   TDB*      pTbDb;
   TDB*      pSkmDb;
+  TDB*      pUidIdx;
   TDB*      pNameIdx;
   TDB*      pCtbIdx;
   TDB*      pTagIdx;

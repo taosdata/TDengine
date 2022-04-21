@@ -545,8 +545,8 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
   buf = taosDecodeString(buf, &(pReq->name));
   buf = taosDecodeFixedU32(buf, &(pReq->ttl));
   buf = taosDecodeFixedU32(buf, &(pReq->keep));
-  buf = taosDecodeFixedU8(buf, &pReq->type);
-  // buf = taosDecodeFixedU8(buf, &(pReq->info));
+  // buf = taosDecodeFixedU8(buf, &pReq->type);
+  buf = taosDecodeFixedU8(buf, &(pReq->info));
 
   switch (pReq->type) {
     case TD_SUPER_TABLE:
