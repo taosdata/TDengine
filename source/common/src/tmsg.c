@@ -828,6 +828,28 @@ void tFreeSMAltertbReq(SMAltertbReq *pReq) {
   taosArrayDestroy(pReq->pFields);
   pReq->pFields = NULL;
 }
+int32_t tSerializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+  if (tEncodeSEpSet(&encoder, &pReq->epSet) < 0) {
+    return -1;
+  }
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+  if (tDecodeSEpSet(&decoder, &pReq->epSet) < 0) {
+    return -1;
+  }
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}
 
 int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq) {
   SCoder encoder = {0};

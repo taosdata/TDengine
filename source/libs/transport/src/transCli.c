@@ -31,12 +31,8 @@ typedef struct SCliConn {
   int          hThrdIdx;
   STransCtx    ctx;
 
-  bool       broken;   // link broken or not
-  ConnStatus status;   //
-  int        release;  // 1: release
-  // spi configure
-  char spi;
-  char secured;
+  bool       broken;  // link broken or not
+  ConnStatus status;  //
 
   char*    ip;
   uint32_t port;
@@ -44,7 +40,6 @@ typedef struct SCliConn {
   // debug and log info
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
-
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -302,8 +297,6 @@ void cliHandleResp(SCliConn* conn) {
   tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
          TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
          taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
-
-  conn->secured = pHead->secured;
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tTrace("except, server continue send while cli ignore it");

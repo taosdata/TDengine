@@ -327,6 +327,13 @@ int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(const void* buf, SEpSet* pEp);
 
 typedef struct {
+  SEpSet epSet;
+} SMEpSet;
+
+int32_t tSerializeSMEpSet(void* buf, int32_t bufLen, SMEpSet* pReq);
+int32_t tDeserializeSMEpSet(void* buf, int32_t buflen, SMEpSet* pReq);
+
+typedef struct {
   int8_t  connType;
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
@@ -2690,6 +2697,7 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
   }
   return buf;
 }
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
