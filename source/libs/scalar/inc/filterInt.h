@@ -308,7 +308,6 @@ struct SFilterInfo {
 #define FILTER_GET_COL_FIELD_DATA(fi, ri) (colDataGetData(((SColumnInfoData *)(fi)->data), (ri)))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((SValueNode *)((fi)->desc))->node.resType.type)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
-#define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
@@ -321,7 +320,6 @@ struct SFilterInfo {
 #define FILTER_UNIT_COL_SIZE(i, u) FILTER_GET_COL_FIELD_SIZE(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_ID(i, u) FILTER_GET_COL_FIELD_ID(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_VAL_DATA(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
-#define FILTER_UNIT_JSON_VAL_DATA(i, u) FILTER_GET_JSON_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
 #define FILTER_UNIT_COL_IDX(u) ((u)->left.idx)
 #define FILTER_UNIT_OPTR(u) ((u)->compare.optr)
 #define FILTER_UNIT_COMP_FUNC(u) ((u)->compare.func)

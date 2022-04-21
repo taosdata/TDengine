@@ -8,7 +8,7 @@
 #include "tdatablock.h"
 
 int main(int argc, char *argv[]) {
-    startUdfService();
+  createUdfdProxy(1);
     uv_sleep(1000);
     char path[256] = {0};
     size_t cwdSize = 256;
@@ -53,5 +53,5 @@ int main(int argc, char *argv[]) {
     }
     teardownUdf(handle);
 
-    stopUdfService();
+    destroyUdfdProxy(1);
 }

@@ -157,6 +157,28 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SRetrieveFuncReq funcReq = {0};
+  funcReq.numOfFuncs = 1;
+  funcReq.ignoreCodeComment = true;
+  funcReq.pFuncNames = taosArrayInit(1, strlen(input) + 1);
+  taosArrayPush(funcReq.pFuncNames, input);
+
+  int32_t bufLen = tSerializeSRetrieveFuncReq(NULL, 0, &funcReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSRetrieveFuncReq(pBuf, bufLen, &funcReq);
+
+  taosArrayDestroy(funcReq.pFuncNames);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
@@ -379,6 +401,31 @@ int32_t queryProcessGetIndexRsp(void *output, char *msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
+  SRetrieveFuncRsp out = {0};
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (tDeserializeSRetrieveFuncRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSRetrieveFuncRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (1 != out.numOfFuncs) {
+    qError("invalid func num returned, numOfFuncs:%d", out.numOfFuncs);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  SFuncInfo * funcInfo = taosArrayGet(out.pFuncInfos, 0);
+
+  memcpy(output, funcInfo, sizeof(*funcInfo));
+  taosArrayDestroy(out.pFuncInfos);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
@@ -386,6 +433,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryBuildGetDBCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryBuildGetIndexMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryBuildRetrieveFuncMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
@@ -393,6 +441,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryProcessGetDbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryProcessGetIndexRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryProcessRetrieveFuncRsp;
 }
 
 #pragma GCC diagnostic pop

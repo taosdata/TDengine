@@ -346,6 +346,7 @@ cmd ::= SHOW TOPICS.                                                            
 cmd ::= SHOW VARIABLES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VARIABLE_STMT, NULL, NULL); }
 cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT, NULL, NULL); }
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT, NULL, NULL); }
+cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT, NULL, NULL); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
@@ -413,8 +414,8 @@ explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                    
 cmd ::= COMPACT VNODES IN NK_LP integer_list(A) NK_RP.                            { pCxt->pRootNode = createCompactStmt(pCxt, A); }
 
 /************************************************ create/drop function ************************************************/
-cmd ::= CREATE agg_func_opt(A) FUNCTION function_name(B) 
-  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E).                         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, A, &B, &C, D, E); }
+cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
+  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E).                         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E); }
 cmd ::= DROP FUNCTION function_name(A).                                           { pCxt->pRootNode = createDropFunctionStmt(pCxt, &A); }
 
 %type agg_func_opt                                                                { bool }
@@ -836,6 +837,8 @@ query_expression(A) ::=
 query_expression_body(A) ::= query_primary(B).                                    { A = B; }
 query_expression_body(A) ::=
   query_expression_body(B) UNION ALL query_expression_body(D).                    { A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, D); }
+query_expression_body(A) ::=
+  query_expression_body(B) UNION query_expression_body(D).                        { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, D); }
 
 query_primary(A) ::= query_specification(B).                                      { A = B; }
 //query_primary(A) ::=

@@ -63,6 +63,10 @@ public:
 
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
+
+      if (g_isDump) {
+        dump();
+      }
     } catch (...) {
       dump();
       throw;
@@ -87,6 +91,7 @@ private:
     string splitLogicPlan_;
     string scaledLogicPlan_;
     string physiPlan_;
+    vector<string> physiSubplans_;
   };
 
   void reset() {
@@ -115,6 +120,10 @@ private:
     cout << res_.scaledLogicPlan_ << endl;
     cout << "physical plan : " << endl;
     cout << res_.physiPlan_ << endl;
+    cout << "physical subplan : " << endl;
+    for (const auto& subplan : res_.physiSubplans_) {
+      cout << subplan << endl;
+    }
   }
   
   void doParseSql(const string& sql, SQuery** pQuery) {
@@ -156,6 +165,13 @@ private:
   void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList) {
     DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, pExecNodeList);
     res_.physiPlan_ = toString((SNode*)(*pPlan));
+    SNode* pNode;
+    FOREACH(pNode, (*pPlan)->pSubplans) {
+      SNode* pSubplan;
+      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
+        res_.physiSubplans_.push_back(toString(pSubplan));
+      }
+    }
   }
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {

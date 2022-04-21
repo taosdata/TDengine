@@ -22,12 +22,14 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
+#include "mndGrant.h"
 #include "mndInfoSchema.h"
-#include "mndPerfSchema.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
+#include "mndPerfSchema.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
+#include "mndQuery.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
@@ -40,12 +42,9 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndQuery.h"
-#include "mndGrant.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000
-#define TELEM_TIMER_MS 86400000
 
 static void *mndBuildTimerMsg(int32_t *pContLen) {
   SMTimerReq timerReq = {0};
@@ -97,7 +96,7 @@ static void mndPullupTelem(void *param, void *tmrId) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
-  taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
+  taosTmrReset(mndPullupTelem, tsTelemInterval * 1000, pMnode, pMnode->timer, &pMnode->telemTimer);
 }
 
 static int32_t mndInitTimer(SMnode *pMnode) {
@@ -117,7 +116,8 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndPullupTelem, 60000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
+  int32_t interval = tsTelemInterval < 10 ? tsTelemInterval : 10;
+  if (taosTmrReset(mndPullupTelem, interval * 1000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

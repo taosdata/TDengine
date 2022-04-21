@@ -239,6 +239,8 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_BUF_SIZE       512
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
+#define TSDB_FUNC_SCRIPT_BIN_LIB 0
+#define TSDB_FUNC_SCRIPT_LUA     1
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
 #define TSDB_INDEX_NAME_LEN      65  // 64 + 1 '\0'
@@ -270,6 +272,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAGS_LEN       16384
 #define TSDB_MAX_TAGS           128
 #define TSDB_MAX_TAG_CONDITIONS 1024
+
+#define TSDB_MAX_JSON_TAG_LEN   16384
 
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32

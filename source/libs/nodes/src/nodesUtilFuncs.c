@@ -149,7 +149,9 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return makeNode(type, sizeof(SNode));
     case QUERY_NODE_COMPACT_STMT:
+      break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
+      return makeNode(type, sizeof(SCreateFunctionStmt));
     case QUERY_NODE_DROP_FUNCTION_STMT:
       break;
     case QUERY_NODE_CREATE_STREAM_STMT:
@@ -167,6 +169,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
@@ -1006,6 +1009,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_NOT_LIKE:
     case OP_TYPE_MATCH:
     case OP_TYPE_NMATCH:
+    case OP_TYPE_JSON_CONTAINS:
     case OP_TYPE_IS_NULL:
     case OP_TYPE_IS_NOT_NULL:
     case OP_TYPE_IS_TRUE:
@@ -1024,7 +1028,6 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
-    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;

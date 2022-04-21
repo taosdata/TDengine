@@ -1350,7 +1350,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       if (tBitmaps > 0) {
         bptr = POINTER_SHIFT(pBlockData, lsize + flen);
         if (isSuper && !tdDataColsIsBitmapI(pDataCols)) {
-          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, nBitmaps, (uint8_t *)pDataCol->pBitmap);
+          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, rowsToWrite, (uint8_t *)pDataCol->pBitmap);
         }
         tBitmapsLen =
             tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, tBitmaps, bptr, tBitmaps + COMP_OVERFLOW_BYTES,

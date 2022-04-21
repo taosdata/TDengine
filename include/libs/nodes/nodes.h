@@ -48,6 +48,9 @@ extern "C" {
     (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)), (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), (node1 != NULL && node2 != NULL); \
     cell1 = cell1->pNext, cell2 = cell2->pNext)
 
+#define REPLACE_LIST1_NODE(newNode) cell1->pNode = (SNode*)(newNode)
+#define REPLACE_LIST2_NODE(newNode) cell2->pNode = (SNode*)(newNode)
+
 #define FOREACH_FOR_REWRITE(node, list)	\
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
@@ -134,6 +137,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_QNODES_STMT,
   QUERY_NODE_SHOW_SNODES_STMT,
   QUERY_NODE_SHOW_BNODES_STMT,
+  QUERY_NODE_SHOW_CLUSTER_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_FUNCTIONS_STMT,
   QUERY_NODE_SHOW_INDEXES_STMT,

@@ -34,6 +34,54 @@
 
 extern bool tsStreamSchedV;
 
+int32_t mndConvertRSmaTask(const char* ast, int8_t triggerType, int64_t watermark, char** pStr, int32_t* pLen) {
+  SNode*      pAst = NULL;
+  SQueryPlan* pPlan = NULL;
+  terrno = TSDB_CODE_SUCCESS;
+
+  if (nodesStringToNode(ast, &pAst) < 0) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    goto END;
+  }
+
+  SPlanContext cxt = {
+      .pAstRoot = pAst,
+      .topicQuery = false,
+      .streamQuery = true,
+      .rSmaQuery = true,
+      .triggerType = triggerType,
+      .watermark = watermark,
+  };
+  if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    goto END;
+  }
+
+  int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
+  if (levelNum != 1) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    goto END;
+  }
+  SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
+
+  int32_t opNum = LIST_LENGTH(inner->pNodeList);
+  if (opNum != 1) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    goto END;
+  }
+
+  SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
+  if (qSubPlanToString(plan, pStr, pLen) < 0) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    goto END;
+  }
+
+END:
+  if (pAst) nodesDestroyNode(pAst);
+  if (pPlan) nodesDestroyNode(pPlan);
+  return terrno;
+}
+
 int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type, int32_t nodeId) {
   SCoder encoder;
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
@@ -434,7 +482,9 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     return -1;
   }
 
-  ASSERT(pSub->vgNum == 0);
+  ASSERT(pSub->vgNum == -1);
+
+  pSub->vgNum = 0;
 
   int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
   if (levelNum != 1) {
@@ -453,6 +503,12 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   }
   SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
 
+  int64_t             unexistKey = -1;
+  SMqConsumerEpInSub* pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
+  ASSERT(pEpInSub);
+
+  ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
+
   void* pIter = NULL;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
@@ -466,23 +522,40 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     plan->execNode.nodeId = pVgroup->vgId;
     plan->execNode.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
+    SMqVgEp* pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
+    pVgEp->epSet = plan->execNode.epSet;
+    pVgEp->vgId = plan->execNode.nodeId;
+
+#if 0
     SMqConsumerEp consumerEp = {0};
     consumerEp.status = 0;
     consumerEp.consumerId = -1;
     consumerEp.epSet = plan->execNode.epSet;
     consumerEp.vgId = plan->execNode.nodeId;
-    
-    mDebug("init subscribption %s, assign vg: %d", pSub->key, consumerEp.vgId);
+#endif
+
+    mDebug("init subscribption %s, assign vg: %d", pSub->key, pVgEp->vgId);
 
     int32_t msgLen;
-    if (qSubPlanToString(plan, &consumerEp.qmsg, &msgLen) < 0) {
+    if (qSubPlanToString(plan, &pVgEp->qmsg, &msgLen) < 0) {
       sdbRelease(pSdb, pVgroup);
       qDestroyQueryPlan(pPlan);
       terrno = TSDB_CODE_QRY_INVALID_INPUT;
       return -1;
     }
-    taosArrayPush(pSub->unassignedVg, &consumerEp);
+    taosArrayPush(pEpInSub->vgs, &pVgEp);
+
+    ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
+
+    /*taosArrayPush(pSub->unassignedVg, &consumerEp);*/
   }
+
+  ASSERT(pEpInSub->vgs->size > 0);
+  pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
+
+  ASSERT(pEpInSub->vgs->size > 0);
+
+  ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
 
   qDestroyQueryPlan(pPlan);
 

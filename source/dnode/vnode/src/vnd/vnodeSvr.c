@@ -80,6 +80,13 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
       vnodeProcessSubmitReq(pVnode, ptr, pRsp);
       break;
+    case TDMT_VND_MQ_VG_CHANGE:
+      if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        // TODO: handle error
+      }
+      break;
+#if 0
     case TDMT_VND_MQ_SET_CONN: {
       if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
@@ -93,6 +100,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (tqProcessCancelConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
+#endif
     case TDMT_VND_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
