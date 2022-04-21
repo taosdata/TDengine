@@ -1672,7 +1672,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     if (pRes1->row > 0 && pRes1->numOfRows > 0) {
       tscDebug("0x%"PRIx64" sub:0x%"PRIx64" index:%d numOfRows:%d total:%"PRId64 " (not retrieve)", pParentSql->self,
           pParentSql->pSubs[i]->self, i, pRes1->numOfRows, pRes1->numOfTotal);
-      assert(pRes1->row < pRes1->numOfRows);
+      assert(pRes1->row < pRes1->numOfRows || (pRes1->row == pRes1->numOfRows && pRes1->completed));
     } else {
       if (!stableQuery) {
         pRes1->numOfClauseTotal += pRes1->numOfRows;
@@ -1841,7 +1841,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
 
     SSqlRes* pRes1 = &pSql1->res;
-    if (pRes1->row >= pRes1->numOfRows) {
+    if (pRes1->row >= pRes1->numOfRows && !pRes1->completed) {
       subquerySetState(pSql1, &pSql->subState, i, 0);
     }
   }
