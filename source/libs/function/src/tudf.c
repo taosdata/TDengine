@@ -14,6 +14,7 @@
  */
 #include "uv.h"
 #include "os.h"
+#include "fnLog.h"
 #include "tudf.h"
 #include "tudfInt.h"
 #include "tarray.h"
@@ -557,6 +558,34 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   return 0;
 }
 
+int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SSDataBlock *output) {
+  output->info.rows = input->numOfRows;
+  output->info.numOfCols = numOfCols;
+  bool hasVarCol = false;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (IS_VAR_DATA_TYPE((input+i)->columnData->info.type)) {
+      hasVarCol = true;
+      break;
+    }
+  }
+  output->info.hasVarCol = hasVarCol;
+
+  //TODO: free the array output->pDataBlock
+  output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  taosArrayPush(output->pDataBlock, input->columnData);
+  return 0;
+}
+
+int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
+  if (input->info.numOfCols != 1) {
+    fnError("scalar function only support one column");
+    return -1;
+  }
+  output->numOfRows = input->info.rows;
+  //TODO: memory
+  output->columnData = taosArrayGet(input->pDataBlock, 0);
+  return 0;
+}
 
 void onUdfcPipeClose(uv_handle_t *handle) {
   SClientUvConn *conn = handle->data;
@@ -1108,11 +1137,13 @@ int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfIn
   return err;
 }
 
-// input: block
-// output: resultData
-int32_t callUdfScalaProcess(UdfcFuncHandle handle, SSDataBlock *block, SSDataBlock *resultData) {
+int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam* output) {
   int8_t callType = TSDB_UDF_CALL_SCALA_PROC;
-  int32_t err = callUdf(handle, callType, block, NULL, NULL, resultData, NULL);
+  SSDataBlock inputBlock = {0};
+  convertScalarParamToDataBlock(input, numOfCols, &inputBlock);
+  SSDataBlock resultBlock = {0};
+  int32_t err = callUdf(handle, callType, &inputBlock, NULL, NULL, &resultBlock, NULL);
+  convertDataBlockToScalarParm(&resultBlock, output);
   return err;
 }
 

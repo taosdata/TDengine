@@ -23,7 +23,7 @@ extern "C" {
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 
   #define TSWAP(a, b, c) \
     do {                \
@@ -33,6 +33,7 @@ extern "C" {
     } while (0)
   #define TMAX(a, b) (((a) > (b)) ? (a) : (b))
   #define TMIN(a, b) (((a) < (b)) ? (a) : (b))
+  #define TRANGE(aa, bb, cc) ((aa) = TMAX((aa), (bb)),(aa) = TMIN((aa), (cc)))
 
 #else
 

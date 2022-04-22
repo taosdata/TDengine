@@ -49,12 +49,14 @@ static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_B
 
 static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING; }
 
-#define generateDealNodeErrMsg(pCxt, code, ...)               \
-  ({                                                          \
-    generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__); \
-    pCxt->errCode = code;                                     \
-    DEAL_RES_ERROR;                                           \
-  })
+enum EDealRes generateDealNodeErrMsg(STranslateContext* pCxt, int32_t code, ...) {
+  va_list ap;
+  va_start(ap, code);
+  generateSyntaxErrMsg(&pCxt->msgBuf, code, ap);
+  va_end(ap);
+  pCxt->errCode = code;
+  return DEAL_RES_ERROR;
+}
 
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
@@ -563,6 +565,9 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
     if (TSDB_DATA_TYPE_BLOB == ldt.type || TSDB_DATA_TYPE_JSON == rdt.type ||
         TSDB_DATA_TYPE_BLOB == rdt.type) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+    }
+    if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+      ((SExprNode*)pOp->pRight)->resType = ((SExprNode*)pOp->pLeft)->resType;
     }
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
