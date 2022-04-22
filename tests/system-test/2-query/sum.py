@@ -132,7 +132,7 @@ class TDTestCase:
         for i in range(rows):
             insert_data = f'''insert into t1 values
                 ( now()-{i}h, {i}, {i}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
-                "binary_{i}", "nchar_{i}", now-{i}s )
+                "binary_{i}", "nchar_{i}", now()-{i}s )
                 '''
             tdSql.execute(insert_data)
         tdSql.execute(
