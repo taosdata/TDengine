@@ -17,12 +17,12 @@ import InstallOnLinux from "../14-reference/03-connector/_windows_install.mdx";
 import VerifyLinux from "../14-reference/03-connector/_verify_linux.mdx";
 import VerifyWindows from "../14-reference/03-connector/_verify_windows.mdx";
 
-TDengine 提供RESTful接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [RESTful API](https://docs.taosdata.com/reference/restful-api/)。除 RESTful 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
+TDengine 提供 RESTful 接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [REST API](https://docs.taosdata.com/reference/restful-api/)。除 REST API 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
 
 ## 连接器建立连接的方式
 
 连接器建立连接的方式，TDengine提供两种:
-  1. 通过 taosAdapter 组件提供的 RESTful API 建立与 taosd 的连接，这种连接方式下文中简称"RESTful 连接“ 
+  1. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称"RESTful 连接“ 
   2. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“本地连接”。
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
