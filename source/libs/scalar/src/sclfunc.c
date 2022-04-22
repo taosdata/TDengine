@@ -884,13 +884,13 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     return TSDB_CODE_FAILED;
   }
 
-  char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
-  char *tmp = taosMemoryCalloc(pInput[0].columnData->info.bytes + 1, 1);
+  char tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
       continue;
     }
+    char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
 
     if(type == TSDB_DATA_TYPE_NCHAR){
       if (varDataTLen(input) > TSDB_MAX_JSON_TAG_LEN){
@@ -909,7 +909,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         continue;
       }
       memcpy(tmp, varDataVal(input), varDataLen(input));
-      tmp[varDataTLen(input)] = 0;
+      tmp[varDataLen(input)] = 0;
     }
 
     if(!tjsonValidateJson(tmp)){
@@ -918,9 +918,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     }
 
     colDataAppend(pOutput->columnData, i, input, false);
-    input += varDataTLen(input);
   }
-  taosMemoryFree(tmp);
 
   pOutput->numOfRows = pInput->numOfRows;
 
