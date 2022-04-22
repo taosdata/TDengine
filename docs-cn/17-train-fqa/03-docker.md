@@ -117,9 +117,9 @@ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["test","2021-08-18 06:01:11.021",10000,4,1,1,10,"3650,3650,3650",16,6,100,4096,1,3000,2,0,"ms",0,"ready"],["log","2021-08-18 05:51:51.065",4,1,1,1,10,"30,30,30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":2}
 ```
 
-这条命令，通过 RESTful 接口访问 TDengine server，这时连接的是本机的 6041 端口，可见连接成功。
+这条命令，通过 REST API 访问 TDengine server，这时连接的是本机的 6041 端口，可见连接成功。
 
-TDengine RESTful 接口详情请参考[官方文档](/reference/restful-api/)。
+TDengine REST API 详情请参考[官方文档](/reference/rest-api/)。
 
 ### 使用 Docker 容器运行 TDengine server 和 taosAdapter
 
