@@ -17,7 +17,7 @@ import InstallOnLinux from "../14-reference/03-connector/_windows_install.mdx";
 import VerifyLinux from "../14-reference/03-connector/_verify_linux.mdx";
 import VerifyWindows from "../14-reference/03-connector/_verify_windows.mdx";
 
-TDengine 提供 RESTful 接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [REST API](https://docs.taosdata.com/reference/restful-api/)。除 REST API 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
+TDengine 提供 RESTful 接口，容许在任何平台的任何应用程序通过它访问TDengine运行实例，详细介绍请看 [REST API](/reference/rest-api/)。除 REST API 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
 
 ## 连接器建立连接的方式
 
