@@ -27,6 +27,9 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #include <addr_any.h>
 
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
 #include "os.h"
 
 #include "tglobal.h"

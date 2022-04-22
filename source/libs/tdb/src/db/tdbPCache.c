@@ -28,11 +28,10 @@ struct SPCache {
   SPage       lru;
 };
 
-#define PCACHE_PAGE_HASH(pPgid)                              \
-  ({                                                         \
-    u32 *t = (u32 *)((pPgid)->fileid);                       \
-    t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + (pPgid)->pgno; \
-  })
+static inline int tdbPCachePageHash(const SPgid *pPgid) {
+  u32 *t = (u32 *)((pPgid)->fileid);
+  return t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + (pPgid)->pgno;
+}
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
 static int    tdbPCacheOpenImpl(SPCache *pCache);
@@ -130,7 +129,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   SPage *pPage;
 
   // 1. Search the hash table
-  pPage = pCache->pgHash[PCACHE_PAGE_HASH(pPgid) % pCache->nHash];
+  pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
   while (pPage) {
     if (TDB_IS_SAME_PAGE(&(pPage->pgid), pPgid)) break;
     pPage = pPage->pHashNext;
@@ -218,7 +217,7 @@ static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
   SPage **ppPage;
   int     h;
 
-  h = PCACHE_PAGE_HASH(&(pPage->pgid));
+  h = tdbPCachePageHash(&(pPage->pgid));
   for (ppPage = &(pCache->pgHash[h % pCache->nHash]); *ppPage != pPage; ppPage = &((*ppPage)->pHashNext))
     ;
   ASSERT(*ppPage == pPage);
@@ -230,7 +229,7 @@ static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
 static void tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage) {
   int h;
 
-  h = PCACHE_PAGE_HASH(&(pPage->pgid)) % pCache->nHash;
+  h = tdbPCachePageHash(&(pPage->pgid)) % pCache->nHash;
 
   pPage->pHashNext = pCache->pgHash[h];
   pCache->pgHash[h] = pPage;
