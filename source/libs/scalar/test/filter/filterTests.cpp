@@ -242,7 +242,7 @@ TEST(timerangeTest, greater) {
   int32_t code = filterGetTimeRange(opNode1, &win, &isStrict);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(isStrict, true);  
-  ASSERT_EQ(win.skey, tsmall);
+  ASSERT_EQ(win.skey, tsmall+1);
   ASSERT_EQ(win.ekey, INT64_MAX); 
   //filterFreeInfo(filter);
   nodesDestroyNode(opNode1);
@@ -273,11 +273,43 @@ TEST(timerangeTest, greater_and_lower) {
   int32_t code = filterGetTimeRange(logicNode, &win, &isStrict);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
+  ASSERT_EQ(win.skey, tsmall+1);
+  ASSERT_EQ(win.ekey, tbig-1); 
+  //filterFreeInfo(filter);
+  nodesDestroyNode(logicNode);
+}
+
+TEST(timerangeTest, greater_equal_and_lower_equal) {
+  SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  SScalarParam res = {0};
+  int64_t tsmall = 222, tbig = 333;
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
+  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
+  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  SNode *list[2] = {0};
+  list[0] = opNode1;
+  list[1] = opNode2;
+  
+  flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
+  STimeWindow win = {0};
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(logicNode, &win, &isStrict);
+  ASSERT_EQ(isStrict, true);
+  ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, tbig); 
   //filterFreeInfo(filter);
   nodesDestroyNode(logicNode);
 }
+
 
 TEST(timerangeTest, greater_and_lower_not_strict) {
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode1 = NULL, *logicNode2 = NULL;
@@ -321,8 +353,8 @@ TEST(timerangeTest, greater_and_lower_not_strict) {
   int32_t code = filterGetTimeRange(logicNode1, &win, &isStrict);
   ASSERT_EQ(isStrict, false);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(win.skey, tsmall1);
-  ASSERT_EQ(win.ekey, tbig2); 
+  ASSERT_EQ(win.skey, tsmall1+1);
+  ASSERT_EQ(win.ekey, tbig2-1); 
   //filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
 }
