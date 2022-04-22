@@ -307,11 +307,11 @@ int32_t dmStartUdfd(SDnode *pDnode) {
     dInfo("dnode-mgmt start udfd already called");
     return 0;
   }
+  pData->startCalled = true;
   uv_barrier_init(&pData->barrier, 2);
   pData->stopping = 0;
   uv_thread_create(&pData->thread, dmWatchUdfd, pDnode);
   uv_barrier_wait(&pData->barrier);
-  pData->startCalled = true;
   pData->needCleanUp = true;
   return pData->spawnErr;
 }
