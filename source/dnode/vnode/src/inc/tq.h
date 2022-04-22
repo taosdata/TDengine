@@ -88,21 +88,11 @@ struct STqReadHandle {
   SSubmitMsgIter    msgIter;
   SSubmitBlkIter    blkIter;
   SMeta*            pVnodeMeta;
-  SArray*           pColIdList;  // SArray<int32_t>
+  SArray*           pColIdList;  // SArray<int16_t>
   int32_t           sver;
   SSchemaWrapper*   pSchemaWrapper;
   STSchema*         pSchema;
 };
-
-typedef struct {
-  int8_t type;
-  int8_t reserved[7];
-  union {
-    void*   data;
-    int64_t wmTs;
-    int64_t checkpointId;
-  };
-} STqStreamToken;
 
 typedef struct {
   int16_t ver;
@@ -155,24 +145,26 @@ typedef struct {
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int64_t consumerId;
   int32_t epoch;
+  int8_t  subType;
+  int8_t  withTbName;
+  int8_t  withSchema;
+  int8_t  withTag;
+  int8_t  withTagSchema;
   char*   qmsg;
   // SRWLatch        lock;
-  SWalReadHandle* pReadHandle;
+  SWalReadHandle* pWalReader;
   // number should be identical to fetch thread num
-  qTaskInfo_t task[4];
+  STqReadHandle* pStreamReader[4];
+  qTaskInfo_t    task[4];
 } STqExec;
 
 struct STQ {
-  // the collection of groups
-  // the handle of meta kvstore
-  bool          writeTrigger;
-  char*         path;
-  STqMetaStore* tqMeta;
-  SHashObj*     tqMetaNew;  // subKey -> tqExec
-  SHashObj*     pStreamTasks;
-  SVnode*       pVnode;
-  SWal*         pWal;
-  SMeta*        pVnodeMeta;
+  char* path;
+  // STqMetaStore* tqMeta;
+  SHashObj* execs;  // subKey -> tqExec
+  SHashObj* pStreamTasks;
+  SVnode*   pVnode;
+  SWal*     pWal;
 };
 
 typedef struct {
@@ -252,7 +244,7 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void tqClose(STQ*);
 // required by vnode
 int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
