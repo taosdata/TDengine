@@ -155,14 +155,14 @@ taos_unsubscribe(tsub, keep);
 
 则可以在示例代码所在目录执行以下命令来编译并启动示例程序：
 
-```bash
+```
 make
 ./subscribe -sql='select * from meters where current > 10;'
 ```
 
 示例程序启动后，打开另一个终端窗口，启动 TDengine 的 shell 向 **D1001** 插入一条电流为 12A 的数据：
 
-```sql
+```
 $ taos
 > use test;
 > insert into D1001 values(now, 12, 220, 1);
@@ -176,7 +176,7 @@ $ taos
 
 ### 准备数据
 
-```sql
+```
 # 创建 power 库
 taos> create database power;
 # 切换库
@@ -230,7 +230,7 @@ Query OK, 5 row(s) in set (0.004896s)
  
 示例程序会先消费符合查询条件的所有历史数据：
 
-```bash
+```
 ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
 ts: 1597464600000	current: 12.3	voltage: 220	phase: 2	location: Beijing.Chaoyang	groupid : 2
 ts: 1597465200000	current: 12.2	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
@@ -240,7 +240,7 @@ ts: 1597465200000	current: 11.2	voltage: 220	phase: 1	location: Beijing.Haidian	
 
 接着，使用 taos 客户端向表中新增一条数据：
 
-```sql
+```
 # taos
 taos> use power;
 taos> insert into d1001 values("2020-08-15 12:40:00.000", 12.4, 220, 1);
