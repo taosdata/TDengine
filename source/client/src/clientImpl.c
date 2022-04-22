@@ -105,9 +105,9 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
     epSet.epSet.eps[0].port = port;
   }
 
-  char*          key = getClusterKey(user, secretEncrypt, ip, port);
-  SAppInstInfo** pInst = NULL;
+  char* key = getClusterKey(user, secretEncrypt, ip, port);
 
+  SAppInstInfo** pInst = NULL;
   taosThreadMutexLock(&appInfo.mutex);
 
   pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));

@@ -37,7 +37,7 @@ typedef struct SFuncExecEnv {
 typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
-typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock, int32_t slotId);
+typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {
@@ -141,8 +141,7 @@ struct SResultRowEntryInfo;
 
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
 typedef struct SSubsidiaryResInfo {
-  int16_t                 bufLen;      // keep the tags data for top/bottom query result
-  int16_t                 numOfCols;
+  int16_t num;
   struct SqlFunctionCtx **pCtx;
 } SSubsidiaryResInfo;
 
@@ -187,8 +186,8 @@ typedef struct SqlFunctionCtx {
   uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
   int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
-  /////////////////////////////////////////////////////////////////
   bool             stableQuery;
+  /////////////////////////////////////////////////////////////////
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
   int32_t          numOfParams;
@@ -198,11 +197,15 @@ typedef struct SqlFunctionCtx {
   int32_t          offset;
   SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
-  SSubsidiaryResInfo     subsidiaryRes;
-  SPoint1          start;
-  SPoint1          end;
-  SFuncExecFuncs   fpSet;
-  SScalarFuncExecFuncs sfp;
+  SSubsidiaryResInfo     subsidiaries;
+  SPoint1                start;
+  SPoint1                end;
+  SFuncExecFuncs         fpSet;
+  SScalarFuncExecFuncs   sfp;
+  SExprInfo             *pExpr;
+  struct SDiskbasedBuf  *pBuf;
+  struct SSDataBlock    *pSrcBlock;
+  int32_t                curBufPage;
 } SqlFunctionCtx;
 
 enum {

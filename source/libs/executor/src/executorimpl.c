@@ -1082,8 +1082,9 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
   int32_t code = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
-    pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].order      = order;
+    pCtx[i].size       = pBlock->info.rows;
+    pCtx[i].pSrcBlock  = pBlock;
     pCtx[i].currentStage = MAIN_SCAN;
 
     SInputColumnInfoData* pInput = &pCtx[i].input;
@@ -1836,9 +1837,8 @@ static int32_t setCtxTagColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     }
   }
   if (p != NULL) {
-    p->subsidiaryRes.pCtx = pTagCtx;
-    p->subsidiaryRes.numOfCols = num;
-    p->subsidiaryRes.bufLen = tagLen;
+    p->subsidiaries.pCtx = pTagCtx;
+    p->subsidiaries.num = num;
   } else {
     taosMemoryFreeClear(pTagCtx);
   }
@@ -1865,6 +1865,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     SqlFunctionCtx* pCtx = &pFuncCtx[i];
 
     pCtx->functionId = -1;
+    pCtx->curBufPage = -1;
+    pCtx->pExpr      = pExpr;
+
     if (pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
       SFuncExecEnv env = {0};
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
@@ -1892,9 +1895,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->pTsOutput = NULL;
     pCtx->resDataInfo.bytes = pFunct->resSchema.bytes;
     pCtx->resDataInfo.type = pFunct->resSchema.type;
-    pCtx->order = TSDB_ORDER_ASC;
+    pCtx->order     = TSDB_ORDER_ASC;
     pCtx->start.key = INT64_MIN;
-    pCtx->end.key = INT64_MIN;
+    pCtx->end.key   = INT64_MIN;
     pCtx->numOfParams = pExpr->base.numOfParams;
 
     pCtx->param = pFunct->pParam;
@@ -1953,7 +1956,7 @@ static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     }
 
     taosVariantDestroy(&pCtx[i].tag);
-    taosMemoryFreeClear(pCtx[i].subsidiaryRes.pCtx);
+    taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
   }
 
   taosMemoryFreeClear(pCtx);
@@ -3139,7 +3142,7 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbased
 
       pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
       if (pCtx[j].fpSet.process) {
-        pCtx[j].fpSet.finalize(&pCtx[j], pBlock, slotId);
+        pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       } else {
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
 
@@ -5633,6 +5636,11 @@ int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInf
   pBasicInfo->pRes = pResultBlock;
 
   doInitAggInfoSup(pAggSup, pBasicInfo->pCtx, numOfCols, keyBufSize, pkey);
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    pBasicInfo->pCtx[i].pBuf = pAggSup->pResultBuf;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
