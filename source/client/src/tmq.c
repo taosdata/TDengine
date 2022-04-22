@@ -260,6 +260,16 @@ void tmq_list_destroy(tmq_list_t* list) {
   taosArrayDestroy(container);
 }
 
+int32_t tmq_list_get_size(const tmq_list_t* list) {
+  const SArray* container = &list->container;
+  return taosArrayGetSize(container);
+}
+
+char** tmq_list_to_c_array(const tmq_list_t* list) {
+  const SArray* container = &list->container;
+  return container->pData;
+}
+
 static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
   return sprintf(dst, "%s:%d", topicName, vg);
 }
@@ -387,7 +397,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->commit_cb = conf->commit_cb;
   pTmq->resetOffsetCfg = conf->resetOffset;
 
-  pTmq->consumerId = generateRequestId() & (((uint64_t)-1) >> 1);
+  pTmq->consumerId = tGenIdPI64();
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   if (pTmq->clientTopics == NULL) {
     taosMemoryFree(pTmq);
