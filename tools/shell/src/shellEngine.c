@@ -29,7 +29,6 @@
 #include "tutil.h"
 
 #include <regex.h>
-#include <wordexp.h>
 
 /**************** Global variables ****************/
 #ifdef _TD_POWER_

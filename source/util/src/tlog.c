@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include "tlog.h"
 #include "tutil.h"
 

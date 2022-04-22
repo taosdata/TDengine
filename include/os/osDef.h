@@ -191,7 +191,7 @@ extern "C" {
   #define threadlocal __declspec( thread )
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   #define PRIzu "ld"  
 #else
   #define PRIzu "zu"  

@@ -102,7 +102,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     } else if (pInfo->type == data_asc) {
       v = ++pInfo->startVal;
     } else if (pInfo->type == data_rand) {
-      v = random();
+      v = taosRand();
     }
 
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
@@ -172,7 +172,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     } else if (pInfo->type == data_asc) {
       v = ++pInfo->startVal;
     } else if (pInfo->type == data_rand) {
-      v = random();
+      v = taosRand();
     }
 
     colDataAppend(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
@@ -938,7 +938,7 @@ TEST(testCase, build_executor_tree_Test) {
 
   SExecTaskInfo* pTaskInfo = nullptr;
   DataSinkHandle sinkHandle = nullptr;
-  SReadHandle handle = {.reader = reinterpret_cast<void*>(0x1), .meta = reinterpret_cast<void*>(0x1)};
+  SReadHandle handle = { reinterpret_cast<void*>(0x1), reinterpret_cast<void*>(0x1), NULL };
 
   struct SSubplan *plan = NULL;
   int32_t code = qStringToSubplan(msg, &plan);

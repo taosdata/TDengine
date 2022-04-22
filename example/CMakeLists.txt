@@ -39,6 +39,7 @@ target_include_directories(tstream
 
 target_include_directories(demoapi
     PUBLIC "${TD_SOURCE_DIR}/include/client"
+    PUBLIC "${TD_SOURCE_DIR}/include/os"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

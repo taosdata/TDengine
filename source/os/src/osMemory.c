@@ -35,7 +35,7 @@ typedef struct TdMemoryInfo {
 
 // static TdMemoryInfoPtr GlobalMemoryPtr = NULL;
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   #define tstrdup(str) _strdup(str)
 #else
   #define tstrdup(str) strdup(str)
@@ -182,6 +182,10 @@ int32_t taosMemorySize(void *ptr) {
 
   return pTdMemoryInfo->memorySize;
 #else
+#ifdef WINDOWS
+  return _msize(ptr);
+#else
   return malloc_usable_size(ptr);
+#endif
 #endif
 }
