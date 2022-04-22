@@ -3,7 +3,7 @@ from time import sleep
 from tkinter import E
 import taos
 import sys
-
+from util.dnodes import *
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -548,6 +548,20 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select * from stb_1 where ts>now()")
         tdSql.checkRows(0)
+
+        tdSql.query("select * from stb_1 where ts<now")
+        tdSql.checkRows(3)
+        tdSql.checkData(1, 1, 3)
+        tdSql.query("select * from stb_1 where ts<=now")
+        tdSql.checkRows(3)
+        tdSql.checkData(2, 1, 1)
+        tdSql.query("select c1 from stb_1 where ts=now")
+        tdSql.checkRows(0)
+        tdSql.query("select * from stb_1 where ts>=now")
+        tdSql.checkRows(0)
+        tdSql.query("select * from stb_1 where ts>now")
+        tdSql.checkRows(0)
+        
         tdSql.query("select now() from stb_1 where ts=today()")
         tdSql.checkRows(1)
 
