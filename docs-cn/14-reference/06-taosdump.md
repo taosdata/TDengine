@@ -18,6 +18,14 @@ taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数�
 硬件信息、服务端配置或集群的拓扑结构。taosdump 使用
 [ Apache AVRO ](https://avro.apache.org/)作为数据文件格式来存储备份数据。
 
+## 安装
+
+taosdump 有两种安装方式:
+
+- 安装 taosTools 官方安装包, 请从[所有下载链接](https://www.taosdata.com/all-downloads)页面找到 taosTools 并下载安装。
+
+- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+
 ## 常用使用场景
 
 ### taosdump 备份数据
