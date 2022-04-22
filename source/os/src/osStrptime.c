@@ -38,7 +38,7 @@
 //
 //#include "lukemftp.h"
 
-// #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+// #ifdef WINDOWS
 
 // #include <time.h>  
 // #include <stdlib.h>  
@@ -100,7 +100,7 @@
 // #endif
 
 // char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
-// #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+// #ifdef WINDOWS
 //     char c;
 //     const char *bp;
 //     size_t len = 0;

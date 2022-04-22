@@ -29,6 +29,7 @@ typedef struct SFuncMgtService {
 
 typedef struct SUdfInfo {
   SDataType outputDt;
+  int8_t funcType;
 } SUdfInfo;
 
 static SFuncMgtService gFunMgtService;
@@ -52,30 +53,41 @@ static void doInitFunctionTable() {
   gFunMgtService.pUdfTable = NULL;
 }
 
+static int8_t getUdfType(int32_t funcId) {
+  SUdfInfo* pUdf = taosArrayGet(gFunMgtService.pUdfTable, funcId - FUNC_UDF_ID_START_OFFSET_VAL - 1);
+  return pUdf->funcType;
+}
+
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
+  if (fmIsUserDefinedFunc(funcId)) {
+    return getUdfType(funcId);
+  }
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, classification);
 }
 
-static int32_t getUdfId(const char* pFuncName) {
-  // todo: udf by call catalog
-  if (1) {
+static int32_t getUdfId(SFmGetFuncInfoParam* pParam, const char* pFuncName) {
+  SFuncInfo* pInfo = NULL;
+  int32_t code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFuncName, &pInfo);
+  if (TSDB_CODE_SUCCESS != code || NULL == pInfo) {
     return -1;
   }
   if (NULL == gFunMgtService.pUdfTable) {
     gFunMgtService.pUdfTable = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SUdfInfo));
   }
-  SUdfInfo info = {0}; //todo
+  SUdfInfo info = { .outputDt.type = pInfo->outputType, .outputDt.bytes = pInfo->outputLen, .funcType = pInfo->funcType };
   taosArrayPush(gFunMgtService.pUdfTable, &info);
+  tFreeSFuncInfo(pInfo);
+  taosMemoryFree(pInfo);
   return taosArrayGetSize(gFunMgtService.pUdfTable) + FUNC_UDF_ID_START_OFFSET_VAL;
 }
 
-static int32_t getFuncId(const char* pFuncName) {
+static int32_t getFuncId(SFmGetFuncInfoParam* pParam, const char* pFuncName) {
   void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFuncName, strlen(pFuncName));
   if (NULL == pVal) {
-    return getUdfId(pFuncName);
+    return getUdfId(pParam, pFuncName);
   }
   return *(int32_t*)pVal;
 }
@@ -91,8 +103,8 @@ int32_t fmFuncMgtInit() {
   return initFunctionCode;
 }
 
-int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
-  *pFuncId = getFuncId(pFuncName);
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
+  *pFuncId = getFuncId(pParam, pFuncName);
   if (*pFuncId < 0) {
     return TSDB_CODE_FAILED;
   }

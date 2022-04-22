@@ -40,10 +40,12 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
-  taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGABRT, dmStopDnode);
   taosSetSignal(SIGBREAK, dmStopDnode);
+#ifndef WINDOWS
+  taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
+#endif
 
   if (!tsMultiProcess) {
   } else if (global.ntype == DNODE || global.ntype == NODE_END) {

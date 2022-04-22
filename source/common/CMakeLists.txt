@@ -5,8 +5,8 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 IF(${TD_WINDOWS})
-    PRIVATE "${TD_SOURCE_DIR}/contrib/pthread-win32"
-    PRIVATE "${TD_SOURCE_DIR}/contrib/gnuregex"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/pthread"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/msvcregex"
 ENDIF ()
 )
 target_link_libraries(

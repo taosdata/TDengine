@@ -229,21 +229,20 @@ void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size
 }
 
 void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
-                    __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot) {
+                    __ext_compar_fn_t compar, char* buf, bool maxroot) {
   int32_t parent;
   int32_t child;
-  char   *buf;
+
+  char* tmp = NULL;
+  if (buf == NULL) {
+    tmp = taosMemoryMalloc(size);
+  } else {
+    tmp = buf;
+  }
 
   if (base && size > 0 && compar) {
     parent = start;
     child = 2 * parent + 1;
-
-    if (swap == NULL) {
-      buf = taosMemoryCalloc(1, size);
-      if (buf == NULL) {
-        return;
-      }
-    }
 
     if (maxroot) {
       while (child <= end) {
@@ -256,11 +255,7 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
           break;
         }
 
-        if (swap == NULL) {
-          doswap(elePtrAt(base, size, parent), elePtrAt(base, size, child), size, buf);
-        } else {
-          (*swap)(elePtrAt(base, size, parent), elePtrAt(base, size, child), parswap);
-        }
+        doswap(elePtrAt(base, size, parent), elePtrAt(base, size, child), size, tmp);
 
         parent = child;
         child = 2 * parent + 1;
@@ -276,33 +271,35 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
           break;
         }
 
-        if (swap == NULL) {
-          doswap(elePtrAt(base, size, parent), elePtrAt(base, size, child), size, buf);
-        } else {
-          (*swap)(elePtrAt(base, size, parent), elePtrAt(base, size, child), parswap);
-        }
+        doswap(elePtrAt(base, size, parent), elePtrAt(base, size, child), size, tmp);
 
         parent = child;
         child = 2 * parent + 1;
       }
     }
+  }
 
-    if (swap == NULL) {
-      taosMemoryFreeClear(buf);
-    }
+  if (buf == NULL) {
+    taosMemoryFree(tmp);
   }
 }
 
 void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
-                  const void *parswap, __ext_swap_fn_t swap, bool maxroot) {
+                  bool maxroot) {
   int32_t i;
+
+  char* buf = taosMemoryCalloc(1, size);
+  if (buf == NULL) {
+    return;
+  }
 
   if (base && size > 0) {
     for (i = len / 2 - 1; i >= 0; i--) {
-      taosheapadjust(base, size, i, len - 1, parcompar, compar, parswap, swap, maxroot);
+      taosheapadjust(base, size, i, len - 1, parcompar, compar, buf, maxroot);
     }
   }
 
+  taosMemoryFree(buf);
   /*
     char *buf = taosMemoryCalloc(1, size);
 

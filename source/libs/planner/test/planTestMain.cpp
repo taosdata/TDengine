@@ -16,7 +16,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
-
+#include "getopt.h"
 #include "mockCatalog.h"
 #include "planTestUtil.h"
 

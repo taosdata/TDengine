@@ -17,3 +17,11 @@ TARGET_LINK_LIBRARIES(
         parserTest
         PUBLIC os util common nodes parser catalog transport gtest function planner qcom
 )
+
+if(${BUILD_WINGETOPT})
+    target_include_directories(
+        parserTest
+        PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
+    )
+    target_link_libraries(parserTest PUBLIC wingetopt)
+endif()
