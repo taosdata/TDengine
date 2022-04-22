@@ -51,6 +51,10 @@ typedef struct STableComInfo {
 
 typedef struct SIndexMeta {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SIndexMeta;
 
 

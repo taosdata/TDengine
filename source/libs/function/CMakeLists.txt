@@ -47,6 +47,9 @@ target_include_directories(
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+target_link_libraries(
+    udf1 PUBLIC os
+)
 
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)

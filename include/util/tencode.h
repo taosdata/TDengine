@@ -236,7 +236,8 @@ static FORCE_INLINE int32_t tEncodeFloat(SCoder* pEncoder, float val) {
   union {
     uint32_t ui;
     float    f;
-  } v = {.f = val};
+  } v;
+  v.f = val;
 
   return tEncodeU32(pEncoder, v.ui);
 }
@@ -245,7 +246,8 @@ static FORCE_INLINE int32_t tEncodeDouble(SCoder* pEncoder, double val) {
   union {
     uint64_t ui;
     double   d;
-  } v = {.d = val};
+  } v;
+  v.d = val;
 
   return tEncodeU64(pEncoder, v.ui);
 }

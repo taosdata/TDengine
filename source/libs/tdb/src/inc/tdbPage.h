@@ -47,10 +47,13 @@ typedef struct {
   void (*setFreeCellInfo)(SCell *pCell, int szCell, int nxOffset);
 } SPageMethods;
 
+#pragma pack(push,1)
+
 // Page footer
-typedef struct __attribute__((__packed__)) {
+typedef struct {
   u8 cksm[4];
 } SPageFtr;
+#pragma pack(pop)
 
 struct SPage {
   tdb_spinlock_t lock;
@@ -80,22 +83,23 @@ struct SPage {
 #define P_LOCK_BUSY 1
 #define P_LOCK_FAIL -1
 
+static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
+  int ret;
+  if (tdbSpinlockTrylock(pLock) == 0) {
+    ret = P_LOCK_SUCC;
+  } else if (errno == EBUSY) {
+    ret = P_LOCK_BUSY;
+  } else {
+    ret = P_LOCK_FAIL;
+  }
+  return ret;
+}
+
 #define TDB_INIT_PAGE_LOCK(pPage)    tdbSpinlockInit(&((pPage)->lock), 0)
 #define TDB_DESTROY_PAGE_LOCK(pPage) tdbSpinlockDestroy(&((pPage)->lock))
 #define TDB_LOCK_PAGE(pPage)         tdbSpinlockLock(&((pPage)->lock))
 #define TDB_UNLOCK_PAGE(pPage)       tdbSpinlockUnlock(&((pPage)->lock))
-#define TDB_TRY_LOCK_PAGE(pPage)                     \
-  ({                                                 \
-    int ret;                                         \
-    if (tdbSpinlockTrylock(&((pPage)->lock)) == 0) { \
-      ret = P_LOCK_SUCC;                             \
-    } else if (errno == EBUSY) {                     \
-      ret = P_LOCK_BUSY;                             \
-    } else {                                         \
-      ret = P_LOCK_FAIL;                             \
-    }                                                \
-    ret;                                             \
-  })
+#define TDB_TRY_LOCK_PAGE(pPage)     tdbTryLockPage(&((pPage)->lock))
 
 // APIs
 #define TDB_PAGE_TOTAL_CELLS(pPage)        ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))

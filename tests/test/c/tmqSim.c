@@ -14,14 +14,13 @@
  */
 
 #include <assert.h>
-#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
+// #include <unistd.h>
 
 #include "taos.h"
 #include "taoserror.h"
@@ -103,8 +102,8 @@ void initLogFile() {
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_STREAM);
   if (NULL == pFile) {
     fprintf(stderr, "Failed to open %s for save result\n", "./tmqlog.txt");
-    exit -1;
-  };
+    exit(-1);
+  }
   g_fp = pFile;
 }
 
