@@ -235,7 +235,7 @@ class TDTestCase:
                 tdSql.checkData( i, 0, date_data)
 
 
-        tdLog.printNoPrefix("==========step16: cast smallint to bigint, expect no changes")
+        tdLog.printNoPrefix("==========step16: cast tinyint to bigint, expect no changes")
         tdSql.query("select c4  from ct4")
         data_ct4_c4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
         tdSql.query("select c4  from t1")
@@ -249,7 +249,7 @@ class TDTestCase:
             tdSql.checkData( i, 0, data_t1_c4[i])
 
 
-        tdLog.printNoPrefix("==========step17: cast smallint to binary, expect changes to str(int) ")
+        tdLog.printNoPrefix("==========step17: cast tinyint to binary, expect changes to str(int) ")
 
         tdSql.query("select cast(c4 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c4)):
@@ -258,7 +258,7 @@ class TDTestCase:
         for i in range(len(data_t1_c4)):
             tdSql.checkData( i, 0, str(data_t1_c4[i]) )
 
-        tdLog.printNoPrefix("==========step18: cast smallint to nchar, expect changes to str(int) ")
+        tdLog.printNoPrefix("==========step18: cast tinyint to nchar, expect changes to str(int) ")
 
         tdSql.query("select cast(c4 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c4)):
@@ -267,7 +267,7 @@ class TDTestCase:
         for i in range(len(data_t1_c4)):
             tdSql.checkData( i, 0, str(data_t1_c4[i]) )
 
-        tdLog.printNoPrefix("==========step19: cast smallint to timestamp, expect changes to timestamp ")
+        tdLog.printNoPrefix("==========step19: cast tinyint to timestamp, expect changes to timestamp ")
 
         tdSql.query("select cast(c4 as timestamp) as b from ct4")
         for i in range(len(data_ct4_c4)):
