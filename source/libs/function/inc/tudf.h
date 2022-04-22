@@ -27,41 +27,31 @@ extern "C" {
 #endif
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
-#define UDF_LISTEN_PIPE_NAME_PREFIX "udf.sock."
+#define UDF_LISTEN_PIPE_NAME_PREFIX "udfd.sock."
 
 //======================================================================================
 //begin API to taosd and qworker
 
 enum {
   UDFC_CODE_STOPPING = -1,
-  UDFC_CODE_RESTARTING = -2,
   UDFC_CODE_PIPE_READ_ERR = -3,
 };
 
-/*TODO: no api for dnode startudfd/stopudfd*/
-/**
- * start udfd dameon service
- */
-int32_t startUdfd(int32_t dnodeId);
-
-/**
- * stop udfd dameon service
- */
-int32_t stopUdfd(int32_t dnodeId);
+typedef void *UdfcHandle;
+typedef void *UdfcFuncHandle;
 
 /**
  * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
  * @return error code
  */
-int32_t createUdfdProxy(int32_t dnodeId);
+int32_t udfcOpen(int32_t dnodeId, UdfcHandle* proxyHandle);
 
 /**
  * destroy udfd proxy
  * @return error code
  */
-int32_t destroyUdfdProxy(int32_t dnodeId);
+int32_t udfcClose(UdfcHandle proxyhandle);
 
-typedef void *UdfHandle;
 
 /**
  * setup udf
@@ -69,7 +59,7 @@ typedef void *UdfHandle;
  * @param handle, out
  * @return error code
  */
-int32_t setupUdf(char udfName[], SEpSet *epSet, UdfHandle *handle);
+int32_t setupUdf(UdfcHandle proxyHandle, char udfName[], SEpSet *epSet, UdfcFuncHandle *handle);
 
 typedef struct SUdfColumnMeta {
   int16_t type;
@@ -116,26 +106,26 @@ typedef struct SUdfInterBuf {
 } SUdfInterBuf;
 
 // output: interBuf
-int32_t callUdfAggInit(UdfHandle handle, SUdfInterBuf *interBuf);
+int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
 // input: block, state
 // output: newState
-int32_t callUdfAggProcess(UdfHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
+int32_t callUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
 // input: interBuf
 // output: resultData
-int32_t callUdfAggFinalize(UdfHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
+int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t callUdfAggMerge(UdfHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
+int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalaProcess(UdfHandle handle, SSDataBlock *block, SSDataBlock *resultData);
+int32_t callUdfScalaProcess(UdfcFuncHandle handle, SSDataBlock *block, SSDataBlock *resultData);
 
 /**
  * tearn down udf
  * @param handle
  * @return
  */
-int32_t teardownUdf(UdfHandle handle);
+int32_t teardownUdf(UdfcFuncHandle handle);
 
 // end API to taosd and qworker
 //=============================================================================================================================

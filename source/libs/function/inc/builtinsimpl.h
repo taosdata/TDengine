@@ -58,6 +58,9 @@ bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);
 int32_t lastFunction(SqlFunctionCtx *pCtx);
 
+bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+int32_t topFunction(SqlFunctionCtx *pCtx);
+
 #ifdef __cplusplus
 }
 #endif

@@ -17,7 +17,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-static char *tsProcPath = NULL;
+char *tsProcPath = NULL;
 
 int32_t taosNewProc(char **args) {
   int32_t pid = fork();
