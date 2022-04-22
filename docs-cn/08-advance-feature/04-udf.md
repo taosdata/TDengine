@@ -173,7 +173,10 @@ SELECT X(c) FROM table/stable;
 
 ## 示例代码
 
-### [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
+### 标量函数示例 [add_one](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
+
+<details>
+<summary>add_one.c</summary>
 
 ```c
 #include <stdio.h>
@@ -209,7 +212,12 @@ void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts
 }
 ```
 
-### [abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
+</details>
+
+### 向量函数示例 [abs_max](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
+
+<details>
+<summary>abs_max.c</summary>
 
 ```c
 #include <stdio.h>
@@ -309,7 +317,12 @@ void abs_max_destroy(SUdfInit* buf) {
 }
 ```
 
-### [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+</details>
+
+### 使用中间计算结果示例 [demo](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+
+<details>
+<summary>demo.c</summary>
 
 ```c
 #include <stdio.h>
@@ -424,3 +437,5 @@ void demo_destroy(SUdfInit* buf) {
    printf("demo destroy\n");
 }
 ```
+
+</details>
