@@ -3,11 +3,13 @@ from time import sleep
 from tkinter import E
 import taos
 import sys
-
+import time
+from tzlocal import get_localzone
 from util.log import *
 from util.sql import *
 from util.cases import *
 
+import os
 
 
 class TDTestCase:
@@ -17,9 +19,10 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def run(self):  # sourcery skip: extract-duplicate-method
-        # for func now() , today(), timezone()
         tdSql.prepare()
-
+        # get system timezone
+        time_zone = os.popen('timedatectl | grep zone').read().strip().split(':')[1].lstrip()
+        
         tdLog.printNoPrefix("==========step1:create tables==========")
         tdSql.execute(
             '''create table if not exists ntb
@@ -41,24 +44,30 @@ class TDTestCase:
         tdSql.execute("insert into stb_1 values(now,111,99.99,11.111111)(today(),1,11.111,22.222222)")
 
         tdLog.printNoPrefix("==========step3:query data==========")
-        tdSql.query("select timezone() from ntb")
-        tdSql.checkRows(2)
-        tdSql.query("select timezone() from db.ntb")
-        tdSql.checkRows(2)
-
+        for i in range(0,10):
+            tdSql.query("select timezone() from ntb")
+            tdSql.checkRows(2)
+            tdSql.checkData(0,0,time_zone)
+            i+=1
+            
+        for i in range(0,10):
+            tdSql.query("select timezone() from db.ntb")
+            tdSql.checkRows(2)
+            tdSql.checkData(0,0,time_zone)
+            i+=1
         tdSql.query("select timezone() from stb")
         tdSql.checkRows(2)
+        tdSql.checkData(0,0,time_zone)
         tdSql.query("select timezone() from db.stb")
         tdSql.checkRows(2)
+        tdSql.checkData(0,0,time_zone)
 
         tdSql.query("select timezone() from stb_1")
         tdSql.checkRows(2)
+        tdSql.checkData(0,0,time_zone)
         tdSql.query("select timezone() from db.stb_1 ")
         tdSql.checkRows(2)
-        
-        # tdSql.execute()
-
-
+        tdSql.checkData(0,0,time_zone)
 
 
 
