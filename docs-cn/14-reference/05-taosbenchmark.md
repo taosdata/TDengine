@@ -61,7 +61,7 @@ taosBenchmark -f <json file>
 #### 插入场景 JSON 配置文件示例
 
 <details>
-<summary>插入场景配置示例</summary>
+<summary>insert.json</summary>
 
 ```json
 {
@@ -154,7 +154,7 @@ taosBenchmark -f <json file>
 #### 查询场景 JSON 配置文件示例
 
 <details>
-<summary>查询场景配置示例</summary>
+<summary>query.json</summary>
 
 ```json
 {
@@ -201,7 +201,7 @@ taosBenchmark -f <json file>
 #### 订阅场景 JSON 配置文件示例
 
 <details>
-<summary>订阅场景配置示例</summary>
+<summary>subscribe.json</summary>
 
 ```json
 {
