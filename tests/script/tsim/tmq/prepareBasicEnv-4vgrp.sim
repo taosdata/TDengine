@@ -13,7 +13,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 #---- global parameters start ----#
-$dbName    = db
+$dbName     = db
 $vgroups    = 4
 $stbPrefix  = stb
 $ctbPrefix  = ctb
@@ -21,7 +21,7 @@ $ntbPrefix  = ntb
 $stbNum     = 1
 $ctbNum     = 10
 $ntbNum     = 10
-$rowsPerCtb = 100
+$rowsPerCtb = 10
 $tstart     = 1640966400000  # 2022-01-01 00:00:00.000
 #---- global parameters end ----#
 
