@@ -66,7 +66,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pUidIdx
-  ret = tdbDbOpen("uid.db", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
+  ret = tdbDbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
   if (ret < 0) {
     metaError("vgId: %d failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;

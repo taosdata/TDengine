@@ -45,15 +45,24 @@ typedef struct SMetaEntry SMetaEntry;
 int metaEncodeEntry(SCoder* pCoder, const SMetaEntry* pME);
 int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
 
+// metaTable ==================
+int metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
+
+// metaQuery ==================
+typedef struct SMetaEntryReader SMetaEntryReader;
+
+void metaEntryReaderInit(SMetaEntryReader* pReader);
+void metaEntryReaderClear(SMetaEntryReader* pReader);
+int  metaGetTableEntryByVersion(SMeta* pMeta, SMetaEntryReader* pReader, int64_t version);
+int  metaGetTableEntryByUid(SMeta* pMeta, SMetaEntryReader* pReader, tb_uid_t uid);
+int  metaGetTableEntryByName(SMeta* pMeta, SMetaEntryReader* pReader, const char* name);
+
 // metaIdx ==================
 int  metaOpenIdx(SMeta* pMeta);
 void metaCloseIdx(SMeta* pMeta);
 int  metaSaveTableToIdx(SMeta* pMeta, const STbCfg* pTbOptions);
 int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
-
-// metaTable ==================
-int metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 
 // metaCommit ==================
 int metaBegin(SMeta* pMeta);
@@ -146,6 +155,13 @@ struct SMetaEntry {
       SSchema* pSchema;
     } ntbEntry;
   };
+};
+
+struct SMetaEntryReader {
+  SCoder     coder;
+  SMetaEntry me;
+  void*      pBuf;
+  int        szBuf;
 };
 
 #ifndef META_REFACT

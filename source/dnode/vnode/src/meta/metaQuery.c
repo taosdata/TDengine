@@ -15,6 +15,57 @@
 
 #include "vnodeInt.h"
 
+void metaEntryReaderInit(SMetaEntryReader *pReader) { memset(pReader, 0, sizeof(*pReader)); }
+
+void metaEntryReaderClear(SMetaEntryReader *pReader) {
+  tCoderClear(&pReader->coder);
+  TDB_FREE(pReader->pBuf);
+}
+
+int metaGetTableEntryByVersion(SMeta *pMeta, SMetaEntryReader *pReader, int64_t version) {
+  // query table.db
+  if (tdbDbGet(pMeta->pTbDb, &version, sizeof(version), &pReader->pBuf, &pReader->szBuf) < 0) {
+    goto _err;
+  }
+
+  // decode the entry
+  tCoderInit(&pReader->coder, TD_LITTLE_ENDIAN, pReader->pBuf, pReader->szBuf, TD_DECODER);
+
+  if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
+    goto _err;
+  }
+
+  return 0;
+
+_err:
+  return -1;
+}
+
+int metaGetTableEntryByUid(SMeta *pMeta, SMetaEntryReader *pReader, tb_uid_t uid) {
+  int64_t version;
+
+  // query uid.idx
+  if (tdbDbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
+    return -1;
+  }
+
+  version = *(int64_t *)pReader->pBuf;
+  return metaGetTableEntryByVersion(pMeta, pReader, version);
+}
+
+int metaGetTableEntryByName(SMeta *pMeta, SMetaEntryReader *pReader, const char *name) {
+  tb_uid_t uid;
+
+  // query name.idx
+  if (tdbDbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+    return -1;
+  }
+
+  uid = *(tb_uid_t *)pReader->pBuf;
+  return metaGetTableEntryByUid(pMeta, pReader, uid);
+}
+
+#if 1
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
 #if 0
@@ -392,3 +443,5 @@ void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
 #endif
   return NULL;
 }
+
+#endif

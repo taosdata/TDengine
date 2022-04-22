@@ -231,7 +231,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
     goto _err;
   }
 
-  if (metaCreateSTable(pVnode->pMeta, version, pReq) < 0) {
+  if (metaCreateSTable(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }

@@ -22,6 +22,28 @@ int vnodeQueryOpen(SVnode *pVnode) {
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
+  STableInfoReq    infoReq = {0};
+  SMetaEntryReader meReader = {0};
+  int32_t          code = 0;
+
+  // decode req
+  if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  // query meta
+  metaEntryReaderInit(&meReader);
+
+  if (metaGetTableEntryByName(pVnode->pMeta, &meReader, NULL) < 0) {
+    goto _exit;
+  }
+
+  // fill response
+
+_exit:
+  return 0;
+#if 0
   STbCfg         *pTbCfg = NULL;
   STbCfg         *pStbCfg = NULL;
   tb_uid_t        uid;
@@ -147,6 +169,7 @@ _exit:
   rpcMsg.code = code;
 
   tmsgSendRsp(&rpcMsg);
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
