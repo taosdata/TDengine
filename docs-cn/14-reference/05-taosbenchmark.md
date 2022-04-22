@@ -29,8 +29,7 @@ taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDen
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接  `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建 10000 张表，每张表中写入 10000 条记录。
-
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建 10000 张表，每张表中写入 10000 条记录。
 
 ### 使用命令行配置参数运行
 
@@ -40,7 +39,7 @@ taosBenchmark
 @shuduo @yangzhao 请在这里添加使用命令行配置参数运行的示例，示例一定要经过实际运行检验
 ```
 
-上面的命令  `此处插入解释`
+上面的命令 `此处插入解释`
 
 ### 使用配置文件运行
 
@@ -241,115 +240,153 @@ taosBenchmark -f <json file>
 ## 命令行参数详解
 
 #### -f/--file <json file\>
+
 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值。
 
 #### -c/--config-dir <dir\>
+
 TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
 
 #### -h/--host <host\>
+
 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
 
 #### -P/--port <port\>
+
 要连接的 TDengine 服务器的端口号，默认值为 6030。
 
 #### -I/--interface <insertMode\>
+
 插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
 
 #### -u/--user <user\>
+
 用于连接 TDengine 服务端的用户名，默认为 root
 
 #### -p/--password <passwd\>
+
 用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
 #### -o/--output <file\>
+
 结果输出文件的路径，默认值为 ./output.txt。
 
 #### -T/--thread <threadNum\>
-插入数据的线程数量，默认为8。
+
+插入数据的线程数量，默认为 8。
 
 #### -B/--interlace-rows <rowNum\>
+
 启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
 #### -i/--insert-interval <timeInterval\>
+
 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
 #### -r/--rec-per-req <rowNum\>
+
 每次向 TDegnine 请求写入的数据行数，默认值为 30000 。
 
 #### -t/--tables <tableNum\>
+
 指定子表的数量，默认为 10000 。
 
 #### -S/--timestampstep <stepLength\>
+
 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1。
 
 #### -n/--records <recordNum\>
+
 每个子表插入的记录数，默认值为 10000 。
 
 #### -d/--database <dbName\>
+
 所使用的数据库的名称，默认值为 test 。
 
 #### -b/--data-type <colType\>
+
 超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT。
 
 #### -l/--columns <colNum\>
+
 超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`。
 
 #### -A/--tag-type <tagType\>
+
 超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
+
 ```
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
 ```
+
 如果没有设置标签类型，默认是两个标签，其类型分别为 INT 和 BINARY(16)。
 注意：在有的 shell 比如 bash 命令里面 “()” 需要转义，则上述指令应为：
+
 ```
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
 
 #### -w/--binwidth <length\>
+
 nchar 和 binary 类型的默认长度，默认值为 64。
 
 #### -m/--table-prefix <tablePrefix\>
+
 子表名称的前缀，默认值为 "d"。
 
 #### -E/--escape-character
+
 开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用。
 
 #### -C/--chinese
+
 开关参数，指定 nchar 和 binary 是否使用 Unicode 中文字符。默认值为不使用。
 
 #### -N/--normal-table
+
 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc, stmt, rest 模式下可以使用。
 
 #### -M/--random
+
 开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串。
-                               |
+|
+
 #### -x/--aggr-func
+
 开关参数，指示插入后查询聚合函数。默认值为 false。
 
 #### -y/--answer-yes
+
 开关参数，要求用户在提示后确认才能继续。默认值为 false 。
 
 #### -O/--disorder <Percentage\>
+
 指定乱序数据的百分比，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
 #### -R/--disorder-range <timeRange\>
+
 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
 
 #### -F/--prepare_rand <Num\>
+
 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
 #### -a/--replica <replicaNum\>
+
 创建数据库时指定其副本数，默认值为 1 。
 
 #### -V/--version
+
 显示版本信息并退出。不能与其它参数混用。
 
 #### -?/--help
+
 显示帮助信息并退出。不能与其它参数混用。
 
 ## 配置文件参数详解
 
 ### 通用配置参数
+
 本节所列参数适用于所有功能模式。
 
 - filetype: 要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
@@ -370,9 +407,9 @@ nchar 和 binary 类型的默认长度，默认值为 64。
 - name: 数据库名
 - drop: 插入前是否删除数据库，默认为 true
 - replica: 创建数据库时指定的副本数
-- days: 单个数据文件中存储数据的时间跨度，默认值为 10 
+- days: 单个数据文件中存储数据的时间跨度，默认值为 10
 - cache: 缓存块的大小，单位是 MB，默认值是 16
-- blocks: 每个 vnode 中缓存块的数量，默认为6
+- blocks: 每个 vnode 中缓存块的数量，默认为 6
 - precision: 数据库时间精度，默认值为 "ms"
 - keep: 保留数据的天数，默认值为 3650
 - minRows: 文件块中的最小记录数，默认值为 100
@@ -386,11 +423,11 @@ nchar 和 binary 类型的默认长度，默认值为 64。
 
 #### 超级表相关配置参数
 
-创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下表。 
+创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下表。
 
 - name: 超级表名，必须配置，没有默认值。
 - child_table_exists: 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"
-- child_table_count: 子表的数量，默认值为 10 
+- child_table_count: 子表的数量，默认值为 10
 - child_table_prefix: 子表名称的前缀，必选配置项，没有默认值
 - escape_character: 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"
 - auto_create_table: 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示要插入的表必须提前创建好。
@@ -420,7 +457,7 @@ nchar 和 binary 类型的默认长度，默认值为 64。
 指定超级表标签列与数据列的配置参数分别在 `super_tables` 中的 `columns` 和 `tag` 中。
 
 - type: 指定列类型，可选值请参考 TDengine 支持的数据类型。
-注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 count 和 len 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
+  注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 count 和 len 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 - len: 指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0 ， 则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
 - count: 指定该类型列连续出现的数量，例如 "count": 4096 即可生成 4096 个指定类型的列。
 - name: 列的名字，若与 count 同时使用，比如 "name"："current", "count":3, 则 3 个列的名字分别为 current, current_2. current_3
@@ -430,17 +467,17 @@ nchar 和 binary 类型的默认长度，默认值为 64。
 
 #### 插入行为配置参数
 
-- thread_count: 插入数据的线程数量，默认为8。
+- thread_count: 插入数据的线程数量，默认为 8。
 - connection_pool_size: 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
 - result_file: 结果输出文件的路径，默认值为 ./output.txt。
 - confirm_parameter_prompt: 开关参数，要求用户在提示后确认才能继续。默认值为 false 。
 - interlace_rows: 启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
-在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
-- insert_interval: 
-指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
-在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
-- num_of_records_per_req: 
-每次向 TDegnine 请求写入的数据行数，默认值为 30000 。当其设置过大时，TDegnine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
+  在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
+- insert_interval:
+  指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
+  在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
+- num_of_records_per_req:
+  每次向 TDegnine 请求写入的数据行数，默认值为 30000 。当其设置过大时，TDegnine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
 - prepare_rand: 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
 ### 查询场景配置参数
@@ -448,30 +485,37 @@ nchar 和 binary 类型的默认长度，默认值为 64。
 查询场景下 `filetype` 必须设置为 `qeury`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 执行指定查询语句的配置参数
+
 查询子表或者普通表的配置参数在 `specified_table_query` 中设置。
-- query_interval: 查询时间间隔，单位是秒，默认值为 0 
+
+- query_interval: 查询时间间隔，单位是秒，默认值为 0
 - threads: 执行查询 SQL 的线程数，默认值为 1
 - sqls：
   - sql: 执行的 SQL 命令，必填
   - result: 保存查询结果的文件，未指定则不保存
 
 #### 查询超级表的配置参数
+
 查询超级表的配置参数在 `super_table_query` 中设置。
+
 - stblname: 指定要查询的超级表的名称，必填
-- query_interval: 查询时间间隔，单位是秒，默认值为 0 
+- query_interval: 查询时间间隔，单位是秒，默认值为 0
 - threads: 执行查询 SQL 的线程数，默认值为 1
 - sqls：
   - sql: 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
-替换为超级表中所有的子表名。
+    替换为超级表中所有的子表名。
   - result: 保存查询结果的文件，未指定则不保存
 
 ### 订阅场景配置参数
+
 查询场景下 `filetype` 必须设置为 `subscribe`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 执行指定订阅语句的配置参数
+
 订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
-- threads: 执行 SQL 的线程数，默认为 1 
-- interva: 执行订阅的时间间隔，单位为秒，默认为 0 
+
+- threads: 执行 SQL 的线程数，默认为 1
+- interva: 执行订阅的时间间隔，单位为秒，默认为 0
 - restart: "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"
 - keepProgress: "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"
 - resubAfterConsume: "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"
@@ -480,14 +524,16 @@ nchar 和 binary 类型的默认长度，默认值为 64。
   - result: 保存查询结果的文件，未指定则不保存
 
 #### 订阅超级表的配置参数
+
 订阅超级表的配置参数在 `super_table_query` 中设置。
+
 - stblname: 要订阅的超级表名称，必填
-- threads: 执行 SQL 的线程数，默认为 1 
-- interva: 执行订阅的时间间隔，单位为秒，默认为 0 
+- threads: 执行 SQL 的线程数，默认为 1
+- interva: 执行订阅的时间间隔，单位为秒，默认为 0
 - restart: "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"
 - keepProgress: "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"
 - resubAfterConsume: "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"
 - sqls：
   - sql: 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
-替换为超级表中所有的子表名。
+    替换为超级表中所有的子表名。
   - result: 保存查询结果的文件，未指定则不保存
