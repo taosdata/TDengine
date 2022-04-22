@@ -644,9 +644,9 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int16_t inputType  = pInput[0].columnData->info.type;
-  int16_t outputType = pOutput[0].columnData->info.type;
-  int64_t outputLen = pOutput[0].columnData->info.bytes;
+  int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
+  int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
+  int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
   if (IS_VAR_DATA_TYPE(outputType)) {
     int32_t factor = (TSDB_DATA_TYPE_NCHAR == outputType) ? TSDB_NCHAR_SIZE : 1;
@@ -884,13 +884,13 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     return TSDB_CODE_FAILED;
   }
 
-  char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[0];
-  char *tmp = taosMemoryCalloc(pInput[0].columnData->info.bytes + 1, 1);
+  char tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
       continue;
     }
+    char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
 
     if(type == TSDB_DATA_TYPE_NCHAR){
       if (varDataTLen(input) > TSDB_MAX_JSON_TAG_LEN){
@@ -909,7 +909,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         continue;
       }
       memcpy(tmp, varDataVal(input), varDataLen(input));
-      tmp[varDataTLen(input)] = 0;
+      tmp[varDataLen(input)] = 0;
     }
 
     if(!tjsonValidateJson(tmp)){
@@ -918,9 +918,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     }
 
     colDataAppend(pOutput->columnData, i, input, false);
-    input += varDataTLen(input);
   }
-  taosMemoryFree(tmp);
 
   pOutput->numOfRows = pInput->numOfRows;
 

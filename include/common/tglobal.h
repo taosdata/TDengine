@@ -94,6 +94,9 @@ extern bool    tsRetrieveBlockingModel;  // retrieve threads will be blocked
 extern bool    tsKeepOriginalColumnName;
 extern bool    tsDeadLockKillQuery;
 
+// query client
+extern int32_t tsQueryPolicy;
+
 // client
 extern int32_t tsMaxWildCardsLen;
 extern int32_t tsMaxRegexStringLen;
