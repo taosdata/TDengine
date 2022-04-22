@@ -93,7 +93,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
     tb_uid_t quid;
     STbCfg*  pTbCfg = metaGetTbInfoByUid(pHandle->pVnodeMeta, pHandle->pBlock->uid);
     if (pTbCfg->type == META_CHILD_TABLE) {
-      quid = pTbCfg->ctbCfg.suid;
+      quid = pTbCfg->ctb.suid;
     } else {
       quid = pHandle->pBlock->uid;
     }

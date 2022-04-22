@@ -245,6 +245,7 @@ _err:
 }
 
 static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp) {
+#if 0
   SVCreateTbBatchReq vCreateTbBatchReq = {0};
   SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
 
@@ -302,6 +303,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     pRsp->contLen = contLen;
   }
 
+#endif
   return 0;
 }
 

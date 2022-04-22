@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+// clang-format off
 #include "parInsertData.h"
 
 #include "catalog.h"
@@ -157,7 +157,11 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
 }
 
 int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
-  int32_t len = tSerializeSVCreateTbReq(NULL, pCreateTbReq);
+  SCoder coder = {0};
+  char* pBuf;
+   int32_t len;
+
+  tEncodeSize(tEncodeSVCreateTbReq, pCreateTbReq, len);
   if (pBlocks->nAllocSize - pBlocks->size < len) {
     pBlocks->nAllocSize += len + pBlocks->rowSize;
     char* pTmp = taosMemoryRealloc(pBlocks->pData, pBlocks->nAllocSize);
@@ -169,8 +173,13 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
-  char* pBuf = pBlocks->pData + pBlocks->size;
-  tSerializeSVCreateTbReq((void**)&pBuf, pCreateTbReq);
+
+  pBuf= pBlocks->pData + pBlocks->size;
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, len, TD_ENCODER);
+  tEncodeSVCreateTbReq(&coder, pCreateTbReq);
+  tCoderClear(&coder);
+
   pBlocks->size += len;
   pBlocks->createTbReqLen = len;
   return TSDB_CODE_SUCCESS;
@@ -190,7 +199,7 @@ int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int3
       return ret;
     }
 
-    if (NULL != pCreateTbReq && NULL != pCreateTbReq->ctbCfg.pTag) {
+    if (NULL != pCreateTbReq && NULL != pCreateTbReq->ctb.pTag) {
       ret = buildCreateTbMsg(*dataBlocks, pCreateTbReq);
       if (ret != TSDB_CODE_SUCCESS) {
         return ret;

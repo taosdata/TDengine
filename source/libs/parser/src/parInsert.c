@@ -22,6 +22,7 @@
 #include "ttime.h"
 #include "ttypes.h"
 
+// clang-format off
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
     int32_t index = 0;                          \
@@ -769,8 +770,8 @@ static int32_t buildCreateTbReq(SVCreateTbReq *pTbReq, const SName* pName, SKVRo
   tNameGetFullDbName(pName, dbFName);
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(pName->tname);
-  pTbReq->ctbCfg.suid = suid;
-  pTbReq->ctbCfg.pTag = row;
+  pTbReq->ctb.suid = suid;
+  pTbReq->ctb.pTag = row;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1008,7 +1009,7 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
 
 void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ctbCfg.pTag);
+  taosMemoryFreeClear(pReq->ctb.pTag);
 }
 
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {

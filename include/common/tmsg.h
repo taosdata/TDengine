@@ -1521,45 +1521,6 @@ typedef struct SVCreateStbRsp {
 } SVCreateStbRsp;
 
 typedef struct SVCreateTbReq {
-  char*    name;
-  uint32_t ttl;
-  uint32_t keep;
-  union {
-    uint8_t info;
-    struct {
-      uint8_t rollup : 1;  // 1 means rollup sma
-      uint8_t type : 7;
-    };
-  };
-  union {
-    struct {
-      tb_uid_t    suid;
-      col_id_t    nCols;
-      col_id_t    nBSmaCols;
-      SSchema*    pSchema;
-      col_id_t    nTagCols;
-      SSchema*    pTagSchema;
-      SRSmaParam* pRSmaParam;
-    } stbCfg;
-    struct {
-      tb_uid_t suid;
-      SKVRow   pTag;
-    } ctbCfg;
-    struct {
-      int16_t  nCols;
-      SSchema* pSchema;
-    } ntbCfg;
-  };
-} SVCreateTbReq, SVUpdateTbReq;
-
-typedef struct {
-  int32_t code;
-} SVCreateTbRsp, SVUpdateTbRsp;
-
-int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
-void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
-
-typedef struct SVCreateTbReq2 {
   tb_uid_t    uid;
   int64_t     ctime;
   const char* name;
@@ -1576,18 +1537,28 @@ typedef struct SVCreateTbReq2 {
       SSchema* pSchema;
     } ntb;
   };
-} SVCreateTbReq2;
+} SVCreateTbReq;
 
-int tEncodeSVCreateTbReq2(SCoder* pCoder, const SVCreateTbReq2* pReq);
-int tDecodeSVCreateTbReq2(SCoder* pCoder, SVCreateTbReq2* pReq);
+int tEncodeSVCreateTbReq(SCoder* pCoder, const SVCreateTbReq* pReq);
+int tDecodeSVCreateTbReq(SCoder* pCoder, SVCreateTbReq* pReq);
 
 typedef struct {
-  int64_t ver;  // use a general definition
-  SArray* pArray;
+  int32_t nReqs;
+  union {
+    SVCreateTbReq* pReqs;
+    SArray*        pArray;
+  };
 } SVCreateTbBatchReq;
 
-int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
-void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+int tEncodeSVCreateTbBatchReq(SCoder* pCoder, const SVCreateTbBatchReq* pReq);
+int tDecodeSVCreateTbBatchReq(SCoder* pCoder, SVCreateTbBatchReq* pReq);
+
+typedef struct {
+  int32_t code;
+} SVCreateTbRsp, SVUpdateTbRsp;
+
+int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
+void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
 
 typedef struct {
   SArray* rspList;  // SArray<SVCreateTbRsp>
