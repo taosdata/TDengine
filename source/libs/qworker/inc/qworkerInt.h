@@ -120,8 +120,8 @@ typedef struct SQWTaskCtx {
 
   int8_t events[QW_EVENT_MAX];
 
-  qTaskInfo_t    taskHandle;
-  DataSinkHandle sinkHandle;
+  void *taskHandle;
+  void *sinkHandle;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
