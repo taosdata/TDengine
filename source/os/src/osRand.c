@@ -15,7 +15,9 @@
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+#include "windows.h"
+#include "wincrypt.h"
 #else
 #include <sys/file.h>
 #include <unistd.h>
@@ -25,9 +27,25 @@ void taosSeedRand(uint32_t seed) { return srand(seed); }
 
 uint32_t taosRand(void) { return rand(); }
 
-uint32_t taosRandR(uint32_t *pSeed) { return rand_r(pSeed); }
+uint32_t taosRandR(uint32_t *pSeed) {
+#ifdef WINDOWS
+  return rand_s(pSeed); 
+#else
+  return rand_r(pSeed); 
+#endif
+}
 
 uint32_t taosSafeRand(void) {
+#ifdef WINDOWS
+  uint32_t seed;
+  HCRYPTPROV hCryptProv;
+  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) return seed;
+  if (hCryptProv != NULL) {
+    if (!CryptGenRandom(hCryptProv, 4, &seed)) return seed;
+  }
+  if (hCryptProv != NULL) CryptReleaseContext(hCryptProv, 0);
+  return seed;
+#else
   TdFilePtr pFile;
   int seed;
 
@@ -43,6 +61,7 @@ uint32_t taosSafeRand(void) {
   }
 
   return (uint32_t)seed;
+#endif
 }
 
 void taosRandStr(char* str, int32_t size) {

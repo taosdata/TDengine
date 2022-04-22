@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "parInsertData.h"
 #include "parInt.h"
 #include "parToken.h"

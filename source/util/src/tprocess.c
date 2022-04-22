@@ -286,13 +286,13 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
       pQueue->head = headLen + bodyLen;
     } else if (remain < 8 + headLen) {
       memcpy(pHead, pQueue->pBuffer + pQueue->head + 8, remain - 8);
-      memcpy(pHead + remain - 8, pQueue->pBuffer, headLen - (remain - 8));
+      memcpy((char*)pHead + remain - 8, pQueue->pBuffer, headLen - (remain - 8));
       memcpy(pBody, pQueue->pBuffer + headLen - (remain - 8), bodyLen);
       pQueue->head = headLen - (remain - 8) + bodyLen;
     } else if (remain < 8 + headLen + bodyLen) {
       memcpy(pHead, pQueue->pBuffer + pQueue->head + 8, headLen);
       memcpy(pBody, pQueue->pBuffer + pQueue->head + 8 + headLen, remain - 8 - headLen);
-      memcpy(pBody + remain - 8 - headLen, pQueue->pBuffer, bodyLen - (remain - 8 - headLen));
+      memcpy((char*)pBody + remain - 8 - headLen, pQueue->pBuffer, bodyLen - (remain - 8 - headLen));
       pQueue->head = bodyLen - (remain - 8 - headLen);
     } else {
       memcpy(pHead, pQueue->pBuffer + pQueue->head + 8, headLen);
@@ -434,7 +434,7 @@ void taosProcStop(SProcObj *pProc) {
   }
   tsem_post(&pQueue->sem);
   taosThreadJoin(pProc->thread, NULL);
-  pProc->thread = 0;
+  taosThreadClear(&pProc->thread);
 }
 
 void taosProcCleanup(SProcObj *pProc) {

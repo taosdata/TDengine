@@ -49,12 +49,14 @@ static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_B
 
 static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING; }
 
-#define generateDealNodeErrMsg(pCxt, code, ...)               \
-  ({                                                          \
-    generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__); \
-    pCxt->errCode = code;                                     \
-    DEAL_RES_ERROR;                                           \
-  })
+enum EDealRes generateDealNodeErrMsg(STranslateContext* pCxt, int32_t code, ...) {
+  va_list ap;
+  va_start(ap, code);
+  generateSyntaxErrMsg(&pCxt->msgBuf, code, ap);
+  va_end(ap);
+  pCxt->errCode = code;
+  return DEAL_RES_ERROR;
+}
 
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);

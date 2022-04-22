@@ -69,6 +69,9 @@ typedef struct SUdfTeardownRequest {
 
 
 typedef struct SUdfTeardownResponse {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } SUdfTeardownResponse;
 
 typedef struct SUdfRequest {
