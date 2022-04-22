@@ -83,7 +83,7 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
 }
 
 int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, int32_t* pNumOfRows,
-                            int32_t* pNumOfCols) {
+                            int16_t* pNumOfCols) {
   /*int32_t         sversion = pHandle->pBlock->sversion;*/
   // TODO set to real sversion
   int32_t sversion = 0;

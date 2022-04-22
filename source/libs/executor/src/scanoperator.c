@@ -561,8 +561,8 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
       SArray*  pCols = NULL;
       uint64_t groupId;
       int32_t  numOfRows;
-      int32_t  numOfCols;
-      int32_t  code = tqRetrieveDataBlock(&pCols, pInfo->readerHandle, &groupId, &numOfRows, &numOfCols);
+      int16_t  outputCol;
+      int32_t  code = tqRetrieveDataBlock(&pCols, pInfo->readerHandle, &groupId, &numOfRows, &outputCol);
 
       if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
         pTaskInfo->code = code;
