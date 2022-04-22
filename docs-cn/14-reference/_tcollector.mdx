@@ -3,9 +3,10 @@
 
 配置 taosAdapter 接收 TCollector 数据的方法：
 
-- 在 taosAdapter 配置文件 （默认位置为 /etc/taos/taosadapter.toml） 中使能配置项
+- 在 taosAdapter 配置文件（默认位置为 /etc/taos/taosadapter.toml）中使能配置项
 
 ```
+...
 [opentsdb_telnet]
 enable = true
 maxTCPConnections = 250
@@ -14,11 +15,12 @@ dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
 ports = [6046, 6047, 6048, 6049]
 user = "root"
 password = "taosdata"
+...
 ```
 
-其中 taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。taosAdapter 需重新启动。
+其中 taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
 
-或使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 tcollector 数据功能。
+- 或使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 tcollector 数据功能
 
 ```
       --opentsdb_telnet.dbs strings                  opentsdb_telnet db names. Env "TAOS_ADAPTER_OPENTSDB_TELNET_DBS" (default [opentsdb_telnet,collectd_tsdb,icinga2_tsdb,tcollector_tsdb])
