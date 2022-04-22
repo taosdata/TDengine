@@ -55,6 +55,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (metaSaveToTbDb(pMeta, version, &me) < 0) goto _err;
 
   // save to schema.db (TODO)
+  // if (metaSaveToSkmDb(pMeta) < 0) goto _err;
 
   // update uid idx
   if (metaUpdateUidIdx(pMeta, me.uid, version) < 0) goto _err;
@@ -149,15 +150,19 @@ int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
 }
 
 static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME) {
-  void  *pKey = NULL;
-  void  *pVal = NULL;
-  int    kLen = 0;
-  int    vLen = 0;
-  SCoder coder = {0};
+  STbDbKey tbDbKey;
+  void    *pKey = NULL;
+  void    *pVal = NULL;
+  int      kLen = 0;
+  int      vLen = 0;
+  SCoder   coder = {0};
 
   // set key and value
-  pKey = &version;
-  kLen = sizeof(version);
+  tbDbKey.version = version;
+  tbDbKey.uid = pME->uid;
+
+  pKey = &tbDbKey;
+  kLen = sizeof(tbDbKey);
 
   if (tEncodeSize(metaEncodeEntry, pME, vLen) < 0) {
     goto _err;

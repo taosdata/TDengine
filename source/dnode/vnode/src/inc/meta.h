@@ -55,7 +55,7 @@ typedef struct SMetaEntryReader SMetaEntryReader;
 
 void metaEntryReaderInit(SMetaEntryReader* pReader);
 void metaEntryReaderClear(SMetaEntryReader* pReader);
-int  metaGetTableEntryByVersion(SMeta* pMeta, SMetaEntryReader* pReader, int64_t version);
+int  metaGetTableEntryByVersion(SMeta* pMeta, SMetaEntryReader* pReader, int64_t version, tb_uid_t uid);
 int  metaGetTableEntryByUid(SMeta* pMeta, SMetaEntryReader* pReader, tb_uid_t uid);
 int  metaGetTableEntryByName(SMeta* pMeta, SMetaEntryReader* pReader, const char* name);
 
@@ -83,6 +83,11 @@ struct SMeta {
   TDB*      pTtlIdx;
   SMetaIdx* pIdx;
 };
+
+typedef struct {
+  int64_t  version;
+  tb_uid_t uid;
+} STbDbKey;
 
 typedef struct __attribute__((__packed__)) {
   tb_uid_t uid;

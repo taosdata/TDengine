@@ -52,7 +52,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pTbDb
-  ret = tdbDbOpen("table.db", sizeof(int64_t), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
+  ret = tdbDbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
   if (ret < 0) {
     metaError("vgId: %d failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -143,12 +143,18 @@ int metaClose(SMeta *pMeta) {
 }
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  int64_t version1 = *(int64_t *)pKey1;
-  int64_t version2 = *(int64_t *)pKey2;
+  STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
+  STbDbKey *pTbDbKey2 = (STbDbKey *)pKey2;
 
-  if (version1 > version2) {
+  if (pTbDbKey1->version > pTbDbKey2->version) {
     return 1;
-  } else if (version1 < version2) {
+  } else if (pTbDbKey1->version < pTbDbKey2->version) {
+    return -1;
+  }
+
+  if (pTbDbKey1->uid > pTbDbKey2->uid) {
+    return 1;
+  } else if (pTbDbKey1->uid < pTbDbKey2->uid) {
     return -1;
   }
 

@@ -22,9 +22,11 @@ void metaEntryReaderClear(SMetaEntryReader *pReader) {
   TDB_FREE(pReader->pBuf);
 }
 
-int metaGetTableEntryByVersion(SMeta *pMeta, SMetaEntryReader *pReader, int64_t version) {
+int metaGetTableEntryByVersion(SMeta *pMeta, SMetaEntryReader *pReader, int64_t version, tb_uid_t uid) {
+  STbDbKey tbDbKey = {.version = version, .uid = uid};
+
   // query table.db
-  if (tdbDbGet(pMeta->pTbDb, &version, sizeof(version), &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbDbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
     goto _err;
   }
 
@@ -50,7 +52,7 @@ int metaGetTableEntryByUid(SMeta *pMeta, SMetaEntryReader *pReader, tb_uid_t uid
   }
 
   version = *(int64_t *)pReader->pBuf;
-  return metaGetTableEntryByVersion(pMeta, pReader, version);
+  return metaGetTableEntryByVersion(pMeta, pReader, version, uid);
 }
 
 int metaGetTableEntryByName(SMeta *pMeta, SMetaEntryReader *pReader, const char *name) {
