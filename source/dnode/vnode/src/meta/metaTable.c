@@ -21,6 +21,7 @@ static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid);
 static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
 static int metaCreateChildTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
 static int metaUpdateTtlIdx(SMeta *pMeta, int64_t dtime, tb_uid_t uid);
+static int metaSaveToSkmDb(SMeta *pMeta, tb_uid_t uid, SSchemaWrapper *pSW);
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
@@ -48,7 +49,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (metaSaveToTbDb(pMeta, version, &me) < 0) goto _err;
 
   // save to schema.db (TODO)
-  // if (metaSaveToSkmDb(pMeta) < 0) goto _err;
+  if (metaSaveToSkmDb(pMeta, pReq->suid, &pReq->schema) < 0) goto _err;
 
   // update uid idx
   if (metaUpdateUidIdx(pMeta, me.uid, version) < 0) goto _err;
@@ -211,6 +212,7 @@ static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME)
   if (metaSaveToTbDb(pMeta, version, pME) < 0) return -1;
 
   // save to schema.db
+  if (metaSaveToSkmDb(pMeta, pME->uid, &pME->ntbEntry.schema) < 0) return -1;
 
   // update uid.idx
   if (metaUpdateUidIdx(pMeta, pME->uid, version) < 0) return -1;
@@ -225,5 +227,31 @@ static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME)
     if (metaUpdateTtlIdx(pMeta, dtime, pME->uid) < 0) return -1;
   }
 
+  return 0;
+}
+
+static int metaSaveToSkmDb(SMeta *pMeta, tb_uid_t uid, SSchemaWrapper *pSW) {
+  SCoder    coder = {0};
+  void     *pVal = NULL;
+  int       vLen = 0;
+  int       rcode = 0;
+  SSkmDbKey skmDbKey = {.uid = uid, .sver = pSW->sver};
+
+  // encode schema
+  if (tEncodeSize(tEncodeSSchemaWrapper, pSW, vLen) < 0) return -1;
+  pVal = TCODER_MALLOC(&coder, vLen);
+  if (pVal == NULL) {
+    rcode = -1;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  if (tdbDbInsert(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, NULL) < 0) {
+    rcode = -1;
+    goto _exit;
+  }
+
+_exit:
+  tCoderClear(&coder);
   return 0;
 }
