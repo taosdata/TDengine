@@ -275,7 +275,7 @@ static void dmCloseNodes(SDnode *pDnode) {
 
 static void dmProcessProcHandle(void *handle) {
   dWarn("handle:%p, the child process dies and send an offline rsp", handle);
-  SRpcMsg rpcMsg = {.handle = handle, .code = TSDB_CODE_NODE_OFFLINE};
+  SRpcMsg rpcMsg = {.handle = handle, .code = TSDB_CODE_NODE_OFFLINE, .refId = -1};
   rpcSendResponse(&rpcMsg);
 }
 

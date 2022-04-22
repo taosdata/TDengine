@@ -45,11 +45,12 @@ typedef struct SSrvConn {
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
 
-  int  spi;
-  char info[64];
-  char user[TSDB_UNI_LEN];  // user ID for the link
-  char secret[TSDB_PASSWORD_LEN];
-  char ckey[TSDB_PASSWORD_LEN];  // ciphering key
+  int64_t refId;
+  int     spi;
+  char    info[64];
+  char    user[TSDB_UNI_LEN];  // user ID for the link
+  char    secret[TSDB_PASSWORD_LEN];
+  char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 } SSrvConn;
 
 typedef struct SSrvMsg {
@@ -88,6 +89,13 @@ typedef struct SServerObj {
   uint32_t    port;
   uv_async_t* pAcceptAsync;  // just to quit from from accept thread
 } SServerObj;
+
+// handle
+typedef struct SExHandle {
+  void*         handle;
+  int64_t       refId;
+  SWorkThrdObj* pThrd;
+} SExHandle;
 
 static const char* notify = "a";
 
@@ -130,6 +138,15 @@ static void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
                                                                        uvHandleRegister};
 
+static int exHandlesMgt;
+
+void       uvOpenExHandleMgt(int size);
+int64_t    uvAddExHandle(void* p);
+int32_t    uvRemoveExHandle(int64_t refId);
+int32_t    uvReleaseExHandle(int64_t refId);
+void       uvDestoryExHandle(void* handle);
+SExHandle* uvAcquireExHandle(int64_t refId);
+
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
@@ -167,6 +184,25 @@ static bool addHandleToAcceptloop(void* arg);
     uv_run(loop, UV_RUN_DEFAULT);  \
     uv_loop_close(loop);           \
   } while (0);
+
+#define ASYNC_ERR_JRET(thrd)                            \
+  do {                                                  \
+    if (thrd->quit) {                                   \
+      tTrace("worker thread already quit, ignore msg"); \
+      goto _return;                                     \
+    }                                                   \
+  } while (0)
+
+#define ASYNC_CHECK_HANDLE(exh1, refId)                                                             \
+  do {                                                                                              \
+    if (refId != -1) {                                                                              \
+      SExHandle* exh2 = uvAcquireExHandle(refId);                                                   \
+      if (exh2 == NULL || exh1 != exh2) {                                                           \
+        tTrace("server conn %p except, may already freed, ignore msg", exh2 ? exh2->handle : NULL); \
+        goto _return;                                                                               \
+      }                                                                                             \
+    }                                                                                               \
+  } while (0)
 
 void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SSrvConn*    conn = handle->data;
@@ -233,7 +269,11 @@ static void uvHandleReq(SSrvConn* pConn) {
   // 1. server application should not send resp on handle
   // 2. once send out data, cli conn released to conn pool immediately
   // 3. not mixed with persist
-  transMsg.handle = pConn;
+  transMsg.handle = (void*)uvAcquireExHandle(pConn->refId);
+  if (pHead->noResp == 1) {
+    // transMsg.refId = -1;
+  }
+  uvReleaseExHandle(pConn->refId);
 
   STrans* pTransInst = pConn->pTransInst;
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
@@ -436,6 +476,18 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       tError("unexcept occurred, continue");
       continue;
     }
+    // release handle to rpc init
+    STransMsg  transMsg = msg->msg;
+    SExHandle* exh1 = transMsg.handle;
+    int64_t    refId = transMsg.refId;
+    SExHandle* exh2 = uvAcquireExHandle(refId);
+    if (exh2 == NULL || exh1 != exh2) {
+      uvReleaseExHandle(refId);
+      destroySmsg(msg);
+      continue;
+    }
+
+    msg->pConn = exh1->handle;
     (*transAsyncHandle[msg->type])(msg, pThrd);
   }
 }
@@ -658,6 +710,13 @@ static SSrvConn* createConn(void* hThrd) {
   pConn->broken = false;
   pConn->status = ConnNormal;
 
+  SExHandle* exh = taosMemoryMalloc(sizeof(SExHandle));
+  exh->handle = pConn;
+  exh->pThrd = pThrd;
+  exh->refId = uvAddExHandle(exh);
+  uvAcquireExHandle(exh->refId);
+
+  pConn->refId = exh->refId;
   transRefSrvHandle(pConn);
   tTrace("server conn %p created", pConn);
   return pConn;
@@ -667,6 +726,9 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   if (conn == NULL) {
     return;
   }
+  uvReleaseExHandle(conn->refId);
+  uvRemoveExHandle(conn->refId);
+
   transDestroyBuffer(&conn->readBuf);
   if (clear) {
     tTrace("server conn %p to be destroyed", conn);
@@ -704,6 +766,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->ip = ip;
   srv->port = port;
   uv_loop_init(srv->loop);
+
+  uvOpenExHandleMgt(10000);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)taosMemoryCalloc(1, sizeof(SWorkThrdObj));
@@ -749,6 +813,35 @@ End:
   transCloseServer(srv);
   return NULL;
 }
+void uvOpenExHandleMgt(int size) {
+  // added into once later
+  exHandlesMgt = taosOpenRef(size, uvDestoryExHandle);
+}
+int64_t uvAddExHandle(void* p) {
+  // acquire extern handle
+  return taosAddRef(exHandlesMgt, p);
+}
+int32_t uvRemoveExHandle(int64_t refId) {
+  // acquire extern handle
+  return taosRemoveRef(exHandlesMgt, refId);
+}
+
+SExHandle* uvAcquireExHandle(int64_t refId) {
+  // acquire extern handle
+  return (SExHandle*)taosAcquireRef(exHandlesMgt, refId);
+}
+
+int32_t uvReleaseExHandle(int64_t refId) {
+  // release extern handle
+  return taosReleaseRef(exHandlesMgt, refId);
+}
+void uvDestoryExHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  taosMemoryFree(handle);
+}
+
 void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
   thrd->quit = true;
   if (QUEUE_IS_EMPTY(&thrd->conn)) {
@@ -759,7 +852,6 @@ void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
   taosMemoryFree(msg);
 }
 void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
-  // release handle to rpc init
   SSrvConn* conn = msg->pConn;
   if (conn->status == ConnAcquire) {
     if (!transQueuePush(&conn->srvMsgs, msg)) {
@@ -862,55 +954,66 @@ void transUnrefSrvHandle(void* handle) {
 }
 
 void transReleaseSrvHandle(void* handle) {
-  if (handle == NULL) {
-    return;
-  }
-  SSrvConn*     pConn = handle;
-  SWorkThrdObj* pThrd = pConn->hostThrd;
+  SExHandle* exh = handle;
+  // TODO(yihaoDeng): not safy here,
+  int64_t refId = exh->refId;
+  ASYNC_CHECK_HANDLE(exh, refId);
 
-  STransMsg tmsg = {.code = 0, .handle = handle, .ahandle = NULL};
+  SWorkThrdObj* pThrd = exh->pThrd;
+  ASYNC_ERR_JRET(pThrd);
+
+  STransMsg tmsg = {.code = 0, .handle = exh, .ahandle = NULL, .refId = exh->refId};
 
   SSrvMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));
   srvMsg->msg = tmsg;
   srvMsg->type = Release;
-  srvMsg->pConn = pConn;
 
-  tTrace("server conn %p start to release", pConn);
+  tTrace("server conn %p start to release", exh->handle);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
+  uvReleaseExHandle(refId);
+  return;
+_return:
+  uvReleaseExHandle(refId);
 }
-void transSendResponse(const STransMsg* pMsg) {
-  if (pMsg->handle == NULL) {
-    return;
-  }
-  SSrvConn*     pConn = pMsg->handle;
-  SWorkThrdObj* pThrd = pConn->hostThrd;
-  if (pThrd->quit) {
-    return;
-  }
+void transSendResponse(const STransMsg* msg) {
+  SExHandle* exh = msg->handle;
+  int64_t    refId = msg->refId;
+  ASYNC_CHECK_HANDLE(exh, refId);
+
+  SWorkThrdObj* pThrd = exh->pThrd;
+  ASYNC_ERR_JRET(pThrd);
 
   SSrvMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));
-  srvMsg->pConn = pConn;
-  srvMsg->msg = *pMsg;
+  srvMsg->msg = *msg;
   srvMsg->type = Normal;
-  tTrace("server conn %p start to send resp (1/2)", pConn);
+  tTrace("server conn %p start to send resp (1/2)", exh->handle);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
+  uvReleaseExHandle(refId);
+  return;
+_return:
+  uvReleaseExHandle(refId);
 }
 void transRegisterMsg(const STransMsg* msg) {
-  if (msg->handle == NULL) {
-    return;
-  }
-  SSrvConn*     pConn = msg->handle;
-  SWorkThrdObj* pThrd = pConn->hostThrd;
+  SExHandle* exh = NULL;
+  int64_t    refId = msg->refId;
+  ASYNC_CHECK_HANDLE(exh, refId);
+
+  SWorkThrdObj* pThrd = exh->pThrd;
+  ASYNC_ERR_JRET(pThrd);
 
   SSrvMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));
-  srvMsg->pConn = pConn;
   srvMsg->msg = *msg;
   srvMsg->type = Register;
-  tTrace("server conn %p start to register brokenlink callback", pConn);
+  tTrace("server conn %p start to register brokenlink callback", exh->handle);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
+  uvReleaseExHandle(refId);
+  return;
+_return:
+  uvReleaseExHandle(refId);
 }
 int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
-  SSrvConn*          pConn = thandle;
+  SExHandle*         ex = thandle;
+  SSrvConn*          pConn = ex->handle;
   struct sockaddr_in addr = pConn->addr;
 
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
