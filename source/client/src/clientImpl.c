@@ -436,7 +436,12 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
       return -1;
     }
 
-    taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
+    int32_t code = taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = TSDB_CODE_TSC_INVALID_FQDN;
+      return terrno;
+    }
+
     mgmtEpSet->numOfEps++;
   }
 
