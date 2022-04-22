@@ -31,12 +31,8 @@ typedef struct SCliConn {
   int          hThrdIdx;
   STransCtx    ctx;
 
-  bool       broken;   // link broken or not
-  ConnStatus status;   //
-  int        release;  // 1: release
-  // spi configure
-  char spi;
-  char secured;
+  bool       broken;  // link broken or not
+  ConnStatus status;  //
 
   char*    ip;
   uint32_t port;
@@ -44,7 +40,6 @@ typedef struct SCliConn {
   // debug and log info
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
-
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -101,6 +96,8 @@ static void cliSendCb(uv_write_t* req, int status);
 // callback after conn  to server
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
+
+static void cliAppCb(SCliConn* pConn, STransMsg* pMsg);
 
 static SCliConn* cliCreateConn(SCliThrdObj* thrd);
 static void      cliDestroyConn(SCliConn* pConn, bool clear /*clear tcp handle or not*/);
@@ -303,8 +300,6 @@ void cliHandleResp(SCliConn* conn) {
          TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
          taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
 
-  conn->secured = pHead->secured;
-
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tTrace("except, server continue send while cli ignore it");
     // transUnrefCliHandle(conn);
@@ -318,7 +313,8 @@ void cliHandleResp(SCliConn* conn) {
 
   if (pCtx == NULL || pCtx->pSem == NULL) {
     tTrace("%s cli conn %p handle resp", pTransInst->label, conn);
-    (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
+    cliAppCb(conn, &transMsg);
+    //(pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   } else {
     tTrace("%s cli conn(sync) %p handle resp", pTransInst->label, conn);
     memcpy((char*)pCtx->pRsp, (char*)&transMsg, sizeof(transMsg));
@@ -384,7 +380,8 @@ void cliHandleExcept(SCliConn* pConn) {
         once = true;
         continue;
       }
-      (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
+      cliAppCb(pConn, &transMsg);
+      //(pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
     } else {
       tTrace("%s cli conn(sync) %p handle except", pTransInst->label, pConn);
       memcpy((char*)(pCtx->pRsp), (char*)(&transMsg), sizeof(transMsg));
@@ -883,6 +880,18 @@ int cliRBChoseIdx(STrans* pTransInst) {
     pTransInst->index = 0;
   }
   return index % pTransInst->numOfThreads;
+}
+void cliAppCb(SCliConn* pConn, STransMsg* transMsg) {
+  SCliThrdObj* pThrd = pConn->hostThrd;
+  STrans*      pTransInst = pThrd->pTransInst;
+
+  if (transMsg->code == TSDB_CODE_RPC_REDIRECT && pTransInst->retry != NULL) {
+    SMEpSet emsg = {0};
+    tDeserializeSMEpSet(transMsg->pCont, transMsg->contLen, &emsg);
+    pTransInst->retry(pTransInst, transMsg, &(emsg.epSet));
+  } else {
+    pTransInst->cfp(pTransInst->parent, transMsg, NULL);
+  }
 }
 
 void transCloseClient(void* arg) {

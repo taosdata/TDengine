@@ -146,6 +146,7 @@ DLL_EXPORT TAOS_RES   *taos_stmt_use_result(TAOS_STMT *stmt);
 DLL_EXPORT int         taos_stmt_close(TAOS_STMT *stmt);
 DLL_EXPORT char       *taos_stmt_errstr(TAOS_STMT *stmt);
 DLL_EXPORT int         taos_stmt_affected_rows(TAOS_STMT *stmt);
+DLL_EXPORT int         taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 
 DLL_EXPORT TAOS_RES   *taos_query(TAOS *taos, const char *sql);
 DLL_EXPORT TAOS_RES   *taos_query_l(TAOS *taos, const char *sql, int sqlLen);
