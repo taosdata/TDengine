@@ -18,7 +18,7 @@
 static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp);
+static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
@@ -77,7 +77,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (vnodeProcessDropStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_CREATE_TABLE:
-      if (vnodeProcessCreateTbReq(pVnode, pMsg, pReq, pRsp) < 0) goto _err;
+      if (vnodeProcessCreateTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_TABLE:
       if (vnodeProcessAlterTbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
@@ -244,67 +244,37 @@ _err:
   return -1;
 }
 
-static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SRpcMsg *pRsp) {
-#if 0
-  SVCreateTbBatchReq vCreateTbBatchReq = {0};
-  SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
+static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
+  SCoder             coder = {0};
+  int                rcode = 0;
+  SVCreateTbBatchReq req = {0};
+  SVCreateTbReq     *pCreateReq;
 
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
-  pRsp->code = TSDB_CODE_SUCCESS;
-  pRsp->pCont = NULL;
-  pRsp->contLen = 0;
 
-  tDeserializeSVCreateTbBatchReq(pReq, &vCreateTbBatchReq);
-  int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
-  for (int i = 0; i < reqNum; i++) {
-    SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+  // decode
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
+  if (tDecodeSVCreateTbBatchReq(&coder, &req) < 0) {
+    rcode = -1;
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
 
-    char      tableFName[TSDB_TABLE_FNAME_LEN];
-    SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
-    sprintf(tableFName, "%s.%s", pVnode->config.dbname, pCreateTbReq->name);
-
-    int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
-    if (code) {
-      SVCreateTbRsp rsp;
-      rsp.code = code;
-
-      taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
-    }
-
-    if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
-      // TODO: handle error
-      vError("vgId:%d, failed to create table: %s", TD_VID(pVnode), pCreateTbReq->name);
-    }
-    // TODO: to encapsule a free API
-    taosMemoryFree(pCreateTbReq->name);
-    if (pCreateTbReq->type == TD_SUPER_TABLE) {
-      // taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
-      // taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
-      // if (pCreateTbReq->stbCfg.pRSmaParam) {
-      //   taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
-      //   taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
-      // }
-    } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
-      taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
+  // loop to create table
+  for (int iReq = 0; iReq < req.nReqs; iReq++) {
+    pCreateReq = req.pReqs + iReq;
+    if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
+      // TODO: fill request
     } else {
-      taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
+      // TODO
     }
   }
 
-  vTrace("vgId:%d process create %" PRIzu " tables", TD_VID(pVnode), taosArrayGetSize(vCreateTbBatchReq.pArray));
-  taosArrayDestroy(vCreateTbBatchReq.pArray);
-  if (vCreateTbBatchRsp.rspList) {
-    int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
-    void   *msg = rpcMallocCont(contLen);
-    tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
-    taosArrayDestroy(vCreateTbBatchRsp.rspList);
+  // prepare rsp
 
-    pRsp->pCont = msg;
-    pRsp->contLen = contLen;
-  }
-
-#endif
-  return 0;
+_exit:
+  tCoderClear(&coder);
+  return rcode;
 }
 
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {

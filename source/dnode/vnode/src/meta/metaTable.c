@@ -18,6 +18,9 @@
 static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME);
 static int metaUpdateUidIdx(SMeta *pMeta, tb_uid_t uid, int64_t version);
 static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid);
+static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
+static int metaCreateChildTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
+static int metaUpdateTtlIdx(SMeta *pMeta, int64_t dtime, tb_uid_t uid);
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SSkmDbKey   skmDbKey = {0};
@@ -51,6 +54,8 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // save to table.db
   if (metaSaveToTbDb(pMeta, version, &me) < 0) goto _err;
 
+  // save to schema.db (TODO)
+
   // update uid idx
   if (metaUpdateUidIdx(pMeta, me.uid, version) < 0) goto _err;
 
@@ -72,20 +77,59 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
   return 0;
 }
 
-int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
-#if 0
-  if (metaSaveTableToDB(pMeta, pTbCfg) < 0) {
-    // TODO: handle error
-    return -1;
+int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
+  SMetaEntry me = {0};
+
+  // validate message
+  if (pReq->type != TSDB_CHILD_TABLE && pReq->type != TSDB_NORMAL_TABLE) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _err;
   }
 
-  if (metaSaveTableToIdx(pMeta, pTbCfg) < 0) {
-    // TODO: handle error
-    return -1;
-  }
-#endif
+  // preprocess req
+  pReq->uid = tGenIdPI64();
+  pReq->ctime = taosGetTimestampSec();
 
+  {
+    // TODO: validate request (uid and name unique)
+    // for child table, also check if super table exists
+  }
+
+  // build SMetaEntry
+  me.type = pReq->type;
+  me.uid = pReq->uid;
+  me.name = pReq->name;
+  if (me.type == TSDB_CHILD_TABLE) {
+    me.ctbEntry.ctime = pReq->ctime;
+    me.ctbEntry.ttlDays = pReq->ttl;
+    me.ctbEntry.suid = pReq->ctb.suid;
+    me.ctbEntry.pTags = pReq->ctb.pTag;
+  } else {
+    me.ntbEntry.ctime = pReq->ctime;
+    me.ntbEntry.ttlDays = pReq->ttl;
+    me.ntbEntry.nCols = pReq->ntb.nCols;
+    me.ntbEntry.sver = pReq->ntb.sver;
+    me.ntbEntry.pSchema = pReq->ntb.pSchema;
+  }
+
+  // save table
+  if (me.type == TSDB_CHILD_TABLE) {
+    if (metaCreateChildTable(pMeta, version, &me) < 0) {
+      goto _err;
+    }
+  } else {
+    if (metaCreateNormalTable(pMeta, version, &me) < 0) {
+      goto _err;
+    }
+  }
+
+  metaDebug("vgId:%d table %s uid %" PRId64 " is created", TD_VID(pMeta->pVnode), pReq->name, pReq->uid);
   return 0;
+
+_err:
+  metaError("vgId:%d failed to create table:%s type:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
+            pReq->type == TSDB_CHILD_TABLE ? "child table" : "normal table", tstrerror(terrno));
+  return -1;
 }
 
 int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
@@ -152,4 +196,38 @@ static int metaUpdateUidIdx(SMeta *pMeta, tb_uid_t uid, int64_t version) {
 
 static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid) {
   return tdbDbInsert(pMeta->pNameIdx, name, strlen(name) + 1, &uid, sizeof(uid), NULL);
+}
+
+static int metaUpdateTtlIdx(SMeta *pMeta, int64_t dtime, tb_uid_t uid) {
+  STtlIdxKey ttlKey = {.dtime = dtime, .uid = uid};
+  return tdbDbInsert(pMeta->pTtlIdx, &ttlKey, sizeof(ttlKey), NULL, 0, NULL);
+}
+
+static int metaCreateChildTable(SMeta *pMeta, int64_t version, SMetaEntry *pME) {
+  // TODO
+  return 0;
+}
+
+static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME) {
+  int64_t dtime;
+
+  // save to table.db
+  if (metaSaveToTbDb(pMeta, version, pME) < 0) return -1;
+
+  // save to schema.db
+
+  // update uid.idx
+  if (metaUpdateUidIdx(pMeta, pME->uid, version) < 0) return -1;
+
+  // save to name.idx
+  if (metaUpdateNameIdx(pMeta, pME->name, pME->uid) < 0) return -1;
+
+  // save to pTtlIdx if need
+  if (pME->ntbEntry.ttlDays > 0) {
+    dtime = pME->ntbEntry.ctime + pME->ntbEntry.ttlDays * 24 * 60;
+
+    if (metaUpdateTtlIdx(pMeta, dtime, pME->uid) < 0) return -1;
+  }
+
+  return 0;
 }

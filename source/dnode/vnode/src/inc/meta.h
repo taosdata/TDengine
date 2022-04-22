@@ -48,6 +48,7 @@ int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
 // metaTable ==================
 int metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
+int metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 
 // metaQuery ==================
 typedef struct SMetaEntryReader SMetaEntryReader;
@@ -109,7 +110,6 @@ typedef struct {
 #define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
 
-int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg);
 int             metaDropTable(SMeta* pMeta, tb_uid_t uid);
 int             metaCommit(SMeta* pMeta);
 int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
@@ -142,10 +142,10 @@ struct SMetaEntry {
       SSchema* pSchemaTg;
     } stbEntry;
     struct {
-      int64_t  ctime;
-      int32_t  ttlDays;
-      tb_uid_t suid;
-      SKVRow   pTags;
+      int64_t     ctime;
+      int32_t     ttlDays;
+      tb_uid_t    suid;
+      const void* pTags;
     } ctbEntry;
     struct {
       int64_t  ctime;

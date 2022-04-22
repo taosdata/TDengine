@@ -3651,10 +3651,12 @@ int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
 }
 
 int tEncodeSVCreateTbBatchReq(SCoder *pCoder, const SVCreateTbBatchReq *pReq) {
+  int32_t nReq = taosArrayGetSize(pReq->pArray);
+
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32v(pCoder, taosArrayGetSize(pReq->pArray)) < 0) return -1;
-  for (int iReq = 0; iReq < pReq->nReqs; iReq++) {
+  if (tEncodeI32v(pCoder, nReq) < 0) return -1;
+  for (int iReq = 0; iReq < nReq; iReq++) {
     if (tEncodeSVCreateTbReq(pCoder, (SVCreateTbReq *)taosArrayGet(pReq->pArray, iReq)) < 0) return -1;
   }
 
