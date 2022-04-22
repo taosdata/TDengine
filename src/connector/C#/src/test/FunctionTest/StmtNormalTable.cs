@@ -25,7 +25,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLineCN()"),TestExeOrder(2),Trait("Category", "bindParamCN")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLineCN()"), TestExeOrder(2), Trait("Category", "bindParamCN")]
         public void TestBindSingleLineCN()
         {
             string tableName = "ntb_stmt_cases_test_bind_single_line_cn";
@@ -91,7 +91,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCN()"),TestExeOrder(4),Trait("Category", "bindSingleColumnCN")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCN()"), TestExeOrder(4), Trait("Category", "bindSingleColumnCN")]
         public void TestBindColumnCN()
         {
             string tableName = "ntb_stmt_cases_test_bind_column_cn";
@@ -173,7 +173,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCN()"),TestExeOrder(6),Trait("Category", "bindParamBatchCN")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCN()"), TestExeOrder(6), Trait("Category", "bindParamBatchCN")]
         public void TestBindMultiLineCN()
         {
             string tableName = "ntb_stmt_cases_test_bind_multi_lines_cn";
@@ -242,7 +242,7 @@ namespace Cases
         /// <describe>Test stmt insert single line data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine"),TestExeOrder(3),Trait("Category", "BindSingleColumn")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine"), TestExeOrder(3), Trait("Category", "BindSingleColumn")]
         public void TestBindSingleLine()
         {
             string tableName = "ntb_stmt_cases_test_bind_single_line";
@@ -311,7 +311,7 @@ namespace Cases
         /// <describe>Test stmt insert multiple rows of data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()"),TestExeOrder(5),Trait("Category", "bindParamBatch")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()"), TestExeOrder(5), Trait("Category", "bindParamBatch")]
         public void TestBindMultiLine()
         {
             string tableName = "ntb_stmt_case_test_bind_multi_lines";
@@ -380,7 +380,7 @@ namespace Cases
         /// <describe>Test stmt insert multiple rows of data into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()"),TestExeOrder(1),Trait("Category", "bindParam")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()"), TestExeOrder(1), Trait("Category", "bindParam")]
         public void TestBindColumn()
         {
             string tableName = "ntb_stmt_cases_test_bind_column";
