@@ -115,4 +115,11 @@ void shellCheckServerStatus() {
   } while (1);
 }
 
-void shellExit() { exit(EXIT_FAILURE); }
+void shellExit() {
+  if (shell.conn != NULL) {
+    taos_close(shell.conn);
+    shell.conn = NULL;
+  }
+  taos_cleanup();
+  exit(EXIT_FAILURE);
+}

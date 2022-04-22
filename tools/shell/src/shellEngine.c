@@ -541,7 +541,7 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0) {
+  if (shell.args.commands == NULL && shell.args.file == 0) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -675,7 +675,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0) {
+  if (shell.args.commands == NULL && shell.args.file == NULL) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -809,6 +809,10 @@ void shellSourceFile(const char *file) {
 }
 
 void shellGetGrantInfo() {
+  char sinfo[1024] = {0};
+  tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
+  strtok(sinfo, "\n");
+
   char sql[] = "show grants";
 
   TAOS_RES *tres = taos_query(shell.conn, sql);
@@ -816,9 +820,9 @@ void shellGetGrantInfo() {
   int32_t code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, version is %s\n\n", taos_get_server_info(shell.conn));
+      fprintf(stdout, "Server is Community Edition, %s\n\n", sinfo);
     } else {
-      fprintf(stderr, "Failed to check Server Edition, Reason:%d:%s\n\n", taos_errno(shell.conn),
+      fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", taos_errno(shell.conn),
               taos_errstr(shell.conn));
     }
     return;
@@ -850,11 +854,9 @@ void shellGetGrantInfo() {
     memcpy(expired, row[2], fields[2].bytes);
 
     if (strcmp(expiretime, "unlimited") == 0) {
-      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will never expire.\n", serverVersion,
-              taos_get_server_info(shell.conn));
+      fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\n", serverVersion, sinfo);
     } else {
-      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will expire at %s.\n", serverVersion,
-              taos_get_server_info(shell.conn), expiretime);
+      fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\n", serverVersion, sinfo, expiretime);
     }
 
     atomic_store_64(&shell.result, 0);
@@ -878,7 +880,8 @@ void *shellCancelHandler(void *arg) {
 
     taosResetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
-    // shellExit();
+    shellWriteHistory();
+    shellExit();
   }
 
   return NULL;
@@ -907,7 +910,8 @@ void *shellThreadLoop(void *arg) {
   } while (shellRunCommand(command) == 0);
 
   taosMemoryFreeClear(command);
-  // shellExit();
+  shellWriteHistory();
+  shellExit();
 
   taosThreadCleanupPop(1);
   return NULL;
@@ -929,7 +933,7 @@ int32_t shellExecute() {
     return -1;
   }
 
-  if (pArgs->commands != NULL || pArgs->file[0] != 0) {
+  if (pArgs->commands != NULL || pArgs->file != NULL) {
     if (pArgs->commands != NULL) {
       printf("%s%s\n", shell.info.promptHeader, pArgs->commands);
       char *cmd = strdup(pArgs->commands);
@@ -937,7 +941,7 @@ int32_t shellExecute() {
       taosMemoryFree(cmd);
     }
 
-    if (pArgs->file[0] != 0) {
+    if (pArgs->file != NULL) {
       shellSourceFile(pArgs->file);
     }
 
