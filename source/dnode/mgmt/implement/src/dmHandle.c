@@ -221,8 +221,8 @@ static int32_t dmSpawnUdfd(SDnode *pDnode);
 void dmUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   dInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SDnode *pDnode = process->data;
-  if (exitStatus == 0 && termSignal == 0) {
-    dInfo("udfd process exit due to SIGINT");
+  if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pDnode->udfdData.stopCalled)) {
+    dInfo("udfd process exit due to SIGINT or dnode-mgmt called stop");
   } else {
     dInfo("udfd process restart");
     dmSpawnUdfd(pDnode);
@@ -327,14 +327,12 @@ static int32_t dmStopUdfd(SDnode *pDnode) {
   dInfo("dnode-mgmt to stop udfd. need cleanup: %d, spawn err: %d",
         pDnode->udfdData.needCleanUp, pDnode->udfdData.spawnErr);
   SUdfdData *pData = &pDnode->udfdData;
-  if (!pData->needCleanUp) {
+  if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return 0;
   }
-
+  atomic_store_32(&pData->stopCalled, 1);
+  pData->needCleanUp = false;
   uv_barrier_destroy(&pData->barrier);
-  if (pData->spawnErr == 0) {
-    uv_process_kill(&pData->process, SIGINT);
-  }
   uv_async_send(&pData->stopAsync);
   uv_thread_join(&pData->thread);
 

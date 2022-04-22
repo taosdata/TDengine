@@ -153,6 +153,7 @@ typedef struct SUdfdData {
   int           spawnErr;
   uv_pipe_t     ctrlPipe;
   uv_async_t    stopAsync;
+  int32_t        stopCalled;
 } SUdfdData;
 
 typedef struct SDnode {
