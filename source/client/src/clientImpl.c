@@ -95,14 +95,14 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
     if (initEpSetFromCfg(ip, NULL, &epSet) < 0) {
       return NULL;
     }
-
-    if (port) {
-      epSet.epSet.eps[0].port = port;
-    }
   } else {
     if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
       return NULL;
     }
+  }
+
+  if (port) {
+    epSet.epSet.eps[0].port = port;
   }
 
   char*          key = getClusterKey(user, secretEncrypt, ip, port);
