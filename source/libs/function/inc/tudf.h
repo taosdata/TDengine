@@ -21,6 +21,7 @@
 #include <stdbool.h>
 #include "tmsg.h"
 #include "tcommon.h"
+#include "function.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -118,8 +119,7 @@ int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfIn
 int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalaProcess(UdfcFuncHandle handle, SSDataBlock *block, SSDataBlock *resultData);
-
+int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 /**
  * tearn down udf
  * @param handle
