@@ -156,10 +156,9 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.colId = 3;
     int32_t size = idata.info.bytes * rowNum;
     idata.pData = (char *)taosMemoryCalloc(1, size);
+    colInfoDataEnsureCapacity(&idata, 0, rowNum);
     taosArrayPush(res->pDataBlock, &idata);
     
-    blockDataEnsureCapacity(res, rowNum);
-
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     for (int32_t i = 0; i < rowNum; ++i) {
       colDataAppend(pColumn, i, (const char *)value, false);
