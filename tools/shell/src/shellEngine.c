@@ -367,7 +367,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
 
   TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
-    fprintf(stderr, "ERROR: failed to open file: %s\n", fullname);
+    fprintf(stderr, "failed to open file: %s\n", fullname);
     return -1;
   }
 
@@ -750,7 +750,7 @@ void shellReadHistory() {
 
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
-  TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_WRITE | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
   for (int32_t i = pHistory->hstart; i != pHistory->hend;) {
@@ -789,7 +789,7 @@ void shellSourceFile(const char *file) {
 
   TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    fprintf(stderr, "ERROR: failed to open file %s\n", fullname);
+    fprintf(stderr, "failed to open file %s\n", fullname);
     taosMemoryFree(cmd);
     return;
   }
@@ -946,6 +946,8 @@ int32_t shellExecute() {
     return -1;
   }
 
+  shellReadHistory();
+
   if (pArgs->commands != NULL || pArgs->file[0] != 0) {
     if (pArgs->commands != NULL) {
       printf("%s%s\n", shell.info.promptHeader, pArgs->commands);
@@ -977,7 +979,6 @@ int32_t shellExecute() {
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
   shellGetGrantInfo(shell.conn);
-  shellReadHistory();
 
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);
