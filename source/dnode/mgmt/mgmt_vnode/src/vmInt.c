@@ -274,7 +274,7 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
 
-  syncCleanUp();
+  // syncCleanUp();
 
   dInfo("vnode-mgmt is cleaned up");
 }
