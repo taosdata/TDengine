@@ -151,13 +151,14 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     taosMemoryFreeClear(output.dbVgroup);
 
     tscError("failed to build use db output since %s", terrstr());
-  } else {
+  } else if (output.dbVgroup) {
     struct SCatalog* pCatalog = NULL;
 
     int32_t code1 = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (code1 != TSDB_CODE_SUCCESS) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
+      taosMemoryFreeClear(output.dbVgroup);
     } else {
       catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
     }
