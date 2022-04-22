@@ -84,8 +84,6 @@ static int32_t convertToRetrieveType(char* name, int32_t len) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_VGROUP;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, len) == 0) {
-    type = TSDB_MGMT_TABLE_TOPICS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIBES, len) == 0) {
