@@ -370,9 +370,9 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   }
   dmReportStartup(pDnode, "dnode-transport", "initialized");
 
-  if (dmStartUdfd(pDnode) != 0) {
-    dError("failed to start udfd");
-  }
+//  if (dmStartUdfd(pDnode) != 0) {
+//    dError("failed to start udfd");
+//  }
 
   dInfo("dnode-mgmt is initialized");
   return 0;
