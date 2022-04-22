@@ -265,7 +265,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    toSDatablock(pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
     if (pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -311,7 +311,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
 
   while(1) {
-    toSDatablock(pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
     doFilter(pInfo->pCondition, pRes);
 
     bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);
@@ -341,7 +341,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 
   pInfo->pScalarExprInfo = pScalarExprInfo;
   pInfo->numOfScalarExpr = numOfScalarExpr;
-  pInfo->pScalarFuncCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->pScalarFuncCtx  = createSqlFunctionCtx(pScalarExprInfo, numOfScalarExpr, &pInfo->rowCellInfoOffset);
 
   int32_t code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {
@@ -410,8 +410,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       int32_t contentLen = 0;
 
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        int32_t* offset = pPage + startOffset;
-        columnLen       = pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
+        int32_t* offset = (int32_t*)((char*)pPage + startOffset);
+        columnLen       = (char*)pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
         char*    data   = (char*)(columnLen + sizeof(int32_t));
 
         if (colDataIsNull_s(pColInfoData, j)) {
@@ -424,8 +424,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           contentLen = varDataTLen(src);
         }
       } else {
-        char* bitmap = pPage + startOffset;
-        columnLen    = pPage + startOffset + BitmapLen(pInfo->rowCapacity);
+        char* bitmap = (char*)pPage + startOffset;
+        columnLen    = (char*)pPage + startOffset + BitmapLen(pInfo->rowCapacity);
         char* data   = (char*) columnLen + sizeof(int32_t);
 
         bool isNull = colDataIsNull_f(pColInfoData->nullbitmap, j);

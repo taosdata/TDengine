@@ -8,196 +8,245 @@
 #
 # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 #
-system sh/stop_dnodes.sh
 
-system sh/deploy.sh -n dnode1 -i 1
-system sh/exec.sh -n dnode1 -s start
+run tsim/tmq/prepareBasicEnv.sim
 
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
+#---- global parameters start ----#
+$dbName    = db
+$vgroups    = 1
+$stbPrefix  = stb
+$ctbPrefix  = ctb
+$ntbPrefix  = ntb
+$stbNum     = 1
+$ctbNum     = 10
+$ntbNum     = 10
+$rowsPerCtb = 100
+$tstart     = 1640966400000  # 2022-01-01 00:00:00.000
+#---- global parameters end ----#
+
+$pullDelay    = 3
+$ifcheckdata  = 1
+$showMsg      = 1
+$showRow      = 0
 
 sql connect
+sql use $dbName
 
-$dbNamme = d0
-print =============== create database , vgroup 1
-sql create database $dbNamme vgroups 1
-sql use $dbNamme
-
-print =============== create super table
-sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
-
-sql show stables
-if $rows != 1 then 
-  return -1
-endi
-
-print =============== create child table
-sql create table ct0 using stb tags(1000)
-sql create table ct1 using stb tags(2000)
-#sql create table ct3 using stb tags(3000)
-
-print =============== create normal table
-sql create table ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
-
-print =============== create multi topics. notes: now only support:
-print =============== 1. columns from stb; 2. * from ctb; 3. columns from ctb
-print =============== will support: * from stb; function from stb/ctb
-
-sql create topic topic_stb_column as select ts, c1, c3 from stb
-#sql create topic topic_stb_all as select * from stb
+print == create topics from super table
+sql create topic topic_stb_column as select ts, c3 from stb
+sql create topic topic_stb_all as select ts, c1, c2, c3 from stb
 sql create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb
 
-sql create topic topic_ctb_column as select ts, c1, c3 from ct0
-sql create topic topic_ctb_all as select * from ct0
-sql create topic topic_ctb_function as select ts, abs(c1), sin(c2) from ct0
+print == create topics from child table
+sql create topic topic_ctb_column as select ts, c3 from ctb0
+sql create topic topic_ctb_all as select * from ctb0
+sql create topic topic_ctb_function as select ts, abs(c1), sin(c2) from ctb0
 
-sql create topic topic_ntb_column as select ts, c1, c3 from ntb
-sql create topic topic_ntb_all as select * from ntb
-sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb
+print == create topics from normal table
+sql create topic topic_ntb_column as select ts, c3 from ntb0
+sql create topic topic_ntb_all as select * from ntb0
+sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
 
-sql show tables
-if $rows != 3 then 
-  return -1
-endi
-
-print =============== insert data
-
-$tbPrefix = ct
-$tbNum = 2
-$rowNum = 10
-$tstart = 1640966400000  # 2022-01-01 00:00:00.000
-
-$i = 0
-while $i < $tbNum
-  $tb = $tbPrefix . $i
-
-  $x = 0
-  while $x < $rowNum
-    $c = $x / 10
-    $c = $c * 10
-    $c = $x - $c
-
-    $binary = ' . binary
-    $binary = $binary . $c
-    $binary = $binary . '
-
-    sql insert into $tb values ($tstart , $c , $x , $binary )
-    sql insert into ntb values ($tstart , $c , $x , $binary )
-    $tstart = $tstart + 1
-    $x = $x + 1
-  endw
-
-  $i = $i + 1
-  $tstart = 1640966400000
-endw
-
-#root@trd02 /home $ tmq_sim --help                                                                          
-# -c      Configuration directory, default is 
-# -d      The name of the database for cosumer, no default 
-# -t      The topic string for cosumer, no default 
-# -k      The key-value string for cosumer, no default 
-# -g      showMsgFlag, default is 0
-#        
-
-$totalMsgCnt = $rowNum * $tbNum
-print inserted totalMsgCnt: $totalMsgCnt
-
-# supported key:
-# group.id:<xxx>
-# enable.auto.commit:<true | false>
-# auto.offset.reset:<earliest | latest | none>
-# td.connect.ip:<fqdn | ipaddress>
-# td.connect.user:root
-# td.connect.pass:taosdata
-# td.connect.port:6030
-# td.connect.db:db
-
-system_content echo -n \$BUILD_DIR
-$tmq_sim = $system_content . /build/bin/tmq_sim
-system_content echo -n \$SIM_DIR
-$tsim_cfg = $system_content . /tsim/cfg
-
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 20, 0}@ then
-  return -1
-endi
-
-#print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2"
-#system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2"
-#print cmd result----> $system_content
-#if $system_content != @{consume success: 20, 0}@ then
+#sql show topics
+#if $rows != 9 then 
 #  return -1
 #endi
 
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 20, 0}@ then
-  print expect @{consume success: 20, 0}@, actual: $system_content
-  return -1
+$keyList = ' . group.id:cgrp1
+$keyList = $keyList . '
+
+print ================ test consume from stb
+$loop_cnt = 0
+loop_consume_diff_topic_from_stb:
+if $loop_cnt == 0 then
+  print == scenario 1: topic_stb_column
+  $topicList = ' . topic_stb_column
+  $topicList = $topicList . '
+elif $loop_cnt == 1 then
+  print == scenario 2: topic_stb_all
+  $topicList = ' . topic_stb_all
+  $topicList = $topicList . '
+elif $loop_cnt == 2 then
+  print == scenario 3: topic_stb_function
+  $topicList = ' . topic_stb_function
+  $topicList = $topicList . '
+else
+  goto loop_consume_diff_topic_from_stb_end
 endi
 
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 10, 0}@ then
+$consumerId    = 0
+$totalMsgOfStb = $ctbNum * $rowsPerCtb
+#$expectmsgcnt  = $totalMsgOfStb + 1
+$expectmsgcnt  = 110
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+
+print == start consumer to pull msgs from stb
+print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
+system tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
+
+print == check consume result
+wait_consumer_end_from_stb:
+sql select * from consumeresult
+print ==> rows: $rows 
+print ==> rows[0]: $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+if $rows != 1 then
+  sleep 1000
+  goto wait_consumer_end_from_stb
+endi
+if $data[0][1] != $consumerId then
   return -1
 endi
-
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 10, 0}@ then
+if $data[0][2] != $expectmsgcnt then
   return -1
 endi
-
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 10, 0}@ then
+if $data[0][3] != $expectmsgcnt then
   return -1
 endi
+$loop_cnt = $loop_cnt + 1
+goto loop_consume_diff_topic_from_stb
+loop_consume_diff_topic_from_stb_end:
 
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 20, 0}@ then
+#######################################################################################
+# clear consume info and consume result 
+#run tsim/tmq/clearConsume.sim
+# because drop table function no stable, so by create new db for consume info and result. Modify it later
+$cdbName = cdb1
+sql create database $cdbName vgroups 1
+sleep 500
+sql use $cdbName
+
+print == create consume info table and consume result table
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
+
+sql show tables
+if $rows != 2 then 
   return -1
 endi
+#######################################################################################
 
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 20, 0}@ then
-  return -1
+
+print ================ test consume from ctb
+$loop_cnt = 0
+loop_consume_diff_topic_from_ctb:
+if $loop_cnt == 0 then
+  print == scenario 1: topic_ctb_column
+  $topicList = ' . topic_ctb_column
+  $topicList = $topicList . '
+elif $loop_cnt == 1 then
+  print == scenario 2: topic_ctb_all
+  $topicList = ' . topic_ctb_all
+  $topicList = $topicList . '
+elif $loop_cnt == 2 then
+  print == scenario 3: topic_ctb_function
+  $topicList = ' . topic_ctb_function
+  $topicList = $topicList . '
+else
+  goto loop_consume_diff_topic_from_ctb_end
 endi
 
-print cmd===> system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2"
-system_content $tmq_sim -c $tsim_cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2"
-print cmd result----> $system_content
-if $system_content != @{consume success: 20, 0}@ then
+$consumerId    = 0
+$totalMsgOfCtb = $rowsPerCtb
+$expectmsgcnt  = $totalMsgOfCtb + 1
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+
+print == start consumer to pull msgs from stb
+print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
+system tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
+
+print == check consume result
+wait_consumer_end_from_ctb:
+sql select * from consumeresult
+print ==> rows: $rows 
+print ==> rows[0]: $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+if $rows != 1 then
+  sleep 1000
+  goto wait_consumer_end_from_ctb
+endi
+if $data[0][1] != $consumerId then
   return -1
 endi
+if $data[0][2] != $totalMsgOfCtb then
+  return -1
+endi
+if $data[0][3] != $totalMsgOfCtb then
+  return -1
+endi
+$loop_cnt = $loop_cnt + 1
+goto loop_consume_diff_topic_from_ctb
+loop_consume_diff_topic_from_ctb_end:
 
-print =============== create database , vgroup 4
-$dbNamme = d1
-sql create database $dbNamme vgroups 4
+#######################################################################################
+# clear consume info and consume result 
+#run tsim/tmq/clearConsume.sim
+# because drop table function no stable, so by create new db for consume info and result. Modify it later
+$cdbName = cdb2
+sql create database $cdbName vgroups 1
+sleep 500
+sql use $cdbName
 
+print == create consume info table and consume result table
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+#######################################################################################
+
+
+print ================ test consume from ntb
+$loop_cnt = 0
+loop_consume_diff_topic_from_ntb:
+if $loop_cnt == 0 then
+  print == scenario 1: topic_ntb_column
+  $topicList = ' . topic_ntb_column
+  $topicList = $topicList . '
+elif $loop_cnt == 1 then
+  print == scenario 2: topic_ntb_all
+  $topicList = ' . topic_ntb_all
+  $topicList = $topicList . '
+elif $loop_cnt == 2 then
+  print == scenario 3: topic_ntb_function
+  $topicList = ' . topic_ntb_function
+  $topicList = $topicList . '
+else
+  goto loop_consume_diff_topic_from_ntb_end
+endi
+
+$consumerId    = 0
+$totalMsgOfNtb = $rowsPerCtb
+$expectmsgcnt  = $totalMsgOfNtb + 1
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+
+print == start consumer to pull msgs from stb
+print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
+system tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
+
+print == check consume result from ntb
+wait_consumer_end_from_ntb:
+sql select * from consumeresult
+print ==> rows: $rows 
+print ==> rows[0]: $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+if $rows != 1 then
+  sleep 1000
+  goto wait_consumer_end_from_ntb
+endi
+if $data[0][1] != $consumerId then
+  return -1
+endi
+if $data[0][2] != $totalMsgOfNtb then
+  return -1
+endi
+if $data[0][3] != $totalMsgOfNtb then
+  return -1
+endi
+$loop_cnt = $loop_cnt + 1
+goto loop_consume_diff_topic_from_ntb
+loop_consume_diff_topic_from_ntb_end:
+
+#------ not need stop consumer, because it exit after pull msg overthan expect msg
+#system tsim/tmq/consume.sh -s stop -x SIGINT
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

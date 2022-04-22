@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tarray.h"
+#include "tcoding.h"
 
 SArray* taosArrayInit(size_t size, size_t elemSize) {
   assert(elemSize > 0);
@@ -75,7 +76,7 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 }
 
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
-  if (pArray == NULL || pData == NULL) {
+  if (pData == NULL) {
     return NULL;
   }
 
@@ -317,7 +318,6 @@ void taosArrayClearEx(SArray* pArray, void (*fp)(void*)) {
   pArray->size = 0;
 }
 
-
 void* taosArrayDestroy(SArray* pArray) {
   if (pArray) {
     taosMemoryFree(pArray->pData);
@@ -327,7 +327,14 @@ void* taosArrayDestroy(SArray* pArray) {
   return NULL;
 }
 
-void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
+void taosArrayDestroyP(SArray* pArray, FDelete fp) {
+  for (int32_t i = 0; i < pArray->size; i++) {
+    fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+  }
+  taosArrayDestroy(pArray);
+}
+
+void taosArrayDestroyEx(SArray* pArray, FDelete fp) {
   if (pArray == NULL) {
     return;
   }
@@ -434,6 +441,39 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
     }
   }
   return;
+}
+
+SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy) {
+  ASSERT(pSrc->elemSize == sizeof(void*));
+  SArray* pArray = taosArrayInit(pSrc->size, sizeof(void*));
+  for (int32_t i = 0; i < pSrc->size; i++) {
+    void* clone = deepCopy(taosArrayGetP(pSrc, i));
+    taosArrayPush(pArray, &clone);
+  }
+  return pArray;
+}
+
+int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode) {
+  int32_t tlen = 0;
+  int32_t sz = pArray->size;
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    void* data = taosArrayGetP(pArray, i);
+    tlen += encode(buf, data);
+  }
+  return tlen;
+}
+
+void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz) {
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  *pArray = taosArrayInit(sz, sizeof(void*));
+  for (int32_t i = 0; i < sz; i++) {
+    void* data = taosMemoryCalloc(1, dataSz);
+    buf = decode(buf, data);
+    taosArrayPush(*pArray, &data);
+  }
+  return (void*)buf;
 }
 
 // order array<type *>

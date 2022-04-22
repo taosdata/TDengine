@@ -326,7 +326,7 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
 
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
     if (pVgroup != NULL) {
-      if (pVload->role == TAOS_SYNC_STATE_LEADER) {
+      if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
         pVgroup->numOfTables = pVload->numOfTables;
         pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
         pVgroup->totalStorage = pVload->totalStorage;
@@ -337,10 +337,10 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
         // sync integration
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
-          if (pVgroup->vnodeGid[vg].role != pVload->role) {
+          if (pVgroup->vnodeGid[vg].role != pVload->syncState) {
             roleChanged = true;
           }
-          pVgroup->vnodeGid[vg].role = pVload->role;
+          pVgroup->vnodeGid[vg].role = pVload->syncState;
         }
       }
       if (roleChanged) {

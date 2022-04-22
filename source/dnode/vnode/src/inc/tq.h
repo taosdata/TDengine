@@ -16,6 +16,13 @@
 #ifndef _TD_VNODE_TQ_H_
 #define _TD_VNODE_TQ_H_
 
+#include "executor.h"
+#include "os.h"
+#include "thash.h"
+#include "tmsg.h"
+#include "ttimer.h"
+#include "wal.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,12 +36,6 @@ extern "C" {
 #define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
-
-enum {
-  TQ_STREAM_TOKEN__DATA = 1,
-  TQ_STREAM_TOKEN__WATERMARK,
-  TQ_STREAM_TOKEN__CHECKPOINT,
-};
 
 #define TQ_BUFFER_SIZE 4
 
@@ -87,21 +88,11 @@ struct STqReadHandle {
   SSubmitMsgIter    msgIter;
   SSubmitBlkIter    blkIter;
   SMeta*            pVnodeMeta;
-  SArray*           pColIdList;  // SArray<int32_t>
+  SArray*           pColIdList;  // SArray<int16_t>
   int32_t           sver;
   SSchemaWrapper*   pSchemaWrapper;
   STSchema*         pSchema;
 };
-
-typedef struct {
-  int8_t type;
-  int8_t reserved[7];
-  union {
-    void*   data;
-    int64_t wmTs;
-    int64_t checkpointId;
-  };
-} STqStreamToken;
 
 typedef struct {
   int16_t ver;
@@ -151,22 +142,29 @@ typedef struct {
 } STqMetaStore;
 
 typedef struct {
-  SMemAllocatorFactory* pAllocatorFactory;
-  SMemAllocator*        pAllocator;
-} STqMemRef;
+  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t consumerId;
+  int32_t epoch;
+  int8_t  subType;
+  int8_t  withTbName;
+  int8_t  withSchema;
+  int8_t  withTag;
+  int8_t  withTagSchema;
+  char*   qmsg;
+  // SRWLatch        lock;
+  SWalReadHandle* pWalReader;
+  // number should be identical to fetch thread num
+  STqReadHandle* pStreamReader[4];
+  qTaskInfo_t    task[4];
+} STqExec;
 
 struct STQ {
-  // the collection of groups
-  // the handle of meta kvstore
-  bool          writeTrigger;
-  char*         path;
-  STqMemRef     tqMemRef;
-  STqMetaStore* tqMeta;
-  // STqPushMgr*   tqPushMgr;
+  char* path;
+  // STqMetaStore* tqMeta;
+  SHashObj* execs;  // subKey -> tqExec
   SHashObj* pStreamTasks;
   SVnode*   pVnode;
   SWal*     pWal;
-  SMeta*    pVnodeMeta;
 };
 
 typedef struct {
@@ -231,10 +229,6 @@ typedef struct {
 } STqStreamPusher;
 
 typedef struct {
-  int8_t type;  // mq or stream
-} STqPusher;
-
-typedef struct {
   SHashObj* pHash;  // <id, STqPush*>
 } STqPushMgr;
 
@@ -250,16 +244,17 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void tqClose(STQ*);
 // required by vnode
 int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-int32_t tqProcessRebReq(STQ* pTq, char* msg);
-int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
+int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
+// int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
+// int32_t tqProcessRebReq(STQ* pTq, char* msg);
+// int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);

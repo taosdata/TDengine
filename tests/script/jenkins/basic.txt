@@ -55,7 +55,7 @@
 
 # ---- tmq
 ./test.sh -f tsim/tmq/basic.sim
-./test.sh -f tsim/tmq/basic1.sim
+#./test.sh -f tsim/tmq/basic1.sim
 #./test.sh -f tsim/tmq/oneTopic.sim
 #./test.sh -f tsim/tmq/multiTopic.sim
 
@@ -92,5 +92,8 @@
 
 # --- sma
 ./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+
+# --- valgrind
+./test.sh -f tsim/valgrind/checkError.sim -v
 
 #======================b1-end===============

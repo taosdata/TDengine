@@ -18,9 +18,11 @@
 #include "tglobal.h"
 #include "tlog.h"
 
+#ifndef WINDOWS
 #include <argp.h>
 #include <termio.h>
 #include <wordexp.h>
+#endif
 
 #define OPT_ABORT 1 /* abort */
 
@@ -35,7 +37,9 @@ static char args_doc[] = "";
 
 TdThread      pid;
 static tsem_t cancelSem;
+extern void   taos_init();
 
+#ifndef WINDOWS
 static struct argp_option options[] = {
   {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
   {"password",   'p', NULL,         0,                   "The password to use when connecting to the server."},
@@ -52,6 +56,8 @@ static struct argp_option options[] = {
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
+  {"status",     't', NULL,         0,                   "Check the service status."},
+  {"verbose",    'v', NULL,         0,                   "Check the details of the service status."},
   {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
@@ -138,6 +144,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'k':
       arguments->check = atoi(arg);
       break;
+    case 't':
+      arguments->status = true;
+      break;
+    case 'v':
+      arguments->verbose = true;
+      break;
     case 'd':
       arguments->database = arg;
       break;
@@ -204,7 +216,10 @@ static void parse_args(int argc, char *argv[], SShellArguments *arguments) {
   }
 }
 
+#endif
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
+#ifdef WINDOWS
+#else
   static char verType[32] = {0};
   sprintf(verType, "version: %s\n", version);
 
@@ -224,9 +239,12 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     abort();
 #endif
   }
+#endif
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
+#ifdef WINDOWS
+#else
   unsigned hist_counter = history.hend;
   char     utf8_array[10] = "\0";
   Command  cmd;
@@ -381,6 +399,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
     }
   }
 
+#endif
   return 0;
 }
 
@@ -426,6 +445,8 @@ void *shellLoopQuery(void *arg) {
 void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
+#ifdef WINDOWS
+#else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
     // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
@@ -444,9 +465,12 @@ void clearScreen(int ecmd_pos, int cursor_pos) {
     fprintf(stdout, "\033[2K");
   }
   fflush(stdout);
+#endif
 }
 
 void showOnScreen(Command *cmd) {
+#ifdef WINDOWS
+#else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
     // fprintf(stderr, "No stream device\n");
@@ -517,15 +541,16 @@ void showOnScreen(Command *cmd) {
   positionCursor(cursor_x, DOWN);
   positionCursor(cursor_y, RIGHT);
   fflush(stdout);
+#endif
 }
 
 void cleanup_handler(void *arg) { resetTerminalMode(); }
 
 void exitShell() {
-  /*int32_t ret =*/resetTerminalMode();
   taos_cleanup();
   exit(EXIT_SUCCESS);
 }
+
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&cancelSem); }
 
 void *cancelHandler(void *arg) {
@@ -537,21 +562,9 @@ void *cancelHandler(void *arg) {
       continue;
     }
 
-#ifdef LINUX
-#if 0
-    int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
-    SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
-    taos_stop_query(pSql);
-    taosReleaseRef(tscObjRef, rid);
-#endif
-#else
     resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
-    exit(0);
-#endif
-    resetTerminalMode();
-    printf("\nReceive ctrl+c or other signal, quit shell.\n");
-    exit(0);
+    exitShell();
   }
 
   return NULL;
@@ -578,93 +591,120 @@ int checkVersion() {
 }
 
 // Global configurations
-SShellArguments args = {.host = NULL,
+SShellArguments args = {
+    .host = NULL,
+    .user = NULL,
+    .database = NULL,
+    .timezone = NULL,
+    .is_raw_time = false,
+    .is_use_passwd = false,
+    .dump_config = false,
+    .file = "\0",
+    .dir = "\0",
+    .threadNum = 5,
+    .commands = NULL,
+    .pktLen = 1000,
+    .pktNum = 100,
+    .pktType = "TCP",
+    .netTestRole = NULL,
 #ifndef TD_WINDOWS
-                        .password = NULL,
+    .password = NULL,
 #endif
-                        .user = NULL,
-                        .database = NULL,
-                        .timezone = NULL,
-                        .is_raw_time = false,
-                        .is_use_passwd = false,
-                        .dump_config = false,
-                        .file = "\0",
-                        .dir = "\0",
-                        .threadNum = 5,
-                        .commands = NULL,
-                        .pktLen = 1000,
-                        .pktNum = 100,
-                        .pktType = "TCP",
-                        .netTestRole = NULL};
+};
 
-/*
- * Main function.
- */
-int main(int argc, char *argv[]) {
-  /*setlocale(LC_ALL, "en_US.UTF-8"); */
+void shellDumpConfig() {
+  if (!args.dump_config) return;
 
-  if (!checkVersion()) {
+  SConfig *pCfg = taosGetCfg();
+  if (NULL == pCfg) {
+    printf("TDengine read global config failed!\n");
     exit(EXIT_FAILURE);
   }
+  cfgDumpCfg(pCfg, 0, 1);
+  exitShell();
+}
 
-  shellParseArgument(argc, argv, &args);
-
-  if (args.dump_config) {
-    taosInitCfg(configDir, NULL, NULL, NULL, 1);
-
-    SConfig *pCfg = taosGetCfg();
-    if (NULL == pCfg) {
-      printf("TDengine read global config failed!\n");
-      exit(EXIT_FAILURE);
-    }
-    cfgDumpCfg(pCfg, 0, 1);
-    exit(0);
-  }
-
+void shellTestNetWork() {
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    TAOS *con = NULL;
-    if (args.auth == NULL) {
-      con = taos_connect(args.host, args.user, args.password, args.database, args.port);
-    } else {
-      con = taos_connect_auth(args.host, args.user, args.auth, args.database, args.port);
-    }
-
-    // if (taos_init()) {
-    //   printf("Failed to init taos");
-    //   exit(EXIT_FAILURE);
-    // }
-
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
-    taos_close(con);
-    exit(0);
+    exitShell();
   }
+}
 
-  /* Initialize the shell */
+void shellCheckServerStatus() {
+  if (!args.status && !args.verbose) return;
+
+  TSDB_SERVER_STATUS code;
+  do {
+    char details[1024] = {0};
+    code = taos_check_server_status(args.host, args.port, details, args.verbose ? 1024 : 0);
+    switch (code) {
+      case TSDB_SRV_STATUS_UNAVAILABLE:
+        printf("0: unavailable\n");
+        break;
+      case TSDB_SRV_STATUS_NETWORK_OK:
+        printf("1: network ok\n");
+        break;
+      case TSDB_SRV_STATUS_SERVICE_OK:
+        printf("2: service ok\n");
+        break;
+      case TSDB_SRV_STATUS_SERVICE_DEGRADED:
+        printf("3: service degraded\n");
+        break;
+      case TSDB_SRV_STATUS_EXTING:
+        printf("4: exiting\n");
+        break;
+    }
+    if (strlen(details) != 0) {
+      printf("%s\n\n", details);
+    }
+    if (code == TSDB_SRV_STATUS_NETWORK_OK && args.verbose) {
+      taosMsleep(1000);
+    } else {
+      break;
+    }
+  } while (1);
+
+  exitShell();
+}
+
+void shellExecute() {
   TAOS *con = shellInit(&args);
   if (con == NULL) {
-    exit(EXIT_FAILURE);
+    exitShell();
   }
 
   if (tsem_init(&cancelSem, 0, 0) != 0) {
     printf("failed to create cancel semphore\n");
-    exit(EXIT_FAILURE);
+    exitShell();
   }
 
   TdThread spid;
   taosThreadCreate(&spid, NULL, cancelHandler, NULL);
 
-  /* Interrupt handler. */
   taosSetSignal(SIGTERM, shellQueryInterruptHandler);
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
-  /* Get grant information */
   shellGetGrantInfo(con);
 
-  /* Loop to query the input. */
   while (1) {
     taosThreadCreate(&pid, NULL, shellLoopQuery, con);
     taosThreadJoin(pid, NULL);
   }
+}
+
+int main(int argc, char *argv[]) {
+  if (!checkVersion()) exitShell();
+
+  shellParseArgument(argc, argv, &args);
+
+  taos_init();
+  shellDumpConfig();
+  shellCheckServerStatus();
+  shellTestNetWork();
+  shellExecute();
+
+  return 0;
 }

@@ -60,6 +60,7 @@ typedef struct {
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
 typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+typedef int (*RpcRfp)(void *parent, SRpcMsg *, SEpSet *);
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -81,7 +82,9 @@ typedef struct SRpcInit {
 
   // call back to retrieve the client auth info, for server app only
   RpcAfp afp;
-  ;
+
+  // user defined retry func
+  RpcRfp rfp;
 
   void *parent;
 } SRpcInit;

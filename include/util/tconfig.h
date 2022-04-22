@@ -32,6 +32,7 @@ typedef enum {
   CFG_STYPE_ENV_VAR,
   CFG_STYPE_APOLLO_URL,
   CFG_STYPE_ARG_LIST,
+  CFG_STYPE_TAOS_OPTIONS
 } ECfgSrcType;
 
 typedef enum {

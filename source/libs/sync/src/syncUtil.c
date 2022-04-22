@@ -16,6 +16,8 @@
 #include "syncUtil.h"
 #include "syncEnv.h"
 
+void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
+
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;

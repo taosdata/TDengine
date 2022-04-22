@@ -1200,3 +1200,16 @@ static void syncFreeNode(void* param) {
 
   taosMemoryFree(pNode);
 }
+
+const char* syncStr(ESyncState state) {
+  switch (state) {
+    case TAOS_SYNC_STATE_FOLLOWER:
+      return "FOLLOWER";
+    case TAOS_SYNC_STATE_CANDIDATE:
+      return "CANDIDATE";
+    case TAOS_SYNC_STATE_LEADER:
+      return "LEADER";
+    default:
+      return "ERROR";
+  }
+}

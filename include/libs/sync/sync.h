@@ -20,12 +20,14 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stdint.h>
-#include <tdatablock.h>
+//#include <tdatablock.h>
 #include "cJSON.h"
-#include "taosdef.h"
-#include "trpc.h"
-#include "wal.h"
+#include "tdef.h"
+//#include "taosdef.h"
+//#include "trpc.h"
+//#include "wal.h"
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -69,6 +71,9 @@ typedef struct SFsmCbMeta {
   uint64_t   seqNum;
 } SFsmCbMeta;
 
+struct SRpcMsg;
+typedef struct SRpcMsg SRpcMsg;
+
 typedef struct SSyncFSM {
   void* data;
 
@@ -84,7 +89,7 @@ typedef struct SSyncFSM {
 struct SSyncRaftEntry;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
-#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_BEGIN   0
 #define SYNC_INDEX_INVALID -1
 
 // abstract definition of log store in raft
@@ -114,6 +119,12 @@ typedef struct SSyncLogStore {
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
 } SSyncLogStore;
+
+struct SWal;
+typedef struct SWal SWal;
+
+struct SEpSet;
+typedef struct SEpSet SEpSet;
 
 typedef struct SSyncInfo {
   SyncGroupId vgId;
@@ -156,6 +167,8 @@ typedef struct SSyncNode SSyncNode;
 struct SSyncBuffer;
 typedef struct SSyncBuffer SSyncBuffer;
 //-----------------------------------------
+
+const char* syncStr(ESyncState state);
 
 #ifdef __cplusplus
 }

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include "planTestUtil.h"
 
 #include <algorithm>
@@ -62,7 +63,11 @@ public:
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
 
       SQueryPlan* pPlan = nullptr;
-      doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
+      doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
+
+      if (g_isDump) {
+        dump();
+      }
     } catch (...) {
       dump();
       throw;
@@ -87,6 +92,7 @@ private:
     string splitLogicPlan_;
     string scaledLogicPlan_;
     string physiPlan_;
+    vector<string> physiSubplans_;
   };
 
   void reset() {
@@ -115,6 +121,10 @@ private:
     cout << res_.scaledLogicPlan_ << endl;
     cout << "physical plan : " << endl;
     cout << res_.physiPlan_ << endl;
+    cout << "physical subplan : " << endl;
+    for (const auto& subplan : res_.physiSubplans_) {
+      cout << subplan << endl;
+    }
   }
   
   void doParseSql(const string& sql, SQuery** pQuery) {
@@ -153,9 +163,17 @@ private:
     res_.scaledLogicPlan_ = toString((SNode*)(*pLogicPlan));
   }
 
-  void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList) {
+  void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan) {
+    SArray* pExecNodeList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr));
     DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, pExecNodeList);
     res_.physiPlan_ = toString((SNode*)(*pPlan));
+    SNode* pNode;
+    FOREACH(pNode, (*pPlan)->pSubplans) {
+      SNode* pSubplan;
+      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
+        res_.physiSubplans_.push_back(toString(pSubplan));
+      }
+    }
   }
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {

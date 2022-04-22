@@ -4,6 +4,7 @@
 #include "syncInt.h"
 #include "syncMessage.h"
 #include "syncUtil.h"
+#include "tdatablock.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

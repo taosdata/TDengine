@@ -41,10 +41,10 @@ extern "C" {
 #define TARRAY_GET_START(array)       ((array)->pData)
 
 typedef struct SArray {
-  size_t size;
+  size_t   size;
   uint32_t capacity;
   uint32_t elemSize;
-  void*  pData;
+  void*    pData;
 } SArray;
 
 /**
@@ -200,6 +200,13 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize);
 SArray* taosArrayDup(const SArray* pSrc);
 
 /**
+ * deep copy a new array
+ * @param pSrc
+ */
+SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy);
+
+
+/**
  * clear the array (remove all element)
  * @param pArray
  */
@@ -212,19 +219,9 @@ void taosArrayClear(SArray* pArray);
  */
 void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
 
-
-/**
- * destroy array list
- * @param pArray
- */
 void* taosArrayDestroy(SArray* pArray);
-
-/**
- *
- * @param pArray
- * @param fp
- */
-void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
+void  taosArrayDestroyP(SArray* pArray, FDelete fp);
+void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
 
 /**
  * sort the array
@@ -271,6 +268,9 @@ char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t
  */
 
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param);
+
+int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
+void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz);
 
 #ifdef __cplusplus
 }

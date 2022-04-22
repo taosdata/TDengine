@@ -27,6 +27,11 @@ extern "C" {
 typedef int32_t (*__compar_fn_t)(const void *, const void *);
 #endif
 
+typedef void *(*FCopy)(void *);
+typedef void (*FDelete)(void *);
+typedef int32_t (*FEncode)(void **buf, const void *dst);
+typedef void *(*FDecode)(const void *buf, void *dst);
+
 #define TD_EQ 0x1
 #define TD_GT 0x2
 #define TD_LT 0x4
@@ -77,7 +82,7 @@ void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size
  * @return
  */
 void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
-                    __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot);
+                    __ext_compar_fn_t compar, char* buf, bool maxroot);
 
 /**
  * sort heap to make sure it is a max/min root heap
@@ -93,7 +98,7 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
  * @return
  */
 void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
-                  const void *parswap, __ext_swap_fn_t swap, bool maxroot);
+                  bool maxroot);
 
 #ifdef __cplusplus
 }

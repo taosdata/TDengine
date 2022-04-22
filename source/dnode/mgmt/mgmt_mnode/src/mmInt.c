@@ -176,12 +176,14 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
     mmClose(pWrapper);
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "mnode-impl", "initialized");
 
   if (mmStartWorker(pMgmt) != 0) {
     dError("failed to start mnode worker since %s", terrstr());
     mmClose(pWrapper);
     return -1;
   }
+  dmReportStartup(pWrapper->pDnode, "mnode-worker", "initialized");
 
   if (!deployed) {
     deployed = true;

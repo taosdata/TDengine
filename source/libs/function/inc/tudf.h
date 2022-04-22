@@ -16,47 +16,43 @@
 #ifndef TDENGINE_TUDF_H
 #define TDENGINE_TUDF_H
 
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "tmsg.h"
+#include "tcommon.h"
+#include "function.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define UDF_LISTEN_PIPE_NAME_LEN 32
+#define UDF_LISTEN_PIPE_NAME_PREFIX "udfd.sock."
+
 //======================================================================================
 //begin API to taosd and qworker
-/**
- * start udf dameon service
- * @return error code
- */
-int32_t startUdfService();
-
-/**
- * stop udf dameon service
- * @return error code
- */
-int32_t stopUdfService();
 
 enum {
-  TSDB_UDF_TYPE_SCALAR = 0,
-  TSDB_UDF_TYPE_AGGREGATE = 1
+  UDFC_CODE_STOPPING = -1,
+  UDFC_CODE_PIPE_READ_ERR = -3,
 };
 
-enum {
-  TSDB_UDF_SCRIPT_BIN_LIB = 0,
-  TSDB_UDF_SCRIPT_LUA = 1,
-};
+typedef void *UdfcHandle;
+typedef void *UdfcFuncHandle;
 
-typedef struct SUdfInfo {
-  char   *udfName;        // function name
-  int32_t udfType;    // scalar function or aggregate function
-  int8_t    scriptType;
-  char *path;
+/**
+ * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
+ * @return error code
+ */
+int32_t udfcOpen(int32_t dnodeId, UdfcHandle* proxyHandle);
 
-  int8_t  resType;     // result type
-  int16_t resBytes;    // result byte
-  int32_t bufSize;     //interbuf size
+/**
+ * destroy udfd proxy
+ * @return error code
+ */
+int32_t udfcClose(UdfcHandle proxyhandle);
 
-} SUdfInfo;
-
-typedef void *UdfHandle;
 
 /**
  * setup udf
@@ -64,69 +60,94 @@ typedef void *UdfHandle;
  * @param handle, out
  * @return error code
  */
-int32_t setupUdf(SUdfInfo* udf, UdfHandle *handle);
+int32_t setupUdf(UdfcHandle proxyHandle, char udfName[], SEpSet *epSet, UdfcFuncHandle *handle);
+
+typedef struct SUdfColumnMeta {
+  int16_t type;
+  int32_t bytes; // <0 var length, others fixed length bytes
+  uint8_t precision;
+  uint8_t scale;
+} SUdfColumnMeta;
+
+typedef struct SUdfColumnData {
+  int32_t numOfRows;
+  bool varLengthColumn;
+  union {
+    struct {
+      int32_t nullBitmapLen;
+      char   *nullBitmap;
+      int32_t dataLen;
+      char   *data;
+    } fixLenCol;
+
+    struct {
+      int32_t varOffsetsLen;
+      char   *varOffsets;
+      int32_t payloadLen;
+      char   *payload;
+    } varLenCol;
+  };
+} SUdfColumnData;
 
 
-enum {
-  TSDB_UDF_STEP_NORMAL = 0,
-  TSDB_UDF_STEP_MERGE,
-  TSDb_UDF_STEP_FINALIZE,
-  TSDB_UDF_STEP_MAX_NUM
-};
-/**
- * call udf
- * @param handle udf handle
- * @param step
- * @param state
- * @param stateSize
- * @param input
- * @param newstate
- * @param newStateSize
- * @param output
- * @return error code
- */
+typedef struct SUdfColumn {
+  SUdfColumnMeta colMeta;
+  SUdfColumnData colData;
+} SUdfColumn;
 
-//TODO: must change the following after metadata flow and data flow between qworker and udfd is well defined
 typedef struct SUdfDataBlock {
-  char* data;
-  int32_t size;
+  int32_t numOfRows;
+  int32_t numOfCols;
+  SUdfColumn **udfCols;
 } SUdfDataBlock;
 
-int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, SUdfDataBlock input, char **newstate,
-                int32_t *newStateSize, SUdfDataBlock *output);
+typedef struct SUdfInterBuf {
+  int32_t bufLen;
+  char* buf;
+} SUdfInterBuf;
 
+// output: interBuf
+int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
+// input: block, state
+// output: newState
+int32_t callUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
+// input: interBuf
+// output: resultData
+int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
+// input: interbuf1, interbuf2
+// output: resultBuf
+int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
+// input: block
+// output: resultData
+int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 /**
  * tearn down udf
  * @param handle
  * @return
  */
-int32_t teardownUdf(UdfHandle handle);
+int32_t teardownUdf(UdfcFuncHandle handle);
 
 // end API to taosd and qworker
 //=============================================================================================================================
-// TODO: Must change
 // begin API to UDF writer.
 
-// script
+// dynamic lib init and destroy
+typedef int32_t (*TUdfSetupFunc)();
+typedef int32_t (*TUdfTeardownFunc)();
 
-//typedef int32_t (*scriptInitFunc)(void* pCtx);
-//typedef void (*scriptNormalFunc)(void* pCtx, char* data, int16_t iType, int16_t iBytes, int32_t numOfRows,
-//                                 int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput,
-//                                 int16_t oType, int16_t oBytes);
-//typedef void (*scriptFinalizeFunc)(void* pCtx, int64_t key, char* dataOutput, int32_t* numOfOutput);
-//typedef void (*scriptMergeFunc)(void* pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
-//typedef void (*scriptDestroyFunc)(void* pCtx);
+//TODO: add API to check function arguments type, number etc.
+//TODO: another way to manage memory is provide api for UDF to add data to SUdfColumnData and UDF framework will allocate memory.
+// then UDF framework will free the memory
+//typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
+//typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
 
-// dynamic lib
-typedef int32_t (*TUdfInitFunc)();
-typedef void (*TUdfDestroyFunc)();
+typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
 
-typedef void (*TUdfFunc)(int8_t step,
-                         char *state, int32_t stateSize, SUdfDataBlock input,
-                         char **newstate, int32_t *newStateSize, SUdfDataBlock *output);
+typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumn *resultCol);
+typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);
+typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock block, SUdfInterBuf *interBuf);
+typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf buf, SUdfInterBuf *resultData);
 
-//typedef void (*udfMergeFunc)(char *data, int32_t numOfRows, char *dataOutput, int32_t* numOfOutput);
-//typedef void (*udfFinalizeFunc)(char* state, int32_t stateSize, SUdfDataBlock *output);
 
 // end API to UDF writer
 //=======================================================================================================================

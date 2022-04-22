@@ -16,6 +16,7 @@
 #ifndef _TD_DM_DEF_H_
 #define _TD_DM_DEF_H_
 
+#include "uv.h"
 #include "dmLog.h"
 
 #include "cJSON.h"
@@ -38,6 +39,7 @@
 #include "dnode.h"
 #include "mnode.h"
 #include "monitor.h"
+#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -110,6 +112,10 @@ typedef struct {
   int64_t       dnodeVer;
   int64_t       updateTime;
   int64_t       rebootTime;
+  int32_t       unsyncedVgId;
+  ESyncState    vndState;
+  ESyncState    mndState;
+  bool          isMnode;
   bool          dropped;
   SEpSet        mnodeEps;
   SArray       *dnodeEps;
@@ -132,14 +138,32 @@ typedef struct {
   uint16_t      serverPort;
 } SDnodeData;
 
+typedef struct {
+  char name[TSDB_STEP_NAME_LEN];
+  char desc[TSDB_STEP_DESC_LEN];
+} SStartupInfo;
+
+typedef struct SUdfdData {
+  bool          startCalled;
+  bool          needCleanUp;
+  uv_loop_t     loop;
+  uv_thread_t   thread;
+  uv_barrier_t  barrier;
+  uv_process_t  process;
+  int           spawnErr;
+  int8_t        stopping;
+  uv_pipe_t     ctrlPipe;
+} SUdfdData;
+
 typedef struct SDnode {
   EDndProcType  ptype;
   EDndNodeType  ntype;
   EDndRunStatus status;
   EDndEvent     event;
-  SStartupReq   startup;
+  SStartupInfo  startup;
   SDnodeTrans   trans;
   SDnodeData    data;
+  SUdfdData     udfdData;
   TdThreadMutex mutex;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;

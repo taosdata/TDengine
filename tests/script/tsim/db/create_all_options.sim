@@ -115,7 +115,7 @@ if $data4_db != 1 then  # replica
   print expect 1, actual: $data4_db
   return -1
 endi
-if $data5_db != 1 then  # quorum
+if $data5_db != nostrict then  # strict
   return -1
 endi
 if $data6_db != 14400 then  # days
@@ -355,16 +355,16 @@ print ====> QUORUM value [1 | 2, default: 1]
 #endi
 #sql drop database db
 
-sql create database db QUORUM 1
-sql show databases
-print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data5_db != 1 then
-  return -1
-endi
-sql drop database db
-sql_error create database db QUORUM 3
-sql_error create database db QUORUM 0
-sql_error create database db QUORUM -1
+#sql create database db QUORUM 1
+#sql show databases
+#print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
+#if $data5_db != 1 then
+#  return -1
+#endi
+#sql drop database db
+#sql_error create database db QUORUM 3
+#sql_error create database db QUORUM 0
+#sql_error create database db QUORUM -1
 
 print ====> REPLICA value [1 | 3, default: 1]
 sql create database db REPLICA 3

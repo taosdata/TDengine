@@ -14,9 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+
+#include "vmInt.h"
+
 #include "sync.h"
 #include "syncTools.h"
-#include "vmInt.h"
 
 static inline void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
@@ -44,17 +46,8 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     case TDMT_DND_CREATE_VNODE:
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
-    case TDMT_DND_ALTER_VNODE:
-      code = vmProcessAlterVnodeReq(pMgmt, pMsg);
-      break;
     case TDMT_DND_DROP_VNODE:
       code = vmProcessDropVnodeReq(pMgmt, pMsg);
-      break;
-    case TDMT_DND_SYNC_VNODE:
-      code = vmProcessSyncVnodeReq(pMgmt, pMsg);
-      break;
-    case TDMT_DND_COMPACT_VNODE:
-      code = vmProcessCompactVnodeReq(pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

@@ -183,3 +183,29 @@ void dmGetVnodeLoads(SDnode *pDnode, SMonVloadInfo *pInfo) {
   }
   dmReleaseWrapper(pWrapper);
 }
+
+void dmGetMnodeLoads(SDnode *pDnode, SMonMloadInfo *pInfo) {
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, MNODE);
+  if (pWrapper == NULL) {
+    pInfo->isMnode = 0;
+    return;
+  }
+
+  bool getFromAPI = !tsMultiProcess;
+  if (getFromAPI) {
+    mmGetMnodeLoads(pWrapper, pInfo);
+  } else {
+    SRpcMsg req = {.msgType = TDMT_MON_MM_LOAD};
+    SRpcMsg rsp = {0};
+    SEpSet  epset = {.inUse = 0, .numOfEps = 1};
+    tstrncpy(epset.eps[0].fqdn, pDnode->data.localFqdn, TSDB_FQDN_LEN);
+    epset.eps[0].port = tsServerPort;
+
+    dmSendRecv(pDnode, &epset, &req, &rsp);
+    if (rsp.code == 0 && rsp.contLen > 0) {
+      tDeserializeSMonMloadInfo(rsp.pCont, rsp.contLen, pInfo);
+    }
+    rpcFreeCont(rsp.pCont);
+  }
+  dmReleaseWrapper(pWrapper);
+}

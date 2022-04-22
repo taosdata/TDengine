@@ -166,6 +166,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
+  uint64_t          uid;            // table uid
 } SInputColumnInfoData;
 
 // sql function runtime context
@@ -191,7 +192,7 @@ typedef struct SqlFunctionCtx {
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
   int32_t          numOfParams;
-  SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  SFunctParam     *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
   SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t          offset;
@@ -295,19 +296,19 @@ typedef struct SPoint {
   void *  val;
 } SPoint;
 
-void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
-void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const int64_t* fillVal);
-bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
-
-struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-                              int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                              struct SFillColInfo* pFillCol, const char* id);
-
-void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
-int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
-int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
+//void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
+//void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
+//void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+//struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const SValueNode* val);
+//bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
+//
+//struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+//                                     SInterval* pInterval, int32_t fillType,
+//                                     struct SFillColInfo* pCol, const char* id);
+//
+//void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
+//int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
+//int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 

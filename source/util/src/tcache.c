@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tcache.h"
 #include "taoserror.h"
+#include "osThread.h"
 #include "tlog.h"
 #include "tutil.h"
 
@@ -24,7 +25,7 @@
 
 static TdThread       cacheRefreshWorker = {0};
 static TdThreadOnce  cacheThreadInit = PTHREAD_ONCE_INIT;
-static TdThreadMutex guard = PTHREAD_MUTEX_INITIALIZER;
+static TdThreadMutex guard = TD_PTHREAD_MUTEX_INITIALIZER;
 static SArray         *pCacheArrayList = NULL;
 static bool            stopRefreshWorker = false;
 static bool            refreshWorkerNormalStopped = false;

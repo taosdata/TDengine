@@ -8,6 +8,7 @@
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "wal.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

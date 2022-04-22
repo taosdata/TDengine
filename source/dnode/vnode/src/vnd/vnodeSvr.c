@@ -84,6 +84,13 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
       vnodeProcessSubmitReq(pVnode, ptr, pRsp);
       break;
+    case TDMT_VND_MQ_VG_CHANGE:
+      if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        // TODO: handle error
+      }
+      break;
+#if 0
     case TDMT_VND_MQ_SET_CONN: {
       if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
@@ -97,6 +104,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (tqProcessCancelConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
+#endif
     case TDMT_VND_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
@@ -121,6 +129,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       //   }
 
     } break;
+    case TDMT_VND_ALTER_VNODE:
+      break;
     default:
       ASSERT(0);
       break;
@@ -287,10 +297,21 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
     return -1;
   }
 
+  // TODO: remove the debug log
+  SRSmaParam *param = vCreateTbReq.stbCfg.pRSmaParam;
+  if (param) {
+    printf("qmsg1 len = %d, body = %s\n", param->qmsg1 ? (int32_t)strlen(param->qmsg1) : 0,
+           param->qmsg1 ? param->qmsg1 : "");
+    printf("qmsg1 len = %d, body = %s\n", param->qmsg2 ? (int32_t)strlen(param->qmsg2) : 0,
+           param->qmsg2 ? param->qmsg2 : "");
+  }
+
   taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
   taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
   if (vCreateTbReq.stbCfg.pRSmaParam) {
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
+    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg1);
+    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg2);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
   }
   taosMemoryFree(vCreateTbReq.name);

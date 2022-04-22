@@ -356,187 +356,6 @@ static void taosNetCheckPort(uint32_t hostIp, int32_t startPort, int32_t endPort
   }
 }
 
-void *taosNetInitRpc(char *secretEncrypt, char spi) {
-  SRpcInit rpcInit;
-  void *   pRpcConn = NULL;
-
-  char user[] = "nettestinternal";
-  char pass[] = "nettestinternal";
-  taosEncryptPass_c((uint8_t *)pass, strlen(pass), secretEncrypt);
-
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = 0;
-  rpcInit.label = "NT";
-  rpcInit.numOfThreads = 1;  // every DB connection has only one thread
-  rpcInit.cfp = NULL;
-  rpcInit.sessions = 16;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = user;
-  rpcInit.idleTime = 2000;
-  rpcInit.ckey = "key";
-  rpcInit.spi = spi;
-  rpcInit.secret = secretEncrypt;
-
-  pRpcConn = rpcOpen(&rpcInit);
-  return pRpcConn;
-}
-
-static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t pktLen, char spi, SStartupReq *pStep) {
-  SEpSet epSet;
-  SRpcMsg   reqMsg;
-  SRpcMsg   rspMsg;
-  void *    pRpcConn;
-
-  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
-
-  pRpcConn = taosNetInitRpc(secretEncrypt, spi);
-  if (NULL == pRpcConn) {
-    uError("failed to init client rpc");
-    return TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  }
-
-  memset(&epSet, 0, sizeof(SEpSet));
-  strcpy(epSet.eps[0].fqdn, serverFqdn);
-  epSet.eps[0].port = port;
-  epSet.numOfEps = 1;
-
-  reqMsg.msgType = TDMT_DND_NETWORK_TEST;
-  reqMsg.pCont = rpcMallocCont(pktLen);
-  reqMsg.contLen = pktLen;
-  reqMsg.code = 0;
-  reqMsg.handle = NULL;   // rpc handle returned to app
-  reqMsg.ahandle = NULL;  // app handle set by client
-  strcpy(reqMsg.pCont, "dnode-nettest");
-
-  rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
-
-  if ((rspMsg.code != 0) || (rspMsg.msgType != TDMT_DND_NETWORK_TEST + 1)) {
-    uDebug("ret code 0x%x %s", rspMsg.code, tstrerror(rspMsg.code));
-    return rspMsg.code;
-  }
-
-  int32_t code = 0;
-  if (pStep != NULL && rspMsg.pCont != NULL && rspMsg.contLen > 0 && rspMsg.contLen <= sizeof(SStartupReq)) {
-    memcpy(pStep, rspMsg.pCont, rspMsg.contLen);
-    code = 1;
-  }
-
-  rpcFreeCont(rspMsg.pCont);
-  rpcClose(pRpcConn);
-  return code;
-}
-
-static int32_t taosNetParseStartup(SStartupReq *pCont) {
-  SStartupReq *pStep = pCont;
-  uInfo("step:%s desc:%s", pStep->name, pStep->desc);
-
-  if (pStep->finished) {
-    uInfo("check startup finished");
-  }
-
-  return pStep->finished ? 0 : 1;
-}
-
-static void taosNetTestStartup(char *host, int32_t port) {
-  uInfo("check startup, host:%s port:%d\n", host, port);
-
-  SStartupReq *pStep = taosMemoryMalloc(sizeof(SStartupReq));
-  while (1) {
-    int32_t code = taosNetCheckRpc(host, port, 20, 0, pStep);
-    if (code > 0) {
-      code = taosNetParseStartup(pStep);
-    }
-
-    if (code > 0) {
-      uDebug("continue check startup step");
-    } else {
-      if (code < 0) {
-        uError("failed to check startup step, code:0x%x %s", code, tstrerror(code));
-      }
-      break;
-    }
-  }
-
-  taosMemoryFree(pStep);
-}
-
-static void taosNetCheckSync(char *host, int32_t port) {
-  uint32_t ip = taosGetIpv4FromFqdn(host);
-  if (ip == 0xffffffff) {
-    uError("failed to get IP address from %s since %s", host, strerror(errno));
-    return;
-  }
-
-  TdSocketPtr pSocket = taosOpenTcpClientSocket(ip, (uint16_t)port, 0);
-  if (pSocket == NULL) {
-    uError("failed to create socket while test port:%d since %s", port, strerror(errno));
-    return;
-  }
-
-  SSyncMsg msg;
-  memset(&msg, 0, sizeof(SSyncMsg));
-  SSyncHead *pHead = &msg.head;
-  pHead->type = TAOS_SMSG_TEST;
-  pHead->protocol = SYNC_PROTOCOL_VERSION;
-  pHead->signature = SYNC_SIGNATURE;
-  pHead->code = 0;
-  pHead->cId = 0;
-  pHead->vgId = -1;
-  pHead->len = sizeof(SSyncMsg) - sizeof(SSyncHead);
-  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SSyncHead));
-
-  if (taosWriteMsg(pSocket, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
-    uError("failed to test port:%d while send msg since %s", port, strerror(errno));
-    return;
-  }
-
-  if (taosReadMsg(pSocket, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
-    uError("failed to test port:%d while recv msg since %s", port, strerror(errno));
-  }
-
-  uInfo("successed to test TCP port:%d", port);
-  taosCloseSocket(&pSocket);
-}
-
-static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
-  char    spi = 0;
-
-  uInfo("check rpc, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
-
-  uint16_t port = startPort;
-  int32_t sendpkgLen;
-  if (pkgLen <= tsRpcMaxUdpSize) {
-      sendpkgLen = tsRpcMaxUdpSize + 1000;
-  } else {
-      sendpkgLen = pkgLen;
-  }
-
-  tsRpcForceTcp = 1;
-  int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
-  if (ret < 0) {
-      printf("failed to test TCP port:%d\n", port);
-  } else {
-      printf("successed to test TCP port:%d\n", port);
-  }
-
-  if (pkgLen >= tsRpcMaxUdpSize) {
-      sendpkgLen = tsRpcMaxUdpSize - 1000;
-  } else {
-      sendpkgLen = pkgLen;
-  }
-/*
-  tsRpcForceTcp = 0;
-  ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
-  if (ret < 0) {
-      printf("failed to test UDP port:%d\n", port);
-  } else {
-      printf("successed to test UDP port:%d\n", port);
-  }
-  */
-
-  taosNetCheckSync(host, startPort);
-}
-
 static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
   uInfo("work as client, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
@@ -586,22 +405,10 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
   }
 }
 
-static void taosNetTestFqdn(char *host) {
-  int code = 0;
-  uint64_t startTime = taosGetTimestampUs();
-  uint32_t ip = taosGetIpv4FromFqdn(host);
-  if (ip == 0xffffffff) {
-    uError("failed to get IP address from %s since %s", host, strerror(errno));
-    code = -1;
-  }
-  uint64_t endTime = taosGetTimestampUs();
-  uint64_t el = endTime - startTime;
-  printf("check convert fqdn spend, status: %d\tcost: %" PRIu64 " us\n", code, el);
-  return;
-}
-
 static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
                               int32_t pkgNum, char *pkgType) {
+#if 0
+                              
   // record config
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
@@ -674,19 +481,19 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   tsRpcMaxUdpSize = maxUdpSize;
   tsRpcForceTcp = forceTcp;
   return;
+#endif
 }
 
-void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
-                 int32_t pkgNum, char *pkgType) {
+void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen, int32_t pkgNum, char *pkgType) {
   tsLogEmbedded = 1;
   if (host == NULL) host = tsLocalFqdn;
   if (port == 0) port = tsServerPort;
-  if (0 == strcmp("speed", role)){
+  if (0 == strcmp("speed", role)) {
     if (pkgLen <= MIN_SPEED_PKG_LEN) pkgLen = MIN_SPEED_PKG_LEN;
     if (pkgLen > MAX_SPEED_PKG_LEN) pkgLen = MAX_SPEED_PKG_LEN;
     if (pkgNum <= MIN_SPEED_PKG_NUM) pkgNum = MIN_SPEED_PKG_NUM;
     if (pkgNum > MAX_SPEED_PKG_NUM) pkgNum = MAX_SPEED_PKG_NUM;
-  }else{
+  } else {
     if (pkgLen <= 10) pkgLen = 1000;
     if (pkgLen > MAX_PKG_LEN) pkgLen = MAX_PKG_LEN;
   }
@@ -695,21 +502,12 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
     taosNetTestClient(host, port, pkgLen);
   } else if (0 == strcmp("server", role)) {
     taosNetTestServer(host, port, pkgLen);
-  } else if (0 == strcmp("rpc", role)) {
-    tsLogEmbedded = 0;
-    taosNetTestRpc(host, port, pkgLen);
-  } else if (0 == strcmp("sync", role)) {
-    taosNetCheckSync(host, port);
-  } else if (0 == strcmp("startup", role)) {
-    taosNetTestStartup(host, port);
   } else if (0 == strcmp("speed", role)) {
     tsLogEmbedded = 0;
     char type[10] = {0};
     taosNetCheckSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
-  }else if (0 == strcmp("fqdn", role)) {
-    taosNetTestFqdn(host);
   } else {
-    taosNetTestStartup(host, port);
+    TASSERT(1);
   }
 
   tsLogEmbedded = 0;

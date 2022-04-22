@@ -382,7 +382,7 @@ typedef struct SSysTableScanInfo {
   void*   pCur;        // cursor for iterate the local table meta store.
   SArray* scanCols;    // SArray<int16_t> scan column id list
 
-  int32_t             type;  // show type, TODO remove it
+//  int32_t             type;  // show type, TODO remove it
   SName               name;
   SSDataBlock*        pRes;
   int32_t             capacity;
@@ -427,6 +427,7 @@ typedef struct STableIntervalOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   SArray*            pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
   STimeWindowAggSupp twAggSup;
+  struct SFillInfo*  pFillInfo;          // fill info
 } STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -467,7 +468,6 @@ typedef struct SFillOperatorInfo {
   SSDataBlock*      existNewGroupBlock;
   bool              multigroupResult;
   SInterval         intervalInfo;
-  int32_t           capacity;
 } SFillOperatorInfo;
 
 typedef struct {
@@ -479,7 +479,7 @@ typedef struct {
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo  binfo;
-  SArray*         pGroupCols;
+  SArray*         pGroupCols;     // group by columns, SArray<SColumn>
   SArray*         pGroupColVals;  // current group column values, SArray<SGroupKeys>
   SNode*          pCondition;
   bool            isInit;       // denote if current val is initialized or not
@@ -490,6 +490,7 @@ typedef struct SGroupbyOperatorInfo {
   SExprInfo*      pScalarExprInfo;
   int32_t         numOfScalarExpr;  // the number of scalar expression in group operator
   SqlFunctionCtx* pScalarFuncCtx;
+  int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -599,7 +600,6 @@ typedef struct SJoinOperatorInfo {
   int32_t            rightPos;
   SColumnInfo        rightCol;
   SNode             *pOnCondition;
-//  SRspResultInfo     resultInfo;
 } SJoinOperatorInfo;
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
@@ -608,7 +608,7 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
                     SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
-void    toSDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
+void    doBuildResultDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
                      SDiskbasedBuf* pBuf, int32_t* rowCellOffset);
 void    finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf,
                                       SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
@@ -620,7 +620,7 @@ void    doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
 int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
-void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow* win);
+void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
@@ -644,8 +644,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
                                               SExecTaskInfo* pTaskInfo, bool showRewrite, int32_t accountId);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo,
-                                          SExecTaskInfo* pTaskInfo);
+                                          STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                             SSDataBlock* pResBlock, int64_t gap, STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,

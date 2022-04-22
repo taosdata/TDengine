@@ -20,12 +20,13 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stdint.h>
-#include <tdatablock.h>
+//#include <tdatablock.h>
 #include "cJSON.h"
-#include "taosdef.h"
+//#include "taosdef.h"
 #include "trpc.h"
-#include "wal.h"
+//#include "wal.h"
 
 // ------------------ ds -------------------
 typedef struct SRaftId {
