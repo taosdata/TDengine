@@ -10,7 +10,7 @@
     <description>Demo project for TDengine</description>
 
     <properties>
-        <spring.version>5.3.18</spring.version>
+        <spring.version>5.3.19</spring.version>
     </properties>
 
     <dependencies>
