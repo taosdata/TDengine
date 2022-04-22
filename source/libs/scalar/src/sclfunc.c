@@ -644,9 +644,9 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int16_t inputType  = pInput[0].columnData->info.type;
-  int16_t outputType = pOutput[0].columnData->info.type;
-  int64_t outputLen = pOutput[0].columnData->info.bytes;
+  int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
+  int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
+  int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
   if (IS_VAR_DATA_TYPE(outputType)) {
     int32_t factor = (TSDB_DATA_TYPE_NCHAR == outputType) ? TSDB_NCHAR_SIZE : 1;

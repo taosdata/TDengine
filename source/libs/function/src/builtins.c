@@ -332,7 +332,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
   int32_t para2Bytes = pFunc->node.resType.bytes;
-  if (para2Bytes <= 0) { //non-positive value or overflow
+  if (para2Bytes <= 0 || para2Bytes > 1000) { //cast dst var type length limits to 1000
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
