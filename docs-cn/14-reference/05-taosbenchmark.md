@@ -10,7 +10,11 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 ## 安装
 
-@shuduo @yangzhao ，请在这里添加 taosBenchmark 安装的简要说明
+taosBenchmark 有两种安装方式:
+
+  第一种是安装 TDengine 的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](#https://docs.taosdata.com/get-started/)。
+
+  第二种是单独编译 taos-tools 并安装, 详情请参考 [taos-tools 仓库](#https://github.com/taosdata/taos-tools)
 
 ## 运行
 
@@ -30,21 +34,21 @@ taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDen
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建 10000 张表，每张表中写入 10000 条记录。
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建一个数据库，一张超级表，超级表下创建 10000 张表，每张表中写入 10000 条记录。
 
 ### 使用命令行配置参数运行
 
 在使用命令行参数运行 taosBenchmark 并控制其行为时，`-f <json file>` 参数不能使用。所有配置参数都必须通过命令行指定。以下是使用命令行方式测试 taosBenchmark 写入性能的一个示例。
 
 ```bash
-@shuduo @yangzhao 请在这里添加使用命令行配置参数运行的示例，示例一定要经过实际运行检验
+taosBenchmark -I stmt -n 200 -t 100
 ```
 
-上面的命令 `此处插入解释`
+上面的命令 `taosBenchmark 将创建一个数据库，一张超级表，建立 100 张子表并使用参数绑定的方式每张表插入 200 条记录`
 
 ### 使用配置文件运行
 
-taosBenchmark 安装包中提供了配置文件的示例，位于 `@shuduo @yangzhao 此处插入路径`
+taosBenchmark 安装包中提供了配置文件的示例，位于 `<install_directory>/examples/taosbenchmark-json` 下
 
 使用如下命令行即可运行 taosBenchmark 并通过配置文件控制其行为。
 
@@ -107,6 +111,7 @@ taosBenchmark -f <json file>
           "batch_create_tbl_num": 5,
           "data_source": "rand",
           "insert_mode": "taosc",
+          "non_stop_mode": "no",
           "line_protocol": "line",
           "insert_rows": 100000,
           "childtable_limit": 10,
@@ -333,7 +338,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   开关参数，要求用户在提示后确认才能继续。默认值为 false 。
 
 - **-O/--disorder <Percentage\>** :
-  指定乱序数据的百分比，其值域为 [0,50]。默认为 0，即没有乱序数据。
+  指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
 - **-R/--disorder-range <timeRange\>** :
   指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
@@ -420,11 +425,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"
 
-- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示要插入的表必须提前创建好。
+- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num** : 创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
-- **data_source** : 数据的来源，默认为 taosBenchmark 随机产生，可以配置为 sample，即为使用 sample_file 参数指定的文件内的数据。
+- **data_source** : 数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"，为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
 - **insert_mode** : 插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
 
@@ -446,11 +451,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **partial_col_num** : 若该值为正数 n 时， 则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
 
-- **disorder_ratio** : 指定乱序数据的百分比，其值域为 [0,50]。默认为 0，即没有乱序数据。
+- **disorder_ratio** : 指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
 - **disorder_range** : 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
 
-- **timestamp_step** : 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1。
+- **timestamp_step** : 每个子表中插入数据的时间戳步长，单位与数据库的 `precision` 一致，默认值是 1。
 
 - **start_timestamp** : 每个子表的时间戳起始值，默认值是 now。
 
