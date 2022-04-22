@@ -61,23 +61,23 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
-        tdSql.execute(
-            f'''create table stb1(
+        create_stb_sql  =  f'''create table stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp)
-            tags (t1 int)
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            ) tags (t1 int)
             '''
-        )
-        tdSql.execute(
-            '''
-            create table t1(
+        create_ntb_sql = f'''create table stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
             )
             '''
-        )
+        print(create_stb_sql)
+        print(create_ntb_sql)
+        tdSql.execute(create_stb_sql)
+        tdSql.execute(create_ntb_sql)
+
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
