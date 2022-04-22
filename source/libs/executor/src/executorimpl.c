@@ -230,10 +230,10 @@ int32_t operatorDummyOpenFn(SOperatorInfo* pOperator) {
 
 void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 
-static int32_t doCopyToSDataBlock(SSDataBlock* pBlock, int32_t rowCapacity, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
-                                  int32_t orderType, int32_t* rowCellOffset);
-static void    initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
+static int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
+                                  int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx);
 
+static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo);
 static void setCtxTagForJoin(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable);
 static void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* pTaskInfo);
@@ -2809,16 +2809,6 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
   }
 }
 
-void finalizeQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
-  for (int32_t j = 0; j < numOfOutput; ++j) {
-    if (pCtx[j].functionId == -1) {
-      continue;
-    }
-
-    pCtx[j].fpSet.finalize(&pCtx[j]);
-  }
-}
-
 void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf,
                                    SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset) {
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
@@ -2841,7 +2831,7 @@ void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SD
       }
 
       if (pCtx[j].fpSet.process) {  // TODO set the dummy function, to avoid the check for null ptr.
-        pCtx[j].fpSet.finalize(&pCtx[j]);
+//        pCtx[j].fpSet.finalize(&pCtx[j]);
       }
 
       if (pRow->numOfRows < pResInfo->numOfRes) {
@@ -2872,7 +2862,7 @@ void finalizeUpdatedResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbased
       }
 
       if (pCtx[j].fpSet.process) {  // TODO set the dummy function.
-        pCtx[j].fpSet.finalize(&pCtx[j]);
+//        pCtx[j].fpSet.finalize(&pCtx[j]);
         pResInfo->initialized = true;
       }
 
@@ -3107,7 +3097,8 @@ void setIntervalQueryRange(STableQueryInfo* pTableQueryInfo, TSKEY key, STimeWin
  * @param pQInfo
  * @param result
  */
-int32_t doCopyToSDataBlock(SSDataBlock* pBlock, int32_t rowCapacity, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo, int32_t orderType, int32_t* rowCellOffset) {
+int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
+    int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t numOfResult = pBlock->info.rows;  // there are already exists result rows
 
@@ -3125,8 +3116,6 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, int32_t rowCapacity, SExprInfo* 
     step = -1;
   }
 
-  int32_t nrows = pBlock->info.rows;
-
   for (int32_t i = start; (i < numOfRows) && (i >= 0); i += step) {
     SResultRowPosition* pPos = taosArrayGet(pGroupResInfo->pRows, i);
     SFilePage*          page = getBufPage(pBuf, pPos->pageId);
@@ -3139,7 +3128,7 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, int32_t rowCapacity, SExprInfo* 
 
     // TODO copy multiple rows?
     int32_t numOfRowsToCopy = pRow->numOfRows;
-    if (numOfResult + numOfRowsToCopy >= rowCapacity) {
+    if (numOfResult + numOfRowsToCopy >= pBlock->info.capacity) {
       break;
     }
 
@@ -3148,31 +3137,32 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, int32_t rowCapacity, SExprInfo* 
     for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
       int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 
-      SColumnInfoData*     pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
-      SResultRowEntryInfo* pEntryInfo = getResultCell(pRow, j, rowCellOffset);
+      pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
+      if (pCtx[j].fpSet.process) {
+        pCtx[j].fpSet.finalize(&pCtx[j], pBlock, slotId);
+      } else {
+        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
 
-      char* in = GET_ROWCELL_INTERBUF(pEntryInfo);
-      colDataAppend(pColInfoData, nrows, in, pEntryInfo->isNullRes);
+        char* in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+        colDataAppend(pColInfoData, pBlock->info.rows, in, pCtx[j].resultInfo->isNullRes);
+      }
     }
 
     releaseBufPage(pBuf, page);
-    nrows += 1;
 
-    numOfResult += numOfRowsToCopy;
-    if (numOfResult == rowCapacity) {  // output buffer is full
+    pBlock->info.rows += pRow->numOfRows;
+    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
       break;
     }
   }
 
   // qDebug("QInfo:0x%"PRIx64" copy data to query buf completed", GET_TASKID(pRuntimeEnv));
-  pBlock->info.rows = numOfResult;
   blockDataUpdateTsWindow(pBlock);
-
   return 0;
 }
 
-void doBuildResultDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
-                  int32_t* rowCellOffset) {
+void doBuildResultDatablock(SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
+                  int32_t* rowCellOffset, SqlFunctionCtx* pCtx) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
 
   blockDataCleanup(pBlock);
@@ -3181,7 +3171,7 @@ void doBuildResultDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResI
   }
 
   int32_t orderType = TSDB_ORDER_ASC;
-  doCopyToSDataBlock(pBlock, rowCapacity, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset);
+  doCopyToSDataBlock(pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx);
 
   // add condition (pBlock->info.rows >= 1) just to runtime happy
   blockDataUpdateTsWindow(pBlock);
@@ -4405,7 +4395,7 @@ static void doFinalizeResultImpl(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
     //      SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
     //      doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
     //    } else {
-    pCtx[j].fpSet.finalize(&pCtx[j]);
+//    pCtx[j].fpSet.finalize(&pCtx[j]);
   }
 }
 
@@ -4805,7 +4795,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator, bool* newgroup)
   }
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pInfo->pRes, pOperator->resultInfo.capacity, &pAggInfo->groupResInfo, pOperator->pExpr, pAggInfo->aggSup.pResultBuf, pInfo->rowCellInfoOffset);
+  doBuildResultDatablock(pInfo->pRes, &pAggInfo->groupResInfo, pOperator->pExpr, pAggInfo->aggSup.pResultBuf, pInfo->rowCellInfoOffset, pInfo->pCtx);
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pAggInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -5129,8 +5119,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator, bool* newgro
     }
 
     blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
-    doBuildResultDatablock(pBlock, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr,
-                           pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pBlock, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
 
     if (pBlock->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -5149,7 +5138,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator, bool* newgroup
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pInfo->binfo.pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pInfo->binfo.pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
     if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -5184,7 +5173,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator, bool* newgroup
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pInfo->binfo.pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+  doBuildResultDatablock(pInfo->binfo.pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
 
   ASSERT(pInfo->binfo.pRes->info.rows > 0);
   pOperator->status = OP_RES_TO_RETURN;
@@ -5229,7 +5218,7 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo *pOperator, bool* newgroup) {
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pSliceInfo->binfo.resultRowInfo);
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-  finalizeQueryResult(pSliceInfo->binfo.pCtx, pOperator->numOfOutput);
+//  finalizeQueryResult(pSliceInfo->binfo.pCtx, pOperator->numOfOutput);
 
   initGroupResInfo(&pSliceInfo->groupResInfo, &pSliceInfo->binfo.resultRowInfo);
   //  doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pSliceInfo->pRes);
@@ -5286,8 +5275,8 @@ static SSDataBlock* doSTableIntervalAgg(SOperatorInfo* pOperator, bool* newgroup
   OPTR_SET_OPENED(pOperator);
 
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pInfo->binfo.pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr,
-               pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+  doBuildResultDatablock(pInfo->binfo.pRes, &pInfo->groupResInfo, pOperator->pExpr,
+               pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
 
   if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
@@ -5377,7 +5366,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator, bool* newgroup) {
   SOptrBasicInfo* pBInfo    = &pInfo->binfo;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pBInfo->pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset);
+    doBuildResultDatablock(pBInfo->pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset, pInfo->binfo.pCtx);
     if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
@@ -5409,7 +5398,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator, bool* newgroup) {
 
   initGroupResInfo(&pInfo->groupResInfo, &pBInfo->resultRowInfo);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pBInfo->pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset);
+  doBuildResultDatablock(pBInfo->pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset, pInfo->binfo.pCtx);
   if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -5426,7 +5415,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator, bool* newgroup)
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pBInfo->pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset);
+    doBuildResultDatablock(pBInfo->pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset, pInfo->binfo.pCtx);
     if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
@@ -5458,7 +5447,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator, bool* newgroup)
 
   initGroupResInfo(&pInfo->groupResInfo, &pBInfo->resultRowInfo);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pBInfo->pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset);
+  doBuildResultDatablock(pBInfo->pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pBInfo->rowCellInfoOffset, pInfo->binfo.pCtx);
   if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }

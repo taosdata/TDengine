@@ -507,7 +507,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = topFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = topBotFinalize,
   },
   {
     .name = "bottom",
