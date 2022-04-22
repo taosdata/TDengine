@@ -1115,7 +1115,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     // FILE csv_file_path
-    if (TK_NK_FILE == sToken.type) {
+    if (TK_FILE == sToken.type) {
       // pSql -> csv_file_path
       NEXT_TOKEN(pCxt->pSql, sToken);
       if (0 == sToken.n || (TK_NK_STRING != sToken.type && TK_NK_ID != sToken.type)) {

@@ -1283,15 +1283,13 @@ typedef struct {
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    name[TSDB_TOPIC_FNAME_LEN]; // accout.topic
   int8_t  igExists;
   int8_t  withTbName;
   int8_t  withSchema;
   int8_t  withTag;
-  int8_t  withTagSchema;
   char*   sql;
   char*   ast;
-  int64_t subDbUid;
   char    subscribeDbName[TSDB_DB_NAME_LEN];
 } SCMCreateTopicReq;
 

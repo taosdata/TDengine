@@ -226,14 +226,17 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
-  SPlanContext cxt = {.queryId = pRequest->requestId,
-                      .acctId = pRequest->pTscObj->acctId,
-                      .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
-                      .pAstRoot = pQuery->pRoot,
-                      .showRewrite = pQuery->showRewrite};
-  int32_t      code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
-  if (code != 0) {
-    return code;
+  SPlanContext cxt = {
+    .queryId = pRequest->requestId,
+    .acctId = pRequest->pTscObj->acctId,
+    .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+    .pAstRoot = pQuery->pRoot,
+    .showRewrite = pQuery->showRewrite,
+    .pTransporter = pRequest->pTscObj->pAppInfo->pTransporter
+  };
+  int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
   }
   return code;
 }
@@ -302,8 +305,6 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 }
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery) {
-  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-
   if (TSDB_CODE_SUCCESS == code) {
     switch (pQuery->execMode) {
       case QUERY_EXEC_MODE_LOCAL:
@@ -312,12 +313,15 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
       case QUERY_EXEC_MODE_RPC:
         code = execDdlQuery(pRequest, pQuery);
         break;
-      case QUERY_EXEC_MODE_SCHEDULE:
+      case QUERY_EXEC_MODE_SCHEDULE: {
+        SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
         code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
         if (TSDB_CODE_SUCCESS == code) {
           code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
         }
+        taosArrayDestroy(pNodeList);
         break;
+      }
       case QUERY_EXEC_MODE_EMPTY_RESULT:
         pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
         break;
@@ -326,7 +330,6 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
     }
   }
 
-  taosArrayDestroy(pNodeList);
   if (!keepQuery) {
     qDestroyQuery(pQuery);
   }
