@@ -12,15 +12,15 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 taosBenchmark 有两种安装方式:
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](#/get-started)。
+- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](/operation/pkg-install)。
 
-- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](#https://github.com/taosdata/taos-tools) 仓库。
+- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
 ## 运行
 
 ### 配置和运行方式
 
-taosBenchmark 支持两种配置方式：[命令行参数](#命令行参数) 和 [JSON 配置文件](#json-配置文件)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
+taosBenchmark 支持两种配置方式：[命令行参数](#命令行参数详解) 和 [JSON 配置文件](#配置文件参数详解)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
 
 taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDengine 功能分为三大类：写入、查询和订阅。这三种功能之间是互斥的，每次运行 taosBenchmark 只能选择其中之一。值得注意的是，所要测试的功能类型在使用命令行配置方式时是不可配置的，命令行配置方式只能测试写入性能。若要测试 TDegnine 的查询和订阅性能，必须使用配置文件的方式，通过配置文件中的参数 `filetype` 指定所要测试的功能类型。
 
@@ -44,7 +44,7 @@ taosBenchmark
 taosBenchmark -I stmt -n 200 -t 100
 ```
 
-上面的命令 `taosBenchmark` 将创建一个数据库，一张超级表，建立 100 张子表并使用参数绑定的方式每张表插入 200 条记录
+上面的命令 `taosBenchmark` 将创建一个名为`test`的数据库，在其中建立一张超级表`meters`，在该超级表中建立 100 张子表并使用参数绑定的方式为每张子表插入 200 条记录。
 
 ### 使用配置文件运行
 
