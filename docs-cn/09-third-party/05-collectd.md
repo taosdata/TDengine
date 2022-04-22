@@ -11,9 +11,9 @@ collectd 是一个用来收集系统性能的守护进程。collectd 提供各�
 
 ## 前置条件
 
-要将 collectd 数据写入 TDengine, 需要几方面的准备工作。
+要将 collectd 数据写入 TDengine，需要几方面的准备工作。
 - TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行, 具体细节请参考[ taosAdapter 的使用手册](/reference/taosadapter)
+- taosAdapter 已经安装并正常运行，具体细节请参考[ taosAdapter 的使用手册](/reference/taosadapter)
 - collectd 已经安装。安装 collectd 请参考[官方文档](https://collectd.org/download.shtml)
 
 ## 配置步骤
