@@ -406,7 +406,9 @@ static FORCE_INLINE int32_t tDecodeBinary(SCoder* pDecoder, const void** val, ui
   if (tDecodeU64v(pDecoder, len) < 0) return -1;
 
   if (TD_CODER_CHECK_CAPACITY_FAILED(pDecoder, *len)) return -1;
-  *val = (void*)TD_CODER_CURRENT(pDecoder);
+  if (val) {
+    *val = (void*)TD_CODER_CURRENT(pDecoder);
+  }
 
   TD_CODER_MOVE_POS(pDecoder, *len);
   return 0;

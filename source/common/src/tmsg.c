@@ -398,80 +398,6 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   return 0;
 }
 
-int tEncodeSVCreateTbReq(SCoder *pCoder, const SVCreateTbReq *pReq) {
-#if 0
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
-  if (tEncodeU32v(pCoder, pReq->ttl) < 0) return -1;
-  if (tEncodeU32v(pCoder, pReq->keep) < 0) return -1;
-  if (tEncodeI8(pCoder, pReq->type) < 0) return -1;
-
-  if (pReq->type == TSDB_SUPER_TABLE) {
-    if (tEncodeI64(pCoder, pReq->stbCfg.suid) < 0) return -1;
-    if (tEncodeI16v(pCoder, pReq->stbCfg.nCols) < 0) return -1;
-    for (int i = 0; i < pReq->stbCfg.nCols; i++) {
-      if (tEncodeSSchema(pCoder, pReq->stbCfg.pSchema + i) < 0) return -1;
-    }
-    if (tEncodeI16v(pCoder, pReq->stbCfg.nTagCols) < 0) return -1;
-    for (int i = 0; i < pReq->stbCfg.nTagCols; i++) {
-      if (tEncodeSSchema(pCoder, pReq->stbCfg.pTagSchema + i) < 0) return -1;
-    }
-
-  } else if (pReq->type == TSDB_CHILD_TABLE) {
-    if (tEncodeI64(pCoder, pReq->ctbCfg.suid) < 0) return -1;
-    // TODO: encode SKVRow
-  } else if (pReq->type == TSDB_NORMAL_TABLE) {
-    if (tEncodeI16v(pCoder, pReq->ntbCfg.nCols) < 0) return -1;
-    for (int i = 0; i < pReq->ntbCfg.nCols; i++) {
-      if (tEncodeSSchema(pCoder, pReq->stbCfg.pSchema + i) < 0) return -1;
-    }
-  } else {
-    ASSERT(0);
-  }
-
-  tEndEncode(pCoder);
-#endif
-  return 0;
-}
-
-int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
-#if 0
-  if (tStartDecode(pCoder) < 0) return -1;
-
-  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
-  if (tDecodeU32v(pCoder, &pReq->ttl) < 0) return -1;
-  if (tDecodeU32v(pCoder, &pReq->keep) < 0) return -1;
-  if (tDecodeI8(pCoder, &pReq->type) < 0) return -1;
-
-  if (pReq->type == TSDB_SUPER_TABLE) {
-    if (tDecodeI64(pCoder, &pReq->stbCfg.suid) < 0) return -1;
-    if (tDecodeI16v(pCoder, &pReq->stbCfg.nCols) < 0) return -1;
-    for (int i = 0; i < pReq->stbCfg.nCols; i++) {
-      if (tDecodeSSchema(pCoder, &pReq->stbCfg.pSchema + i) < 0) return -1;
-    }
-    if (tDecodeI16v(pCoder, pReq->stbCfg.nTagCols) < 0) return -1;
-    for (int i = 0; i < pReq->stbCfg.nTagCols; i++) {
-      if (tDecodeSSchema(pCoder, pReq->stbCfg.pTagSchema + i) < 0) return -1;
-    }
-
-  } else if (pReq->type == TSDB_CHILD_TABLE) {
-    if (tDecodeI64(pCoder, pReq->ctbCfg.suid) < 0) return -1;
-    // TODO: decode SKVRow
-  } else if (pReq->type == TSDB_NORMAL_TABLE) {
-    if (tDecodeI16v(pCoder, pReq->ntbCfg.nCols) < 0) return -1;
-    for (int i = 0; i < pReq->ntbCfg.nCols; i++) {
-      if (tDecodeSSchema(pCoder, pReq->stbCfg.pSchema + i) < 0) return -1;
-    }
-  } else {
-    ASSERT(0);
-  }
-
-  tEndDecode(pCoder);
-#endif
-  return 0;
-}
-
 int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   int32_t tlen = 0;
 
@@ -3837,4 +3763,61 @@ STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
 
   tdDestroyTSchemaBuilder(&schemaBuilder);
   return pNSchema;
+}
+
+int tEncodeSVCreateTbReq2(SCoder *pCoder, const SVCreateTbReq2 *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI64(pCoder, pReq->uid) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->ctime) < 0) return -1;
+
+  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI32(pCoder, pReq->ttl) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->type) < 0) return -1;
+
+  if (pReq->type == TSDB_CHILD_TABLE) {
+    if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
+    if (tEncodeBinary(pCoder, pReq->ctb.pTag, kvRowLen(pReq->ctb.pTag)) < 0) return -1;
+  } else if (pReq->type == TSDB_NORMAL_TABLE) {
+    if (tEncodeI16v(pCoder, pReq->ntb.nCols) < 0) return -1;
+    if (tEncodeI16v(pCoder, pReq->ntb.sver) < 0) return -1;
+    for (int iCol = 0; iCol < pReq->ntb.nCols; iCol++) {
+      if (tEncodeSSchema(pCoder, pReq->ntb.pSchema + iCol) < 0) return -1;
+    }
+
+  } else {
+    ASSERT(0);
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int tDecodeSVCreateTbReq2(SCoder *pCoder, SVCreateTbReq2 *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI64(pCoder, &pReq->uid) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->ctime) < 0) return -1;
+
+  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->type) < 0) return -1;
+
+  if (pReq->type == TSDB_CHILD_TABLE) {
+    if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
+    if (tDecodeBinary(pCoder, &pReq->ctb.pTag, NULL) < 0) return -1;
+  } else if (pReq->type == TSDB_NORMAL_TABLE) {
+    if (tDecodeI16v(pCoder, &pReq->ntb.nCols) < 0) return -1;
+    if (tDecodeI16v(pCoder, &pReq->ntb.sver) < 0) return -1;
+    pReq->ntb.pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->ntb.nCols);
+    if (pReq->ntb.pSchema == NULL) return -1;
+    for (int iCol = 0; iCol < pReq->ntb.nCols; iCol++) {
+      if (tDecodeSSchema(pCoder, pReq->ntb.pSchema + iCol) < 0) return -1;
+    }
+  } else {
+    ASSERT(0);
+  }
+
+  tEndDecode(pCoder);
+  return 0;
 }

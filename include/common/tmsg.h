@@ -1552,15 +1552,34 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq, SVUpdateTbReq;
 
-int tEncodeSVCreateTbReq(SCoder* pCoder, const SVCreateTbReq* pReq);
-int tDecodeSVCreateTbReq(SCoder* pCoder, SVCreateTbReq* pReq);
-
 typedef struct {
   int32_t code;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
+
+typedef struct SVCreateTbReq2 {
+  tb_uid_t    uid;
+  int64_t     ctime;
+  const char* name;
+  int32_t     ttl;
+  int8_t      type;
+  union {
+    struct {
+      tb_uid_t    suid;
+      const void* pTag;
+    } ctb;
+    struct {
+      int16_t  nCols;
+      int16_t  sver;
+      SSchema* pSchema;
+    } ntb;
+  };
+} SVCreateTbReq2;
+
+int tEncodeSVCreateTbReq2(SCoder* pCoder, const SVCreateTbReq2* pReq);
+int tDecodeSVCreateTbReq2(SCoder* pCoder, SVCreateTbReq2* pReq);
 
 typedef struct {
   int64_t ver;  // use a general definition
