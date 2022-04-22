@@ -455,7 +455,7 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
   }
 
   char tmp[PATH_MAX] = {0};
-  if (taosRealPath(wep.we_wordv[0], tmp, PATH_MAX) == 0) {
+  if (taosRealPath(wep.we_wordv[0], tmp, PATH_MAX) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wordfree(&wep);
     return -1;
