@@ -3364,6 +3364,12 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow       *win, bool *
     filterGetRangeRes(prev, &tra);
     win->skey = tra.s; 
     win->ekey = tra.e;
+    if (FILTER_GET_FLAG(tra.sflag, RANGE_FLG_EXCLUDE)) {
+      win->skey++;
+    }
+    if (FILTER_GET_FLAG(tra.eflag, RANGE_FLG_EXCLUDE)) {
+      win->ekey--;
+    }
   }
 
   filterFreeRangeCtx(prev);
@@ -3492,7 +3498,40 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(*pNode)) {
+    if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
+      return DEAL_RES_CONTINUE;
+    }
+    
+    SValueNode *valueNode = (SValueNode *)*pNode;
+    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type) {
+      return DEAL_RES_CONTINUE;
+    }
+
+#if 0    
+    if (stat->precision < 0) {
+      //TODO
+      return DEAL_RES_CONTINUE;
+    }
+
+    char *timeStr = valueNode->datum.p;
+    if (taosParseTime(valueNode->datum.p, &valueNode->datum.i, valueNode->node.resType.bytes, stat->precision, tsDaylight) !=
+        TSDB_CODE_SUCCESS) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+    }
+    TODO
+#else
+    return DEAL_RES_CONTINUE;
+#endif
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SColumnNode *colNode = (SColumnNode *)*pNode;
+    stat->precision = colNode->node.resType.precision;
+    return DEAL_RES_CONTINUE;
+  }
+  
+  if (QUERY_NODE_NODE_LIST == nodeType(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -3656,16 +3695,19 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   info = *pInfo;
   info->options = options;
 
-  SFltTreeStat stat1 = {0};
-  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat1));
+  SFltTreeStat stat = {0};
+  stat.precision = -1;
+  stat.info = info;
+  
+  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
 
-  info->scalarMode = stat1.scalarMode;
+  info->scalarMode = stat.scalarMode;
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat1));
+    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
   }
   
   return code;

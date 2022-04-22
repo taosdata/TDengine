@@ -89,7 +89,6 @@ int32_t Testbase::SendShowReq(int8_t showType, const char *tb, const char* db) {
   }
 
   SRetrieveTableReq retrieveReq = {0};
-  retrieveReq.type = showType;
   strcpy(retrieveReq.db, db);
   strcpy(retrieveReq.tb, tb);
 

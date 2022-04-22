@@ -18,9 +18,11 @@
 #include "tglobal.h"
 #include "tlog.h"
 
+#ifndef WINDOWS
 #include <argp.h>
 #include <termio.h>
 #include <wordexp.h>
+#endif
 
 #define OPT_ABORT 1 /* abort */
 
@@ -37,6 +39,7 @@ TdThread      pid;
 static tsem_t cancelSem;
 extern void   taos_init();
 
+#ifndef WINDOWS
 static struct argp_option options[] = {
   {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
   {"password",   'p', NULL,         0,                   "The password to use when connecting to the server."},
@@ -213,7 +216,10 @@ static void parse_args(int argc, char *argv[], SShellArguments *arguments) {
   }
 }
 
+#endif
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
+#ifdef WINDOWS
+#else
   static char verType[32] = {0};
   sprintf(verType, "version: %s\n", version);
 
@@ -233,9 +239,12 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     abort();
 #endif
   }
+#endif
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
+#ifdef WINDOWS
+#else
   unsigned hist_counter = history.hend;
   char     utf8_array[10] = "\0";
   Command  cmd;
@@ -390,6 +399,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
     }
   }
 
+#endif
   return 0;
 }
 
@@ -435,6 +445,8 @@ void *shellLoopQuery(void *arg) {
 void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
+#ifdef WINDOWS
+#else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
     // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
@@ -453,9 +465,12 @@ void clearScreen(int ecmd_pos, int cursor_pos) {
     fprintf(stdout, "\033[2K");
   }
   fflush(stdout);
+#endif
 }
 
 void showOnScreen(Command *cmd) {
+#ifdef WINDOWS
+#else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
     // fprintf(stderr, "No stream device\n");
@@ -526,6 +541,7 @@ void showOnScreen(Command *cmd) {
   positionCursor(cursor_x, DOWN);
   positionCursor(cursor_y, RIGHT);
   fflush(stdout);
+#endif
 }
 
 void cleanup_handler(void *arg) { resetTerminalMode(); }

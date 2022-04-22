@@ -119,10 +119,10 @@ _OVER:
 }
 
 static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SDnodeTrans  *pTrans = &pDnode->trans;
+  SDnodeTrans * pTrans = &pDnode->trans;
   tmsg_t        msgType = pMsg->msgType;
   bool          isReq = msgType & 1u;
-  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
+  SMsgHandle *  pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
   SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
 
   if (msgType == TDMT_DND_SERVER_STATUS) {
@@ -443,7 +443,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   SAuthReq authReq = {0};
   tstrncpy(authReq.user, user, TSDB_USER_LEN);
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void   *pReq = rpcMallocCont(contLen);
+  void *  pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};

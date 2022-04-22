@@ -621,13 +621,13 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
     if (subPos > 0) {
       startPosBytes = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR) ? subPos - 1 : (subPos - 1) * TSDB_NCHAR_SIZE;
-      startPosBytes = MIN(startPosBytes, len);
+      startPosBytes = TMIN(startPosBytes, len);
     } else {
       startPosBytes = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR) ? len + subPos : len + subPos * TSDB_NCHAR_SIZE;
-      startPosBytes = MAX(startPosBytes, 0);
+      startPosBytes = TMAX(startPosBytes, 0);
     }
 
-    int32_t resLen = MIN(subLen, len - startPosBytes);
+    int32_t resLen = TMIN(subLen, len - startPosBytes);
     if (resLen > 0) {
       memcpy(varDataVal(output), varDataVal(input) + startPosBytes, resLen);
     }
@@ -716,7 +716,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE), *(int8_t *)input ? "true" : "false");
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
-          int32_t len = MIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
+          int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
           len = sprintf(varDataVal(output), "%.*s", len, varDataVal(input));
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -750,7 +750,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          int32_t len = MIN(outputLen, varDataLen(input) + VARSTR_HEADER_SIZE);
+          int32_t len = TMIN(outputLen, varDataLen(input) + VARSTR_HEADER_SIZE);
           memcpy(output, input, len);
           varDataSetLen(output, len - VARSTR_HEADER_SIZE);
         } else {

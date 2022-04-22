@@ -38,7 +38,7 @@ typedef struct SPhysiPlanContext {
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (NULL != pStmtName) {
+    if (NULL != pStmtName && '\0' != pStmtName[0]) {
       return sprintf(pKey, "%s.%s", pStmtName, pCol->node.aliasName);
     }
     if ('\0' == pCol->tableAlias[0]) {
@@ -47,7 +47,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
     return sprintf(pKey, "%s.%s", pCol->tableAlias, pCol->colName);
   }
 
-  if (NULL != pStmtName) {
+  if (NULL != pStmtName && '\0' != pStmtName[0]) {
     return sprintf(pKey, "%s.%s", pStmtName, ((SExprNode*)pNode)->aliasName);
   }
   return sprintf(pKey, "%s", ((SExprNode*)pNode)->aliasName);

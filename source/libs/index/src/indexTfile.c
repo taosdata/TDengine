@@ -748,7 +748,7 @@ static SArray* tfileGetFileList(const char* path) {
     sprintf(buf, "%s/%s", path, file);
     taosArrayPush(files, &buf);
   }
-  taosCloseDir(pDir);
+  taosCloseDir(&pDir);
 
   taosArraySort(files, tfileCompare);
   tfileRmExpireFile(files);

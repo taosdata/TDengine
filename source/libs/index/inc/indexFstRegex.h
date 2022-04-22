@@ -31,6 +31,9 @@ extern "C" {
 typedef enum { MATCH, JUMP, SPLIT, RANGE } InstType;
 
 typedef struct MatchValue {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } MatchValue;
 typedef struct JumpValue {
   uint32_t step;

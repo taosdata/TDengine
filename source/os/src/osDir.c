@@ -17,19 +17,40 @@
 #define ALLOW_FORBID_FUNC
 
 #include "os.h"
-#include "osString.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-/*
- * windows implementation
- */
+#ifdef WINDOWS
 
-// todo
+#include <windows.h>
+
+typedef struct TdDirEntry {
+  WIN32_FIND_DATA findFileData;
+} TdDirEntry;
+
+
+typedef struct TdDir {
+  TdDirEntry dirEntry;
+  HANDLE     hFind;
+} TdDir;
+
+int wordexp(char *words, wordexp_t *pwordexp, int flags) {
+  pwordexp->we_offs = 0;
+  pwordexp->we_wordc = 1;
+  pwordexp->we_wordv[0] = pwordexp->wordPos;
+
+  memset(pwordexp->wordPos, 0, 1025);
+  if (_fullpath(pwordexp->wordPos, words, 1024) == NULL) {
+    pwordexp->we_wordv[0] = words;
+    printf("failed to parse relative path:%s to abs path", words);
+    return -1;
+  }
+
+  printf("parse relative path:%s to abs path:%s", words, pwordexp->wordPos);
+  return 0;
+}
+
+void wordfree(wordexp_t *pwordexp) {}
 
 #else
-/*
- * linux implementation
- */
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -39,19 +60,21 @@
 
 typedef struct dirent dirent;
 typedef struct DIR TdDir;
-typedef struct dirent TdDirent;
+typedef struct dirent TdDirEntry;
+
+#endif
 
 void taosRemoveDir(const char *dirname) {
-  DIR *dir = opendir(dirname);
-  if (dir == NULL) return;
+  TdDirPtr pDir = taosOpenDir(dirname);
+  if (pDir == NULL) return;
 
-  struct dirent *de = NULL;
-  while ((de = readdir(dir)) != NULL) {
-    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
 
     char filename[1024];
-    snprintf(filename, sizeof(filename), "%s/%s", dirname, de->d_name);
-    if (de->d_type & DT_DIR) {
+    snprintf(filename, sizeof(filename), "%s/%s", dirname, taosGetDirEntryName(de));
+    if (taosDirEntryIsDir(de)) {
       taosRemoveDir(filename);
     } else {
       (void)taosRemoveFile(filename);
@@ -59,13 +82,14 @@ void taosRemoveDir(const char *dirname) {
     }
   }
 
-  closedir(dir);
+  taosCloseDir(&pDir);
   rmdir(dirname);
 
   //printf("dir:%s is removed\n", dirname);
+  return;
 }
 
-bool taosDirExist(char *dirname) { return taosCheckExistFile(dirname); }
+bool taosDirExist(const char *dirname) { return taosCheckExistFile(dirname); }
 
 int32_t taosMkDir(const char *dirname) {
   int32_t code = mkdir(dirname, 0755);
@@ -118,18 +142,18 @@ int32_t taosMulMkDir(const char *dirname) {
 }
 
 void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
-  DIR *dir = opendir(dirname);
-  if (dir == NULL) return;
+  TdDirPtr pDir = taosOpenDir(dirname);
+  if (pDir == NULL) return;
 
-  int64_t        sec = taosGetTimestampSec();
-  struct dirent *de = NULL;
+  int64_t sec = taosGetTimestampSec();
+  TdDirEntryPtr de = NULL;
 
-  while ((de = readdir(dir)) != NULL) {
-    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
 
     char filename[1024];
-    snprintf(filename, sizeof(filename), "%s/%s", dirname, de->d_name);
-    if (de->d_type & DT_DIR) {
+    snprintf(filename, sizeof(filename), "%s/%s", dirname, taosGetDirEntryName(de));
+    if (taosDirEntryIsDir(de)) {
       continue;
     } else {
       int32_t len = (int32_t)strlen(filename);
@@ -156,7 +180,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
     }
   }
 
-  closedir(dir);
+  taosCloseDir(&pDir);
   rmdir(dirname);
 }
 
@@ -177,65 +201,131 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   return 0;
 }
 
-int32_t taosRealPath(char *dirname, int32_t maxlen) {
+int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   char tmp[PATH_MAX] = {0};
+#ifdef WINDOWS
+  if (_fullpath(dirname, tmp, maxlen) != NULL) {
+#else
   if (realpath(dirname, tmp) != NULL) {
-    strncpy(dirname, tmp, maxlen);
+#endif
+    if (realPath == NULL) {
+      strncpy(dirname, tmp, maxlen);
+    } else {
+      strncpy(realPath, tmp, maxlen);
+    }
+    return 0;
   }
 
-  return 0;
+  return -1;
 }
 
 bool taosIsDir(const char *dirname) {
-  DIR *dir = opendir(dirname);
-  if (dir != NULL) {
-    closedir(dir);
+  TdDirPtr pDir = taosOpenDir(dirname);
+  if (pDir != NULL) {
+    taosCloseDir(&pDir);
     return true;
   }
   return false;
 }
 
 char* taosDirName(char *name) {
+#ifdef WINDOWS
+  char  Drive1[MAX_PATH], Dir1[MAX_PATH];
+  _splitpath(name, Drive1, Dir1, NULL, NULL);
+  size_t dirNameLen = strlen(Drive1) + strlen(Dir1);
+  if (dirNameLen > 0) {
+    name[dirNameLen] = 0;
+  }
+  return name;
+#else
   return dirname(name);
+#endif
 }
 
 char* taosDirEntryBaseName(char *name) {
-  return basename(name);
+#ifdef WINDOWS
+  char Filename1[MAX_PATH], Ext1[MAX_PATH];
+  _splitpath(name, NULL, NULL, Filename1, Ext1);
+  return name + (strlen(name) - strlen(Filename1) - strlen(Ext1));
+#else
+  return (char*)basename(name);
+#endif
 }
 
 TdDirPtr taosOpenDir(const char *dirname) {
   if (dirname == NULL) {
     return NULL;
   }
+
+#ifdef WINDOWS
+  char            szFind[MAX_PATH];  //这是要找的
+  HANDLE          hFind;
+
+  TdDirPtr pDir = taosMemoryMalloc(sizeof(TdDir));
+
+  strcpy(szFind, dirname);
+  strcat(szFind, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
+
+  pDir->hFind = FindFirstFile(szFind, &(pDir->dirEntry.findFileData));
+  if (INVALID_HANDLE_VALUE == pDir->hFind) {
+    taosMemoryFree(pDir);
+    return NULL;
+  }
+  return pDir;
+#else
   return (TdDirPtr)opendir(dirname);
+#endif
+
 }
 
 TdDirEntryPtr taosReadDir(TdDirPtr pDir) {
   if (pDir == NULL) {
     return NULL;
   }
+#ifdef WINDOWS
+  if (!FindNextFile(pDir->hFind, &(pDir->dirEntry.findFileData))) {
+    return NULL;
+  }
+  return (TdDirEntryPtr)&(pDir->dirEntry.findFileData);
+#else
   return (TdDirEntryPtr)readdir((DIR*)pDir);
+#endif
 }
 
 bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
   if (pDirEntry == NULL) {
     return false;
   }
+#ifdef WINDOWS
+  return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#else
   return (((dirent*)pDirEntry)->d_type & DT_DIR) != 0;
+#endif
 }
 
 char* taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
   if (pDirEntry == NULL) {
     return NULL;
   }
+#ifdef WINDOWS
+  return pDirEntry->findFileData.cFileName;
+#else
   return ((dirent*)pDirEntry)->d_name;
+#endif
 }
 
-int32_t taosCloseDir(TdDirPtr pDir) {
-  if (pDir == NULL) {
+int32_t taosCloseDir(TdDirPtr *ppDir) {
+  if (ppDir == NULL || *ppDir == NULL) {
     return -1;
   }
-  return closedir((DIR*)pDir);
-}
-
+#ifdef WINDOWS
+  FindClose((*ppDir)->hFind);
+  taosMemoryFree(*ppDir);
+  *ppDir = NULL;
+  return 0;
+#else
+  closedir((DIR*)*ppDir);
+  *ppDir = NULL;
+  return 0;
 #endif
+}

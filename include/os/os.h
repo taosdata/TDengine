@@ -22,7 +22,6 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
-#include <semaphore.h>
 
 #include <regex.h>
 
@@ -51,6 +50,15 @@ extern "C" {
 #include <sys/prctl.h>
 #include <argp.h>
 #endif
+#else
+
+#include <time.h>
+#ifndef TD_USE_WINSOCK
+#include <winsock2.h>
+#else
+#include <winsock.h>
+#endif
+
 
 #endif
 

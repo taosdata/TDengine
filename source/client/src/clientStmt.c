@@ -486,7 +486,8 @@ int stmtExec(TAOS_STMT *stmt) {
 
   STMT_ERR_JRET(pStmt->exec.pRequest->code);
 
-  pStmt->affectedRows += taos_affected_rows(pStmt->exec.pRequest);
+  pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
+  pStmt->affectedRows += pStmt->exec.affectedRows;
 
 _return:
 

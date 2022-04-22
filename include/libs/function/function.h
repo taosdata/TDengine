@@ -166,6 +166,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
+  uint64_t          uid;            // table uid
 } SInputColumnInfoData;
 
 // sql function runtime context
@@ -191,7 +192,7 @@ typedef struct SqlFunctionCtx {
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
   int32_t          numOfParams;
-  SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  SFunctParam     *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
   SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t          offset;
