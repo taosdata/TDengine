@@ -83,7 +83,6 @@ typedef struct STqOffsetStore STqOffsetStore;
 
 struct STqReadHandle {
   int64_t           ver;
-  int64_t           tbUid;
   SHashObj*         tbIdHash;
   const SSubmitReq* pMsg;
   SSubmitBlk*       pBlock;
@@ -218,20 +217,6 @@ typedef struct {
   SArray* topics;  // SArray<STqTopic>
 } STqConsumer;
 
-enum {
-  TQ_PUSHER_TYPE__CLIENT = 1,
-  TQ_PUSHER_TYPE__STREAM,
-};
-
-typedef struct {
-  int8_t   type;
-  int8_t   reserved[3];
-  int32_t  ttl;
-  int64_t  consumerId;
-  SRpcMsg* pMsg;
-  // SMqPollRsp* rsp;
-} STqClientPusher;
-
 typedef struct {
   int8_t      type;
   int8_t      nodeType;
@@ -240,10 +225,6 @@ typedef struct {
   qTaskInfo_t task;
   // TODO sync function
 } STqStreamPusher;
-
-typedef struct {
-  SHashObj* pHash;  // <id, STqPush*>
-} STqPushMgr;
 
 typedef struct {
   int8_t inited;
@@ -260,14 +241,11 @@ void tqCleanUp();
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void tqClose(STQ*);
 // required by vnode
-int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
+int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
-// int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-// int32_t tqProcessRebReq(STQ* pTq, char* msg);
-// int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
@@ -307,16 +285,6 @@ int64_t tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
 int32_t tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t tqOffsetPersistAll(STqOffsetStore* pStore);
-
-// tqPush
-int32_t tqPushMgrInit();
-void    tqPushMgrCleanUp();
-
-STqPushMgr* tqPushMgrOpen();
-void        tqPushMgrClose(STqPushMgr* pushMgr);
-
-STqClientPusher* tqAddClientPusher(STqPushMgr* pushMgr, SRpcMsg* pMsg, int64_t consumerId, int64_t ttl);
-STqStreamPusher* tqAddStreamPusher(STqPushMgr* pushMgr, int64_t streamId, SEpSet* pEpSet);
 
 #ifdef __cplusplus
 }

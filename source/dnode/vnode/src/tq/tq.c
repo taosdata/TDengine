@@ -15,9 +15,12 @@
 
 #include "vnodeInt.h"
 
-int32_t tqInit() { return tqPushMgrInit(); }
+int32_t tqInit() {
+  //
+  return 0;
+}
 
-void tqCleanUp() { tqPushMgrCleanUp(); }
+void tqCleanUp() {}
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
@@ -184,7 +187,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
   return 0;
 }
 
-int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version) {
+int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
 
   void* data = taosMemoryMalloc(msgLen);
@@ -194,7 +197,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
   memcpy(data, msg, msgLen);
 
   if (msgType == TDMT_VND_SUBMIT) {
-    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, version) != 0) {
+    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
       return -1;
     }
   }
