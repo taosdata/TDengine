@@ -8,7 +8,8 @@
 #include "tdatablock.h"
 
 int main(int argc, char *argv[]) {
-  createUdfdProxy(1);
+  UdfcHandle udfc;
+  udfcOpen(1, &udfc);
     uv_sleep(1000);
     char path[256] = {0};
     size_t cwdSize = 256;
@@ -20,9 +21,9 @@ int main(int argc, char *argv[]) {
     fprintf(stdout, "current working directory:%s\n", path);
     strcat(path, "/libudf1.so");
 
-    UdfHandle handle;
+    UdfcFuncHandle handle;
     SEpSet epSet;
-    setupUdf("udf1", &epSet, &handle);
+    setupUdf(udfc, "udf1", &epSet, &handle);
 
     SSDataBlock block = {0};
     SSDataBlock* pBlock = &block;
@@ -53,5 +54,5 @@ int main(int argc, char *argv[]) {
     }
     teardownUdf(handle);
 
-    destroyUdfdProxy(1);
+    udfcClose(udfc);
 }

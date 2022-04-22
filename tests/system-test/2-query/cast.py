@@ -1,6 +1,7 @@
 import taos
 import sys
 import datetime
+import inspect
 
 from util.log import *
 from util.sql import *
@@ -70,16 +71,6 @@ class TDTestCase:
         tdSql.query("select c1  from t1")
         data_t1_c1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
 
-        # tdLog.printNoPrefix("==========step1: cast int to int, expect no changes")
-
-        # tdSql.query("select cast(c1 as int) as b from ct4")
-        # for i in range(len(data_ct4)):
-        #     tdSql.checkData( i, 0, data_ct4[i])
-
-        # tdSql.query("select cast(c1 as int) as b from t1")
-        # for i in range(len(data_t1)):
-        #     tdSql.checkData( i, 0, data_t1[i])
-
         tdLog.printNoPrefix("==========step2: cast int to bigint, expect no changes")
 
         tdSql.query("select cast(c1 as bigint) as b from ct4")
@@ -88,24 +79,6 @@ class TDTestCase:
         tdSql.query("select cast(c1 as bigint) as b from t1")
         for i in range(len(data_t1_c1)):
             tdSql.checkData( i, 0, data_t1_c1[i])
-
-        # tdLog.printNoPrefix("==========step3: cast int to float, expect no changes")
-
-        # tdSql.query("select cast(c1 as float) as b from ct4")
-        # for i in range(len(data_ct4)):
-        #     tdSql.checkData( i, 0, data_ct4[i])
-        # tdSql.query("select cast(c1 as float) as b from t1")
-        # for i in range(len(data_t1)):
-        #     tdSql.checkData( i, 0, data_t1[i])
-
-        # tdLog.printNoPrefix("==========step4: cast int to double, expect no changes")
-
-        # tdSql.query("select cast(c1 as double) as b from ct4")
-        # for i in range(len(data_ct4)):
-        #     tdSql.checkData( i, 0, data_ct4[i])
-        # tdSql.query("select cast(c1 as double) as b from t1")
-        # for i in range(len(data_t1)):
-        #     tdSql.checkData( i, 0, data_t1[i])
 
         tdLog.printNoPrefix("==========step5: cast int to binary, expect changes to str(int) ")
 
@@ -195,10 +168,13 @@ class TDTestCase:
                 date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
                 tdSql.checkData( i, 0, date_data)
 
+
         tdSql.query("select cast(c2 as timestamp) as b from t1")
         for i in range(len(data_t1_c2)):
             if data_t1_c2[i] is None:
                 tdSql.checkData( i, 0 , None )
+            elif i == 10:
+                continue
             else:
                 utc_zone = datetime.timezone.utc
                 utc_8 = datetime.timezone(datetime.timedelta(hours=8))
@@ -329,29 +305,26 @@ class TDTestCase:
 
         tdSql.query("select cast(c5 as bigint) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            tdSql.checkData( i, 0, data_ct4_c5[i] ) if data_ct4_c5[i] is None else tdSql.checkData( i, 0, int(data_ct4_c5[i]) )
+            tdSql.checkData( i, 0, None ) if data_ct4_c5[i] is None else tdSql.checkData( i, 0, int(data_ct4_c5[i]) )
         tdSql.query("select cast(c5 as bigint) as b from t1")
         for i in range(len(data_t1_c5)):
-            tdSql.checkData( i, 0, data_t1_c5[i] ) if data_t1_c5[i] is None else tdSql.checkData( i, 0, int(data_t1_c5[i]) )
+            tdSql.checkData( i, 0, None ) if data_t1_c5[i] is None else tdSql.checkData( i, 0, int(data_t1_c5[i]) )
 
         tdLog.printNoPrefix("==========step21: cast float to binary, expect changes to str(int) ")
         tdSql.query("select cast(c5 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            # tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, str(round(data_ct4_c5[i], 6)) )
             tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
         tdSql.query("select cast(c5 as binary(32)) as b from t1")
         for i in range(len(data_t1_c5)):
-            # tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, str(round(data_t1_c5[i], 6)) )
             tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
-            # tdSql.checkData( i, 0, str(data_t1_c5[i]) )
 
         tdLog.printNoPrefix("==========step22: cast float to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c5 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c5)):
-            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
+            tdSql.checkData( i, 0, None )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
         tdSql.query("select cast(c5 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c5)):
-            tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
+            tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step23: cast float to timestamp, expect changes to timestamp ")
         tdSql.query("select cast(c5 as timestamp) as b from ct4")
@@ -383,7 +356,7 @@ class TDTestCase:
 
         tdSql.query("select cast(c6 as bigint) as b from ct4")
         for i in range(len(data_ct4_c6)):
-            tdSql.checkData( i, 0, data_ct4_c6[i] ) if data_ct4_c6[i] is None else tdSql.checkData( i, 0, int(data_ct4_c6[i]) )
+            tdSql.checkData( i, 0, None ) if data_ct4_c6[i] is None else tdSql.checkData( i, 0, int(data_ct4_c6[i]) )
         tdSql.query("select cast(c6 as bigint) as b from t1")
         for i in range(len(data_t1_c6)):
             if data_t1_c6[i] is None:
@@ -396,18 +369,18 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step25: cast double to binary, expect changes to str(int) ")
         tdSql.query("select cast(c6 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c6)):
-            tdSql.checkData( i, 0, str(data_ct4_c6[i]) )  if data_ct4_c6[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c6[i]:.6f}' )
+            tdSql.checkData( i, 0, None )  if data_ct4_c6[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c6[i]:.6f}' )
         tdSql.query("select cast(c6 as binary(32)) as b from t1")
         for i in range(len(data_t1_c6)):
-            tdSql.checkData( i, 0, str(data_t1_c6[i]) )  if data_t1_c6[i] is None else  tdSql.checkData( i, 0, f'{data_t1_c6[i]:.6f}' )
+            tdSql.checkData( i, 0, None )  if data_t1_c6[i] is None else  tdSql.checkData( i, 0, f'{data_t1_c6[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step26: cast double to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c6 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c6)):
-            tdSql.checkData( i, 0, str(data_ct4_c6[i]) )  if data_ct4_c6[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c6[i]:.6f}' )
+            tdSql.checkData( i, 0, None )  if data_ct4_c6[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c6[i]:.6f}' )
         tdSql.query("select cast(c6 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c6)):
-            tdSql.checkData( i, 0, str(data_t1_c6[i]) )  if data_t1_c6[i] is None else  tdSql.checkData( i, 0, f'{data_t1_c6[i]:.6f}' )
+            tdSql.checkData( i, 0, None )  if data_t1_c6[i] is None else  tdSql.checkData( i, 0, f'{data_t1_c6[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step27: cast double to timestamp, expect changes to timestamp ")
         tdSql.query("select cast(c6 as timestamp) as b from ct4")
@@ -420,16 +393,19 @@ class TDTestCase:
                 date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_ct4_c6[i]/1000))
                 date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
                 tdSql.checkData( i, 0, date_data)
-        # tdSql.query("select cast(c6 as timestamp) as b from t1")
-        # for i in range(len(data_t1_c6)):
-        #     if data_t1_c6[i] is None:
-        #         tdSql.checkData( i, 0 , None )
-        #     else:
-        #         utc_zone = datetime.timezone.utc
-        #         utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-        #         date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c6[i]/1000))
-        #         date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-        #         tdSql.checkData( i, 0, date_data)
+
+        tdSql.query("select cast(c6 as timestamp) as b from t1")
+        for i in range(len(data_t1_c6)):
+            if data_t1_c6[i] is None:
+                tdSql.checkData( i, 0 , None )
+            elif i == 10:
+                continue
+            else:
+                utc_zone = datetime.timezone.utc
+                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
+                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c6[i]/1000))
+                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
+                tdSql.checkData( i, 0, date_data)
 
         tdLog.printNoPrefix("==========step28: cast bool to bigint, expect no changes")
         tdSql.query("select c7  from ct4")
@@ -491,26 +467,51 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step32: cast binary to binary, expect no changes ")
         tdSql.query("select cast(c8 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c8)):
-            tdSql.checkData( i, 0, data_ct4_c8[i] )
+            tdSql.checkData( i, 0, None ) if data_ct4_c8[i] is None else  tdSql.checkData(i,0,data_ct4_c8[i])
+
         tdSql.query("select cast(c8 as binary(32)) as b from t1")
         for i in range(len(data_t1_c8)):
-            tdSql.checkData( i, 0, data_t1_c8[i] )
+            tdSql.checkData( i, 0, None ) if data_t1_c8[i] is None else  tdSql.checkData(i,0,data_t1_c8[i])
 
         tdLog.printNoPrefix("==========step33: cast binary to binary, expect truncate ")
         tdSql.query("select cast(c8 as binary(2)) as b from ct4")
         for i in range(len(data_ct4_c8)):
-            tdSql.checkData( i, 0, data_ct4_c8[i][:2] )
+            if data_ct4_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c8[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i][:2]}")
         tdSql.query("select cast(c8 as binary(2)) as b from t1")
         for i in range(len(data_t1_c8)):
-            tdSql.checkData( i, 0, data_t1_c8[i][:2] )
+            if data_t1_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c8[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i][:2]}")
 
         tdLog.printNoPrefix("==========step34: cast binary to nchar, expect changes to str(int) ")
         tdSql.query("select cast(c8 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c8)):
-            tdSql.checkData( i, 0, data_ct4_c8[i] )
+            if data_ct4_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c8[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i]}")
         tdSql.query("select cast(c8 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c8)):
-            tdSql.checkData( i, 0, data_t1_c8[i] )
+            if data_t1_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c8[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i]}")
 
 
         tdSql.query("select c9  from ct4")
@@ -522,31 +523,84 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step35: cast nchar to nchar, expect no changes ")
         tdSql.query("select cast(c9 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c9)):
-            tdSql.checkData( i, 0, data_ct4_c9[i])
+            if data_ct4_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c9[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c9[i]}")
         tdSql.query("select cast(c9 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c9)):
             tdSql.checkData( i, 0, data_t1_c9[i] )
+            if data_t1_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c9[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c9[i]}")
 
         tdLog.printNoPrefix("==========step36: cast nchar to nchar, expect truncate ")
         tdSql.query("select cast(c9 as nchar(2)) as b from ct4")
         for i in range(len(data_ct4_c9)):
-            tdSql.checkData( i, 0, data_ct4_c9[i][:2] )
+            if data_ct4_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c9[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c9[i][:2]}")
         tdSql.query("select cast(c9 as nchar(2)) as b from t1")
         for i in range(len(data_t1_c9)):
-            tdSql.checkData( i, 0, data_t1_c9[i][:2] )
+            if data_t1_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c9[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c9[i][:2]}")
 
-        tdSql.query("select c9  from ct4")
+        tdSql.query("select c10  from ct4")
         data_ct4_c10 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
-        tdSql.query("select c9  from t1")
+        tdSql.query("select c10  from t1")
         data_t1_c10 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
 
         tdLog.printNoPrefix("==========step37: cast timestamp to nchar, expect no changes ")
-        tdSql.query("select cast(c9 as nchar(32)) as b from ct4")
+        tdSql.query("select cast(c10 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c10)):
-            tdSql.checkData( i, 0, data_ct4_c10[i])
-        tdSql.query("select cast(c9 as nchar(32)) as b from t1")
+            if data_ct4_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            else:
+                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i])*1000))
+                tdSql.checkData( i, 0, time2str )
+        tdSql.query("select cast(c10 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c10)):
-            tdSql.checkData( i, 0, data_t1_c10[i] )
+            if data_t1_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            elif i == 10:
+                continue
+            else:
+                time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
+                tdSql.checkData( i, 0, time2str )
+
+        tdLog.printNoPrefix("==========step38: cast timestamp to binary, expect no changes ")
+        tdSql.query("select cast(c10 as binary(32)) as b from ct4")
+        for i in range(len(data_ct4_c10)):
+            if data_ct4_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            else:
+                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i])*1000))
+                tdSql.checkData( i, 0, time2str )
+        tdSql.query("select cast(c10 as binary(32)) as b from t1")
+        for i in range(len(data_t1_c10)):
+            if data_t1_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            elif i == 10:
+                continue
+            else:
+                time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
+                tdSql.checkData( i, 0, time2str )
 
 
         tdSql.error("select cast(c1 as int) as b from ct4")
@@ -567,12 +621,9 @@ class TDTestCase:
         tdSql.error("select cast(c7 as double) as b from ct4")
         tdSql.error("select cast(c8 as tinyint unsigned) as b from ct4")
 
-        tdSql.query("select cast(c8 as timestamp ) as b from ct4")
-        tdSql.query("select cast(c9 as timestamp ) as b from ct4")
-
+        tdSql.error("select cast(c8 as timestamp ) as b from ct4")
+        tdSql.error("select cast(c9 as timestamp ) as b from ct4")
         tdSql.error("select cast(c9 as binary(64) ) as b from ct4")
-        tdSql.error("select cast(c10 as binary(64) ) as b from ct4")
-        tdSql.error("select cast(c10 as nchar(64) ) as b from ct4")
 
 
     def stop(self):

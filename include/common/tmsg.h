@@ -327,10 +327,19 @@ int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(const void* buf, SEpSet* pEp);
 
 typedef struct {
+  SEpSet epSet;
+} SMEpSet;
+
+int32_t tSerializeSMEpSet(void* buf, int32_t bufLen, SMEpSet* pReq);
+int32_t tDeserializeSMEpSet(void* buf, int32_t buflen, SMEpSet* pReq);
+
+typedef struct {
   int8_t  connType;
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  char    passwd[TSDB_PASSWORD_LEN];
   int64_t startTime;
 } SConnectReq;
 
@@ -482,7 +491,7 @@ typedef struct {
   char    intervalUnit;
   char    slidingUnit;
   char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+          offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -982,7 +991,6 @@ int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
 void    tFreeSShowRsp(SShowRsp* pRsp);
 
 typedef struct {
-  int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
@@ -1275,11 +1283,16 @@ typedef struct {
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
-  char   name[TSDB_TOPIC_FNAME_LEN];
-  int8_t igExists;
-  char*  sql;
-  char*  ast;
-  char   subscribeDbName[TSDB_DB_NAME_LEN];
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igExists;
+  int8_t  withTbName;
+  int8_t  withSchema;
+  int8_t  withTag;
+  int8_t  withTagSchema;
+  char*   sql;
+  char*   ast;
+  int64_t subDbUid;
+  char    subscribeDbName[TSDB_DB_NAME_LEN];
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
@@ -1473,8 +1486,12 @@ typedef struct {
 typedef struct {
   float      xFilesFactor;
   int32_t    delay;
-  int8_t     nFuncIds;
+  int32_t    qmsg1Len;
+  int32_t    qmsg2Len;
   func_id_t* pFuncIds;
+  char*      qmsg1;  // not null: pAst1:qmsg1:SRetention1 => trigger aggr task1
+  char*      qmsg2;  // not null: pAst2:qmsg2:SRetention2 => trigger aggr task2
+  int8_t     nFuncIds;
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
@@ -1934,12 +1951,22 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
   return buf;
 }
 
+enum {
+  TOPIC_SUB_TYPE__DB = 1,
+  TOPIC_SUB_TYPE__TABLE,
+};
+
 typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;
   int64_t newConsumerId;
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t  subType;
+  int8_t  withTbName;
+  int8_t  withSchema;
+  int8_t  withTag;
+  int8_t  withTagSchema;
   char*   qmsg;
 } SMqRebVgReq;
 
@@ -1950,7 +1977,14 @@ static FORCE_INLINE int32_t tEncodeSMqRebVgReq(void** buf, const SMqRebVgReq* pR
   tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
   tlen += taosEncodeString(buf, pReq->subKey);
-  tlen += taosEncodeString(buf, pReq->qmsg);
+  tlen += taosEncodeFixedI8(buf, pReq->subType);
+  tlen += taosEncodeFixedI8(buf, pReq->withTbName);
+  tlen += taosEncodeFixedI8(buf, pReq->withSchema);
+  tlen += taosEncodeFixedI8(buf, pReq->withTag);
+  tlen += taosEncodeFixedI8(buf, pReq->withTagSchema);
+  if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
+    tlen += taosEncodeString(buf, pReq->qmsg);
+  }
   return tlen;
 }
 
@@ -1960,7 +1994,14 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
   buf = taosDecodeStringTo(buf, pReq->subKey);
-  buf = taosDecodeString(buf, &pReq->qmsg);
+  buf = taosDecodeFixedI8(buf, &pReq->subType);
+  buf = taosDecodeFixedI8(buf, &pReq->withTbName);
+  buf = taosDecodeFixedI8(buf, &pReq->withSchema);
+  buf = taosDecodeFixedI8(buf, &pReq->withTag);
+  buf = taosDecodeFixedI8(buf, &pReq->withTagSchema);
+  if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
+    buf = taosDecodeString(buf, &pReq->qmsg);
+  }
   return (void*)buf;
 }
 
@@ -2300,9 +2341,10 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
   }
 }
 
-static FORCE_INLINE void tdFreeTSmaWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW) {
   tdDestroyTSmaWrapper(pSW);
-  taosMemoryFreeClear(pSW);
+  taosMemoryFree(pSW);
+  return NULL;
 }
 
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
@@ -2690,6 +2732,7 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
   }
   return buf;
 }
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

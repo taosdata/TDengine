@@ -662,7 +662,7 @@ TEST(testCase, agg_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select count(*) from tu");
+  pRes = taos_query(pConn, "select now() from m1");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);

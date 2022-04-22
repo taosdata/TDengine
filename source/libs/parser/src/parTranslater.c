@@ -230,6 +230,21 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, STranslateContext*
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t resetTranslateNamespace(STranslateContext* pCxt) {
+  if (NULL != pCxt->pNsLevel) {
+    size_t size = taosArrayGetSize(pCxt->pNsLevel);
+    for (size_t i = 0; i < size; ++i) {
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+    }
+    taosArrayDestroy(pCxt->pNsLevel);
+  }
+  pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  if (NULL == pCxt->pNsLevel) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static void destroyTranslateContext(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
     size_t size = taosArrayGetSize(pCxt->pNsLevel);
@@ -261,9 +276,11 @@ static bool belongTable(const char* currentDb, const SColumnNode* pCol, const ST
   return (0 == cmp);
 }
 
-static SNodeList* getProjectList(SNode* pNode) {
+static SNodeList* getProjectList(const SNode* pNode) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
     return ((SSelectStmt*)pNode)->pProjectionList;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    return ((SSetOperator*)pNode)->pProjectionList;
   }
   return NULL;
 }
@@ -1357,13 +1374,77 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static SNode* createSetOperProject(SNode* pNode) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  pCol->node.resType = ((SExprNode*)pNode)->resType;
+  strcpy(pCol->colName, ((SExprNode*)pNode)->aliasName);
+  strcpy(pCol->node.aliasName, pCol->colName);
+  return (SNode*)pCol;
+}
+
+static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
+  return (l->type == r->type && l->bytes == l->bytes && l->precision == r->precision && l->scale == l->scale);
+}
+
+static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType dt, SNode** pCast) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pFunc->functionName, "cast");
+  pFunc->node.resType = dt;
+  if (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, pExpr)) {
+    nodesDestroyNode(pFunc);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (DEAL_RES_ERROR == translateFunction(pCxt, pFunc)) {
+    nodesClearList(pFunc->pParameterList);
+    pFunc->pParameterList = NULL;
+    nodesDestroyNode(pFunc);
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pExpr)->aliasName);
+  }
+  *pCast = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSetOperatorImpl(STranslateContext* pCxt, SSetOperator* pSetOperator) {
-  // todo
+  SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
+  SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
+  if (LIST_LENGTH(pLeftProjections) != LIST_LENGTH(pRightProjections)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_NUM_OF_COL);
+  }
+
+  SNode* pLeft = NULL;
+  SNode* pRight = NULL;
+  FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
+    SExprNode* pLeftExpr = (SExprNode*)pLeft;
+    SExprNode* pRightExpr = (SExprNode*)pRight;
+    if (!dataTypeEqual(&pLeftExpr->resType, &pRightExpr->resType)) {
+      SNode* pRightFunc = NULL;
+      int32_t code = createCastFunc(pCxt, pRight, pLeftExpr->resType, &pRightFunc);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      REPLACE_LIST2_NODE(pRightFunc);
+      pRightExpr = (SExprNode*)pRightFunc;
+    }
+    strcpy(pRightExpr->aliasName, pLeftExpr->aliasName);
+    pRightExpr->aliasName[strlen(pLeftExpr->aliasName)] = '\0';
+    if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, createSetOperProject(pLeft))) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = resetTranslateNamespace(pCxt);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(pCxt, pSetOperator->pRight);
   }
@@ -2799,8 +2880,8 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   return code;
 }
 
-static int32_t extractSelectResultSchema(const SSelectStmt* pSelect, int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = LIST_LENGTH(pSelect->pProjectionList);
+static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = LIST_LENGTH(pProjections);
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2808,7 +2889,7 @@ static int32_t extractSelectResultSchema(const SSelectStmt* pSelect, int32_t* nu
 
   SNode*  pNode;
   int32_t index = 0;
-  FOREACH(pNode, pSelect->pProjectionList) {
+  FOREACH(pNode, pProjections) {
     SExprNode* pExpr = (SExprNode*)pNode;
     (*pSchema)[index].type = pExpr->resType.type;
     (*pSchema)[index].bytes = pExpr->resType.bytes;
@@ -2867,7 +2948,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
 
   switch (nodeType(pRoot)) {
     case QUERY_NODE_SELECT_STMT:
-      return extractSelectResultSchema((SSelectStmt*)pRoot, numOfCols, pSchema);
+    case QUERY_NODE_SET_OPERATOR:
+      return extractQueryResultSchema(getProjectList(pRoot), numOfCols, pSchema);
     case QUERY_NODE_EXPLAIN_STMT:
       return extractExplainResultSchema(numOfCols, pSchema);
     case QUERY_NODE_DESCRIBE_STMT:
@@ -3490,6 +3572,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
     case QUERY_NODE_EXPLAIN_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->haveResultSet = true;
