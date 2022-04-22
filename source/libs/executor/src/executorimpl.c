@@ -3861,6 +3861,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
   }
 
   pRes->info.rows = numOfRows;
+  blockDataUpdateTsWindow(pRes);
 
   int64_t el = taosGetTimestampUs() - startTs;
 
