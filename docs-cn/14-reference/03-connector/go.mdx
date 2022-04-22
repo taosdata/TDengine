@@ -19,10 +19,10 @@ Go 连接器的源码托管在 github。项目名称：driver-go。欢迎 [贡�
 
 ## 版本支持
 
-|   分支    |                            功能                            | 建议 taosd 版本 |
-|:-------:|:--------------------------------------------------------:|:-----------:|
-| master  |          database/sql（cgo）、订阅、schemaless写入、stmt          | 2.2.0.0 及以上 |
-| develop | database/sql（cgo & restful）、订阅、schemaless写入、stmt、restful | 2.4.0.4及以上  |
+|   分支    |                      功能                       | 建议 taosd 版本 |
+|:-------:|:---------------------------------------------:|:-----------:|
+| master  |    database/sql（cgo）、订阅、schemaless写入、stmt     | 2.2.0.0 及以上 |
+| develop | database/sql（cgo & REST）、订阅、schemaless写入、stmt | 2.4.0.4及以上  |
 
 ## 支持的特性
 
@@ -37,9 +37,9 @@ Go 连接器的源码托管在 github。项目名称：driver-go。欢迎 [贡�
 
 `master` 分支建议只使用 `database/sql` 功能。
 
-### RESTful 连接
+### REST 连接
 
-RESTful 连接指连接器通过 taosAdapter 组件提供的 RESTful API 建立与 taosd 的连接。
+REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。
 
 `develop` 分支使用 `http client` 实现了 `database/sql` 接口。
 
@@ -48,8 +48,8 @@ RESTful 连接指连接器通过 taosAdapter 组件提供的 RESTful API 建立�
 ### 安装前的准备
 
 * taos本地的客户端
-* Go 1.14 以上
-* GCC 编译器
+* Go 1.14 及以上
+* GCC 4.8.5 及以上
 
 配置好环境变量，检查命令：
 
@@ -106,7 +106,7 @@ func main() {
 }
 ```
 
-### 建立 RESTful 连接
+### 建立 REST 连接
 
 _taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
 
@@ -146,7 +146,7 @@ func main() {
 
 ### 使用限制
 
-由于 RESTful 接口无状态所以 `use db` 语法不会生效，需要将 db 名称放到 SQL 语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
+由于 REST 接口无状态所以 `use db` 语法不会生效，需要将 db 名称放到 SQL 语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
 
 也可以将 db 名称放到 DSN 中，将 `root:taosdata@http(localhost:6041)/` 改为 `root:taosdata@http(localhost:6041)/test`，此方法在 TDengine 2.4.0.5 版本的 taosAdapter 开始支持。当指定的 db 不存在时执行 `create database` 语句不会报错，而执行针对该 db 的其他查询或写入操作会报错。
 
@@ -208,15 +208,15 @@ func main() {
 
 * database/sql 中 stmt 相关接口崩溃
 
-RESTful 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
+REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 * 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
 
-在 RESTful 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
 * 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
 
-因为 RESTful 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
 * 升级 `github.com/taosdata/driver-go/v2/taosRestful`
 
@@ -236,6 +236,8 @@ RESTful 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 ### 常用 API
 
+#### `database/sql`
+
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
 该 API 用来打开 DB，返回一个类型为 \*DB 的对象。
@@ -249,3 +251,89 @@ RESTful 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 * `func (db *DB) Query(query string, args ...interface{}) (*Rows, error)`
 
 `sql.Open` 内置的方法，用来执行查询语句。
+
+#### 高级功能
+
+af 包封装了订阅、stmt 等 TDengine 高级功能。
+
+* `af.Open(host, user, pass, db string, port int) (*Connector, error)`
+
+该 API 通过 cgo 创建与 taosd 的连接。
+
+* `func (conn *Connector) Close() error`
+
+关闭与 taosd 的连接。
+
+* `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
+
+stmt 单行插入。
+
+* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
+
+stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
+
+##### 订阅
+
+* `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
+
+订阅数据。
+
+* `func (s *taosSubscriber) Consume() (driver.Rows, error)`
+
+消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
+
+* `func (s *taosSubscriber) Unsubscribe(keepProgress bool)`
+
+取消订阅数据。
+
+##### schemaless 写入
+
+* `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
+
+写入 influxDB 行协议。
+
+* `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
+
+写入 OpenTDSB telnet 协议。
+
+* `func (conn *Connector) OpenTSDBInsertJsonPayload(payload string) error`
+
+写入 OpenTSDB json 协议。
+
+##### 批量 stmt 插入
+
+* `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
+
+初始化 stmt。
+
+* `func (stmt *InsertStmt) Prepare(sql string) error`
+
+预处理 sql 语句。
+
+* `func (stmt *InsertStmt) SetTableName(name string) error`
+
+设置表名。
+
+* `func (stmt *InsertStmt) SetSubTableName(name string) error`
+
+设置子表名。
+
+* `func (stmt *InsertStmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
+
+绑定多行数据。
+
+* `func (stmt *InsertStmt) AddBatch() error`
+
+添加到批处理。
+
+* `func (stmt *InsertStmt) Execute() error`
+
+执行 stmt。
+
+* `func (stmt *InsertStmt) GetAffectedRows() int`
+
+获取受影响行数。
+
+* `func (stmt *InsertStmt) Close() error`
+
+结束 stmt。
