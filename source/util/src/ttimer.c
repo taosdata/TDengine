@@ -110,7 +110,7 @@ typedef struct time_wheel_t {
   tmr_obj_t**     slots;
 } time_wheel_t;
 
-int32_t tsMaxTmrCtrl = 512;
+static int32_t tsMaxTmrCtrl = 512;
 
 static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tmrCtrlMutex;

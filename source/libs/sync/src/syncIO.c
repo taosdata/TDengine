@@ -164,7 +164,6 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
   taosBlockSIGPIPE();
 
   rpcInit();
-  tsRpcForceTcp = 1;
 
   // cient rpc init
   {

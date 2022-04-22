@@ -59,7 +59,7 @@ void shellPrintHelp() {
   printf("%s%s%s\n", indent, indent, "Print program version.");
 }
 
-void shellParseArgsInWindows(int argc, char *argv[]) {
+void shellParseArgsWithoutArgp(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
@@ -97,7 +97,7 @@ void shellParseArgsInWindows(int argc, char *argv[]) {
       if (i < argc - 1) {
         arguments->cfgdir = argv[++i];
       } else {
-        fprintf(stderr, "Option -c requires an argument\n");
+        fprintf(stderr, "option -c requires an argument\n");
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-C") == 0) {
@@ -186,10 +186,10 @@ static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, "TDengine server FQDN to connect. The default host is localhost."},
     {"port", 'P', "PORT", 0, "The TCP/IP port number to use for the connection."},
     {"user", 'u', "USER", 0, "The user name to use when connecting to the server."},
-    {"password", 'p', "PASSWORD", 0, "The password to use when connecting to the server."},
+    {"password", 'p', 0, 0, "The password to use when connecting to the server."},
     {"auth", 'a', "AUTH", 0, "The auth string to use when connecting to the server."},
     {"generate-auth", 'A', 0, 0, "Generate auth string from password."},
-    {"config-dir", 'c', "CONFIG_DIR", 0, "Configuration directory."},
+    {"config-dir", 'c', "DIR", 0, "Configuration directory."},
     {"dump-config", 'C', 0, 0, "Dump configuration."},
     {"commands", 's', "COMMANDS", 0, "Commands to run without enter the shell."},
     {"raw-time", 'r', 0, 0, "Output time as uint64_t."},
@@ -197,13 +197,11 @@ static struct argp_option shellOptions[] = {
     {"database", 'd', "DATABASE", 0, "Database to use when connecting to the server."},
     {"check", 'k', 0, 0, "Check the service status."},
     {"startup", 't', 0, 0, "Check the details of the service status."},
-    {"display-width", 'w', 0, 0, "Set the default binary display width."},
+    {"display-width", 'w', "WIDTH", 0, "Set the default binary display width."},
     {"netrole", 'n', "NETROLE", 0, "Net role when network connectivity test, options: client|server."},
     {"pktlen", 'l', "PKTLEN", 0, "Packet length used for net test, default is 1000 bytes."},
     {"pktnum", 'N', "PKTNUM", 0, "Packet numbers used for net test, default is 100."},
-    {"version", 'V', 0, 0, "Print client version number."},
-    {0},
-};
+    {0}};
 
 static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) {
   SShellArgs *arguments = &shell.args;
@@ -276,7 +274,7 @@ static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) {
 
 static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
 
-static void shellParseArgsInLinux(int argc, char *argv[]) {
+static void shellParseArgsUseArgp(int argc, char *argv[]) {
   argp_program_version = shell.info.programVersion;
   argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
 }
@@ -313,7 +311,74 @@ static void shellInitArgs(int argc, char *argv[]) {
   shell.args.user = TSDB_DEFAULT_USER;
 }
 
-static int32_t shellCheckArgs() { return 0; }
+static int32_t shellCheckArgs() {
+  SShellArgs *pArgs = &shell.args;
+  if (pArgs->host != NULL && (strlen(pArgs->host) <= 0 || strlen(pArgs->host) > TSDB_FQDN_LEN)) {
+    printf("Invalid host:%s\n", pArgs->host);
+    return -1;
+  }
+
+  if (pArgs->user != NULL && (strlen(pArgs->user) <= 0 || strlen(pArgs->user) > TSDB_USER_LEN)) {
+    printf("Invalid user:%s\n", pArgs->user);
+    return -1;
+  }
+
+  if (pArgs->auth != NULL && (strlen(pArgs->auth) <= 0 || strlen(pArgs->auth) > TSDB_PASSWORD_LEN)) {
+    printf("Invalid auth:%s\n", pArgs->auth);
+    return -1;
+  }
+
+  if (pArgs->database != NULL && (strlen(pArgs->database) <= 0 || strlen(pArgs->database) > TSDB_DB_NAME_LEN)) {
+    printf("Invalid database:%s\n", pArgs->database);
+    return -1;
+  }
+
+  if (pArgs->file != NULL && (strlen(pArgs->file) <= 0)) {
+    printf("Invalid file:%s\n", pArgs->file);
+    return -1;
+  }
+
+  if (pArgs->cfgdir != NULL) {
+    if (strlen(pArgs->cfgdir) <= 0 || strlen(pArgs->cfgdir) >= PATH_MAX) {
+      printf("Invalid cfgdir:%s\n", pArgs->cfgdir);
+      return -1;
+    } else {
+      tstrncpy(configDir, pArgs->cfgdir, PATH_MAX);
+    }
+  }
+
+  if (pArgs->commands != NULL && (strlen(pArgs->commands) <= 0)) {
+    printf("Invalid commands:%s\n", pArgs->commands);
+    return -1;
+  }
+
+  if (pArgs->netrole != NULL && !(strcmp(pArgs->netrole, "client") == 0 || strcmp(pArgs->netrole, "server") == 0)) {
+    printf("Invalid netrole:%s\n", pArgs->netrole);
+    return -1;
+  }
+
+  if (pArgs->password != NULL && (strlen(pArgs->password) <= 0)) {
+    printf("Invalid password\n");
+    return -1;
+  }
+
+  if (pArgs->pktLen <= 0 || pArgs->pktLen > 20 * 1024 * 1024) {
+    printf("Invalid pktLen:%d, range:[1, 20 * 1024 * 1024]\n", pArgs->pktLen);
+    return -1;
+  }
+
+  if (pArgs->pktNum <= 0 || pArgs->pktNum > 1024 * 1024) {
+    printf("Invalid pktNum:%d, range:[1, 1024 * 1024]\n", pArgs->pktNum);
+    return -1;
+  }
+
+  if (pArgs->displayWidth <= 0 || pArgs->displayWidth > 10 * 1024) {
+    printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\n", pArgs->displayWidth);
+    return -1;
+  }
+
+  return 0;
+}
 
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
@@ -323,20 +388,20 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.promptHeader = "taos> ";
   shell.info.promptContinue = "   -> ";
   shell.info.promptSize = 6;
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s\n", version);
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
-  shellParseArgsInLinuxAndDarwin();
+  shellParseArgsWithoutArgp();
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
-  shellParseArgsInLinuxAndDarwin();
+  shellParseArgsWithoutArgp();
 #else
   shell.info.osname = "Linux";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
-  shellParseArgsInLinux(argc, argv);
+  shellParseArgsUseArgp(argc, argv);
 #endif
 
   if (shell.args.abort) {

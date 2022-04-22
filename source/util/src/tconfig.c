@@ -524,6 +524,8 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItem = taosArrayGet(pCfg->array, i);
     if (tsc && !pItem->tsc) continue;
+    if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
+    if (dump && strcmp(pItem->name, "simDebugFlag") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t i = 0; i < CFG_SRC_PRINT_LEN; ++i) {
       if (src[i] == 0) src[i] = ' ';
@@ -562,10 +564,10 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         break;
       case CFG_DTYPE_FLOAT:
         if (dump) {
-          printf("%s %s %f", src, name, pItem->fval);
+          printf("%s %s %.2f", src, name, pItem->fval);
           printf("\n");
         } else {
-          uInfo("%s %s %f", src, name, pItem->fval);
+          uInfo("%s %s %.2f", src, name, pItem->fval);
         }
         break;
       case CFG_DTYPE_STRING:

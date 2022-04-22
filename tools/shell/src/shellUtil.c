@@ -70,15 +70,21 @@ int32_t shellCheckIntSize() {
 
 void shellPrintVersion() { printf("version: %s\n", version); }
 
-void shellGenerateAuth() {}
+void shellGenerateAuth() {
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)shell.args.password, strlen(shell.args.password), secretEncrypt);
+  printf("%s\n", secretEncrypt);
+  fflush(stdout);
+}
 
 void shellDumpConfig() {
   SConfig *pCfg = taosGetCfg();
   if (pCfg == NULL) {
     printf("TDengine read global config failed!\n");
   } else {
-    cfgDumpCfg(pCfg, 1, 1);
+    cfgDumpCfg(pCfg, 1, true);
   }
+  fflush(stdout);
 }
 
 void shellCheckServerStatus() {
@@ -107,6 +113,7 @@ void shellCheckServerStatus() {
     if (strlen(details) != 0) {
       printf("%s\n\n", details);
     }
+    fflush(stdout);
     if (code == TSDB_SRV_STATUS_NETWORK_OK && shell.args.is_startup) {
       taosMsleep(1000);
     } else {

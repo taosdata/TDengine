@@ -56,8 +56,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shell.args.netrole != NULL &&
-      (strcmp(shell.args.netrole, "client") == 0 || strcmp(shell.args.netrole, "server")) == 0) {
+  if (shell.args.netrole != NULL) {
     shellTestNetWork();
     taos_cleanup();
     return 0;
