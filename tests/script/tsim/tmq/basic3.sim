@@ -10,11 +10,11 @@
 # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 #
 
-run tsim/tmq/prepareBasicEnv-1vgrp.sim
+run tsim/tmq/prepareBasicEnv-4vgrp.sim
 
 #---- global parameters start ----#
 $dbName    = db
-$vgroups    = 1
+$vgroups    = 4
 $stbPrefix  = stb
 $ctbPrefix  = ctb
 $ntbPrefix  = ntb
