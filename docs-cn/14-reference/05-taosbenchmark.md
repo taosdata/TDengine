@@ -12,7 +12,7 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 taosBenchmark 有两种安装方式:
 
-  - 安装 TDengine 的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](#https://docs.taosdata.com/get-started/)。
+  - 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](#/get-started)。
 
   - 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](#https://github.com/taosdata/taos-tools) 仓库
 
@@ -34,7 +34,7 @@ taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDen
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建一个数据库，一张超级表，超级表下创建 10000 张表，每张表中写入 10000 条记录。
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建一个名为 test 的数据库，test 数据库下创建名为 meters 的一张超级表，超级表下创建 10000 张表，每张表中写入 10000 条记录。注意，如果已有 test 数据库，这个命令会先删除该数据库后建立一个全新的 test 数据库。
 
 ### 使用命令行配置参数运行
 
@@ -44,7 +44,7 @@ taosBenchmark
 taosBenchmark -I stmt -n 200 -t 100
 ```
 
-上面的命令 `taosBenchmark 将创建一个数据库，一张超级表，建立 100 张子表并使用参数绑定的方式每张表插入 200 条记录`
+上面的命令 `taosBenchmark` 将创建一个数据库，一张超级表，建立 100 张子表并使用参数绑定的方式每张表插入 200 条记录
 
 ### 使用配置文件运行
 
@@ -429,7 +429,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **batch_create_tbl_num** : 创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
-- **data_source** : 数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"，为 "sample" 时使用 sample_file 参数指定的文件内的数据。
+- **data_source** : 数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
 - **insert_mode** : 插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
 
