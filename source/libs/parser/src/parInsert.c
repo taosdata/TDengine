@@ -1326,7 +1326,6 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, int32
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
     
-    // 1. set the parsed value from sql string
     for (int c = 0; c < spd->numOfBound; ++c) {
       SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
 
