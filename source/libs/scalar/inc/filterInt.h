@@ -215,8 +215,10 @@ typedef struct SFilterPCtx {
 } SFilterPCtx;
 
 typedef struct SFltTreeStat {
-  int32_t code;
-  bool    scalarMode;
+  int32_t      code;
+  int8_t       precision;
+  bool         scalarMode;
+  SFilterInfo* info;
 } SFltTreeStat;
 
 typedef struct SFltScalarCtx {
