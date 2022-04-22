@@ -228,6 +228,10 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
 
+* `go get` 命令无法获取包，或者获取包超时
+
+设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
+
 ## API
 
 全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
