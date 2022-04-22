@@ -23,7 +23,6 @@ static int metaCreateChildTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
 static int metaUpdateTtlIdx(SMeta *pMeta, int64_t dtime, tb_uid_t uid);
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
-  SSkmDbKey   skmDbKey = {0};
   SMetaEntry  me = {0};
   int         kLen = 0;
   int         vLen = 0;
@@ -42,14 +41,8 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.type = TSDB_SUPER_TABLE;
   me.uid = pReq->suid;
   me.name = pReq->name;
-  me.stbEntry.nCols = pReq->nCols;
-  me.stbEntry.sver = pReq->sver;
-  me.stbEntry.pSchema = pReq->pSchema;
-  me.stbEntry.nTags = pReq->nTags;
-  me.stbEntry.pSchemaTg = pReq->pSchemaTg;
-
-  skmDbKey.uid = pReq->suid;
-  skmDbKey.sver = 0;  // (TODO)
+  me.stbEntry.schema = pReq->schema;
+  me.stbEntry.schemaTag = pReq->schemaTag;
 
   // save to table.db
   if (metaSaveToTbDb(pMeta, version, &me) < 0) goto _err;
@@ -108,9 +101,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
-    me.ntbEntry.nCols = pReq->ntb.nCols;
-    me.ntbEntry.sver = pReq->ntb.sver;
-    me.ntbEntry.pSchema = pReq->ntb.pSchema;
+    me.ntbEntry.schema = pReq->ntb.schema;
   }
 
   // save table

@@ -3158,7 +3158,7 @@ typedef struct SVgroupTablesBatch {
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ntb.pSchema);
+  taosMemoryFreeClear(pReq->ntb.schema.pSchema);
 }
 
 static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
@@ -3196,17 +3196,17 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
-  req.ntb.nCols = LIST_LENGTH(pStmt->pCols);
-  req.ntb.sver = 0;
-  req.ntb.pSchema = taosMemoryCalloc(req.ntb.nCols, sizeof(SSchema));
-  if (NULL == req.name || NULL == req.ntb.pSchema) {
+  req.ntb.schema.nCols = LIST_LENGTH(pStmt->pCols);
+  req.ntb.schema.sver = 0;
+  req.ntb.schema.pSchema = taosMemoryCalloc(req.ntb.schema.nCols, sizeof(SSchema));
+  if (NULL == req.name || NULL == req.ntb.schema.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SNode*   pCol;
   col_id_t index = 0;
   FOREACH(pCol, pStmt->pCols) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.pSchema + index);
+    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schema.pSchema + index);
     ++index;
   }
   if (TSDB_CODE_SUCCESS != buildSmaParam(pStmt->pOptions, &req)) {
@@ -3264,7 +3264,7 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
     taosMemoryFreeClear(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
-      taosMemoryFreeClear(pTableReq->ntb.pSchema);
+      taosMemoryFreeClear(pTableReq->ntb.schema.pSchema);
     } else if (pTableReq->type == TSDB_CHILD_TABLE) {
       taosMemoryFreeClear(pTableReq->ctb.pTag);
     }

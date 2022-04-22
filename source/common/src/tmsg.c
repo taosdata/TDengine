@@ -3522,15 +3522,8 @@ int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->rollup) < 0) return -1;
-  if (tEncodeI16v(pCoder, pReq->nCols) < 0) return -1;
-  if (tEncodeI16v(pCoder, pReq->sver) < 0) return -1;
-  for (int iCol = 0; iCol < pReq->nCols; iCol++) {
-    if (tEncodeSSchema(pCoder, pReq->pSchema + iCol) < 0) return -1;
-  }
-  if (tEncodeI16v(pCoder, pReq->nTags) < 0) return -1;
-  for (int iTag = 0; iTag < pReq->nTags; iTag++) {
-    if (tEncodeSSchema(pCoder, pReq->pSchemaTg + iTag) < 0) return -1;
-  }
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   // if (pReq->rollup) {
   //   if (tEncodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
   // }
@@ -3545,22 +3538,8 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
-
-  if (tDecodeI16v(pCoder, &pReq->nCols) < 0) return -1;
-  if (tDecodeI16v(pCoder, &pReq->sver) < 0) return -1;
-  pReq->pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->nCols);
-  if (pReq->pSchema == NULL) return -1;
-  for (int iCol = 0; iCol < pReq->nCols; iCol++) {
-    if (tDecodeSSchema(pCoder, pReq->pSchema + iCol) < 0) return -1;
-  }
-
-  if (tDecodeI16v(pCoder, &pReq->nTags) < 0) return -1;
-  pReq->pSchemaTg = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->nTags);
-  if (pReq->pSchemaTg == NULL) return -1;
-  pReq->pSchemaTg = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pReq->nTags);
-  for (int iTag = 0; iTag < pReq->nTags; iTag++) {
-    if (tDecodeSSchema(pCoder, pReq->pSchemaTg + iTag) < 0) return -1;
-  }
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   // if (pReq->rollup) {
   //   if (tDecodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
   // }
@@ -3607,12 +3586,7 @@ int tEncodeSVCreateTbReq(SCoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
     if (tEncodeBinary(pCoder, pReq->ctb.pTag, kvRowLen(pReq->ctb.pTag)) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
-    if (tEncodeI16v(pCoder, pReq->ntb.nCols) < 0) return -1;
-    if (tEncodeI16v(pCoder, pReq->ntb.sver) < 0) return -1;
-    for (int iCol = 0; iCol < pReq->ntb.nCols; iCol++) {
-      if (tEncodeSSchema(pCoder, pReq->ntb.pSchema + iCol) < 0) return -1;
-    }
-
+    if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schema) < 0) return -1;
   } else {
     ASSERT(0);
   }
@@ -3635,13 +3609,7 @@ int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
     if (tDecodeBinary(pCoder, &pReq->ctb.pTag, NULL) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
-    if (tDecodeI16v(pCoder, &pReq->ntb.nCols) < 0) return -1;
-    if (tDecodeI16v(pCoder, &pReq->ntb.sver) < 0) return -1;
-    pReq->ntb.pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pReq->ntb.nCols);
-    if (pReq->ntb.pSchema == NULL) return -1;
-    for (int iCol = 0; iCol < pReq->ntb.nCols; iCol++) {
-      if (tDecodeSSchema(pCoder, pReq->ntb.pSchema + iCol) < 0) return -1;
-    }
+    if (tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schema) < 0) return -1;
   } else {
     ASSERT(0);
   }

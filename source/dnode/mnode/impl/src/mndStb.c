@@ -407,15 +407,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
   req.rollup = pStb->aggregationMethod > -1 ? 1 : 0;
-  req.nCols = pStb->numOfColumns;
-  req.sver = 0;  // TODO
-  req.pSchema = pStb->pColumns;
-  req.nTags = pStb->numOfTags;
-  req.pSchemaTg = pStb->pTags;
+  req.schema.nCols = pStb->numOfColumns;
+  req.schema.sver = 0;
+  req.schema.pSchema = pStb->pColumns;
+  req.schemaTag.nCols = pStb->numOfTags;
+  req.schemaTag.pSchema = pStb->pTags;
 
   // TODO: remove here
-  for (int iCol = 0; iCol < req.nCols; iCol++) {
-    req.pSchema[iCol].flags = SCHEMA_SMA_ON;
+  for (int iCol = 0; iCol < req.schema.nCols; iCol++) {
+    req.schema.pSchema[iCol].flags = SCHEMA_SMA_ON;
   }
 
   if (req.rollup) {

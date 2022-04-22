@@ -23,16 +23,8 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   if (tEncodeCStr(pCoder, pME->name) < 0) return -1;
 
   if (pME->type == TSDB_SUPER_TABLE) {
-    if (tEncodeI16v(pCoder, pME->stbEntry.nCols) < 0) return -1;
-    if (tEncodeI16v(pCoder, pME->stbEntry.sver) < 0) return -1;
-    for (int iCol = 0; iCol < pME->stbEntry.nCols; iCol++) {
-      if (tEncodeSSchema(pCoder, pME->stbEntry.pSchema + iCol) < 0) return -1;
-    }
-
-    if (tEncodeI16v(pCoder, pME->stbEntry.nTags) < 0) return -1;
-    for (int iTag = 0; iTag < pME->stbEntry.nTags; iTag++) {
-      if (tEncodeSSchema(pCoder, pME->stbEntry.pSchemaTg + iTag) < 0) return -1;
-    }
+    if (tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schema) < 0) return -1;
+    if (tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaTag) < 0) return -1;
   } else if (pME->type == TSDB_CHILD_TABLE) {
     if (tEncodeI64(pCoder, pME->ctbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ctbEntry.ttlDays) < 0) return -1;
@@ -41,11 +33,7 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
-    if (tEncodeI16v(pCoder, pME->ntbEntry.nCols) < 0) return -1;
-    if (tEncodeI16v(pCoder, pME->ntbEntry.sver) < 0) return -1;
-    for (int iCol = 0; iCol < pME->ntbEntry.nCols; iCol++) {
-      if (tEncodeSSchema(pCoder, pME->ntbEntry.pSchema + iCol) < 0) return -1;
-    }
+    if (tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
   } else {
     ASSERT(0);
   }
@@ -62,26 +50,8 @@ int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
   if (tDecodeCStr(pCoder, &pME->name) < 0) return -1;
 
   if (pME->type == TSDB_SUPER_TABLE) {
-    if (tDecodeI16v(pCoder, &pME->stbEntry.nCols) < 0) return -1;
-    if (tDecodeI16v(pCoder, &pME->stbEntry.sver) < 0) return -1;
-    pME->stbEntry.pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pME->stbEntry.nCols);
-    if (pME->stbEntry.pSchema == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-    for (int iCol = 0; iCol < pME->stbEntry.nCols; iCol++) {
-      if (tDecodeSSchema(pCoder, pME->stbEntry.pSchema + iCol) < 0) return -1;
-    }
-
-    if (tDecodeI16v(pCoder, &pME->stbEntry.nTags) < 0) return -1;
-    pME->stbEntry.pSchemaTg = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pME->stbEntry.nTags);
-    if (pME->stbEntry.pSchemaTg == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-    for (int iTag = 0; iTag < pME->stbEntry.nTags; iTag++) {
-      if (tDecodeSSchema(pCoder, pME->stbEntry.pSchemaTg + iTag) < 0) return -1;
-    }
+    if (tDecodeSSchemaWrapper(pCoder, &pME->stbEntry.schema) < 0) return -1;
+    if (tDecodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaTag) < 0) return -1;
   } else if (pME->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pME->ctbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ctbEntry.ttlDays) < 0) return -1;
@@ -90,16 +60,7 @@ int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;
-    if (tDecodeI16v(pCoder, &pME->ntbEntry.nCols) < 0) return -1;
-    if (tDecodeI16v(pCoder, &pME->ntbEntry.sver) < 0) return -1;
-    pME->ntbEntry.pSchema = (SSchema *)TCODER_MALLOC(pCoder, sizeof(SSchema) * pME->ntbEntry.nCols);
-    if (pME->ntbEntry.pSchema == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-    for (int iCol = 0; iCol < pME->ntbEntry.nCols; iCol++) {
-      if (tEncodeSSchema(pCoder, pME->ntbEntry.pSchema + iCol) < 0) return -1;
-    }
+    if (tDecodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
   } else {
     ASSERT(0);
   }

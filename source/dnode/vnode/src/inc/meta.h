@@ -140,11 +140,8 @@ struct SMetaEntry {
   const char* name;
   union {
     struct {
-      int16_t  nCols;
-      int16_t  sver;
-      SSchema* pSchema;
-      int16_t  nTags;
-      SSchema* pSchemaTg;
+      SSchemaWrapper schema;
+      SSchemaWrapper schemaTag;
     } stbEntry;
     struct {
       int64_t     ctime;
@@ -153,11 +150,9 @@ struct SMetaEntry {
       const void* pTags;
     } ctbEntry;
     struct {
-      int64_t  ctime;
-      int32_t  ttlDays;
-      int16_t  nCols;
-      int16_t  sver;
-      SSchema* pSchema;
+      int64_t        ctime;
+      int32_t        ttlDays;
+      SSchemaWrapper schema;
     } ntbEntry;
   };
 };

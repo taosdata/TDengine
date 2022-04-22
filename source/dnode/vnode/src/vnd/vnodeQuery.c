@@ -65,35 +65,35 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   metaRsp.tuid = meReader1.me.uid;
   if (meReader1.me.type == TSDB_SUPER_TABLE) {
     strcpy(metaRsp.stbName, meReader1.me.name);
-    metaRsp.numOfTags = meReader1.me.stbEntry.nTags;
-    metaRsp.numOfColumns = meReader1.me.stbEntry.nCols;
+    metaRsp.numOfTags = meReader1.me.stbEntry.schemaTag.nCols;
+    metaRsp.numOfColumns = meReader1.me.stbEntry.schema.nCols;
     metaRsp.suid = meReader1.me.uid;
     metaRsp.pSchemas = taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
     if (metaRsp.pSchemas == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    memcpy(metaRsp.pSchemas, meReader1.me.stbEntry.pSchema, sizeof(SSchema) * metaRsp.numOfColumns);
-    memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, meReader1.me.stbEntry.pSchemaTg,
+    memcpy(metaRsp.pSchemas, meReader1.me.stbEntry.schema.pSchema, sizeof(SSchema) * metaRsp.numOfColumns);
+    memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, meReader1.me.stbEntry.schemaTag.pSchema,
            sizeof(SSchema) * metaRsp.numOfTags);
   } else if (meReader1.me.type == TSDB_CHILD_TABLE) {
     strcpy(metaRsp.stbName, meReader2.me.name);
-    metaRsp.numOfTags = meReader2.me.stbEntry.nTags;
-    metaRsp.numOfColumns = meReader2.me.stbEntry.nCols;
+    metaRsp.numOfTags = meReader2.me.stbEntry.schemaTag.nCols;
+    metaRsp.numOfColumns = meReader2.me.stbEntry.schema.nCols;
     metaRsp.suid = meReader2.me.uid;
     metaRsp.pSchemas = taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
     if (metaRsp.pSchemas == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    memcpy(metaRsp.pSchemas, meReader2.me.stbEntry.pSchema, sizeof(SSchema) * metaRsp.numOfColumns);
-    memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, meReader2.me.stbEntry.pSchemaTg,
+    memcpy(metaRsp.pSchemas, meReader2.me.stbEntry.schema.pSchema, sizeof(SSchema) * metaRsp.numOfColumns);
+    memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, meReader2.me.stbEntry.schemaTag.pSchema,
            sizeof(SSchema) * metaRsp.numOfTags);
   } else if (meReader1.me.type == TSDB_NORMAL_TABLE) {
     metaRsp.numOfTags = 0;
-    metaRsp.numOfColumns = meReader1.me.ntbEntry.nCols;
+    metaRsp.numOfColumns = meReader1.me.ntbEntry.schema.nCols;
     metaRsp.suid = 0;
-    metaRsp.pSchemas = meReader1.me.ntbEntry.pSchema;
+    metaRsp.pSchemas = meReader1.me.ntbEntry.schema.pSchema;
   } else {
     ASSERT(0);
   }
