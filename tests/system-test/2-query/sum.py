@@ -9,16 +9,48 @@ from util.cases import *
 from util.dnodes import *
 
 
+INT_COL     = "c1"
+BINT_COL    = "c2"
+SINT_COL    = "c3"
+TINT_COL    = "c4"
+FLOAT_COL   = "c5"
+DOUBLE_COL  = "c6"
+BOOL_COL    = "c7"
+
+BINARY_COL  = "c8"
+NCHAR_COL   = "c9"
+TS_COL      = "c10"
+
+NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL]
+UN_NUM_COL = [BINARY_COL, NCHAR_COL, TS_COL]
 
 class TDTestCase:
+
+
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __sum_checkdata(self, row, col,data):
+    def __sum_current_check(self, row, col,data):
         pass
 
+    def __sum_err_check(self,tbanme):
+        sqls = []
+
+        for un_num_col in UN_NUM_COL:
+            sqls.append( f"select sum( {un_num_col} ) from {tbanme} " )
+            sqls.extend( f"select sum( {un_num_col} + {num_col} ) from {tbanme} " for num_col in NUM_COL )
+            sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
+
+        return sqls
+
+    def __test_error(self):
+        tbname = ["ct1", "ct2", "ct4", "t1"]
+
+        for tb in tbname:
+            for errsql in self.__sum_err_check(tb):
+                tdSql.error(sql=errsql)
 
 
     def all_test(self):
@@ -30,15 +62,20 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step1:create table")
         tdSql.execute(
-            '''create table stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            f'''create table stb1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp)
             tags (t1 int)
             '''
         )
         tdSql.execute(
             '''
-            create table t1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            create table t1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            )
             '''
         )
         for i in range(4):
@@ -52,22 +89,47 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
-        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
-        tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+            tdSql.execute(
+                f"insert into ct2 values ( now()-{i*90}d, {-1*i}, {-11111*i}, {-111*i}, {-11*i}, {-1.11*i}, {-11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(
+            '''insert into ct1 values
+            ( now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )
+            ( now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )
+            '''
+        )
 
-        tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into ct4 values (now()+{rows * 9}d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
-        tdSql.execute(f'''insert into ct4 values
-                      (now()+{rows * 9-10}d, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
-                      { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nachar_limit-1", now()-1d  )
-                      ''')
+        tdSql.execute(
+            f'''insert into ct4 values
+            ( now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( now()+{rows * 9}d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                now()+{rows * 9-10}d, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nachar_limit-1", now()-1d
+                )
+            (
+                now()+{rows * 9-20}d, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nachar_limit-2", now()-2d
+                )
+            '''
+        )
 
-        tdSql.execute(f'''insert into ct4 values
-                      (now()+{rows * 9-20}d, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
-                      { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
-                      "binary_limit-2", "nachar_limit-2", now()-2d )
-                      ''')
+        tdSql.execute(
+            f'''insert into ct2 values
+            ( now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( now()+{rows * 9}d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                now()+{rows * 9-10}d, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
+                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nachar_limit-1", now()-1d
+                )
+            (
+                now()+{rows * 9-20}d, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
+                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nachar_limit-2", now()-2d
+                )
+            '''
+        )
 
         for i in range(rows):
             tdSql.execute(
@@ -79,13 +141,14 @@ class TDTestCase:
         tdSql.execute(
             f'''insert into t1 values
             ( now() + 3h, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( now()-{ ( rows // 2 ) * 60 + 30 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( now()-{ ( rows // 2 ) * 60 + 30 }m, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( now()-{rows}h, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( now() + 2h, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
+            ( now() + 2h, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
                 { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
                 "binary_limit-1", "nachar_limit-1", now()-1d
                 )
-            (now() + 1h , {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
+            (
+                now() + 1h , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
                 { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
                 "binary_limit-2", "nachar_limit-2", now()-2d
                 )
@@ -100,7 +163,7 @@ class TDTestCase:
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self.__insert_data()
+        self.__insert_data(1000)
 
 
         self.all_test()
