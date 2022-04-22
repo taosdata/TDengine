@@ -35,7 +35,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj
 static int32_t mndProcessCreateTopicReq(SNodeMsg *pReq);
 static int32_t mndProcessDropTopicReq(SNodeMsg *pReq);
 static int32_t mndProcessDropTopicInRsp(SNodeMsg *pRsp);
-static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTopic(SMnode *pMnode) {
@@ -51,7 +51,7 @@ int32_t mndInitTopic(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndProcessDropTopicInRsp);
 
-  //  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
 
   return sdbSetTable(pMnode->pSdb, table);
@@ -511,56 +511,40 @@ static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTo
   return 0;
 }
 
-static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
   SMnode      *pMnode = pReq->pNode;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   SMqTopicObj *pTopic = NULL;
-  int32_t      cols = 0;
-  char        *pWrite;
-  char         prefix[TSDB_DB_FNAME_LEN] = {0};
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
-  if (pDb == NULL) return 0;
-
-  tstrncpy(prefix, pShow->db, TSDB_DB_FNAME_LEN);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = (int32_t)strlen(prefix);
-
-  while (numOfRows < rows) {
+  while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_TOPIC, pShow->pIter, (void **)&pTopic);
     if (pShow->pIter == NULL) break;
 
-    if (pTopic->dbUid != pDb->uid) {
-      if (strncmp(pTopic->name, prefix, prefixLen) != 0) {
-        mError("Inconsistent topic data, name:%s, db:%s, dbUid:%" PRIu64, pTopic->name, pDb->name, pDb->uid);
-      }
+    int32_t cols = 0;
 
-      sdbRelease(pSdb, pTopic);
-      continue;
-    }
+    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tstrncpy(&topicName[VARSTR_HEADER_SIZE], pTopic->name, TSDB_TOPIC_NAME_LEN);
+    varDataSetLen(topicName, strlen(&topicName[VARSTR_HEADER_SIZE]));
 
-    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
 
-    char topicName[TSDB_TOPIC_NAME_LEN] = {0};
-    tstrncpy(topicName, pTopic->name + prefixLen, TSDB_TOPIC_NAME_LEN);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, topicName);
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pTopic->createTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char *sql = taosMemoryCalloc(1, strlen(pTopic->sql) + 1 + VARSTR_HEADER_SIZE);
+    strcpy(&sql[VARSTR_HEADER_SIZE], pTopic->sql);
+    varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
+    colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTopic->sql, pShow->bytes[cols]);
-    cols++;
+    taosMemoryFree(sql);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);
   }
 
-  mndReleaseDb(pMnode, pDb);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
