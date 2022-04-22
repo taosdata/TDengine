@@ -18,8 +18,10 @@
 
 #include "executor.h"
 #include "os.h"
+#include "tcache.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"
 
@@ -142,26 +144,37 @@ typedef struct {
 } STqMetaStore;
 
 typedef struct {
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t consumerId;
-  int32_t epoch;
-  int8_t  subType;
-  int8_t  withTbName;
-  int8_t  withSchema;
-  int8_t  withTag;
-  int8_t  withTagSchema;
-  char*   qmsg;
+  int64_t  consumerId;
+  int32_t  epoch;
+  int32_t  skipLogNum;
+  int64_t  reqOffset;
+  SRWLatch lock;
+  SRpcMsg* handle;
+} STqPushHandle;
+
+typedef struct {
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        subType;
+  int8_t        withTbName;
+  int8_t        withSchema;
+  int8_t        withTag;
+  int8_t        withTagSchema;
+  char*         qmsg;
+  STqPushHandle pushHandle;
   // SRWLatch        lock;
   SWalReadHandle* pWalReader;
-  // number should be identical to fetch thread num
-  STqReadHandle* pStreamReader[4];
-  qTaskInfo_t    task[4];
+  // task number should be the same with fetch thread
+  STqReadHandle* pExecReader[5];
+  qTaskInfo_t    task[5];
 } STqExec;
 
 struct STQ {
   char* path;
   // STqMetaStore* tqMeta;
-  SHashObj* execs;  // subKey -> tqExec
+  SHashObj* pushMgr;  // consumerId -> STqExec*
+  SHashObj* execs;    // subKey -> STqExec
   SHashObj* pStreamTasks;
   SVnode*   pVnode;
   SWal*     pWal;

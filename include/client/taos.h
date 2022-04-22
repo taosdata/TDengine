@@ -245,6 +245,8 @@ typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *));
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
 DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
+DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
+DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
 
 #if 0
 DLL_EXPORT tmq_t *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);

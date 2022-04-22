@@ -19,16 +19,16 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define CACHE_MAX_CAPACITY 1024*1024*16
-#define CACHE_DEFAULT_CAPACITY 1024*4
+#define CACHE_MAX_CAPACITY     1024 * 1024 * 16
+#define CACHE_DEFAULT_CAPACITY 1024 * 4
 
-static TdThread       cacheRefreshWorker = {0};
+static TdThread      cacheRefreshWorker = {0};
 static TdThreadOnce  cacheThreadInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex guard = PTHREAD_MUTEX_INITIALIZER;
-static SArray         *pCacheArrayList = NULL;
-static bool            stopRefreshWorker = false;
-static bool            refreshWorkerNormalStopped = false;
-static bool            refreshWorkerUnexpectedStopped = false;
+static SArray       *pCacheArrayList = NULL;
+static bool          stopRefreshWorker = false;
+static bool          refreshWorkerNormalStopped = false;
+static bool          refreshWorkerUnexpectedStopped = false;
 
 typedef struct SCacheNode {
   uint64_t           addedTime;   // the added time when this element is added or updated into cache
@@ -36,7 +36,7 @@ typedef struct SCacheNode {
   int64_t            expireTime;  // expire time
   uint64_t           signature;
   struct STrashElem *pTNodeHeader;    // point to trash node head
-  uint16_t           keyLen: 15;    // max key size: 32kb
+  uint16_t           keyLen : 15;     // max key size: 32kb
   bool               inTrashcan : 1;  // denote if it is in trash or not
   uint32_t           size;            // allocated size for current SCacheNode
   uint32_t           dataLen;
@@ -47,8 +47,8 @@ typedef struct SCacheNode {
 } SCacheNode;
 
 typedef struct SCacheEntry {
-  int32_t     num;      // number of elements in current entry
-  SRWLatch    latch;    // entry latch
+  int32_t     num;    // number of elements in current entry
+  SRWLatch    latch;  // entry latch
   SCacheNode *next;
 } SCacheEntry;
 
@@ -75,24 +75,24 @@ typedef struct SCacheIter {
  * when the node in pTrash does not be referenced, it will be release at the expired expiredTime
  */
 struct SCacheObj {
-  int64_t            sizeInBytes;  // total allocated buffer in this hash table, SCacheObj is not included.
-  int64_t            refreshTime;
-  char              *name;
-  SCacheStatis       statistics;
+  int64_t      sizeInBytes;  // total allocated buffer in this hash table, SCacheObj is not included.
+  int64_t      refreshTime;
+  char        *name;
+  SCacheStatis statistics;
 
-  SCacheEntry       *pEntryList;
-  size_t             capacity;     // number of slots
-  size_t             numOfElems;         // number of elements in cache
-  _hash_fn_t         hashFp;       // hash function
-  __cache_free_fn_t  freeFp;
+  SCacheEntry      *pEntryList;
+  size_t            capacity;    // number of slots
+  size_t            numOfElems;  // number of elements in cache
+  _hash_fn_t        hashFp;      // hash function
+  __cache_free_fn_t freeFp;
 
-  uint32_t           numOfElemsInTrash;  // number of element in trash
-  STrashElem        *pTrash;
+  uint32_t    numOfElemsInTrash;  // number of element in trash
+  STrashElem *pTrash;
 
-  uint8_t            deleting;           // set the deleting flag to stop refreshing ASAP.
-  TdThread          refreshWorker;
-  bool               extendLifespan;  // auto extend life span when one item is accessed.
-  int64_t            checkTick;       // tick used to record the check times of the refresh threads
+  uint8_t  deleting;  // set the deleting flag to stop refreshing ASAP.
+  TdThread refreshWorker;
+  bool     extendLifespan;  // auto extend life span when one item is accessed.
+  int64_t  checkTick;       // tick used to record the check times of the refresh threads
 #if defined(LINUX)
   TdThreadRwlock lock;
 #else
@@ -182,7 +182,7 @@ TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
  * @return         SCacheNode
  */
 static SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pData, size_t size,
-                                           uint64_t duration);
+                                       uint64_t duration);
 
 /**
  * addedTime object node into trash, and this object is closed for referencing if it is addedTime to trash
@@ -267,7 +267,7 @@ static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
   pEntry->num += 1;
 }
 
-static void removeNodeInEntryList(SCacheEntry* pe, SCacheNode* prev, SCacheNode* pNode) {
+static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode *pNode) {
   if (prev == NULL) {
     ASSERT(pe->next == pNode);
     pe->next = pNode->pNext;
@@ -279,14 +279,14 @@ static void removeNodeInEntryList(SCacheEntry* pe, SCacheNode* prev, SCacheNode*
   pe->num -= 1;
 }
 
-static FORCE_INLINE SCacheEntry* doFindEntry(SCacheObj* pCacheObj, const void* key, size_t keyLen) {
+static FORCE_INLINE SCacheEntry *doFindEntry(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
   uint32_t hashVal = (*pCacheObj->hashFp)(key, keyLen);
   int32_t  slot = hashVal % pCacheObj->capacity;
   return &pCacheObj->pEntryList[slot];
 }
 
-static FORCE_INLINE SCacheNode *
-doSearchInEntryList(SCacheEntry *pe, const void *key, size_t keyLen, SCacheNode** prev) {
+static FORCE_INLINE SCacheNode *doSearchInEntryList(SCacheEntry *pe, const void *key, size_t keyLen,
+                                                    SCacheNode **prev) {
   SCacheNode *pNode = pe->next;
   while (pNode) {
     if ((pNode->keyLen == keyLen) && memcmp(pNode->key, key, keyLen) == 0) {
@@ -299,9 +299,9 @@ doSearchInEntryList(SCacheEntry *pe, const void *key, size_t keyLen, SCacheNode*
   return pNode;
 }
 
-static bool doRemoveExpiredFn(void *param, SCacheNode* pNode) {
+static bool doRemoveExpiredFn(void *param, SCacheNode *pNode) {
   SCacheObjTravSup *ps = (SCacheObjTravSup *)param;
-  SCacheObj     *pCacheObj = ps->pCacheObj;
+  SCacheObj        *pCacheObj = ps->pCacheObj;
 
   if ((int64_t)pNode->expireTime < ps->time && T_REF_VAL_GET(pNode) <= 0) {
     taosCacheReleaseNode(pCacheObj, pNode);
@@ -320,7 +320,7 @@ static bool doRemoveExpiredFn(void *param, SCacheNode* pNode) {
 
 static bool doRemoveNodeFn(void *param, SCacheNode *pNode) {
   SCacheObjTravSup *ps = (SCacheObjTravSup *)param;
-  SCacheObj     *pCacheObj = ps->pCacheObj;
+  SCacheObj        *pCacheObj = ps->pCacheObj;
 
   if (T_REF_VAL_GET(pNode) == 0) {
     taosCacheReleaseNode(pCacheObj, pNode);
@@ -347,14 +347,14 @@ static FORCE_INLINE int32_t getCacheCapacity(int32_t length) {
     len = (len << 1u);
   }
 
-  return len > CACHE_MAX_CAPACITY? CACHE_MAX_CAPACITY:len;
+  return len > CACHE_MAX_CAPACITY ? CACHE_MAX_CAPACITY : len;
 }
 
-SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn,
+SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLifespan, __cache_free_fn_t fn,
                          const char *cacheName) {
   const int32_t SLEEP_DURATION = 500;  // 500 ms
 
-  if (refreshTimeInSeconds <= 0) {
+  if (refreshTimeInMs <= 0) {
     return NULL;
   }
 
@@ -374,10 +374,10 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
   }
 
   // set free cache node callback function
-  pCacheObj->hashFp         = taosGetDefaultHashFunction(keyType);
-  pCacheObj->freeFp         = fn;
-  pCacheObj->refreshTime    = refreshTimeInSeconds * 1000;
-  pCacheObj->checkTick      = pCacheObj->refreshTime / SLEEP_DURATION;
+  pCacheObj->hashFp = taosGetDefaultHashFunction(keyType);
+  pCacheObj->freeFp = fn;
+  pCacheObj->refreshTime = refreshTimeInMs;
+  pCacheObj->checkTick = pCacheObj->refreshTime / SLEEP_DURATION;
   pCacheObj->extendLifespan = extendLifespan;  // the TTL after the last access
 
   if (__trashcan_lock_init(pCacheObj) != 0) {
@@ -411,8 +411,8 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
 
   taosWLockLatch(&pe->latch);
 
-  SCacheNode *prev  = NULL;
-  SCacheNode* pNode = doSearchInEntryList(pe, key, keyLen, &prev);
+  SCacheNode *prev = NULL;
+  SCacheNode *pNode = doSearchInEntryList(pe, key, keyLen, &prev);
 
   if (pNode == NULL) {
     pushfrontNodeInEntryList(pe, pNode1);
@@ -460,12 +460,12 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     return NULL;
   }
 
-  SCacheNode *prev = NULL;
+  SCacheNode  *prev = NULL;
   SCacheEntry *pe = doFindEntry(pCacheObj, key, keyLen);
 
   taosRLockLatch(&pe->latch);
 
-  SCacheNode* pNode = doSearchInEntryList(pe, key, keyLen, &prev);
+  SCacheNode *pNode = doSearchInEntryList(pe, key, keyLen, &prev);
   if (pNode != NULL) {
     int32_t ref = T_REF_INC(pNode);
     ASSERT(ref > 0);
@@ -589,7 +589,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     } else {
       // NOTE: remove it from hash in the first place, otherwise, the pNode may have been released by other thread
       // when reaches here.
-      SCacheNode * prev = NULL;
+      SCacheNode  *prev = NULL;
       SCacheEntry *pe = doFindEntry(pCacheObj, pNode->key, pNode->keyLen);
 
       taosWLockLatch(&pe->latch);
@@ -646,7 +646,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   }
 }
 
-void doTraverseElems(SCacheObj* pCacheObj, bool (*fp)(void *param, SCacheNode* pNode), SCacheObjTravSup* pSup) {
+void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *pNode), SCacheObjTravSup *pSup) {
   int32_t numOfEntries = (int32_t)pCacheObj->capacity;
   for (int32_t i = 0; i < numOfEntries; ++i) {
     SCacheEntry *pEntry = &pCacheObj->pEntryList[i];
@@ -675,7 +675,7 @@ void doTraverseElems(SCacheObj* pCacheObj, bool (*fp)(void *param, SCacheNode* p
   }
 }
 
-void taosCacheEmpty(SCacheObj* pCacheObj) {
+void taosCacheEmpty(SCacheObj *pCacheObj) {
   SCacheObjTravSup sup = {.pCacheObj = pCacheObj, .fp = NULL, .time = taosGetTimestampMs()};
   doTraverseElems(pCacheObj, doRemoveNodeFn, &sup);
   taosTrashcanEmpty(pCacheObj, false);
@@ -710,20 +710,20 @@ SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pDat
     return NULL;
   }
 
-  pNewNode->data    = (char*)pNewNode + sizeof(SCacheNode);
+  pNewNode->data = (char *)pNewNode + sizeof(SCacheNode);
   pNewNode->dataLen = size;
   memcpy(pNewNode->data, pData, size);
 
-  pNewNode->key    = (char *)pNewNode + sizeof(SCacheNode) + size;
+  pNewNode->key = (char *)pNewNode + sizeof(SCacheNode) + size;
   pNewNode->keyLen = (uint16_t)keyLen;
 
   memcpy(pNewNode->key, key, keyLen);
 
-  pNewNode->addedTime  = (uint64_t)taosGetTimestampMs();
-  pNewNode->lifespan   = duration;
+  pNewNode->addedTime = (uint64_t)taosGetTimestampMs();
+  pNewNode->lifespan = duration;
   pNewNode->expireTime = pNewNode->addedTime + pNewNode->lifespan;
-  pNewNode->signature  = (uint64_t)pNewNode;
-  pNewNode->size       = (uint32_t)sizeInBytes;
+  pNewNode->signature = (uint64_t)pNewNode;
+  pNewNode->size = (uint32_t)sizeInBytes;
 
   return pNewNode;
 }
@@ -914,21 +914,19 @@ void taosStopCacheRefreshWorker(void) {
   taosArrayDestroy(pCacheArrayList);
 }
 
-size_t taosCacheGetNumOfObj(const SCacheObj* pCacheObj) {
-  return pCacheObj->numOfElems + pCacheObj->numOfElemsInTrash;
-}
+size_t taosCacheGetNumOfObj(const SCacheObj *pCacheObj) { return pCacheObj->numOfElems + pCacheObj->numOfElemsInTrash; }
 
-SCacheIter* taosCacheCreateIter(const SCacheObj* pCacheObj) {
+SCacheIter *taosCacheCreateIter(const SCacheObj *pCacheObj) {
   ASSERT(pCacheObj != NULL);
-  SCacheIter* pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
-  pIter->pCacheObj  = (SCacheObj*) pCacheObj;
+  SCacheIter *pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
+  pIter->pCacheObj = (SCacheObj *)pCacheObj;
   pIter->entryIndex = -1;
-  pIter->index      = -1;
+  pIter->index = -1;
   return pIter;
 }
 
-bool taosCacheIterNext(SCacheIter* pIter) {
-  SCacheObj* pCacheObj = pIter->pCacheObj;
+bool taosCacheIterNext(SCacheIter *pIter) {
+  SCacheObj *pCacheObj = pIter->pCacheObj;
 
   if (pIter->index + 1 >= pIter->numOfObj) {
     if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
@@ -936,9 +934,9 @@ bool taosCacheIterNext(SCacheIter* pIter) {
     }
 
     // release the reference for all objects in the snapshot
-    for(int32_t i = 0; i < pIter->numOfObj; ++i) {
-      char* p= pIter->pCurrent[i]->data;
-      taosCacheRelease(pCacheObj, (void**) &p, false);
+    for (int32_t i = 0; i < pIter->numOfObj; ++i) {
+      char *p = pIter->pCurrent[i]->data;
+      taosCacheRelease(pCacheObj, (void **)&p, false);
       pIter->pCurrent[i] = NULL;
     }
 
@@ -967,7 +965,7 @@ bool taosCacheIterNext(SCacheIter* pIter) {
         pIter->pCurrent = (SCacheNode **)tmp;
       }
 
-      SCacheNode* pNode = pEntry->next;
+      SCacheNode *pNode = pEntry->next;
       for (int32_t i = 0; i < pEntry->num; ++i) {
         ASSERT(pNode != NULL);
 
@@ -981,7 +979,7 @@ bool taosCacheIterNext(SCacheIter* pIter) {
       pIter->numOfObj = pEntry->num;
       taosRUnLockLatch(&pEntry->latch);
 
-      pIter->index    = -1;
+      pIter->index = -1;
       break;
     }
   }
@@ -990,19 +988,19 @@ bool taosCacheIterNext(SCacheIter* pIter) {
   return true;
 }
 
-void* taosCacheIterGetData(const SCacheIter* pIter, size_t* len) {
-  SCacheNode* pNode = pIter->pCurrent[pIter->index];
+void *taosCacheIterGetData(const SCacheIter *pIter, size_t *len) {
+  SCacheNode *pNode = pIter->pCurrent[pIter->index];
   *len = pNode->dataLen;
   return pNode->data;
 }
 
-void* taosCacheIterGetKey(const SCacheIter* pIter, size_t* len) {
-  SCacheNode* pNode = pIter->pCurrent[pIter->index];
+void *taosCacheIterGetKey(const SCacheIter *pIter, size_t *len) {
+  SCacheNode *pNode = pIter->pCurrent[pIter->index];
   *len = pNode->keyLen;
   return pNode->key;
 }
 
-void taosCacheDestroyIter(SCacheIter* pIter) {
+void taosCacheDestroyIter(SCacheIter *pIter) {
   taosMemoryFreeClear(pIter->pCurrent);
   taosMemoryFreeClear(pIter);
 }

@@ -28,7 +28,7 @@ static int32_t   mndProcessRetrieveSysTableReq(SNodeMsg *pReq);
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
-  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5, true, (__cache_free_fn_t)mndFreeShowObj, "show");
+  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5000, true, (__cache_free_fn_t)mndFreeShowObj, "show");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc show cache since %s", terrstr());
