@@ -427,7 +427,6 @@ static int32_t mndProcessRetrieveFuncReq(SNodeMsg *pReq) {
 
     SFuncObj *pFunc = mndAcquireFunc(pMnode, funcName);
     if (pFunc == NULL) {
-      terrno = TSDB_CODE_MND_INVALID_FUNC;
       goto RETRIEVE_FUNC_OVER;
     }
 
@@ -439,21 +438,26 @@ static int32_t mndProcessRetrieveFuncReq(SNodeMsg *pReq) {
     funcInfo.outputLen = pFunc->outputLen;
     funcInfo.bufSize = pFunc->bufSize;
     funcInfo.signature = pFunc->signature;
-    funcInfo.commentSize = pFunc->commentSize;
-    funcInfo.codeSize = pFunc->codeSize;
-    funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
-    if (funcInfo.pCode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto RETRIEVE_FUNC_OVER;
-    }
-    memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
-    if (funcInfo.commentSize > 0) {
-      funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
-      if (funcInfo.pComment == NULL) {
+    if (retrieveReq.ignoreCodeComment) {
+      funcInfo.commentSize = 0;
+      funcInfo.codeSize = 0;
+    } else {
+      funcInfo.commentSize = pFunc->commentSize;
+      funcInfo.codeSize = pFunc->codeSize;
+      funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
+      if (funcInfo.pCode == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         goto RETRIEVE_FUNC_OVER;
       }
-      memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);
+      memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
+      if (funcInfo.commentSize > 0) {
+        funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
+        if (funcInfo.pComment == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          goto RETRIEVE_FUNC_OVER;
+        }
+        memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);
+      }
     }
     taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo);
     mndReleaseFunc(pMnode, pFunc);
@@ -518,11 +522,16 @@ static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
 
-    char *b2 = taosMemoryCalloc(1, pShow->bytes[cols]);
-    STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->bytes[cols]);
+    if (pFunc->pComment) {
+      char *b2 = taosMemoryCalloc(1, pShow->bytes[cols]);
+      STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->bytes[cols]);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, NULL, true);
+    }
 
     int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 

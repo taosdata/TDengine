@@ -327,6 +327,13 @@ int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(const void* buf, SEpSet* pEp);
 
 typedef struct {
+  SEpSet epSet;
+} SMEpSet;
+
+int32_t tSerializeSMEpSet(void* buf, int32_t bufLen, SMEpSet* pReq);
+int32_t tDeserializeSMEpSet(void* buf, int32_t buflen, SMEpSet* pReq);
+
+typedef struct {
   int8_t  connType;
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
@@ -682,6 +689,7 @@ int32_t tDeserializeSDropFuncReq(void* buf, int32_t bufLen, SDropFuncReq* pReq);
 
 typedef struct {
   int32_t numOfFuncs;
+  bool    ignoreCodeComment;
   SArray* pFuncNames;
 } SRetrieveFuncReq;
 
@@ -710,6 +718,7 @@ typedef struct {
 
 int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
 int32_t tDeserializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
+void tFreeSFuncInfo(SFuncInfo *pInfo);
 void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
@@ -982,7 +991,6 @@ int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
 void    tFreeSShowRsp(SShowRsp* pRsp);
 
 typedef struct {
-  int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
@@ -1478,8 +1486,12 @@ typedef struct {
 typedef struct {
   float      xFilesFactor;
   int32_t    delay;
-  int8_t     nFuncIds;
+  int32_t    qmsg1Len;
+  int32_t    qmsg2Len;
   func_id_t* pFuncIds;
+  char*      qmsg1;  // not null: pAst1:qmsg1:SRetention1 => trigger aggr task1
+  char*      qmsg2;  // not null: pAst2:qmsg2:SRetention2 => trigger aggr task2
+  int8_t     nFuncIds;
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {
@@ -2329,9 +2341,10 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
   }
 }
 
-static FORCE_INLINE void tdFreeTSmaWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW) {
   tdDestroyTSmaWrapper(pSW);
-  taosMemoryFreeClear(pSW);
+  taosMemoryFree(pSW);
+  return NULL;
 }
 
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
@@ -2719,6 +2732,7 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
   }
   return buf;
 }
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

@@ -34,6 +34,7 @@ extern int64_t         tsOpenMax;
 extern int64_t         tsStreamMax;
 extern float           tsNumOfCores;
 extern int64_t         tsTotalMemoryKB;
+extern char*           tsProcPath;
 
 extern char configDir[];
 extern char tsDataDir[];

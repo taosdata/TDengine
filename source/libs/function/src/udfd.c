@@ -27,7 +27,10 @@
 
 typedef struct SUdfdContext {
   uv_loop_t *loop;
+  uv_pipe_t ctrlPipe;
+  uv_signal_t intrSignal;
   char listenPipeName[UDF_LISTEN_PIPE_NAME_LEN];
+  uv_pipe_t listeningPipe;
   void      *clientRpc;
 
   uv_mutex_t udfsMutex;
@@ -76,9 +79,9 @@ typedef struct SUdf {
 
 // TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
 // TODO: add private udf structure.
-typedef struct SUdfHandle {
+typedef struct SUdfcFuncHandle {
   SUdf *udf;
-} SUdfHandle;
+} SUdfcFuncHandle;
 
 int32_t udfdLoadUdf(char* udfName, SUdf* udf) {
     strcpy(udf->name, udfName);
@@ -143,7 +146,7 @@ void udfdProcessRequest(uv_work_t *req) {
         }
         uv_mutex_unlock(&udf->lock);
       }
-      SUdfHandle *handle = taosMemoryMalloc(sizeof(SUdfHandle));
+      SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
       handle->udf = udf;
       // TODO: allocate private structure and call init function and set it to handle
       SUdfResponse rsp;
@@ -166,7 +169,7 @@ void udfdProcessRequest(uv_work_t *req) {
     case UDF_TASK_CALL: {
       SUdfCallRequest *call = &request.call;
       fnDebug("%"PRId64 "call request. call type %d, handle: %"PRIx64, request.seqNum, call->callType, call->udfHandle);
-      SUdfHandle      *handle = (SUdfHandle *)(call->udfHandle);
+      SUdfcFuncHandle      *handle = (SUdfcFuncHandle *)(call->udfHandle);
       SUdf            *udf = handle->udf;
 
       SUdfDataBlock input = {0};
@@ -204,7 +207,7 @@ void udfdProcessRequest(uv_work_t *req) {
     case UDF_TASK_TEARDOWN: {
       SUdfTeardownRequest *teardown = &request.teardown;
       fnInfo("teardown. %"PRId64"handle:%"PRIx64, request.seqNum, teardown->udfHandle)
-      SUdfHandle          *handle = (SUdfHandle *)(teardown->udfHandle);
+      SUdfcFuncHandle          *handle = (SUdfcFuncHandle *)(teardown->udfHandle);
       SUdf                *udf = handle->udf;
       bool unloadUdf = false;
       uv_mutex_lock(&global.udfsMutex);
@@ -380,10 +383,12 @@ void udfdOnNewConnection(uv_stream_t *server, int status) {
   }
 }
 
-void removeListeningPipe(int sig) {
+void udfdIntrSignalHandler(uv_signal_t *handle, int signum) {
+  fnInfo("udfd signal received: %d\n", signum);
   uv_fs_t req;
-  uv_fs_unlink(global.loop, &req, "udf.sock", NULL);
-  exit(0);
+  uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
+  uv_signal_stop(handle);
+  uv_stop(global.loop);
 }
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) { return; }
@@ -492,37 +497,67 @@ static int32_t udfdInitLog() {
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, 0);
 }
 
+void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+  buf->base = taosMemoryMalloc(suggested_size);
+  buf->len = suggested_size;
+}
+
+void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
+  if (nread < 0) {
+    fnError("udfd ctrl pipe read error. %s", uv_err_name(nread));
+    uv_close((uv_handle_t*)q, NULL);
+    uv_stop(global.loop);
+    return;
+  }
+  fnError("udfd ctrl pipe read %zu bytes", nread);
+  taosMemoryFree(buf->base);
+}
+
+static int32_t removeListeningPipe() {
+  uv_fs_t req;
+  int err = uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
+  uv_fs_req_cleanup(&req);
+  return err;
+}
+
 static int32_t udfdUvInit() {
   uv_loop_t* loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (loop) {
     uv_loop_init(loop);
   }
   global.loop = loop;
+
+  uv_pipe_init(global.loop, &global.ctrlPipe, 1);
+  uv_pipe_open(&global.ctrlPipe, 0);
+  uv_read_start((uv_stream_t*)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
+
   char dnodeId[8] = {0};
   size_t dnodeIdSize;
-  uv_os_getenv("DNODE_ID", dnodeId, &dnodeIdSize);
+  int32_t err = uv_os_getenv("DNODE_ID", dnodeId, &dnodeIdSize);
+  if (err != 0) {
+    dnodeId[0] = '1';
+  }
   char listenPipeName[32] = {0};
   snprintf(listenPipeName, sizeof(listenPipeName), "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
   strcpy(global.listenPipeName, listenPipeName);
 
-  uv_fs_t req;
-  uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
+  removeListeningPipe();
 
-  uv_pipe_t server;
-  uv_pipe_init(global.loop, &server, 0);
+  uv_pipe_init(global.loop, &global.listeningPipe, 0);
 
-  signal(SIGINT, removeListeningPipe);
+  uv_signal_init(global.loop, &global.intrSignal);
+  uv_signal_start(&global.intrSignal, udfdIntrSignalHandler, SIGINT);
 
   int r;
   fnInfo("bind to pipe %s", global.listenPipeName);
-  if ((r = uv_pipe_bind(&server, listenPipeName))) {
+  if ((r = uv_pipe_bind(&global.listeningPipe, listenPipeName))) {
     fnError("Bind error %s", uv_err_name(r));
-    removeListeningPipe(0);
+    removeListeningPipe();
     return -1;
   }
-  if ((r = uv_listen((uv_stream_t *)&server, 128, udfdOnNewConnection))) {
+  if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
     fnError("Listen error %s", uv_err_name(r));
-    removeListeningPipe(0);
+    removeListeningPipe();
     return -2;
   }
   return 0;
