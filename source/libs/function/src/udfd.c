@@ -586,7 +586,7 @@ static int32_t udfdRun() {
   udfdCloseClientRpc();
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);
-  return code;
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
