@@ -236,8 +236,12 @@ static int32_t dmSpawnUdfd(SDnode *pDnode) {
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
-  strncpy(path, tsProcPath, strlen(tsProcPath));
-  char* dirName = taosDirName(path);
+  if (tsProcPath == NULL) {
+    path[0] = '.';
+  } else {
+    strncpy(path, tsProcPath, strlen(tsProcPath));
+    taosDirName(path);
+  }
   strcat(path, "/udfd");
   char* argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
