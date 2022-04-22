@@ -1,6 +1,5 @@
 import taos
 import sys
-import time
 
 from util.log import *
 from util.sql import *
@@ -16,7 +15,6 @@ class TDTestCase:
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
-        time.sleep(2)
 
         tdLog.printNoPrefix("==========step1:create table")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int, c2 int) tags(t0 tinyint, t1 int, t2 int)")

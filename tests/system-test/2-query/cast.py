@@ -2,7 +2,6 @@ import taos
 import sys
 import datetime
 import inspect
-import time
 
 from util.log import *
 from util.sql import *
@@ -20,7 +19,6 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
-        time.sleep(2)	
         tdSql.execute(
             '''create table stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
