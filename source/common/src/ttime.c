@@ -412,7 +412,7 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
 int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
   int32_t charLen = varDataLen(inputData);
   char *newColData;
-  if (type == TSDB_DATA_TYPE_BINARY) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
     newColData = taosMemoryCalloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
     bool ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
