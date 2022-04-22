@@ -226,6 +226,7 @@ void dmUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   if (atomic_load_8(&pData->stopping) != 0) {
     dDebug("udfd process exit due to stopping");
   } else {
+    uv_close((uv_handle_t*)&pData->ctrlPipe, NULL);
     dmSpawnUdfd(pDnode);
   }
 }
@@ -243,20 +244,21 @@ static int32_t dmSpawnUdfd(SDnode *pDnode) {
   options.file = path;
 
   options.exit_cb = dmUdfdExit;
+  SUdfdData *pData = &pDnode->udfdData;
+  uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1);
 
-  options.stdio_count = 3;
   uv_stdio_container_t child_stdio[3];
-  child_stdio[0].flags = UV_IGNORE;
-  child_stdio[1].flags = UV_INHERIT_FD;
-  child_stdio[1].data.fd = 1;
+  child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
+  child_stdio[0].data.stream = (uv_stream_t*) &pData->ctrlPipe;
+  child_stdio[1].flags = UV_IGNORE;
   child_stdio[2].flags = UV_INHERIT_FD;
   child_stdio[2].data.fd = 2;
+  options.stdio_count = 3;
   options.stdio = child_stdio;
 
   char dnodeIdEnvItem[32] = {0};
   char thrdPoolSizeEnvItem[32] = {0};
   snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pDnode->data.dnodeId);
-  SUdfdData *pData = &pDnode->udfdData;
   float numCpuCores = 4;
   taosGetCpuCores(&numCpuCores);
   snprintf(thrdPoolSizeEnvItem,32,  "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores*2);

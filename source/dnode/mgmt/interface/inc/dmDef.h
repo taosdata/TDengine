@@ -152,6 +152,7 @@ typedef struct SUdfdData {
   uv_process_t  process;
   int           spawnErr;
   int8_t        stopping;
+  uv_pipe_t     ctrlPipe;
 } SUdfdData;
 
 typedef struct SDnode {
