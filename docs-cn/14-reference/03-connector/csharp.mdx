@@ -7,8 +7,8 @@ title: C# Connector
 ## 总体介绍
 
 C# connector 目前是通过 TDengine 客户端驱动建立本地连接，进而可以访问 TDegnine 数据库。目前已支持 TDengine 的绝大部分特性例如：同步查询、异步查询、管理连接、订阅消费，schemaless 等。
-通过阅读本文可以了解如何在 Windows 或者 Linx 环境中安装 TDengine C# connector，以及如何连接 TDengine 数据库、查询数据、插入数据等基本操作。
-但是对于 RESTful 连接暂未封装，需要用户参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 自己封装。
+通过阅读本文可以了解如何在 Windows 或者 Linux 环境中安装 TDengine C# connector，以及如何连接 TDengine 数据库、查询数据、插入数据等基本操作。
+目前暂未封装 RESTful 接口，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
 ## 支持的平台
 
@@ -18,27 +18,26 @@ C# 连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
 | TDengine.Connector |             TDengine 版本             | 说明                           |
 |--------------------|:-------------------------------------:|--------------------------------|
-|        1.0.2       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持连接管理、同步查询、错误信息   |
-|        1.0.3       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持参数绑定、schemaless, json tag |
-|        1.0.4       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持异步查询，订阅、修复绑定参数     |
-|        1.0.5       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 修复 Windows 同步查询中文报错   |
-|        1.0.6       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 修复schemaless |
+|        1.0.2       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持连接管理、同步查询、错误信息等功能。   |
+|        1.0.3       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持参数绑定、schemaless, json tag 等功能。 |
+|        1.0.4       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持异步查询，订阅、修复绑定参数等功能。     |
+|        1.0.5       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 修复 Windows 同步查询中文报错等 bug。   |
+|        1.0.6       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 修复schemaless bug。|
 
 ## 支持的特性
 
 ### 本地连接
 
-"本地连接" 指连接器通过本地的客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接。
+“本地连接” 指连接器通过本地的客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接。
 本地连接支持的特新如下：
 
 1. 连接管理
 2. 同步查询
 3. 异步查询
 4. 参数绑定
-5. 获取系统信息（暂不支持）
-6. 错误信息
-7. 订阅功能
-8. Schemaless
+5. 错误信息
+6. 订阅功能
+7. Schemaless
 
 ## 安装步骤
 
@@ -58,7 +57,7 @@ C# 连接器支持的系统有：Linux 64/Windows x64/Windows x86
 2. .Net 5.0 及以上运行时环境
 3. TDengine-client
 
-**注意**：由于 TDengine 的应用驱动是使用 C 语言开发的，使用 C# 驱动包时需要依赖系统对应的客户端驱动。
+**注意**：使用 C# 连接器包时需要安装对应的客户端驱动。
 
 - TDengine 客户端驱动在 Linux 系统中成功安装 TDengine 客户端之后，依赖的本地客户端驱动 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
 - TDengine 客户端驱动在 Windows 系统中安装完 TDengine 客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
@@ -161,8 +160,6 @@ Maikebing.Data.Taos 是一个 TDengine 的 ADO.NET 提供器，支持 Linux，Wi
 * "Unable to establish connection"，"Unable to resolve FQDN"， 一般都是应为为配置 FQDN 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html)解决。
 
 * Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: 找不到指定的模块。 原因：程序没有找到依赖的客户端驱动。 解决方法：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so 即可。
-
-* 其它问题请参考 [Issues](https://github.com/taosdata/TDengine/issues)
   
 ## API 参考
 [API 参考](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)
