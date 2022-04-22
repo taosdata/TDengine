@@ -300,8 +300,8 @@ bool tjsonValidateJson(const char *jIn) {
 
     char* jsonKey = item->string;
     if (!jsonKey) return false;
-    for (size_t j = 0; j < strlen(jsonKey); ++i) {
-      if (isprint(jsonKey[i]) == 0) return false;
+    for (size_t j = 0; j < strlen(jsonKey); ++j) {
+      if (isprint(jsonKey[j]) == 0) return false;
     }
 
     if (item->type == cJSON_Object || item->type == cJSON_Array) {

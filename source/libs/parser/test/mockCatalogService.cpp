@@ -40,13 +40,11 @@ public:
   virtual TableBuilder& setVgid(int16_t vgid) {
     schema()->vgId = vgid;
 
-    SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0, };
-
-    vgroup.epSet.eps[0] = (SEp){"dnode_1", 6030};
-    vgroup.epSet.eps[1] = (SEp){"dnode_2", 6030};
-    vgroup.epSet.eps[2] = (SEp){"dnode_3", 6030};
+    SVgroupInfo vgroup = { vgid, 0, 0, {0}, 0};
+    addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030);
+    addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030);
+    addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030);
     vgroup.epSet.inUse = 0;
-    vgroup.epSet.numOfEps = 3;
 
     meta_->vgs.emplace_back(vgroup);
     return *this;
@@ -148,7 +146,7 @@ public:
     meta_[db][tbname]->schema->uid = id_++;
     meta_[db][tbname]->schema->tableType = TSDB_CHILD_TABLE;
 
-    SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0,};
+    SVgroupInfo vgroup = { vgid, 0, 0, {0}, 0};
     addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030);
     addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030);
     addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030);

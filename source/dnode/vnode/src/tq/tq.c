@@ -65,7 +65,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
   while (1) {
     pIter = taosHashIterate(pTq->pushMgr, pIter);
     if (pIter == NULL) break;
-    pExec = (STqExec**)pIter;
+    pExec = *(STqExec**)pIter;
 
     taosWLockLatch(&pExec->pushHandle.lock);
 

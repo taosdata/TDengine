@@ -34,5 +34,6 @@ LOG_DIR=$TAOS_DIR/sim/$NODE_NAME/log
 
 #echo ---- $LOG_DIR
 
-errors=`grep "ERROR SUMMARY:" ${LOG_DIR}/valgrind-taosd-*.log | cut -d ' ' -f 2,3,4,5 | tr -d "\n"`
+#errors=`grep "ERROR SUMMARY:" ${LOG_DIR}/valgrind-taosd-*.log | cut -d ' ' -f 2,3,4,5 | tr -d "\n"`
+errors=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "ERROR SUMMARY:" | awk '{print $4}' | awk '{sum+=$1}END{print sum}'`
 echo $errors

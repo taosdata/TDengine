@@ -37,7 +37,7 @@ typedef struct {
   int64_t  lastAccessTimeMs;
   uint64_t killId;
   int32_t  numOfQueries;
-  SArray  *pQueries;  // SArray<SQueryDesc>
+  SArray * pQueries;  // SArray<SQueryDesc>
 } SConnObj;
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
@@ -45,7 +45,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
-static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
+static void *    mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SNodeMsg *pReq);
 static int32_t   mndProcessConnectReq(SNodeMsg *pReq);
@@ -193,6 +193,11 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
   pUser = mndAcquireUser(pMnode, pReq->user);
   if (pUser == NULL) {
     mError("user:%s, failed to login while acquire user since %s", pReq->user, terrstr());
+    goto CONN_OVER;
+  }
+  if (0 != strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1)) {
+    mError("user:%s, failed to auth while acquire user\n %s \r\n %s", pReq->user, connReq.passwd, pUser->pass);
+    code = TSDB_CODE_RPC_AUTH_FAILURE;
     goto CONN_OVER;
   }
 
@@ -399,7 +404,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     switch (kv->key) {
       case HEARTBEAT_KEY_DBINFO: {
-        void   *rspMsg = NULL;
+        void *  rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbVgVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
@@ -409,7 +414,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         break;
       }
       case HEARTBEAT_KEY_STBINFO: {
-        void   *rspMsg = NULL;
+        void *  rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableMetaVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
@@ -607,8 +612,8 @@ static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 }
 
 static int32_t mndRetrieveQueries(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pNode;
-  int32_t numOfRows = 0;
+  SMnode   *pMnode = pReq->pNode;
+  int32_t   numOfRows = 0;
 #if 0
   SConnObj *pConn = NULL;
   int32_t   cols = 0;

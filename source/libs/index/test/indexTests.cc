@@ -485,7 +485,7 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
   std::string     colVal("ab");
   SIndexTerm*     term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                      colVal.c_str(), colVal.size());
-  SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+  SIndexTermQuery query = { term, QUERY_TERM};
 
   SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
   fObj->Get(&query, result);
@@ -625,7 +625,7 @@ TEST_F(IndexCacheEnv, cache_test) {
     std::string     colVal("v3");
     SIndexTerm*     term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
-    SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+    SIndexTermQuery query = { term, QUERY_TERM };
     SArray*         ret = (SArray*)taosArrayInit(4, sizeof(suid));
     STermValueType  valType;
 
@@ -640,7 +640,7 @@ TEST_F(IndexCacheEnv, cache_test) {
     std::string     colVal("v2");
     SIndexTerm*     term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
-    SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+    SIndexTermQuery query = { term, QUERY_TERM };
     SArray*         ret = (SArray*)taosArrayInit(4, sizeof(suid));
     STermValueType  valType;
 

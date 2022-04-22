@@ -851,6 +851,8 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
   cfgRsp.cacheLastRow = pDb->cfg.cacheLastRow;
   cfgRsp.streamMode = pDb->cfg.streamMode;
   cfgRsp.singleSTable = pDb->cfg.singleSTable;
+  cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
+  cfgRsp.pRetensions = pDb->cfg.pRetensions;
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
@@ -1189,6 +1191,7 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
   char *p = strchr(usedbReq.db, '.');
   if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
     memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+    //mndGetGlobalVgroupVersion(); TODO
     static int32_t vgVersion = 1;
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
@@ -1200,16 +1203,11 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
       mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
       usedbRsp.vgVersion = vgVersion++;
 
-      if (taosArrayGetSize(usedbRsp.pVgroupInfos) <= 0) {
-        terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      } else {
-        code = 0;
-      }
     } else {
       usedbRsp.vgVersion = usedbReq.vgVersion;
-      code = 0;
     }
     usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
+    code = 0;
 
     // no jump, need to construct rsp
   } else {

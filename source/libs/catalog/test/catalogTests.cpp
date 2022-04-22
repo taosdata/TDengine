@@ -24,6 +24,9 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
 #include "os.h"
 #include "tglobal.h"
 #include "catalog.h"
@@ -155,11 +158,11 @@ int32_t ctgTestGetVgNumFromVgVersion(int32_t vgVersion) {
 }
 
 void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
-  SName cn = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName cn = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(cn.dbname, "db1");
   strcpy(cn.tname, ctgTestCTablename);
 
-  SName sn = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName sn = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(sn.dbname, "db1");
   strcpy(sn.tname, ctgTestSTablename);
 
@@ -577,9 +580,16 @@ void ctgTestSetRspDbVgroups() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroups);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroups);
     }
@@ -590,9 +600,16 @@ void ctgTestSetRspTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspTableMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspTableMeta);
     }
@@ -603,9 +620,16 @@ void ctgTestSetRspCTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspCTableMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspCTableMeta);
     }
@@ -616,9 +640,16 @@ void ctgTestSetRspSTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspSTableMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspSTableMeta);
     }
@@ -629,9 +660,16 @@ void ctgTestSetRspMultiSTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspMultiSTableMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspMultiSTableMeta);
     }
@@ -642,9 +680,16 @@ void ctgTestSetRspByIdx() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspByIdx);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspByIdx);
     }
@@ -656,9 +701,16 @@ void ctgTestSetRspDbVgroupsAndNormalMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndNormalMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndNormalMeta);
     }
@@ -669,9 +721,16 @@ void ctgTestSetRspDbVgroupsAndChildMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndChildMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndChildMeta);
     }
@@ -682,9 +741,16 @@ void ctgTestSetRspDbVgroupsAndSuperMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndSuperMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndSuperMeta);
     }
@@ -695,9 +761,16 @@ void ctgTestSetRspDbVgroupsAndMultiSuperMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestRspDbVgroupsAndMultiSuperMeta);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRecv", result);
+#endif
+#ifdef LINUX
     AddrAny                       any("libtransport.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+#endif
     for (const auto &f : result) {
       stub.set(f.second, ctgTestRspDbVgroupsAndMultiSuperMeta);
     }
@@ -789,7 +862,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
   STableMeta      *tbMeta = NULL;
   bool             inCache = false;
 
-  SName cn = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName cn = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(cn.dbname, "db1");
   strcpy(cn.tname, ctgTestCTablename);
 
@@ -871,7 +944,7 @@ TEST(tableMeta, normalTable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -978,7 +1051,7 @@ TEST(tableMeta, childTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestCTablename);
 
@@ -1085,7 +1158,7 @@ TEST(tableMeta, superTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestSTablename);
 
@@ -1210,7 +1283,7 @@ TEST(tableMeta, rmStbMeta) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestSTablename);
 
@@ -1280,7 +1353,7 @@ TEST(tableMeta, updateStbMeta) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestSTablename);
 
@@ -1378,7 +1451,7 @@ TEST(refreshGetMeta, normal2normal) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -1457,7 +1530,7 @@ TEST(refreshGetMeta, normal2notexist) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -1529,7 +1602,7 @@ TEST(refreshGetMeta, normal2child) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
   ctgTestCurrentCTableName = ctgTestTablename;
@@ -1613,7 +1686,7 @@ TEST(refreshGetMeta, stable2child) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
@@ -1699,7 +1772,7 @@ TEST(refreshGetMeta, stable2stable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
@@ -1786,7 +1859,7 @@ TEST(refreshGetMeta, child2stable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
   ctgTestCurrentCTableName = ctgTestTablename;
@@ -1871,7 +1944,7 @@ TEST(tableDistVgroup, normalTable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -1913,7 +1986,7 @@ TEST(tableDistVgroup, childTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestCTablename);
 
@@ -1956,7 +2029,7 @@ TEST(tableDistVgroup, superTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestSTablename);
 
@@ -2006,7 +2079,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -2091,7 +2164,7 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -2143,7 +2216,7 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -2195,7 +2268,7 @@ TEST(multiThread, ctableMeta) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
@@ -2247,7 +2320,7 @@ TEST(rentTest, allRent) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  SName n = { TSDB_TABLE_NAME_T, 1, {0}, {0} };
   strcpy(n.dbname, "db1");
 
   for (int32_t i = 1; i <= 10; ++i) {
