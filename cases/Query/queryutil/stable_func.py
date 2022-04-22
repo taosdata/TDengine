@@ -50,7 +50,29 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
-   
+    def all_column_tbname_1(self):  
+        # support all table, support all data type  
+        # 解决多个子表时，last_row\last\first返回值可能不一样的问题   
+        hanshu = ['COUNT','FIRST']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_2(self):  
+        # last和limit使用时，取的是最后n条记录，不是前面n条记录TD-14978   
+        hanshu = ['LAST']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_3(self):  
+        # LAST_ROW() 不能与 INTERVAL 一起使用   
+        hanshu = ['LAST_ROW']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+       
     def int_cloumn(self):  
         # support all int type \ double type              
         hanshu = ['AVG','SUM','MIN','MAX']   
@@ -82,6 +104,12 @@ class TDFunction():
         func_stable_tbname_all = ''
         if i == 1:    
             func_stable_tbname_all = self.all_column_tbname()
+        elif i == 11:    
+            func_stable_tbname_all = self.all_column_tbname_1()
+        elif i == 12:    
+            func_stable_tbname_all = self.all_column_tbname_2()            
+        elif i == 13:    
+            func_stable_tbname_all = self.all_column_tbname_3()
         elif i == 2:
             func_stable_tbname_all = self.int_cloumn()
         elif i == 3:
@@ -120,21 +148,19 @@ class TDFunction():
         return int_cloumn_regular_only
     
     def int_cloumn_regular_only_1(self):   
-        # 为了支持interval，分开
+        # 为了支持interval，分开#diff放后面 #CSUM可以和STATE_WINDOW结合 , 有单独的int_cloumn_csum，暂时不考虑csum
         hanshu = ['TWA']      
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn_regular_only
     def int_cloumn_regular_only_2(self):   
-        # 为了支持interval，分开成1-支持和2-不支持
         hanshu = ['IRATE']      
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn_regular_only
     def int_cloumn_regular_only_3(self):   
-        hanshu = ['DIFF','INTERP'] #diff放后面 #CSUM可以和STATE_WINDOW结合 , 有单独的int_cloumn_csum，暂时不考虑csum
         hanshu = ['INTERP']  
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
