@@ -17,8 +17,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-char *tsProcPath = NULL;
-
 int32_t taosNewProc(char **args) {
 #ifdef WINDOWS
   return 0;
