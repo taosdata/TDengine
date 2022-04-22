@@ -415,7 +415,7 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
   if (type == TSDB_DATA_TYPE_BINARY) {
     newColData = taosMemoryCalloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
-    bool ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
+    bool ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;
@@ -429,7 +429,7 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
       return TSDB_CODE_FAILED;
     }
     newColData[len] = 0;
-    bool ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, 0);
+    bool ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;
