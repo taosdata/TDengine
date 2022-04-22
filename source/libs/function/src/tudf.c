@@ -874,8 +874,9 @@ int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
 
       uv_connect_t *connReq = taosMemoryMalloc(sizeof(uv_connect_t));
       connReq->data = uvTask;
-
-      uv_pipe_connect(connReq, pipe, "udf.sock", onUdfClientConnect);
+      char listeningPipeName[32] = {0};
+      sprintf(listeningPipeName, "%s%d", UDF_LISTEN_PIPE_NAME_PREFIX, uvTask->udfc->dnodeId);
+      uv_pipe_connect(connReq, pipe, listeningPipeName, onUdfClientConnect);
       break;
     }
     case UV_TASK_REQ_RSP: {
@@ -1019,6 +1020,7 @@ int32_t setupUdf(UdfcHandle udfc, char udfName[], SEpSet *epSet, UdfcFuncHandle 
 
   SUdfSetupRequest *req = &task->_setup.req;
   memcpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  req->epSet = *epSet;
 
   int32_t errCode = udfcRunUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
