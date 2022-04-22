@@ -1123,20 +1123,20 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
   }
 
-  char *input[2];
-  for (int32_t k = 0; k < 2; ++k) {
-    int32_t type = GET_PARAM_TYPE(&pInput[k]);
-    if (type != TSDB_DATA_TYPE_BIGINT && type != TSDB_DATA_TYPE_TIMESTAMP &&
-        type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
-      return TSDB_CODE_FAILED;
+  int32_t numOfRows = 0;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    if (pInput[i].numOfRows > numOfRows) {
+      numOfRows = pInput[i].numOfRows;
     }
   }
 
-  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+  char *input[2];
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    bool hasNull = false;
     for (int32_t k = 0; k < 2; ++k) {
-      if (colDataIsNull_s(pInput[0].columnData, i)) {
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
+      if (colDataIsNull_s(pInput[k].columnData, i)) {
+        hasNull = true;
+        break;
       }
 
       int32_t rowIdx = (pInput[k].numOfRows == 1) ? 0 : i;
@@ -1176,6 +1176,11 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
           continue;
         }
       }
+    }
+
+    if (hasNull) {
+      colDataAppendNULL(pOutput->columnData, i);
+      continue;
     }
 
     int64_t result = (timeVal[0] >= timeVal[1]) ? (timeVal[0] - timeVal[1]) :
@@ -1238,7 +1243,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     colDataAppend(pOutput->columnData, i, (char *)&result, false);
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  pOutput->numOfRows = numOfRows;
 
   return TSDB_CODE_SUCCESS;
 }
