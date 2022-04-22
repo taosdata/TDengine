@@ -41,10 +41,10 @@ static const SPerfsTableSchema queriesSchema[] = {
 
 static const SPerfsTableSchema topicSchema[] = {
     {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    /*{.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},*/
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    /*{.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},*/
 };
 
 static const SPerfsTableSchema consumerSchema[] = {
