@@ -43,10 +43,10 @@ typedef struct {
   const char* user;
   const char* auth;
   const char* database;
-  const char* file;
   const char* cfgdir;
   const char* commands;
   const char* netrole;
+  char        file[PATH_MAX];
   char        password[TSDB_USET_PASSWORD_LEN];
   bool        is_gen_auth;
   bool        is_raw_time;
@@ -93,6 +93,7 @@ int32_t shellExecute();
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();
+void    shellPrintHelp();
 void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();

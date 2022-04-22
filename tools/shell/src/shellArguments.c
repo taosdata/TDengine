@@ -15,262 +15,199 @@
 
 #include "shellInt.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64)
+#define SHELL_HOST     "The auth string to use when connecting to the server."
+#define SHELL_PORT     "The TCP/IP port number to use for the connection."
+#define SHELL_USER     "The user name to use when connecting to the server."
+#define SHELL_PASSWORD "The password to use when connecting to the server."
+#define SHELL_AUTH     "The auth string to use when connecting to the server."
+#define SHELL_GEN_AUTH "Generate auth string from password."
+#define SHELL_CFG_DIR  "Configuration directory."
+#define SHELL_DMP_CFG  "Dump configuration."
+#define SHELL_CMD      "Commands to run without enter the shell."
+#define SHELL_RAW_TIME "Output time as uint64_t."
+#define SHELL_FILE     "Script to run without enter the shell."
+#define SHELL_DB       "Database to use when connecting to the server."
+#define SHELL_CHECK    "Check the service status."
+#define SHELL_STARTUP  "Check the details of the service status."
+#define SHELL_WIDTH    "Set the default binary display width."
+#define SHELL_NET_ROLE "Net role when network connectivity test, options: client|server."
+#define SHELL_PKG_LEN  "Packet length used for net test, default is 1000 bytes."
+#define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
+#define SHELL_VERSION  "Print program version."
+#define SHELL_EMAIL    "<support@taosdata.com>"
+
 void shellPrintHelp() {
-  char indent[10] = "        ";
-  printf("taos shell is used to test the TDengine database\n");
-  printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDengine server FQDN to connect. The default host is localhost.");
-  printf("%s%s\n", indent, "-P");
-  printf("%s%s%s\n", indent, indent, "The TCP/IP port number to use for the connection");
-  printf("%s%s\n", indent, "-u");
-  printf("%s%s%s\n", indent, indent, "The user name to use when connecting to the server.");
-  printf("%s%s\n", indent, "-p");
-  printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
-  printf("%s%s\n", indent, "-a");
-  printf("%s%s%s\n", indent, indent, "The user auth to use when connecting to the server.");
-  printf("%s%s\n", indent, "-A");
-  printf("%s%s%s\n", indent, indent, "Generate auth string from password.");
-  printf("%s%s\n", indent, "-c");
-  printf("%s%s%s\n", indent, indent, "Configuration directory.");
-  printf("%s%s\n", indent, "-C");
-  printf("%s%s%s\n", indent, indent, "Dump configuration.");
-  printf("%s%s\n", indent, "-s");
-  printf("%s%s%s\n", indent, indent, "Commands to run without enter the shell.");
-  printf("%s%s\n", indent, "-r");
-  printf("%s%s%s\n", indent, indent, "Output time as unsigned long..");
-  printf("%s%s\n", indent, "-f");
-  printf("%s%s%s\n", indent, indent, "Script to run without enter the shell.");
-  printf("%s%s\n", indent, "-d");
-  printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
-  printf("%s%s\n", indent, "-k");
-  printf("%s%s%s\n", indent, indent, "Check the service status.");
-  printf("%s%s\n", indent, "-t");
-  printf("%s%s%s\n", indent, indent, "Check the details of the service status.");
-  printf("%s%s\n", indent, "-w");
-  printf("%s%s%s\n", indent, indent, "Set the default binary display width.");
-  printf("%s%s\n", indent, "-n");
-  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, options: client|server.");
-  printf("%s%s\n", indent, "-l");
-  printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
-  printf("%s%s\n", indent, "-N");
-  printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
-  printf("%s%s\n", indent, "-V");
-  printf("%s%s%s\n", indent, indent, "Print program version.");
+  char indent[] = "  ";
+  printf("Usage: taos [OPTION...] \n\n");
+  printf("%s%s%s%s\n", indent, "-a,", indent, SHELL_AUTH);
+  printf("%s%s%s%s\n", indent, "-A,", indent, SHELL_GEN_AUTH);
+  printf("%s%s%s%s\n", indent, "-c,", indent, SHELL_CFG_DIR);
+  printf("%s%s%s%s\n", indent, "-C,", indent, SHELL_DMP_CFG);
+  printf("%s%s%s%s\n", indent, "-d,", indent, SHELL_DB);
+  printf("%s%s%s%s\n", indent, "-f,", indent, SHELL_FILE);
+  printf("%s%s%s%s\n", indent, "-h,", indent, SHELL_HOST);
+  printf("%s%s%s%s\n", indent, "-k,", indent, SHELL_CHECK);
+  printf("%s%s%s%s\n", indent, "-l,", indent, SHELL_PKG_LEN);
+  printf("%s%s%s%s\n", indent, "-n,", indent, SHELL_NET_ROLE);
+  printf("%s%s%s%s\n", indent, "-N,", indent, SHELL_PKT_NUM);
+  printf("%s%s%s%s\n", indent, "-p,", indent, SHELL_PASSWORD);
+  printf("%s%s%s%s\n", indent, "-P,", indent, SHELL_PORT);
+  printf("%s%s%s%s\n", indent, "-r,", indent, SHELL_RAW_TIME);
+  printf("%s%s%s%s\n", indent, "-s,", indent, SHELL_CMD);
+  printf("%s%s%s%s\n", indent, "-t,", indent, SHELL_STARTUP);
+  printf("%s%s%s%s\n", indent, "-u,", indent, SHELL_USER);
+  printf("%s%s%s%s\n", indent, "-w,", indent, SHELL_WIDTH);
+  printf("%s%s%s%s\n", indent, "-V,", indent, SHELL_VERSION);
+  printf("\n\nReport bugs to %s.\n", SHELL_EMAIL);
 }
 
-void shellParseArgsWithoutArgp(int argc, char *argv[]) {
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-h") == 0) {
-      if (i < argc - 1) {
-        arguments->host = argv[++i];
-      } else {
-        fprintf(stderr, "option -h requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-P") == 0) {
-      if (i < argc - 1) {
-        arguments->port = atoi(argv[++i]);
-      } else {
-        fprintf(stderr, "option -P requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-u") == 0) {
-      if (i < argc - 1) {
-        arguments->user = argv[++i];
-      } else {
-        fprintf(stderr, "option -u requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
-      continue;
-    } else if (strcmp(argv[i], "-a") == 0) {
-      if (i < argc - 1) {
-        arguments->auth = argv[++i];
-      } else {
-        fprintf(stderr, "option -a requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-A") == 0) {
-      arguments->is_gen_auth = true;
-    } else if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {
-        arguments->cfgdir = argv[++i];
-      } else {
-        fprintf(stderr, "option -c requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-C") == 0) {
-      arguments->is_dump_config = true;
-    } else if (strcmp(argv[i], "-s") == 0) {
-      if (i < argc - 1) {
-        arguments->commands = argv[++i];
-      } else {
-        fprintf(stderr, "option -s requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-r") == 0) {
-      arguments->is_raw_time = true;
-    } else if (strcmp(argv[i], "-f") == 0) {
-      if (i < argc - 1) {
-        strcpy(arguments->file, argv[++i]);
-      } else {
-        fprintf(stderr, "option -f requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-d") == 0) {
-      if (i < argc - 1) {
-        arguments->database = argv[++i];
-      } else {
-        fprintf(stderr, "option -d requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-k") == 0) {
-      arguments->is_check = true;
-    } else if (strcmp(argv[i], "-t") == 0) {
-      arguments->is_startup = true;
-    } else if (strcmp(argv[i], "-w") == 0) {
-      if (i < argc - 1) {
-        arguments->displayWidth = argv[++i];
-      } else {
-        fprintf(stderr, "option -w requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-n") == 0) {
-      if (i < argc - 1) {
-        arguments->netTestRole = argv[++i];
-      } else {
-        fprintf(stderr, "option -n requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-l") == 0) {
-      if (i < argc - 1) {
-        arguments->pktLen = atoi(argv[++i]);
-      } else {
-        fprintf(stderr, "option -l requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-N") == 0) {
-      if (i < argc - 1) {
-        arguments->pktNum = atoi(argv[++i]);
-      } else {
-        fprintf(stderr, "option -N requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-S") == 0) {
-      if (i < argc - 1) {
-        arguments->pktType = argv[++i];
-      } else {
-        fprintf(stderr, "option -S requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
-    } else if (strcmp(argv[i], "-V") == 0) {
-      arguments->is_version = true;
-    } else if (strcmp(argv[i], "--help") == 0) {
-      arguments->is_help = true;
-    } else {
-      fprintf(stderr, "wrong options\n");
-      arguments->is_help = true;
-    }
-  }
-}
-
-#else
-
-#include <argp.h>
-#include <termio.h>
-const char *argp_program_version = version;
-const char *argp_program_bug_address = "<support@taosdata.com>";
-
-static struct argp_option shellOptions[] = {
-    {"host", 'h', "HOST", 0, "TDengine server FQDN to connect. The default host is localhost."},
-    {"port", 'P', "PORT", 0, "The TCP/IP port number to use for the connection."},
-    {"user", 'u', "USER", 0, "The user name to use when connecting to the server."},
-    {"password", 'p', 0, 0, "The password to use when connecting to the server."},
-    {"auth", 'a', "AUTH", 0, "The auth string to use when connecting to the server."},
-    {"generate-auth", 'A', 0, 0, "Generate auth string from password."},
-    {"config-dir", 'c', "DIR", 0, "Configuration directory."},
-    {"dump-config", 'C', 0, 0, "Dump configuration."},
-    {"commands", 's', "COMMANDS", 0, "Commands to run without enter the shell."},
-    {"raw-time", 'r', 0, 0, "Output time as uint64_t."},
-    {"file", 'f', "FILE", 0, "Script to run without enter the shell."},
-    {"database", 'd', "DATABASE", 0, "Database to use when connecting to the server."},
-    {"check", 'k', 0, 0, "Check the service status."},
-    {"startup", 't', 0, 0, "Check the details of the service status."},
-    {"display-width", 'w', "WIDTH", 0, "Set the default binary display width."},
-    {"netrole", 'n', "NETROLE", 0, "Net role when network connectivity test, options: client|server."},
-    {"pktlen", 'l', "PKTLEN", 0, "Packet length used for net test, default is 1000 bytes."},
-    {"pktnum", 'N', "PKTNUM", 0, "Packet numbers used for net test, default is 100."},
-    {0}};
-
-static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) {
-  SShellArgs *arguments = &shell.args;
+static int32_t shellParseSingleOpt(int32_t key, char *arg) {
+  SShellArgs *pArgs = &shell.args;
 
   switch (key) {
     case 'h':
-      arguments->host = arg;
+      pArgs->host = arg;
       break;
     case 'P':
-      arguments->port = atoi(arg);
+      pArgs->port = atoi(arg);
       break;
     case 'u':
-      arguments->user = arg;
+      pArgs->user = arg;
       break;
     case 'p':
       break;
     case 'a':
-      arguments->auth = arg;
+      pArgs->auth = arg;
       break;
     case 'A':
-      arguments->is_gen_auth = true;
+      pArgs->is_gen_auth = true;
       break;
     case 'c':
-      arguments->cfgdir = arg;
+      pArgs->cfgdir = arg;
       break;
     case 'C':
-      arguments->is_dump_config = true;
+      pArgs->is_dump_config = true;
       break;
     case 's':
-      arguments->commands = arg;
+      pArgs->commands = arg;
       break;
     case 'r':
-      arguments->is_raw_time = true;
+      pArgs->is_raw_time = true;
       break;
     case 'f':
-      arguments->file = arg;
+      tstrncpy(pArgs->file, arg, sizeof(pArgs->file));
       break;
     case 'd':
-      arguments->database = arg;
+      pArgs->database = arg;
       break;
     case 'k':
-      arguments->is_check = true;
+      pArgs->is_check = true;
       break;
     case 't':
-      arguments->is_startup = true;
+      pArgs->is_startup = true;
       break;
     case 'w':
-      arguments->displayWidth = atoi(arg);
+      pArgs->displayWidth = atoi(arg);
       break;
     case 'n':
-      arguments->netrole = arg;
+      pArgs->netrole = arg;
       break;
     case 'l':
-      arguments->pktLen = atoi(arg);
+      pArgs->pktLen = atoi(arg);
       break;
     case 'N':
-      arguments->pktNum = atoi(arg);
+      pArgs->pktNum = atoi(arg);
       break;
     case 'V':
-      arguments->is_version = true;
+      pArgs->is_version = true;
+      break;
+    case '?':
+      pArgs->is_help = true;
       break;
     case 1:
-      arguments->abort = 1;
+      pArgs->abort = 1;
       break;
     default:
       return ARGP_ERR_UNKNOWN;
   }
   return 0;
 }
+
+int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
+  SShellArgs *pArgs = &shell.args;
+
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0) {
+      shellParseSingleOpt('?', NULL);
+      return 0;
+    }
+
+    char   *key = argv[i];
+    int32_t keyLen = strlen(key);
+    if (keyLen != 2) {
+      fprintf(stderr, "invalid option %s\n", key);
+      return -1;
+    }
+    if (key[0] != '-') {
+      fprintf(stderr, "invalid option %s\n", key);
+      return -1;
+    }
+
+    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N') {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "option %s requires an argument\n", key);
+        return -1;
+      }
+      char *val = argv[i + 1];
+      if (val[0] == '-') {
+        fprintf(stderr, "option %s requires an argument\n", key);
+        return -1;
+      }
+      shellParseSingleOpt(key[1], val);
+      i++;
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'c' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
+               key[1] == 'V') {
+      shellParseSingleOpt(key[1], NULL);
+    } else {
+      fprintf(stderr, "invalid option %s\n", key);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+#ifdef LINUX
+#include <argp.h>
+#include <termio.h>
+
+const char *argp_program_version = version;
+const char *argp_program_bug_address = SHELL_EMAIL;
+
+static struct argp_option shellOptions[] = {
+    {"host", 'h', "HOST", 0, SHELL_HOST},
+    {"port", 'P', "PORT", 0, SHELL_PORT},
+    {"user", 'u', "USER", 0, SHELL_USER},
+    {"password", 'p', 0, 0, SHELL_PASSWORD},
+    {"auth", 'a', "AUTH", 0, SHELL_AUTH},
+    {"generate-auth", 'A', 0, 0, SHELL_GEN_AUTH},
+    {"config-dir", 'c', "DIR", 0, SHELL_CFG_DIR},
+    {"dump-config", 'C', 0, 0, SHELL_DMP_CFG},
+    {"commands", 's', "COMMANDS", 0, SHELL_CMD},
+    {"raw-time", 'r', 0, 0, SHELL_RAW_TIME},
+    {"file", 'f', "FILE", 0, SHELL_FILE},
+    {"database", 'd', "DATABASE", 0, SHELL_DB},
+    {"check", 'k', 0, 0, SHELL_CHECK},
+    {"startup", 't', 0, 0, SHELL_STARTUP},
+    {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
+    {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
+    {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
+    {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
+    {0},
+};
+
+static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) { return shellParseSingleOpt(key, arg); }
 
 static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
 
@@ -333,9 +270,11 @@ static int32_t shellCheckArgs() {
     return -1;
   }
 
-  if (pArgs->file != NULL && (strlen(pArgs->file) <= 0)) {
-    printf("Invalid file:%s\n", pArgs->file);
-    return -1;
+  if (pArgs->file[0] != 0) {
+    char fullname[PATH_MAX] = {0};
+    if (taosExpandDir(pArgs->file, fullname, PATH_MAX) == 0) {
+      tstrncpy(pArgs->file, fullname, PATH_MAX);
+    }
   }
 
   if (pArgs->cfgdir != NULL) {
@@ -343,7 +282,9 @@ static int32_t shellCheckArgs() {
       printf("Invalid cfgdir:%s\n", pArgs->cfgdir);
       return -1;
     } else {
-      tstrncpy(configDir, pArgs->cfgdir, PATH_MAX);
+      if (taosExpandDir(pArgs->cfgdir, configDir, PATH_MAX) != 0) {
+        tstrncpy(configDir, pArgs->cfgdir, PATH_MAX);
+      }
     }
   }
 
@@ -393,20 +334,20 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
-  shellParseArgsWithoutArgp();
+  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
-  shellParseArgsWithoutArgp();
+  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
   shellParseArgsUseArgp(argc, argv);
-#endif
-
+  // if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
   if (shell.args.abort) {
     return -1;
   }
+#endif
 
   return shellCheckArgs();
 }

@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (shell.args.is_help) {
-    shellPrintVersion();
+    shellPrintHelp();
     return 0;
   }
 

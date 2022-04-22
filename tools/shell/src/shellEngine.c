@@ -74,10 +74,12 @@ int32_t shellRunSingleCommand(char *command) {
     strtok(command, " \t");
     strtok(NULL, " \t");
     char *p = strtok(NULL, " \t");
-    if (strcasecmp(p, "default") == 0) {
+    if (strncasecmp(p, "default", 7) == 0) {
       shell.args.displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
     } else {
-      shell.args.displayWidth = atoi(p);
+      int32_t displayWidth = atoi(p);
+      displayWidth = TRANGE(displayWidth, 1, 10 * 1024);
+      shell.args.displayWidth = displayWidth;
     }
     return 0;
   }
@@ -353,14 +355,19 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
 }
 
 int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
+  char fullname[PATH_MAX] = {0};
+  if (taosExpandDir(fname, fullname, PATH_MAX) != 0) {
+    tstrncpy(fullname, fname, PATH_MAX);
+  }
+
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
   }
 
-  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
-    fprintf(stderr, "ERROR: failed to open file: %s\n", fname);
+    fprintf(stderr, "ERROR: failed to open file: %s\n", fullname);
     return -1;
   }
 
@@ -541,7 +548,7 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file == 0) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -675,7 +682,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file == NULL) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -753,6 +760,7 @@ void shellWriteHistory() {
     }
     i = (i + 1) % SHELL_MAX_HISTORY_SIZE;
   }
+  taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 }
 
@@ -773,10 +781,15 @@ void shellSourceFile(const char *file) {
   char   *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
   size_t  cmd_len = 0;
   char   *line = NULL;
+  char    fullname[PATH_MAX] = {0};
 
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ | TD_FILE_STREAM);
+  if (taosExpandDir(file, fullname, PATH_MAX) != 0) {
+    tstrncpy(fullname, file, PATH_MAX);
+  }
+
+  TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    fprintf(stderr, "ERROR: failed to open file %s\n", file);
+    fprintf(stderr, "ERROR: failed to open file %s\n", fullname);
     taosMemoryFree(cmd);
     return;
   }
@@ -933,7 +946,7 @@ int32_t shellExecute() {
     return -1;
   }
 
-  if (pArgs->commands != NULL || pArgs->file != NULL) {
+  if (pArgs->commands != NULL || pArgs->file[0] != 0) {
     if (pArgs->commands != NULL) {
       printf("%s%s\n", shell.info.promptHeader, pArgs->commands);
       char *cmd = strdup(pArgs->commands);
@@ -941,7 +954,7 @@ int32_t shellExecute() {
       taosMemoryFree(cmd);
     }
 
-    if (pArgs->file != NULL) {
+    if (pArgs->file[0] != 0) {
       shellSourceFile(pArgs->file);
     }
 
