@@ -21,7 +21,7 @@ title: UDF（用户定义函数）
 
 - udfNormalFunc 中各参数的具体含义是：
   - data：输入数据。
-  - itype：输入数据的类型。这里采用的是短整型表示法，与各种数据类型对应的值可以参见 [column_meta 中的列类型说明](/reference/restful-api/)。例如 4 用于表示 INT 型。
+  - itype：输入数据的类型。这里采用的是短整型表示法，与各种数据类型对应的值可以参见 [column_meta 中的列类型说明](/reference/rest-api/)。例如 4 用于表示 INT 型。
   - iBytes：输入数据中每个值会占用的字节数。
   - numOfRows：输入数据的总行数。
   - ts：主键时间戳在输入中的列数据(只读)。
