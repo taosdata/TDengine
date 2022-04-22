@@ -677,6 +677,8 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
+        tdSql.execute("use db")
+
         self.all_test()
 
     def stop(self):
