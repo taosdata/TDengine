@@ -1,6 +1,88 @@
 
+### 配置 taosAdapter
+
 配置 taosAdapter 接收 TCollector 数据的方法：
 
-- 在 taosAdapter 配置文件 taosadapter.yaml 中使能配置项 `opentsdb_telnet.enable=True`。taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件来指定不同的名称。
-- 修改 TCollector 配置项，将 OpenTSDB 宿主机地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口号为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。注意：TCollector 各个版本变化较大，以 master 分支代码为例，需要修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容。其他版本需要修改的文件可能有所不同。
+- 在 taosAdapter 配置文件 （默认位置为 /etc/taos/taosadapter.toml） 中使能配置项
 
+```
+[opentsdb_telnet]
+enable = true
+maxTCPConnections = 250
+tcpKeepAlive = false
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+ports = [6046, 6047, 6048, 6049]
+user = "root"
+password = "taosdata"
+```
+
+其中 taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。taosAdapter 需重新启动。
+
+或使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 tcollector 数据功能。
+
+```
+      --opentsdb_telnet.dbs strings                  opentsdb_telnet db names. Env "TAOS_ADAPTER_OPENTSDB_TELNET_DBS" (default [opentsdb_telnet,collectd_tsdb,icinga2_tsdb,tcollector_tsdb])
+      --opentsdb_telnet.enable                       enable opentsdb telnet,warning: without auth info(default false). Env "TAOS_ADAPTER_OPENTSDB_TELNET_ENABLE"
+      --opentsdb_telnet.maxTCPConnections int        max tcp connections. Env "TAOS_ADAPTER_OPENTSDB_TELNET_MAX_TCP_CONNECTIONS" (default 250)
+      --opentsdb_telnet.password string              opentsdb_telnet password. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PASSWORD" (default "taosdata")
+      --opentsdb_telnet.ports ints                   opentsdb telnet tcp port. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PORTS" (default [6046,6047,6048,6049])
+      --opentsdb_telnet.tcpKeepAlive                 enable tcp keep alive. Env "TAOS_ADAPTER_OPENTSDB_TELNET_TCP_KEEP_ALIVE"
+      --opentsdb_telnet.user string                  opentsdb_telnet user. Env "TAOS_ADAPTER_OPENTSDB_TELNET_USER" (default "root")
+```
+
+### 配置 TCollector
+
+- TCollector 使用其源代码中配置项。注意：TCollector 各个版本区别较大，这里仅以当前 master 分支代码为例，修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容，其他版本需要修改的文件可能有所不同。将原指向 OpenTSDB 宿主机的地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。
+
+示例为修改内容的 git diff 输出：
+
+```
+index e7e7a1c..ec3e23c 100644
+--- a/collectors/etc/config.py
++++ b/collectors/etc/config.py
+@@ -59,13 +59,13 @@ def get_defaults():
+         'http_password': False,
+         'reconnectinterval': 0,
+         'http_username': False,
+-        'port': 4242,
++        'port': 6049,
+         'pidfile': '/var/run/tcollector.pid',
+         'http': False,
+         'http_api_path': "api/put",
+         'tags': [],
+         'remove_inactive_collectors': False,
+-        'host': '',
++        'host': '127.0.0.1',
+         'logfile': '/var/log/tcollector.log',
+         'cdir': default_cdir,
+         'ssl': False,
+diff --git a/tcollector.py b/tcollector.py
+index 21f9b23..4c71ba2 100755
+--- a/tcollector.py
++++ b/tcollector.py
+@@ -64,7 +64,7 @@ ALIVE = True
+ # exceptions, something is not right and tcollector will shutdown.
+ # Hopefully some kind of supervising daemon will then restart it.
+ MAX_UNCAUGHT_EXCEPTIONS = 100
+-DEFAULT_PORT = 4242
++DEFAULT_PORT = 6049
+ MAX_REASONABLE_TIMESTAMP = 2209212000  # Good until Tue  3 Jan 14:00:00 GMT 2040
+ # How long to wait for datapoints before assuming
+ # a collector is dead and restarting it
+@@ -943,13 +943,13 @@ def parse_cmdline(argv):
+             'http_password': False,
+             'reconnectinterval': 0,
+             'http_username': False,
+-            'port': 4242,
++            'port': 6049,
+             'pidfile': '/var/run/tcollector.pid',
+             'http': False,
+             'http_api_path': "api/put",
+             'tags': [],
+             'remove_inactive_collectors': False,
+-            'host': '',
++            'host': '127.0.0.1',
+             'logfile': '/var/log/tcollector.log',
+             'cdir': default_cdir,
+             'ssl': False,
+```

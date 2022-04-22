@@ -12,18 +12,27 @@ icinga2 是一款开源主机、网络监控软件，最初由 Nagios 网络监�
 ## 前置条件
 
 要将 icinga2 数据写入 TDengine, 需要几方面的准备工作。
-- TDengine 集群已经部署并正在运行
-- taosAdapter 已经安装但并未运行，或停止在运行中的 taosAdapter ，修改完配置文件再运行。具体细节请参考[ taosAdapter 的使用手册](/reference/taosadapter)
-- icinga2 已经安装且并未运行，或停止在运行中的 icinga2 ，修改完配置文件再重新运行。安装 icinga2 请参考[官方文档](https://icinga.com/docs/icinga-2/latest/doc/02-installation/)
+- TDengine 集群已经部署并正常运行
+- taosAdapter 已经安装并正常运行。具体细节请参考[ taosAdapter 的使用手册](/reference/taosadapter)
+- icinga2 已经安装。安装 icinga2 请参考[官方文档](https://icinga.com/docs/icinga-2/latest/doc/02-installation/)
 
-## 配置 icinga2
+## 配置步骤
 <Icinga2 />
 
 ## 验证方法
 
-使用 `systemctl start taosadapter` 启动 taosAdapter。
-使用 `systemctl start icinga2` 启动 icinga2。
-等待 10 秒左右后，使用 TDengine CLI 查询 TDengine 验证是否创建相应数据库并写入数据。
+重启 taosAdapter：
+```
+sudo systemctl restart taosadapter
+```
+
+重启 icinga2：
+
+```
+sudo systemctl restart icinga2
+```
+
+等待 10 秒左右后，使用 TDengine CLI 查询 TDengine 验证是否创建相应数据库并写入数据：
 
 ```
 taos> show databases;
