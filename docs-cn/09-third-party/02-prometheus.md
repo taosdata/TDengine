@@ -14,11 +14,11 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 ## 前置条件
 
 要将 Prometheus 数据写入 TDengine, 需要几方面的准备工作。
-- TDengine 集群已经部署并正在运行
-- taosAdapter 已经安装并正在运行, 具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- TDengine 集群已经部署并正常运行
+- taosAdapter 已经安装并正常运行, 具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
 - Prometheus 已经安装。安装 Prometheus 请参考[官方文档](https://prometheus.io/docs/prometheus/latest/installation/)
 
-## 配置 Prometheus
+## 配置步骤
 <Prometheus />
 
 ## 验证方法
