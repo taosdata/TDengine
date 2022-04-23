@@ -93,7 +93,7 @@ SELECT function_list FROM stb_name
 
 :::
 
-时间聚合也常被用于连续查询场景，可以参考文档 [连续查询(Continuous Query)](/advance-feature/continuous-query)。
+时间聚合也常被用于连续查询场景，可以参考文档 [连续查询(Continuous Query)](/develop/continuous-query)。
 
 ## 示例
 
