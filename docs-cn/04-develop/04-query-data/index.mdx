@@ -1,6 +1,7 @@
 ---
 slug: /query-data
 title: 查询数据
+description: "主要查询功能，通过连接器执行同步查询和异步查询"
 ---
 
 import Tabs from "@theme/Tabs";
@@ -19,7 +20,7 @@ import CAsync from "./_c_async.mdx";
 
 ## 主要查询功能
 
-TDengine 采用 SQL 作为查询语言。应用程序可以通过RESTful接口或连接器发送 SQL 语句，用户还可以通过 TDengine 命令行工具 taos 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
+TDengine 采用 SQL 作为查询语言。应用程序可以通过 REST API 或连接器发送 SQL 语句，用户还可以通过 TDengine 命令行工具 taos 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
 
 - 单列、多列数据查询
 - 标签和数值的多种过滤条件：>, <, =, <\>, like 等
@@ -61,6 +62,7 @@ Query OK, 2 row(s) in set (0.002136s)
 ```
 
 #### 示例二
+
 在 TAOS shell, 查找 groupId 为 2 的所有智能电表过去 24 小时的记录条数，电流的最大值。
 
 ```
@@ -152,7 +154,7 @@ Query OK, 5 row(s) in set (0.001521s)
 
 :::note
 
-1. 无论是使用 RESTful 连接还是本地连接的连接器，以上示例代码都能正常工作。
+1. 无论是使用 REST 连接还是原生连接的连接器，以上示例代码都能正常工作。
 2. 唯一需要注意的是：由于 RESTful 接口无状态， 不能使用 `use db` 语句来切换数据库。
 
 :::
@@ -161,7 +163,7 @@ Query OK, 5 row(s) in set (0.001521s)
 
 除同步查询 API 之外，TDengine 还提供性能更高的异步调用 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2-4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优点尤为突出。
 
-需要注意的是，只有使用本地连接的连接器，才能使用异步查询功能。
+需要注意的是，只有使用原生连接的连接器，才能使用异步查询功能。
 
 <Tabs defaultValue="python" groupId="lang">
   <TabItem label="Python" value="python">

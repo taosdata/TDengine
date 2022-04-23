@@ -7,15 +7,15 @@ description: 此连接器基于标准 JDBC API 实现。
 
 ## 总体介绍
 
-`taos-jdbcdriver` 的实现包括两种形式： JDBC 本地连接和 JDBC-REST（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC 本地连接通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则通过封装 TDengine REST 服务接口建立连接，REST 连接实现的功能集合和本地连接有少量不同。
+`taos-jdbcdriver` 的实现包括两种形式： JDBC 原生连接和 JDBC-REST（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC 原生连接通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则通过封装 TDengine REST 服务接口建立连接，REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](/img/tdengine-jdbc-connector.png)
 
 上图显示了三种 Java 应用使用连接器访问 TDengine 的方式：
 
-- JDBC 本地连接：Java 应用在物理节点 1（pnode1）上使用 JDBC 本地连接的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
-- RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 RESTful 连接器，再调用客户端驱动 API。
-- JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点 2 的 RESTful 连接器。
+- JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 JDBC 原生连接的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
+- RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 REST 连接器，再调用客户端驱动 API。
+- JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点 2 的 REST 连接器。
 
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，导致 `taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
 
@@ -27,7 +27,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 <table>
   <tr align="center">
     <th>对比项</th>
-    <th>JDBC 本地连接</th>
+    <th>JDBC 原生连接</th>
     <th>JDBC-RESTful</th>
   </tr>
   <tr align="center">
@@ -47,17 +47,17 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
   </tr>
   <tr align="center">
     <td>写入性能</td>
-    <td colspan="2">JDBC-RESTful 是 JDBC 本地连接的 50%～90% </td>
+    <td colspan="2">JDBC-RESTful 是 JDBC 原生连接的 50%～90% </td>
   </tr>
   <tr align="center">
     <td>查询性能</td>
-    <td colspan="2">JDBC-RESTful 与 JDBC 本地连接没有差别</td>
+    <td colspan="2">JDBC-RESTful 与 JDBC 原生连接没有差别</td>
   </tr>
 </table>
 
 **注意**：
 
-- 与本地连接方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 SQL 中指定表、超级表的数据库名称。例如：
+- 与原生连接方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 SQL 中指定表、超级表的数据库名称。例如：
 
 ```sql
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
@@ -108,7 +108,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 1. Linux 或 Windows 操作系统
 2. 已安装 Java 1.8 及以上运行时环境
 3. 已安装 maven 3.6 及以上版本
-4. 已安装 TDengine-client（使用 JDBC 本地连接必须安装，使用 JDBC-RESTful 无需安装）
+4. 已安装 TDengine-client（使用 JDBC 原生连接必须安装，使用 JDBC-RESTful 无需安装）
 
 **注意**：由于 TDengine 的应用驱动是使用 C 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
@@ -152,7 +152,7 @@ mvn clean install -Dmaven.test.skip=true
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
-### 建立本地连接
+### 建立原生连接
 
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -160,9 +160,9 @@ String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-以上示例，使用了 JDBC 本地连接的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
+以上示例，使用了 JDBC 原生连接的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC 本地连接的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 原生连接的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 url 中的配置参数如下：
 
@@ -175,11 +175,11 @@ url 中的配置参数如下：
 - batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
-JDBC 本地连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
+JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
 #### 使用客户端配置文件建立连接
 
-当使用 JDBC 本地连接连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp 参数。如下所示：
+当使用 JDBC 原生连接连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp 参数。如下所示：
 
 1. 在 Java 应用中不指定 hostname 和 port
 
@@ -218,7 +218,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
-### 建立 RESTful 连接
+### 建立 REST 连接
 
 ```java
 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
@@ -228,7 +228,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用 **JDBC-RESTful** 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-使用 JDBC-RESTful 接口，不需要依赖本地函数库。与 JDBC 本地连接相比，仅需要：
+使用 JDBC-RESTful 接口，不需要依赖本地函数库。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
@@ -240,7 +240,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 - timestampFormat: 'TIMESTAMP'：结果集中 timestamp 类型的字段为一个 long 值; 'UTC'：结果集中 timestamp 类型的字段为一个 UTC 时间格式的字符串; 'STRING'：结果集中 timestamp 类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
-**注意**：部分配置项（比如：locale、timezone）在 RESTful 连接中不生效。
+**注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
 
 ### 指定 URL 和 Properties 获取连接
 
@@ -267,10 +267,10 @@ properties 中的配置参数如下：
 
 - TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
 - TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
-- TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 本地连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
-- TSDBDriver.PROPERTY_KEY_CHARSET：仅在使用 JDBC 本地连接时生效。 客户端使用的字符集，默认值为系统字符集。
-- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 本地连接时生效。 客户端语言环境，默认值系统当前 locale。
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 本地连接时生效。 客户端使用的时区，默认值为系统当前时区。
+- TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
+- TSDBDriver.PROPERTY_KEY_CHARSET：仅在使用 JDBC 原生连接时生效。 客户端使用的字符集，默认值为系统字符集。
+- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: 仅在使用 JDBC-RESTful 时生效。 'TIMESTAMP'：结果集中 timestamp 类型的字段为一个 long 值; 'UTC'：结果集中 timestamp 类型的字段为一个 UTC 时间格式的字符串; 'STRING'：结果集中 timestamp 类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
@@ -356,7 +356,7 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 
-JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间），本地连接方法的报错（错误码在 0x2351 到 0x2400 之间），TDengine 其他功能模块的报错。
+JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间），原生连接方法的报错（错误码在 0x2351 到 0x2400 之间），TDengine 其他功能模块的报错。
 
 具体的错误码请参考：
 
@@ -365,7 +365,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 ### 通过参数绑定写入数据
 
-从 2.1.2.0 版本开始，TDengine 的 JDBC 本地连接实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
+从 2.1.2.0 版本开始，TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
 
 **注意**：
 
@@ -675,7 +675,7 @@ public class SchemalessInsertTest {
 
 ### 设置客户端参数
 
-从 TDengine-2.3.5.0 版本开始，jdbc driver 支持在应用的第一次连接中，设置 TDengine 的客户端参数。Driver 支持 JDBC 本地连接方式中，通过 jdbcUrl 和 properties 两种方式设置 client parameter。
+从 TDengine-2.3.5.0 版本开始，jdbc driver 支持在应用的第一次连接中，设置 TDengine 的客户端参数。Driver 支持 JDBC 原生连接方式中，通过 jdbcUrl 和 properties 两种方式设置 client parameter。
 
 **注意**：
 

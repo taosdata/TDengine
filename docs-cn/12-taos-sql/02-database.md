@@ -34,7 +34,7 @@ SHOW VARIABLES;
 USE db_name;
 ```
 
-使用/切换数据库（在 RESTful 连接方式下无效）。
+使用/切换数据库（在 REST 连接方式下无效）。
 
 ## 删除数据库
 
