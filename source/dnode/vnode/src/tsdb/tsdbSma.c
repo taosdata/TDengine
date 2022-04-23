@@ -1877,6 +1877,14 @@ int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pUidStore) {
 }
 
 int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t inputType) {
+  SSmaEnv *pEnv = REPO_RSMA_ENV(pTsdb);
+  if (!pEnv) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
+  SRSmaInfo *pRSmaInfo = NULL;
+
   SArray *pResult = NULL;
 
   pResult = taosArrayInit(0, sizeof(SSDataBlock));
@@ -1884,12 +1892,6 @@ int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t in
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-
-  SSmaEnv   *pEnv = REPO_RSMA_ENV(pTsdb);
-  SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
-  SRSmaInfo *pRSmaInfo = NULL;
-
-  TASSERT(pEnv != NULL && pStat != NULL);
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     // pRSmaInfo = taosHashGet(pStat->rsmaInfoHash, &pReq->stbCfg.suid, sizeof(tb_uid_t));
