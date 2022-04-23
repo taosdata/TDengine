@@ -39,7 +39,7 @@ typedef int32_t TdUcs4;
     #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   #define tstrdup(str) _strdup(str)
 #else
   #define tstrdup(str) strdup(str)

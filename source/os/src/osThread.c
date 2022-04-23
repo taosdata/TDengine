@@ -294,7 +294,7 @@ int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) {
 }
 
 int32_t taosThreadSpinDestroy(TdThreadSpinlock * lock) {
-#ifndef __USE_XOPEN2K
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_destroy((pthread_mutex_t*)lock);
 #else
   return pthread_spin_destroy((pthread_spinlock_t*)lock);
@@ -302,15 +302,16 @@ int32_t taosThreadSpinDestroy(TdThreadSpinlock * lock) {
 }
 
 int32_t taosThreadSpinInit(TdThreadSpinlock * lock, int32_t pshared) {
-#ifndef __USE_XOPEN2K
-  return pthread_mutex_init((pthread_mutex_t*)lock, pshared);
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
+  assert(pshared == NULL);
+  return pthread_mutex_init((pthread_mutex_t*)lock, NULL);
 #else
   return pthread_spin_init((pthread_spinlock_t*)lock, pshared);
 #endif
 }
 
 int32_t taosThreadSpinLock(TdThreadSpinlock * lock) {
-#ifndef __USE_XOPEN2K
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_lock((pthread_mutex_t*)lock);
 #else
   return pthread_spin_lock((pthread_spinlock_t*)lock);
@@ -318,7 +319,7 @@ int32_t taosThreadSpinLock(TdThreadSpinlock * lock) {
 }
 
 int32_t taosThreadSpinTrylock(TdThreadSpinlock * lock) {
-#ifndef __USE_XOPEN2K
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_trylock((pthread_mutex_t*)lock);
 #else
   return pthread_spin_trylock((pthread_spinlock_t*)lock);
@@ -326,7 +327,7 @@ int32_t taosThreadSpinTrylock(TdThreadSpinlock * lock) {
 }
 
 int32_t taosThreadSpinUnlock(TdThreadSpinlock * lock) {
-#ifndef __USE_XOPEN2K
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_unlock((pthread_mutex_t*)lock);
 #else
   return pthread_spin_unlock((pthread_spinlock_t*)lock);
@@ -337,10 +338,6 @@ void taosThreadTestCancel(void) {
   return pthread_testcancel();
 }
 
-int32_t taosThreadSigMask(int32_t how, sigset_t const *set, sigset_t * oset) {
-  return pthread_sigmask(how, set, oset);
-}
-
-int32_t taosThreadSigWait(const sigset_t * set, int32_t *sig) {
-  return sigwait(set, sig);
+void taosThreadClear(TdThread *thread) {
+  memset(thread, 0, sizeof(TdThread));
 }

@@ -639,12 +639,18 @@ int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
 typedef struct {
-  SArray* epSetList;  // SArray<SEpSet>
+  SArray* addrsList;  // SArray<SQueryNodeAddr>
 } SQnodeListRsp;
 
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
+
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  SEpSet  epSet;
+} SQueryNodeAddr;
+
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -1283,15 +1289,13 @@ typedef struct {
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    name[TSDB_TOPIC_FNAME_LEN]; // accout.topic
   int8_t  igExists;
   int8_t  withTbName;
   int8_t  withSchema;
   int8_t  withTag;
-  int8_t  withTagSchema;
   char*   sql;
   char*   ast;
-  int64_t subDbUid;
   char    subscribeDbName[TSDB_DB_NAME_LEN];
 } SCMCreateTopicReq;
 

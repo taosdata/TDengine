@@ -21,6 +21,7 @@
 #include "tqueue.h"
 #include "trpc.h"
 
+#include "sync.h"
 #include "tarray.h"
 #include "tfs.h"
 #include "wal.h"
@@ -59,6 +60,9 @@ int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
+
+int64_t vnodeGetSyncHandle(SVnode *pVnode);
+void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 
 // meta
 typedef struct SMeta      SMeta;  // todo: remove
@@ -109,7 +113,8 @@ int     tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList
 int     tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
-int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, int32_t *pNumOfRows);
+int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, int32_t *pNumOfRows,
+                            int16_t *pNumOfCols);
 
 // need to reposition
 
@@ -146,6 +151,7 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
+  SSyncCfg syncCfg;  // sync integration
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
@@ -164,6 +170,11 @@ typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
+
+// sync integration
+void    vnodeSyncSetQ(SVnode *pVnode, void *qHandle);
+void    vnodeSyncSetRpc(SVnode *pVnode, void *rpcHandle);
+int32_t vnodeSyncStart(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

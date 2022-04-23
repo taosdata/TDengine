@@ -16,6 +16,7 @@
 #ifndef _TD_DM_DEF_H_
 #define _TD_DM_DEF_H_
 
+#include "uv.h"
 #include "dmLog.h"
 
 #include "cJSON.h"
@@ -142,6 +143,19 @@ typedef struct {
   char desc[TSDB_STEP_DESC_LEN];
 } SStartupInfo;
 
+typedef struct SUdfdData {
+  bool          startCalled;
+  bool          needCleanUp;
+  uv_loop_t     loop;
+  uv_thread_t   thread;
+  uv_barrier_t  barrier;
+  uv_process_t  process;
+  int           spawnErr;
+  uv_pipe_t     ctrlPipe;
+  uv_async_t    stopAsync;
+  int32_t        stopCalled;
+} SUdfdData;
+
 typedef struct SDnode {
   EDndProcType  ptype;
   EDndNodeType  ntype;
@@ -150,6 +164,7 @@ typedef struct SDnode {
   SStartupInfo  startup;
   SDnodeTrans   trans;
   SDnodeData    data;
+  SUdfdData     udfdData;
   TdThreadMutex mutex;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
