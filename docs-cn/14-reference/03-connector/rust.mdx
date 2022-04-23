@@ -4,9 +4,11 @@ sidebar_label: Rust
 title: Rust Connector
 ---
 
+import Preparition from "./_preparition.mdx"
+
 [![Crates.io](https://img.shields.io/crates/v/libtaos)](https://crates.io/crates/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos) [![docs.rs](https://img.shields.io/docsrs/libtaos)](https://docs.rs/libtaos)
 
-Rust 连接器 [libtaos][libtaos] 旨在为 Rust 开发者提供连接器官方支持。[libtaos][libtaos] 使用不同的 features 提供对 TDengine 客户端驱动和 REST 接口的支持。以下是可使用的特性列表：
+libtaos 是 TDengine 的官方 Rust 语言连接器。Rust 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。libtaos 使用不同的 features 提供对通过客户端驱动程序（taosc）原生连接和使用 REST 连接 TDengine 服务端的。以下是可使用的特性列表：
 
 | 启用特性 | 支持平台              | 说明                                                              |
 | -------- | --------------------- | ----------------------------------------------------------------- |
@@ -28,7 +30,10 @@ Rust 连接器 [libtaos][libtaos] 旨在为 Rust 开发者提供连接器官方�
 
 ## 安装
 
-如需使用 TDengine 客户端驱动（taosc），请参考 [该文档](/reference/connector/#安装客户端驱动) 进行安装。使用 REST 接口无需安装客户端。之后可以按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
+1. 安装 Rust 开发工具链
+<Preparition />
+
+之后可以按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
 
 ### 使用客户端驱动
 

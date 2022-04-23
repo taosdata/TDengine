@@ -1,0 +1,8 @@
+2. 已安装 maven 3.6 及以上版本
+3. 已安装 TDengine-client（使用原生连接必须安装，使用REST 连接无需安装）
+
+**注意**：由于 TDengine 的应用驱动是使用 C 语言开发的，使用原生连接时需要依赖系统对应的本地函数库。TDengine Linux 服务端安装包也附带了 TDengine client，也可以单独安装 [Linux 客户端](/get-started/) 连接远端 TDengine 集群。在 Windows 环境开发时需要安装 TDengine 对应的 [Windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client) 连接远端 TDengine 集群。
+
+- libtaos.so 在 Linux 系统中成功安装 TDengine 后，依赖的 Linux b版客户端驱动 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
+- taos.dll 在 Windows 系统中安装完客户端之后，驱动包依赖的 Windows 版客户端驱动 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
+

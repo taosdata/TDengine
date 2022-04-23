@@ -4,6 +4,8 @@ sidebar_label: Node.js
 title: Node.js Connector
 ---
 
+import Preparition from "./_preparition.mdx"
+
 ## 总体介绍
 
 td2.0-connector 是 TDengine 的官方 Node.js 连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 数据的应用软件。
@@ -59,6 +61,9 @@ Node.js 连接器支持的系统有：
 ## 安装步骤
 
 ### 安装前的准备
+
+1. 安装 Node.js 开发环境
+<Preparition />
 
 - 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
 我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 Node.js 本地驱动连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 RESTful 连接器则可以跳过以下步骤，直接只用 npm 安装。
