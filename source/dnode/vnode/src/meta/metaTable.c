@@ -15,13 +15,14 @@
 
 #include "vnodeInt.h"
 
-static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME);
-static int metaUpdateUidIdx(SMeta *pMeta, tb_uid_t uid, int64_t version);
-static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid);
-static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
-static int metaCreateChildTable(SMeta *pMeta, int64_t version, SMetaEntry *pME);
-static int metaUpdateTtlIdx(SMeta *pMeta, int64_t dtime, tb_uid_t uid);
-static int metaSaveToSkmDb(SMeta *pMeta, tb_uid_t uid, SSchemaWrapper *pSW);
+static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME);
+static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pME);
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
@@ -39,23 +40,14 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   }
 
   // set structs
+  me.version = version;
   me.type = TSDB_SUPER_TABLE;
   me.uid = pReq->suid;
   me.name = pReq->name;
   me.stbEntry.schema = pReq->schema;
   me.stbEntry.schemaTag = pReq->schemaTag;
 
-  // save to table.db
-  if (metaSaveToTbDb(pMeta, version, &me) < 0) goto _err;
-
-  // save to schema.db (TODO)
-  if (metaSaveToSkmDb(pMeta, pReq->suid, &pReq->schema) < 0) goto _err;
-
-  // update uid idx
-  if (metaUpdateUidIdx(pMeta, me.uid, version) < 0) goto _err;
-
-  // update name.idx
-  if (metaUpdateNameIdx(pMeta, me.name, me.uid) < 0) goto _err;
+  if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
   metaDebug("vgId: %d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
 
@@ -105,16 +97,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     me.ntbEntry.schema = pReq->ntb.schema;
   }
 
-  // save table
-  if (me.type == TSDB_CHILD_TABLE) {
-    if (metaCreateChildTable(pMeta, version, &me) < 0) {
-      goto _err;
-    }
-  } else {
-    if (metaCreateNormalTable(pMeta, version, &me) < 0) {
-      goto _err;
-    }
-  }
+  if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
   metaDebug("vgId:%d table %s uid %" PRId64 " is created", TD_VID(pMeta->pVnode), pReq->name, pReq->uid);
   return 0;
@@ -141,7 +124,7 @@ int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
   return 0;
 }
 
-static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME) {
+static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   STbDbKey tbDbKey;
   void    *pKey = NULL;
   void    *pVal = NULL;
@@ -150,7 +133,7 @@ static int metaSaveToTbDb(SMeta *pMeta, int64_t version, const SMetaEntry *pME) 
   SCoder   coder = {0};
 
   // set key and value
-  tbDbKey.version = version;
+  tbDbKey.version = pME->version;
   tbDbKey.uid = pME->uid;
 
   pKey = &tbDbKey;
@@ -187,64 +170,77 @@ _err:
   return -1;
 }
 
-static int metaUpdateUidIdx(SMeta *pMeta, tb_uid_t uid, int64_t version) {
-  return tdbDbInsert(pMeta->pUidIdx, &uid, sizeof(uid), &version, sizeof(version), NULL);
+static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  return tdbDbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), NULL);
 }
 
-static int metaUpdateNameIdx(SMeta *pMeta, const char *name, tb_uid_t uid) {
-  return tdbDbInsert(pMeta->pNameIdx, name, strlen(name) + 1, &uid, sizeof(uid), NULL);
+static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  return tdbDbInsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), NULL);
 }
 
-static int metaUpdateTtlIdx(SMeta *pMeta, int64_t dtime, tb_uid_t uid) {
-  STtlIdxKey ttlKey = {.dtime = dtime, .uid = uid};
+static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  int32_t    ttlDays;
+  int64_t    ctime;
+  STtlIdxKey ttlKey;
+
+  if (pME->type == TSDB_CHILD_TABLE) {
+    ctime = pME->ctbEntry.ctime;
+    ttlDays = pME->ctbEntry.ttlDays;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    ctime = pME->ntbEntry.ctime;
+    ttlDays = pME->ntbEntry.ttlDays;
+  } else {
+    ASSERT(0);
+  }
+
+  if (ttlDays <= 0) return 0;
+
+  ttlKey.dtime = ctime + ttlDays * 24 * 60 * 60;
+  ttlKey.uid = pME->uid;
+
   return tdbDbInsert(pMeta->pTtlIdx, &ttlKey, sizeof(ttlKey), NULL, 0, NULL);
 }
 
-static int metaCreateChildTable(SMeta *pMeta, int64_t version, SMetaEntry *pME) {
+static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
+  return tdbDbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, NULL);
+}
+
+static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pME) {
   // TODO
   return 0;
 }
 
-static int metaCreateNormalTable(SMeta *pMeta, int64_t version, SMetaEntry *pME) {
-  int64_t dtime;
+static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
+  SCoder                coder = {0};
+  void                 *pVal = NULL;
+  int                   vLen = 0;
+  int                   rcode = 0;
+  SSkmDbKey             skmDbKey = {0};
+  const SSchemaWrapper *pSW;
 
-  // save to table.db
-  if (metaSaveToTbDb(pMeta, version, pME) < 0) return -1;
-
-  // save to schema.db
-  if (metaSaveToSkmDb(pMeta, pME->uid, &pME->ntbEntry.schema) < 0) return -1;
-
-  // update uid.idx
-  if (metaUpdateUidIdx(pMeta, pME->uid, version) < 0) return -1;
-
-  // save to name.idx
-  if (metaUpdateNameIdx(pMeta, pME->name, pME->uid) < 0) return -1;
-
-  // save to pTtlIdx if need
-  if (pME->ntbEntry.ttlDays > 0) {
-    dtime = pME->ntbEntry.ctime + pME->ntbEntry.ttlDays * 24 * 60;
-
-    if (metaUpdateTtlIdx(pMeta, dtime, pME->uid) < 0) return -1;
+  if (pME->type == TSDB_SUPER_TABLE) {
+    pSW = &pME->stbEntry.schema;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    pSW = &pME->ntbEntry.schema;
+  } else {
+    ASSERT(0);
   }
 
-  return 0;
-}
-
-static int metaSaveToSkmDb(SMeta *pMeta, tb_uid_t uid, SSchemaWrapper *pSW) {
-  SCoder    coder = {0};
-  void     *pVal = NULL;
-  int       vLen = 0;
-  int       rcode = 0;
-  SSkmDbKey skmDbKey = {.uid = uid, .sver = pSW->sver};
+  skmDbKey.uid = pME->uid;
+  skmDbKey.sver = pSW->sver;
 
   // encode schema
   if (tEncodeSize(tEncodeSSchemaWrapper, pSW, vLen) < 0) return -1;
-  pVal = TCODER_MALLOC(&coder, vLen);
+  pVal = taosMemoryMalloc(vLen);
   if (pVal == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_ENCODER);
+  tEncodeSSchemaWrapper(&coder, pSW);
 
   if (tdbDbInsert(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, NULL) < 0) {
     rcode = -1;
@@ -252,6 +248,35 @@ static int metaSaveToSkmDb(SMeta *pMeta, tb_uid_t uid, SSchemaWrapper *pSW) {
   }
 
 _exit:
+  taosMemoryFree(pVal);
   tCoderClear(&coder);
+  return rcode;
+}
+
+static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
+  // save to table.db
+  if (metaSaveToTbDb(pMeta, pME) < 0) return -1;
+
+  // update uid.idx
+  if (metaUpdateUidIdx(pMeta, pME) < 0) return -1;
+
+  // update name.idx
+  if (metaUpdateNameIdx(pMeta, pME) < 0) return -1;
+
+  if (pME->type == TSDB_CHILD_TABLE) {
+    // update ctb.idx
+    if (metaUpdateCtbIdx(pMeta, pME) < 0) return -1;
+
+    // update tag.idx
+    if (metaUpdateTagIdx(pMeta, pME) < 0) return -1;
+  } else {
+    // update schema.db
+    if (metaSaveToSkmDb(pMeta, pME) < 0) return -1;
+  }
+
+  if (pME->type != TSDB_SUPER_TABLE) {
+    if (metaUpdateTtlIdx(pMeta, pME) < 0) return -1;
+  }
+
   return 0;
 }

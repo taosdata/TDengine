@@ -18,6 +18,7 @@
 int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;
 
+  if (tEncodeI64(pCoder, pME->version) < 0) return -1;
   if (tEncodeI8(pCoder, pME->type) < 0) return -1;
   if (tEncodeI64(pCoder, pME->uid) < 0) return -1;
   if (tEncodeCStr(pCoder, pME->name) < 0) return -1;
@@ -45,6 +46,7 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
 int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
   if (tStartDecode(pCoder) < 0) return -1;
 
+  if (tDecodeI64(pCoder, &pME->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pME->type) < 0) return -1;
   if (tDecodeI64(pCoder, &pME->uid) < 0) return -1;
   if (tDecodeCStr(pCoder, &pME->name) < 0) return -1;

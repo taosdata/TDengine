@@ -135,6 +135,7 @@ void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
 
 struct SMetaEntry {
+  int64_t     version;
   int8_t      type;
   tb_uid_t    uid;
   const char* name;
