@@ -1017,9 +1017,11 @@ void transReleaseSrvHandle(void* handle) {
   uvReleaseExHandle(refId);
   return;
 _return1:
+  tTrace("server handle %p failed to send to release handle", exh);
   uvReleaseExHandle(refId);
   return;
 _return2:
+  tTrace("server handle %p failed to send to release handle", exh);
   return;
 }
 void transSendResponse(const STransMsg* msg) {
@@ -1041,10 +1043,12 @@ void transSendResponse(const STransMsg* msg) {
   uvReleaseExHandle(refId);
   return;
 _return1:
+  tTrace("server handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   uvReleaseExHandle(refId);
   return;
 _return2:
+  tTrace("server handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   return;
 }
@@ -1067,10 +1071,12 @@ void transRegisterMsg(const STransMsg* msg) {
   uvReleaseExHandle(refId);
   return;
 _return1:
+  tTrace("server handle %p failed to send to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   uvReleaseExHandle(refId);
   return;
 _return2:
+  tTrace("server handle %p failed to send to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
 }
 
