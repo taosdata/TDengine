@@ -8,7 +8,7 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-TDengine.Connector 是 TDengine 提供的 C# 本地客户端驱动连接器。C# 语言开发人员可以通过 它开发存取 TDengine 数据库的应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 服务端。进行查询、订阅、schemaless 接口、参数绑定接口等功能。
+TDengine.Connector 是 TDengine 提供的 C# 连接器。C# 语言开发人员可以通过它开发存取 TDengine 数据库的 C# 应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 服务端。进行查询、订阅、schemaless 接口、参数绑定接口等功能。
 
 TDengine.Connector 目前暂未提供使用 REST 连接d的接口，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
@@ -16,7 +16,10 @@ TDengine.Connector 目前暂未提供使用 REST 连接d的接口，用户可以
 
 ## 支持的平台
 
-C# 连接器支持的系统有：Linux 64 / Windows x64/ Windows x86
+| **CPU 类型** | x64（64bit） |          |          |
+| ------------ | ------------ | -------- | -------- |
+| **OS 类型**  | Linux        | Win64    | Win32    |
+| **支持与否** | **支持**     | **支持** | **支持** |
 
 ## 版本支持
 
@@ -24,13 +27,7 @@ C# 连接器支持的系统有：Linux 64 / Windows x64/ Windows x86
 |--------------------|:-------------------------------------:|
 | 1.0.2 ~ 1.0.6      | v2.3.4+ |
 
-## 支持的特性
-
-### 原生连接
-
-“原生连接”指连接器通过客户端驱动 taosc 直接与 TDengine 服务端建立连接。
-
-“本地连接”支持的特新如下：
+## 支持的功能特性
 
 1. 连接管理
 2. 同步查询
@@ -85,8 +82,6 @@ dotnet add TDengineDriver/TDengineDriver.csproj
 ```
 
 ## 建立连接
-
-### 建立本地连接
 
 ``` C#
 using TDengineDriver;

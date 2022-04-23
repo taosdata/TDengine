@@ -9,7 +9,9 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-`taos-jdbcdriver` 的实现包括两种形式： JDBC 原生连接和 JDBC-REST（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC 原生连接通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则通过封装 TDengine REST 服务接口建立连接，REST 连接实现的功能集合和原生连接有少量不同。
+taos-jdbcdriver 是 TDengine 的官方 Java 语言连接器。Java 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。taos-jdbcdriver 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
+
+taos-jdbcdriver（2.0.18 和更高版本）也支持使用 REST 连接 TDengine 数据库。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](/img/tdengine-jdbc-connector.png)
 
@@ -19,7 +21,7 @@ import Preparition from "./_preparition.mdx"
 - RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 REST 连接器，再调用客户端驱动 API。
 - JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点 2 的 REST 连接器。
 
-TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，导致 `taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
+TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
 
 - TDengine 目前不支持针对单条数据记录的删除操作。
 - 目前不支持事务操作。
@@ -107,11 +109,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
 使用 Java Connector 连接数据库前，需要具备以下条件：
 
-1. 已安装 Java 1.8 或以上版本运行时环境
+1. 已安装 Java 1.8 或以上版本运行时环境和 Maven 3.6 或以上版本
 
 <Preparition />
 
-### 使用 maven 安装
+### 使用 Maven 安装
 
 目前 taos-jdbcdriver 已经发布到 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 仓库，且各大仓库都已同步。
 
@@ -119,7 +121,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 - [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [maven.aliyun](https://maven.aliyun.com/mvn/search)
 
-maven 项目中，在 pom.xml 中添加以下依赖：
+Maven 项目中，在 pom.xml 中添加以下依赖：
 
 ```xml-dtd
 <dependency>
@@ -139,7 +141,7 @@ cd TDengine/src/connector/jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
-编译后，在 target 目录下会产生 taos-jdbcdriver-2.0.XX-dist.jar 的 jar 包，并自动将此 jar 文件放在 maven 本地仓库中。
+编译后，在 target 目录下会产生 taos-jdbcdriver-2.0.XX-dist.jar 的 jar 包，并自动将此 jar 文件放在 Maven 本地仓库中。
 
 ## 建立连接
 
@@ -156,7 +158,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用了 JDBC 原生连接的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC 原生连接的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 原生连接的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应本地的客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 url 中的配置参数如下：
 

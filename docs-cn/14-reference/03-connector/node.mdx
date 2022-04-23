@@ -30,33 +30,26 @@ Node.js 连接器支持的系统有：
 | 2.0.11             | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x                            |
 | 2.0.12             | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x                            |
 
-## 支持的特性
+## 支持的功能特性
 
-### 本地连接
+### 原生连接
 
-"本地连接" 指连接器通过本地的客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接。
-本地连接支持的特新如下：
+“原生连接”指连接器通过客户端驱动程序 taosc 直接与 TDengine 数据库建立连接
+
+原生连接支持的功能特性如下：
 
 1. 连接管理
 2. 同步查询
 3. 异步查询
 4. 参数绑定
-5. 获取系统信息
-6. 错误信息
-7. 订阅功能
-8. Schemaless
+5. 订阅功能
+6. Schemaless
 
-### RESTful 连接
+### REST 连接
 
 1. 连接管理
 2. 同步查询
-3. 异步查询（暂不支持）
-4. 参数绑定（暂不支持）
-5. 获取系统信息
-6. 错误信息
-7. 订阅功能（暂不支持）
-8. Schemaless
-9. 批量拉取（暂不支持）
+3. Schemaless
 
 ## 安装步骤
 
@@ -66,7 +59,7 @@ Node.js 连接器支持的系统有：
 <Preparition />
 
 - 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 Node.js 本地驱动连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 RESTful 连接器则可以跳过以下步骤，直接只用 npm 安装。
+我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 RESTful 连接器则可以跳过以下步骤，直接只用 npm 安装。
 
 ### Linux
 
@@ -95,7 +88,7 @@ Node.js 连接器支持的系统有：
 
 ### 使用 npm 安装
 
-- 安装本地客户端驱动连接器
+- 安装客户端驱动连接器
 
 ``` bash
 npm install td2.0-connector
@@ -127,7 +120,7 @@ node nodejsChecker.js host=localhost
 
 ## 建立连接
 
-### 建立本地连接
+### 建立连接
 
 安装并引用 `td2.0-connector` 包。
 
@@ -161,7 +154,7 @@ let cursor = conn.cursor();
 ## 使用示例
 | 示例程序                                                                                                                                      | 示例程序描述                         |
 |-----------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| [connection](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/cursorClose.js)                                  | 建立本地连接的示例。                 |
+| [connection](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/cursorClose.js)                                  | 建立连接的示例。                 |
 | [stmtBindBatch](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindParamBatchSample.js)                  | 绑定多行参数插入的示例。             |
 | [stmtBind](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindParamSample.js)                            | 一行一行绑定参数插入的示例。         |
 | [stmtBindSingleParamBatch](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindSingleParamBatchSample.js) | 按列绑定参数插入的示例。             |
@@ -176,7 +169,7 @@ let cursor = conn.cursor();
 
 ## 使用限制
 
-Node.js 的本地连接器 >= v2.0.6 目前支持 node 的版本为： 支持 >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0 ；2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
+Node.js 连接器 >= v2.0.6 目前支持 node 的版本为： 支持 >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0 ；2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
 
 ## 重要更新记录
 
@@ -202,7 +195,7 @@ Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/202
    sudo systemctl start taosadapter
    ```
 
-2. 本地客户端驱动连接器 >v2.0.6 目前兼容的 node 为：>=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0。
+2. 连接器 >v2.0.6 目前兼容的 Node.js 为：>=v10.20.0 <= v10.9.0 || >=v12.8.0 <= v12.9.1
 
 3. "Unable to establish connection"，"Unable to resolve FQDN"， 一般都是应为为配置 FQDN 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
