@@ -24,9 +24,11 @@ password = "taosdata"
 
 ### 配置 TCollector
 
-- TCollector 使用其源代码中配置项。注意：TCollector 各个版本区别较大，这里仅以当前 master 分支代码为例，修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容，其他版本需要修改的文件可能有所不同。将原指向 OpenTSDB 宿主机的地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。
+使用 TCollector 需下载其[源代码](https://github.com/OpenTSDB/tcollector)。其配置项在其源代码中。注意：TCollector 各个版本区别较大，这里仅以当前 master 分支最新代码 (git commit: 37ae920) 为例。
 
-示例为修改内容的 git diff 输出：
+修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容。将原指向 OpenTSDB 宿主机的地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。
+
+示例为源代码修改内容的 git diff 输出：
 
 ```
 index e7e7a1c..ec3e23c 100644
