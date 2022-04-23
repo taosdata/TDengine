@@ -37,7 +37,7 @@ typedef struct SFuncExecEnv {
 typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
-typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock, int32_t slotId);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {
@@ -113,7 +113,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
   uint8_t  isNullRes:6;       // the result is null
-  uint8_t  numOfRes;        // num of output result in current buffer
+  uint8_t  numOfRes;          // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -166,6 +166,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
+  uint64_t          uid;            // table uid
 } SInputColumnInfoData;
 
 // sql function runtime context
@@ -191,7 +192,7 @@ typedef struct SqlFunctionCtx {
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
   int32_t          numOfParams;
-  SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  SFunctParam     *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t         *ptsList;       // corresponding timestamp array list
   SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t          offset;

@@ -6,7 +6,8 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include"
     PUBLIC "${TD_SOURCE_DIR}/include/util"
     PUBLIC "${TD_SOURCE_DIR}/contrib/pthread"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/gnuregex"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/iconv"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/msvcregex"
 )
 # iconv
 find_path(IconvApiIncludes iconv.h PATHS)
@@ -17,5 +18,14 @@ if(USE_TD_MEMORY)
     add_definitions(-DUSE_TD_MEMORY) 
 endif ()
 target_link_libraries(
-    os pthread dl rt m
+    os pthread
 )
+if(NOT TD_WINDOWS)
+    target_link_libraries(
+        os dl m rt
+    )
+else()
+    target_link_libraries(
+        os ws2_32 iconv msvcregex wcwidth winmm
+    )
+endif(NOT TD_WINDOWS)

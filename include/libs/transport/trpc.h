@@ -43,7 +43,7 @@ typedef struct SRpcMsg {
   int32_t code;
   void *  handle;         // rpc handle returned to app
   void *  ahandle;        // app handle set by client
-  int64_t refId;          //
+  int64_t refId;          // refid, used by server
   int     noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int     persistHandle;  // persist handle or not
 

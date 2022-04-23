@@ -16,12 +16,15 @@
 #include "functionMgt.h"
 #include "parInt.h"
 #include "scalar.h"
+#include "ttime.h"
 
 typedef struct SCalcConstContext {
+  SParseContext* pParseCxt;
+  SMsgBuf msgBuf;
   int32_t code;
 } SCalcConstContext;
 
-static int32_t calcConstQuery(SNode* pStmt);
+static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt);
 
 static EDealRes doCalcConst(SNode** pNode, SCalcConstContext* pCxt) {
   SNode* pNew = NULL;
@@ -35,10 +38,45 @@ static EDealRes doCalcConst(SNode** pNode, SCalcConstContext* pCxt) {
   return DEAL_RES_CONTINUE;
 }
 
+static bool isTimestampCol(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  return (QUERY_NODE_COLUMN == nodeType(pNode) && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pNode)->resType.type);
+}
+
+static EDealRes stringToTimestamp(SCalcConstContext* pCxt, uint8_t precision, SValueNode* pVal) {
+  switch (pVal->node.resType.type) {
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: {
+      int64_t val = 0;
+      if (TSDB_CODE_SUCCESS != convertStringToTimestamp(pVal->node.resType.type, pVal->datum.p, precision, &val)) {
+        pCxt->code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL, varDataVal(pVal->datum.p));
+        return DEAL_RES_ERROR;
+      }
+      pVal->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+      pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      taosMemoryFreeClear(pVal->datum.p);
+      pVal->datum.i = val;
+      break;
+    }    
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes calcConstOperator(SOperatorNode** pNode, void* pContext) {
+  SCalcConstContext* pCxt = pContext;
   SOperatorNode* pOp = *pNode;
   if (QUERY_NODE_VALUE == nodeType(pOp->pLeft) && (NULL == pOp->pRight || QUERY_NODE_VALUE == nodeType(pOp->pRight))) {
-    return doCalcConst((SNode**)pNode, (SCalcConstContext*)pContext);
+    return doCalcConst((SNode**)pNode, pCxt);
+  }
+  if (isTimestampCol(pOp->pLeft) && (NULL == pOp->pRight || QUERY_NODE_VALUE == nodeType(pOp->pRight))) {
+    return stringToTimestamp(pCxt, ((SColumnNode*)pOp->pLeft)->node.resType.precision, (SValueNode*)pOp->pRight);
+  } else if (isTimestampCol(pOp->pRight) && QUERY_NODE_VALUE == nodeType(pOp->pLeft)) {
+    return stringToTimestamp(pCxt, ((SColumnNode*)pOp->pRight)->node.resType.precision, (SValueNode*)pOp->pLeft);
   }
   return DEAL_RES_CONTINUE;
 }
@@ -71,7 +109,7 @@ static EDealRes calcConstLogicCond(SLogicConditionNode** pNode, void* pContext) 
 
 static EDealRes calcConstSubquery(STempTableNode** pNode, void* pContext) {
   SCalcConstContext* pCxt = pContext;
-  pCxt->code = calcConstQuery((*pNode)->pSubquery);
+  pCxt->code = calcConstQuery(pCxt, (*pNode)->pSubquery);
   return (TSDB_CODE_SUCCESS == pCxt->code ? DEAL_RES_CONTINUE : DEAL_RES_ERROR);
 }
 
@@ -185,39 +223,38 @@ static int32_t calcConstCondition(SCalcConstContext* pCxt, SSelectStmt* pSelect,
   return pCxt->code;
 }
 
-static int32_t calcConstSelect(SSelectStmt* pSelect) {
-  SCalcConstContext cxt = { .code = TSDB_CODE_SUCCESS };
-  nodesRewriteExprsPostOrder(pSelect->pProjectionList, calcConst, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstFromTable(&cxt, pSelect);
+static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
+  nodesRewriteExprsPostOrder(pSelect->pProjectionList, calcConst, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    pCxt->code = calcConstFromTable(pCxt, pSelect);
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstCondition(&cxt, pSelect, &pSelect->pWhere);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    pCxt->code = calcConstCondition(pCxt, pSelect, &pSelect->pWhere);
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprsPostOrder(pSelect->pPartitionByList, calcConst, &cxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    nodesRewriteExprsPostOrder(pSelect->pPartitionByList, calcConst, pCxt);
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprPostOrder(&pSelect->pWindow, calcConst, &cxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    nodesRewriteExprPostOrder(&pSelect->pWindow, calcConst, pCxt);
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprsPostOrder(pSelect->pGroupByList, calcConst, &cxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    nodesRewriteExprsPostOrder(pSelect->pGroupByList, calcConst, pCxt);
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstCondition(&cxt, pSelect, &pSelect->pHaving);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    pCxt->code = calcConstCondition(pCxt, pSelect, &pSelect->pHaving);
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprsPostOrder(pSelect->pOrderByList, calcConst, &cxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    nodesRewriteExprsPostOrder(pSelect->pOrderByList, calcConst, pCxt);
   }
-  return cxt.code;
+  return pCxt->code;
 }
 
-static int32_t calcConstQuery(SNode* pStmt) {
+static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
-      return calcConstSelect((SSelectStmt*)pStmt);    
+      return calcConstSelect(pCxt, (SSelectStmt*)pStmt);    
     case QUERY_NODE_EXPLAIN_STMT:
-      return calcConstQuery(((SExplainStmt*)pStmt)->pQuery);
+      return calcConstQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery);
     default:
       break;
   }
@@ -237,7 +274,13 @@ static bool isEmptyResultQuery(SNode* pStmt) {
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
-  int32_t code = calcConstQuery(pQuery->pRoot);
+  SCalcConstContext cxt = {
+    .pParseCxt = pParseCxt,
+    .msgBuf.buf = pParseCxt->pMsg,
+    .msgBuf.len = pParseCxt->msgLen,
+    .code = TSDB_CODE_SUCCESS
+  };
+  int32_t code = calcConstQuery(&cxt, pQuery->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
     pQuery->execMode = isEmptyResultQuery(pQuery->pRoot) ? QUERY_EXEC_MODE_EMPTY_RESULT : pQuery->execMode;
   }

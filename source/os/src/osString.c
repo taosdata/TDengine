@@ -24,6 +24,55 @@
 extern int wcwidth(wchar_t c);
 extern int wcswidth(const wchar_t *s, size_t n);
 
+#ifdef WINDOWS
+char *strsep(char **stringp, const char *delim) {
+  char *      s;
+  const char *spanp;
+  int32_t     c, sc;
+  char *tok;
+  if ((s = *stringp) == NULL)
+    return (NULL);
+  for (tok = s;;) {
+    c = *s++;
+    spanp = delim;
+    do {
+      if ((sc = *spanp++) == c) {
+        if (c == 0)
+          s = NULL;
+        else
+          s[-1] = 0;
+        *stringp = s;
+        return (tok);
+      }
+    } while (sc != 0);
+  }
+  /* NOTREACHED */
+}
+/* Duplicate a string, up to at most size characters */
+char *strndup(const char *s, size_t size) {
+  size_t l;
+  char *s2;
+  l = strlen(s);
+  if (l > size) l=size;
+  s2 = malloc(l+1);
+  if (s2) {
+    strncpy(s2, s, l);
+    s2[l] = '\0';
+  }
+  return s2;
+}
+/* Copy no more than N characters of SRC to DEST, returning the address of
+   the terminating '\0' in DEST, if any, or else DEST + N.  */
+char *stpncpy (char *dest, const char *src, size_t n) {
+  size_t size = strnlen (src, n);
+  memcpy (dest, src, size);
+  dest += size;
+  if (size == n)
+    return dest;
+  return memset (dest, '\0', n - size);
+}
+#endif
+
 int64_t taosStr2int64(const char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);

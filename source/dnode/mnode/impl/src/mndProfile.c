@@ -58,7 +58,8 @@ static void      mndCancelGetNextQuery(SMnode *pMnode, void *pIter);
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  int32_t connCheckTime = tsShellActivityTimer * 2;
+  // in ms
+  int32_t connCheckTime = tsShellActivityTimer * 2 * 1000;
   pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, connCheckTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -174,10 +175,10 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
-  SMnode *    pMnode = pReq->pNode;
-  SUserObj *  pUser = NULL;
-  SDbObj *    pDb = NULL;
-  SConnObj *  pConn = NULL;
+  SMnode     *pMnode = pReq->pNode;
+  SUserObj   *pUser = NULL;
+  SDbObj     *pDb = NULL;
+  SConnObj   *pConn = NULL;
   int32_t     code = -1;
   SConnectReq connReq = {0};
   char        ip[30] = {0};
@@ -464,7 +465,7 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
   taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
-  void *  buf = rpcMallocCont(tlen);
+  void   *buf = rpcMallocCont(tlen);
   tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
 
   int32_t rspNum = (int32_t)taosArrayGetSize(batchRsp.rsps);
@@ -486,7 +487,7 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
 }
 
 static int32_t mndProcessKillQueryReq(SNodeMsg *pReq) {
-  SMnode *      pMnode = pReq->pNode;
+  SMnode       *pMnode = pReq->pNode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pReq->user);
@@ -520,7 +521,7 @@ static int32_t mndProcessKillQueryReq(SNodeMsg *pReq) {
 }
 
 static int32_t mndProcessKillConnReq(SNodeMsg *pReq) {
-  SMnode *      pMnode = pReq->pNode;
+  SMnode       *pMnode = pReq->pNode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pReq->user);
@@ -552,11 +553,11 @@ static int32_t mndProcessKillConnReq(SNodeMsg *pReq) {
 }
 
 static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *  pMnode = pReq->pNode;
+  SMnode   *pMnode = pReq->pNode;
   int32_t   numOfRows = 0;
   SConnObj *pConn = NULL;
   int32_t   cols = 0;
-  char *    pWrite;
+  char     *pWrite;
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   if (pShow->pIter == NULL) {
@@ -611,8 +612,8 @@ static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 }
 
 static int32_t mndRetrieveQueries(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pNode;
-  int32_t numOfRows = 0;
+  SMnode   *pMnode = pReq->pNode;
+  int32_t   numOfRows = 0;
 #if 0
   SConnObj *pConn = NULL;
   int32_t   cols = 0;

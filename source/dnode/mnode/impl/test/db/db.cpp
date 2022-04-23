@@ -89,6 +89,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     void*   pReq = rpcMallocCont(contLen);
     tSerializeSAlterDbReq(pReq, contLen, &alterdbReq);
 
+    taosMsleep(1000); // Wait for the vnode to become the leader
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);

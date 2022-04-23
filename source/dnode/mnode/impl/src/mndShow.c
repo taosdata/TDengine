@@ -18,7 +18,7 @@
 
 #define SHOW_STEP_SIZE 100
 
-static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq);
+static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
@@ -28,7 +28,7 @@ static int32_t   mndProcessRetrieveSysTableReq(SNodeMsg *pReq);
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
-  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5, true, (__cache_free_fn_t)mndFreeShowObj, "show");
+  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5000, true, (__cache_free_fn_t)mndFreeShowObj, "show");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc show cache since %s", terrstr());
@@ -47,18 +47,78 @@ void mndCleanupShow(SMnode *pMnode) {
   }
 }
 
-static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq) {
+static int32_t convertToRetrieveType(char* name, int32_t len) {
+  int32_t type = -1;
+
+  if (strncasecmp(name, TSDB_INS_TABLE_DNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_DNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_MNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
+    type = TSDB_MGMT_TABLE_MODULE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_QNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
+    type = TSDB_MGMT_TABLE_CLUSTER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, len) == 0) {
+    type = TSDB_MGMT_TABLE_DB;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_FUNC;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, len) == 0) {
+    //    type = TSDB_MGMT_TABLE_INDEX;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_STB;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STREAMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_STREAMS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_TABLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, len) == 0) {
+    //    type = TSDB_MGMT_TABLE_DIST;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, len) == 0) {
+    type = TSDB_MGMT_TABLE_USER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_VGROUP;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONSUMERS, len) == 0) {
+    type = TSDB_MGMT_TABLE_CONSUMERS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIBES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SUBSCRIBES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TRANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SMAS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SMAS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONFIGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_CONFIGS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONNS, len) == 0) {
+    type = TSDB_MGMT_TABLE_CONNS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_QUERIES, len) == 0) {
+    type = TSDB_MGMT_TABLE_QUERIES;
+  }  else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_VNODES;
+  } else {
+//    ASSERT(0);
+  }
+
+  return type;
+}
+
+static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
   int64_t showId = atomic_add_fetch_64(&pMgmt->showId, 1);
   if (showId == 0) atomic_add_fetch_64(&pMgmt->showId, 1);
 
-  int32_t  size = sizeof(SShowObj) + pReq->payloadLen;
+  int32_t  size = sizeof(SShowObj);
+
   SShowObj showObj = {0};
-  showObj.id = showId;
+  showObj.id     = showId;
   showObj.pMnode = pMnode;
-  showObj.type = pReq->type;
-  showObj.payloadLen = pReq->payloadLen;
+  showObj.type   = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
@@ -127,10 +187,6 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   }
 
   if (retrieveReq.showId == 0) {
-    SShowReq req = {0};
-    req.type = retrieveReq.type;
-    strncpy(req.db, retrieveReq.db, tListLen(req.db));
-
     STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb) + 1);
     if (pMeta == NULL) {
       terrno = TSDB_CODE_MND_INVALID_INFOS_TBL;
@@ -138,7 +194,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
       return -1;
     }
 
-    pShow = mndCreateShowObj(pMnode, &req);
+    pShow = mndCreateShowObj(pMnode, &retrieveReq);
     if (pShow == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       mError("failed to process show-meta req since %s", terrstr());

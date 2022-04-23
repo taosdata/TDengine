@@ -17,7 +17,8 @@
 #include "bmInt.h"
 
 static void bmSendErrorRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+  SRpcMsg rpcRsp = {
+      .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code, .refId = pMsg->rpcMsg.refId};
   tmsgSendRsp(&rpcRsp);
 
   dTrace("msg:%p, is freed", pMsg);

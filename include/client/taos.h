@@ -216,13 +216,14 @@ typedef struct tmq_topic_vgroup_list_t tmq_topic_vgroup_list_t;
 
 typedef struct tmq_conf_t tmq_conf_t;
 typedef struct tmq_list_t tmq_list_t;
-// typedef struct tmq_message_t tmq_message_t;
 
 typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *));
 
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
 DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
+DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
+DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
 
 #if 0
 DLL_EXPORT tmq_t *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
@@ -262,12 +263,6 @@ DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const 
 DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb);
 
-#if 0
-// temporary used function for demo only
-void    tmqShowMsg(tmq_message_t *tmq_message);
-int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
-#endif
-
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
 DLL_EXPORT char   *tmq_get_topic_name(TAOS_RES *res);
@@ -278,12 +273,8 @@ DLL_EXPORT char   *tmq_get_block_table_name(TAOS_RES *res);
 #endif
 
 #if 0
-DLL_EXPORT TAOS_ROW    tmq_get_row(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_request_offset(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_response_offset(tmq_message_t *message);
-DLL_EXPORT TAOS_FIELD *tmq_get_fields(tmq_t *tmq, const char *topic);
-DLL_EXPORT int32_t     tmq_field_count(tmq_t *tmq, const char *topic);
-DLL_EXPORT void tmq_message_destroy(TAOS_RES *res);
 #endif
 /* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
 #if 0

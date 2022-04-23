@@ -59,6 +59,10 @@ static inline int32_t dmBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   pMsg->clientIp = connInfo.clientIp;
   pMsg->clientPort = connInfo.clientPort;
   memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
+  if ((pRpc->msgType & 1u)) {
+    assert(pRpc->refId != 0);
+  }
+  // assert(pRpc->handle != NULL && pRpc->refId != 0 && pMsg->rpcMsg.refId != 0);
   return 0;
 }
 
@@ -107,7 +111,7 @@ _OVER:
         }
       }
 
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code, .refId = pRpc->refId};
       tmsgSendRsp(&rsp);
     }
     dTrace("msg:%p, is freed", pMsg);
@@ -173,6 +177,9 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   dTrace("msg:%s will be processed by %s, app:%p", TMSG_INFO(msgType), pWrapper->name, pMsg->ahandle);
+  if (isReq) {
+    assert(pMsg->refId != 0);
+  }
   dmProcessRpcMsg(pWrapper, pMsg, pEpSet);
 }
 

@@ -36,12 +36,12 @@ typedef struct TdDirEntry *TdDirEntryPtr;
 
 
 void    taosRemoveDir(const char *dirname);
-bool    taosDirExist(char *dirname);
+bool    taosDirExist(const char *dirname);
 int32_t taosMkDir(const char *dirname);
 int32_t taosMulMkDir(const char *dirname);
 void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
-int32_t taosRealPath(char *dirname, int32_t maxlen);
+int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen);
 bool    taosIsDir(const char *dirname);
 char*   taosDirName(char *dirname);
 char*   taosDirEntryBaseName(char *dirname);
@@ -50,7 +50,7 @@ TdDirPtr      taosOpenDir(const char *dirname);
 TdDirEntryPtr taosReadDir(TdDirPtr pDir);
 bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
 char*         taosGetDirEntryName(TdDirEntryPtr pDirEntry);
-int32_t       taosCloseDir(TdDirPtr pDir);
+int32_t       taosCloseDir(TdDirPtr *ppDir);
 
 #ifdef __cplusplus
 }

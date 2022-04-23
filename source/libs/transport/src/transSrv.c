@@ -202,25 +202,23 @@ static bool addHandleToAcceptloop(void* arg);
     if (refId > 0) {                                                                                                  \
       tTrace("server handle step1");                                                                                  \
       SExHandle* exh2 = uvAcquireExHandle(refId);                                                                     \
-      if (exh2 == NULL || exh1 != exh2) {                                                                             \
+      if (exh2 == NULL || refId != exh2->refId) {                                                                     \
         tTrace("server handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, \
                exh1->refId, refId);                                                                                   \
-        tTrace("server handle step2");                                                                                \
         goto _return1;                                                                                                \
       }                                                                                                               \
     } else if (refId == 0) {                                                                                          \
-      tTrace("server handle step3");                                                                                  \
+      tTrace("server handle step2");                                                                                  \
       SExHandle* exh2 = uvAcquireExHandle(refId);                                                                     \
-      tTrace("server handle %p except, may already freed, ignore msg, ", exh1);                                       \
-      if (exh2 != NULL && exh1 != exh2) {                                                                             \
-        tTrace("server handle step4");                                                                                \
-        tTrace("server handle %p except, may already freed, ignore msg, ", exh1);                                     \
+      if (exh2 == NULL || refId != exh2->refId) {                                                                     \
+        tTrace("server handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, \
+               refId, exh2 ? exh2->refId : 0);                                                                        \
         goto _return1;                                                                                                \
       } else {                                                                                                        \
         refId = exh1->refId;                                                                                          \
       }                                                                                                               \
     } else if (refId == -1) {                                                                                         \
-      tTrace("server handle step5");                                                                                  \
+      tTrace("server handle step3");                                                                                  \
       goto _return2;                                                                                                  \
     }                                                                                                                 \
   } while (0)
@@ -519,6 +517,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
         continue;
       }
       msg->pConn = exh1->handle;
+      uvReleaseExHandle(refId);
       (*transAsyncHandle[msg->type])(msg, pThrd);
     }
   }
@@ -1028,6 +1027,7 @@ void transSendResponse(const STransMsg* msg) {
   SExHandle* exh = msg->handle;
   int64_t    refId = msg->refId;
   ASYNC_CHECK_HANDLE(exh, refId);
+  assert(refId != 0);
 
   STransMsg tmsg = *msg;
   tmsg.refId = refId;

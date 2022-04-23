@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 
+#include "os.h"
 #include "parInt.h"
 
 using namespace std;

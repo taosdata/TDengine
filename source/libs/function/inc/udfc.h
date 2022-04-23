@@ -30,20 +30,20 @@ typedef struct SUdfInfo {
     char *path;
 } SUdfInfo;
 
-typedef void *UdfHandle;
+typedef void *UdfcFuncHandle;
 
 int32_t createUdfdProxy();
 
 int32_t destroyUdfdProxy();
 
-//int32_t setupUdf(SUdfInfo *udf, int32_t numOfUdfs, UdfHandle *handles);
+//int32_t setupUdf(SUdfInfo *udf, int32_t numOfUdfs, UdfcFuncHandle *handles);
 
-int32_t setupUdf(SUdfInfo* udf, UdfHandle* handle);
+int32_t setupUdf(SUdfInfo* udf, UdfcFuncHandle* handle);
 
-int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, SSDataBlock input, char **newstate,
+int32_t callUdf(UdfcFuncHandle handle, int8_t step, char *state, int32_t stateSize, SSDataBlock input, char **newstate,
                 int32_t *newStateSize, SSDataBlock *output);
 
-int32_t teardownUdf(UdfHandle handle);
+int32_t teardownUdf(UdfcFuncHandle handle);
 
 typedef struct SUdfSetupRequest {
     char udfName[16]; //
@@ -84,6 +84,9 @@ typedef struct SUdfTeardownRequest {
 
 
 typedef struct SUdfTeardownResponse {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } SUdfTeardownResponse;
 
 typedef struct SUdfRequest {
