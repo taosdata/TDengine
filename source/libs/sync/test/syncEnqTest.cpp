@@ -89,14 +89,14 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodePrint2((char*)"syncInitTest", pSyncNode);
+  syncNodeLog2((char*)"syncInitTest", pSyncNode);
 
   initRaftId(pSyncNode);
 
   //--------------------------------------------------------------
 
   for (int i = 0; i < 10; ++i) {
-    SyncPingReply* pSyncMsg = syncPingReplyBuild2(&pSyncNode->myRaftId, &pSyncNode->myRaftId, "syncEnqTest");
+    SyncPingReply* pSyncMsg = syncPingReplyBuild2(&pSyncNode->myRaftId, &pSyncNode->myRaftId, 1000, "syncEnqTest");
     SRpcMsg        rpcMsg;
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
     pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);

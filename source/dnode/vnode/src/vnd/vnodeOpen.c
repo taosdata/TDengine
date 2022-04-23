@@ -35,6 +35,8 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
   info.config = *pCfg;
+  info.state.committed = -1;
+  info.state.applied = -1;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
     vError("vgId: %d failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
@@ -75,8 +77,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->path = (char *)&pVnode[1];
   strcpy(pVnode->path, path);
   pVnode->config = info.config;
-  pVnode->state.committed = info.state.committed;
-  pVnode->state.processed = pVnode->state.applied = pVnode->state.committed;
+  pVnode->state = info.state;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
 
@@ -124,6 +125,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+  // sync integration
+  // open sync
+  if (vnodeSyncOpen(pVnode, dir)) {
+    goto _err;
+  }
+
 #if 0
   if (vnodeBegin() < 0) {
     goto _err;
@@ -149,6 +156,10 @@ void vnodeClose(SVnode *pVnode) {
     vnodeSyncCommit(pVnode);
     // close vnode
     vnodeQueryClose(pVnode);
+
+    // sync integration
+    vnodeSyncClose(pVnode);
+
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
     tsdbClose(pVnode->pTsdb);
@@ -159,3 +170,7 @@ void vnodeClose(SVnode *pVnode) {
     taosMemoryFree(pVnode);
   }
 }
+
+int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
+
+void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) { pSnapshot->lastApplyIndex = pVnode->state.committed; }

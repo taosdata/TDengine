@@ -25,6 +25,7 @@ extern "C" {
 #include <stdlib.h>
 #include "cJSON.h"
 #include "sync.h"
+#include "syncTools.h"
 #include "taosdef.h"
 #include "tglobal.h"
 #include "tlog.h"
@@ -67,6 +68,43 @@ extern "C" {
     }                                                                   \
   }
 
+#define sFatalLong(...)                                                 \
+  {                                                                     \
+    if (sDebugFlag & DEBUG_FATAL) {                                     \
+      taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                                   \
+  }
+#define sErrorLong(...)                                                 \
+  {                                                                     \
+    if (sDebugFlag & DEBUG_ERROR) {                                     \
+      taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                                   \
+  }
+#define sWarnLong(...)                                                \
+  {                                                                   \
+    if (sDebugFlag & DEBUG_WARN) {                                    \
+      taosPrintLongString("SYN WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                                 \
+  }
+#define sInfoLong(...)                                                \
+  {                                                                   \
+    if (sDebugFlag & DEBUG_INFO) {                                    \
+      taosPrintLongString("SYN INFO ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                                 \
+  }
+#define sDebugLong(...)                                                        \
+  {                                                                            \
+    if (sDebugFlag & DEBUG_DEBUG) {                                            \
+      taosPrintLongString("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); \
+    }                                                                          \
+  }
+#define sTraceLong(...)                                                        \
+  {                                                                            \
+    if (sDebugFlag & DEBUG_TRACE) {                                            \
+      taosPrintLongString("SYN TRACE ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); \
+    }                                                                          \
+  }
+
 struct SyncTimeout;
 typedef struct SyncTimeout SyncTimeout;
 
@@ -106,17 +144,19 @@ typedef struct SVotesRespond SVotesRespond;
 struct SSyncIndexMgr;
 typedef struct SSyncIndexMgr SSyncIndexMgr;
 
-typedef struct SRaftId {
-  SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
-  SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
-} SRaftId;
+struct SRaftCfg;
+typedef struct SRaftCfg SRaftCfg;
+
+struct SSyncRespMgr;
+typedef struct SSyncRespMgr SSyncRespMgr;
 
 typedef struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
-  SSyncCfg    syncCfg;
+  SRaftCfg*   pRaftCfg;
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];
+  char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
   SWal* pWal;
@@ -199,10 +239,14 @@ typedef struct SSyncNode {
   int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
   int32_t (*FpOnTimeout)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
 
+  // tools
+  SSyncRespMgr* pSyncRespMgr;
+
 } SSyncNode;
 
 // open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
+void       syncNodeStart(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 
 // ping --------------
@@ -222,10 +266,12 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
-int32_t    syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-int32_t    syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-cJSON*     syncNode2Json(const SSyncNode* pSyncNode);
-char*      syncNode2Str(const SSyncNode* pSyncNode);
+int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
+char*   syncNode2Str(const SSyncNode* pSyncNode);
+char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
+
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
 

@@ -304,6 +304,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -438,6 +439,7 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -497,6 +499,7 @@ TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
     void*    pReq = BuildCreateDbReq(dbname, &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -538,6 +541,7 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagName) {
     void*    pReq = BuildCreateDbReq(dbname, &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -602,6 +606,7 @@ TEST_F(MndTestStb, 05_Alter_Stb_AlterTagBytes) {
     void*    pReq = BuildCreateDbReq(dbname, &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -655,6 +660,7 @@ TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -715,6 +721,7 @@ TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
     void*    pReq = BuildCreateDbReq(dbname, &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {
@@ -775,6 +782,7 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
     void*    pReq = BuildCreateDbReq(dbname, &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(2000); // Wait for the vnode to become the leader
   }
 
   {

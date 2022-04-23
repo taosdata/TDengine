@@ -534,8 +534,8 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    char *sql = taosMemoryCalloc(1, strlen(pTopic->sql) + 1 + VARSTR_HEADER_SIZE);
-    strcpy(&sql[VARSTR_HEADER_SIZE], pTopic->sql);
+    char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    tstrncpy(&sql[VARSTR_HEADER_SIZE], pTopic->sql, TSDB_SHOW_SQL_LEN);
     varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 

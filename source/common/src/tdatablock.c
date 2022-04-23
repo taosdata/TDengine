@@ -31,7 +31,6 @@ int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
 
   if (pEp->port == 0) {
     pEp->port = tsServerPort;
-    return -1;
   }
 
   return 0;

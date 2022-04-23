@@ -359,10 +359,10 @@ PROCESS_QLIST_OVER:
 
   if (code != 0) {
     tFreeSQnodeListRsp(&out);
-    out.epSetList = NULL;
+    out.addrsList = NULL;
   }
 
-  *(SArray **)output = out.epSetList;
+  *(SArray **)output = out.addrsList;
 
   return code;
 }
