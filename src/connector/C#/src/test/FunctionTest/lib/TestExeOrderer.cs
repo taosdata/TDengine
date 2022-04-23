@@ -31,7 +31,7 @@ namespace XUnit.Case.Orderers
                 yield return testCase;
             }
         }
-    
+
         private static TValue GetOrCreate<TKey, TValue>(
             IDictionary<TKey, TValue> dictionary, TKey key)
             where TKey : struct
