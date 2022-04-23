@@ -24,8 +24,37 @@
 extern "C" {
 #endif
 
+typedef int32_t (*__tb_ddl_fn_t)(void *ahandle, void **result, void *p1, void *p2);
+
+struct STbDdlHandle {
+  void         *ahandle;
+  void         *result;
+  __tb_ddl_fn_t fp;
+};
+
+typedef struct {
+  tb_uid_t  suid;
+  SArray   *tbUids;
+  SHashObj *uidHash;
+} STbUidStore;
+
+static FORCE_INLINE int32_t tsdbUidStoreInit(STbUidStore **pStore) {
+  ASSERT(*pStore == NULL);
+  *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
+  if (*pStore == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t uid);
+void   *tsdbUidStoreFree(STbUidStore *pStore);
+
 int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq);
-int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, SSubmitReq *pMsg);
+int32_t tsdbFetchTbUidList(void *pTsdb, void **result, void *suid, void *uid);
+int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pUidStore);
+int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t inputType);
 
 #ifdef __cplusplus
 }

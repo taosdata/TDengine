@@ -102,6 +102,8 @@ struct SVnode {
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
+typedef struct STbDdlHandle STbDdlHandle;
+
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 

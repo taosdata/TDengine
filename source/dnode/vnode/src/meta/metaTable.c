@@ -15,7 +15,7 @@
 
 #include "vnodeInt.h"
 
-int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
+int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg, STbDdlHandle *pHandle) {
   // Validate the tbOptions
   // if (metaValidateTbCfg(pMeta, pTbCfg) < 0) {
   //   // TODO: handle error
@@ -24,7 +24,7 @@ int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
 
   // TODO: add atomicity
 
-  if (metaSaveTableToDB(pMeta, pTbCfg) < 0) {
+  if (metaSaveTableToDB(pMeta, pTbCfg, pHandle) < 0) {
     // TODO: handle error
     return -1;
   }

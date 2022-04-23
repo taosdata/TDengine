@@ -56,6 +56,22 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
   return 0;
 }
 
+int32_t tqReadHandleSetMsgEx(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
+  pReadHandle->pMsg = pMsg;
+
+  // iterate
+  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  while (true) {
+    if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
+    if (pReadHandle->pBlock == NULL) break;
+  }
+
+  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  pReadHandle->ver = ver;
+  memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
+  return 0;
+}
+
 bool tqNextDataBlock(STqReadHandle* pHandle) {
   while (1) {
     if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {

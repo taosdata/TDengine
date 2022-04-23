@@ -110,7 +110,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
       return -1;
     }
     if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-      qSetStreamInput(exec, input, inputType);
+      qSetStreamInput(exec, input, inputType, true);
       while (1) {
         SSDataBlock* output;
         uint64_t     ts;
@@ -128,7 +128,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
       /*for (int32_t i = 0; i < sz; i++) {*/
       /*SSDataBlock* pBlock = taosArrayGet(blocks, i);*/
       /*qSetStreamInput(exec, pBlock, inputType);*/
-      qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+      qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, true);
       while (1) {
         SSDataBlock* output;
         uint64_t     ts;

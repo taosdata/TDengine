@@ -287,7 +287,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
       qTaskInfo_t task = pExec->task[workerId];
       ASSERT(task);
-      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
       while (1) {
         SSDataBlock* pDataBlock = NULL;
         uint64_t     ts = 0;
@@ -450,7 +450,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
       qTaskInfo_t task = pTopic->buffer.output[workerId].task;
       ASSERT(task);
-      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
       SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
       while (1) {
         SSDataBlock* pDataBlock = NULL;
