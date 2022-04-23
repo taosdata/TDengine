@@ -4,6 +4,12 @@ description: "taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集�
 sidebar_label: "taosAdapter"
 ---
 
+import Prometheus from "./_prometheus.mdx"
+import CollectD from "./_collectd.mdx"
+import StatsD from "./_statsd.mdx"
+import Icinga2 from "./_icinga2.mdx"
+import Tcollector from "./_tcollector.mdx"
+
 taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
 
 taosAdapter 提供以下功能：
@@ -24,7 +30,7 @@ taosAdapter 提供以下功能：
 
 ### 安装 taosAdapter
 
-taosAdapter 从 TDengine v2.3.0.0 版本开始成为 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://taosdata.com/cn/all-downloads/)下载 TDengine server（taosAdapter 包含在 v2.3.0.0 及以上版本）安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/develop/BUILD-CN.md)文档。
+taosAdapter 从 TDengine v2.4.0.0 版本开始成为 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://taosdata.com/cn/all-downloads/)下载 TDengine server（taosAdapter 包含在 v2.4.0.0 及以上版本）安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/develop/BUILD-CN.md)文档。
 
 ### start/stop taosAdapter
 
@@ -171,7 +177,7 @@ AllowWebSockets
 
 ### TDengine RESTful 接口
 
-您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](https://www.taosdata.com/cn/documentation/connector#restful)。支持如下 EndPoint ：
+您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](/reference/connector#restful)。支持如下 EndPoint ：
 
 ```text
 /rest/sql
@@ -207,73 +213,19 @@ AllowWebSockets
 
 ### collectd
 
-#### 直接采集
-
-修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6045 来接收 collectd 直接采集方式的数据。
-
-```text
-LoadPlugin network
-<Plugin network>
-         Server "127.0.0.1" "6045"
-</Plugin>
-```
-
-#### tsdb 写入方式
-
-修改 collectd 配置文件 `/etc/collectd/collectd.conf`，taosAdapter 默认使用端口 6047 来接收 collectd tsdb 写入方式的数据。
-
-```text
-LoadPlugin write_tsdb
-<Plugin write_tsdb>
-        <Node>
-                Host "localhost"
-                Port "6047"
-                HostTags "status=production"
-                StoreRates false
-                AlwaysAppendDS false
-        </Node>
-</Plugin>
-```
+<CollectD />
 
 ### StatsD
 
-修改 StatsD 配置文件 `config.js`，taosAdapter 默认使用 6044 端口接收 StatsD 的写入数据。
-
-- `backends` add `"./backends/repeater"`
-- `repeater` add `{ host:'host to taosAdapter', port: 6044}`
-
-配置文件示例
-
-```js
-{
-  port: 8125,
-  backends: ["./backends/repeater"],
-  repeater: [{ host: '127.0.0.1', port: 6044}]
-}
-```
+<StatsD />
 
 ### icinga2 OpenTSDB writer
 
-使用 icinga2 收集监控数据的方法参见：
-
-- 参考文档：
-  opentsdb-writer [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer)
-- 使能 taosAdapter `opentsdb_telnet.enable` 来支持写入
-- 修改配置文件 `/etc/icinga2/features-enabled/opentsdb.conf`， taosAdapter 默认使用 6048 端口接收 icinga2 的数据。
-
-```text
-object OpenTsdbWriter "opentsdb" {
-  host = "host to taosAdapter"
-  port = 6048
-}
-```
+<Icinga2 />
 
 ### TCollector
 
-Tcollector 是一个客户端进程，它从本地收集器中收集数据并将数据推送到 OpenTSDB。您在您的所有主机上运行它，它完成将每个主机的数据发送到 TSD （OpenTSDB 后台服务进程）的工作。
-
-- 启用 taosAdapter 配置 opentsdb_telnet.enable
-- 修改 TCollector 配置文件，将 OpenTSDB 主机修改为部署 taosAdapter 的主机，并修改端口为 6049
+<Tcollector />
 
 ### node_exporter
 
@@ -285,34 +237,7 @@ Prometheus 使用的由\*NIX 内核暴露的硬件和操作系统指标的输出
 
 ### prometheus
 
-remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。
-只需要将 remote_read 和 remote_write url 指向 taosAdapter 对应的 url 同时设置 Basic 验证即可使用。
-
-- remote_read url : `http://host_to_taosAdapter:port(default 6041)/prometheus/v1/remote_read/:db`
-- remote_write url : `http://host_to_taosAdapter:port(default 6041)/prometheus/v1/remote_write/:db`
-
-Basic 验证：
-
-- username： TDengine 连接用户名
-- password： TDengine 连接密码
-
-示例 prometheus.yml 如下：
-
-```yaml
-remote_write:
-  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
-    basic_auth:
-      username: root
-      password: taosdata
-
-remote_read:
-  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
-    basic_auth:
-      username: root
-      password: taosdata
-    remote_timeout: 10s
-    read_recent: true
-```
+<Prometheus />
 
 ## 内存使用优化方法
 

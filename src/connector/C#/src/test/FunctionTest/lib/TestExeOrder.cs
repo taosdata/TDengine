@@ -1,6 +1,6 @@
 using System;
 
-namespace  Test.Case.Attributes
+namespace Test.Case.Attributes
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public class TestExeOrderAttribute : Attribute

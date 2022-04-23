@@ -199,8 +199,6 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 说明：如果 `taos_stmt_execute` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare` 的解析结果，直接进行第 3 ～ 6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init` 步骤重新开始。
 
-除 C/C++ 语言外，TDengine 的 Java 语言本地连接 Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](/reference/connector/java#通过参数绑定写入数据)。
-
 接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
