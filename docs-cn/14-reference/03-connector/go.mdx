@@ -4,9 +4,15 @@ sidebar_label: Go
 title: Go Connector
 ---
 
+import Preparition from "./_preparition.mdx"
+
 ## 总体介绍
 
-driver-go 实现 Go [database/sql](https://golang.org/pkg/database/sql/) 包的 TDengine 驱动程序，同时提供通过本地的客户端驱动程序直接与服务端程序 taosd 进行订阅、 schemaless 写入和 stmt 功能。
+driver-go 是 TDengine 的官方 Go 语言连接器。Go 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。driver-go 实现了 Go [database/sql](https://golang.org/pkg/database/sql/) 包的接口，支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
+
+driver-go 也支持使用 REST 连接 TDengine 服务端。
+
+本文介绍如何在 Windows 或 Linux 环境中安装 driver-go，并通过 driver-go 连接 TDengine 数据库、进行数据查询、数据写入等基本操作。
 
 Go 连接器的源码托管在 github。项目名称：driver-go。欢迎 [贡献源码](https://github.com/taosdata/driver-go) 或 [报告问题](https://github.com/taosdata/driver-go/issues)。
 
@@ -28,12 +34,12 @@ Go 连接器的源码托管在 github。项目名称：driver-go。欢迎 [贡�
 
 ### 原生连接
 
-`原生连接` 指连接器通过本地的客户端驱动程序直接与服务端程序 taosd 建立连接。
+“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 服务端建立连接。
 
 * database/sql (cgo 模式)
 * 订阅
-* schemaless
-* stmt
+* schemaless 接口
+* 参数绑定接口
 
 ### REST 连接
 
@@ -45,9 +51,8 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 
 ### 安装前的准备
 
-* taos本地的客户端
-* Go 1.14 及以上
-* GCC 4.8.5 及以上
+1. 安装 Go 开发环境（Go 1.14 及以上，GCC 4.8.5 及以上）
+<Preparition />
 
 配置好环境变量，检查命令：
 

@@ -4,13 +4,15 @@ sidebar_label: C#
 title: C# Connector
 ---
 
+import Preparition from "./_preparition.mdx"
+
 ## 总体介绍
 
-TDengine.Connector 是 TDengine 提供的 C# 本地客户端驱动连接器。该连接器通过 TDengine 客户端驱动建立本地连接，进而可以访问 TDengine 数据库。目前已支持 TDengine 的绝大部分特性。例如：同步查询、异步查询、管理连接、订阅消费，schemaless 等。
+TDengine.Connector 是 TDengine 提供的 C# 本地客户端驱动连接器。C# 语言开发人员可以通过 它开发存取 TDengine 数据库的应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 服务端。进行查询、订阅、schemaless 接口、参数绑定接口等功能。
+
+TDengine.Connector 目前暂未提供使用 REST 连接d的接口，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
 本文介绍如何在 Windows 或 Linux 环境中安装 TDengine.Connector，并通过 TDengine.Connector 连接 TDengine 数据库、进行数据查询、数据写入等基本操作。
-
-TDengine.Connector 目前暂未封装 RESTful 接口，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
 ## 支持的平台
 
@@ -18,38 +20,33 @@ C# 连接器支持的系统有：Linux 64 / Windows x64/ Windows x86
 
 ## 版本支持
 
-| TDengine.Connector |             TDengine 版本             | 说明                           |
-|--------------------|:-------------------------------------:|--------------------------------|
-|        1.0.2       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 支持连接管理、同步查询、错误信息等功能。   |
-|        1.0.3       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 新增参数绑定、schemaless, json tag 等功能。 |
-|        1.0.4       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 新增异步查询，订阅等功能，修复绑定参数 bug。     |
-|        1.0.5       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 修复 Windows 同步查询中文报错 bug。   |
-|        1.0.6       | v2.5.0.x,v2.4.0.x,v2.3.4+ | 修复schemaless bug。|
+| TDengine.Connector |             TDengine 版本             |
+|--------------------|:-------------------------------------:|
+| 1.0.2 ~ 1.0.6      | v2.3.4+ |
 
 ## 支持的特性
 
-### 本地连接
+### 原生连接
 
-“本地连接”指连接器通过本地客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接。
+“原生连接”指连接器通过客户端驱动 taosc 直接与 TDengine 服务端建立连接。
+
 “本地连接”支持的特新如下：
 
 1. 连接管理
 2. 同步查询
 3. 异步查询
 4. 参数绑定
-5. 错误信息
-6. 订阅功能
-7. Schemaless
+5. 订阅功能
+6. Schemaless
 
 ## 安装步骤
 
 ### 安装前的准备
 
-* 安装 [.NET SDK](https://dotnet.microsoft.com/download)
+1. 安装 [.NET SDK](https://dotnet.microsoft.com/download)
+   - （可选安装）[Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools)
+<Preparition />
 
-* 安装 [TDengine 客户端](/reference/connector/#安装客户端驱动)
-
-* 安装 （可选） [Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools)
 
 ### 使用 dotnet CLI 安装
 

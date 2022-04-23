@@ -5,6 +5,8 @@ title: Java Connector
 description: 此连接器基于标准 JDBC API 实现。
 ---
 
+import Preparition from "./_preparition.mdx"
+
 ## 总体介绍
 
 `taos-jdbcdriver` 的实现包括两种形式： JDBC 原生连接和 JDBC-REST（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC 原生连接通过调用客户端驱动 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则通过封装 TDengine REST 服务接口建立连接，REST 连接实现的功能集合和原生连接有少量不同。
@@ -105,17 +107,9 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
 使用 Java Connector 连接数据库前，需要具备以下条件：
 
-1. Linux 或 Windows 操作系统
-2. 已安装 Java 1.8 及以上运行时环境
-3. 已安装 maven 3.6 及以上版本
-4. 已安装 TDengine-client（使用 JDBC 原生连接必须安装，使用 JDBC-RESTful 无需安装）
+1. 已安装 Java 1.8 或以上版本运行时环境
 
-**注意**：由于 TDengine 的应用驱动是使用 C 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
-
-- libtaos.so 在 Linux 系统中成功安装 TDengine 后，依赖的本地客户端驱动 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
-- taos.dll 在 Windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
-
-**注意**：在 Windows 环境开发时需要安装 TDengine 对应的 [Windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，TDengine Linux 服务端安装包也附带了 TDengine client，也可以单独安装 [Linux 客户端](/get-started/) 连接远端 TDengine 集群。
+<Preparition />
 
 ### 使用 maven 安装
 
