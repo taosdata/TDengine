@@ -6,7 +6,7 @@ title: Node.js Connector
 
 ## 总体介绍
 
-通过该连接器可以连接到 TDengine 2.0 版本的 Node.js 库。它的构建使您可以通过提供广泛的 API 尽可能多地使用它或尽可能少地使用它。如果您想要从表中检索的行数据的数组形式的原始数据，可以用对象包装该数据，以便您轻松操作和显示数据。
+td2.0-connector 是 TDengine 的官方 Node.js 连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 数据的应用软件。
 
 ## 支持的平台
 
@@ -19,7 +19,7 @@ Node.js 连接器支持的系统有：
 
 ## 版本支持
 
-| td2.0-connector 版本 | Tdengine 版本                                                    |
+| td2.0-connector 版本 | TDengine 版本                                                    |
 |--------------------|------------------------------------------------------------------|
 | 2.0.7              | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x、ver-2.2.x.x、>ver-2.1.1.0 |
 | 2.0.8              | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x、ver-2.2.x.x、>ver-2.1.4.1 |
@@ -84,7 +84,7 @@ Node.js 连接器支持的系统有：
 - 安装 [Python](https://www.python.org/downloads/) 2.7(`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7`
 - 进入`cmd`命令行界面，`npm config set msvs_version 2017`
 
-如果以上步骤不能成功执行，可以参考微软的 node.js 用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
+如果以上步骤不能成功执行，可以参考微软的 Node.js 用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
 
 如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
 
@@ -104,7 +104,7 @@ npm i td2.0-rest-connector
 
 ### 安装验证
 
-在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 nodejs 方式访问 Tdengine。
+在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
 
 验证方法：
 
