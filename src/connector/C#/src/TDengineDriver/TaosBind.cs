@@ -12,6 +12,11 @@ namespace TDengineDriver
     /// </summary>
     public class TaosBind
     {
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BOOL"/></c>.
+        /// </summary>
+        /// <param name="val">A not null boolean value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindBool(bool val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -32,6 +37,12 @@ namespace TDengineDriver
 
             return bind;
         }
+
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_TINYINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null sbyte. </param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindTinyInt(sbyte val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -53,7 +64,12 @@ namespace TDengineDriver
             return bind;
 
         }
-
+        
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_SMALLINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null short value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindSmallInt(short val)
         {
 
@@ -74,6 +90,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_INT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null int value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindInt(int val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -93,6 +114,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BIGINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null long value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindBigInt(long val)
         {
 
@@ -113,6 +139,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UTINYINT"/></c>.
+        /// </summary>
+        /// <param name="val">An unsigned byte and can be null.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUTinyInt(byte val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -133,6 +164,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_USMALLINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null Uint16.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUSmallInt(UInt16 val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -155,6 +191,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null uint.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUInt(uint val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -177,6 +218,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UBIGINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null ulong.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUBigInt(ulong val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -199,6 +245,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_FLOAT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null float.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindFloat(float val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -221,6 +272,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_DOUBLE"/></c>.
+        /// </summary>
+        /// <param name="val">A not null double.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindDouble(Double val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -243,6 +299,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BINARY"/></c>.
+        /// </summary>
+        /// <param name="val">A not null string.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindBinary(String val)
         {
 
@@ -263,6 +324,12 @@ namespace TDengineDriver
 
             return bind;
         }
+
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_NCHAR"/></c>.
+        /// </summary>
+        /// <param name="val">A not null string.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindNchar(String val)
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -284,6 +351,10 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_NULL"/></c>.
+        /// </summary>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindNil()
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -297,6 +368,11 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP"/></c>.
+        /// </summary>
+        /// <param name="ts">A not null long.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindTimestamp(long ts)
         {
 
@@ -318,6 +394,10 @@ namespace TDengineDriver
 
         }
 
+        /// <summary>
+        /// Used to free allocated unmanaged memory.
+        /// </summary>
+        /// <param name="binds">An array of <see cref="TAOS_BIND"/></param>
         public static void FreeTaosBind(TAOS_BIND[] binds)
         {
             foreach (TAOS_BIND bind in binds)

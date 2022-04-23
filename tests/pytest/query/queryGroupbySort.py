@@ -16,6 +16,7 @@ import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
+import random
 
 
 class TDTestCase:
@@ -56,6 +57,37 @@ class TDTestCase:
         tdSql.checkData(0, 0, 11.6)
         tdSql.query("select avg(current) from meters group by t4;")
         tdSql.query("select avg(current) from meters group by t3,t4;")
+
+        # TS-899
+        tdSql.execute("create table stb(ts timestamp, c0 int, c1 double, c2 binary(20), c3 int) tags(t1 int, t2 nchar(20))")
+        tags = ["beijing", "shanghai"]
+        cols = ["chaoyang", "haidian", "shunyi"]
+        for i in range(10):
+            tdSql.execute("create table t%d using stb tags(%d, '%s')" % (i, i, tags[i % 2]))
+            sql = "insert into t%d values" % i
+            for j in range(100):
+                sql += "(%d, %d, %f, '%s', %d)" % (self.ts + j, j % 10 + 1, random.uniform(1, 10), cols[j % 3], j % 5 + 1)
+            tdSql.execute(sql)
+        
+        tdSql.error("select count(*) from stb group by c1")
+        tdSql.query("select count(*), c0, c2, c3 from stb group by c0, c2, c3")
+        tdSql.checkRows(30)
+
+        tdSql.query("select count(*), c0, c2, c3 from stb group by c0, c2, c3, t1, t2")
+        tdSql.checkRows(300)
+
+        tdSql.query("select count(*), c0 from t0 group by c0")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 0, 10)
+
+        # corner cases
+        tdSql.execute("create table tb(ts timestamp, c0 int, c1 bool, c2 float, c3 double)")
+        tdSql.error("select count(*) from tb group by c2")
+        tdSql.error("select count(*) from tb group by c3")
+        tdSql.error("select count(*) from tb group by c2, c3")
+        tdSql.query("select count(*) from tb group by c1")
+        tdSql.checkRows(0)
+        
         
     def stop(self):
         tdSql.close()

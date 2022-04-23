@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
- <PropertyGroup>
-    <TargetFrameworks>net5;netstandard2.1;</TargetFrameworks>
+  <PropertyGroup>
+	<TargetFrameworks>net5;netstandard2.1;</TargetFrameworks>
     <PackageId>TDengine.Connector</PackageId>
     <PackageIcon>logo.jpg</PackageIcon>
     <Version>1.0.6</Version>
     <Authors>taosdata</Authors>
     <Company>www.taosdata.com</Company>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>Taos;Data;Microsoft.NET.Sdk;IOT;bigdata;TDengine;taosdata</PackageTags>
     <Description>
         This is the C# connector's classlib that lets you connect to TDengine. 
@@ -15,11 +15,14 @@
         more information please visit: https://www.taosdata.com
     </Description>
     <RepositoryUrl>https://github.com/taosdata/TDengine/tree/develop/src/connector/C%2523/src/TDengineDriver</RepositoryUrl>
-    <NoWarn>CS1591</NoWarn>
+
+    <NoWarn>CS1591;CS0168;CS1587</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>.\doc\TDengineDriver.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <None Include="resource\logo.jpg" Pack="true" PackagePath="\" />
   </ItemGroup>
- 
+
 
 </Project>

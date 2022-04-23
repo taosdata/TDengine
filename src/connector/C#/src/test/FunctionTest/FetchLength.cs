@@ -16,7 +16,7 @@ namespace Cases
         /// <describe>TD-12103 C# connector fetch_row with binary data retrieving error</describe>
         /// <filename>FetchLength.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "FetchLengthCase.TestRetrieveBinary()"),TestExeOrder(1)]
+        [Fact(DisplayName = "FetchLengthCase.TestRetrieveBinary()"), TestExeOrder(1)]
         public void TestRetrieveBinary()
         {
             IntPtr conn = UtilsTools.TDConnection();
@@ -47,7 +47,7 @@ namespace Cases
             ResultSet actualResult = new ResultSet(resPtr);
             List<string> actualData = actualResult.GetResultData();
             List<TDengineMeta> actualMeta = actualResult.GetResultMeta();
-            
+
             // Make expected data and retrieved data in same order
             expectData.Sort();
             actualData.Sort();
@@ -66,5 +66,5 @@ namespace Cases
 
         }
     }
-} 
+}
 
