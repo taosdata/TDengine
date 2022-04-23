@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "parInsertData.h"
 #include "parInt.h"
 #include "parToken.h"
@@ -1115,7 +1116,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     // FILE csv_file_path
-    if (TK_NK_FILE == sToken.type) {
+    if (TK_FILE == sToken.type) {
       // pSql -> csv_file_path
       NEXT_TOKEN(pCxt->pSql, sToken);
       if (0 == sToken.n || (TK_NK_STRING != sToken.type && TK_NK_ID != sToken.type)) {
@@ -1325,7 +1326,6 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, int32
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
     
-    // 1. set the parsed value from sql string
     for (int c = 0; c < spd->numOfBound; ++c) {
       SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
 
@@ -1407,11 +1407,7 @@ int32_t qBindStmtSingleColValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, 
     }
     
     SSchema* pColSchema = &pSchema[spd->boundColumns[colIdx] - 1];
-
-    if (bind->buffer_type != pColSchema->type) {
-      return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
-    }
-
+    
     if (bind->num != rowNum) {
       return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
     }
@@ -1426,6 +1422,10 @@ int32_t qBindStmtSingleColValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, 
       
       CHECK_CODE(MemRowAppend(&pBuf, NULL, 0, &param));
     } else {
+      if (bind->buffer_type != pColSchema->type) {
+        return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      }
+
       int32_t colLen = pColSchema->bytes;
       if (IS_VAR_DATA_TYPE(pColSchema->type)) {
         colLen = bind->length[r];

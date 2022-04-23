@@ -42,14 +42,17 @@ struct SBTree {
   ASSERT(TDB_FLAG_IS(flags, TDB_BTREE_ROOT) || TDB_FLAG_IS(flags, TDB_BTREE_LEAF) || \
          TDB_FLAG_IS(flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF) || TDB_FLAG_IS(flags, 0))
 
-typedef struct __attribute__((__packed__)) {
+
+#pragma pack(push,1)
+typedef struct {
   TDB_BTREE_PAGE_COMMON_HDR
 } SLeafHdr;
 
-typedef struct __attribute__((__packed__)) {
-  TDB_BTREE_PAGE_COMMON_HDR;
+typedef struct {
+  TDB_BTREE_PAGE_COMMON_HDR
   SPgno pgno;  // right-most child
 } SIntHdr;
+#pragma pack(pop)
 
 typedef struct {
   u8      flags;

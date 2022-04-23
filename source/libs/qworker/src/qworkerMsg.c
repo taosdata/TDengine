@@ -286,7 +286,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
 }
 
 
-int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
+int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
   STaskDropReq * req = (STaskDropReq *)rpcMallocCont(sizeof(STaskDropReq));
   if (NULL == req) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(STaskDropReq));
@@ -312,6 +312,42 @@ int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qwRegisterHbBrokenLinkArg(SQWorkerMgmt *mgmt, uint64_t sId, SQWConnInfo *pConn) {
+  SSchedulerHbReq req = {0};
+  req.header.vgId = mgmt->nodeId;
+  req.sId = sId;
+
+  int32_t msgSize = tSerializeSSchedulerHbReq(NULL, 0, &req);
+  if (msgSize < 0) {
+    QW_SCH_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
+    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+  void *msg = rpcMallocCont(msgSize);
+  if (NULL == msg) {
+    QW_SCH_ELOG("calloc %d failed", msgSize);
+    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+  if (tSerializeSSchedulerHbReq(msg, msgSize, &req) < 0) {
+    QW_SCH_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
+    taosMemoryFree(msg);
+    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+  
+  SRpcMsg pMsg = {
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
+    .msgType = TDMT_VND_QUERY_HEARTBEAT,
+    .pCont   = msg,
+    .contLen = sizeof(SSchedulerHbReq),
+    .code    = TSDB_CODE_RPC_NETWORK_UNAVAIL,
+  };
+  
+  tmsgRegisterBrokenLinkArg(&mgmt->msgCb, &pMsg);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
@@ -587,9 +623,13 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   }
 
   uint64_t sId = req.sId;
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code};
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
+
+  if (TSDB_CODE_RPC_NETWORK_UNAVAIL == pMsg->code) {
+    QW_SCH_DLOG("receive Hb msg due to network broken, error:%s", tstrerror(pMsg->code));    
+  }
 
   QW_SCH_DLOG("processHb start, node:%p, handle:%p", node, pMsg->handle);
 

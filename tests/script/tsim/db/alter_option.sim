@@ -183,10 +183,10 @@ sql_error alter database db days 0
 sql_error alter database db days 14400  # set over than keep
 
 print ============== modify keep
-sql alter database db keep 2000
+sql alter database db keep 3456000
 sql show databases
 print keep $data7_db
-if $data7_db != 2000,2000,2000 then
+if $data7_db != 3456000,3456000,3456000 then
   return -1
 endi
 

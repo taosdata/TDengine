@@ -23,6 +23,9 @@ struct SMetaIdx {
   SIndex *pIdx;
 #endif
   /* data */
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 };
 
 int metaOpenIdx(SMeta *pMeta) {

@@ -559,7 +559,7 @@ static FORCE_INLINE int32_t getSkipListNodeRandomHeight(SSkipList *pSkipList) {
   const uint32_t factor = 4;
 
   int32_t n = 1;
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   while ((taosRand() % factor) == 0 && n <= pSkipList->maxLevel) {
 #else
   while ((taosRandR(&(pSkipList->seed)) % factor) == 0 && n <= pSkipList->maxLevel) {

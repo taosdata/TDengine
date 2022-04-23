@@ -52,13 +52,25 @@ typedef struct SSchHbTrans {
 
 typedef struct SSchApiStat {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SSchApiStat;
 
 typedef struct SSchRuntimeStat {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SSchRuntimeStat;
 
 typedef struct SSchJobStat {
+
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 
 } SSchJobStat;
 

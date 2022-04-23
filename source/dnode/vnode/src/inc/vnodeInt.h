@@ -68,13 +68,13 @@ typedef struct {
 } SStreamSinkInfo;
 
 typedef struct {
-  SVnode*   pVnode;
-  SHashObj* pHash;  // streamId -> SStreamSinkInfo
+  SVnode   *pVnode;
+  SHashObj *pHash;  // streamId -> SStreamSinkInfo
 } SSink;
 
 // SVState
 struct SVState {
-  int64_t processed;
+  // int64_t processed;
   int64_t committed;
   int64_t applied;
 };
@@ -85,19 +85,20 @@ struct SVnodeInfo {
 };
 
 struct SVnode {
-  char*      path;
+  char      *path;
   SVnodeCfg  config;
   SVState    state;
-  STfs*      pTfs;
+  STfs      *pTfs;
   SMsgCb     msgCb;
-  SVBufPool* pBufPool;
-  SMeta*     pMeta;
-  STsdb*     pTsdb;
-  SWal*      pWal;
-  STQ*       pTq;
-  SSink*     pSink;
+  SVBufPool *pBufPool;
+  SMeta     *pMeta;
+  STsdb     *pTsdb;
+  SWal      *pWal;
+  STQ       *pTq;
+  SSink     *pSink;
+  int64_t    sync;  // sync integration
   tsem_t     canCommit;
-  SQHandle*  pQuery;
+  SQHandle  *pQuery;
 };
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
@@ -105,7 +106,7 @@ struct SVnode {
 typedef struct STbDdlHandle STbDdlHandle;
 
 // sma
-void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data);
 
 #include "vnd.h"
 
@@ -114,6 +115,8 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 #include "tsdb.h"
 
 #include "tq.h"
+
+#include "vnodeSync.h"
 
 #include "tsdbSma.h"
 

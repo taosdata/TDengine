@@ -31,20 +31,20 @@ extern "C" {
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size);
 
-#define TDB_REALLOC(PTR, SIZE)                                                               \
-  ({                                                                                         \
-    void *nPtr;                                                                              \
-    if ((PTR) == NULL || ((int *)(PTR))[-1] < (SIZE)) {                                      \
-      nPtr = tdbOsRealloc((PTR) ? (char *)(PTR) - sizeof(int) : NULL, (SIZE) + sizeof(int)); \
-      if (nPtr) {                                                                            \
-        ((int *)nPtr)[0] = (SIZE);                                                           \
-        nPtr = (char *)nPtr + sizeof(int);                                                   \
-      }                                                                                      \
-    } else {                                                                                 \
-      nPtr = (PTR);                                                                          \
-    }                                                                                        \
-    nPtr;                                                                                    \
-  })
+static inline void *tdbRealloc(void *ptr, size_t size) {
+  void *nPtr;
+  if ((ptr) == NULL || ((int *)(ptr))[-1] < (size)) {
+    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(int) : NULL, (size) + sizeof(int));
+    if (nPtr) {
+      ((int *)nPtr)[0] = (size);
+      nPtr = (char *)nPtr + sizeof(int);
+    }
+  } else {
+    nPtr = (ptr);
+  }
+  return nPtr;
+}
+#define TDB_REALLOC(PTR, SIZE)  tdbRealloc(PTR, SIZE)
 
 #define TDB_FREE(PTR)                         \
   do {                                        \

@@ -100,7 +100,7 @@ void initLogFile() {
   // FILE *fp = fopen(g_stConfInfo.resultFileName, "a");
   char file[256];
   sprintf(file, "%s/../log/tmqlog.txt", configDir);
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_STREAM);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (NULL == pFile) {
     fprintf(stderr, "Failed to open %s for save result\n", "./tmqlog.txt");
     exit -1;
@@ -120,6 +120,7 @@ void saveConfigToLogFile() {
   taosFprintfFile(g_fp, "# showMsgFlag:         %d\n",  g_stConfInfo.showMsgFlag);
   taosFprintfFile(g_fp, "# showRowFlag:         %d\n",  g_stConfInfo.showRowFlag);
   taosFprintfFile(g_fp, "# consumeDelay:        %d\n",  g_stConfInfo.consumeDelay);
+  taosFprintfFile(g_fp, "# numOfThread:         %d\n",  g_stConfInfo.numOfThread);
 
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {	  
     taosFprintfFile(g_fp, "# consumer %d info:\n", g_stConfInfo.stThreads[i].consumerId);
@@ -484,6 +485,7 @@ int main(int32_t argc, char* argv[]) {
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
   // pthread_create one thread to consume
+  taosFprintfFile(g_fp, "==== create %d consume thread ====\n", g_stConfInfo.numOfThread);	
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; ++i) {
     taosThreadCreate(&(g_stConfInfo.stThreads[i].thread), &thattr, consumeThreadFunc, (void *)(&(g_stConfInfo.stThreads[i])));
   }
@@ -494,7 +496,7 @@ int main(int32_t argc, char* argv[]) {
 
   //printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);	
   
-  taosFprintfFile(g_fp, "\n");	
+  taosFprintfFile(g_fp, "==== close tmqlog ====\n");	
   taosCloseFile(&g_fp);  
   
   return 0;

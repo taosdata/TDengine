@@ -118,7 +118,6 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_LICENCES               "grants"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
-#define TSDB_INS_TABLE_TOPICS                 "topics"
 #define TSDB_INS_TABLE_CONSUMERS              "consumers"
 #define TSDB_INS_TABLE_SUBSCRIBES             "subscribes"
 #define TSDB_INS_TABLE_TRANS                  "trans"
