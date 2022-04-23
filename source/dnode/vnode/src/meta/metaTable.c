@@ -15,7 +15,7 @@
 
 #include "vnodeInt.h"
 
-int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg, STbDdlHandle *pHandle) {
+int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg, STbDdlH *pHandle) {
   // Validate the tbOptions
   // if (metaValidateTbCfg(pMeta, pTbCfg) < 0) {
   //   // TODO: handle error

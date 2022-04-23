@@ -95,6 +95,9 @@ typedef struct SQWPhaseInput {
 } SQWPhaseInput;
 
 typedef struct SQWPhaseOutput {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } SQWPhaseOutput;
 
 

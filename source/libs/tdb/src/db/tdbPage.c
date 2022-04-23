@@ -435,17 +435,20 @@ static int tdbPageDefragment(SPage *pPage) {
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */
-typedef struct __attribute__((__packed__)) {
+
+#pragma pack(push,1)
+typedef struct {
   u16 cellNum;
   u16 cellBody;
   u16 cellFree;
   u16 nFree;
 } SPageHdr;
 
-typedef struct __attribute__((__packed__)) {
+typedef struct {
   u16 szCell;
   u16 nxOffset;
 } SFreeCell;
+#pragma pack(pop)
 
 // cellNum
 static inline int  getPageCellNum(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].cellNum; }
@@ -517,17 +520,19 @@ SPageMethods pageMethods = {
     setPageFreeCellInfo   // setFreeCellInfo
 };
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push,1)
+typedef struct {
   u8 cellNum[3];
   u8 cellBody[3];
   u8 cellFree[3];
   u8 nFree[3];
 } SPageHdrL;
 
-typedef struct __attribute__((__packed__)) {
+typedef struct {
   u8 szCell[3];
   u8 nxOffset[3];
 } SFreeCellL;
+#pragma pack(pop)
 
 // cellNum
 static inline int  getLPageCellNum(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellNum); }

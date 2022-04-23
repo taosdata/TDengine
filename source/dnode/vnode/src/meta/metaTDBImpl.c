@@ -45,10 +45,12 @@ struct SMetaDB {
 #endif
 };
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push,1)
+typedef struct {
   tb_uid_t uid;
   int32_t  sver;
 } SSchemaDbKey;
+#pragma pack(pop)
 
 typedef struct {
   char    *name;
@@ -248,7 +250,7 @@ void metaCloseDB(SMeta *pMeta) {
   }
 }
 
-int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg, STbDdlHandle *pHandle) {
+int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg, STbDdlH *pHandle) {
   tb_uid_t       uid;
   SMetaDB       *pMetaDb;
   void          *pKey;

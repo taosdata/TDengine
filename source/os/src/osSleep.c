@@ -23,7 +23,7 @@
 #endif
 
 void taosSsleep(int32_t s) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
    Sleep(1000 * s); 
 #else
   sleep(s);
@@ -31,7 +31,7 @@ void taosSsleep(int32_t s) {
 }
 
 void taosMsleep(int32_t ms) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
    Sleep(ms); 
 #else
   usleep(ms * 1000);
@@ -39,8 +39,15 @@ void taosMsleep(int32_t ms) {
 }
 
 void taosUsleep(int32_t us) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-   nanosleep(1000 * us); 
+#ifdef WINDOWS
+	HANDLE timer;
+	LARGE_INTEGER interval;
+	interval.QuadPart = (10 * us);
+
+	timer = CreateWaitableTimer(NULL, TRUE, NULL);
+	SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0);
+	WaitForSingleObject(timer, INFINITE);
+	CloseHandle(timer);
 #else
   usleep(us);
 #endif

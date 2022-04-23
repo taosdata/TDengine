@@ -35,14 +35,11 @@
 
 %left OR.
 %left AND.
-//%right NOT.
 %left UNION ALL MINUS EXCEPT INTERSECT.
 %left NK_BITAND NK_BITOR NK_LSHIFT NK_RSHIFT.
 %left NK_PLUS NK_MINUS.
-//%left DIVIDE TIMES.
 %left NK_STAR NK_SLASH NK_REM.
 %left NK_CONCAT.
-//%right NK_BITNOT.
 
 /************************************************ create/alter account *****************************************/
 cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
@@ -387,9 +384,16 @@ func_list(A) ::= func_list(B) NK_COMMA func(C).                                 
 func(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                      { A = createFunctionNode(pCxt, &B, C); }
 
 /************************************************ create/drop topic ***************************************************/
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_expression(C).      { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, C, NULL); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS db_name(C).               { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, NULL, &C); }
+cmd ::= CREATE TOPIC not_exists_opt(A)
+  topic_name(B) topic_options(D) AS query_expression(C).                          { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, C, NULL, D); }
+cmd ::= CREATE TOPIC not_exists_opt(A)
+  topic_name(B) topic_options(D) AS db_name(C).                                   { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, NULL, &C, D); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
+
+topic_options(A) ::= .                                                            { A = createTopicOptions(pCxt); }
+topic_options(A) ::= topic_options(B) WITH TABLE.                                 { ((STopicOptions*)B)->withTable = true; A = B; }
+topic_options(A) ::= topic_options(B) WITH SCHEMA.                                { ((STopicOptions*)B)->withSchema = true; A = B; }
+topic_options(A) ::= topic_options(B) WITH TAG.                                   { ((STopicOptions*)B)->withTag = true; A = B; }
 
 /************************************************ desc/describe *******************************************************/
 cmd ::= DESC full_table_name(A).                                                  { pCxt->pRootNode = createDescribeStmt(pCxt, A); }
@@ -887,3 +891,5 @@ ordering_specification_opt(A) ::= DESC.                                         
 null_ordering_opt(A) ::= .                                                        { A = NULL_ORDER_DEFAULT; }
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
+
+%fallback ID NK_BITNOT INSERT VALUES IMPORT NK_SEMI FILE.

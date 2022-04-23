@@ -26,7 +26,7 @@ extern "C" {
 
 typedef int32_t (*__tb_ddl_fn_t)(void *ahandle, void **result, void *p1, void *p2);
 
-struct STbDdlHandle {
+struct STbDdlH {
   void         *ahandle;
   void         *result;
   __tb_ddl_fn_t fp;

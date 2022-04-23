@@ -51,7 +51,7 @@ static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64()
 #define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
 
-int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg, STbDdlHandle *pHandle);
+int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
 int             metaDropTable(SMeta* pMeta, tb_uid_t uid);
 int             metaCommit(SMeta* pMeta);
 int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
@@ -74,7 +74,7 @@ tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
-int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlHandle *pHandle);
+int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
 int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 int  metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
 int  metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
