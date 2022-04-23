@@ -9,7 +9,7 @@
 
 int main(int argc, char *argv[]) {
   UdfcHandle udfc;
-  udfcOpen(1, &udfc);
+  udfcOpen(&udfc);
     uv_sleep(1000);
     char path[256] = {0};
     size_t cwdSize = 256;

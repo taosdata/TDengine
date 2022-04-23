@@ -29,6 +29,7 @@ extern "C" {
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
 #define UDF_LISTEN_PIPE_NAME_PREFIX "udfd.sock."
+#define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
 //======================================================================================
 //begin API to taosd and qworker
@@ -45,7 +46,7 @@ typedef void *UdfcFuncHandle;
  * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
  * @return error code
  */
-int32_t udfcOpen(int32_t dnodeId, UdfcHandle* proxyHandle);
+int32_t udfcOpen(UdfcHandle* proxyHandle);
 
 /**
  * destroy udfd proxy

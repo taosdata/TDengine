@@ -531,15 +531,7 @@ static int32_t udfdUvInit() {
   uv_pipe_open(&global.ctrlPipe, 0);
   uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
 
-  char    dnodeId[8] = {0};
-  size_t  dnodeIdSize;
-  int32_t err = uv_os_getenv("DNODE_ID", dnodeId, &dnodeIdSize);
-  if (err != 0) {
-    dnodeId[0] = '1';
-  }
-  char listenPipeName[32] = {0};
-  snprintf(listenPipeName, sizeof(listenPipeName), "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
-  strcpy(global.listenPipeName, listenPipeName);
+  getUdfdPipeName(global.listenPipeName, UDF_LISTEN_PIPE_NAME_LEN);
 
   removeListeningPipe();
 
@@ -550,7 +542,7 @@ static int32_t udfdUvInit() {
 
   int r;
   fnInfo("bind to pipe %s", global.listenPipeName);
-  if ((r = uv_pipe_bind(&global.listeningPipe, listenPipeName))) {
+  if ((r = uv_pipe_bind(&global.listeningPipe, global.listenPipeName))) {
     fnError("Bind error %s", uv_err_name(r));
     removeListeningPipe();
     return -1;

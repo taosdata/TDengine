@@ -124,7 +124,7 @@ enum {
 
 int64_t gUdfTaskSeqNum = 0;
 typedef struct SUdfdProxy {
-  int32_t dnodeId;
+  char udfdPipeName[UDF_LISTEN_PIPE_NAME_LEN];
   uv_barrier_t gUdfInitBarrier;
 
   uv_loop_t gUdfdLoop;
@@ -211,6 +211,17 @@ enum {
   UDFC_STATE_STOPPING, // stopping after udfcClose
   UDFC_STATUS_FINAL, // stopped
 };
+
+int32_t getUdfdPipeName(char* pipeName, int32_t size) {
+  char    dnodeId[8] = {0};
+  size_t  dnodeIdSize;
+  int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
+  if (err != 0) {
+    dnodeId[0] = '1';
+  }
+  snprintf(pipeName, size, "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+  return 0;
+}
 
 int32_t encodeUdfSetupRequest(void **buf, const SUdfSetupRequest *setup) {
   int32_t len = 0;
@@ -874,9 +885,7 @@ int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
 
       uv_connect_t *connReq = taosMemoryMalloc(sizeof(uv_connect_t));
       connReq->data = uvTask;
-      char listeningPipeName[32] = {0};
-      sprintf(listeningPipeName, "%s%d", UDF_LISTEN_PIPE_NAME_PREFIX, uvTask->udfc->dnodeId);
-      uv_pipe_connect(connReq, pipe, listeningPipeName, onUdfClientConnect);
+      uv_pipe_connect(connReq, pipe, uvTask->udfc->udfdPipeName, onUdfClientConnect);
       break;
     }
     case UV_TASK_REQ_RSP: {
@@ -972,9 +981,9 @@ void constructUdfService(void *argsThread) {
   uv_loop_close(&udfc->gUdfdLoop);
 }
 
-int32_t udfcOpen(int32_t dnodeId, UdfcHandle *udfc) {
+int32_t udfcOpen(UdfcHandle *udfc) {
   SUdfdProxy *proxy = taosMemoryCalloc(1, sizeof(SUdfdProxy));
-  proxy->dnodeId = dnodeId;
+  getUdfdPipeName(proxy->udfdPipeName, UDF_LISTEN_PIPE_NAME_LEN);
   proxy->gUdfcState = UDFC_STATE_STARTNG;
   uv_barrier_init(&proxy->gUdfInitBarrier, 2);
   uv_thread_create(&proxy->gUdfLoopThread, constructUdfService, proxy);
