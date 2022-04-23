@@ -90,7 +90,7 @@ taos>
 
 TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息。如果失败，会有错误信息打印出来。
 
-在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](/reference/taos-sql/)。
+在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](/taos-sql/)。
 
 ### 在宿主机访问 Docker 容器中的 TDengine server
 
