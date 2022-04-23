@@ -126,10 +126,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   return 0;
 }
 
-int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
+int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
   uint32_t hashValue = 0;
 
-  switch (pVnodeOptions->hashMethod) {
+  switch (pVnode->config.hashMethod) {
     default:
       hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
       break;
@@ -143,5 +143,5 @@ int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
   }
 #endif
 
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }

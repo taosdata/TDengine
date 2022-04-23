@@ -249,8 +249,14 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   int                rcode = 0;
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq     *pCreateReq;
+  SVCreateTbBatchRsp rsp = {0};
+  SVCreateTbRsp      cRsp = {0};
+  char               tbName[TSDB_TABLE_FNAME_LEN];
 
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
 
   // decode
   tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
@@ -260,17 +266,47 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
+  rsp.pArray = taosArrayInit(sizeof(cRsp), req.nReqs);
+  if (rsp.pArray == NULL) {
+    rcode = -1;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
   // loop to create table
   for (int iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
-    if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
-      // TODO: fill request
-    } else {
-      // TODO
+
+    // validate hash
+    sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
+    if (vnodeValidateTableHash(pVnode, tbName) < 0) {
+      cRsp.code = TSDB_CODE_VND_HASH_MISMATCH;
+      taosArrayPush(rsp.pArray, &cRsp);
+      continue;
     }
+
+    // do create table
+    if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
+      cRsp.code = terrno;
+    } else {
+      cRsp.code = TSDB_CODE_SUCCESS;
+    }
+
+    taosArrayPush(rsp.pArray, &cRsp);
   }
 
+  tCoderClear(&coder);
+
   // prepare rsp
+  tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  if (pRsp->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    rcode = -1;
+    goto _exit;
+  }
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pRsp->pCont, pRsp->contLen, TD_ENCODER);
+  tEncodeSVCreateTbBatchRsp(&coder, &rsp);
 
 _exit:
   tCoderClear(&coder);

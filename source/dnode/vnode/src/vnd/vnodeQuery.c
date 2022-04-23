@@ -42,7 +42,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
   metaRsp.dbId = pVnode->config.dbId;
   sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
-  code = vnodeValidateTableHash(&pVnode->config, tableFName);
+  code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
   }
