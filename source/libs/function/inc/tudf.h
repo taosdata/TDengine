@@ -36,7 +36,8 @@ extern "C" {
 
 enum {
   UDFC_CODE_STOPPING = -1,
-  UDFC_CODE_PIPE_READ_ERR = -3,
+  UDFC_CODE_PIPE_READ_ERR = -2,
+  UDF_CODE_LOAD_UDF_FAILURE = -3,
 };
 
 typedef void *UdfcHandle;

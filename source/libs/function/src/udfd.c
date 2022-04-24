@@ -63,8 +63,13 @@ typedef struct SUdf {
   uv_mutex_t lock;
   uv_cond_t  condReady;
 
-  char   name[16];
-  int8_t type;
+  char   name[TSDB_FUNC_NAME_LEN];
+  int8_t funcType;
+  int8_t scriptType;
+  int8_t outputType;
+  int32_t outputLen;
+  int32_t bufSize;
+
   char   path[PATH_MAX];
 
   uv_lib_t              lib;
@@ -88,7 +93,7 @@ int32_t udfdLoadUdf(char *udfName, SEpSet *pEpSet, SUdf *udf) {
   int err = uv_dlopen(udf->path, &udf->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
-    // TODO set error
+    return UDF_CODE_LOAD_UDF_FAILURE;
   }
   // TODO: find all the functions
   char normalFuncName[TSDB_FUNC_NAME_LEN] = {0};
@@ -416,9 +421,15 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, SEpSet *pEpSet, char *udfName,
 
   SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
 
+  udf->funcType = pFuncInfo->funcType;
+  udf->scriptType = pFuncInfo->scriptType;
+  udf->outputType = pFuncInfo->funcType;
+  udf->outputLen = pFuncInfo->outputLen;
+  udf->bufSize = pFuncInfo->bufSize;
+
   char path[PATH_MAX] = {0};
   snprintf(path, sizeof(path), "%s/lib%s.so", "/tmp", udfName);
-  TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   // TODO check for failure of flush to disk
   taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
   taosCloseFile(&file);
