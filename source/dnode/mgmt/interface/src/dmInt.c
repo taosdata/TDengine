@@ -177,7 +177,7 @@ void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
   SServerStatusRsp statusRsp = {0};
   dmGetServerStatus(pDnode, &statusRsp);
 
-  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle};
+  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle, .refId = pReq->refId};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
