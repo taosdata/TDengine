@@ -61,15 +61,25 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
 // meta
-typedef struct SMeta      SMeta;  // todo: remove
-typedef struct SMTbCursor SMTbCursor;
+typedef struct SMeta       SMeta;  // todo: remove
+typedef struct SMetaReader SMetaReader;
+typedef struct SMetaEntry  SMetaEntry;
+
+void              metaReaderInit(SMetaReader *pReader, SVnode *pVnode, int32_t flags);
+void              metaReaderClear(SMetaReader *pReader);
+int               metaReadNext(SMetaReader *pReader);
+const SMetaEntry *metaReaderGetEntry(SMetaReader *pReader);
 
 typedef SVCreateTbReq   STbCfg;
 typedef SVCreateTSmaReq SSmaCfg;
 
+#if 1
+typedef struct SMTbCursor SMTbCursor;
+
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
 char       *metaTbCursorNext(SMTbCursor *pTbCur);
+#endif
 
 // tsdb
 typedef struct STsdb          STsdb;
@@ -166,6 +176,39 @@ typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
+
+struct SMetaEntry {
+  int64_t     version;
+  int8_t      type;
+  tb_uid_t    uid;
+  const char *name;
+  union {
+    struct {
+      SSchemaWrapper schema;
+      SSchemaWrapper schemaTag;
+    } stbEntry;
+    struct {
+      int64_t     ctime;
+      int32_t     ttlDays;
+      tb_uid_t    suid;
+      const void *pTags;
+    } ctbEntry;
+    struct {
+      int64_t        ctime;
+      int32_t        ttlDays;
+      SSchemaWrapper schema;
+    } ntbEntry;
+  };
+};
+
+struct SMetaReader {
+  int32_t    flags;
+  SMeta     *pMeta;
+  SCoder     coder;
+  SMetaEntry me;
+  void      *pBuf;
+  int        szBuf;
+};
 
 #ifdef __cplusplus
 }

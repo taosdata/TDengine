@@ -15,13 +15,13 @@
 
 #include "vnodeInt.h"
 
-void metaEntryReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
+void metaReaderInit(SMetaReader *pReader, SVnode *pVnode, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
-  pReader->pMeta = pMeta;
+  pReader->pMeta = pVnode->pMeta;
 }
 
-void metaEntryReaderClear(SMetaReader *pReader) {
+void metaReaderClear(SMetaReader *pReader) {
   tCoderClear(&pReader->coder);
   TDB_FREE(pReader->pBuf);
 }
@@ -74,7 +74,14 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   return metaGetTableEntryByUid(pReader, uid);
 }
 
-#if 1
+int metaReadNext(SMetaReader *pReader) {
+  // TODO
+  return 0;
+}
+
+const SMetaEntry *metaReaderGetEntry(SMetaReader *pReader) { return &pReader->me; }
+
+#if 1  // ===================================================
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
 #if 0
