@@ -36,30 +36,14 @@ impl<'a> TaosResult<'a> {
     }
 
     pub(crate) fn new(result: *mut TAOS_RES, code: i32) -> Result<Self> {
-        let code: Code = (code & 0xffff).into();
-        RawRes::from_ptr_with_code(result, code).map(Self::from_raw)
-        // if code.success() {
-        //     let res = RawRes::from_ptr(result);
-        //     match res.fetch_fields() {
-        //         Some(fields) => Ok(TaosResult::WithFields(res, fields)),
-        //         None => Ok(TaosResult::WithoutFields(res))
-        //     }
-        // } else {
-        //     let err_str = unsafe { CStr::from_ptr(taos_errstr(result)) };
-        //     let err_str = err_str.to_string_lossy();
-        //     if err_str == "success" {
-        //         return Self::new(result, 0);
-        //     }
-        //     Err(Error::new(code, err_str))
-        // }
-    }
-
-    pub(crate) unsafe fn get_fields_unchecked(&self) -> &[Field] {
-        match self {
-            TaosResult::WithFields(_, fields) => &fields,
-            _ => unreachable!("do not fetch fields in a result without fields"),
+        if code < 0 {
+            let code: Code = (code & 0xffff).into();
+            RawRes::from_ptr_with_code(result, code).map(Self::from_raw)
+        } else {
+            RawRes::from_ptr_with_code(result, Code::Success).map(Self::from_raw)
         }
     }
+
 
     pub(crate) fn get_field_names_to_string_vec(&self) -> Vec<String> {
         match self {

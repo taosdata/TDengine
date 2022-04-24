@@ -216,7 +216,7 @@ impl<'a> Block<'a> {
                 let raw = (*inner as *const i64).add(row).read();
                 BorrowedValue::Timestamp(Timestamp::new(raw, self.precision()))
             }
-            TSDB_DATA_TYPE_BINARY => {
+            Ty::VarChar => {
                 let length = self.get_length_unchecked(col);
                 let ptr = (*inner as *const u8).add(row * length as usize);
                 let len = ptr.cast::<i16>().read();
@@ -236,6 +236,7 @@ impl<'a> Block<'a> {
                 )))
             }
             Ty::Json => {
+                log::debug!("field: {field}");
                 let length = self.get_length_unchecked(col);
                 let ptr = (*inner as *const u8).add(row * length as usize);
                 let len = ptr.cast::<i16>().read();

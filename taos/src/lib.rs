@@ -77,13 +77,6 @@ impl Taos {
         .ok_or_else(|| Error::from_string("invalid connection"))
     }
 
-    pub fn query_with_callback<F>(&mut self, _callback: F)
-    where
-        F: FnOnce(Result<TaosResult>),
-    {
-        unimplemented!()
-    }
-
     /// Asynchronously query with sql
     pub fn query<'a, 'query>(
         &'query self,
@@ -257,8 +250,9 @@ pub mod query;
 #[cfg(test)]
 mod tests {
     use super::{client_info, Result, Taos, TaosOptions, TaosResult};
-    #[tokio::test]
-    async fn test_describe() -> Result<()> {
+    use taos_macros::test;
+    #[test(crate)]
+    async fn test_describe(taos: &Taos) -> Result<()> {
         let taos = TaosOptions::new().build()?;
         let desc = taos.describe("log.logs").await?;
         dbg!(desc);
@@ -266,21 +260,19 @@ mod tests {
     }
     #[tokio::test]
     async fn test_databases() -> Result<()> {
-        std::env::set_var("RUST_LOG", "TRACE");
-        simple_logger::init().unwrap();
         let taos = TaosOptions::new().build()?;
         let desc = taos.databases().await?;
         println!("done");
         dbg!(desc);
         Ok(())
     }
-    #[test]
+    #[test(crate)]
     fn test_client_info() {
         let version = client_info();
         dbg!(format!("{version}"));
     }
 
-    #[test]
+    #[test(crate)]
     fn test_err() {
         fn err_with_res() -> Result<()> {
             let taos = Taos::new(
@@ -295,25 +287,7 @@ mod tests {
         }
         err_with_res().unwrap();
     }
-
-    #[test]
-    #[should_panic]
-    fn async_query_callback_test() {
-        let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-        let callback = |res: Result<TaosResult>| {
-            let res = res.unwrap();
-            println!("ptr: {:p}", res.as_raw());
-            let rows = res.affected_rows();
-            println!("rows: {rows}");
-        };
-        taos.query_with_callback(callback);
-        println!("wait for 10 seconds");
-        std::thread::sleep(std::time::Duration::from_secs(10));
-        println!("wait finished");
-        println!("done");
-    }
-
-    #[test]
+    #[test(crate)]
     fn query_async_await_future_test() {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
