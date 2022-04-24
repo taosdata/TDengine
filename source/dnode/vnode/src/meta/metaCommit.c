@@ -15,8 +15,13 @@
 
 #include "vnodeInt.h"
 
+static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) { return vnodeBufPoolMalloc((SVBufPool *)pPool, size); }
+static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
+
 int metaBegin(SMeta *pMeta) {
-  if (tdbBegin(pMeta->pEnv, NULL) < 0) {
+  tdbTxnOpen(&pMeta->txn, 0, metaMalloc, metaFree, pMeta->pVnode->inUse, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  if (tdbBegin(pMeta->pEnv, &pMeta->txn) < 0) {
     return -1;
   }
 

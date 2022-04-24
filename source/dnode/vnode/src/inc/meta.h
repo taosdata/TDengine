@@ -68,6 +68,7 @@ struct SMeta {
   char*     path;
   SVnode*   pVnode;
   TENV*     pEnv;
+  TXN       txn;
   TDB*      pTbDb;
   TDB*      pSkmDb;
   TDB*      pUidIdx;
