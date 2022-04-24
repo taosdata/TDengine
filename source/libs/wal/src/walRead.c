@@ -144,12 +144,12 @@ int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **p
     taosThreadMutexUnlock(&pRead->mutex);
     return -1;
   }
-  *ppHead = taosMemoryMalloc(sizeof(SWalReadHead) + pRead->pHead->head.len);
+  *ppHead = taosMemoryMalloc(sizeof(SWalReadHead) + pRead->pHead->head.bodyLen);
   if (*ppHead == NULL) {
     taosThreadMutexUnlock(&pRead->mutex);
     return -1;
   }
-  memcpy(*ppHead, &pRead->pHead->head, sizeof(SWalReadHead) + pRead->pHead->head.len);
+  memcpy(*ppHead, &pRead->pHead->head, sizeof(SWalReadHead) + pRead->pHead->head.bodyLen);
   taosThreadMutexUnlock(&pRead->mutex);
   return 0;
 }
@@ -178,16 +178,18 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
-  if (pRead->capacity < pRead->pHead->head.len) {
-    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
+  if (pRead->capacity < pRead->pHead->head.bodyLen) {
+    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.bodyLen);
     if (ptr == NULL) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
     }
     pRead->pHead = ptr;
-    pRead->capacity = pRead->pHead->head.len;
+    pRead->capacity = pRead->pHead->head.bodyLen;
   }
-  if (pRead->pHead->head.len != taosReadFile(pRead->pReadLogTFile, pRead->pHead->head.body, pRead->pHead->head.len)) {
+
+  if (pRead->pHead->head.bodyLen !=
+      taosReadFile(pRead->pReadLogTFile, pRead->pHead->head.body, pRead->pHead->head.bodyLen)) {
     return -1;
   }
 
