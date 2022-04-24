@@ -22,21 +22,13 @@ class MndTestFunc : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  void SetCode(SCreateFuncReq* pReq, const char* pCode);
-  void SetCode(SCreateFuncReq* pReq, char* pCode, int32_t size);
+  void SetCode(SCreateFuncReq* pReq, const char* pCode, int32_t size);
   void SetComment(SCreateFuncReq* pReq, const char* pComment);
 };
 
 Testbase MndTestFunc::test;
 
-void MndTestFunc::SetCode(SCreateFuncReq* pReq, const char* pCode) {
-  int32_t len = strlen(pCode);
-  pReq->pCode = (char*)taosMemoryCalloc(1, len + 1);
-  strcpy(pReq->pCode, pCode);
-  pReq->codeLen = len;
-}
-
-void MndTestFunc::SetCode(SCreateFuncReq *pReq, char *pCode, int32_t size) {
+void MndTestFunc::SetCode(SCreateFuncReq *pReq, const char *pCode, int32_t size) {
   pReq->pCode = (char*)taosMemoryMalloc(size);
   memcpy(pReq->pCode, pCode, size);
   pReq->codeLen = size;
@@ -86,7 +78,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "f1");
-    SetCode(&createReq, "");
+    SetCode(&createReq, "", 1);
     SetComment(&createReq, "comment1");
 
     int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
@@ -102,7 +94,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "f1");
-    SetCode(&createReq, "code1");
+    SetCode(&createReq, "code1", 6);
     SetComment(&createReq, "comment1");
 
     int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
@@ -118,7 +110,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "f1");
-    SetCode(&createReq, "code1");
+    SetCode(&createReq, "code1", 6);
     SetComment(&createReq, "comment1");
     createReq.bufSize = TSDB_FUNC_BUF_SIZE + 1;
 
@@ -135,7 +127,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
   for (int32_t i = 0; i < 3; ++i) {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "f1");
-    SetCode(&createReq, "code1");
+    SetCode(&createReq, "code1", 6);
     SetComment(&createReq, "comment1");
     createReq.bufSize = TSDB_FUNC_BUF_SIZE + 1;
     createReq.igExists = 0;
@@ -260,7 +252,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     createReq.outputLen = 24;
     createReq.bufSize = 6;
     createReq.signature = 18;
-    SetCode(&createReq, "code2");
+    SetCode(&createReq, "code2", 6);
     SetComment(&createReq, "comment2");
 
     int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
