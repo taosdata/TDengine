@@ -5,7 +5,7 @@ target_link_libraries(
     PUBLIC sut
 )
 
-#add_test(
-#    NAME funcTest
-#    COMMAND funcTest
-#)
+add_test(
+    NAME funcTest
+    COMMAND funcTest
+)
