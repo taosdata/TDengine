@@ -71,12 +71,15 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   SNodeMsg *pMsg = NULL;
   NodeMsgFp msgFp = NULL;
   uint16_t  msgType = pRpc->msgType;
+  bool      needRelease = false;
 
   if (pEpSet && pEpSet->numOfEps > 0 && msgType == TDMT_MND_STATUS_RSP) {
     dmSetMnodeEpSet(pWrapper->pDnode, pEpSet);
   }
 
   if (dmMarkWrapper(pWrapper) != 0) goto _OVER;
+
+  needRelease = true;
   if ((msgFp = dmGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
@@ -119,7 +122,9 @@ _OVER:
     rpcFreeCont(pRpc->pCont);
   }
 
-  dmReleaseWrapper(pWrapper);
+  if (needRelease) {
+    dmReleaseWrapper(pWrapper);
+  }
 }
 
 static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
