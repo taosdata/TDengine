@@ -10,11 +10,11 @@
 # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 #
 
-run tsim/tmq/prepareBasicEnv-1vgrp.sim
+run tsim/tmq/prepareBasicEnv-4vgrp.sim
 
 #---- global parameters start ----#
 $dbName    = db
-$vgroups    = 1
+$vgroups    = 4
 $stbPrefix  = stb
 $ctbPrefix  = ctb
 $ntbPrefix  = ntb
@@ -58,9 +58,6 @@ $keyList = $keyList . '
 
 $topicNum = 3
 
-#=============================== start consume =============================#
-
-
 print ================ test consume from stb
 print == multi toipcs: topic_stb_column + topic_stb_all + topic_stb_function
 $topicList = ' . topic_stb_column
@@ -103,38 +100,32 @@ if $data[0][1] == 1 then
   endi
 endi
 
-if $data[0][2] != 0 then
-  if $data[0][2] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[1][2] != 0 then
-    return -1
-  endi
+if $data[0][2] <= 0 then
+  return -1
 endi
-if $data[1][2] != 0 then
-  if $data[1][2] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[0][2] != 0 then
-    return -1
-  endi
+if $data[0][2] >= $expectmsgcnt then
+  return -1
 endi
 
-if $data[0][3] != 0 then
-  if $data[0][3] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[1][3] != 0 then
-    return -1
-  endi
+if $data[1][2] <= 0 then
+  return -1
 endi
-if $data[1][3] != 0 then
-  if $data[1][3] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[0][3] != 0 then
-    return -1
-  endi
+if $data[1][2] >= $expectmsgcnt then
+  return -1
+endi
+
+if $data[0][3] <= 0 then
+  return -1
+endi
+if $data[0][3] >= $expectmsgcnt then
+  return -1
+endi
+
+if $data[1][3] <= 0 then
+  return -1
+endi
+if $data[1][3] >= $expectmsgcnt then
+  return -1
 endi
 
 #######################################################################################
@@ -146,7 +137,7 @@ sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
 
-print == create consume info table and consume result table for ctb
+print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 
@@ -241,7 +232,7 @@ sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
 
-print == create consume info table and consume result table for ntb
+print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 

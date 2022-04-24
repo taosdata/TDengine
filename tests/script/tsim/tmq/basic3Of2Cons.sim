@@ -10,11 +10,11 @@
 # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
 #
 
-run tsim/tmq/prepareBasicEnv-1vgrp.sim
+run tsim/tmq/prepareBasicEnv-4vgrp.sim
 
 #---- global parameters start ----#
 $dbName    = db
-$vgroups    = 1
+$vgroups    = 4
 $stbPrefix  = stb
 $ctbPrefix  = ctb
 $ntbPrefix  = ntb
@@ -56,31 +56,59 @@ sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
 $keyList = ' . group.id:cgrp1
 $keyList = $keyList . '
 
-$topicNum = 3
-
+$cdb_index = 0
 #=============================== start consume =============================#
 
-
 print ================ test consume from stb
-print == multi toipcs: topic_stb_column + topic_stb_all + topic_stb_function
-$topicList = ' . topic_stb_column
-$topicList = $topicList . ,
-$topicList = $topicList . topic_stb_all
-$topicList = $topicList . ,
-$topicList = $topicList . topic_stb_function
-$topicList = $topicList . '
+$loop_cnt = 0
+loop_consume_diff_topic_from_stb:
+
+#######################################################################################
+# clear consume info and consume result 
+#run tsim/tmq/clearConsume.sim
+# because drop table function no stable, so by create new db for consume info and result. Modify it later
+$cdb_index = $cdb_index + 1
+$cdbName = cdb . $cdb_index
+sql create database $cdbName vgroups 1
+sleep 500
+sql use $cdbName
+
+print == create consume info table and consume result table
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+#######################################################################################
+
+if $loop_cnt == 0 then
+  print == scenario 1: topic_stb_column
+  $topicList = ' . topic_stb_column
+  $topicList = $topicList . '
+elif $loop_cnt == 1 then
+  print == scenario 2: topic_stb_all
+  $topicList = ' . topic_stb_all
+  $topicList = $topicList . '
+elif $loop_cnt == 2 then
+  print == scenario 3: topic_stb_function
+  $topicList = ' . topic_stb_function
+  $topicList = $topicList . '
+else
+  goto loop_consume_diff_topic_from_stb_end
+endi
 
 $consumerId    = 0
 $totalMsgOfStb = $ctbNum * $rowsPerCtb
-$totalMsgOfStb = $totalMsgOfStb * $topicNum
 $expectmsgcnt  = $totalMsgOfStb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 $consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
 print == start consumer to pull msgs from stb
-print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
-system tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
+print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
+system tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
 
 print == check consume result
 wait_consumer_end_from_stb:
@@ -103,50 +131,52 @@ if $data[0][1] == 1 then
   endi
 endi
 
-if $data[0][2] != 0 then
-  if $data[0][2] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[1][2] != 0 then
-    return -1
-  endi
+if $data[0][2] <= 0 then
+  return -1
 endi
-if $data[1][2] != 0 then
-  if $data[1][2] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[0][2] != 0 then
-    return -1
-  endi
+if $data[0][2] >= $expectmsgcnt then
+  return -1
 endi
 
-if $data[0][3] != 0 then
-  if $data[0][3] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[1][3] != 0 then
-    return -1
-  endi
+if $data[1][2] <= 0 then
+  return -1
 endi
-if $data[1][3] != 0 then
-  if $data[1][3] != $expectmsgcnt then
-    return -1
-  endi
-  if $data[0][3] != 0 then
-    return -1
-  endi
+if $data[1][2] >= $expectmsgcnt then
+  return -1
 endi
+
+if $data[0][3] <= 0 then
+  return -1
+endi
+if $data[0][3] >= $expectmsgcnt then
+  return -1
+endi
+
+if $data[1][3] <= 0 then
+  return -1
+endi
+if $data[1][3] >= $expectmsgcnt then
+  return -1
+endi
+$loop_cnt = $loop_cnt + 1
+goto loop_consume_diff_topic_from_stb
+loop_consume_diff_topic_from_stb_end:
+
+print ================ test consume from ctb
+$loop_cnt = 0
+loop_consume_diff_topic_from_ctb:
 
 #######################################################################################
 # clear consume info and consume result 
 #run tsim/tmq/clearConsume.sim
 # because drop table function no stable, so by create new db for consume info and result. Modify it later
-$cdbName = cdb1
+$cdb_index = $cdb_index + 1
+$cdbName = cdb . $cdb_index
 sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
 
-print == create consume info table and consume result table for ctb
+print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 
@@ -156,21 +186,25 @@ if $rows != 2 then
 endi
 #######################################################################################
 
-
-print ================ test consume from ctb
-print == multi toipcs: topic_ctb_column + topic_ctb_all + topic_ctb_function
-$topicList = ' . topic_ctb_column
-$topicList = $topicList . ,
-$topicList = $topicList . topic_ctb_all
-$topicList = $topicList . ,
-$topicList = $topicList . topic_ctb_function
-$topicList = $topicList . '
+if $loop_cnt == 0 then
+  print == scenario 1: topic_ctb_column
+  $topicList = ' . topic_ctb_column
+  $topicList = $topicList . '
+elif $loop_cnt == 1 then
+  print == scenario 2: topic_ctb_all
+  $topicList = ' . topic_ctb_all
+  $topicList = $topicList . '
+elif $loop_cnt == 2 then
+  print == scenario 3: topic_ctb_function
+  $topicList = ' . topic_ctb_function
+  $topicList = $topicList . '
+else
+  goto loop_consume_diff_topic_from_ctb_end
+endi
 
 $consumerId    = 0
-$totalMsgOfCtb = $rowsPerCtb * $topicNum
+$totalMsgOfCtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfCtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
-$consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
 print == start consumer to pull msgs from ctb
@@ -231,17 +265,25 @@ if $data[1][3] != $totalMsgOfCtb then
     return -1
   endi  
 endi
+$loop_cnt = $loop_cnt + 1
+goto loop_consume_diff_topic_from_ctb
+loop_consume_diff_topic_from_ctb_end:
+
+print ================ test consume from ntb
+$loop_cnt = 0
+loop_consume_diff_topic_from_ntb:
 
 #######################################################################################
 # clear consume info and consume result 
 #run tsim/tmq/clearConsume.sim
 # because drop table function no stable, so by create new db for consume info and result. Modify it later
-$cdbName = cdb2
+$cdb_index = $cdb_index + 1
+$cdbName = cdb . $cdb_index
 sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
 
-print == create consume info table and consume result table for ntb
+print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 
@@ -251,21 +293,25 @@ if $rows != 2 then
 endi
 #######################################################################################
 
-
-print ================ test consume from ntb
-print == multi toipcs: topic_ntb_column + topic_ntb_all + topic_ntb_function
-$topicList = ' . topic_ntb_column
-$topicList = $topicList . ,
-$topicList = $topicList . topic_ntb_all
-$topicList = $topicList . ,
-$topicList = $topicList . topic_ntb_function
-$topicList = $topicList . '
+if $loop_cnt == 0 then
+  print == scenario 1: topic_ntb_column
+  $topicList = ' . topic_ntb_column
+  $topicList = $topicList . '
+elif $loop_cnt == 1 then
+  print == scenario 2: topic_ntb_all
+  $topicList = ' . topic_ntb_all
+  $topicList = $topicList . '
+elif $loop_cnt == 2 then
+  print == scenario 3: topic_ntb_function
+  $topicList = ' . topic_ntb_function
+  $topicList = $topicList . '
+else
+  goto loop_consume_diff_topic_from_ntb_end
+endi
 
 $consumerId    = 0
-$totalMsgOfNtb = $rowsPerCtb * $topicNum
+$totalMsgOfNtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfNtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
-$consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
 print == start consumer to pull msgs from ntb
@@ -326,6 +372,9 @@ if $data[1][3] != $totalMsgOfNtb then
     return -1
   endi  
 endi
+$loop_cnt = $loop_cnt + 1
+goto loop_consume_diff_topic_from_ntb
+loop_consume_diff_topic_from_ntb_end:
 
 #------ not need stop consumer, because it exit after pull msg overthan expect msg
 #system tsim/tmq/consume.sh -s stop -x SIGINT
