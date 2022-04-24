@@ -71,7 +71,7 @@ static void shellWorkAsClient() {
       printf("response is received, size:%d\n", rpcMsg.contLen);
       if (rpcRsp.code == 0) totalSucc++;
     } else {
-      printf("response not received since %s\n", terrstr());
+      printf("response not received since %s\n", tstrerror(rpcRsp.code));
     }
 
     rpcFreeCont(rpcRsp.pCont);
@@ -96,7 +96,7 @@ _OVER:
 static void shellProcessMsg(void *p, SRpcMsg *pRpc, SEpSet *pEpSet) {
   printf("request is received, size:%d\n", pRpc->contLen);
   fflush(stdout);
-  SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = 0};
+  SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
   rsp.pCont = rpcMallocCont(shell.args.pktLen);
   rsp.contLen = shell.args.pktLen;
   rpcSendResponse(&rsp);
@@ -106,6 +106,10 @@ void shellNettestHandler(int32_t signum, void *sigInfo, void *context) { shellEx
 
 static void shellWorkAsServer() {
   SShellArgs *pArgs = &shell.args;
+
+  if (pArgs->port == 0) {
+    pArgs->port = tsServerPort;
+  }
 
   SRpcInit rpcInit = {0};
   rpcInit.localPort = pArgs->port;
@@ -119,16 +123,11 @@ static void shellWorkAsServer() {
   void *serverRpc = rpcOpen(&rpcInit);
   if (serverRpc == NULL) {
     printf("failed to init net test server since %s", terrstr());
+  } else {
+    printf("network test server is initialized, port:%u\n", pArgs->port);
+    taosSetSignal(SIGTERM, shellNettestHandler);
+    while (1) taosMsleep(10);
   }
-
-  if (pArgs->port == 0) {
-    pArgs->port = tsServerPort;
-  }
-
-  printf("network test server is initialized, port:%u\n", pArgs->port);
-
-  taosSetSignal(SIGTERM, shellNettestHandler);
-  while (1) taosMsleep(10);
 }
 
 void shellTestNetWork() {
