@@ -29,9 +29,9 @@
 #define SHELL_DB       "Database to use when connecting to the server."
 #define SHELL_CHECK    "Check the service status."
 #define SHELL_STARTUP  "Check the details of the service status."
-#define SHELL_WIDTH    "Set the default binary display width."
+#define SHELL_WIDTH    "Set the default binary display width, default is 30."
 #define SHELL_NET_ROLE "Net role when network connectivity test, options: client|server."
-#define SHELL_PKG_LEN  "Packet length used for net test, default is 1000 bytes."
+#define SHELL_PKG_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_VERSION  "Print program version."
 #define SHELL_EMAIL    "<support@taosdata.com>"
@@ -242,8 +242,8 @@ static void shellInitArgs(int argc, char *argv[]) {
     tstrncpy(shell.args.password, TSDB_DEFAULT_PASS, sizeof(shell.args.password));
   }
 
-  shell.args.pktLen = 1024;
-  shell.args.pktNum = 100;
+  shell.args.pktLen = SHELL_DEF_PKG_LEN;
+  shell.args.pktNum = SHELL_DEF_PKG_NUM;
   shell.args.displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
   shell.args.user = TSDB_DEFAULT_USER;
 }
@@ -303,13 +303,13 @@ static int32_t shellCheckArgs() {
     return -1;
   }
 
-  if (pArgs->pktLen <= 0 || pArgs->pktLen > 20 * 1024 * 1024) {
-    printf("Invalid pktLen:%d, range:[1, 20 * 1024 * 1024]\n", pArgs->pktLen);
+  if (pArgs->pktLen < SHELL_MIN_PKG_LEN || pArgs->pktLen > SHELL_MAX_PKG_LEN) {
+    printf("Invalid pktLen:%d, range:[%d, %d]\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
     return -1;
   }
 
-  if (pArgs->pktNum <= 0 || pArgs->pktNum > 1024 * 1024) {
-    printf("Invalid pktNum:%d, range:[1, 1024 * 1024]\n", pArgs->pktNum);
+  if (pArgs->pktNum < SHELL_MIN_PKG_NUM || pArgs->pktNum > SHELL_MAX_PKG_NUM) {
+    printf("Invalid pktNum:%d, range:[%d, %d]\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
     return -1;
   }
 
