@@ -3568,8 +3568,8 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
-  if (tEncodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
-  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
+  if (tDecodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
+  if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   // if (pReq->rollup) {
   //   if (tDecodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
   // }
@@ -3626,6 +3626,8 @@ int tEncodeSVCreateTbReq(SCoder *pCoder, const SVCreateTbReq *pReq) {
 }
 
 int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
+  uint64_t len;
+
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pReq->uid) < 0) return -1;
@@ -3637,7 +3639,7 @@ int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
-    if (tDecodeBinary(pCoder, &pReq->ctb.pTag, NULL) < 0) return -1;
+    if (tDecodeBinary(pCoder, &pReq->ctb.pTag, &len) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schema) < 0) return -1;
   } else {

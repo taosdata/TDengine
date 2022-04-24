@@ -309,6 +309,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   tEncodeSVCreateTbBatchRsp(&coder, &rsp);
 
 _exit:
+  taosArrayClear(rsp.pArray);
   tCoderClear(&coder);
   return rcode;
 }

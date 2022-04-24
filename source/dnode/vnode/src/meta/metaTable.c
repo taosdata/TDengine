@@ -83,6 +83,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   }
 
   // build SMetaEntry
+  me.version = version;
   me.type = pReq->type;
   me.uid = pReq->uid;
   me.name = pReq->name;
