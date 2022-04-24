@@ -9,9 +9,9 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器。Java 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器。Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
 
-`taos-jdbcdriver`（2.0.18 及更高版本）也支持使用 REST 连接 TDengine 数据库。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver`（2.0.18 及更高版本）也支持使用 REST 连接 TDengine 集群。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](/img/tdengine-jdbc-connector.png)
 
@@ -32,6 +32,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 ## 支持的平台
 
 请参考[支持的平台列表](/reference/connector#支持的平台)
+
 **注意**：
 
 - 与原生连接方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 SQL 中指定表、超级表的数据库名称。例如：
@@ -849,10 +850,6 @@ Query OK, 1 row(s) in set (0.000141s)
 |        2.0.37        |     增加对 json tag 支持      |
 |        2.0.38        | 增加对 RESTful 中批量拉取功能 |
 
-## API 参考
-
-[taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)
-
 ## 常见问题
 
 - 使用 Statement 的 addBatch 和 executeBatch 来执行“批量写入/更行”，为什么没有带来性能上的提升？
@@ -866,4 +863,9 @@ Query OK, 1 row(s) in set (0.000141s)
   **原因**：目前 TDengine 只支持 64 位 JDK。
   **解决方法**：重新安装 64 位 JDK。
 
-- 其它问题请参考 [Issues](https://github.com/taosdata/TDengine/issues)
+- 其它问题请参考 [FAQ](/train-faq/faq)
+
+## API 参考
+
+[taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)
+

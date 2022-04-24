@@ -15,7 +15,7 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    1. UPDATE 设为 0 时，表示不允许更新数据，后发送的相同时间戳的数据会被直接丢弃；
    2. UPDATE 设为 1 时，表示更新全部列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会被设为 NULL；
    3. UPDATE 设为 2 时，表示支持更新部分列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值；
-   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-fqa/faq)。
+   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-faq/faq)。
 3. 数据库名最大长度为 33；
 4. 一条 SQL 语句的最大长度为 65480 个字符；
 5. 数据库还有更多与数据库相关的配置参数，如 cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, 具体细节请参见 [配置参数](/reference/config/) 章节。
