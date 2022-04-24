@@ -190,7 +190,7 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmInitLog() != 0) {
-    printf("failed to start since init log error\n");
+    dError("failed to start since init log error");
     return -1;
   }
 

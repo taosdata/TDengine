@@ -139,12 +139,6 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-  if (taosRealPath(fullDir, NULL, PATH_MAX) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to get realpath of dir:%s since %s", inputDir, terrstr());
-    return -1;
-  }
-
   taosMemoryFreeClear(pItem->str);
   pItem->str = strdup(fullDir);
   if (pItem->str == NULL) {
@@ -172,9 +166,8 @@ static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType sty
 static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   int32_t ival = (int32_t)atoi(value);
   if (ival < pItem->imin || ival > pItem->imax) {
-    uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "], use last src:%s value:%d",
-           pItem->name, cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax,
-           cfgStypeStr(pItem->stype), pItem->i32);
+    uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
@@ -187,10 +180,8 @@ static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType st
 static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   int64_t ival = (int64_t)atoi(value);
   if (ival < pItem->imin || ival > pItem->imax) {
-    uError("cfg:%s, type:%s src:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64
-           "], use last src:%s value:%" PRId64,
-           pItem->name, cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax,
-           cfgStypeStr(pItem->stype), pItem->i64);
+    uError("cfg:%s, type:%s src:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
@@ -203,9 +194,8 @@ static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType st
 static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   float fval = (float)atof(value);
   if (fval < pItem->fmin || fval > pItem->fmax) {
-    uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f], use last src:%s value:%f", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), fval, pItem->fmin, pItem->fmax, cfgStypeStr(pItem->stype),
-           pItem->fval);
+    uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), fval, pItem->fmin, pItem->fmax);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
@@ -219,8 +209,8 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
   char *tmp = strdup(value);
   if (tmp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
+    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, terrstr());
     return -1;
   }
 
@@ -232,9 +222,8 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
 
 static int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (cfgCheckAndSetDir(pItem, value) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
+    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, terrstr());
     return -1;
   }
 
@@ -245,8 +234,8 @@ static int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType styp
 static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (cfgCheckAndSetLocale(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
+    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, terrstr());
     return -1;
   }
 
@@ -257,8 +246,8 @@ static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType s
 static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (cfgCheckAndSetCharset(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
+    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, terrstr());
     return -1;
   }
 
@@ -269,8 +258,8 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (cfgCheckAndSetTimezone(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
+    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value, terrstr());
     return -1;
   }
 
@@ -608,15 +597,19 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   char   *line = NULL, *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
-
-  if (taosIsDir(filepath)) {
-    return -1;
-  }
+  int32_t code = 0;
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    // success when the file does not exist
+    if (errno == ENOENT) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, terrstr());
+      return 0;
+    } else {
+      uError("failed to load from cfg file %s since %s", filepath, terrstr());
+      return -1;
+    }
   }
 
   while (!taosEOFFile(pFile)) {
@@ -645,17 +638,24 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
+    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
-      cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
+      code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
+      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
   }
 
   taosCloseFile(&pFile);
   if (line != NULL) taosMemoryFreeClear(line);
 
-  uInfo("load from cfg file %s success", filepath);
-  return 0;
+  if (code == 0 || (code != 0 && terrno == TSDB_CODE_CFG_NOT_FOUND)) {
+    uInfo("load from cfg file %s success", filepath);
+    return 0;
+  } else {
+    uError("failed to load from cfg file %s since %s", filepath, terrstr());
+    return -1;
+  }
 }
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
