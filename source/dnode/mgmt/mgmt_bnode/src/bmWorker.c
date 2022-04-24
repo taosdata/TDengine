@@ -17,7 +17,8 @@
 #include "bmInt.h"
 
 static void bmSendErrorRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+  SRpcMsg rpcRsp = {
+      .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code, .refId = pMsg->rpcMsg.refId};
   tmsgSendRsp(&rpcRsp);
 
   dTrace("msg:%p, is freed", pMsg);
@@ -38,6 +39,7 @@ static void bmSendErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
 static inline void bmSendRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
                  .ahandle = pMsg->rpcMsg.ahandle,
+                 .refId = pMsg->rpcMsg.refId,
                  .code = code,
                  .pCont = pMsg->pRsp,
                  .contLen = pMsg->rspLen};
@@ -101,7 +103,7 @@ static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 }
 
 int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SBnodeMgmt   *pMgmt = pWrapper->pMgmt;
+  SBnodeMgmt *  pMgmt = pWrapper->pMgmt;
   SMultiWorker *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -110,7 +112,7 @@ int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SBnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SBnodeMgmt *   pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
