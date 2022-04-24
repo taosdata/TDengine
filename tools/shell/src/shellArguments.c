@@ -189,7 +189,7 @@ static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
     {"port", 'P', "PORT", 0, SHELL_PORT},
     {"user", 'u', "USER", 0, SHELL_USER},
-    {"password", 'p', 0, 0, SHELL_PASSWORD},
+    {0, 'p', 0, 0, SHELL_PASSWORD},
     {"auth", 'a', "AUTH", 0, SHELL_AUTH},
     {"generate-auth", 'A', 0, 0, SHELL_GEN_AUTH},
     {"config-dir", 'c', "DIR", 0, SHELL_CFG_DIR},
@@ -220,9 +220,9 @@ static void shellParseArgsUseArgp(int argc, char *argv[]) {
 
 static void shellInitArgs(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
-    if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
+    if (strncmp(argv[i], "-p", 2) == 0) {
       printf(shell.info.clientVersion, tsOsName, taos_get_client_info());
-      if ((strlen(argv[i]) == 2) || (strncmp(argv[i], "--password", 10) == 0)) {
+      if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
         if (scanf("%20s", shell.args.password) > 1) {
