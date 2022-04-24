@@ -311,6 +311,9 @@ static void dmWatchUdfd(void *args) {
 }
 
 static int32_t dmStartUdfd(SDnode *pDnode) {
+  char dnodeId[8] = {0};
+  snprintf(dnodeId, sizeof(dnodeId), "%d", pDnode->data.dnodeId);
+  uv_os_setenv("DNODE_ID", dnodeId);
   SUdfdData *pData = &pDnode->udfdData;
   if (pData->startCalled) {
     dInfo("dnode-mgmt start udfd already called");
@@ -371,9 +374,9 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   }
   dmReportStartup(pDnode, "dnode-transport", "initialized");
 
-//  if (dmStartUdfd(pDnode) != 0) {
-//    dError("failed to start udfd");
-//  }
+  if (dmStartUdfd(pDnode) != 0) {
+    dError("failed to start udfd");
+  }
 
   dInfo("dnode-mgmt is initialized");
   return 0;
