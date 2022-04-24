@@ -91,8 +91,10 @@ static SSyncEnv *doSyncEnvStart() {
 }
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
-  taosTmrCleanUp(pSyncEnv->pTimerManager);
-  taosMemoryFree(pSyncEnv);
+  if (pSyncEnv != NULL) {
+    taosTmrCleanUp(pSyncEnv->pTimerManager);
+    taosMemoryFree(pSyncEnv);
+  }
   return 0;
 }
 
