@@ -271,9 +271,7 @@ static void setupEnvForReverseScan(STableScanInfo* pTableScanInfo, SqlFunctionCt
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
   STableScanInfo* pTableScanInfo = pOperator->info;
 
-  SSDataBlock*     pBlock = pTableScanInfo->pResBlock;
-  STableGroupInfo* pTableGroupInfo = &pOperator->pTaskInfo->tableqinfoGroupInfo;
-
+  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
   *newgroup = false;
 
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
@@ -284,18 +282,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     pTableScanInfo->numOfBlocks += 1;
     tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBlock->info);
 
-    // todo opt
-    //    if (pTableGroupInfo->numOfTables > 1 || (pRuntimeEnv->current == NULL && pTableGroupInfo->numOfTables == 1)) {
-    //      STableQueryInfo** pTableQueryInfo =
-    //          (STableQueryInfo**)taosHashGet(pTableGroupInfo->map, &pBlock->info.uid, sizeof(pBlock->info.uid));
-    //      if (pTableQueryInfo == NULL) {
-    //        break;
-    //      }
-    //
-    //      doTableQueryInfoTimeWindowCheck(pTaskInfo, *pTableQueryInfo, pTableScanInfo->order);
-    //    }
-
-    // this function never returns error?
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
@@ -308,6 +294,8 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
       continue;
     }
 
+    // reset the block to be 0 by default, this blockId is assigned by physical plan and is used by direct upstream operator.
+    pBlock->info.blockId = 0;
     return pBlock;
   }
 
@@ -405,11 +393,11 @@ SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, int32_t order, int
   pOperator->name         = "TableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfOutput = numOfOutput;
-  pOperator->getNextFn = doTableScan;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = numOfOutput;
+  pOperator->getNextFn    = doTableScan;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   static int32_t cost = 0;
   pOperator->cost.openCost = ++cost;
@@ -823,12 +811,12 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     int32_t          tableNameSlotId = 1;
     SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, tableNameSlotId);
 
-    char*   name = NULL;
+    char*   tb = NULL;
     int32_t numOfRows = 0;
 
     char n[TSDB_TABLE_NAME_LEN] = {0};
-    while ((name = metaTbCursorNext(pInfo->pCur)) != NULL) {
-      STR_TO_VARSTR(n, name);
+    while ((tb = metaTbCursorNext(pInfo->pCur)) != NULL) {
+      STR_TO_VARSTR(n, tb);
       colDataAppend(pTableNameCol, numOfRows, n, false);
       numOfRows += 1;
       if (numOfRows >= pInfo->capacity) {

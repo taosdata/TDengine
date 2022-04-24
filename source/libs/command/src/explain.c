@@ -304,8 +304,8 @@ int32_t qExplainResAppendRow(SExplainCtx *ctx, char *tbuf, int32_t len, int32_t 
 
   memcpy(row.buf, tbuf, len);
   row.level = level;
-  row.len = len;
-  ctx->dataSize += len;
+  row.len   = len;
+  ctx->dataSize += row.len;
 
   if (NULL == taosArrayPush(ctx->rows, &row)) {
     qError("taosArrayPush row to explain res rows failed");
@@ -783,7 +783,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   }
   
   int32_t colNum = 1;
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + sizeof(int32_t) * colNum + sizeof(int32_t) * rowNum + pCtx->dataSize;
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t) * colNum + sizeof(int32_t) * rowNum + pCtx->dataSize;
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
@@ -793,28 +793,37 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htonl(rowNum);
 
-  *(int32_t *)rsp->data = htonl(pCtx->dataSize);
+  // payload length
+  *(int32_t *)rsp->data = sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t) * colNum + sizeof(int32_t) * rowNum + pCtx->dataSize;
 
-  int32_t *offset = (int32_t *)((char *)rsp->data + sizeof(int32_t));
+  // group id
+  *(uint64_t*)(rsp->data + sizeof(int32_t)) = 0;
+
+  // column length
+  int32_t* colLength = (int32_t *)(rsp->data + sizeof(int32_t) + sizeof(uint64_t));
+
+  // varchar column offset segment
+  int32_t *offset = (int32_t *)((char *)colLength + sizeof(int32_t));
+
+  // varchar data real payload
   char *data = (char *)(offset + rowNum);
-  int32_t tOffset = 0;
-  
+
+  char* start = data;
   for (int32_t i = 0; i < rowNum; ++i) {
     SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    *offset = tOffset;
-    tOffset += row->len;
+    offset[i] = data - start;
 
-    memcpy(data, row->buf, row->len);
-    
-    ++offset;
+    varDataCopy(data, row->buf);
+    ASSERT(varDataTLen(row->buf) == row->len);
     data += row->len;
   }
 
-  *pRsp = rsp;
+  *colLength = htonl(data - start);
+  rsp->compLen = htonl(rspSize);
 
+  *pRsp = rsp;
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
   int32_t code = 0;
@@ -922,9 +931,7 @@ int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
 
 int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
   QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->rootGroupId, 0));
-
   QRY_ERR_RET(qExplainAppendPlanRows(pCtx));
-  
   QRY_ERR_RET(qExplainGetRspFromCtx(pCtx, pRsp));
 
   return TSDB_CODE_SUCCESS;
@@ -994,13 +1001,10 @@ int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp) {
   SExplainCtx *pCtx = NULL;
 
   QRY_ERR_RET(qExplainPrepareCtx(pDag, &pCtx));
-  
   QRY_ERR_JRET(qExplainGenerateRsp(pCtx, pRsp));
   
 _return:
-
   qExplainFreeCtx(pCtx);
-
   QRY_RET(code);
 }
 

@@ -835,10 +835,21 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     return code;
   }
 
-  int32_t* colLength = (int32_t*)pResultInfo->pData;
-  char*    pStart = ((char*)pResultInfo->pData) + sizeof(int32_t) * numOfCols;
+  char* p = (char*) pResultInfo->pData;
+
+  int32_t dataLen = *(int32_t*) p;
+  p += sizeof(int32_t);
+
+  uint64_t groupId = *(uint64_t*) p;
+  p += sizeof(uint64_t);
+
+  int32_t* colLength = (int32_t*)p;
+  p += sizeof(int32_t) * numOfCols;
+
+  char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
     colLength[i] = htonl(colLength[i]);
+    ASSERT(colLength[i] < dataLen);
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;

@@ -308,7 +308,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   //  }
 
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
-  initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, false);
 
   while(1) {
     doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
