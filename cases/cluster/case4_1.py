@@ -9,97 +9,89 @@
 #
 ###################################################################
 
+from concurrent.futures import thread
+import datetime
+import logging
 # -*- coding: utf-8 -*-
-from http import client
 import os
 import random
-from ssl import PROTOCOL_TLS_SERVER
-import time
-import taos
-import copy
-import datetime
-from itertools import product
-from itertools import combinations
-import subprocess
-import logging
-from taostest import TDCase
-from distutils.log import warn as printf
-from Query.queryutil.createdata import *
-from Query.queryutil.where import *
-from itertools import product
-from itertools import combinations
-import subprocess
-from taostest.util.file import dict2file
-from taostest.util.remote import Remote
 import subprocess
 import threading
+import time
+from distutils.log import warn as printf
+from itertools import combinations
+from tracemalloc import start
 
+import taos
+from Query.queryutil.createdata import *
+from Query.queryutil.where import *
+
+from faker import Faker
+fake = Faker('zh_CN')
 
 class TestDnodes(TDCase):
 
     def init(self):
-        self.ts = 1420041600000  # 2015-01-01 00:00:00  this is begin time for first record
-        self.num = 10
-        self.Loop = 100
-        self.loop_alter = 100
-        self.thread_nums = 100  # thread_nums for alter tags
-        self.alter_thread_nums = 100 # thread_nums for alter database
-        self.sleep_time = 10  # sleep time for taosd restart
+        super().init()
+        self.basic_dnodes = 5  # ->int
+        self.loop_times = 100
+        self.drop_sleep_time = 10
+        self.thread_nums = 100
+        # self.logger.handlers[-1].setLevel(logging.ERROR)
 
-        self.conf = self.get_component_by_name(
-            "taosd")[0]
-        self.logger.handlers[-1].setLevel(logging.ERROR)
         self.logger.info("initialized " + self.name)
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        self.dnodes_ids_extra = len(self.get_component_by_name("taosd")[0]['spec']['dnodes']) + 1
+        self.ports_extra = 6030 + self.dnodes_ids_extra * 100
+        self.tmp_dir = self.envMgr._tmp_dir
+        self.component = self.get_component_by_name(
+            "taosd")[0]
+        self.conf = self.get_component_by_name(
+            "taosd")[0]
+        self.first_Ep = self.conf["spec"]["config"]["firstEP"]
+        self.params = {"_ts" : 1420041600000 , "_ts_step":1 ,"_row_nums":1,"_col_nums":12 ,  "tables_of_per_stable":20 ,"_tags_nums" : 10 , "_replica" :3 }
+        self.db_nums = 10
+        self.stable_nums = 2
+        self.table_nums = 2
+        self.time_sleep = 0
+        self.db_index = 0
+        self.global_queue = []
+    
 
-    def basic_query_alter_tags(self):
-        sqls = ["select count(*) from testdb.st group by tbname",
-                "select max(value)*elapsed(ts)+100 from testdb.st group by tbname",
-                "select * from testdb.st where ts >1000000",
-                "select last(*) from testdb.st group by tbname order by ts limit 10 ",
-                "select tbname from testdb.st where ind>1",
-                "select stddev(value) from testdb.st ",
-                "select top(value ,5) from testdb.st ",
-                "select bottom(value , 5) from testdb.st group by tbname order by ts ",
-                "select avg(value) from testdb.st interval(10s) sliding (2s) group by tbname",
-                "select max(value)+count(*)+124 from testdb.st "
-                ]
-        conn = self.tdSql.get_connection(self.conf)
+    def get_db_names(self):
+        
+        dbname = "dbs_%d"%self.db_index
+        self.db_index +=1
+        return dbname
 
-        for sql in sqls:
-            # print(sql)
-            result = conn.query(sql)
+    def insert_datas(self , db_name , endpoint):
 
-        alter_tags = ["alter table testdb.st add tag extraTag int",
-                      "alter table testdb.st drop tag extraTag",
-                      "alter table testdb.st change tag extraTag newTag"
-                      "alter table testdb.st drop tag extraTag",
-                      ]
-        sql = random.sample(alter_tags, 1)[0]
-        # print(sql)
-        try:
-            result = conn.query(sql)
-        except taos.error.ProgrammingError:
-            pass
+        client_conn = self.tdSql.get_connection( None , endpoint)
 
-    def threads_query_alter_tags(self):
+        client_conn.execute("drop database if exists {} ;".format(db_name))
+        client_conn.execute("create database {} replica 3 ;".format(db_name))
+        client_conn.execute("use {};".format(db_name))
+        client_conn.execute("create stable {}.meters (ts timestamp , current int , voltage float ) tags (ind int ) ".format(db_name))
+        client_conn.execute("create table {}.sub_table_1 using meters tags(1) ".format(db_name))
+        client_conn.execute("create table {}.sub_table_2 using meters tags(2) ".format(db_name))
 
-        print(" ======= runing task : threads_query_alter_tags ======== ")
-        thread_pools = []
-        for _ in range(self.thread_nums):
-            inst = threading.Thread(target=self.basic_query_alter_tags)
-            thread_pools.append(inst)
+        start_ts = 1643644800000
+        for i in range(1000):
+            ts = start_ts + i * 10
+            client_conn.execute("use {}; ".format(db_name))
+            insert_sql1 = "insert into {}.sub_table_1 values ({} ,{} , {}) ".format(db_name , ts , i , float(i*0.1))
+            insert_sql2 = "insert into {}.sub_table_2 values ({} ,{} , {}) ".format(db_name ,ts , i , float(i*0.1))
+            client_conn.execute(insert_sql1)
+            client_conn.execute(insert_sql2)
 
-        ind = 0
-        for thread_inst in thread_pools:
+    def start_create_db(self,endpoint):
 
-            thread_inst.start()
-            # print(' this is the %s_th threading' %ind)
-            ind += 1
-
-        for thread_inst in thread_pools:
-
-            thread_inst.join()
+        db_name = self.get_db_names()
+        print(endpoint)
+        db_name = threading.Thread(target=self.insert_datas,args=(db_name ,endpoint ))
+        db_name.start()
+        db_name.join()
+        self.global_queue.append(db_name)
 
     db = "regular_db"
     table_list = ['regular_table_1', 'stable_1_1',
@@ -114,19 +106,19 @@ class TestDnodes(TDCase):
     testcaseFilename = os.path.split(__file__)[-1]
 
     def case_common(self):
-        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        # os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         os.system("touch %s/%s.sql" %
                   (self.testcasePath, self.testcaseFilename))
         self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1)
 
-        conn1 = taos.connect(host="127.0.0.1", user="root",
+        conn1 = taos.connect(host=self.first_Ep.split(":")[0], user="root",
                              password="taosdata", config="/etc/taos/")
         cur1 = conn1.cursor()
         cur1.execute('use "%s";' % self.db)
         sql = 'select * from regular_table_1 limit 5;'
         cur1.execute(sql)
 
-        return(conn1, cur1)
+        return (conn1, cur1)
 
     def right_case1(self):
         # print("case1:select * from regular_table where condition && select * from ( select front )")
@@ -139,7 +131,7 @@ class TestDnodes(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.first_Ep.split(":")[0],
                     self.testcasePath, self.testcaseFilename)
                 _ = subprocess.check_output(
                     taos_cmd1, shell=True).decode("utf-8")
@@ -148,7 +140,7 @@ class TestDnodes(TDCase):
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s;' % self.table
-                for i in range(2, len(regular_where[2])+1):
+                for i in range(2, len(regular_where[2]) + 1):
                     q_where = list(combinations(regular_where[2], i))
                     for q_where in q_where:
                         q_where = str(q_where).replace("(", "").replace(")", "").replace(
@@ -203,7 +195,7 @@ class TestDnodes(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.first_Ep.split(":")[0],
                     self.testcasePath, self.testcaseFilename)
                 _ = subprocess.check_output(
                     taos_cmd1, shell=True).decode("utf-8")
@@ -212,7 +204,7 @@ class TestDnodes(TDCase):
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s;' % self.table
-                for i in range(2, len(regular_where[2])+1):
+                for i in range(2, len(regular_where[2]) + 1):
                     q_where = list(combinations(regular_where[2], i))
                     for q_where in q_where:
                         q_where = str(q_where).replace("(", "").replace(")", "").replace(
@@ -271,7 +263,7 @@ class TestDnodes(TDCase):
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s order by ts desc;' % self.table
-                for i in range(2, len(regular_where[2])+1):
+                for i in range(2, len(regular_where[2]) + 1):
                     q_where = list(combinations(regular_where[2], i))
                     for q_where in q_where:
                         q_where = str(q_where).replace("(", "").replace(")", "").replace(
@@ -331,7 +323,7 @@ class TestDnodes(TDCase):
             except Exception as e:
                 raise e
 
-        #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
 
         num2 = sql.count('where')
         # print("sqlnum2 %d" % num2)
@@ -347,7 +339,7 @@ class TestDnodes(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.first_Ep.split(":")[0],
                     self.testcasePath, self.testcaseFilename)
                 _ = subprocess.check_output(
                     taos_cmd1, shell=True).decode("utf-8")
@@ -356,7 +348,7 @@ class TestDnodes(TDCase):
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s;' % self.table
-                for i in range(2, len(regular_where[2])+1):
+                for i in range(2, len(regular_where[2]) + 1):
                     q_where = list(combinations(regular_where[2], i))
                     for q_where in q_where:
                         q_where = str(q_where).replace("(", "").replace(")", "").replace(
@@ -430,7 +422,7 @@ class TestDnodes(TDCase):
             except Exception as e:
                 raise e
 
-        #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
 
         num3 = sql.count('where')
         # print("sqlnum3 %d" % num3)
@@ -446,7 +438,7 @@ class TestDnodes(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.first_Ep.split(":")[0],
                     self.testcasePath, self.testcaseFilename)
                 _ = subprocess.check_output(
                     taos_cmd1, shell=True).decode("utf-8")
@@ -455,7 +447,7 @@ class TestDnodes(TDCase):
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s limit 10 offset 5;' % self.table
-                for i in range(2, len(regular_where[2])+1):
+                for i in range(2, len(regular_where[2]) + 1):
                     q_where = list(combinations(regular_where[2], i))
                     for q_where in q_where:
                         q_where = str(q_where).replace("(", "").replace(")", "").replace(
@@ -508,7 +500,7 @@ class TestDnodes(TDCase):
             except Exception as e:
                 raise e
 
-        #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
 
         num4 = sql.count('where')
         # print("sqlnum4 %d" % num4)
@@ -524,7 +516,7 @@ class TestDnodes(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.first_Ep.split(":")[0],
                     self.testcasePath, self.testcaseFilename)
                 _ = subprocess.check_output(
                     taos_cmd1, shell=True).decode("utf-8")
@@ -533,7 +525,7 @@ class TestDnodes(TDCase):
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s interval(3s) sliding(3n) Fill(NEXT);' % self.table
-                for i in range(2, len(regular_where[2])+1):
+                for i in range(2, len(regular_where[2]) + 1):
                     q_where = list(combinations(regular_where[2], i))
                     for q_where in q_where:
                         q_where = str(q_where).replace("(", "").replace(")", "").replace(
@@ -561,7 +553,7 @@ class TestDnodes(TDCase):
             except Exception as e:
                 raise e
 
-        #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
 
     def query_run(self) -> bool:
 
@@ -587,95 +579,145 @@ class TestDnodes(TDCase):
 
         self.false_case1()
 
-    def cleanup(self):
-        pass
+    def check_first_dnodes(self):
+        self.tdSql.query("show dnodes")
+        self.tdSql.query_data
+        query_row = int(self.tdSql.query_row)
+        if self.basic_dnodes != query_row:
+            raise "please check test_env.yaml ,the begining should be 5 dnodes "
+        else:
+            printf("\033[1;33m%s %s\033[0m" %
+                   (datetime.datetime.now(), '* check begin dnodes pass *'))
 
-    def desc(self) -> str:
-        case_description = '''
-            this is an abnormal test case for alter tags by threading and random alter ;
+    def get_dnodes_name(self):
+        self.tdSql.query("show dnodes")
+        dnodes_name = []
+        query_data = self.tdSql.query_data
+        for dnodes_row in range(len(query_data)):
+            EP = query_data[dnodes_row][1]
+            if query_data[dnodes_row][4] == "ready":
+                dnodes_name.append(EP)
+        return dnodes_name
+
+    def generate_dnodes(self):
         '''
-        return case_description
+         create dnodes_ids
+        '''
+        dnodes_setting = self.get_component_by_name(
+            "taosd")[0]['spec']['dnodes'][-1]
+        self.dnodes_ids_extra += 1
+        self.ports_extra += 100
+        dnodename = dnodes_setting['config']['logDir'].split("/")[3][:5] + str(self.dnodes_ids_extra)  # dnode + str(dnodes_ids_extra)
 
-    def tags(self) -> str:
+        # generate new dnodes
+        dnodes_dict = dnodes_setting.copy()
+        dnodes_dict['endpoint'] = dnodes_dict['endpoint'].replace(dnodes_dict['endpoint'].split(":")[-1], str(self.ports_extra))
+        dnodes_dict['config_dir'] = dnodes_dict['config_dir'].replace(dnodes_dict['config_dir'].split("/")[3], str(dnodename))
+        dnodes_dict['config']['dataDir'] = dnodes_dict['config']['dataDir']. \
+            replace(dnodes_dict['config']['dataDir'].split("/")[3], str(dnodename))
+        dnodes_dict['config']['logDir'] = dnodes_dict['config']['logDir']. \
+            replace(dnodes_dict['config']['logDir'].split("/")[3], str(dnodename))
 
-        return "abnormal"
+        return dnodes_dict
 
-    def author(self) -> str:
+    def basic_query(self):
+        basic_sqls = ['select count(*) from test.meters',
+                      'select last(*) from test.meters',
+                      'select * from test.meters where ts >100000 limit 10  ',
+                      'select elapsed(ts) from test.meters group by tbname',
+                      'select avg(current) from test.meters group by tbname order by ts desc',
+                      'show test.tables ',
+                      'describe test.meters',
+                      'select max(current)*avg(current) from test.meters group by tbname ',
+                      'select current from test.meters where ind > 1 '
+                      ]
+        conn = self.tdSql.get_connection(None , self.first_Ep)
 
-        return "wenzhouwww"
+        for sql in basic_sqls:
+            print(sql)
+            result = conn.query(sql)
+            # data = result.fetch_all()
+            # print(data)
 
-    def alter_db_query_task(self):
-        try:
-            self.tdSql.execute("drop database if exists testdb")
-            self.tdSql.execute("create database testdb")
-            self.tdSql.execute("use testdb")
-            self.tdSql.execute(
-                "create stable testdb.st (ts timestamp ,  value int) tags (ind int)")
-            self.tdSql.query("describe testdb.st")
+    def threads_query(self):
 
-            # insert data
-            for cur in range(self.num):
-                self.tdSql.execute("insert into tb_%d using st tags(%d) values(%d, %d)" % (
-                    cur, cur, self.ts+1000*cur, cur))
-                self.tdSql.execute("insert into tb_set using st tags(%d) values(%d, %d)" % (
-                    cur, self.ts+1000*cur, cur))
-            self.threads_query_alter_tags()
-            self.query_run()
-        except Exception as e:
-            if str(e).endswith("Timestamp data out of range"):
-                pass
-            else:
-                print(e)
-
-    def per_alter_db_task(self, sleep_time: int):
-    
-        alter_dict = {"days": int(random.randint(1, 5)),
-                      "keep": int(random.randint(10, 20)),
-                      "precision": "ns",
-                      "blocks": int(random.randint(1, 6)*2),
-                      "quorum": int(random.randint(0, 3)),
-                      "comp": int(random.randint(0, 3)),
-                      "minrows": int(random.randint(1, 3)*100),
-                      "replica": int(random.randint(1, 3))
-                      }
-        alter_list = ['days', 'keep', 'precision', 'blocks',
-                      'quorum', 'comp', 'minrows', 'replica']
-        random_key = random.sample(alter_list, 1)[0]
-        dbname = random.sample(["testdb", "regular_db"], 1)[0]
-        sql = "alter database {} {} {}".format(
-            dbname, random_key, alter_dict[random_key])
-        # alter database  randomly
-        
-        try:
-            self.tdSql.execute(sql)
-        except Exception as e:
-            pass
-
-        time.sleep(sleep_time)
-    
-    def Concurrency_alter_db(self):
-            # Loop  
-        
         thread_pools = []
+        for _ in range(self.thread_nums):
+            inst = threading.Thread(target=self.basic_query)
+            thread_pools.append(inst)
 
-        for loop in range(self.Loop):
-            inst_query = threading.Thread(target=self.alter_db_query_task )
-            inst_query.start()
-            for _ in range(self.alter_thread_nums):
-                alter_thread = threading.Thread(target=self.per_alter_db_task ,args = ((5,)))
-                # per 5 seconds alter database once , and use multi threading
-                thread_pools.append(alter_thread)
-                alter_thread.start()
-    
-            for inst in thread_pools:
-                inst.join()
-            inst_query.join()
+        ind = 0
+        for thread_inst in thread_pools:
+            thread_inst.start()
+            print(' this is the %s_th threading' % ind)
+            ind += 1
 
-            print("====== this is %d_th loop alter database task loop ========" %loop)
+        for thread_inst in thread_pools:
+            thread_inst.join()
 
+    def create_dnodes(self):
+        dnodes_dict = self.generate_dnodes()
+        self.envMgr.configure_extra_dnodes(dnodes_dict, self.component)
+        self.envMgr.addDnode(dnodes_dict['endpoint'])
+        self.envMgr.startDnode(dnodes_dict['endpoint'])
+
+    def drop_dnodes(self, dnode_ids):
+        '''
+         drop dnodes_ids
+        '''
+        time.sleep(self.drop_sleep_time)
+        cmds = "taos -s 'drop dnode \"%s\" ' ; " % (dnode_ids)
+        os.system(cmds)
 
     def run(self):
-        self.Concurrency_alter_db()
+        self.check_first_dnodes()
+        basic_query_seed = 6
+        print("run query ")
+
+        # alter schema task for all 
+        
+        self.tdSql.execute("drop database if exists test ;")
+        self.tdSql.execute("create database test replica 3 ;")
+        self.tdSql.execute("use test;")
+        self.tdSql.execute("create stable test.meters (ts timestamp , current int , voltage float ) tags (ind int ) ")
+        self.tdSql.execute("create table test.sub_table_1 using meters tags(1) ")
+        self.tdSql.execute("create table test.sub_table_2 using meters tags(2) ")
+
+        start_ts = 1643644800000
+        for i in range(10000):
+            ts = start_ts + i * 10
+            self.tdSql.execute("use test;")
+            insert_sql1 = "insert into test.sub_table_1 values ({} ,{} , {}) ".format(ts , i , float(i*0.1))
+            insert_sql2 = "insert into test.sub_table_2 values ({} ,{} , {}) ".format(ts , i , float(i*0.1))
+            self.tdSql.execute(insert_sql1)
+            self.tdSql.execute(insert_sql2)
+
+        for loop in range(self.loop_times):
+
+            print("========= this is %s_th drop or create dnodes ========\n" % loop)
+
+            self.start_create_db(self.first_Ep)
+
+            if loop % basic_query_seed == 0:
+                self.query_run()
+                self.tdSql.query(
+                    "select count(*) from test.meters group by tbname;")
+                self.tdSql.query(
+                    "select last(*) from test.meters group by tbname;")
+                self.threads_query()
+            if loop % 2 == 0:
+                dnodes_name = self.get_dnodes_name()
+                dnode_ids = random.sample(dnodes_name, 1)[0]
+                self.drop_dnodes(dnode_ids)
+                os.system("taos -h {} -s 'show dnodes;'".format(self.first_Ep.split(":")[0]))
+                time.sleep(3)
+            else:
+                self.create_dnodes()
+                os.system("taos -h {} -s 'show dnodes;'".format(self.first_Ep.split(":")[0]))
+                time.sleep(3)
+
+        # for task in self.global_queue :
+        #     task.join()
 
     def cleanup(self):
         pass
@@ -690,10 +732,12 @@ class TestDnodes(TDCase):
         '''
         set tags
         '''
-        return "abnormal", "kill_start"
+        return "cluster", "drop_dnodes" , "create_dnodes"
 
     def desc(self) -> str:
         case_description = '''
-            [test]<wenzhouwww> test case for loop kill and start TDengine ;
+            [test]<wenzhouwww> test case 4.1 for loop drop dnodes and add dnodes ;
+            it should run with env test_env.yaml
         '''
         return case_description
+    
