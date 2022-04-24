@@ -59,8 +59,10 @@ class TDTestCase:
             tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
             datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
             sum_data = sum(datas)
-            tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} {group_condition}")
+            tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} ")
             tdSql.checkData(0, 0, sum_data)
+
+            tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
 
     def __sum_err_check(self,tbanme):
         sqls = []
@@ -199,7 +201,7 @@ class TDTestCase:
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self.__insert_data(1000)
+        self.__insert_data(100)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
