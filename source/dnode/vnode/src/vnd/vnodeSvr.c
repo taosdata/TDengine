@@ -138,6 +138,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
+    vInfo("vgId:%d commit at version %" PRId64, TD_VID(pVnode), version);
     // commit current change
     vnodeCommit(pVnode);
 

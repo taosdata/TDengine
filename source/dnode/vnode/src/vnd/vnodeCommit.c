@@ -193,12 +193,14 @@ int vnodeCommit(SVnode *pVnode) {
   SVnodeInfo info;
   char       dir[TSDB_FILENAME_LEN];
 
+  vInfo("vgId:%d start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);
+
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
 
   // save info
   info.config = pVnode->config;
-  info.state.committed = pVnode->state.processed;
+  info.state.committed = pVnode->state.applied;
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   if (vnodeSaveInfo(dir, &info) < 0) {
     ASSERT(0);
@@ -231,6 +233,8 @@ int vnodeCommit(SVnode *pVnode) {
   pVnode->onCommit->next = pVnode->pPool;
   pVnode->pPool = pVnode->onCommit;
   pVnode->onCommit = NULL;
+
+  vInfo("vgId:%d commit over", TD_VID(pVnode));
 
   return 0;
 }
