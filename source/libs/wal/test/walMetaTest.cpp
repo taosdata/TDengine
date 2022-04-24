@@ -320,7 +320,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.len, len);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
@@ -372,7 +372,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.len, len);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
@@ -402,7 +402,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.len, len);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }

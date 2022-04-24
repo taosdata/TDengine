@@ -28,7 +28,7 @@ static int32_t   mndProcessRetrieveSysTableReq(SNodeMsg *pReq);
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
-  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5, true, (__cache_free_fn_t)mndFreeShowObj, "show");
+  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5000, true, (__cache_free_fn_t)mndFreeShowObj, "show");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc show cache since %s", terrstr());
@@ -84,8 +84,6 @@ static int32_t convertToRetrieveType(char* name, int32_t len) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_VGROUP;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, len) == 0) {
-    type = TSDB_MGMT_TABLE_TOPICS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIBES, len) == 0) {
