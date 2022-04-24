@@ -29,7 +29,8 @@ static void      syncEnvTick(void *param, void *tmrId);
 int32_t syncEnvStart() {
   int32_t ret = 0;
   taosSeedRand(taosGetTimestampSec());
-  gSyncEnv = doSyncEnvStart(gSyncEnv);
+  //gSyncEnv = doSyncEnvStart(gSyncEnv);
+  gSyncEnv = doSyncEnvStart();
   assert(gSyncEnv != NULL);
   sTrace("syncEnvStart ok!");
   return ret;
