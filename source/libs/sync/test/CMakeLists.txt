@@ -199,197 +199,197 @@ target_sources(syncApplyMsgTest
 
 target_include_directories(syncTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEnvTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingTimerTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOTickQTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOTickPingTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOSendMsgTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOClientTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOServerTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftStoreTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEnqTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIndexTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncInitTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncUtilTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncVotesGrantedTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncVotesRespondTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIndexMgrTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEntryTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRequestVoteTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRequestVoteReplyTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesReplyTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncClientRequestTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncTimeoutTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingReplyTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRpcMsgTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingTimerTest2
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingSelfTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncElectTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEncodeTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncWriteTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncReplicateTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRefTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreCheck
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftCfgTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRespMgrTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncSnapshotTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncApplyMsgTest
     PUBLIC
-    "${TD_COMMUNITY_DIR}/include/libs/sync"
+    "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
