@@ -46,7 +46,7 @@ class TDTestCase:
         return sum_condition
 
     def __where_condition(self, col):
-        return f" where {col} < 1000000 "
+        return f" where abs( {col} ) < 1000000 "
 
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
