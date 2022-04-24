@@ -19,7 +19,7 @@
 #include "tdatablock.h"
 #include "vnode.h"
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id, bool converted) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -32,7 +32,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       return TSDB_CODE_QRY_APP_ERROR;
     }
     pOperator->status = OP_NOT_OPENED;
-    return doSetStreamBlock(pOperator->pDownstream[0], input, numOfBlocks, type, id, converted);
+    return doSetStreamBlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
   } else {
     pOperator->status = OP_NOT_OPENED;
 
@@ -46,13 +46,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     }
 
     if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-      if (converted) {
-        if (tqReadHandleSetMsgEx(pInfo->readerHandle, input, 0) < 0) {
-          qError("converted: submit msg messed up when initing stream block, %s" PRIx64, id);
-          return TSDB_CODE_QRY_APP_ERROR;
-        }
-      } else if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
-        qError("raw msg: submit msg messed up when initing stream block, %s" PRIx64, id);
+      if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
+        qError("submit msg messed up when initing stream block, %s" PRIx64, id);
         return TSDB_CODE_QRY_APP_ERROR;
       }
     } else {
@@ -72,11 +67,11 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool converted) {
-  return qSetMultiStreamInput(tinfo, input, 1, type, converted);
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type) {
+  return qSetMultiStreamInput(tinfo, input, 1, type);
 }
 
-int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type, bool converted) {
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
@@ -87,7 +82,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo), converted);
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {

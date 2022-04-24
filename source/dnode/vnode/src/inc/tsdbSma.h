@@ -48,7 +48,8 @@ static FORCE_INLINE int32_t tsdbUidStoreInit(STbUidStore **pStore) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t uid);
+int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
+void    tsdbUidStoreDestory(STbUidStore *pStore);
 void   *tsdbUidStoreFree(STbUidStore *pStore);
 
 int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq);

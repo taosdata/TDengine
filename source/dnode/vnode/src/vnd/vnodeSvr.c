@@ -83,7 +83,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_SUBMIT:
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
       vnodeProcessSubmitReq(pVnode, ptr, pRsp);
-      tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, ptr, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, pMsg->pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
       break;
     case TDMT_VND_MQ_VG_CHANGE:
       if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
@@ -348,6 +348,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     }
   }
 
+  tsdbUpdateTbUidList(pVnode->pTsdb, ddlHandle.result);
+
   vTrace("vgId:%d process create %" PRIzu " tables", TD_VID(pVnode), taosArrayGetSize(vCreateTbBatchReq.pArray));
   taosArrayDestroy(vCreateTbBatchReq.pArray);
   if (vCreateTbBatchRsp.rspList) {
@@ -359,8 +361,6 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     pRsp->pCont = msg;
     pRsp->contLen = contLen;
   }
-
-  tsdbUpdateTbUidList(pVnode->pTsdb, ddlHandle.result);
 
   return 0;
 }

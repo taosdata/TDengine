@@ -57,7 +57,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
  * @param type
  * @return
  */
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool converted);
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
 
 /**
  * Set multiple input data blocks for the stream scan.
@@ -67,7 +67,7 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool
  * @param type
  * @return
  */
-int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type, bool converted);
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
 /**
  * Update the table id list, add or remove.
