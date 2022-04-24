@@ -2616,37 +2616,62 @@ static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponen
                      (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &dropReq);
 }
 
-static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt) {
-  SCMCreateTopicReq createReq = {0};
+static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pStmt, SCMCreateTopicReq* pReq) {
+  SName name;
+  // tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
+  // tNameGetFullDbName(&name, pReq->name);
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->topicName, &name), pReq->name);
+  pReq->igExists = pStmt->ignoreExists;
+  pReq->withTbName = pStmt->pOptions->withTable;
+  pReq->withSchema = pStmt->pOptions->withSchema;
+  pReq->withTag = pStmt->pOptions->withTag;
 
-  if (NULL != pStmt->pQuery) {
-    pCxt->pParseCxt->topicQuery = true;
-    int32_t code = translateQuery(pCxt, pStmt->pQuery);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesNodeToString(pStmt->pQuery, false, &createReq.ast, NULL);
-    }
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-  } else {
-    strcpy(createReq.subscribeDbName, pStmt->subscribeDbName);
-  }
-
-  createReq.sql = strdup(pCxt->pParseCxt->pSql);
-  if (NULL == createReq.sql) {
+  pReq->sql = strdup(pCxt->pParseCxt->pSql);
+  if (NULL == pReq->sql) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  SName name;
-  // tNameSetDbName(&name, pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, strlen(pCxt->pParseCxt->db));
-  // tNameGetFullDbName(&name, createReq.name);
-  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->topicName, &name), createReq.name);
-  createReq.igExists = pStmt->ignoreExists;
-  createReq.withTbName = pStmt->pOptions->withTable;
-  createReq.withSchema = pStmt->pOptions->withSchema;
-  createReq.withTag = pStmt->pOptions->withTag;
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOPIC, (FSerializeFunc)tSerializeSCMCreateTopicReq, &createReq);
+  if (NULL != pStmt->pQuery) {
+    strcpy(pReq->subscribeDbName, ((SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable))->table.dbName);
+    pCxt->pParseCxt->topicQuery = true;
+    code = translateQuery(pCxt, pStmt->pQuery);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
+    }
+  } else {
+    strcpy(pReq->subscribeDbName, pStmt->subscribeDbName);
+  }
+
+  return code;
+}
+
+static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt) {
+  if (NULL == pStmt->pQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt->pQuery)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    if (!pSelect->isDistinct && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable) && NULL == pSelect->pGroupByList &&
+        NULL == pSelect->pLimit && NULL == pSelect->pSlimit && NULL == pSelect->pOrderByList && NULL == pSelect->pPartitionByList) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
+}
+
+static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt) {
+  SCMCreateTopicReq createReq = {0};
+  int32_t code = checkCreateTopic(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCreateTopicReq(pCxt, pStmt, &createReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOPIC, (FSerializeFunc)tSerializeSCMCreateTopicReq, &createReq);
+  }
   tFreeSCMCreateTopicReq(&createReq);
   return code;
 }

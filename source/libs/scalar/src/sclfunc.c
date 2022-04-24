@@ -1247,26 +1247,28 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 }
 
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 1) {
-    return TSDB_CODE_FAILED;
+  int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    colDataAppendInt64(pOutput->columnData, i, &ts);
   }
-  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
+  pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 1) {
-    return TSDB_CODE_FAILED;
+  int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    colDataAppendInt64(pOutput->columnData, i, &ts);
   }
-  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
+  pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 1) {
-    return TSDB_CODE_FAILED;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    colDataAppend(pOutput->columnData, i, tsTimezoneStr, false);
   }
-  colDataAppend(pOutput->columnData, pOutput->numOfRows, (char *)colDataGetData(pInput->columnData, 0), false);
+  pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
