@@ -15,14 +15,19 @@
 
 #include "vnodeInt.h"
 
-void metaEntryReaderInit(SMetaEntryReader *pReader) { memset(pReader, 0, sizeof(*pReader)); }
+void metaEntryReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
+  memset(pReader, 0, sizeof(*pReader));
+  pReader->flags = flags;
+  pReader->pMeta = pMeta;
+}
 
-void metaEntryReaderClear(SMetaEntryReader *pReader) {
+void metaEntryReaderClear(SMetaReader *pReader) {
   tCoderClear(&pReader->coder);
   TDB_FREE(pReader->pBuf);
 }
 
-int metaGetTableEntryByVersion(SMeta *pMeta, SMetaEntryReader *pReader, int64_t version, tb_uid_t uid) {
+int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
+  SMeta   *pMeta = pReader->pMeta;
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
@@ -43,7 +48,8 @@ _err:
   return -1;
 }
 
-int metaGetTableEntryByUid(SMeta *pMeta, SMetaEntryReader *pReader, tb_uid_t uid) {
+int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
+  SMeta  *pMeta = pReader->pMeta;
   int64_t version;
 
   // query uid.idx
@@ -52,10 +58,11 @@ int metaGetTableEntryByUid(SMeta *pMeta, SMetaEntryReader *pReader, tb_uid_t uid
   }
 
   version = *(int64_t *)pReader->pBuf;
-  return metaGetTableEntryByVersion(pMeta, pReader, version, uid);
+  return metaGetTableEntryByVersion(pReader, version, uid);
 }
 
-int metaGetTableEntryByName(SMeta *pMeta, SMetaEntryReader *pReader, const char *name) {
+int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
+  SMeta   *pMeta = pReader->pMeta;
   tb_uid_t uid;
 
   // query name.idx
@@ -64,7 +71,7 @@ int metaGetTableEntryByName(SMeta *pMeta, SMetaEntryReader *pReader, const char 
   }
 
   uid = *(tb_uid_t *)pReader->pBuf;
-  return metaGetTableEntryByUid(pMeta, pReader, uid);
+  return metaGetTableEntryByUid(pReader, uid);
 }
 
 #if 1

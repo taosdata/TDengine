@@ -51,13 +51,13 @@ int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 
 // metaQuery ==================
-typedef struct SMetaEntryReader SMetaEntryReader;
+typedef struct SMetaReader SMetaReader;
 
-void metaEntryReaderInit(SMetaEntryReader* pReader);
-void metaEntryReaderClear(SMetaEntryReader* pReader);
-int  metaGetTableEntryByVersion(SMeta* pMeta, SMetaEntryReader* pReader, int64_t version, tb_uid_t uid);
-int  metaGetTableEntryByUid(SMeta* pMeta, SMetaEntryReader* pReader, tb_uid_t uid);
-int  metaGetTableEntryByName(SMeta* pMeta, SMetaEntryReader* pReader, const char* name);
+void metaEntryReaderInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
+void metaEntryReaderClear(SMetaReader* pReader);
+int  metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);
+int  metaGetTableEntryByUid(SMetaReader* pReader, tb_uid_t uid);
+int  metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 
 // metaIdx ==================
 int  metaOpenIdx(SMeta* pMeta);
@@ -158,7 +158,9 @@ struct SMetaEntry {
   };
 };
 
-struct SMetaEntryReader {
+struct SMetaReader {
+  int32_t    flags;
+  SMeta*     pMeta;
   SCoder     coder;
   SMetaEntry me;
   void*      pBuf;
