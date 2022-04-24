@@ -86,6 +86,7 @@ class TDTestCase:
         tbname = ["ct1", "ct2", "ct4", "t1"]
         for tb in tbname:
             self.__sum_current_check(tb)
+            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
@@ -94,6 +95,7 @@ class TDTestCase:
         for tb in tbname:
             for errsql in self.__sum_err_check(tb):
                 tdSql.error(sql=errsql)
+            tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
     def all_test(self):
