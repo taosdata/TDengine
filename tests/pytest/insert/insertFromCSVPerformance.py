@@ -95,6 +95,7 @@ class insertFromCSVPerformace:
 
         in_order_time = (float) (totalTime / 10)
         print("In order - Insert time: %f" % in_order_time)
+        cursor.execute("drop database if exists %s" % self.dbName)
         cursor.close()
 
 

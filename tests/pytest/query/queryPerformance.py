@@ -55,35 +55,35 @@ class taosdemoQueryPerformace:
         tableid = 1
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select avg(f1), max(f2), min(f3) from test.meters"
+        sql = "select avg(current), max(voltage), min(phase) from test.meters"
         tableid = 2
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select count(*) from test.meters where loc='beijing'"
+        sql = "select count(*) from test.meters where location='beijing'"
         tableid = 3
         cursor2.execute("create table if not exists %s%d using %s tags(%d, \"%s\")" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select avg(f1), max(f2), min(f3) from test.meters where areaid=10"
+        sql = "select avg(current), max(voltage), min(phase) from test.meters where groupid=10"
         tableid = 4
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select avg(f1), max(f2), min(f3) from test.t10 interval(10s)"
+        sql = "select avg(current), max(voltage), min(phase) from test.d10 interval(10s)"
         tableid = 5
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select last_row(*) from meters"
+        sql = "select last_row(*) from test.meters"
         tableid = 6
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select * from meters limit 10000"
+        sql = "select * from test.meters limit 10000"
         tableid = 7
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select avg(f1), max(f2), min(f3) from meters where ts <= '2017-07-15 10:40:01.000' and ts <= '2017-07-15 14:00:40.000'"
+        sql = "select avg(current), max(voltage), min(phase) from meters where ts <= '2017-07-15 10:40:01.000' and ts <= '2017-07-15 14:00:40.000'"
         tableid = 8
         cursor2.execute("create table if not exists %s%d using %s tags(%d, \"%s\")" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
 
-        sql = "select last(*) from meters"
+        sql = "select last(*) from test.meters"
         tableid = 9
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
 
@@ -99,14 +99,14 @@ class taosdemoQueryPerformace:
             sql = {
                 "sql": data[1],
                 "result_mode": "onlyformat",
-                "result_file": "./query_sql_res%d.txt" % i
+                "result_file": "/root/pxiao/query_sql_res%d.txt" % i
             }
             sqls.append(sql)
             i += 1
 
         query_data = {
             "filetype": "query",
-            "cfgdir": "/etc/perf",
+            "cfgdir": "/etc/%s" % self.branch,
             "host": "127.0.0.1",
             "port": 6030,
             "user": "root",
@@ -126,6 +126,7 @@ class taosdemoQueryPerformace:
         return query_json_file
 
     def getBuildPath(self):
+        buildPath=""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -134,7 +135,7 @@ class taosdemoQueryPerformace:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosdemo" in files):
+            if ("taosBenchmark" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -150,12 +151,12 @@ class taosdemoQueryPerformace:
     def query(self): 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            print("taosdemo not found!")
+            print("taosBenchmark not found!")
             sys.exit(1)
             
         binPath = buildPath + "/build/bin/"
         os.system(
-            "%sperfMonitor -f %s > query_res.txt" %
+            "%staosBenchmark -f %s -y 2>&1 | tee query_res.txt" %
             (binPath, self.generateQueryJson()))
 
         cursor = self.conn2.cursor() 
@@ -168,9 +169,15 @@ class taosdemoQueryPerformace:
             table_name = data[0]
             sql = data[1]
 
-            self.avgDelay = self.getCMDOutput("grep 'avgDelay' query_res.txt | awk 'NR==%d{print $2}'" % (i + 1))
-            self.maxDelay = self.getCMDOutput("grep 'avgDelay' query_res.txt | awk 'NR==%d{print $5}'" % (i + 1))
-            self.minDelay = self.getCMDOutput("grep 'avgDelay' query_res.txt | awk 'NR==%d{print $8}'" % (i + 1))
+            delay = self.getCMDOutput("grep 'insert delay' query_res.txt | awk -F 'times,' '{print $2}' | awk 'NR==%d{print $6}'" % (i + 1))
+            self.avgDelay = delay[:-4]
+            print(self.avgDelay)
+            delay = self.getCMDOutput("grep 'insert delay' query_res.txt | awk -F 'times,' '{print $2}' | awk 'NR==%d{print $14}'" % (i + 1))
+            self.maxDelay = delay[:-3]
+            print(self.maxDelay)
+            delay = self.getCMDOutput("grep 'insert delay' query_res.txt | awk -F 'times,' '{print $2}' | awk 'NR==%d{print $4}'" % (i + 1))
+            self.minDelay = delay[:-4]
+            print(self.minDelay)
             i += 1
             
             print("query time for: %s %f seconds" % (sql, float(self.avgDelay)))

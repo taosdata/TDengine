@@ -93,8 +93,8 @@ class taosdemoPerformace:
             "port": 6030,
             "user": "root",
             "password": "taosdata",
-            "thread_count": 10,
-            "thread_count_create_tbl": 4,
+            "thread_count": 16,
+            "thread_count_create_tbl": 8,
             "result_file": "./insert_res.txt",
             "databases": [db]
         }
@@ -136,7 +136,7 @@ class taosdemoPerformace:
         binPath = buildPath + "/build/bin/"
 
         os.system(
-            "%sperfMonitor -f %s > /dev/null 2>&1" %
+            "%staosBenchmark -f %s -y > /dev/null 2>&1" %
             (binPath, self.generateJson()))
         self.createTableTime = self.getCMDOutput(
             "grep 'Spent' insert_res.txt | awk 'NR==1{print $2}'")
@@ -146,14 +146,14 @@ class taosdemoPerformace:
             "grep 'Spent' insert_res.txt | awk 'NR==2{print $16}'")
         self.commitID = self.getCMDOutput("git rev-parse --short HEAD")
         delay = self.getCMDOutput(
-            "grep 'delay' insert_res.txt | awk '{print $4}'")
+            "grep 'delay' insert_res.txt | awk '{print $6}'")
         self.avgDelay = delay[:-4]
         delay = self.getCMDOutput(
-            "grep 'delay' insert_res.txt | awk '{print $6}'")
-        self.maxDelay = delay[:-4]
+            "grep 'delay' insert_res.txt | awk '{print $14}'")
+        self.maxDelay = delay[:-3]
         delay = self.getCMDOutput(
-            "grep 'delay' insert_res.txt | awk '{print $8}'")
-        self.minDelay = delay[:-3]
+            "grep 'delay' insert_res.txt | awk '{print $4}'")
+        self.minDelay = delay[:-4]
 
         os.system("[ -f insert_res.txt ] && rm insert_res.txt")
 
@@ -240,7 +240,7 @@ if __name__ == '__main__':
         '-r',
         '--num-of-rows',
         action='store',
-        default=100000,
+        default=10000,
         type=int,
         help='num of rows (default: 100000)')
     args = parser.parse_args()
