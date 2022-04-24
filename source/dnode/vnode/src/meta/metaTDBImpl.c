@@ -47,7 +47,7 @@ struct SMetaDB {
 #endif
 };
 
-#pragma pack(push,1)
+#pragma pack(push, 1)
 typedef struct {
   tb_uid_t uid;
   int32_t  sver;
@@ -405,10 +405,6 @@ static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_
 
   return pSchemaWrapper;
 }
-
-struct SMTbCursor {
-  TDBC *pDbc;
-};
 
 struct SMCtbCursor {
   TDBC    *pCur;

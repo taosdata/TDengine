@@ -75,68 +75,59 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
 }
 
 int metaReadNext(SMetaReader *pReader) {
+  SMeta *pMeta = pReader->pMeta;
+
   // TODO
+
   return 0;
 }
-
-const SMetaEntry *metaReaderGetEntry(SMetaReader *pReader) { return &pReader->me; }
 
 #if 1  // ===================================================
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
-#if 0
-  SMetaDB    *pDB = pMeta->pDB;
 
   pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
     return NULL;
   }
 
-  tdbDbcOpen(pDB->pTbDB, &pTbCur->pDbc);
+  metaReaderInit(&pTbCur->mr, pMeta->pVnode, 0);
 
-#endif
+  tdbDbcOpen(pMeta->pUidIdx, &pTbCur->pDbc);
+
   return pTbCur;
 }
 
 void metaCloseTbCursor(SMTbCursor *pTbCur) {
-#if 0
   if (pTbCur) {
+    TDB_FREE(pTbCur->pKey);
+    TDB_FREE(pTbCur->pVal);
+    metaReaderClear(&pTbCur->mr);
     if (pTbCur->pDbc) {
       tdbDbcClose(pTbCur->pDbc);
     }
     taosMemoryFree(pTbCur);
   }
-#endif
 }
 
-char *metaTbCursorNext(SMTbCursor *pTbCur) {
-#if 0
-  void  *pKey = NULL;
-  void  *pVal = NULL;
-  int    kLen;
-  int    vLen;
+int metaTbCursorNext(SMTbCursor *pTbCur) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
 
   for (;;) {
-    ret = tdbDbNext(pTbCur->pDbc, &pKey, &kLen, &pVal, &vLen);
-    if (ret < 0) break;
-    pBuf = pVal;
-    metaDecodeTbInfo(pBuf, &tbCfg);
-    if (tbCfg.type == META_SUPER_TABLE) {
-      taosMemoryFree(tbCfg.name);
-      taosMemoryFree(tbCfg.stbCfg.pTagSchema);
-      continue;
-    } else if (tbCfg.type == META_CHILD_TABLE) {
-      kvRowFree(tbCfg.ctbCfg.pTag);
+    ret = tdbDbNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    if (ret < 0) {
+      return -1;
     }
 
-    return tbCfg.name;
+    metaGetTableEntryByVersion(&pTbCur->mr, *(int64_t *)pTbCur->pVal, *(tb_uid_t *)pTbCur->pKey);
+    if (pTbCur->mr.me.type == META_SUPER_TABLE) {
+      continue;
+    }
   }
 
-#endif
-  return NULL;
+  return 0;
 }
 
 STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {

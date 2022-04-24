@@ -31,6 +31,8 @@
 #include "tmsg.h"
 #include "trow.h"
 
+#include "tdbInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -65,20 +67,19 @@ typedef struct SMeta       SMeta;  // todo: remove
 typedef struct SMetaReader SMetaReader;
 typedef struct SMetaEntry  SMetaEntry;
 
-void              metaReaderInit(SMetaReader *pReader, SVnode *pVnode, int32_t flags);
-void              metaReaderClear(SMetaReader *pReader);
-int               metaReadNext(SMetaReader *pReader);
-const SMetaEntry *metaReaderGetEntry(SMetaReader *pReader);
+void metaReaderInit(SMetaReader *pReader, SVnode *pVnode, int32_t flags);
+void metaReaderClear(SMetaReader *pReader);
+int  metaReadNext(SMetaReader *pReader);
 
+#if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
 typedef SVCreateTSmaReq SSmaCfg;
 
-#if 1
 typedef struct SMTbCursor SMTbCursor;
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-char       *metaTbCursorNext(SMTbCursor *pTbCur);
+int         metaTbCursorNext(SMTbCursor *pTbCur);
 #endif
 
 // tsdb
@@ -208,6 +209,15 @@ struct SMetaReader {
   SMetaEntry me;
   void      *pBuf;
   int        szBuf;
+};
+
+struct SMTbCursor {
+  TDBC       *pDbc;
+  void       *pKey;
+  void       *pVal;
+  int         kLen;
+  int         vLen;
+  SMetaReader mr;
 };
 
 #ifdef __cplusplus

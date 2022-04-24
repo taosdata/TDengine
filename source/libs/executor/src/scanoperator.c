@@ -376,8 +376,9 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
 }
 
 SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, int32_t order, int32_t numOfOutput, int32_t dataLoadFlag,
-                                           int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock,
-                                           SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo) {
+                                           int32_t repeatTime, int32_t reverseTime, SArray* pColMatchInfo,
+                                           SSDataBlock* pResBlock, SNode* pCondition, SInterval* pInterval,
+                                           double sampleRatio, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
@@ -390,19 +391,19 @@ SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, int32_t order, int
     return NULL;
   }
 
-  pInfo->interval         = *pInterval;
-  pInfo->sampleRatio      = sampleRatio;
-  pInfo->dataBlockLoadFlag= dataLoadFlag;
-  pInfo->pResBlock        = pResBlock;
-  pInfo->pFilterNode      = pCondition;
-  pInfo->dataReader       = pDataReader;
-  pInfo->times            = repeatTime;
-  pInfo->reverseTimes     = reverseTime;
-  pInfo->order            = order;
-  pInfo->current          = 0;
-  pInfo->scanFlag         = MAIN_SCAN;
-  pInfo->pColMatchInfo    = pColMatchInfo;
-  pOperator->name         = "TableScanOperator";
+  pInfo->interval = *pInterval;
+  pInfo->sampleRatio = sampleRatio;
+  pInfo->dataBlockLoadFlag = dataLoadFlag;
+  pInfo->pResBlock = pResBlock;
+  pInfo->pFilterNode = pCondition;
+  pInfo->dataReader = pDataReader;
+  pInfo->times = repeatTime;
+  pInfo->reverseTimes = reverseTime;
+  pInfo->order = order;
+  pInfo->current = 0;
+  pInfo->scanFlag = MAIN_SCAN;
+  pInfo->pColMatchInfo = pColMatchInfo;
+  pOperator->name = "TableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pOperator->blockingOptr = false;
   pOperator->status = OP_NOT_OPENED;
@@ -828,8 +829,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     int32_t numOfRows = 0;
 
     char n[TSDB_TABLE_NAME_LEN] = {0};
-    while ((name = metaTbCursorNext(pInfo->pCur)) != NULL) {
-      STR_TO_VARSTR(n, name);
+    while (metaTbCursorNext(pInfo->pCur) == 0) {
+      STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
       colDataAppend(pTableNameCol, numOfRows, n, false);
       numOfRows += 1;
       if (numOfRows >= pInfo->capacity) {
