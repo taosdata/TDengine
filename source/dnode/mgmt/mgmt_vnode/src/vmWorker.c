@@ -348,6 +348,7 @@ static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueT
   } else {
     dTrace("msg:%p, is created, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
     pMsg->rpcMsg = *pRpc;
+    // if (pMsg->rpcMsg.handle != NULL) assert(pMsg->rpcMsg.refId != 0);
     switch (qtype) {
       case QUERY_QUEUE:
         dTrace("msg:%p, will be put into vnode-query queue", pMsg);
