@@ -104,7 +104,7 @@ static int32_t translateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
-  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -478,6 +478,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
     .finalizeFunc = stddevFinalize
+  },
+  {
+    .name = "avg",
+    .type = FUNCTION_TYPE_AVG,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = getAvgFuncEnv,
+    .initFunc     = avgFunctionSetup,
+    .processFunc  = avgFunction,
+    .finalizeFunc = avgFinalize
   },
   {
     .name = "percentile",
