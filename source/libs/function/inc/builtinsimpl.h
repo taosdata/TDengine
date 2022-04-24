@@ -40,6 +40,11 @@ bool getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t minFunction(SqlFunctionCtx* pCtx);
 int32_t maxFunction(SqlFunctionCtx *pCtx);
 
+bool getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool avgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t avgFunction(SqlFunctionCtx* pCtx);
+int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId);
+
 bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t stddevFunction(SqlFunctionCtx* pCtx);

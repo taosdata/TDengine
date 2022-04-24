@@ -37,6 +37,8 @@ typedef struct SPlanContext {
   bool isStmtQuery;
   void* pTransporter;
   struct SCatalog* pCatalog;
+  char* pMsg;
+  int32_t msgLen;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

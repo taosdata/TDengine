@@ -232,7 +232,9 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
     .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
     .pAstRoot = pQuery->pRoot,
     .showRewrite = pQuery->showRewrite,
-    .pTransporter = pRequest->pTscObj->pAppInfo->pTransporter
+    .pTransporter = pRequest->pTscObj->pAppInfo->pTransporter,
+    .pMsg = pRequest->msgBuf,
+    .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
   int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (TSDB_CODE_SUCCESS == code) {
