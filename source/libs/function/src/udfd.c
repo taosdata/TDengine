@@ -83,8 +83,8 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, SEpSet *pEpSet, char *udfName,
 int32_t udfdLoadUdf(char *udfName, SEpSet *pEpSet, SUdf *udf) {
   strcpy(udf->name, udfName);
 
-  //udfdFillUdfInfoFromMNode(global.clientRpc, pEpSet, udf->name, udf);
-  strcpy(udf->path, "/home/slzhou/TDengine/debug/build/lib/libudf1.so");
+  udfdFillUdfInfoFromMNode(global.clientRpc, pEpSet, udf->name, udf);
+  //strcpy(udf->path, "/home/slzhou/TDengine/debug/build/lib/libudf1.so");
   int err = uv_dlopen(udf->path, &udf->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
@@ -417,7 +417,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, SEpSet *pEpSet, char *udfName,
   SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
 
   char path[PATH_MAX] = {0};
-  taosGetTmpfilePath("/tmp", "libudf", path);
+  snprintf(path, sizeof(path), "%s/lib%s.so", "/tmp", udfName);
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   // TODO check for failure of flush to disk
   taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);

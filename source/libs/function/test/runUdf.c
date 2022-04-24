@@ -23,6 +23,10 @@ int main(int argc, char *argv[]) {
 
     UdfcFuncHandle handle;
     SEpSet epSet;
+    epSet.inUse = 0;
+    taosGetFqdnPortFromEp("localhost:7100", &epSet.eps[0]);
+    taosGetFqdnPortFromEp("localhost:7200", &epSet.eps[1]);
+    epSet.numOfEps = 2;
     setupUdf(udfc, "udf1", &epSet, &handle);
 
     SSDataBlock block = {0};
