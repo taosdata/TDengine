@@ -137,24 +137,23 @@ static void taosStopLog() {
   }
 }
 
-static void taosLogBuffDestroy() {
-  taosThreadMutexDestroy(&tsLogObj.logHandle->buffMutex);
-  taosCloseFile(&tsLogObj.logHandle->pFile);
-  taosMemoryFreeClear(tsLogObj.logHandle->buffer);
-  memset(&tsLogObj.logHandle->buffer, 0, sizeof(tsLogObj.logHandle->buffer));
-  taosThreadMutexDestroy(&tsLogObj.logMutex);
-  taosMemoryFreeClear(tsLogObj.logHandle);
-  memset(&tsLogObj.logHandle, 0, sizeof(tsLogObj.logHandle));
-  tsLogObj.logHandle = NULL;
-}
-
 void taosCloseLog() {
-  taosStopLog();
-  if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
-    taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+  if (tsLogObj.logHandle != NULL) {
+    taosStopLog();
+    if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
+      taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+    }
+    tsLogInited = 0;
+
+    taosThreadMutexDestroy(&tsLogObj.logHandle->buffMutex);
+    taosCloseFile(&tsLogObj.logHandle->pFile);
+    taosMemoryFreeClear(tsLogObj.logHandle->buffer);
+    memset(&tsLogObj.logHandle->buffer, 0, sizeof(tsLogObj.logHandle->buffer));
+    taosThreadMutexDestroy(&tsLogObj.logMutex);
+    taosMemoryFreeClear(tsLogObj.logHandle);
+    memset(&tsLogObj.logHandle, 0, sizeof(tsLogObj.logHandle));
+    tsLogObj.logHandle = NULL;
   }
-  tsLogInited = 0;
-  taosLogBuffDestroy(tsLogObj.logHandle);
 }
 
 static bool taosLockLogFile(TdFilePtr pFile) {
