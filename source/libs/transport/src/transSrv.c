@@ -20,6 +20,7 @@
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static char* notify = "a";
+static int   transSrvInst = 0;
 
 typedef struct {
   int       notifyCount;  //
@@ -757,8 +758,6 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   if (conn == NULL) {
     return;
   }
-  uvReleaseExHandle(conn->refId);
-  uvRemoveExHandle(conn->refId);
 
   transDestroyBuffer(&conn->readBuf);
   if (clear) {
@@ -773,6 +772,9 @@ static void uvDestroyConn(uv_handle_t* handle) {
     return;
   }
   SWorkThrdObj* thrd = conn->hostThrd;
+
+  uvReleaseExHandle(conn->refId);
+  uvRemoveExHandle(conn->refId);
 
   tDebug("server conn %p destroy", conn);
   // uv_timer_stop(&conn->pTimer);
@@ -799,6 +801,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   uv_loop_init(srv->loop);
 
   taosThreadOnce(&transModuleInit, uvInitExHandleMgt);
+  transSrvInst++;
   // uvOpenExHandleMgt(10000);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
@@ -974,7 +977,10 @@ void transCloseServer(void* arg) {
 
   taosMemoryFree(srv);
 
-  // uvCloseExHandleMgt();
+  transSrvInst--;
+  if (transSrvInst == 0) {
+    uvCloseExHandleMgt();
+  }
 }
 
 void transRefSrvHandle(void* handle) {
