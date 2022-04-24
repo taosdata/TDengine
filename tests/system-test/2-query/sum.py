@@ -26,26 +26,64 @@ UN_NUM_COL = [BINARY_COL, NCHAR_COL, TS_COL]
 
 class TDTestCase:
 
-
-
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __sum_current_check(self, row, col,data):
-        pass
+    def __sum_condition(self):
+        sum_condition = []
+        for num_col in NUM_COL:
+            sum_condition.extend(
+                (
+                    num_col,
+                    f"ceil( {num_col} )",
+                )
+            )
+            sum_condition.extend( f"{num_col} + {num_col_2}" for num_col_2 in NUM_COL )
+            sum_condition.extend( f"{num_col} + {un_num_col} " for un_num_col in UN_NUM_COL )
+
+        return sum_condition
+
+    def __where_condition(self, col):
+        return f" where {col} < 1000000 "
+
+    def __group_condition(self, col, having = ""):
+        return f" group by {col} having {having}" if having else f" group by {col} "
+
+    def __sum_current_check(self, tbname):
+        sum_condition = self.__sum_condition()
+        for condition in sum_condition:
+            where_condition = self.__where_condition(condition)
+            group_condition = self.__group_condition(condition, having=f"{condition} is not null " )
+
+            tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
+            datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+            sum_data = sum(datas)
+            tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} {group_condition}")
+            tdSql.checkData(0, 0, sum_data)
 
     def __sum_err_check(self,tbanme):
         sqls = []
 
         for un_num_col in UN_NUM_COL:
-            sqls.append( f"select sum( {un_num_col} ) from {tbanme} " )
-            sqls.extend( f"select sum( {un_num_col} + {num_col} ) from {tbanme} " for num_col in NUM_COL )
+            sqls.extend(
+                (
+                    f"select sum( {un_num_col} ) from {tbanme} ",
+                    f"select sum(ceil( {un_num_col} )) from {tbanme} ",
+                )
+            )
             sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
 
         return sqls
 
+    def __test_current(self):
+        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
+        tbname = ["ct1", "ct2", "ct4", "t1"]
+        for tb in tbname:
+            self.__sum_current_check(tb)
+
     def __test_error(self):
+        tdLog.printNoPrefix("==========err sql condition check , must return error==========")
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
         for tb in tbname:
@@ -54,8 +92,9 @@ class TDTestCase:
 
 
     def all_test(self):
+        self.__test_current()
+        self.__test_error()
 
-        pass
 
     def __create_tb(self):
         tdSql.prepare()
@@ -162,15 +201,16 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step2:insert data")
         self.__insert_data(1000)
 
-
+        tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
 
-        tdSql.execute("use db")
+        # tdSql.execute("use db")
 
-        self.all_test()
+        # tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        # self.all_test()
 
     def stop(self):
         tdSql.close()
