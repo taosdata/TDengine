@@ -39,7 +39,6 @@ enum {
 
 typedef struct SUdfSetupRequest {
   char udfName[TSDB_FUNC_NAME_LEN];
-  SEpSet epSet;
 } SUdfSetupRequest;
 
 typedef struct SUdfSetupResponse {

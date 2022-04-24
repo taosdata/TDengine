@@ -37,23 +37,24 @@ extern "C" {
 enum {
   UDFC_CODE_STOPPING = -1,
   UDFC_CODE_PIPE_READ_ERR = -2,
-  UDF_CODE_LOAD_UDF_FAILURE = -3,
+  UDFC_CODE_CONNECT_PIPE_ERR = -3,
+  UDFC_CODE_LOAD_UDF_FAILURE = -4,
+  UDFC_CODE_INVALID_STATE = -5
 };
 
-typedef void *UdfcHandle;
 typedef void *UdfcFuncHandle;
 
 /**
  * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
  * @return error code
  */
-int32_t udfcOpen(UdfcHandle* proxyHandle);
+int32_t udfcOpen();
 
 /**
  * destroy udfd proxy
  * @return error code
  */
-int32_t udfcClose(UdfcHandle proxyhandle);
+int32_t udfcClose();
 
 
 /**
@@ -62,7 +63,7 @@ int32_t udfcClose(UdfcHandle proxyhandle);
  * @param handle, out
  * @return error code
  */
-int32_t setupUdf(UdfcHandle proxyHandle, char udfName[], SEpSet *epSet, UdfcFuncHandle *handle);
+int32_t setupUdf(char udfName[], UdfcFuncHandle *handle);
 
 typedef struct SUdfColumnMeta {
   int16_t type;

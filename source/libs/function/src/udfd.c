@@ -20,6 +20,7 @@
 #include "tudf.h"
 #include "tudfInt.h"
 
+#include "tdatablock.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -31,8 +32,9 @@ typedef struct SUdfdContext {
   uv_signal_t intrSignal;
   char        listenPipeName[UDF_LISTEN_PIPE_NAME_LEN];
   uv_pipe_t   listeningPipe;
-  void       *clientRpc;
 
+  void       *clientRpc;
+  SCorEpSet  mgmtEp;
   uv_mutex_t udfsMutex;
   SHashObj  *udfsHash;
 
@@ -83,17 +85,17 @@ typedef struct SUdfcFuncHandle {
   SUdf *udf;
 } SUdfcFuncHandle;
 
-int32_t udfdFillUdfInfoFromMNode(void *clientRpc, SEpSet *pEpSet, char *udfName, SUdf *udf);
+int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf);
 
-int32_t udfdLoadUdf(char *udfName, SEpSet *pEpSet, SUdf *udf) {
+int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   strcpy(udf->name, udfName);
 
-  udfdFillUdfInfoFromMNode(global.clientRpc, pEpSet, udf->name, udf);
+  udfdFillUdfInfoFromMNode(global.clientRpc, udf->name, udf);
   //strcpy(udf->path, "/home/slzhou/TDengine/debug/build/lib/libudf1.so");
   int err = uv_dlopen(udf->path, &udf->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
-    return UDF_CODE_LOAD_UDF_FAILURE;
+    return UDFC_CODE_LOAD_UDF_FAILURE;
   }
   // TODO: find all the functions
   char normalFuncName[TSDB_FUNC_NAME_LEN] = {0};
@@ -140,7 +142,7 @@ void udfdProcessRequest(uv_work_t *req) {
       uv_mutex_lock(&udf->lock);
       if (udf->state == UDF_STATE_INIT) {
         udf->state = UDF_STATE_LOADING;
-        udfdLoadUdf(setup->udfName, &setup->epSet, udf);
+        udfdLoadUdf(setup->udfName, udf);
         udf->state = UDF_STATE_READY;
         uv_cond_broadcast(&udf->condReady);
         uv_mutex_unlock(&udf->lock);
@@ -398,7 +400,48 @@ void udfdIntrSignalHandler(uv_signal_t *handle, int signum) {
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) { return; }
 
-int32_t udfdFillUdfInfoFromMNode(void *clientRpc, SEpSet *pEpSet, char *udfName, SUdf *udf) {
+int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet) {
+  pEpSet->version = 0;
+
+  // init mnode ip set
+  SEpSet* mgmtEpSet = &(pEpSet->epSet);
+  mgmtEpSet->numOfEps = 0;
+  mgmtEpSet->inUse = 0;
+
+  if (firstEp && firstEp[0] != 0) {
+    if (strlen(firstEp) >= TSDB_EP_LEN) {
+      terrno = TSDB_CODE_TSC_INVALID_FQDN;
+      return -1;
+    }
+
+    int32_t code = taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = TSDB_CODE_TSC_INVALID_FQDN;
+      return terrno;
+    }
+
+    mgmtEpSet->numOfEps++;
+  }
+
+  if (secondEp && secondEp[0] != 0) {
+    if (strlen(secondEp) >= TSDB_EP_LEN) {
+      terrno = TSDB_CODE_TSC_INVALID_FQDN;
+      return -1;
+    }
+
+    taosGetFqdnPortFromEp(secondEp, &mgmtEpSet->eps[mgmtEpSet->numOfEps]);
+    mgmtEpSet->numOfEps++;
+  }
+
+  if (mgmtEpSet->numOfEps == 0) {
+    terrno = TSDB_CODE_TSC_INVALID_FQDN;
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   SRetrieveFuncReq retrieveReq = {0};
   retrieveReq.numOfFuncs = 1;
   retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
@@ -415,7 +458,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, SEpSet *pEpSet, char *udfName,
   rpcMsg.msgType = TDMT_MND_RETRIEVE_FUNC;
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRecv(clientRpc, pEpSet, &rpcMsg, &rpcRsp);
+  rpcSendRecv(clientRpc, &global.mgmtEp.epSet, &rpcMsg, &rpcRsp);
   SRetrieveFuncRsp retrieveRsp = {0};
   tDeserializeSRetrieveFuncRsp(rpcRsp.pCont, rpcRsp.contLen, &retrieveRsp);
 
@@ -618,5 +661,6 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  initEpSetFromCfg(tsFirst, tsSecond, &global.mgmtEp);
   return udfdRun();
 }
