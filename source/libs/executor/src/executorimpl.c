@@ -1105,6 +1105,10 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
         if (createDummyCol && pOneExpr->base.numOfParams == 1) {
+          pInput->totalRows = pBlock->info.rows;
+          pInput->numOfRows = pBlock->info.rows;
+          pInput->startRowIndex = 0;
+
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
           if (code != TSDB_CODE_SUCCESS) {
             return code;
