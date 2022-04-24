@@ -75,6 +75,7 @@ class TDTestCase:
                 )
             )
             sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
+            sqls.extend( f"select sum( {num_col} + c10 ) from {tbanme} " for num_col in NUM_COL )
 
         return sqls
 
