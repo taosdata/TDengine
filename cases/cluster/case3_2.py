@@ -201,7 +201,7 @@ class Case3_1(ClusterCase):
 
         # loop restart dnodes per 3 seconds
         repeatedly_restart_task = threading.Thread(
-            target=self.repeatedly_restart_dnode, args=(self.master_node, self.restart_times, self.max_restart_interval , self.slave_node))
+            target=self.repeatedly_restart_dnode, args=(self.master_node, self.restart_times, 10 , self.slave_node))
         repeatedly_restart_task.start()
         
         i = 0

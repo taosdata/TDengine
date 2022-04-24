@@ -32,7 +32,7 @@ class Case3_1(ClusterCase):
         self.table_name = "tb"
         self.table_num = 100
         self.row_num = 50000000  # row number per table
-        self.max_restart_interval = [1, 3]
+        self.max_restart_interval = [10, 20]
         self.restart_times = 20
         self.master_nodes = self.get_masters()
         i = random.randint(0, len(self.master_nodes) - 1)

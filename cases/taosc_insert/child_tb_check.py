@@ -13,15 +13,13 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-from taostest.util.rest import TDRest
 import copy
 
 class TestStb(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
-        self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = self.get_default_database()
-        self.tdRest.request(f'create database if not exists {self.dbname}')
+        self.tdSql.execute(f'create database if not exists {self.dbname}')
 
     def child_tbname_length_check(self):
         """
@@ -29,13 +27,13 @@ class TestStb(TDCase):
         """
         stbname = self.tdCom.get_long_name(length=10, mode="letters")
         tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"], mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
-        self.tdRest.error(f'create table {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
-        self.tdRest.request(f'show {self.dbname}.tables')
-        self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname)
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
+        self.tdSql.error(f'create table {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
+        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         tbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"]+1, mode="letters")
-        self.tdRest.error(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{tbname_exceed} tags (127)')
+        self.tdSql.error(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{tbname_exceed} tags (127)')
 
     def child_tbname_with_backquote(self):
         """
@@ -44,11 +42,11 @@ class TestStb(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stbname = self.tdCom.get_long_name(length=10, mode="letters")
         tbname = '1' + self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
-        self.tdRest.request(f'show {self.dbname}.tables')
-        self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname)
-        self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
+        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
+        self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname}`')
         tbname = self.tdCom.get_long_name(length=3, mode="letters")
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
@@ -58,10 +56,10 @@ class TestStb(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 tbname_new = ''.join(d_list_new)
-                self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname_new}` using {self.dbname}.{stbname} tags (127)')
-                self.tdRest.request(f'show {self.dbname}.tables')
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname_new)
-                self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname_new}`')
+                self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname_new}` using {self.dbname}.{stbname} tags (127)')
+                self.tdSql.query(f'show {self.dbname}.tables')
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname_new)
+                self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname_new}`')
 
     def child_tbname_without_backquote(self):
         """
@@ -70,8 +68,8 @@ class TestStb(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stbname = self.tdCom.get_long_name(length=10, mode="letters")
         tbname = '1' + self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdRest.error(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
         tbname = self.tdCom.get_long_name(length=3, mode="letters")
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove(' ')
@@ -81,7 +79,7 @@ class TestStb(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 tbname = ''.join(d_list_new)
-                self.tdRest.error(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
+                self.tdSql.error(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
 
     def upper_lower_child_tbname_check(self):
         """
@@ -90,18 +88,18 @@ class TestStb(TDCase):
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         for tbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=10, mode="letters_mixed").upper()]:
-            self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
-            self.tdRest.request(f'show {self.dbname}.tables')
-            self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname.lower())
-            self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname.lower()}`')
+            self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
+            self.tdSql.query(f'show {self.dbname}.tables')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname.lower())
+            self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname.lower()}`')
 
         for tbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=10, mode="letters_mixed").upper()]:
-            self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
-            self.tdRest.request(f'show {self.dbname}.tables')
-            self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], tbname)
-            self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
+            self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
+            self.tdSql.query(f'show {self.dbname}.tables')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
+            self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname}`')
 
     def desc_check(self):
         """
@@ -109,12 +107,12 @@ class TestStb(TDCase):
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stbname = self.tdCom.get_long_name(length=192, mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
-        self.tdRest.request(f'create table if not exists {self.dbname}.tb using {self.dbname}.{stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
-        self.tdRest.request(f'describe {self.dbname}.tb')
-        col_name_list, col_type_list, length_list, note_list = self.tdRest.getColNameList(True)
+        self.tdSql.execute(f'create table if not exists {self.dbname}.tb using {self.dbname}.{stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
+        self.tdSql.query(f'describe {self.dbname}.tb')
+        col_name_list, col_type_list, length_list, note_list = self.tdSql.getColNameList(True)
         self.tdSql.checkEqual(col_name_list, ['col_ts', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10', 'c11', 'c12', 'c13', 'tag_ts', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11', 't12', 't13'])
         self.tdSql.checkEqual(col_type_list, ['TIMESTAMP', 'TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'NCHAR', 'BOOL', 'TIMESTAMP', 'TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'NCHAR', 'BOOL'])
         self.tdSql.checkEqual(length_list, [8, 1, 2, 4, 8, 1, 2, 4, 8, 4, 8, 16, 16, 1, 8, 1, 2, 4, 8, 1, 2, 4, 8, 4, 8, 16, 16, 1])
@@ -127,14 +125,14 @@ class TestStb(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stbname = self.tdCom.get_long_name(length=192, mode="letters")
         tbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 binary(16), c2 nchar(16)) tags (t1 binary(16), t2 nchar(16))')
-        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags ("1234567891234567", "1234")')
-        self.tdRest.error(f'alter stable {self.dbname}.{tbname} modify column c1 binary(32) ')
-        self.tdRest.error(f'alter stable {self.dbname}.{tbname} modify column c2 nchar(32) ')
-        self.tdRest.error(f'alter stable {self.dbname}.{tbname} modify tag t1 binary(32) ')
-        self.tdRest.error(f'alter stable {self.dbname}.{tbname} modify tag t2 nchar(32) ')
-        self.tdRest.request(f'describe {self.dbname}.{tbname}')
-        length_list = self.tdRest.getColNameList(True)[2]
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 binary(16), c2 nchar(16)) tags (t1 binary(16), t2 nchar(16))')
+        self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags ("1234567891234567", "1234")')
+        self.tdSql.error(f'alter stable {self.dbname}.{tbname} modify column c1 binary(32) ')
+        self.tdSql.error(f'alter stable {self.dbname}.{tbname} modify column c2 nchar(32) ')
+        self.tdSql.error(f'alter stable {self.dbname}.{tbname} modify tag t1 binary(32) ')
+        self.tdSql.error(f'alter stable {self.dbname}.{tbname} modify tag t2 nchar(32) ')
+        self.tdSql.query(f'describe {self.dbname}.{tbname}')
+        length_list = self.tdSql.getColNameList(True)[2]
         self.tdSql.checkEqual(length_list, [8, 16, 16, 16, 16])
 
     def add_drop_column(self):
@@ -144,20 +142,20 @@ class TestStb(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         tbname = self.tdCom.get_long_name(length=10, mode="letters")
         stbname = self.tdCom.get_long_name(length=192, mode="letters")
-        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 int, c2 tinyint) tags (t1 int, t2 tinyint)')
-        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags ("1", "1")')
+        self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 int, c2 tinyint) tags (t1 int, t2 tinyint)')
+        self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags ("1", "1")')
         # drop column
-        self.tdRest.error(f'alter table {self.dbname}.{tbname} drop column c2')
+        self.tdSql.error(f'alter table {self.dbname}.{tbname} drop column c2')
         # drop tag
-        self.tdRest.error(f'alter table {self.dbname}.{tbname} drop tag t2')
+        self.tdSql.error(f'alter table {self.dbname}.{tbname} drop tag t2')
         # add column
-        self.tdRest.error(f'alter stable {self.dbname}.{tbname} add column c2 tinyint')
+        self.tdSql.error(f'alter stable {self.dbname}.{tbname} add column c2 tinyint')
         # add tag
-        self.tdRest.error(f'alter stable {self.dbname}.{tbname} add tag t2 tinyint')
+        self.tdSql.error(f'alter stable {self.dbname}.{tbname} add tag t2 tinyint')
 
-        self.tdRest.request(f'describe {self.dbname}.{tbname}')
-        col_name_list = self.tdRest.getColNameList(True)[0]
-        col_type_list = self.tdRest.getColNameList(True)[1]
+        self.tdSql.query(f'describe {self.dbname}.{tbname}')
+        col_name_list = self.tdSql.getColNameList(True)[0]
+        col_type_list = self.tdSql.getColNameList(True)[1]
         self.tdSql.checkEqual(col_name_list, ['col_ts', 'c1', 'c2', 't1', 't2'])
         self.tdSql.checkEqual(col_type_list, ['TIMESTAMP', 'INT', 'TINYINT', 'INT', 'TINYINT'])
 
@@ -167,9 +165,9 @@ class TestStb(TDCase):
         mixed space
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdSql.execute(f'create database if not exists {dbname}')
         stbname = self.tdCom.get_long_name(length=3, mode="letters")
-        self.tdRest.request(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
+        self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t13 bool)')
         base_sql = f'create table if not exists {self.dbname}.tb using {self.dbname}.{stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)'
@@ -184,9 +182,9 @@ class TestStb(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 sql_new = ''.join(d_list_new)
-                self.tdRest.error(sql_new)
-        self.tdRest.request(f'drop table if exists {dbname}.`{dbname}`')
-        self.tdRest.request(f'drop database if exists {self.dbname}')
+                self.tdSql.error(sql_new)
+        self.tdSql.execute(f'drop table if exists {dbname}.`{dbname}`')
+        self.tdSql.execute(f'drop database if exists {self.dbname}')
 
     def run(self):
         self.child_tbname_length_check()
@@ -215,4 +213,4 @@ class TestStb(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.RestfulSql.Table.Create, T.Write.RestfulSql.Table.Drop, T.Write.RestfulSql.Table.Alter
+        return T.Write.TaoscSql.Table.Create, T.Write.TaoscSql.Table.Drop, T.Write.TaoscSql.Table.Alter

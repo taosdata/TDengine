@@ -77,8 +77,8 @@ class TestJsonTag(TDCase):
         char3= ''.join(['abcd']*1022)
         self.tdRest.request("CREATE TABLE if not exists  db_json.jsons4_1 using  db_json.jsons4 tags('{\"%s\":5}')" % char1)  # len(key)=256
         self.tdRest.error("CREATE TABLE if not exists  db_json.jsons4_1 using  db_json.jsons4 tags('{\"%s1\":5}')" % char2)   # len(key)=257
-        self.tdRest.request("CREATE TABLE if not exists  jsons4_2 using  db_json.jsons4 tags('{\"T\":\"%s\"}')" % char3)  # len(object)=4096
-        self.tdRest.error("CREATE TABLE if not exists  jsons4_2 using  db_json.jsons4 tags('{\"TS\":\"%s\"}')" % char3)   # len(object)=4097
+        self.tdRest.request("CREATE TABLE if not exists  db_json.jsons4_2 using  db_json.jsons4 tags('{\"T\":\"%s\"}')" % char3)  # len(object)=4096
+        self.tdRest.error("CREATE TABLE if not exists  db_json.jsons4_2 using  db_json.jsons4 tags('{\"TS\":\"%s\"}')" % char3)   # len(object)=4097
 
         # test the  min/max length of double type , and int64  is not required
         self.tdRest.error("CREATE TABLE if not exists  db_json.jsons4_3 using  db_json.jsons4 tags('{\"doublength\":-1.8e308}')")
@@ -421,7 +421,7 @@ class TestJsonTag(TDCase):
         self.tdRest.error("select  avg(dataInt)   from db_json.jsons1 group by jtag->'location' order by dataInt;")
         self.tdRest.error("select  avg(dataInt),tbname   from  db_json.jsons1 group by jtag->'location' order by tbname;")
         self.tdRest.request("create table if not exists  db_json.jsons1_15 using  db_json.jsons1 tags('{\"tbname\":\"tt\",\"location\":\"beijing\"}')")
-        self.tdRest.request("insert into  jsons1_15 values(now+1s, 2, 'json1')")
+        self.tdRest.request("insert into  db_json.jsons1_15 values(now+1s, 2, 'json1')")
         self.tdRest.error("select twa(dataint) from  db_json.jsons1 group by jtag->'location' order by jtag->'location';")
         self.tdRest.error("select  irate(dataint) from  db_json.jsons1 where jtag->'location' in ('beijing','tianjing') or jtag contains 'num' or jtag->'age'=35 ;")
         self.tdRest.request(" select stddev(dataint) from  db_json.jsons1 group by jtag->'location';")
@@ -438,7 +438,7 @@ class TestJsonTag(TDCase):
         for fn in functionName:
             self.tdRest.error("select %s( jtag) from  db_json.jsons1 ;"%fn)
             self.tdRest.error("select %s( jtag->'location'='beijing') from  db_json.jsons1 ;"%fn)
-            self.tdRest.error("select %s( jtag contains 'age') from  db_json.jsons1 ;"%fn)            
+            self.tdRest.error("select %s( jtag contains 'age') from  db_json.jsons1 ;"%fn)
 
         # Select_exprs is SQL function -Selection function
 
@@ -513,12 +513,12 @@ class TestJsonTag(TDCase):
         self.tdRest.request("insert into db_json.jsons7_1 using db_json.jsons7 tags('{\"nv\":null,\"tea\":true,\"tea\":false}') values (now+3s,2,'true',0.9,0.1,'123')")
         self.tdRest.request("select * from db_json.jsons7 where jtag->'tea'=0 ;")
         self.tdSql.checkEqual(int(self.tdRest.resp["rows"]), 0)
-        self.tdRest.request("select * from jsons7 where jtag->'tea'=3;")
+        self.tdRest.request("select * from db_json.jsons7 where jtag->'tea'=3;")
         # self.tdSql.checkEqual(int(self.tdRest.resp["rows"]), 0)
         self.tdRest.request("insert into db_json.jsons7_1 values (now+1s,3,'true',-4.8,-5.5,'123') ")
         self.tdRest.request("insert into db_json.jsons7_1 values (now+2s,4,'true',1.9998,2.00001,'123') ")
-        self.tdRest.request("insert into db_json.jsons7_2 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":123,\"tea\":false}') values (now,5,'true',4.01,2.2,'123') ")
-        self.tdRest.request("insert into db_json.jsons7_2 using jsons7 tags('{\"nv\":null,\"tea\":true,\"tag\":123,\"tea\":false}') values (now+5s,5,'false',4.01,2.2,'123') ")
+        self.tdRest.request("insert into db_json.jsons7_2 using db_json.jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":123,\"tea\":false}') values (now,5,'true',4.01,2.2,'123') ")
+        self.tdRest.request("insert into db_json.jsons7_2 using db_json.jsons7 tags('{\"nv\":null,\"tea\":true,\"tag\":123,\"tea\":false}') values (now+5s,5,'false',4.01,2.2,'123') ")
         self.tdRest.request("insert into db_json.jsons7_2 (ts,datadouble) values (now+3s,-0.9) ")
         self.tdRest.request("insert into db_json.jsons7_2 (ts,datadouble) values (now+4s,-2.9) ")
         self.tdRest.request("insert into db_json.jsons7_2 (ts,datafloat) values (now+1s,-0.9) ")
@@ -535,10 +535,10 @@ class TestJsonTag(TDCase):
         for fn in functionName:
             self.tdRest.error("select %s( jtag) from  db_json.jsons1 ;"%fn)
             self.tdRest.error("select %s( jtag->'location'='beijing') from  db_json.jsons1 ;"%fn)
-            self.tdRest.error("select %s( jtag contains 'age') from  db_json.jsons1 ;"%fn)       
+            self.tdRest.error("select %s( jtag contains 'age') from  db_json.jsons1 ;"%fn)
 
 
-        #modify one same key and diffirent data type,include negative number of double  
+        #modify one same key and diffirent data type,include negative number of double
         self.tdRest.request("insert into db_json.jsons7_4 using db_json.jsons7 tags('{\"nv\":null,\"tea\":123,\"tag\":123,\"tea\":false}') values (now+1s,5,'true',4.01,2.2,'abc'); ")
         self.tdRest.request("insert into db_json.jsons7_5 using db_json.jsons7 tags('{\"nv\":null,\"tea\":\"app\",\"tag\":123,\"tea\":false}') values (now+2s,5,'true',4.01,2.2,'abc'); ")
         self.tdRest.error("insert into db_json.jsons7_6 using db_json.jsons7 tags('{\"nv\":null,\"tea\":-1.111111111111111111111111111111111111111111111111111111111111111111111,\"tag\":123,\"tea\":false}') values (now+3s,5,'true',4.01,2.2,'123'); ")
