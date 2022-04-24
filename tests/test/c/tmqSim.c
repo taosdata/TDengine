@@ -43,6 +43,7 @@ typedef struct {
   int64_t     expectMsgCnt; 
   
   int64_t     consumeMsgCnt;
+  int64_t     consumeRowCnt;
   int32_t     checkresult;
 
   char        topicString[1024];
@@ -62,8 +63,10 @@ typedef struct {
 
 typedef struct {
   // input from argvs
+  char           cdbName[32];
   char           dbName[32];
   int32_t        showMsgFlag;
+  int32_t        showRowFlag;
   int32_t        consumeDelay;  // unit s
   int32_t        numOfThread;  
   SThreadInfo    stThreads[MAX_CONSUMER_THREAD_CNT];
@@ -85,51 +88,63 @@ static void printHelp() {
   printf("%s%s%s\n", indent, indent, "The name of the database for cosumer, no default ");
   printf("%s%s\n", indent, "-g");
   printf("%s%s%s%d\n", indent, indent, "showMsgFlag, default is ", g_stConfInfo.showMsgFlag);
+  printf("%s%s\n", indent, "-r");
+  printf("%s%s%s%d\n", indent, indent, "showRowFlag, default is ", g_stConfInfo.showRowFlag);
   printf("%s%s\n", indent, "-y");
   printf("%s%s%s%d\n", indent, indent, "consume delay, default is s", g_stConfInfo.consumeDelay);
   exit(EXIT_SUCCESS);
 }
 
+
 void initLogFile() {
   // FILE *fp = fopen(g_stConfInfo.resultFileName, "a");
-  TdFilePtr pFile = taosOpenFile("./tmqlog.txt", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_STREAM);
+  char file[256];
+  sprintf(file, "%s/../log/tmqlog.txt", configDir);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (NULL == pFile) {
     fprintf(stderr, "Failed to open %s for save result\n", "./tmqlog.txt");
     exit -1;
   };
   g_fp = pFile;
+}
 
+
+void saveConfigToLogFile() {
   time_t    tTime = taosGetTimestampSec();
   struct tm tm = *taosLocalTime(&tTime, NULL);
 
-  taosFprintfFile(pFile, "###################################################################\n");
-  taosFprintfFile(pFile, "# configDir:           %s\n",  configDir);
-  taosFprintfFile(pFile, "# dbName:              %s\n",  g_stConfInfo.dbName);
-  taosFprintfFile(pFile, "# showMsgFlag:         %d\n",  g_stConfInfo.showMsgFlag);
-  taosFprintfFile(pFile, "# consumeDelay:        %d\n",  g_stConfInfo.consumeDelay);
+  taosFprintfFile(g_fp, "###################################################################\n");
+  taosFprintfFile(g_fp, "# configDir:           %s\n",  configDir);
+  taosFprintfFile(g_fp, "# dbName:              %s\n",  g_stConfInfo.dbName);
+  taosFprintfFile(g_fp, "# cdbName:             %s\n",  g_stConfInfo.cdbName);
+  taosFprintfFile(g_fp, "# showMsgFlag:         %d\n",  g_stConfInfo.showMsgFlag);
+  taosFprintfFile(g_fp, "# showRowFlag:         %d\n",  g_stConfInfo.showRowFlag);
+  taosFprintfFile(g_fp, "# consumeDelay:        %d\n",  g_stConfInfo.consumeDelay);
+  taosFprintfFile(g_fp, "# numOfThread:         %d\n",  g_stConfInfo.numOfThread);
 
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {	  
-    taosFprintfFile(pFile, "# consumer %d info:\n", g_stConfInfo.stThreads[i].consumerId);
-	taosFprintfFile(pFile, "  Topics: ");
+    taosFprintfFile(g_fp, "# consumer %d info:\n", g_stConfInfo.stThreads[i].consumerId);
+	taosFprintfFile(g_fp, "  Topics: ");
     for (int i = 0 ; i < g_stConfInfo.stThreads[i].numOfTopic; i++) {
-    taosFprintfFile(pFile, "%s, ",  g_stConfInfo.stThreads[i].topics[i]);
+    taosFprintfFile(g_fp, "%s, ",  g_stConfInfo.stThreads[i].topics[i]);
     }
-    taosFprintfFile(pFile, "\n");  
-    taosFprintfFile(pFile, "  Key: ");
+    taosFprintfFile(g_fp, "\n");  
+    taosFprintfFile(g_fp, "  Key: ");
     for (int i = 0 ; i < g_stConfInfo.stThreads[i].numOfKey; i++) {
-      taosFprintfFile(pFile, "%s:%s, ",  g_stConfInfo.stThreads[i].key[i], g_stConfInfo.stThreads[i].value[i]);
+      taosFprintfFile(g_fp, "%s:%s, ",  g_stConfInfo.stThreads[i].key[i], g_stConfInfo.stThreads[i].value[i]);
     }
-    taosFprintfFile(pFile, "\n");
+    taosFprintfFile(g_fp, "\n");
   }
   
-  taosFprintfFile(pFile, "# Test time:                %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
+  taosFprintfFile(g_fp, "# Test time:                %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
                                                                            tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-  taosFprintfFile(pFile, "###################################################################\n");
+  taosFprintfFile(g_fp, "###################################################################\n");
 }
 
 void parseArgument(int32_t argc, char* argv[]) {
   memset(&g_stConfInfo, 0, sizeof(SConfInfo));
   g_stConfInfo.showMsgFlag = 0;
+  g_stConfInfo.showRowFlag = 0;
   g_stConfInfo.consumeDelay = 5;
 
   for (int32_t i = 1; i < argc; i++) {
@@ -138,10 +153,14 @@ void parseArgument(int32_t argc, char* argv[]) {
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
       strcpy(g_stConfInfo.dbName, argv[++i]);
+    } else if (strcmp(argv[i], "-w") == 0) {
+      strcpy(g_stConfInfo.cdbName, argv[++i]);
     } else if (strcmp(argv[i], "-c") == 0) {
       strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-g") == 0) {
       g_stConfInfo.showMsgFlag = atol(argv[++i]);
+    } else if (strcmp(argv[i], "-r") == 0) {
+      g_stConfInfo.showRowFlag = atol(argv[++i]);
     } else if (strcmp(argv[i], "-y") == 0) {
       g_stConfInfo.consumeDelay = atol(argv[++i]);
     } else {
@@ -150,11 +169,17 @@ void parseArgument(int32_t argc, char* argv[]) {
     }
   }
 
+  initLogFile();
+  
+  taosFprintfFile(g_fp, "====parseArgument() success\n");
+
 #if 1
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
   pPrint("%s dbName:%s %s", GREEN, g_stConfInfo.dbName, NC);
+  pPrint("%s cdbName:%s %s", GREEN, g_stConfInfo.cdbName, NC);
   pPrint("%s consumeDelay:%d %s", GREEN, g_stConfInfo.consumeDelay, NC);
   pPrint("%s showMsgFlag:%d %s", GREEN, g_stConfInfo.showMsgFlag, NC);
+  pPrint("%s showRowFlag:%d %s", GREEN, g_stConfInfo.showRowFlag, NC);
 #endif
 }
 
@@ -181,23 +206,28 @@ void ltrim(char* str) {
 }
 
 static int running = 1;
-static void msg_process(TAOS_RES* msg, int32_t msgIndex, int32_t threadLable) {
+static int32_t msg_process(TAOS_RES* msg, int64_t msgIndex, int32_t threadLable) {
   char buf[1024];
+  int32_t totalRows = 0;
 
   //printf("topic: %s\n", tmq_get_topic_name(msg));
   //printf("vg:%d\n", tmq_get_vgroup_id(msg));
-  taosFprintfFile(g_fp, "msg index:%d, threadLable: %d\n",  msgIndex, threadLable);
+  taosFprintfFile(g_fp, "msg index:%" PRId64 ", threadLable: %d\n",  msgIndex, threadLable);
   taosFprintfFile(g_fp, "topic: %s, vgroupId: %d\n",  tmq_get_topic_name(msg), tmq_get_vgroup_id(msg));
   
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
     if (row == NULL) break;
-    TAOS_FIELD* fields = taos_fetch_fields(msg);
-    int32_t     numOfFields = taos_field_count(msg);
-    //taos_print_row(buf, row, fields, numOfFields);
-    //printf("%s\n", buf);
-	//taosFprintfFile(g_fp, "%s\n",  buf);
+	if (0 != g_stConfInfo.showRowFlag) {
+      TAOS_FIELD* fields      = taos_fetch_fields(msg);
+      int32_t     numOfFields = taos_field_count(msg);
+      taos_print_row(buf, row, fields, numOfFields);
+  	  taosFprintfFile(g_fp, "rows[%d]: %s\n", totalRows, buf);
+	}
+	totalRows++;
   }
+
+  return totalRows;
 }
 
 int queryDB(TAOS* taos, char* command) {
@@ -213,27 +243,39 @@ int queryDB(TAOS* taos, char* command) {
   return 0;
 }
 
+static void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets) {
+  printf("tmq_commit_cb_print() commit %d\n", resp);
+}
+
 void build_consumer(SThreadInfo *pInfo) {
-  char sqlStr[1024] = {0};
-
-  TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  sprintf(sqlStr, "use %s", g_stConfInfo.dbName);
-  TAOS_RES* pRes = taos_query(pConn, sqlStr);
-  if (taos_errno(pRes) != 0) {
-    printf("error in use db, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    exit(-1);
-  }
-  taos_free_result(pRes);
-
   tmq_conf_t* conf = tmq_conf_new();
-  // tmq_conf_set(conf, "group.id", "tg2");
+
+  //tmq_conf_set(conf, "td.connect.ip", "localhost");
+  //tmq_conf_set(conf, "td.connect.port", "6030");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+
+  tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
+
+  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
+
+  // tmq_conf_set(conf, "group.id", "cgrp1");
   for (int32_t i = 0; i < pInfo->numOfKey; i++) {
     tmq_conf_set(conf, pInfo->key[i], pInfo->value[i]);
   }
-  pInfo->tmq = tmq_consumer_new(pConn, conf, NULL, 0);
+
+  //tmq_conf_set(conf, "client.id", "c-001");
+
+  //tmq_conf_set(conf, "enable.auto.commit", "true");
+  //tmq_conf_set(conf, "enable.auto.commit", "false");
+
+  //tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
+  
+  //tmq_conf_set(conf, "auto.offset.reset", "none");
+  //tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  //tmq_conf_set(conf, "auto.offset.reset", "latest");
+  
+  pInfo->tmq = tmq_consumer_new(conf, NULL, 0);
   return;
 }
 
@@ -253,10 +295,11 @@ int32_t saveConsumeResult(SThreadInfo *pInfo) {
   assert(pConn != NULL);
   
   // schema: ts timestamp, consumerid int, consummsgcnt bigint, checkresult int
-  sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %d)", 
-                               g_stConfInfo.dbName, 
+  sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %" PRId64 ", %d)", 
+                               g_stConfInfo.cdbName, 
                                pInfo->consumerId, 
                                pInfo->consumeMsgCnt, 
+                               pInfo->consumeRowCnt, 
                                pInfo->checkresult);
   
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
@@ -275,17 +318,17 @@ void loop_consume(SThreadInfo *pInfo) {
   tmq_resp_err_t err;
   
   int64_t totalMsgs = 0;
-  //int64_t totalRows = 0;
+  int64_t totalRows = 0;
 
   while (running) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, g_stConfInfo.consumeDelay * 1000);
     if (tmqMsg) {     
       if (0 != g_stConfInfo.showMsgFlag) {
-        msg_process(tmqMsg, totalMsgs, 0);
+        totalRows += msg_process(tmqMsg, totalMsgs, pInfo->consumerId);
       }
-      
-      tmq_message_destroy(tmqMsg);
-      
+
+      taos_free_result(tmqMsg);
+
       totalMsgs++;
       
       if (totalMsgs >= pInfo->expectMsgCnt) {
@@ -303,6 +346,9 @@ void loop_consume(SThreadInfo *pInfo) {
   }
 
   pInfo->consumeMsgCnt = totalMsgs;
+  pInfo->consumeRowCnt = totalRows;
+
+  taosFprintfFile(g_fp, "==== consumerId: %d, consumeMsgCnt: %"PRId64", consumeRowCnt: %"PRId64"\n", pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt);
   
 }
 
@@ -380,10 +426,12 @@ int32_t getConsumeInfo() {
   TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
   
-  sprintf(sqlStr, "select * from %s.consumeinfo", g_stConfInfo.dbName);
+  sprintf(sqlStr, "select * from %s.consumeinfo", g_stConfInfo.cdbName);
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
     printf("error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
+    taosFprintfFile(g_fp, "error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
+    taosCloseFile(&g_fp);  
     taos_free_result(pRes);
     exit(-1);
   }  
@@ -430,13 +478,14 @@ int32_t getConsumeInfo() {
 int main(int32_t argc, char* argv[]) {
   parseArgument(argc, argv);
   getConsumeInfo();
-  initLogFile();
+  saveConfigToLogFile();
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
   // pthread_create one thread to consume
+  taosFprintfFile(g_fp, "==== create %d consume thread ====\n", g_stConfInfo.numOfThread);	
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; ++i) {
     taosThreadCreate(&(g_stConfInfo.stThreads[i].thread), &thattr, consumeThreadFunc, (void *)(&(g_stConfInfo.stThreads[i])));
   }
@@ -447,7 +496,7 @@ int main(int32_t argc, char* argv[]) {
 
   //printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);	
   
-  taosFprintfFile(g_fp, "\n");	
+  taosFprintfFile(g_fp, "==== close tmqlog ====\n");	
   taosCloseFile(&g_fp);  
   
   return 0;

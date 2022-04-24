@@ -86,6 +86,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExplainOptions));
     case QUERY_NODE_STREAM_OPTIONS:
       return makeNode(type, sizeof(SStreamOptions));
+    case QUERY_NODE_TOPIC_OPTIONS:
+      return makeNode(type, sizeof(STopicOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -1009,6 +1011,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_NOT_LIKE:
     case OP_TYPE_MATCH:
     case OP_TYPE_NMATCH:
+    case OP_TYPE_JSON_CONTAINS:
     case OP_TYPE_IS_NULL:
     case OP_TYPE_IS_NOT_NULL:
     case OP_TYPE_IS_TRUE:
@@ -1027,7 +1030,6 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
-    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;

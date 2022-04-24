@@ -685,6 +685,43 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
 }
 
 /**
+ * @brief The invoker is responsible for memory alloc/dealloc.
+ *
+ * @param pBuilder
+ * @param pBuf Output buffer of STSRow
+ */
+static int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf) {
+  pBuilder->pBuf = (STSRow *)pBuf;
+  if (!pBuilder->pBuf) {
+    TASSERT(0);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  TASSERT(pBuilder->nBitmaps > 0 && pBuilder->flen > 0);
+
+  uint32_t len = 0;
+  switch (pBuilder->rowType) {
+    case TD_ROW_TP:
+#ifdef TD_SUPPORT_BITMAP
+      pBuilder->pBitmap = tdGetBitmapAddrTp(pBuilder->pBuf, pBuilder->flen);
+#endif
+      break;
+    case TD_ROW_KV:
+#ifdef TD_SUPPORT_BITMAP
+      pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols);
+#endif
+      break;
+    default:
+      TASSERT(0);
+      terrno = TSDB_CODE_INVALID_PARA;
+      return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+
+/**
  * @brief 由调用方管理存储空间的分配及释放，一次输入多个参数
  *
  * @param pBuilder
@@ -1322,7 +1359,7 @@ static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
   printf(">>>");
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
-    SCellVal  sVal = {.valType = 255, .val = NULL};
+    SCellVal  sVal = { 255, NULL};
     if (!tdSTSRowIterNext(&iter, stCol->colId, stCol->type, &sVal)) {
       break;
     }

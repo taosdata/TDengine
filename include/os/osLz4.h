@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   int32_t BUILDIN_CLZL(uint64_t val);
   int32_t BUILDIN_CLZ(uint32_t val);
   int32_t BUILDIN_CTZL(uint64_t val);

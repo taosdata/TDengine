@@ -14,14 +14,20 @@
  */
 
 #include <string>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <getopt.h>
 #include <gtest/gtest.h>
 
-#include "mockCatalog.h"
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
+#include "os.h"
 #include "parserTestUtil.h"
 #include "parToken.h"
 #include "functionMgt.h"
+#include "mockCatalog.h"
 
 bool g_isDump = false;
 

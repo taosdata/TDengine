@@ -229,28 +229,30 @@ typedef struct SFillNode {
 typedef struct SSelectStmt {
   ENodeType type; // QUERY_NODE_SELECT_STMT
   bool isDistinct;
-  SNodeList* pProjectionList; // SNode
+  SNodeList* pProjectionList;
   SNode* pFromTable;
   SNode* pWhere;
-  SNodeList* pPartitionByList; // SNode
+  SNodeList* pPartitionByList;
   SNode* pWindow;
   SNodeList* pGroupByList; // SGroupingSetNode
   SNode* pHaving;
   SNodeList* pOrderByList; // SOrderByExprNode
-  SNode* pLimit;
-  SNode* pSlimit;
+  SLimitNode* pLimit;
+  SLimitNode* pSlimit;
   char stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t precision;
   bool isEmptyResult;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
-  SET_OP_TYPE_UNION_ALL = 1
+  SET_OP_TYPE_UNION_ALL = 1,
+  SET_OP_TYPE_UNION
 } ESetOperatorType;
 
 typedef struct SSetOperator {
   ENodeType type; // QUERY_NODE_SET_OPERATOR
   ESetOperatorType opType;
+  SNodeList* pProjectionList;
   SNode* pLeft;
   SNode* pRight;
   SNodeList* pOrderByList; // SOrderByExprNode
@@ -283,12 +285,12 @@ typedef struct SVgDataBlocks {
 } SVgDataBlocks;
 
 typedef struct SVnodeModifOpStmt {
-  ENodeType   nodeType;
-  ENodeType   sqlNodeType;
-  SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
-  uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
-  const char* sql;                 // current sql statement position
+  ENodeType    nodeType;
+  ENodeType    sqlNodeType;
+  SArray*      pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
+  uint8_t      payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+  uint32_t     insertType;          // insert data from [file|sql statement| bound statement]
+  const char*  sql;                 // current sql statement position
 } SVnodeModifOpStmt;
 
 typedef struct SExplainOptions {

@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "vnodeInt.h"
-// TODO:replace by an abstract file layer
 // #include <fcntl.h>
 // #include <string.h>
 // #include <unistd.h>
@@ -87,7 +86,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
   }
   strcpy(pMeta->dirPath, path);
 
-  char name[pathLen + 10];
+  char *name = taosMemoryMalloc(pathLen + 10) ;
 
   strcpy(name, path);
   if (!taosDirExist(name) && taosMkDir(name) != 0) {
@@ -100,6 +99,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
     terrno = TAOS_SYSTEM_ERROR(errno);
     tqError("failed to open file:%s since %s ", name, terrstr());
     // free memory
+    taosMemoryFree(name);
     return NULL;
   }
 
@@ -107,6 +107,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
   pMeta->unpersistHead = taosMemoryCalloc(1, sizeof(STqMetaList));
   if (pMeta->unpersistHead == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    taosMemoryFree(name);
     return NULL;
   }
   pMeta->unpersistHead->unpersistNext = pMeta->unpersistHead->unpersistPrev = pMeta->unpersistHead;
@@ -117,8 +118,10 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tqError("failed to open file:%s since %s", name, terrstr());
+    taosMemoryFree(name);
     return NULL;
   }
+  taosMemoryFree(name);
 
   pMeta->pFile = pFile;
 

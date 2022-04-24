@@ -135,7 +135,7 @@ static FORCE_INLINE void taosHashEntryRUnlock(const SHashObj *pHashObj, SHashEnt
 }
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
-  int32_t len = MIN(length, HASH_MAX_CAPACITY);
+  int32_t len = (length < HASH_MAX_CAPACITY ? length : HASH_MAX_CAPACITY);
 
   int32_t i = 4;
   while (i < len) i = (i << 1u);

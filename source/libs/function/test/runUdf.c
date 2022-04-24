@@ -8,7 +8,8 @@
 #include "tdatablock.h"
 
 int main(int argc, char *argv[]) {
-    startUdfService();
+  UdfcHandle udfc;
+  udfcOpen(1, &udfc);
     uv_sleep(1000);
     char path[256] = {0};
     size_t cwdSize = 256;
@@ -20,9 +21,9 @@ int main(int argc, char *argv[]) {
     fprintf(stdout, "current working directory:%s\n", path);
     strcat(path, "/libudf1.so");
 
-    UdfHandle handle;
+    UdfcFuncHandle handle;
     SEpSet epSet;
-    setupUdf("udf1", &epSet, &handle);
+    setupUdf(udfc, "udf1", &epSet, &handle);
 
     SSDataBlock block = {0};
     SSDataBlock* pBlock = &block;
@@ -43,15 +44,18 @@ int main(int argc, char *argv[]) {
       }
       taosArrayPush(pBlock->pDataBlock, &colInfo);
     }
-    
-    SSDataBlock output = {0};
-    callUdfScalaProcess(handle, pBlock, &output);
 
-    SColumnInfoData *col = taosArrayGet(output.pDataBlock, 0);
-    for (int32_t i = 0; i < output.info.rows; ++i) {
+    SScalarParam input = {0};
+    input.numOfRows = pBlock->info.rows;
+    input.columnData = taosArrayGet(pBlock->pDataBlock, 0);
+    SScalarParam output = {0};
+    callUdfScalarFunc(handle, &input, 1 , &output);
+
+    SColumnInfoData *col = output.columnData;
+    for (int32_t i = 0; i < output.numOfRows; ++i) {
       fprintf(stderr, "%d\t%d\n" , i, *(int32_t*)(col->pData + i *sizeof(int32_t)));
     }
     teardownUdf(handle);
 
-    stopUdfService();
+    udfcClose(udfc);
 }

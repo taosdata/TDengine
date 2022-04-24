@@ -6,7 +6,7 @@
 
 # ---- db
 ./test.sh -f tsim/db/create_all_options.sim
-./test.sh -f tsim/db/alter_option.sim
+#./test.sh -f tsim/db/alter_option.sim
 ./test.sh -f tsim/db/basic1.sim
 ./test.sh -f tsim/db/basic2.sim
 ./test.sh -f tsim/db/basic3.sim
@@ -54,19 +54,10 @@
 ./test.sh -f tsim/table/basic1.sim
 
 # ---- tmq
-./test.sh -f tsim/tmq/basic.sim
-#./test.sh -f tsim/tmq/basic1.sim
-#./test.sh -f tsim/tmq/oneTopic.sim
-#./test.sh -f tsim/tmq/multiTopic.sim
-
-#./test.sh -f tsim/tmq/mainConsumerInMultiTopic.sim
-#./test.sh -f tsim/tmq/mainConsumerInOneTopic.sim
-
-#fail ./test.sh -f tsim/tmq/main2Con1Cgrp1TopicFrCtb.sim
-#fail ./test.sh -f tsim/tmq/main2Con1Cgrp1TopicFrStb.sim
-#./test.sh -f tsim/tmq/main2Con1Cgrp2TopicFrCtb.sim
-#./test.sh -f tsim/tmq/main2Con1Cgrp2TopicFrStb.sim
-
+./test.sh -f tsim/tmq/basic1.sim
+./test.sh -f tsim/tmq/basic2.sim
+./test.sh -f tsim/tmq/basic3.sim
+./test.sh -f tsim/tmq/basic4.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
@@ -85,12 +76,15 @@
 ./test.sh -f tsim/insert/backquote.sim -m
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim -m
 ./test.sh -f tsim/query/interval-offset.sim -m
-./test.sh -f tsim/tmq/basic.sim -m
+./test.sh -f tsim/tmq/basic1.sim -m
 ./test.sh -f tsim/stable/vnode3.sim -m
 ./test.sh -f tsim/qnode/basic1.sim -m
 ./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
 ./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+
+# --- valgrind
+./test.sh -f tsim/valgrind/checkError.sim -v
 
 #======================b1-end===============

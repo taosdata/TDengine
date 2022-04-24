@@ -13,12 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "parser.h"
 
 #include "parInt.h"
 #include "parToken.h"
 
-static bool isInsertSql(const char* pStr, size_t length) {
+bool isInsertSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+  
   int32_t index = 0;
 
   do {

@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "os.h"
 #include "ttokendef.h"
 
 // used to denote the minimum unite in sql parsing

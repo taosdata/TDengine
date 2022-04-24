@@ -14,12 +14,12 @@
  */
 
 #include "catalog.h"
-#include "scheduler.h"
 #include "clientInt.h"
-#include "clientStmt.h"
 #include "clientLog.h"
+#include "clientStmt.h"
 #include "os.h"
 #include "query.h"
+#include "scheduler.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
@@ -128,9 +128,23 @@ const char *taos_errstr(TAOS_RES *res) {
 }
 
 void taos_free_result(TAOS_RES *res) {
+  if (NULL == res) {
+    return;
+  }
+  
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     destroyRequest(pRequest);
+  } else if (TD_RES_TMQ(res)) {
+    SMqRspObj *pRsp = (SMqRspObj *)res;
+    if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
+    if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
+    if (pRsp->rsp.blockSchema) taosArrayDestroy(pRsp->rsp.blockSchema);
+    if (pRsp->rsp.blockTbName) taosArrayDestroy(pRsp->rsp.blockTbName);
+    if (pRsp->rsp.blockTags) taosArrayDestroy(pRsp->rsp.blockTags);
+    if (pRsp->rsp.blockTagSchema) taosArrayDestroy(pRsp->rsp.blockTagSchema);
+    pRsp->resInfo.pRspMsg = NULL;
+    doFreeReqResultInfo(&pRsp->resInfo);
   }
 }
 
@@ -177,25 +191,24 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doFetchRows(pRequest, true, true);
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj *msg = ((SMqRspObj *)res);
-    if (msg->resIter == -1) msg->resIter++;
-    SReqResultInfo *pResultInfo = taosArrayGet(msg->res, msg->resIter);
+    SMqRspObj      *msg = ((SMqRspObj *)res);
+    SReqResultInfo *pResultInfo;
+    if (msg->resIter == -1) {
+      pResultInfo = tmqGetNextResInfo(res, true);
+    } else {
+      pResultInfo = tmqGetCurResInfo(res);
+    }
     if (pResultInfo->current < pResultInfo->numOfRows) {
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
-      msg->resIter++;
-      if (msg->resIter < taosArrayGetSize(msg->res)) {
-        pResultInfo = taosArrayGet(msg->res, msg->resIter);
-        doSetOneRowPtr(pResultInfo);
-        pResultInfo->current += 1;
-        return pResultInfo->row;
-      } else {
-        return NULL;
-      }
+      pResultInfo = tmqGetNextResInfo(res, true);
+      if (pResultInfo == NULL) return NULL;
+      doSetOneRowPtr(pResultInfo);
+      pResultInfo->current += 1;
+      return pResultInfo->row;
     }
-
   } else {
     // assert to avoid un-initialization error
     ASSERT(0);
@@ -455,7 +468,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*numOfRows) = pResultInfo->numOfRows;
     return pRequest->code;
   } else if (TD_RES_TMQ(res)) {
-    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
+    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, true);
     if (pResultInfo == NULL) return -1;
 
     pResultInfo->current = pResultInfo->numOfRows;
@@ -474,7 +487,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   }
 
   if (TD_RES_TMQ(res)) {
-    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res);
+    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, false);
     if (pResultInfo == NULL) {
       (*numOfRows) = 0;
       return 0;
@@ -580,56 +593,6 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
   return stmtInit(taos);
 }
 
-int taos_stmt_close(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtClose(stmt);
-}
-
-int taos_stmt_execute(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtExec(stmt);
-}
-
-char *taos_stmt_errstr(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
-  }
-
-  return stmtErrstr(stmt);
-}
-
-int taos_stmt_affected_rows(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return 0;
-  }
-
-  return stmtAffectedRows(stmt);
-}
-
-int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind) {
-  if (stmt == NULL || bind == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtBind(stmt, bind);
-}
-
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (stmt == NULL || sql == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -640,14 +603,23 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   return stmtPrepare(stmt, sql, length);
 }
 
-int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND *tags) {
-  if (stmt == NULL || name == NULL || tags == NULL) {
+int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND_v2 *tags) {
+  if (stmt == NULL || name == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtSetTbNameTags(stmt, name, tags);
+  int32_t code = stmtSetTbName(stmt, name);
+  if (code) {
+    return code;
+  }
+
+  if (tags) {
+    return stmtSetTbTags(stmt, tags);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
@@ -657,7 +629,79 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
     return terrno;
   }
 
-  return stmtSetTbNameTags(stmt, name, NULL);
+  return stmtSetTbName(stmt, name);
+}
+
+int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
+  return taos_stmt_set_tbname(stmt, name);
+}
+
+int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (bind->num > 1) {
+    tscError("invalid bind number %d for %s", bind->num, __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  
+  return stmtBindBatch(stmt, bind, -1);
+}
+
+int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (bind->num <= 0 || bind->num > INT16_MAX) {
+    tscError("invalid bind num %d", bind->num);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtBindBatch(stmt, bind, -1);
+}
+
+int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx) {
+  if (stmt == NULL || bind == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  if (colIdx < 0) {
+    tscError("invalid bind column idx %d", colIdx);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  
+  return stmtBindBatch(stmt, bind, colIdx);
+}
+
+int taos_stmt_add_batch(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtAddBatch(stmt);
+}
+
+int taos_stmt_execute(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtExec(stmt);
 }
 
 int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
@@ -680,16 +724,6 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   return stmtGetParamNum(stmt, nums);
 }
 
-int taos_stmt_add_batch(TAOS_STMT *stmt) {
-  if (stmt == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  return stmtAddBatch(stmt);
-}
-
 TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -700,20 +734,32 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   return stmtUseResult(stmt);
 }
 
-int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  if (stmt == NULL || bind == NULL) {
+char *taos_stmt_errstr(TAOS_STMT *stmt) {
+  return (char *)stmtErrstr(stmt);
+}
+
+int taos_stmt_affected_rows(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return 0;
+  }
+
+  return stmtAffectedRows(stmt);
+}
+
+int taos_stmt_close(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtBindBatch(stmt, bind);
+  return stmtClose(stmt);
 }
-
 
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
   // TODO
   return NULL;
 }
-
 

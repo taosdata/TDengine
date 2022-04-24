@@ -139,7 +139,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-  if (taosRealPath(fullDir, PATH_MAX) != 0) {
+  if (taosRealPath(fullDir, NULL, PATH_MAX) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to get realpath of dir:%s since %s", inputDir, terrstr());
     return -1;

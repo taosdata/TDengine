@@ -98,7 +98,7 @@ static const SInfosTableSchema userFuncSchema[] = {
     {.name = "name", .bytes = TSDB_FUNC_NAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "comment", .bytes = PATH_MAX - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "aggregate", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "comment", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "output_type", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "code_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "bufsize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -199,15 +199,6 @@ static const SInfosTableSchema vgroupsSchema[] = {
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
-// TODO put into perf schema
-static const SInfosTableSchema topicSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-};
-
 static const SInfosTableSchema consumerSchema[] = {
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -291,7 +282,6 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
-    {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema)},
     {TSDB_INS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
     {TSDB_INS_TABLE_SUBSCRIBES, subscribeSchema, tListLen(subscribeSchema)},
     {TSDB_INS_TABLE_TRANS, transSchema, tListLen(transSchema)},
