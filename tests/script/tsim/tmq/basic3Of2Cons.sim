@@ -206,6 +206,8 @@ $consumerId    = 0
 $totalMsgOfCtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfCtb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+$consumerId    = 1
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -312,6 +314,8 @@ endi
 $consumerId    = 0
 $totalMsgOfNtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfNtb
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+$consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
 print == start consumer to pull msgs from ntb
