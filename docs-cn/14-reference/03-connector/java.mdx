@@ -9,9 +9,9 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-taos-jdbcdriver 是 TDengine 的官方 Java 语言连接器。Java 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。taos-jdbcdriver 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器。Java 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
 
-taos-jdbcdriver（2.0.18 和更高版本）也支持使用 REST 连接 TDengine 数据库。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver`（2.0.18 及更高版本）也支持使用 REST 连接 TDengine 数据库。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](/img/tdengine-jdbc-connector.png)
 
@@ -19,8 +19,9 @@ taos-jdbcdriver（2.0.18 和更高版本）也支持使用 REST 连接 TDengine 
 
 - JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 JDBC 原生连接的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
 - RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 REST 连接器，再调用客户端驱动 API。
-- JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点 2 的 REST 连接器。
+- JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 连接器。
 
+:::info
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
 
 - TDengine 目前不支持针对单条数据记录的删除操作。
