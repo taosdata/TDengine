@@ -309,10 +309,10 @@ static int32_t mndProcessCreateFuncReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  if (createReq.pCode[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
-    goto _OVER;
-  }
+//  if (createReq.pCode[0] == 0) {
+//    terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
+//    goto _OVER;
+//  }
 
   if (createReq.bufSize <= 0 || createReq.bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;

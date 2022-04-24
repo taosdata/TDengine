@@ -453,7 +453,7 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     strcpy(createReq.name, "udf1");
     char code[300] = {0};
     for (int32_t i = 0; i < sizeof(code); ++i) {
-      code[i] = i % 20;
+      code[i] = (i+1) % 20;
     }
     SetCode(&createReq, code, 300);
     SetComment(&createReq, "comment1");
@@ -507,7 +507,7 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     EXPECT_EQ(pFuncInfo->signature, 5);
     EXPECT_STREQ("comment1", pFuncInfo->pComment);
     for (int32_t i = 0; i < 300; ++i) {
-        EXPECT_EQ(pFuncInfo->pCode[i], i % 20);
+        EXPECT_EQ(pFuncInfo->pCode[i], (i+1) % 20);
     }
     tFreeSRetrieveFuncRsp(&retrieveRsp);
   }

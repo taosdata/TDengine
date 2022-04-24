@@ -1574,7 +1574,7 @@ int32_t tSerializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pReq
   }
   if (tEncodeI32(&encoder, codeSize) < 0) return -1;
   if (pReq->pCode != NULL) {
-    if (tEncodeCStr(&encoder, pReq->pCode) < 0) return -1;
+    if (tEncodeBinary(&encoder, pReq->pCode, codeSize) < 0) return -1;
   }
 
   int32_t commentSize = 0;
