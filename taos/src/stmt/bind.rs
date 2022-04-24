@@ -1,4 +1,5 @@
 use crate::*;
+use taos_query::common::Ty;
 use taos_sys::*;
 
 use chrono::{DateTime, NaiveDateTime};
@@ -24,7 +25,7 @@ impl IntoBindParam for BindParam {
     }
 }
 impl BindParam {
-    pub fn new(buffer_type: TaosDataType) -> Self {
+    pub fn new(buffer_type: Ty) -> Self {
         let buffer: *mut c_void = ptr::null_mut();
         let length: *mut usize = ptr::null_mut();
         let is_null: *mut c_int = ptr::null_mut();
@@ -42,7 +43,7 @@ impl BindParam {
         })
     }
     pub fn null() -> Self {
-        let mut null = Self::new(TaosDataType::Null);
+        let mut null = Self::new(Ty::Null);
         let v = Box::new(1i8);
         null.0.is_null = Box::into_raw(v) as _;
         null
@@ -74,7 +75,7 @@ macro_rules! _impl_primitive_into_bind_param {
     ($ty:ty, $target:ident, $v:expr) => {
         impl IntoBindParam for $ty {
             fn into_bind_param(self) -> BindParam {
-                let mut param = BindParam::new(TaosDataType::$target);
+                let mut param = BindParam::new(Ty::$target);
                 param.0.buffer_length = std::mem::size_of::<$ty>();
                 let v = Box::new(self);
                 param.0.buffer = Box::into_raw(v) as _;
@@ -142,7 +143,7 @@ impl<T: IntoBindParam, E: std::error::Error> IntoBindParam for std::result::Resu
 impl IntoBindParam for bool {
     fn into_bind_param(self) -> BindParam {
         let v: i8 = if self { 1 } else { 0 };
-        let mut param = BindParam::new(TaosDataType::Bool);
+        let mut param = BindParam::new(Ty::Bool);
         param.0.buffer_length = std::mem::size_of::<i8>();
         let v = Box::new(v);
         param.0.buffer = Box::into_raw(v) as _;
@@ -175,7 +176,7 @@ _impl_primitive_into_bind_param!(f64, Double, 0.);
 
 // impl IntoBindParam for &BStr {
 //     fn into_bind_param(self) -> BindParam {
-//         let mut param = BindParam::new(TaosDataType::Binary);
+//         let mut param = BindParam::new(Ty::Binary);
 //         param.0.buffer_length = self.len();
 
 //         let cstr = self.to_c_string();
@@ -198,7 +199,7 @@ _impl_primitive_into_bind_param!(f64, Double, 0.);
 
 impl IntoBindParam for &str {
     fn into_bind_param(self) -> BindParam {
-        let mut param = BindParam::new(TaosDataType::NChar);
+        let mut param = BindParam::new(Ty::NChar);
         param.0.buffer_length = self.len();
 
         let cstr = self.into_c_str();
@@ -219,7 +220,7 @@ _impl_ref_into_bind_param!(String);
 
 impl IntoBindParam for &SystemTime {
     fn into_bind_param(self) -> BindParam {
-        let mut param = BindParam::new(TaosDataType::Timestamp);
+        let mut param = BindParam::new(Ty::Timestamp);
         param.0.buffer_length = std::mem::size_of::<i64>();
         let duration = self
             .duration_since(std::time::UNIX_EPOCH)
@@ -236,7 +237,7 @@ _impl_ref_into_bind_param!(SystemTime);
 
 impl IntoBindParam for &NaiveDateTime {
     fn into_bind_param(self) -> BindParam {
-        let mut param = BindParam::new(TaosDataType::Timestamp);
+        let mut param = BindParam::new(Ty::Timestamp);
         param.0.buffer_length = std::mem::size_of::<i64>();
         let timestamp = self.timestamp_millis();
         // FIXME(@huolinhe): an global flag for precision should be setted.
@@ -251,7 +252,7 @@ _impl_ref_into_bind_param!(NaiveDateTime);
 
 impl<Tz: chrono::TimeZone> IntoBindParam for &DateTime<Tz> {
     fn into_bind_param(self) -> BindParam {
-        let mut param = BindParam::new(TaosDataType::Timestamp);
+        let mut param = BindParam::new(Ty::Timestamp);
         param.0.buffer_length = std::mem::size_of::<i64>();
         let timestamp = self.timestamp_millis();
         // FIXME(@huolinhe): an global flag for precision should be setted.
@@ -265,7 +266,7 @@ impl<Tz: chrono::TimeZone> IntoBindParam for &DateTime<Tz> {
 
 // impl IntoBindParam for &Timestamp {
 //     fn into_bind_param(self) -> BindParam {
-//         let mut param = BindParam::new(TaosDataType::Timestamp);
+//         let mut param = BindParam::new(Ty::Timestamp);
 //         param.0.buffer_length = std::mem::size_of::<i64>();
 //         let v = Box::new(self.timestamp);
 //         param.0.buffer = Box::into_raw(v) as _;
@@ -278,7 +279,7 @@ impl<Tz: chrono::TimeZone> IntoBindParam for &DateTime<Tz> {
 
 // impl IntoBindParam for &serde_json::Value {
 //     fn into_bind_param(self) -> BindParam {
-//         let mut param = BindParam::new(TaosDataType::Json);
+//         let mut param = BindParam::new(Ty::Json);
 
 //         let data = serde_json::to_vec(self).expect("json to u8 vector");
 //         param.0.buffer_length = data.len();

@@ -109,6 +109,7 @@ struct Attr {
     naming: Option<Literal>,
     precision: Option<Literal>,
     dropping: Option<Literal>,
+    log_level: Option<Literal>,
 }
 
 impl PartialEq for Attr {
@@ -186,6 +187,16 @@ impl Attr {
                         _ => unreachable!("expect {EXPECT}"),
                     }
                 }
+
+                TokenTree::Ident(ident) if ident.to_string() == "log_level" => {
+                    const EXPECT: &str = "`[test(drop = \"trace|debug|info|warn|error\")]`";
+                    let _ = iter.next();
+                    let value = iter.next().expect(EXPECT);
+                    match value {
+                        TokenTree::Literal(value) => attr.log_level = Some(value.clone()),
+                        _ => unreachable!("expect {EXPECT}"),
+                    }
+                }
                 TokenTree::Ident(ident) if ident.to_string() == "crate" => attr.use_crate = true,
                 _ => (),
             }
@@ -230,6 +241,23 @@ impl Attr {
         }
     }
 
+    fn log_level(&self) -> TokenStream {
+        match &self.log_level {
+            Some(log_level) => {
+                let s = log_level.to_string();
+                match s {
+                    s if s.contains("error") => quote!(log::LevelFilter::Error),
+                    s if s.contains("warn") => quote!(log::LevelFilter::Warn),
+                    s if s.contains("info") => quote!(log::LevelFilter::Info),
+                    s if s.contains("debug") => quote!(log::LevelFilter::Debug),
+                    s if s.contains("trace") => quote!(log::LevelFilter::Trace),
+                    _ => quote!(log::LevelFilter::Error)
+                }
+            }
+            None => quote!(log::LevelFilter::Error),
+        }
+    }
+
     fn with_params(&self, tokens: TokenStream) -> TokenStream {
         let Params {
             is_async,
@@ -242,6 +270,7 @@ impl Attr {
         let naming = self.naming_token_stream();
         let drop = self.drop_token_stream();
         let precision = self.precision_token_stream();
+        let log_level = self.log_level();
         let _crate = self.crate_token_stream();
         let databases = self.databases(&requires);
 
@@ -251,6 +280,7 @@ impl Attr {
                .precision(#precision)
                .dropping(#drop)
                .databases(#databases)
+               .log_level(#log_level)
                .build()?;
             let _taos = __taos.taos();
         };
@@ -278,7 +308,7 @@ impl Attr {
             (true, true) => {
                 quote! {
                     #[tokio::test]
-                    async fn #fn_name() -> #_crate::Result<()> {
+                    async fn #fn_name() -> anyhow::Result<()> {
                         #tokens
                         #builder.await?;
                         Ok(())
@@ -288,7 +318,7 @@ impl Attr {
             (true, false) => {
                 quote! {
                     #[tokio::test]
-                    async fn #fn_name() -> #_crate::Result<()> {
+                    async fn #fn_name() -> anyhow::Result<()> {
                         #tokens
                         #builder.await;
                         Ok(())
@@ -298,7 +328,7 @@ impl Attr {
             (false, true) => {
                 quote! {
                     #[std::prelude::v1::test]
-                    fn #fn_name() -> #_crate::Result<()> {
+                    fn #fn_name() -> anyhow::Result<()> {
                         #tokens
                         #builder?;
                         Ok(())
@@ -308,7 +338,7 @@ impl Attr {
             _ => {
                 quote! {
                     #[std::prelude::v1::test]
-                    fn #fn_name() -> #_crate::Result<()> {
+                    fn #fn_name() -> anyhow::Result<()> {
                         #tokens
                         #builder;
                         Ok(())
@@ -377,7 +407,7 @@ mod tests {
         let tokens = attr.with_params(fn_item);
         let expect = quote! {
             #[std::prelude::v1::test]
-            fn test_fn() -> taos::Result<()> {
+            fn test_fn() -> anyhow::Result<()> {
                 fn test_fn() { }
                 test_fn();
                 Ok(())
@@ -395,7 +425,7 @@ mod tests {
         let tokens = attr.with_params(fn_item);
         let expect = quote! {
             #[tokio::test]
-            async fn async_simple() -> taos::Result<()> {
+            async fn async_simple() -> anyhow::Result<()> {
                 async fn async_simple() { }
                 async_simple().await;
                 Ok(())
@@ -415,7 +445,7 @@ mod tests {
         let tokens = attr.with_params(fn_item);
         let expect = quote! {
             #[std::prelude::v1::test]
-            fn test() -> taos::Result<()> {
+            fn test() -> anyhow::Result<()> {
                 fn test() -> Result<()> {
                     Ok(())
                 }
@@ -437,11 +467,11 @@ mod tests {
         let tokens = attr.with_params(fn_item);
         let expect = quote! {
             #[tokio::test]
-            async fn test() -> taos::Result<()> {
+            async fn test() -> anyhow::Result<()> {
                 async fn test() -> Result<()> {
                     Ok(())
                 }
-                test()?;
+                test().await?;
                 Ok(())
             }
         };
@@ -464,6 +494,7 @@ mod tests {
                 naming: Some(Literal::string("random")),
                 precision: None,
                 dropping: Some(Literal::string("always")),
+                log_level: None,
             }
         );
 
@@ -471,7 +502,7 @@ mod tests {
             /// Comment.
             ///
             /// Long comment.
-            async fn test_a(taos: &Taos, database: &str) -> taos::Result<()> {
+            async fn test_a(taos: &Taos, database: &str) -> anyhow::Result<()> {
                 Ok(())
             }
         };
@@ -481,19 +512,19 @@ mod tests {
 
         let expect = quote! {
             #[tokio::test]
-            async fn test_a() -> taos::Result<()> {
+            async fn test_a() -> anyhow::Result<()> {
                 /// Comment.
                 ///
                 /// Long comment.
-                async fn test_a(taos: &Taos, database: &str) -> taos::Result<()> {
+                async fn test_a(taos: &Taos, database: &str) -> anyhow::Result<()> {
                     Ok(())
                 }
-                panic!(module_path!());
                 let __taos = taos::helpers::tests::Builder::default()
                        .naming("random")
                        .precision(())
                        .dropping("always")
-                       .databases(1)
+                       .databases(1usize)
+                       .log_level("warn")
                        .build()?;
                 let _taos = __taos.taos();
                 let _database = __taos.default_database();

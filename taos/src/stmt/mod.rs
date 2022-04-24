@@ -1,5 +1,5 @@
 use crate::{util::IntoCStr, Code, Error, Result, Taos, TaosResult};
-use taos_sys::*;
+use taos_sys::{*, ffi::*};
 
 use std::ffi::CStr;
 use std::os::raw::c_void;

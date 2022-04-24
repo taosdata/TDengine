@@ -30,7 +30,7 @@ pub enum BorrowedValue<'b> {
     MediumBlob(&'b [u8]),
 }
 
-impl<'de, 'b: 'de> Valuable<'de, 'b> for BorrowedValue<'b> {
+impl<'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'r, 'q> for BorrowedValue<'b> {
     #[inline]
     fn is_null(&self) -> bool {
         use BorrowedValue::*;
@@ -249,7 +249,25 @@ impl Value {
     }
 }
 
-impl<'de, 'b: 'de> Valuable<'de, 'b> for Value {
+impl<'b> crate::Valuable2<'b> for BorrowedValue<'b> {
+    fn is_null(&self) -> bool {
+      use BorrowedValue::*;
+        matches!(self, Null)
+    }
+
+    fn as_borrowed_value(&self) -> BorrowedValue<'b> {
+        todo!()
+    }
+
+    fn into_owned_value(self) -> crate::Value {
+        self.to_value()
+    }
+
+    fn ty(&self) -> Ty {
+        self.ty()
+    }
+}
+impl<'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'q, 'q> for Value {
     fn is_null(&self) -> bool {
         use Value::*;
         matches!(self, Null)
@@ -268,7 +286,7 @@ impl<'de, 'b: 'de> Valuable<'de, 'b> for Value {
     }
 }
 
-impl<'de, 'b: 'de> Valuable<'de, 'b> for &'b Value {
+impl<'de, 'v: 'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'r, 'q> for &'v Value {
     fn is_null(&self) -> bool {
         use Value::*;
         matches!(self, Null)

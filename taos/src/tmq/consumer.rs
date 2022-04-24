@@ -60,12 +60,13 @@ impl Consumer {
     }
 
     pub fn poll(&self, blocking_time: i64) -> Option<Message> {
-        let message = unsafe { tmq_consumer_poll(self.0, blocking_time) };
-        if message.is_null() {
-            None
-        } else {
-            Some(Message::new(self, message))
-        }
+        todo!()
+        // let message = unsafe { tmq_consumer_poll(self.0, blocking_time) };
+        // if message.is_null() {
+        //     None
+        // } else {
+        //     Some(Message::new(self, message))
+        // }
     }
 }
 

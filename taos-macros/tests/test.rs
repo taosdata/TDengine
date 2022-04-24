@@ -27,7 +27,7 @@ async fn with_precision(taos: &Taos, database: &str) -> Result<()> {
     let databases = taos.databases().await?;
     assert!(databases
         .iter()
-        .any(|db| db.name == database && db.props.precision.as_ref().unwrap().eq("ns")));
+        .any(|db| db.name == database && db.props.precision.as_ref().unwrap().as_str().eq("ns")));
     Ok(())
 }
 

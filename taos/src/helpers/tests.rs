@@ -3,7 +3,9 @@ use std::{io::Write, ops::Deref, str::FromStr, sync::Once};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 
-use crate::{helpers::Precision, Result, Taos, TaosOptions};
+use crate::{Result, Taos, TaosOptions};
+
+use taos_query::common::Precision;
 
 /// Used in [test(naming = "uuid-v1")] macro to choose database naming strategy
 #[derive(Debug)]
@@ -58,7 +60,7 @@ impl NamingStrategy {
                     .chars()
                     .collect();
                 for _ in 0..uuid.len() {
-                    log::error!("uuid: {}", String::from_iter(uuid.clone()));
+                    log::trace!("uuid: {}", String::from_iter(uuid.clone()));
                     if uuid[0].is_alphabetic() {
                         break;
                     } else {
@@ -193,9 +195,9 @@ impl PrecisionStrategy {
             Cyclic => {
                 static mut ITER: u64 = 0;
                 let p = match unsafe { ITER % 3 } {
-                    0 => Precision::Milliseconds,
-                    1 => Precision::Microseconds,
-                    2 => Precision::Nanoseconds,
+                    0 => Precision::Millisecond,
+                    1 => Precision::Microsecond,
+                    2 => Precision::Nanosecond,
                     _ => unreachable!(),
                 };
                 unsafe { ITER += 1 };
@@ -221,7 +223,7 @@ impl From<()> for PrecisionStrategy {
 
 impl Default for PrecisionStrategy {
     fn default() -> Self {
-        PrecisionStrategy::Preset(Precision::Milliseconds)
+        PrecisionStrategy::Preset(Precision::Millisecond)
     }
 }
 
@@ -246,13 +248,26 @@ impl FromStr for PrecisionStrategy {
         }
     }
 }
-#[derive(Debug, Default)]
+#[derive(Debug)]
 
 pub struct Builder {
     naming: NamingStrategy,
     precision: PrecisionStrategy,
     dropping: DroppingStrategy,
     databases: usize,
+    log_level: log::LevelFilter,
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self {
+            naming: Default::default(),
+            precision: Default::default(),
+            dropping: Default::default(),
+            databases: Default::default(),
+            log_level: log::LevelFilter::Error,
+        }
+    }
 }
 
 impl Builder {
@@ -267,6 +282,7 @@ impl Builder {
             precision: precision.into(),
             dropping: drop.into(),
             databases,
+            log_level: log::LevelFilter::Error,
         }
     }
 
@@ -286,13 +302,17 @@ impl Builder {
         self.databases = databases.into();
         self
     }
+    pub fn log_level(mut self, level: impl Into<log::LevelFilter>) -> Self {
+        self.log_level = level.into();
+        self
+    }
 
     pub fn build(self) -> Result<TaosWrapper> {
         static LOGGER_INIT: Once = Once::new();
         LOGGER_INIT.call_once(|| {
             pretty_env_logger::formatted_timed_builder()
                 .format_module_path(true)
-                .filter_level(log::LevelFilter::Trace)
+                .filter_level(self.log_level)
                 .format(|buf, record| -> std::result::Result<(), std::io::Error> {
                     fn colored_level<'a>(
                         style: &'a mut pretty_env_logger::env_logger::fmt::Style,

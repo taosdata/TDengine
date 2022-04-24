@@ -10,10 +10,14 @@ use std::{
 };
 
 use bitvec_simd::BitVec;
+use bstr::ByteSlice;
 use futures::Stream;
 use itertools::Itertools;
 
 use taos_sys::*;
+use taos_sys::ffi::*;
+
+use taos_query::common::*;
 
 use crate::{timestamp::TimestampValue, Error, Result, TaosResult};
 
@@ -55,6 +59,9 @@ pub struct Block<'a> {
     num_of_rows: i32,
 }
 
+unsafe impl<'a> Send for Block<'a> {}
+unsafe impl<'a> Sync for Block<'a> {}
+
 struct BlockState {
     /// Whether or not the sleep time has elapsed
     completed: bool,
@@ -73,13 +80,14 @@ impl<'a> Deref for Block<'a> {
 
 impl<'a> Block<'a> {
     #[inline]
-    fn new(result: &'a TaosResult<'a>, block: *mut TAOS_ROW, num_of_rows: i32) -> Self {
-        let lengths = unsafe { taos_fetch_lengths(result.as_raw()) };
+    fn new(result: &'a TaosResult<'a>, block:TAOS_ROW, num_of_rows: i32) -> Self {
+        let lengths = result.as_raw().fetch_lengths();
+        // let lengths = unsafe { taos_fetch_lengths(result.as_raw()) };
         let num_of_fields = result.num_of_fields();
         Self {
             result,
-            inner: unsafe { std::slice::from_raw_parts(block.read(), num_of_fields) },
-            lengths: unsafe { slice::from_raw_parts(lengths, num_of_fields) },
+            inner: unsafe { std::slice::from_raw_parts(block, num_of_fields) },
+            lengths,
             num_of_rows,
         }
     }
@@ -87,16 +95,16 @@ impl<'a> Block<'a> {
     #[inline]
     fn from_async_query(result: &'a TaosResult<'a>, num_of_rows: i32) -> Self {
         // let filed_count = unsafe { taos_num_fields(result) };
-        let block = unsafe { taos_result_block(result.as_raw()) };
+        let block = result.as_raw().block();
         Self::new(result, block, num_of_rows)
     }
 
     // for taos_fetch_block
-    fn from_query(result: &'a TaosResult<'a>) -> Self {
-        let block: *mut TAOS_ROW = Box::into_raw(Box::new(ptr::null_mut()));
-        let num_of_rows = unsafe { taos_fetch_block(result.as_raw(), block) };
-        Self::new(result, block, num_of_rows)
-    }
+    // fn from_query(result: &'a TaosResult<'a>) -> Result<Self> {
+    //     // let block: *mut TAOS_ROW = Box::into_raw(Box::new(ptr::null_mut()));
+    //     let (block , num_of_rows) = result.as_raw().fetch_block().expect("");
+    //     Self::new(result, block, num_of_rows)
+    // }
 
     pub const fn num_of_fields(&self) -> usize {
         self.lengths.len()
@@ -130,14 +138,14 @@ impl<'a> Block<'a> {
     }
 
     fn is_null(&self, row: usize, col: usize) -> bool {
-        unsafe { taos_is_null(self.result.as_raw(), row as _, col as _) }
+        self.result.as_raw().is_null(row as _, col as _)
     }
 
     unsafe fn get_str(&'a self, row: usize, col: usize) -> Result<Option<&'a str>> {
         let field = self.result.get_field_unchecked(col);
-        use TaosDataType::*;
-        let ty = field.type_();
-        if !matches!(field.type_(), NChar | TSDB_DATA_TYPE_BINARY | Json) {
+        use Ty::*;
+        let ty = field.ty();
+        if !matches!(field.ty(), NChar | VarChar | Json) {
             return Err(Error::from_string("unmatched data type pattern for string"));
         }
         let slice = self.inner.get_unchecked(col);
@@ -146,7 +154,7 @@ impl<'a> Block<'a> {
             Ok(None)
         } else {
             match ty {
-                TSDB_DATA_TYPE_BINARY | TaosDataType::NChar | TaosDataType::Json => {
+                VarChar | NChar | Json => {
                     let length = self.lengths.get_unchecked(col);
 
                     let ptr = (*slice as *const u8).offset(row as isize * *length as isize);
@@ -176,7 +184,7 @@ impl<'a> Block<'a> {
     unsafe fn get_value_unchecked<'block>(&self, row: usize, col: usize) -> BorrowedValue<'block> {
         let inner = self.inner.get_unchecked(col);
         let field = self.get_field_unchecked(col);
-        let is_null = taos_is_null(self.as_raw(), row as _, col as _);
+        let is_null = self.is_null(row, col);
         if is_null {
             return BorrowedValue::Null;
         }
@@ -191,22 +199,22 @@ impl<'a> Block<'a> {
             };
         }
 
-        match field.type_() {
-            TaosDataType::Null => BorrowedValue::Null,
-            TaosDataType::Bool => parse_cell!(Bool, bool),
-            TaosDataType::TinyInt => parse_cell!(TinyInt, i8),
-            TaosDataType::SmallInt => parse_cell!(SmallInt, i16),
-            TaosDataType::Int => parse_cell!(Int, i32),
-            TaosDataType::BigInt => parse_cell!(BigInt, i64),
-            TaosDataType::UTinyInt => parse_cell!(UTinyInt, u8),
-            TaosDataType::USmallInt => parse_cell!(USmallInt, u16),
-            TaosDataType::UInt => parse_cell!(UInt, u32),
-            TaosDataType::UBigInt => parse_cell!(UBigInt, u64),
-            TaosDataType::Float => parse_cell!(Float, f32),
-            TaosDataType::Double => parse_cell!(Double, f64),
-            TaosDataType::Timestamp => {
+        match field.ty() {
+            Ty::Null => BorrowedValue::Null,
+            Ty::Bool => parse_cell!(Bool, bool),
+            Ty::TinyInt => parse_cell!(TinyInt, i8),
+            Ty::SmallInt => parse_cell!(SmallInt, i16),
+            Ty::Int => parse_cell!(Int, i32),
+            Ty::BigInt => parse_cell!(BigInt, i64),
+            Ty::UTinyInt => parse_cell!(UTinyInt, u8),
+            Ty::USmallInt => parse_cell!(USmallInt, u16),
+            Ty::UInt => parse_cell!(UInt, u32),
+            Ty::UBigInt => parse_cell!(UBigInt, u64),
+            Ty::Float => parse_cell!(Float, f32),
+            Ty::Double => parse_cell!(Double, f64),
+            Ty::Timestamp => {
                 let raw = (*inner as *const i64).add(row).read();
-                BorrowedValue::Timestamp(TimestampValue::new(raw, self.precision()))
+                BorrowedValue::Timestamp(Timestamp::new(raw, self.precision()))
             }
             TSDB_DATA_TYPE_BINARY => {
                 let length = self.get_length_unchecked(col);
@@ -214,9 +222,9 @@ impl<'a> Block<'a> {
                 let len = ptr.cast::<i16>().read();
                 let start = ptr.offset(2);
 
-                BorrowedValue::Binary(slice::from_raw_parts(start, len as _))
+                BorrowedValue::VarChar(std::str::from_utf8_unchecked(slice::from_raw_parts(start, len as _)))
             }
-            TaosDataType::NChar => {
+            Ty::NChar => {
                 let length = self.get_length_unchecked(col);
 
                 let ptr = (*inner as *const u8).add(row * length as usize);
@@ -227,7 +235,7 @@ impl<'a> Block<'a> {
                     start as _, len as _,
                 )))
             }
-            TaosDataType::Json => {
+            Ty::Json => {
                 let length = self.get_length_unchecked(col);
                 let ptr = (*inner as *const u8).add(row * length as usize);
                 let len = ptr.cast::<i16>().read();
@@ -255,20 +263,20 @@ impl<'a> Block<'a> {
                 }
             };
         }
-        match field.type_() {
-            TaosDataType::Null => BorrowedColumn::Null(num_of_rows),
-            TaosDataType::Bool => column_transmute!(Bool, bool),
-            TaosDataType::TinyInt => column_transmute!(TinyInt, i8),
-            TaosDataType::SmallInt => column_transmute!(SmallInt, i16),
-            TaosDataType::Int => column_transmute!(Int, i32),
-            TaosDataType::BigInt => column_transmute!(BigInt, i64),
-            TaosDataType::UTinyInt => column_transmute!(UTinyInt, u8),
-            TaosDataType::USmallInt => column_transmute!(USmallInt, u16),
-            TaosDataType::UInt => column_transmute!(UInt, u32),
-            TaosDataType::UBigInt => column_transmute!(UBigInt, u64),
-            TaosDataType::Float => column_transmute!(Float, f32),
-            TaosDataType::Double => column_transmute!(Double, f64),
-            TaosDataType::Timestamp => {
+        match field.ty() {
+            Ty::Null => BorrowedColumn::Null(num_of_rows),
+            Ty::Bool => column_transmute!(Bool, bool),
+            Ty::TinyInt => column_transmute!(TinyInt, i8),
+            Ty::SmallInt => column_transmute!(SmallInt, i16),
+            Ty::Int => column_transmute!(Int, i32),
+            Ty::BigInt => column_transmute!(BigInt, i64),
+            Ty::UTinyInt => column_transmute!(UTinyInt, u8),
+            Ty::USmallInt => column_transmute!(USmallInt, u16),
+            Ty::UInt => column_transmute!(UInt, u32),
+            Ty::UBigInt => column_transmute!(UBigInt, u64),
+            Ty::Float => column_transmute!(Float, f32),
+            Ty::Double => column_transmute!(Double, f64),
+            Ty::Timestamp => {
                 let raw = std::slice::from_raw_parts(*inner as *const i64, num_of_rows);
                 BorrowedColumn::Timestamp(is_nulls, raw)
             }
@@ -289,7 +297,7 @@ impl<'a> Block<'a> {
 
                 BorrowedColumn::Binary(item)
             }
-            TaosDataType::NChar => {
+            Ty::NChar => {
                 let length = self.lengths.get_unchecked(col);
                 let item = (0..num_of_rows)
                     .map(|n| {
@@ -418,7 +426,7 @@ impl<'a> Stream for BlockStream<'a> {
             Poll::Ready(None)
         } else {
             let res = if s.result.is_null() {
-                self.result.as_raw()
+                self.result.as_raw().as_ptr()
             } else {
                 s.result
             };
