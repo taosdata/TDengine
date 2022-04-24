@@ -44,6 +44,7 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
 }
 
 int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
+  uint64_t len;
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pME->version) < 0) return -1;
@@ -58,7 +59,7 @@ int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI64(pCoder, &pME->ctbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ctbEntry.ttlDays) < 0) return -1;
     if (tDecodeI64(pCoder, &pME->ctbEntry.suid) < 0) return -1;
-    if (tDecodeBinary(pCoder, &pME->ctbEntry.pTags, NULL) < 0) return -1;  // (TODO)
+    if (tDecodeBinary(pCoder, &pME->ctbEntry.pTags, &len) < 0) return -1;  // (TODO)
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;

@@ -125,6 +125,8 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
     if (pTbCur->mr.me.type == META_SUPER_TABLE) {
       continue;
     }
+
+    break;
   }
 
   return 0;
