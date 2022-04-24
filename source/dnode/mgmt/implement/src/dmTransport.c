@@ -140,6 +140,12 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
+  if (msgType == TDMT_DND_NET_TEST) {
+    dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+    dmProcessServerStatusReq(pDnode, pMsg);
+    return;
+  }
+
   if (pDnode->status != DND_STAT_RUNNING) {
     dError("msg:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
     if (isReq) {

@@ -45,7 +45,7 @@ typedef struct {
 
 void taos_insert_call_back(void *param, TAOS_RES *tres, int code);
 void taos_select_call_back(void *param, TAOS_RES *tres, int code);
-void taos_error(TAOS *taos);
+void shellPrintError(TAOS *taos);
 
 static void queryDB(TAOS *taos, char *command) {
   int i;
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
 
   taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL)
-    taos_error(taos);
+    shellPrintError(taos);
 
   printf("success to connect to server\n");
 
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void taos_error(TAOS *con)
+void shellPrintError(TAOS *con)
 {
   fprintf(stderr, "TDengine error: %s\n", taos_errstr(con));
   taos_close(con);
