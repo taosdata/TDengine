@@ -52,9 +52,9 @@ static void shellWorkAsClient() {
     pArgs->port = tsServerPort;
   }
 
-  printf("net test client is initialized, the server to connect to is %s:%u\n", fqdn, pArgs->port);
+  printf("network test client is initialized, the server is %s:%u\n", fqdn, pArgs->port);
 
-  tstrncpy(epSet.eps[0].fqdn, pArgs->host, TSDB_FQDN_LEN);
+  tstrncpy(epSet.eps[0].fqdn, fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = (uint16_t)pArgs->port;
 
   int32_t  totalSucc = 0;
@@ -65,11 +65,14 @@ static void shellWorkAsClient() {
     rpcMsg.pCont = rpcMallocCont(pArgs->pktLen);
     rpcMsg.contLen = pArgs->pktLen;
 
-    printf("net test request is sent, size:%d\n", rpcMsg.contLen);
+    printf("request is sent, size:%d\n", rpcMsg.contLen);
     rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
-    printf("net test response is received, size:%d\n", rpcMsg.contLen);
-
-    if (rpcRsp.code == 0) totalSucc++;
+    if (rpcRsp.code == 0 &&rpcRsp.contLen == rpcMsg.contLen) {
+      printf("response is received, size:%d\n", rpcMsg.contLen);
+      if (rpcRsp.code == 0) totalSucc++;
+    } else {
+      printf("response not received since %s\n", terrstr());
+    }
 
     rpcFreeCont(rpcRsp.pCont);
     rpcRsp.pCont = NULL;
@@ -91,7 +94,8 @@ _OVER:
 }
 
 static void shellProcessMsg(void *p, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  printf("net test request is received, size:%d\n", pRpc->contLen);
+  printf("request is received, size:%d\n", pRpc->contLen);
+  fflush(stdout);
   SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = 0};
   rsp.pCont = rpcMallocCont(shell.args.pktLen);
   rsp.contLen = shell.args.pktLen;
@@ -117,7 +121,11 @@ static void shellWorkAsServer() {
     printf("failed to init net test server since %s", terrstr());
   }
 
-  printf("net test server is initialized, port:%u\n", pArgs->port);
+  if (pArgs->port == 0) {
+    pArgs->port = tsServerPort;
+  }
+
+  printf("network test server is initialized, port:%u\n", pArgs->port);
 
   taosSetSignal(SIGTERM, shellNettestHandler);
   while (1) taosMsleep(10);
