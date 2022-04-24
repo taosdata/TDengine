@@ -92,7 +92,7 @@ typedef struct SWalReadHead {
   int8_t  headVer;
   int8_t  reserved;
   int16_t msgType;
-  int32_t len;
+  int32_t bodyLen;
   int64_t ingestTs;  // not implemented
   int64_t version;
 

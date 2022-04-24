@@ -135,6 +135,7 @@ typedef struct {
   int32_t    failedTimes;
   void*      rpcHandle;
   void*      rpcAHandle;
+  int64_t    rpcRefId;
   void*      rpcRsp;
   int32_t    rpcRspLen;
   SArray*    redoLogs;

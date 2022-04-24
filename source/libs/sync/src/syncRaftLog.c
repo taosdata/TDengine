@@ -71,7 +71,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
     assert(walReadWithHandle(pWalHandle, index) == 0);
 
-    SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.len);
+    SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     assert(pEntry != NULL);
 
     pEntry->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
@@ -80,8 +80,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     pEntry->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
     pEntry->term = pWalHandle->pHead->head.syncMeta.term;
     pEntry->index = index;
-    assert(pEntry->dataLen == pWalHandle->pHead->head.len);
-    memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
+    assert(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
+    memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
     // need to hold, do not new every time!!
     walCloseReadHandle(pWalHandle);
