@@ -27,6 +27,7 @@
 #define OPTIMIZE_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SOptimizeContext {
+  SPlanContext* pPlanCxt;
   bool optimized;
 } SOptimizeContext;
 
@@ -515,9 +516,74 @@ static int32_t cpdPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SN
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
+static bool cpdIsPrimaryKey(SNode* pNode, SNodeList* pTableCols) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+    return false;
+  }
+  return cpdBelongThisTable(pNode, pTableCols);
+}
+
+static bool cpdIsPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+  SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
+  SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
+  SOperatorNode* pOper = (SOperatorNode*)pJoin->pOnConditions;
+  if (cpdIsPrimaryKey(pOper->pLeft, pLeftCols)) {
+    return cpdIsPrimaryKey(pOper->pRight, pRightCols);
+  } else if (cpdIsPrimaryKey(pOper->pLeft, pRightCols)) {
+    return cpdIsPrimaryKey(pOper->pRight, pLeftCols);
+  }
+  return false;
+}
+
+static int32_t cpdCheckOpCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode* pOnCond) {
+  if (!cpdIsPrimaryKeyEqualCond(pJoin, pOnCond)) {
+    snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "l.ts = r.ts is expected in join expression");
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SLogicConditionNode* pOnCond) {
+  if (LOGIC_COND_TYPE_AND != pOnCond->condType) {
+    snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "l.ts = r.ts is expected in join expression");
+    return TSDB_CODE_FAILED;
+  }
+  SNode* pCond = NULL;
+  FOREACH(pCond, pOnCond->pParameterList) {
+    if (!cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
+      snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "l.ts = r.ts is expected in join expression");
+      return TSDB_CODE_FAILED;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cpdCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (NULL == pJoin->pOnConditions) {
+    snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "not support cross join");
+    return TSDB_CODE_FAILED;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions)) {
+    return cpdCheckLogicCond(pCxt, pJoin, (SLogicConditionNode*)pJoin->pOnConditions);
+  } else {
+    return cpdCheckOpCond(pCxt, pJoin, pJoin->pOnConditions);
+  }
+}
+
 static int32_t cpdPushJoinCondition(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
-  if (NULL == pJoin->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_CPD)) {
+  if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_CPD)) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pJoin->node.pConditions) {
+    return cpdCheckJoinOnCond(pCxt, pJoin);
   }
 
   SNode* pOnCond = NULL;
@@ -537,6 +603,7 @@ static int32_t cpdPushJoinCondition(SOptimizeContext* pCxt, SJoinLogicNode* pJoi
   if (TSDB_CODE_SUCCESS == code) {
     OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_CPD);
     pCxt->optimized = true;
+    code = cpdCheckJoinOnCond(pCxt, pJoin);
   } else {
     nodesDestroyNode(pOnCond);
     nodesDestroyNode(pLeftChildCond);
@@ -703,8 +770,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
 
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
 
-static int32_t applyOptimizeRule(SLogicNode* pLogicNode) {
-  SOptimizeContext cxt = { .optimized = false };
+static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicNode* pLogicNode) {
+  SOptimizeContext cxt = { .pPlanCxt = pCxt, .optimized = false };
   do {
     cxt.optimized = false;
     for (int32_t i = 0; i < optimizeRuleNum; ++i) {
@@ -718,5 +785,5 @@ static int32_t applyOptimizeRule(SLogicNode* pLogicNode) {
 }
 
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode) {
-  return applyOptimizeRule(pLogicNode);
+  return applyOptimizeRule(pCxt, pLogicNode);
 }
