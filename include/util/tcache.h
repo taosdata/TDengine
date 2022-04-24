@@ -47,13 +47,13 @@ typedef struct STrashElem STrashElem;
 /**
  * initialize the cache object
  * @param keyType              key type
- * @param refreshTimeInSeconds refresh operation interval time, the maximum survival time when one element is expired
+ * @param refreshTimeInMs      refresh operation interval time, the maximum survival time when one element is expired
  *                             and not referenced by other objects
  * @param extendLifespan       auto extend lifespan, if accessed
  * @param fn                   free resource callback function
  * @return
  */
-SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn,
+SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLifespan, __cache_free_fn_t fn,
                          const char *cacheName);
 
 /**
@@ -111,7 +111,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove);
  * @param pCacheObj
  * @return
  */
-size_t taosCacheGetNumOfObj(const SCacheObj* pCacheObj);
+size_t taosCacheGetNumOfObj(const SCacheObj *pCacheObj);
 
 /**
  *  move all data node into trash, clear node in trash can if it is not referenced by any clients
@@ -145,11 +145,11 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void *param1);
  */
 void taosStopCacheRefreshWorker();
 
-SCacheIter* taosCacheCreateIter(const SCacheObj* pCacheObj);
-bool taosCacheIterNext(SCacheIter* pIter);
-void* taosCacheIterGetData(const SCacheIter* pIter, size_t* dataLen);
-void* taosCacheIterGetKey(const SCacheIter* pIter, size_t* keyLen);
-void taosCacheDestroyIter(SCacheIter* pIter);
+SCacheIter *taosCacheCreateIter(const SCacheObj *pCacheObj);
+bool        taosCacheIterNext(SCacheIter *pIter);
+void       *taosCacheIterGetData(const SCacheIter *pIter, size_t *dataLen);
+void       *taosCacheIterGetKey(const SCacheIter *pIter, size_t *keyLen);
+void        taosCacheDestroyIter(SCacheIter *pIter);
 
 #ifdef __cplusplus
 }

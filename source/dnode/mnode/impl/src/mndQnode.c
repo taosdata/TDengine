@@ -444,8 +444,8 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  qlistRsp.epSetList = taosArrayInit(5, sizeof(SEpSet));
-  if (NULL == qlistRsp.epSetList) {
+  qlistRsp.addrsList = taosArrayInit(5, sizeof(SQueryNodeAddr));
+  if (NULL == qlistRsp.addrsList) {
     mError("failed to alloc epSet while process qnode list req");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -455,11 +455,13 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
     void *pIter = sdbFetch(pSdb, SDB_QNODE, NULL, (void **)&pObj);
     if (pIter == NULL) break;
 
-    SEpSet epSet = {.numOfEps = 1};
-    tstrncpy(epSet.eps[0].fqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
-    epSet.eps[0].port = pObj->pDnode->port;
+    SQueryNodeAddr nodeAddr = {0};
+    nodeAddr.nodeId = QNODE_HANDLE;
+    nodeAddr.epSet.numOfEps = 1;
+    tstrncpy(nodeAddr.epSet.eps[0].fqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
+    nodeAddr.epSet.eps[0].port = pObj->pDnode->port;
 
-    (void)taosArrayPush(qlistRsp.epSetList, &epSet);
+    (void)taosArrayPush(qlistRsp.addrsList, &nodeAddr);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

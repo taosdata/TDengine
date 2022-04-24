@@ -44,7 +44,8 @@ typedef struct STopBotResItem {
 } STopBotResItem;
 
 typedef struct STopBotRes {
-  int32_t   num;
+  int32_t         pageId;
+//  int32_t   num;
   STopBotResItem *pItems;
 } STopBotRes;
 
@@ -138,11 +139,17 @@ bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   return true;
 }
 
-void functionFinalize(SqlFunctionCtx *pCtx) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
-  cleanupResultRowEntry(pResInfo);
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0)? 1:0;
+  cleanupResultRowEntry(pResInfo);
+
+  char* in = GET_ROWCELL_INTERBUF(pResInfo);
+  colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
+
+  return pResInfo->numOfRes;
 }
 
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
@@ -399,9 +406,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-void avgFinalize(SqlFunctionCtx* pCtx) {
-  functionFinalize(pCtx);
-
+int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
   SInputColumnInfoData* pInput = &pCtx->input;
   int32_t type = pInput->pData[0]->info.type;
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -410,6 +415,8 @@ void avgFinalize(SqlFunctionCtx* pCtx) {
   } else {
     pAvgRes->result = pAvgRes->sum.dsum / ((double) pAvgRes->count);
   }
+
+  return functionFinalize(pCtx, pBlock, slotId);
 }
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow){
@@ -790,9 +797,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-void stddevFinalize(SqlFunctionCtx* pCtx) {
-  functionFinalize(pCtx);
-
+int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
   SInputColumnInfoData* pInput = &pCtx->input;
   int32_t type = pInput->pData[0]->info.type;
   SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -804,6 +809,8 @@ void stddevFinalize(SqlFunctionCtx* pCtx) {
     avg = pStddevRes->dsum / ((double) pStddevRes->count);
     pStddevRes->result = sqrt(pStddevRes->quadraticDSum/((double)pStddevRes->count) - avg*avg);
   }
+
+  return functionFinalize(pCtx, pBlock, slotId);
 }
 
 bool getPercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -916,7 +923,7 @@ int32_t percentileFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-void percentileFinalize(SqlFunctionCtx* pCtx) {
+int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
   SVariant* pVal = &pCtx->param[1].param;
   double v = pVal->nType == TSDB_DATA_TYPE_INT ? pVal->i : pVal->d;
 
@@ -929,7 +936,7 @@ void percentileFinalize(SqlFunctionCtx* pCtx) {
   }
 
   tMemBucketDestroy(pMemBucket);
-  functionFinalize(pCtx);
+  return functionFinalize(pCtx, pBlock, slotId);
 }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -1333,11 +1340,8 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
 }
 
 bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  SColumnNode* pColNode = (SColumnNode*) nodesListGetNode(pFunc->pParameterList, 0);
-  int32_t bytes = pColNode->node.resType.bytes;
   SValueNode* pkNode = (SValueNode*) nodesListGetNode(pFunc->pParameterList, 1);
-
-  pEnv->calcMemSize = sizeof(STopBotRes) + pkNode->datum.i * bytes;
+  pEnv->calcMemSize = sizeof(STopBotRes) + pkNode->datum.i * sizeof(STopBotResItem);
   return true;
 }
 
@@ -1349,13 +1353,14 @@ static STopBotRes *getTopBotOutputInfo(SqlFunctionCtx *pCtx) {
   return pRes;
 }
 
-static void doAddIntoResult(STopBotRes *pRes, int32_t maxSize, void *pData, uint16_t type, uint64_t uid);
+static void doAddIntoResult(STopBotRes* pRes, int32_t maxSize, void* pData, int32_t rowIndex, SSDataBlock* pSrcBlock,
+                            uint16_t type, uint64_t uid, SResultRowEntryInfo* pEntryInfo);
 
 int32_t topFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = 0;
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STopBotRes *pRes = getTopBotOutputInfo(pCtx);
-  assert(pRes->num >= 0);
 
 //  if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotRes) + POINTER_BYTES * pCtx->param[0].i)) {
 //    buildTopBotStruct(pRes, pCtx);
@@ -1376,11 +1381,9 @@ int32_t topFunction(SqlFunctionCtx *pCtx) {
     numOfElems++;
 
     char* data = colDataGetData(pCol, i);
-    doAddIntoResult(pRes, pCtx->param[1].param.i, data, type, pInput->uid);
+    doAddIntoResult(pRes, pCtx->param[1].param.i, data, i, NULL, type, pInput->uid, pResInfo);
   }
 
-  // treat the result as only one result
-  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1411,7 +1414,9 @@ static int32_t topBotResComparFn(const void *p1, const void *p2, const void *par
   return (val1->v.d > val2->v.d) ? 1 : -1;
 }
 
-void doAddIntoResult(STopBotRes *pRes, int32_t maxSize, void *pData, uint16_t type, uint64_t uid) {
+
+void doAddIntoResult(STopBotRes *pRes, int32_t maxSize, void *pData, int32_t rowIndex, SSDataBlock* pSrcBlock, uint16_t type,
+    uint64_t uid, SResultRowEntryInfo* pEntryInfo) {
   SVariant val = {0};
   taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
 
@@ -1419,29 +1424,71 @@ void doAddIntoResult(STopBotRes *pRes, int32_t maxSize, void *pData, uint16_t ty
   assert(pItems != NULL);
 
   // not full yet
-  if (pRes->num < maxSize) {
-    STopBotResItem* pItem = &pItems[pRes->num];
+  if (pEntryInfo->numOfRes < maxSize) {
+    STopBotResItem* pItem = &pItems[pEntryInfo->numOfRes];
     pItem->v   = val;
     pItem->uid = uid;
     pItem->tuplePos.pageId = -1;  // todo set the corresponding tuple data in the disk-based buffer
 
-    pRes->num++;
-    taosheapsort((void *) pItem, sizeof(STopBotResItem), pRes->num, (const void *) &type, topBotResComparFn, false);
+    if (pRes->pageId == -1) {
+      SFilePage* pPage = getNewBufPage(NULL, 0, &pRes->pageId);
+      pPage->num = sizeof(SFilePage);
+
+      // keep the current row data
+      for(int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
+        SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
+        bool isNull = colDataIsNull_s(pCol, rowIndex);
+
+
+        colDataGetData(pCol, rowIndex);
+      }
+
+    }
+
+    // allocate the buffer and keep the data of this row into the new allocated buffer
+    pEntryInfo->numOfRes++;
+    taosheapsort((void *) pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void *) &type, topBotResComparFn, false);
   } else { // replace the minimum value in the result
     if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i > pItems[0].v.i) ||
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u > pItems[0].v.u) ||
         (IS_FLOAT_TYPE(type) && val.d > pItems[0].v.d)) {
-      STopBotResItem* pItem = &pItems[pRes->num];
+      STopBotResItem* pItem = &pItems[0];
       pItem->v   = val;
       pItem->uid = uid;
       pItem->tuplePos.pageId = -1;  // todo set the corresponding tuple data in the disk-based buffer
 
-      taosheapadjust((void *) pItem, sizeof(STopBotResItem), 0, pRes->num - 1, (const void *) &type, topBotResComparFn, NULL, false);
+      taosheapadjust((void *) pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void *) &type, topBotResComparFn, NULL, false);
     }
   }
 }
 
-void topBotFinalize(SqlFunctionCtx* pCtx) {
-  functionFinalize(pCtx);
+int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
+  SResultRowEntryInfo *pEntryInfo = GET_RES_INFO(pCtx);
+  STopBotRes* pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
+  pEntryInfo->complete = true;
 
+  int32_t type = pCtx->input.pData[0]->info.type;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  // todo assign the tag value and the corresponding row data
+  int32_t currentRow = pBlock->info.rows;
+  switch(type) {
+    case TSDB_DATA_TYPE_INT: {
+      for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
+        STopBotResItem* pItem = &pRes->pItems[i];
+        colDataAppendInt32(pCol, currentRow++, (int32_t*)&pItem->v.i);
+
+        int32_t pageId = pItem->tuplePos.pageId;
+        int32_t offset = pItem->tuplePos.offset;
+        if (pageId != -1) {
+          // todo
+        }
+      }
+      break;
+    }
+  }
+
+  return pEntryInfo->numOfRes;
+
+//  return functionFinalize(pCtx, pBlock, slotId);
 }

@@ -639,8 +639,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   }
 
   if (NULL != pSelect->pLimit) {
-    pProject->limit = ((SLimitNode*)pSelect->pLimit)->limit;
-    pProject->offset = ((SLimitNode*)pSelect->pLimit)->offset;
+    pProject->limit = pSelect->pLimit->limit;
+    pProject->offset = pSelect->pLimit->offset;
   } else {
     pProject->limit = -1;
     pProject->offset = -1;

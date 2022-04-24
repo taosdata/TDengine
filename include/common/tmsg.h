@@ -491,7 +491,7 @@ typedef struct {
   char    intervalUnit;
   char    slidingUnit;
   char
-          offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -639,12 +639,17 @@ int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
 typedef struct {
-  SArray* epSetList;  // SArray<SEpSet>
+  SArray* addrsList;  // SArray<SQueryNodeAddr>
 } SQnodeListRsp;
 
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
+
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  SEpSet  epSet;
+} SQueryNodeAddr;
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -718,7 +723,7 @@ typedef struct {
 
 int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
 int32_t tDeserializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
-void tFreeSFuncInfo(SFuncInfo *pInfo);
+void    tFreeSFuncInfo(SFuncInfo* pInfo);
 void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
@@ -1283,16 +1288,14 @@ typedef struct {
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  int8_t  igExists;
-  int8_t  withTbName;
-  int8_t  withSchema;
-  int8_t  withTag;
-  int8_t  withTagSchema;
-  char*   sql;
-  char*   ast;
-  int64_t subDbUid;
-  char    subscribeDbName[TSDB_DB_NAME_LEN];
+  char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
+  int8_t igExists;
+  int8_t withTbName;
+  int8_t withSchema;
+  int8_t withTag;
+  char*  sql;
+  char*  ast;
+  char   subscribeDbName[TSDB_DB_NAME_LEN];
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);

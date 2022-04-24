@@ -80,6 +80,9 @@ int32_t  tsTelemInterval = 86400;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
 
+// query
+int32_t tsQueryPolicy = 1;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -234,18 +237,20 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
-  snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+  if (taosIsDir(cfgDir)) {
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+  } else {
+    tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
+  }
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
     return -1;
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
-    if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
-      uInfo("cfg file:%s not read since %s", cfgFile, terrstr());
-      return 0;
-    }
+  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
+    uError("failed to load from cfg file:%s since %s", cfgFile, terrstr());
+    return -1;
   }
 
   if (cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile) != 0) {
@@ -322,6 +327,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
   tsNumOfTaskQueueThreads = TRANGE(tsNumOfTaskQueueThreads, 1, 2);
@@ -515,6 +521,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsMaxBinaryDisplayWidth = cfgGetItem(pCfg, "maxBinaryDisplayWidth")->i32;
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
+  tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   return 0;
 }
 
