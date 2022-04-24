@@ -31,37 +31,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 ## 支持的平台
 
-<table>
-  <tr align="center">
-    <th>对比项</th>
-    <th>JDBC 原生连接</th>
-    <th>JDBC-RESTful</th>
-  </tr>
-  <tr align="center">
-    <td>支持的操作系统</td>
-    <td>Linux、Windows</td>
-    <td>全平台</td>
-  </tr>
-  <tr align="center">
-    <td>是否需要安装 client</td>
-    <td>需要</td>
-    <td>不需要</td>
-  </tr>
-  <tr align="center">
-    <td>server 升级后是否需要升级 client</td>
-    <td>需要</td>
-    <td>不需要</td>
-  </tr>
-  <tr align="center">
-    <td>写入性能</td>
-    <td colspan="2">JDBC-RESTful 是 JDBC 原生连接的 50%～90% </td>
-  </tr>
-  <tr align="center">
-    <td>查询性能</td>
-    <td colspan="2">JDBC-RESTful 与 JDBC 原生连接没有差别</td>
-  </tr>
-</table>
-
+请参考[支持的平台列表](/reference/connector#支持的平台)
 **注意**：
 
 - 与原生连接方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 SQL 中指定表、超级表的数据库名称。例如：
@@ -74,17 +44,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## 版本支持
 
-| taos-jdbcdriver 版本 | TDengine 2.0.x.x 版本 | TDengine 2.2.x.x 版本 | TDengine 2.4.x.x 版本 | JDK 版本 |
-| -------------------- | --------------------- | --------------------- | --------------------- | -------- |
-| 2.0.38               | X                     | X                     | 2.4.0.14 及以上       | 1.8.x    |
-| 2.0.37               | X                     | X                     | 2.4.0.6 及以上        | 1.8.x    |
-| 2.0.36               | X                     | 2.2.2.11 及以上       | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.35               | X                     | 2.2.2.11 及以上       | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.33 - 2.0.34      | 2.0.3.0 及以上        | 2.2.0.0 及以上        | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.31 - 2.0.32      | 2.1.3.0 - 2.1.7.7     | X                     | X                     | 1.8.x    |
-| 2.0.22 - 2.0.30      | 2.0.18.0 - 2.1.2.1    | X                     | X                     | 1.8.x    |
-| 2.0.12 - 2.0.21      | 2.0.8.0 - 2.0.17.4    | X                     | X                     | 1.8.x    |
-| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.3     | X                     | X                     | 1.8.x    |
+请参考[版本支持列表](/reference/connector#版本支持)
 
 ## TDengine DataType 和 Java DataType
 
