@@ -95,14 +95,14 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
     if (initEpSetFromCfg(ip, NULL, &epSet) < 0) {
       return NULL;
     }
-
-    if (port) {
-      epSet.epSet.eps[0].port = port;
-    }
   } else {
     if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
       return NULL;
     }
+  }
+
+  if (port) {
+    epSet.epSet.eps[0].port = port;
   }
 
   char*          key = getClusterKey(user, secretEncrypt, ip, port);
@@ -439,7 +439,12 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
       return -1;
     }
 
-    taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
+    int32_t code = taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = TSDB_CODE_TSC_INVALID_FQDN;
+      return terrno;
+    }
+
     mgmtEpSet->numOfEps++;
   }
 

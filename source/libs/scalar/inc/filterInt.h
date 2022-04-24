@@ -186,6 +186,7 @@ typedef struct SFilterColCtx {
 
 typedef struct SFilterCompare {
   uint8_t       type;
+  int8_t        precision;
   uint8_t       optr;
   uint8_t       optr2;
 } SFilterCompare;
@@ -218,6 +219,7 @@ typedef struct SFltTreeStat {
   int32_t      code;
   int8_t       precision;
   bool         scalarMode;
+  SArray*      nodeList;
   SFilterInfo* info;
 } SFltTreeStat;
 
@@ -303,6 +305,7 @@ struct SFilterInfo {
 #define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
 #define FILTER_GET_COL_FIELD(i, idx) (&((i)->fields[FLD_TYPE_COLUMN].fields[idx]))
 #define FILTER_GET_COL_FIELD_TYPE(fi) (((SColumnNode *)((fi)->desc))->node.resType.type)
+#define FILTER_GET_COL_FIELD_PRECISION(fi) (((SColumnNode *)((fi)->desc))->node.resType.precision)
 #define FILTER_GET_COL_FIELD_SIZE(fi) (((SColumnNode *)((fi)->desc))->node.resType.bytes)
 #define FILTER_GET_COL_FIELD_ID(fi) (((SColumnNode *)((fi)->desc))->colId)
 #define FILTER_GET_COL_FIELD_SLOT_ID(fi) (((SColumnNode *)((fi)->desc))->slotId)
@@ -317,6 +320,7 @@ struct SFilterInfo {
 #define FILTER_UNIT_RIGHT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->right)
 #define FILTER_UNIT_RIGHT2_FIELD(i, u) FILTER_GET_FIELD(i, (u)->right2)
 #define FILTER_UNIT_DATA_TYPE(u) ((u)->compare.type)
+#define FILTER_UNIT_DATA_PRECISION(u) ((u)->compare.precision)
 #define FILTER_UNIT_COL_DESC(i, u) FILTER_GET_COL_FIELD_DESC(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_DATA(i, u, ri) FILTER_GET_COL_FIELD_DATA(FILTER_UNIT_LEFT_FIELD(i, u), ri)
 #define FILTER_UNIT_COL_SIZE(i, u) FILTER_GET_COL_FIELD_SIZE(FILTER_UNIT_LEFT_FIELD(i, u))

@@ -73,6 +73,12 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
     return -1;
   }
 
+  // sync integration
+  vnodeSyncSetQ(pImpl, NULL);
+  vnodeSyncSetRpc(pImpl, NULL);
+  int32_t ret = vnodeSyncStart(pImpl);
+  assert(ret == 0);
+
   taosWLockLatch(&pMgmt->latch);
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
   taosWUnLockLatch(&pMgmt->latch);
@@ -137,6 +143,7 @@ static void *vmOpenVnodeFunc(void *param) {
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
+    msgCb.queueFps[SYNC_QUEUE] = vmPutMsgToSyncQueue;  // sync integration
     msgCb.qsizeFp = vmGetQueueSize;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
     SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
@@ -266,6 +273,9 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   // walCleanUp();
   taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
+
+  // syncCleanUp();
+
   dInfo("vnode-mgmt is cleaned up");
 }
 
@@ -305,6 +315,12 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     goto _OVER;
   }
   dmReportStartup(pDnode, "vnode-wal", "initialized");
+
+  // sync integration
+  if (syncInit() != 0) {
+    dError("failed to open sync since %s", terrstr());
+    return -1;
+  }
 
   if (vnodeInit(tsNumOfCommitThreads) != 0) {
     dError("failed to init vnode since %s", terrstr());

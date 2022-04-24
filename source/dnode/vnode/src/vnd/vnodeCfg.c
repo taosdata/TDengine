@@ -82,6 +82,18 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
 
+  // sync integration
+  if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
+  SJson *pNodeInfoArr = tjsonCreateArray();
+  tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", pNodeInfoArr);
+  for (int i = 0; i < pCfg->syncCfg.replicaNum; ++i) {
+    SJson *pNodeInfo = tjsonCreateObject();
+    tjsonAddIntegerToObject(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort);
+    tjsonAddStringToObject(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
+    tjsonAddItemToArray(pNodeInfoArr, pNodeInfo);
+  }
+
   return 0;
 }
 
@@ -119,6 +131,21 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
+
+  // sync integration
+  if (tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
+
+  SJson *pNodeInfoArr = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
+  int    arraySize = tjsonGetArraySize(pNodeInfoArr);
+  assert(arraySize == pCfg->syncCfg.replicaNum);
+
+  for (int i = 0; i < arraySize; ++i) {
+    SJson *pNodeInfo = tjsonGetArrayItem(pNodeInfoArr, i);
+    assert(pNodeInfo != NULL);
+    tjsonGetNumberValue(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort);
+    tjsonGetStringValue(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
+  }
 
   return 0;
 }

@@ -38,11 +38,11 @@ typedef struct SRpcConnInfo {
 
 typedef struct SRpcMsg {
   tmsg_t  msgType;
-  void *  pCont;
+  void   *pCont;
   int     contLen;
   int32_t code;
-  void *  handle;         // rpc handle returned to app
-  void *  ahandle;        // app handle set by client
+  void   *handle;         // rpc handle returned to app
+  void   *ahandle;        // app handle set by client
   int     noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int     persistHandle;  // persist handle or not
 
@@ -54,8 +54,8 @@ typedef struct {
   uint16_t clientPort;
   SRpcMsg  rpcMsg;
   int32_t  rspLen;
-  void *   pRsp;
-  void *   pNode;
+  void    *pRsp;
+  void    *pNode;
 } SNodeMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
@@ -64,7 +64,7 @@ typedef int (*RpcRfp)(void *parent, SRpcMsg *, SEpSet *);
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
-  char *   label;         // for debug purpose
+  char    *label;         // for debug purpose
   int      numOfThreads;  // number of threads to handle connections
   int      sessions;      // number of sessions allowed
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
@@ -97,23 +97,23 @@ typedef struct {
 
 typedef struct {
   int32_t msgType;
-  void *  val;
+  void   *val;
   int32_t (*clone)(void *src, void **dst);
   void (*freeFunc)(const void *arg);
 } SRpcBrokenlinkVal;
 
 typedef struct {
-  SHashObj *        args;
+  SHashObj         *args;
   SRpcBrokenlinkVal brokenVal;
 } SRpcCtx;
 
 int32_t rpcInit();
 void    rpcCleanup();
-void *  rpcOpen(const SRpcInit *pRpc);
+void   *rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);
-void *  rpcMallocCont(int contLen);
+void   *rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);
-void *  rpcReallocCont(void *ptr, int contLen);
+void   *rpcReallocCont(void *ptr, int contLen);
 
 // Because taosd supports multi-process mode
 // These functions should not be used on the server side
