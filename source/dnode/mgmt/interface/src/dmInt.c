@@ -171,6 +171,14 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   }
 }
 
+void dmProcessNettestReq(SDnode *pDnode, SRpcMsg *pRpc) {
+  dDebug("net test req is received");
+  SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = 0};
+  rsp.pCont = rpcMallocCont(shell.args.pktLen);
+  rsp.contLen = shell.args.pktLen;
+  rpcSendResponse(&rsp);
+}
+
 void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("server status req is received");
 
