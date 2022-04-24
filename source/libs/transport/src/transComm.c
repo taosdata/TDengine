@@ -16,6 +16,8 @@
 
 #include "transComm.h"
 
+// static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+
 int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
   int       ret = -1;
@@ -361,5 +363,10 @@ void transQueueDestroy(STransQueue* queue) {
   transQueueClear(queue);
   taosArrayDestroy(queue->q);
 }
-
+// int32_t transGetExHandle() {
+//  static
+//}
+// void transThreadOnce() {
+// taosThreadOnce(&transModuleInit, );
+//}
 #endif
