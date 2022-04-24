@@ -7,7 +7,7 @@ project(
 )
 
 if (NOT DEFINED TD_SOURCE_DIR)
-  set( TD_SOURCE_DIR ${CMAKE_SOURCE_DIR} )
+  set( TD_SOURCE_DIR ${TD_COMMUNITY_DIR} )
 endif()
 
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
