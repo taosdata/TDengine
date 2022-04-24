@@ -881,6 +881,10 @@ void shellGetGrantInfo() {
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
 
+void shellSigintHandler(int32_t signum, void *sigInfo, void *context) {
+  // do nothing
+}
+
 void shellCleanup(void *arg) { taosResetTerminalMode(); }
 
 void *shellCancelHandler(void *arg) {
@@ -892,7 +896,7 @@ void *shellCancelHandler(void *arg) {
     }
 
     taosResetTerminalMode();
-    printf("\nReceive ctrl+c or other signal, quit shell.\n");
+    printf("\nReceive SIGTERM or other signal, quit shell.\n");
     shellWriteHistory();
     shellExit();
   }
@@ -974,9 +978,10 @@ int32_t shellExecute() {
   taosThreadCreate(&spid, NULL, shellCancelHandler, NULL);
 
   taosSetSignal(SIGTERM, shellQueryInterruptHandler);
-  taosSetSignal(SIGINT, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
+
+  taosSetSignal(SIGINT, shellSigintHandler);
 
   shellGetGrantInfo(shell.conn);
 
