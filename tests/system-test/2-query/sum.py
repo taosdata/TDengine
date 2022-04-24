@@ -56,7 +56,7 @@ class TDTestCase:
             where_condition = self.__where_condition(condition)
             group_condition = self.__group_condition(condition, having=f"{condition} is not null " )
 
-            tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
+            tdSql.query(f"select {condition} from {tbname} {where_condition} ")
             datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
             sum_data = sum(datas)
             tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} ")
