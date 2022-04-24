@@ -2091,10 +2091,15 @@ int32_t tDeserializeSQnodeListRsp(void *buf, int32_t bufLen, SQnodeListRsp *pRsp
   if (tStartDecode(&decoder) < 0) return -1;
   int32_t num = 0;
   if (tDecodeI32(&decoder, &num) < 0) return -1;
-  pRsp->addrsList = taosArrayInit(num, sizeof(SQueryNodeAddr));
-  if (NULL == pRsp->addrsList) return -1;
+  if (NULL == pRsp->addrsList) {
+    pRsp->addrsList = taosArrayInit(num, sizeof(SQueryNodeAddr));
+    if (NULL == pRsp->addrsList) return -1;
+  }
+  
   for (int32_t i = 0; i < num; ++i) {
-    if (tDecodeSQueryNodeAddr(&decoder, TARRAY_GET_ELEM(pRsp->addrsList, i)) < 0) return -1;
+    SQueryNodeAddr addr = {0};
+    if (tDecodeSQueryNodeAddr(&decoder, &addr) < 0) return -1;
+    taosArrayPush(pRsp->addrsList, &addr);
   }
   tEndDecode(&decoder);
 

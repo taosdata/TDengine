@@ -244,9 +244,8 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarCtx *ctx, int32_t *rowNum) {  
+int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarCtx *ctx, int32_t *paramNum, int32_t *rowNum) {  
   int32_t code = 0;
-  int32_t paramNum = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
       SSDataBlock *pBlock = taosArrayGet(ctx->pBlockList, 0);
@@ -255,14 +254,14 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
       *rowNum = 1;
     }
 
-    paramNum = 1;
+    *paramNum = 1;
   } else {
-    paramNum = pParamList->length;
+    *paramNum = pParamList->length;
   }
 
-  SScalarParam *paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
+  SScalarParam *paramList = taosMemoryCalloc(*paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
-    sclError("calloc %d failed", (int32_t)(paramNum * sizeof(SScalarParam)));
+    sclError("calloc %d failed", (int32_t)((*paramNum) * sizeof(SScalarParam)));
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -272,14 +271,13 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
     if (SCL_IS_CONST_CALC(ctx)) {
       WHERE_EACH (tnode, pParamList) { 
         if (!SCL_IS_CONST_NODE(tnode)) {
-          continue;
+          WHERE_NEXT;
         } else {
           SCL_ERR_JRET(sclInitParam(tnode, &paramList[i], ctx, rowNum));
           ERASE_NODE(pParamList);
         }
         
         ++i;
-        WHERE_NEXT;
       }
     } else {
       FOREACH(tnode, pParamList) { 
@@ -340,7 +338,8 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   SScalarParam *params = NULL;
   int32_t rowNum = 0;
-  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &rowNum));
+  int32_t paramNum = 0;
+  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
 
   output->columnData = createColumnInfoData(&node->node.resType, rowNum);
   if (output->columnData == NULL) {
@@ -348,7 +347,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  code = (*ffpSet.process)(params, node->pParameterList->length, output);
+  code = (*ffpSet.process)(params, paramNum, output);
   if (code) {
     sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
     SCL_ERR_JRET(code);
@@ -356,7 +355,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
 
 _return:
 
-  for (int32_t i = 0; i < node->pParameterList->length; ++i) {
+  for (int32_t i = 0; i < paramNum; ++i) {
 //    sclFreeParamNoData(params + i);
   }
 
@@ -382,8 +381,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
   SScalarParam *params = NULL;
   int32_t rowNum = 0;
+  int32_t paramNum = 0;
   int32_t code = 0;
-  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &rowNum));
+  SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
   if (NULL == params) {
     output->numOfRows = 0;
     return TSDB_CODE_SUCCESS;
@@ -400,10 +400,12 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   }
 
   bool value = false;
-  bool complete = false;
+  bool complete = true;
   for (int32_t i = 0; i < rowNum; ++i) {
-    for (int32_t m = 0; m < node->pParameterList->length; ++m) {
+    complete = true;
+    for (int32_t m = 0; m < paramNum; ++m) {
       if (NULL == params[m].columnData) {
+        complete = false;
         continue;
       }
       char* p = colDataGetData(params[m].columnData, i);
@@ -420,7 +422,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
       }
     }
 
-    colDataAppend(output->columnData, i, (char*) &value, false);
+    if (complete) {
+      colDataAppend(output->columnData, i, (char*) &value, false);
+    }
   }
 
   if (SCL_IS_CONST_CALC(ctx) && (false == complete)) {
@@ -430,7 +434,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
 _return:
 
-  for (int32_t i = 0; i < node->pParameterList->length; ++i) {
+  for (int32_t i = 0; i < paramNum; ++i) {
 //    sclFreeParamNoData(params + i);
   }
 

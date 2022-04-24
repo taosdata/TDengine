@@ -43,7 +43,7 @@ void qndClose(SQnode *pQnode) {
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
-  qTrace("message in query queue is processing");
+  qTrace("message in qnode query queue is processing");
   SReadHandle handle = {0};
 
   switch (pMsg->msgType) {
