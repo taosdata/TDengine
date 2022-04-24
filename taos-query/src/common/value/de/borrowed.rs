@@ -1,4 +1,3 @@
-
 use super::super::*;
 use super::*;
 use serde::{
@@ -108,8 +107,7 @@ impl<'b, 'de> serde::de::EnumAccess<'de> for EnumTimestampDeserializer<'b> {
     }
 }
 
-impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b>
-{
+impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b> {
     type Error = Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -134,9 +132,16 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b>
             Double(v) => visitor.visit_f64(v),
             VarChar(v) => visitor.visit_borrowed_str(v),
             NChar(v) => visitor.visit_borrowed_str(v),
-            Json(v) => serde_json::Deserializer::from_slice(v)
-                .deserialize_any(visitor)
-                .map_err(<Self::Error as de::Error>::custom),
+            Json(v) => match v {
+                Cow::Borrowed(v) => serde_json::Deserializer::from_slice(v)
+                    .deserialize_any(visitor)
+                    .map_err(<Self::Error as de::Error>::custom),
+                Cow::Owned(v) => serde_json::from_slice::<serde_json::Value>(&v)
+                    .map_err(<Self::Error as de::Error>::custom)?
+                    .into_deserializer()
+                    .deserialize_any(visitor)
+                    .map_err(<Self::Error as de::Error>::custom),
+            },
             Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
             VarBinary(v) | Blob(v) | MediumBlob(v) => visitor.visit_borrowed_bytes(v),
             _ => Err(<Self::Error as de::Error>::custom(
@@ -172,9 +177,14 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b>
             UBigInt(v) => visitor.visit_u64(v),
             Float(v) => visitor.visit_f32(v),
             Double(v) => visitor.visit_f64(v),
-            Json(v) => std::str::from_utf8(v)
-                .map_err(<Self::Error as serde::de::Error>::custom)
-                .and_then(|s| visitor.visit_borrowed_str(s)),
+            Json(v) => match v {
+                Cow::Borrowed(v) => std::str::from_utf8(v)
+                    .map_err(<Self::Error as serde::de::Error>::custom)
+                    .and_then(|s| visitor.visit_borrowed_str(s)),
+                Cow::Owned(v) => String::from_utf8(v)
+                    .map_err(<Self::Error as serde::de::Error>::custom)
+                    .and_then(|s| visitor.visit_string(s)),
+            },
             VarChar(v) | NChar(v) => visitor.visit_borrowed_str(v),
             Timestamp(v) => visitor.visit_string(
                 v.to_naive_datetime()
@@ -238,9 +248,16 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b>
             Double(v) => _v_!(v),
             VarChar(v) => _v_!(v),
             NChar(v) => _v_!(v),
-            Json(v) => serde_json::Deserializer::from_slice(v)
-                .deserialize_newtype_struct(_name, visitor)
-                .map_err(<Self::Error as de::Error>::custom),
+            Json(v) => match v {
+                Cow::Borrowed(v) => serde_json::Deserializer::from_slice(v)
+                    .deserialize_newtype_struct(_name, visitor)
+                    .map_err(<Self::Error as de::Error>::custom),
+                Cow::Owned(v) => serde_json::from_slice::<serde_json::Value>(&v)
+                    .map_err(<Self::Error as de::Error>::custom)?
+                    .into_deserializer()
+                    .deserialize_newtype_struct(_name, visitor)
+                    .map_err(<Self::Error as de::Error>::custom),
+            },
             Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
             VarBinary(v) | Blob(v) | MediumBlob(v) => visitor.visit_borrowed_bytes(v),
             _ => Err(<Self::Error as de::Error>::custom(
@@ -315,9 +332,16 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b>
         V: Visitor<'de>,
     {
         match self {
-            BorrowedValue::Json(json) => serde_json::Deserializer::from_slice(json)
-                .deserialize_struct(name, fields, visitor)
-                .map_err(<Self::Error as serde::de::Error>::custom),
+            BorrowedValue::Json(v) => match v {
+                Cow::Borrowed(v) => serde_json::Deserializer::from_slice(v)
+                    .deserialize_struct(name, fields, visitor)
+                    .map_err(<Self::Error as serde::de::Error>::custom),
+                Cow::Owned(v) => serde_json::from_slice::<serde_json::Value>(&v)
+                    .map_err(<Self::Error as de::Error>::custom)?
+                    .into_deserializer()
+                    .deserialize_struct(name, fields, visitor)
+                    .map_err(<Self::Error as de::Error>::custom),
+            },
             _ => self.deserialize_any(visitor),
         }
     }
@@ -331,11 +355,17 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b>
     where
         V: Visitor<'de>,
     {
-        dbg!(name, len);
         match self {
-            BorrowedValue::Json(json) => serde_json::Deserializer::from_slice(json)
-                .deserialize_tuple_struct(name, len, visitor)
-                .map_err(<Self::Error as serde::de::Error>::custom),
+            BorrowedValue::Json(v) => match v {
+                Cow::Borrowed(v) => serde_json::Deserializer::from_slice(v)
+                    .deserialize_tuple_struct(name, len, visitor)
+                    .map_err(<Self::Error as serde::de::Error>::custom),
+                Cow::Owned(v) => serde_json::from_slice::<serde_json::Value>(&v)
+                    .map_err(<Self::Error as de::Error>::custom)?
+                    .into_deserializer()
+                    .deserialize_tuple_struct(name, len, visitor)
+                    .map_err(<Self::Error as de::Error>::custom),
+            },
             _ => self.deserialize_any(visitor),
         }
     }
@@ -349,10 +379,17 @@ impl<'de, 'b: 'de> serde::de::IntoDeserializer<'de, Error> for BorrowedValue<'b>
     }
 }
 
-#[test]
-fn de_value_as_inner() {
-    use BorrowedValue::*;
-    macro_rules! _de_value {
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use serde_json::json;
+    use taos_macros::test;
+
+    #[test]
+    fn de_value_as_inner() {
+        use BorrowedValue::*;
+        macro_rules! _de_value {
             ($($v:expr, $ty:ty, $tv:expr) *) => {
                 $(
                     {
@@ -363,33 +400,33 @@ fn de_value_as_inner() {
             }
         }
 
-    _de_value!(
-        Null, Option<u8>, None
-        TinyInt(-1), i8, -1
-        SmallInt(-1), i16, -1
-        Int(0x0fff_ffff), i32, 0x0fff_ffff
-        BigInt(0xffffffff), i64, 0xffffffff
-        UTinyInt(0xff), u8, 0xff
-        USmallInt(0xffff), u16, 0xffff
-        UInt(0x_ffff_ffff), u32, 0x_ffff_ffff
-        UBigInt(0x_ffff_ffff_ffff_ffff), u64, 0x_ffff_ffff_ffff_ffff
-        Float(1.0), f32, 1.0
-        Double(f64::MAX), f64, f64::MAX
-        VarChar(""), String, "".to_string()
-        NChar(""), String, "".to_string()
-        Timestamp(super::super::Timestamp::Milliseconds(1)), super::super::Timestamp, super::super::Timestamp::Milliseconds(1)
-        VarBinary(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
-        Blob(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
-        MediumBlob(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
-    );
-}
+        _de_value!(
+            Null, Option<u8>, None
+            TinyInt(-1), i8, -1
+            SmallInt(-1), i16, -1
+            Int(0x0fff_ffff), i32, 0x0fff_ffff
+            BigInt(0xffffffff), i64, 0xffffffff
+            UTinyInt(0xff), u8, 0xff
+            USmallInt(0xffff), u16, 0xffff
+            UInt(0x_ffff_ffff), u32, 0x_ffff_ffff
+            UBigInt(0x_ffff_ffff_ffff_ffff), u64, 0x_ffff_ffff_ffff_ffff
+            Float(1.0), f32, 1.0
+            Double(f64::MAX), f64, f64::MAX
+            VarChar(""), String, "".to_string()
+            NChar(""), String, "".to_string()
+            Timestamp(crate::Timestamp::Milliseconds(1)), crate::Timestamp, crate::Timestamp::Milliseconds(1)
+            VarBinary(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
+            Blob(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
+            MediumBlob(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
+        );
+    }
 
-#[test]
-fn de_borrowed_str() {
-    use serde_json::json;
-    use BorrowedValue::*;
+    #[test]
+    fn de_borrowed_str() {
+        use serde_json::json;
+        use BorrowedValue::*;
 
-    macro_rules! _de_str {
+        macro_rules! _de_str {
             ($v:expr, is_err) => {
                 assert!(<&str>::deserialize(($v).into_deserializer()).is_err());
             };
@@ -412,32 +449,32 @@ fn de_borrowed_str() {
                 )*
             }
         }
-    _de_str! {
-        TinyInt(-1), is_err
-        SmallInt(-1), is_err
-        Int(-1), is_err
-        BigInt(-1), is_err
-        UTinyInt(1), is_err
-        USmallInt(1), is_err
-        UInt(1), is_err
-        UBigInt(1), is_err
-        Json(json!({ "name": "abc"}).to_string().as_bytes()), is_err
-        Json(json!(1).to_string().as_bytes()), is_err
-        Json(json!(null).to_string().as_bytes()), is_err
-        Json(json!("abc").to_string().as_bytes()), is_err
-        Timestamp(super::super::Timestamp::Milliseconds(0)), is_err
-        ;
-        Null, ""
-        VarChar("String"), "String"
-        VarChar("你好，世界"), "你好，世界"
-    };
-}
-#[test]
-fn de_string() {
-    use serde_json::json;
-    use BorrowedValue::*;
+        _de_str! {
+            TinyInt(-1), is_err
+            SmallInt(-1), is_err
+            Int(-1), is_err
+            BigInt(-1), is_err
+            UTinyInt(1), is_err
+            USmallInt(1), is_err
+            UInt(1), is_err
+            UBigInt(1), is_err
+            Json(json!({ "name": "abc"}).to_string().into_bytes().into()), is_err
+            Json(json!(1).to_string().into_bytes().into()), is_err
+            Json(json!(null).to_string().into_bytes().into()), is_err
+            Json(json!("abc").to_string().into_bytes().into()), is_err
+            Timestamp(crate::Timestamp::Milliseconds(0)), is_err
+            ;
+            Null, ""
+            VarChar("String"), "String"
+            VarChar("你好，世界"), "你好，世界"
+        };
+    }
+    #[test]
+    fn de_string() {
+        use serde_json::json;
+        use BorrowedValue::*;
 
-    macro_rules! _de_str {
+        macro_rules! _de_str {
             ($v:expr, is_err) => {
                 assert!(String::deserialize(($v).into_deserializer()).is_err());
             };
@@ -456,104 +493,105 @@ fn de_string() {
                 )*
             }
         }
-    _de_str! {
+        _de_str! {
 
-        TinyInt(-1), is_err
-        SmallInt(-1), is_err
-        Int(-1), is_err
-        BigInt(-1), is_err
-        UTinyInt(1), is_err
-        USmallInt(1), is_err
-        UInt(1), is_err
-        UBigInt(1), is_err
-        ;
+            TinyInt(-1), is_err
+            SmallInt(-1), is_err
+            Int(-1), is_err
+            BigInt(-1), is_err
+            UTinyInt(1), is_err
+            USmallInt(1), is_err
+            UInt(1), is_err
+            UBigInt(1), is_err
+            ;
 
-        Null, ""
-        Timestamp(super::super::Timestamp::Milliseconds(0)), "1970-01-01T00:00:00"
-        VarChar("String"), "String"
-        VarChar("你好，世界"), "你好，世界"
-        Json(json!("abc").to_string().as_bytes()), json!("abc").to_string()
-        Json(json!({ "name": "abc"}).to_string().as_bytes()), json!({ "name": "abc"}).to_string()
-        Json(json!(1).to_string().as_bytes()), json!(1).to_string()
-        Json(json!(null).to_string().as_bytes()), json!(null).to_string()
-    };
-}
-
-#[test]
-fn de_json() {
-    use serde_json::json;
-    use BorrowedValue::*;
-    std::env::set_var("RUST_LOG", "trace");
-    pretty_env_logger::init();
-
-    macro_rules! _de_json {
-        ($v:expr, $ty:ty, $tv:expr) => {{
-            let d = <$ty>::deserialize(Json($v.to_string().as_bytes()).into_deserializer())
-                .expect("de json");
-            assert_eq!(d, $tv);
-        }};
-    }
-
-    _de_json!(json!("string"), String, json!("string").to_string());
-
-    #[derive(Debug, PartialEq, Eq, Deserialize)]
-    struct Obj {
-        name: String,
-    }
-    _de_json!(
-        json!({ "name": "string" }),
-        Obj,
-        Obj {
-            name: "string".to_string()
-        }
-    );
-
-    #[derive(Debug, PartialEq, Eq, Deserialize)]
-    struct JsonStr(String);
-    _de_json!(json!("string"), JsonStr, JsonStr("string".to_string()));
-}
-
-#[test]
-fn de_newtype_struct() {
-    use serde_json::json;
-    use BorrowedValue::*;
-    std::env::set_var("RUST_LOG", "trace");
-    pretty_env_logger::init();
-
-    macro_rules! _de_ty {
-        ($v:expr, $ty:ty, $tv:expr) => {{
-            let d = <$ty>::deserialize($v.into_deserializer()).expect("de type");
-            assert_eq!(d, $tv);
-        }};
-    }
-    #[derive(Debug, PartialEq, Eq, Deserialize)]
-    struct JsonStr(String);
-    _de_ty!(
-        Json(json!("string").to_string().as_bytes()),
-        JsonStr,
-        JsonStr("string".to_string())
-    );
-
-    #[derive(Debug, PartialEq, Eq, Deserialize)]
-    struct Primi<T>(T);
-    _de_ty!(Json(json!(1).to_string().as_bytes()), Primi<i32>, Primi(1));
-    _de_ty!(TinyInt(1), Primi<i8>, Primi(1));
-    _de_ty!(SmallInt(1), Primi<i64>, Primi(1));
-    _de_ty!(Int(1), Primi<i64>, Primi(1));
-    _de_ty!(BigInt(1), Primi<i64>, Primi(1));
-
-    macro_rules! _de_prim {
-        ($v:ident, $ty:ty, $inner:literal) => {
-            println!(
-                "ty: {}, prim: {}",
-                stringify!($v),
-                std::any::type_name::<$ty>()
-            );
-            _de_ty!($v($inner), Primi<$ty>, Primi($inner));
+            Null, ""
+            Timestamp(crate::Timestamp::Milliseconds(0)), "1970-01-01T00:00:00"
+            VarChar("String"), "String"
+            VarChar("你好，世界"), "你好，世界"
+            Json(json!("abc").to_string().into_bytes().into()), json!("abc").to_string()
+            Json(json!({ "name": "abc"}).to_string().into_bytes().into()), json!({ "name": "abc"}).to_string()
+            Json(json!(1).to_string().into_bytes().into()), json!(1).to_string()
+            Json(json!(null).to_string().into_bytes().into()), json!(null).to_string()
         };
     }
 
-    macro_rules! _de_prim_cross {
+    #[test]
+    fn de_json() {
+        use serde_json::json;
+        use BorrowedValue::*;
+
+        macro_rules! _de_json {
+            ($v:expr, $ty:ty, $tv:expr) => {{
+                let d = <$ty>::deserialize(
+                    Json($v.to_string().into_bytes().into()).into_deserializer(),
+                )
+                .expect("de json");
+                assert_eq!(d, $tv);
+            }};
+        }
+
+        _de_json!(json!("string"), String, json!("string").to_string());
+
+        #[derive(Debug, PartialEq, Eq, Deserialize)]
+        struct Obj {
+            name: String,
+        }
+        _de_json!(
+            json!({ "name": "string" }),
+            Obj,
+            Obj {
+                name: "string".to_string()
+            }
+        );
+
+        #[derive(Debug, PartialEq, Eq, Deserialize)]
+        struct JsonStr(String);
+        _de_json!(json!("string"), JsonStr, JsonStr("string".to_string()));
+    }
+
+    #[test]
+    fn de_newtype_struct() {
+        use serde_json::json;
+        use BorrowedValue::*;
+        macro_rules! _de_ty {
+            ($v:expr, $ty:ty, $tv:expr) => {{
+                let d = <$ty>::deserialize($v.into_deserializer()).expect("de type");
+                assert_eq!(d, $tv);
+            }};
+        }
+        #[derive(Debug, PartialEq, Eq, Deserialize)]
+        struct JsonStr(String);
+        _de_ty!(
+            Json(json!("string").to_string().into_bytes().into()),
+            JsonStr,
+            JsonStr("string".to_string())
+        );
+
+        #[derive(Debug, PartialEq, Eq, Deserialize)]
+        struct Primi<T>(T);
+        _de_ty!(
+            Json(json!(1).to_string().into_bytes().into()),
+            Primi<i32>,
+            Primi(1)
+        );
+        _de_ty!(TinyInt(1), Primi<i8>, Primi(1));
+        _de_ty!(SmallInt(1), Primi<i64>, Primi(1));
+        _de_ty!(Int(1), Primi<i64>, Primi(1));
+        _de_ty!(BigInt(1), Primi<i64>, Primi(1));
+
+        macro_rules! _de_prim {
+            ($v:ident, $ty:ty, $inner:literal) => {
+                println!(
+                    "ty: {}, prim: {}",
+                    stringify!($v),
+                    std::any::type_name::<$ty>()
+                );
+                _de_ty!($v($inner), Primi<$ty>, Primi($inner));
+            };
+        }
+
+        macro_rules! _de_prim_cross {
             ($($vty:ident) +, $tt:ty) => {
                 $(
                   _de_prim!($vty, $tt, 1);
@@ -568,5 +606,6 @@ fn de_newtype_struct() {
                 _de_prim_cross!(i8 i16 i32 i64 u8 u16 u32 u64);
             };
         }
-    _de_prim_cross!();
+        _de_prim_cross!();
+    }
 }

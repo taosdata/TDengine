@@ -2,8 +2,6 @@
 //!
 
 use std::fmt::Debug;
-use std::iter::FlatMap;
-use std::marker::PhantomData;
 
 pub mod common;
 mod de;
@@ -11,7 +9,6 @@ pub mod helpers;
 mod insert;
 
 use common::*;
-use de::RecordDeserializer;
 use helpers::*;
 
 pub enum CodecOpts {
@@ -19,7 +16,12 @@ pub enum CodecOpts {
     Parquet,
 }
 
-pub trait Valuable2<'b>: serde::de::Deserializer<'b> {
+pub trait BlockCodec {
+    fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
+    fn decode(from: &[u8], _codec: CodecOpts) -> Self;
+}
+
+pub trait Valuable<'b>: serde::de::Deserializer<'b> {
     /// Check if the value is null or not.
     fn is_null(&self) -> bool;
 
@@ -33,13 +35,13 @@ pub trait Valuable2<'b>: serde::de::Deserializer<'b> {
     fn into_owned_value(self) -> Value;
 }
 
-pub struct CellIter<'b, T: BlockExt2<'b>> {
+pub struct CellIter<'b, T: BlockExt<'b>> {
     block: &'b T,
     row: usize,
     col: usize,
 }
 
-impl<'b, T: BlockExt2<'b>> Iterator for CellIter<'b, T> {
+impl<'b, T: BlockExt<'b>> Iterator for CellIter<'b, T> {
     type Item = (&'b Field, T::Value);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -54,14 +56,14 @@ impl<'b, T: BlockExt2<'b>> Iterator for CellIter<'b, T> {
 }
 
 #[derive(Debug)]
-pub struct Row2<'b, T: BlockExt2<'b>> {
+pub struct RowInBlock<'b, T: BlockExt<'b>> {
     block: &'b T,
     row: usize,
 }
 
-impl<'b, T> IntoIterator for Row2<'b, T>
+impl<'b, T> IntoIterator for RowInBlock<'b, T>
 where
-    T: BlockExt2<'b>,
+    T: BlockExt<'b>,
 {
     type Item = (&'b Field, T::Value);
 
@@ -76,23 +78,23 @@ where
     }
 }
 
-pub struct RowIter2<'b, T: BlockExt2<'b>> {
+pub struct RowsIter<'b, T: BlockExt<'b>> {
     block: &'b T,
     row: usize,
 }
 
-impl<'b, T> Iterator for RowIter2<'b, T>
+impl<'b, T> Iterator for RowsIter<'b, T>
 where
-    T: BlockExt2<'b>,
+    T: BlockExt<'b>,
 {
-    type Item = Row2<'b, T>;
+    type Item = RowInBlock<'b, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let row = self.row;
 
         if row < self.block.num_of_rows() {
             self.row += 1;
-            Some(Row2 {
+            Some(RowInBlock {
                 block: self.block,
                 row,
             })
@@ -102,10 +104,13 @@ where
     }
 }
 
-pub trait BlockExt2<'b>: Debug + Sized
+type DeserializeIter<'b, B, T> =
+    std::iter::Map<RowsIter<'b, B>, fn(RowInBlock<'b, B>) -> Result<T, serde::de::value::Error>>;
+pub trait BlockExt<'b>: Debug + Sized
 where
-    Self::Value: Valuable2<'b>,
+    Self::Value: Valuable<'b>,
 {
+    type Value;
     /// A block should container number of rows.
     fn num_of_rows(&self) -> usize;
 
@@ -117,12 +122,16 @@ where
     fn is_null(&self, row: usize, col: usize) -> bool;
 
     /// Get field without column index check.
+    ///
+    /// # Safety
+    ///
+    /// This should not be called manually, please use [get_field](#method.get_field).
     unsafe fn get_field_unchecked(&self, col: usize) -> &Field {
         self.fields().get_unchecked(col)
     }
 
     /// Get field of one column.
-    unsafe fn get_field(&self, col: usize) -> Option<&Field> {
+    fn get_field(&self, col: usize) -> Option<&Field> {
         self.fields().get(col)
     }
 
@@ -131,13 +140,14 @@ where
         self.fields().len()
     }
 
+    /// # Safety
+    ///
+    /// **DO NOT** call it directly.
     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, Self::Value);
 
-    type Value;
-
     /// Query by rows.
-    fn iter_rows(&'b self) -> RowIter2<'b, Self> {
-        RowIter2 {
+    fn iter_rows(&'b self) -> RowsIter<'b, Self> {
+        RowsIter {
             block: self,
             row: 0,
         }
@@ -146,52 +156,57 @@ where
     /// Deserialize a row to a record type(primitive type or a struct).
     ///
     /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
-    fn deserialize<T>(
-        &'b self,
-    ) -> std::iter::Map<RowIter2<'b, Self>, fn(Row2<'b, Self>) -> Result<T, serde::de::value::Error>>
+    fn deserialize<T>(&'b self) -> DeserializeIter<'b, Self, T>
     where
         T: serde::de::Deserialize<'b>,
     {
         self.iter_rows().map(|row| {
-            let de = de::de2::RecordDeserializer::from(row);
+            let de = de::RecordDeserializer::from(row);
             T::deserialize(de)
         })
     }
     /// Deserialize a row to a record type(primitive type or a struct).
     ///
     /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
-    fn deserialize_owned<T>(
-        &'b self,
-    ) -> std::iter::Map<RowIter2<'b, Self>, fn(Row2<'b, Self>) -> Result<T, serde::de::value::Error>>
+    fn deserialize_owned<T>(&'b self) -> DeserializeIter<'b, Self, T>
     where
         T: serde::de::DeserializeOwned,
     {
         self.iter_rows().map(|row| {
-            let de = de::de2::RecordDeserializer::from(row);
+            let de = de::RecordDeserializer::from(row);
             T::deserialize(de)
         })
     }
 }
 
-pub struct BlockIter2<'i, 'r, R: Rs2<'r>>(&'i mut R, PhantomData<&'r u8>);
+// pub struct BlocksIter<'i, 'r, R: ResultSet<'r>>(&'i mut R, PhantomData<&'r u8>);
 
-impl<'i, 'r, R> Iterator for BlockIter2<'i, 'r, R>
+// impl<'i, 'r, R> Iterator for BlocksIter<'i, 'r, R>
+// where
+//     R: ResultSet<'r>,
+// {
+//     type Item = R::Block;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.0.fetch_block()
+//     }
+// }
+
+// type FlatDeserializeIter<'i, 'r, R, T> = std::iter::FlatMap<
+//     // BlocksIter<'i, 'r, R>,
+//     &'i mut R,
+//     Vec<Result<T, serde::de::value::Error>>,
+//     fn(<R as ResultSet>::Block) -> Vec<Result<T, serde::de::value::Error>>,
+// >;
+pub trait ResultSet
 where
-    R: Rs2<'r>,
-{
-    type Item = R::Block;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.fetch_block()
-    }
-}
-
-pub trait Rs2<'r>
-where
-    for<'b> <Self::Block as BlockExt2<'b>>::Value: Valuable2<'b>,
+    // for<'b> <Self::Block as BlockExt<'b>>::Value: Valuable<'b>,
     Self: Sized,
+    for<'r> &'r mut Self: Iterator,
+    for<'b, 'r> <&'r mut Self as Iterator>::Item: BlockExt<'b>,
+    for<'b, 'r> <<&'r mut Self as Iterator>::Item as BlockExt<'b>>::Value: Valuable<'b>,
 {
-    type Block: for<'b> BlockExt2<'b> + 'r;
+    // type Block: for<'b> BlockExt<'b>;
 
     fn fields(&self) -> &[Field];
 
@@ -203,30 +218,47 @@ where
 
     fn summary(&self) -> (usize, usize);
 
-    fn fetch_block(&mut self) -> Option<Self::Block>;
+    // fn fetch_block(&mut self) -> Option<<&mut Self as Iterator>Block>;
 
-    fn block_iter(&mut self) -> BlockIter2<'_, 'r, Self> {
-        BlockIter2(self, PhantomData)
+    fn blocks_iter(&mut self) -> &mut Self {
+        self
     }
 
-    fn deserialize2<'i, T>(
-        &'i mut self,
+    // fn rows_iter(
+    //     &mut self,
+    // ) -> std::iter::FlatMap<
+    //     &mut Self,
+    //     RowsIter<'_, <&mut Self as Iterator>::Item>,
+    //     fn(<&mut Self as Iterator>::Item) -> RowsIter<'_, <&mut Self as Iterator>::Item>,
+    // > {
+    //     self.flat_map(|block| block.iter_rows())
+    // }
+
+    fn deserialize<T>(
+        &mut self,
     ) -> std::iter::FlatMap<
-        BlockIter2<'i, 'r, Self>,
+        &mut Self,
         Vec<Result<T, serde::de::value::Error>>,
-        fn(Self::Block) -> Vec<Result<T, serde::de::value::Error>>,
+        fn(<&mut Self as Iterator>::Item) -> Vec<Result<T, serde::de::value::Error>>,
     >
     where
         T: serde::de::DeserializeOwned,
     {
-        self.block_iter()
-            .flat_map(|block| block.deserialize_owned::<T>().collect())
+        // self.blocks_iter()
+        self.flat_map(|block| block.deserialize_owned::<T>().collect())
     }
 }
-pub trait Queryable2<'r, 'q>: Debug {
+
+/// The synchronous query trait for TDengine connection.
+pub trait Queryable<'q>: Debug
+where
+    for<'r> &'r mut Self::ResultSet: Iterator,
+    for<'b, 'r> <&'r mut Self::ResultSet as Iterator>::Item: BlockExt<'b>,
+    for<'b, 'r> <<&'r mut Self::ResultSet as Iterator>::Item as BlockExt<'b>>::Value: Valuable<'b>,
+{
     type Error: Debug + From<serde::de::value::Error>;
     // type B: for<'b> BlockExt<'b, 'b>;
-    type ResultSet: Rs2<'r>;
+    type ResultSet: ResultSet;
 
     fn query<T: AsRef<str>>(
         &'q self,
@@ -243,431 +275,11 @@ pub trait Queryable2<'r, 'q>: Debug {
         use itertools::Itertools;
         self.query("show databases")?
             .expect("`show databases` must be queryable")
-            .deserialize2()
+            .deserialize()
             .try_collect()
             .map_err(Into::into)
     }
 }
-
-/// A result gained from query lifetime(`'q`), and will produce a block iterator with
-/// sub lifetime called `'b`(means block).
-pub trait ResultSetExt2<'r>: 'r + Sized // where
-// Self::B: 'b + BlockExt<'de, 'b>,
-{
-    fn fields(&'r self) -> &'r [Field];
-
-    fn precision(&'r self) -> Precision;
-
-    fn num_of_fields(&'r self) -> usize {
-        self.fields().len()
-    }
-
-    fn summary(&self) -> (usize, usize);
-}
-
-// pub trait ResultDeserialize<'r, 'b>: IntoIterator
-// where
-//     &'r Self::Item: BlockDeserialize<'b> + 'r,
-//     Self::Item: 'r,
-//     <&'r Self::Item as IntoIterator>::Item:
-//         IntoIterator<Item = (&'b Field, <&'r Self::Item as BlockDeserialize<'b>>::Value)> + 'r,
-//     <&'r Self::Item as BlockDeserialize<'b>>::Value: Valuable2<'b>,
-
-//     Self: Sized,
-// {
-//     #[allow(clippy::type_complexity)]
-//     fn deserialize_owned<T>(
-//         self,
-//     ) -> FlatMap<
-//         Self::IntoIter,
-//         Vec<Result<T, serde::de::value::Error>>,
-//         fn(Self::Item) -> Vec<Result<T, serde::de::value::Error>>,
-//     >
-//     where
-//         T: serde::de::DeserializeOwned,
-//     {
-//         self.into_iter()
-//             .flat_map(|b| <&'r Self::Item as BlockDeserialize>::deserialize(&b).collect_vec())
-//     }
-// }
-
-// pub trait RsDeserialize<'b, 'r: 'b>: IntoIterator + Sized
-// where
-//     Self::Item: BlockExt2<'b>,
-// {
-//     #[allow(clippy::type_complexity)]
-//     fn deserialize<T>(
-//         self,
-//     ) -> FlatMap<
-//         Self::IntoIter,
-//         Vec<Result<T, serde::de::value::Error>>,
-//         fn(Self::Item) -> Vec<Result<T, serde::de::value::Error>>,
-//     >
-//     where
-//         T: serde::de::DeserializeOwned,
-//     {
-//         self.into_iter()
-//             .flat_map(|b| <Self::Item as BlockExt2>::deserialize(&b).collect_vec())
-//     }
-// }
-// pub trait Queryable2<'b, 'r: 'b, 'q>: Debug
-// where
-//     &'r mut Self::ResultSet: IntoIterator,
-//     &'r mut Self::ResultSet: RsDeserialize<'b, 'r>,
-//     // <&'r mut Self::ResultSet as IntoIterator>::IntoIter: RsDeserialize<'b, 'r>,
-//     <&'r mut Self::ResultSet as IntoIterator>::Item: BlockExt2<'b>,
-// {
-//     type Error: Debug + From<serde::de::value::Error>;
-//     // type B: for<'b> BlockExt<'b, 'b>;
-//     type ResultSet: ResultSetExt2<'r>;
-
-//     fn query<T: AsRef<str>>(
-//         &'q self,
-//         sql: T,
-//     ) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
-
-//     fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
-//         self.query(sql).map(|res| match res {
-//             Ok(_) => 0, // todo: if we should get the selected rows if not update query?
-//             Err(affected) => affected,
-//         })
-//     }
-//     //     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
-//     //         use itertools::Itertools;
-//     //         self.query("show databases")?
-//     //             .expect("`show databases` must be queryable")
-//     //             .deserialize_owned()
-//     //             .try_collect()
-//     //             .map_err(Into::into)
-//     //     }
-// }
-
-//     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
-//         use itertools::Itertools;
-//         self.query("show databases")?
-//             .expect("`show databases` must be queryable")
-//             .deserialize_owned()
-//             .try_collect()
-//             .map_err(Into::into)
-//     }
-
-//     fn describe(&'q self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
-//         use itertools::Itertools;
-//         self.query(format!("describe {}", table))?
-//             .expect("`describe <table>` must be queryable")
-//             .deserialize_owned()
-//             .try_collect()
-//             .map_err(Into::into)
-//     }
-
-//     fn create_database<I: Into<DatabaseProperties>>(
-//         &'q self,
-//         name: &str,
-//         opts: I,
-//     ) -> Result<(), Self::Error> {
-//         let sql = format!("create database {} if not exists {}", name, opts.into());
-//         self.exec(&sql).map(|_| ())
-//     }
-
-//     fn use_database(&'q self, database: &str) -> Result<(), Self::Error> {
-//         let sql = format!("use database {}", database);
-//         self.exec(&sql).map(|_| ())
-//     }
-
-//     fn create_table(&'q self, name: &str) -> Result<(), Self::Error> {
-//         let sql = format!("create table {}", name);
-//         self.exec(&sql).map(|_| ())
-//     }
-// }
-
-/// A value will borrow data from a block, so there's a `'b` lifetime bound here.
-/// Here &self lifetime is hidden, should named as 'v (value) if once visible.
-pub trait Valuable<'de, 'b: 'de, 'r: 'b, 'q: 'r>: serde::de::Deserializer<'de> {
-    /// Check if the value is null or not.
-    fn is_null(&self) -> bool;
-
-    /// Sql type of the value
-    fn ty(&self) -> Ty;
-
-    /// Borrowed value.
-    fn as_borrowed_value(&self) -> BorrowedValue<'b>;
-
-    /// Owned value.
-    fn into_owned_value(self) -> Value;
-}
-
-/// A field bounded to 'b block lifetime.
-pub type ValueEntry<'b, T> = (&'b Field, T);
-
-// pub trait ResultBasic {
-//     /// Fields can be queried from a block.
-//     fn fields(&self) -> &[Field];
-//     fn precision(&self) -> Precision;
-//     fn fetched_rows(&self) -> u64;
-
-//     /// Get field without column index check.
-//     unsafe fn get_field_unchecked(&self, col: usize) -> &Field {
-//         self.fields().get_unchecked(col)
-//     }
-
-//     /// Get field of one column.
-//     unsafe fn get_field(&self, col: usize) -> Option<&Field> {
-//         self.fields().get(col)
-//     }
-
-//     /// Number of fields.
-//     fn filed_count(&self) -> usize {
-//         self.fields().len()
-//     }
-// }
-
-// pub trait Fetchable<'r>
-// where
-//     &'r mut Self: Iterator,
-//     Self: 'r + ResultBasic,
-// {
-// }
-
-/// Define what a data block provides.
-pub trait BlockExt<'de, 'b: 'de, 'r: 'b, 'q: 'r>: Debug + Sized + 'r
-// where
-//     &'b Self::Row: IntoIterator<Item = (&'b Field, Self::Value)>,
-//     Self::Row: 'b,
-{
-    /// A block should container number of rows.
-    fn num_of_rows(&'b self) -> u32;
-
-    /// Fields can be queried from a block.
-    fn fields(&'b self) -> &'b [Field];
-
-    /// Get field without column index check.
-    unsafe fn get_field_unchecked(&'b self, col: usize) -> &'b Field {
-        self.fields().get_unchecked(col)
-    }
-
-    /// Get field of one column.
-    unsafe fn get_field(&'b self, col: usize) -> Option<&'b Field> {
-        self.fields().get(col)
-    }
-
-    /// Number of fields.
-    fn filed_count(&'b self) -> usize {
-        self.fields().len()
-    }
-
-    // type Col;
-    // type ColIter: Iterator<Item = Self::Col>;
-    // /// Query by columns.
-    // fn iter_cols(&self) -> Self::ColIter;
-
-    type Value: Valuable<'de, 'b, 'r, 'q>;
-
-    type Row: IntoIterator<Item = (&'b Field, Self::Value)>;
-    type RowIter: Iterator<Item = Self::Row>;
-
-    /// Query by rows.
-    fn iter_rows(&'b self) -> Self::RowIter;
-
-    /// Deserialize a row to a record type(primitive type or a struct).
-    ///
-    /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
-    fn deserialize<T>(
-        &'b self,
-    ) -> std::iter::Map<Self::RowIter, fn(Self::Row) -> Result<T, serde::de::value::Error>>
-    where
-        T: serde::de::Deserialize<'de>,
-    {
-        self.iter_rows().map(|row| {
-            let de = RecordDeserializer::from(row);
-            T::deserialize(de)
-        })
-    }
-    /// Deserialize a row to a record type(primitive type or a struct).
-    ///
-    /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
-    fn deserialize_owned<T>(
-        &'b self,
-    ) -> std::iter::Map<Self::RowIter, fn(Self::Row) -> Result<T, serde::de::value::Error>>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.iter_rows().map(|row| {
-            let de = RecordDeserializer::from(row);
-            T::deserialize(de)
-        })
-    }
-    fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
-
-    fn write_with(&self, _codec: CodecOpts);
-
-    fn write_all_with(&self, _codec: CodecOpts);
-}
-
-pub trait BlockCodec {
-    fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
-    fn decode(from: &[u8], _codec: CodecOpts) -> Self;
-}
-
-// pub trait RsBase {
-//     fn fields(&self) -> &[Field];
-
-//     fn precision(&self) -> Precision;
-
-//     fn num_of_fields(&self) -> usize {
-//         self.fields().len()
-//     }
-
-//     fn summary(&self) -> (usize, usize);
-// }
-
-/// A result gained from query lifetime(`'q`), and will produce a block iterator with
-/// sub lifetime called `'b`(means block).
-pub trait ResultSetExt<'de, 'b: 'de, 'r: 'b, 'q: 'r>: 'r + Sized
-// where
-// Self::B: 'b + BlockExt<'de, 'b>,
-{
-    fn fields(&'r self) -> &'r [Field];
-
-    fn precision(&'r self) -> Precision;
-
-    fn num_of_fields(&'r self) -> usize {
-        self.fields().len()
-    }
-
-    fn summary(&self) -> (usize, usize);
-
-    type B: BlockExt<'de, 'b, 'r, 'q>;
-    type I: Iterator<Item = Self::B>;
-
-    fn block_iter(&'r mut self) -> Self::I;
-
-    #[allow(clippy::type_complexity)]
-    fn deserialize_owned<T>(
-        &'r mut self,
-    ) -> FlatMap<
-        Self::I,
-        Vec<Result<T, serde::de::value::Error>>,
-        fn(Self::B) -> Vec<Result<T, serde::de::value::Error>>,
-    >
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        todo!()
-        // self.block_iter()
-        //     .flat_map(|b| <Self::B as BlockExt>::deserialize(&b).collect_vec())
-    }
-}
-
-// pub trait RsDeserialize<'r, 'q: 'r>: IntoIterator + Sized + 'r
-// where
-//     Self::Item: for<'de, 'b> BlockExt<'de, 'b, 'r, 'q>,
-// {
-//     #[allow(clippy::type_complexity)]
-//     fn deserialize<'b, T>(
-//         self,
-//     ) -> FlatMap<
-//         Self::IntoIter,
-//         Vec<Result<T, serde::de::value::Error>>,
-//         fn(Self::Item) -> Vec<Result<T, serde::de::value::Error>>,
-//     >
-//     where
-//         T: serde::de::DeserializeOwned,
-//     {
-//         self.into_iter()
-//             .flat_map(|b| <Self::Item as BlockExt>::deserialize_owned(&b).collect_vec())
-//     }
-// }
-
-// pub trait RsDe<'r, B>
-// where
-//     Self: Sized + 'r,
-//     B: for<'b> BlockExt<'b>,
-//     &'r mut Self: for<'b> IntoIterator<Item = B> + 'b,
-// {
-//     #[allow(clippy::type_complexity)]
-//     fn deserialize<'b, T>(
-//         &'r mut self,
-//     ) -> FlatMap<
-//         <&'r mut Self as IntoIterator>::IntoIter,
-//         II<'b, <&'r mut Self as IntoIterator>::Item, T>,
-//         fn(
-//             <&'r mut Self as IntoIterator>::Item,
-//         ) -> II<'b, <&'r mut Self as IntoIterator>::Item, T>,
-//     >
-//     where
-//         T: serde::de::DeserializeOwned,
-//     {
-//         self.into_iter().flat_map(|b| {
-//             <<&'r mut Self as IntoIterator>::Item as BlockExt<'b>>::deserialize(&b)
-//         })
-//     }
-// }
-
-// pub trait QueryHelperDe<'r>: Queryable
-// where
-//     &'r mut Self::ResultSet: for<'b> RsDeserialize + 'r,
-//     <&'r mut Self::ResultSet as IntoIterator>::Item: for<'b> BlockExt<'b>,
-// {
-//     fn databases<'b>(&'r self) -> Result<Vec<ShowDatabase>, Self::Error> {
-//         use itertools::Itertools;
-//         self
-//             .query("show databases")?
-//             .expect("`show databases` must be queryable")
-//             .deserialize()
-//             .try_collect()
-//             .map_err(Into::into)
-//     }
-
-//     fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
-//         use itertools::Itertools;
-//         self.query(format!("describe {}", table))?
-//             .expect("`describe <table>` must be queryable")
-//             .deserialize_owned()
-//             .try_collect()
-//             .map_err(Into::into)
-//     }
-// }
-
-pub trait Queryable<'de, 'b: 'de, 'r: 'b, 'q: 'r>: Debug
-// where
-//     for<'q> &'q mut Self::ResultSet: IntoIterator<Item = Self::B>,
-{
-    type Error: Debug + From<serde::de::value::Error>;
-    // type B: for<'b> BlockExt<'b, 'b>;
-    type ResultSet: ResultSetExt<'de, 'b, 'r, 'q>;
-
-    fn query<T: AsRef<str>>(
-        &'q self,
-        sql: T,
-    ) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
-
-    fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
-        self.query(sql).map(|res| match res {
-            Ok(_) => 0, // todo: if we should get the selected rows if not update query?
-            Err(affected) => affected,
-        })
-    }
-
-    fn create_database<I: Into<DatabaseProperties>>(
-        &'q self,
-        name: &str,
-        opts: I,
-    ) -> Result<(), Self::Error> {
-        let sql = format!("create database {} if not exists {}", name, opts.into());
-        self.exec(&sql).map(|_| ())
-    }
-
-    fn use_database(&'q self, database: &str) -> Result<(), Self::Error> {
-        let sql = format!("use database {}", database);
-        self.exec(&sql).map(|_| ())
-    }
-
-    fn create_table(&'q self, name: &str) -> Result<(), Self::Error> {
-        let sql = format!("create table {}", name);
-        self.exec(&sql).map(|_| ())
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -736,7 +348,7 @@ mod tests {
         }
     }
 
-    impl<'b, 's: 'b> Valuable2<'b> for Value<'s> {
+    impl<'b, 's: 'b> Valuable<'b> for Value<'s> {
         fn as_borrowed_value(&self) -> BorrowedValue<'b> {
             todo!()
         }
@@ -755,37 +367,25 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct ResultSet<'q>(PhantomData<&'q u8>);
+    struct MyResultSet<'q>(PhantomData<(&'q u8)>);
 
-    impl<'r, 'q> IntoIterator for &'r mut ResultSet<'q> {
-        type Item = Block<'r, 'q>;
+    // impl<'i, 'r: 'i, 'q: 'r> IntoIterator for &'i mut MyResultSet<'r, 'q>
+    // where
+    //     Self: 'r,
+    // {
+    //     type Item = Block<'r, 'q>;
 
-        type IntoIter = BlocksIter<'r, 'q>;
+    //     type IntoIter = BlocksIter<'i, 'r, MyResultSet<'r, 'q>>;
 
-        fn into_iter(self) -> Self::IntoIter {
-            BlocksIter(PhantomData)
-        }
-    }
-
-    #[derive(Debug)]
-    struct BlocksIter<'r, 'q>(PhantomData<&'r ResultSet<'q>>);
-    impl<'r, 'q> Iterator for BlocksIter<'r, 'q> {
-        type Item = Block<'r, 'q>;
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Block(PhantomData))
-            } else {
-                None
-            }
-        }
-    }
+    //     fn into_iter(self) -> Self::IntoIter {
+    //         BlocksIter(self, PhantomData)
+    //     }
+    // }
 
     #[derive(Debug)]
     struct Block<'r, 'q>(PhantomData<(&'r u8, &'q u8)>);
 
-    impl<'b, 'r, 'q> BlockExt2<'b> for Block<'r, 'q> {
+    impl<'b, 'r, 'q> BlockExt<'b> for Block<'r, 'q> {
         type Value = Value<'b>;
         fn num_of_rows(&self) -> usize {
             1
@@ -820,103 +420,10 @@ mod tests {
         }
     }
 
-    #[derive(Debug)]
-    struct Row<'b, 'r, 'q>(PhantomData<&'b Block<'r, 'q>>);
-    impl<'b, 'r, 'q> Iterator for Row<'b, 'r, 'q> {
-        type Item = (&'b Field, Value<'b>);
+    impl<'r, 'q> Iterator for &'r mut MyResultSet<'q> {
+        type Item = Block<'r, 'q>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: usize = 0;
-            static mut FIELD: Option<Field> = None;
-            unsafe {
-                if FIELD.is_none() {
-                    FIELD = Some(Field::new("name", Ty::Int, 4));
-                }
-            }
-            if unsafe { AVAILABLE } < 3 {
-                unsafe { AVAILABLE += 1 };
-                Some((unsafe { FIELD.as_ref().unwrap() }, Value("s")))
-            } else {
-                None
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    struct RowIter<'b, 'r, 'q>(PhantomData<&'b Block<'r, 'q>>);
-    impl<'b, 'r, 'q> Iterator for RowIter<'b, 'r, 'q> {
-        type Item = Row<'b, 'r, 'q>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Row(PhantomData))
-            } else {
-                None
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    struct Col<'b, 'r, 'q>(PhantomData<&'b Block<'r, 'q>>);
-
-    struct IntoValues<'b, 'r, 'q>(PhantomData<&'b Block<'r, 'q>>);
-    impl<'b, 'r, 'q> Iterator for IntoValues<'b, 'r, 'q> {
-        type Item = Value<'b>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Value("s"))
-            } else {
-                None
-            }
-        }
-    }
-    impl<'b, 'r, 'q> IntoIterator for Col<'b, 'r, 'q> {
-        type Item = Value<'b>;
-
-        type IntoIter = IntoValues<'b, 'r, 'q>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            IntoValues(PhantomData)
-        }
-    }
-
-    #[derive(Debug)]
-    struct ColsIter<'b, 'r, 'q>(PhantomData<&'b Block<'r, 'q>>);
-    impl<'b, 'r, 'q> Iterator for ColsIter<'b, 'r, 'q> {
-        type Item = Col<'b, 'r, 'q>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Col(PhantomData))
-            } else {
-                None
-            }
-        }
-    }
-
-    impl<'r, 'q: 'r> Rs2<'r> for ResultSet<'q> {
-        fn fields(&self) -> &[Field] {
-            todo!()
-        }
-
-        fn precision(&self) -> Precision {
-            todo!()
-        }
-
-        fn summary(&self) -> (usize, usize) {
-            todo!()
-        }
-
-        type Block = Block<'r, 'q>;
-
-        fn fetch_block(&mut self) -> Option<Self::Block> {
             static mut AVAILABLE: bool = true;
             if unsafe { AVAILABLE } {
                 unsafe { AVAILABLE = false };
@@ -928,19 +435,33 @@ mod tests {
         }
     }
 
+    impl<'r, 'q> crate::ResultSet for MyResultSet<'q> {
+        fn fields(&self) -> &[Field] {
+            todo!()
+        }
+
+        fn precision(&self) -> Precision {
+            todo!()
+        }
+
+        fn summary(&self) -> (usize, usize) {
+            todo!()
+        }
+    }
+
     #[derive(Debug)]
     struct Error;
 
-    impl<'r, 'q: 'r> Queryable2<'r, 'q> for Conn {
+    impl<'q> Queryable<'q> for Conn {
         type Error = anyhow::Error;
 
-        type ResultSet = ResultSet<'q>;
+        type ResultSet = MyResultSet<'q>;
 
         fn query<T: AsRef<str>>(
             &'q self,
             _sql: T,
-        ) -> Result<Result<ResultSet, usize>, Self::Error> {
-            Ok(Ok(ResultSet(PhantomData)))
+        ) -> Result<Result<MyResultSet, usize>, Self::Error> {
+            Ok(Ok(MyResultSet(PhantomData)))
         }
 
         fn exec<T: AsRef<str>>(&self, _sql: T) -> Result<usize, Self::Error> {
@@ -960,7 +481,7 @@ mod tests {
             Ok(mut set) => {
                 // use crate::ResultSetExt2;
                 let s = &mut set;
-                for record in s.deserialize2::<(i32, String, u8)>() {
+                for record in s.deserialize::<(i32, String, u8)>() {
                     dbg!(record.unwrap());
                 }
             }

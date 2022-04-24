@@ -241,7 +241,7 @@ impl<'a> Block<'a> {
                 let len = ptr.cast::<i16>().read();
                 let start = ptr.offset(2);
 
-                BorrowedValue::Json(slice::from_raw_parts(start, len as _))
+                BorrowedValue::Json(slice::from_raw_parts(start, len as _).into())
             }
             _ => BorrowedValue::Null,
         }

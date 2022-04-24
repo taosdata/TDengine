@@ -14,4 +14,6 @@ syn = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 taos = { path = "../taos", features = ["test"] }
+anyhow = "*"
+log = "*"
 tokio = "*"

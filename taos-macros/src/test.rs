@@ -188,8 +188,8 @@ impl Attr {
                     }
                 }
 
-                TokenTree::Ident(ident) if ident.to_string() == "log_level" => {
-                    const EXPECT: &str = "`[test(drop = \"trace|debug|info|warn|error\")]`";
+                TokenTree::Ident(ident) if ident.to_string() == "log_level" || ident.to_string() == "log-level" => {
+                    const EXPECT: &str = "`[test(log_level = \"trace|debug|info|warn|error\")]`";
                     let _ = iter.next();
                     let value = iter.next().expect(EXPECT);
                     match value {
@@ -243,18 +243,8 @@ impl Attr {
 
     fn log_level(&self) -> TokenStream {
         match &self.log_level {
-            Some(log_level) => {
-                let s = log_level.to_string();
-                match s {
-                    s if s.contains("error") => quote!(log::LevelFilter::Error),
-                    s if s.contains("warn") => quote!(log::LevelFilter::Warn),
-                    s if s.contains("info") => quote!(log::LevelFilter::Info),
-                    s if s.contains("debug") => quote!(log::LevelFilter::Debug),
-                    s if s.contains("trace") => quote!(log::LevelFilter::Trace),
-                    _ => quote!(log::LevelFilter::Error)
-                }
-            }
-            None => quote!(log::LevelFilter::Error),
+            Some(log_level) => log_level.into_token_stream(),
+            None => quote!(()),
         }
     }
 
@@ -274,13 +264,18 @@ impl Attr {
         let _crate = self.crate_token_stream();
         let databases = self.databases(&requires);
 
+        let common = quote! {
+            #_crate::helpers::tests::Common::default()
+                .log_level(#log_level)
+                .init()?;
+        };
+
         let builder = quote! {
             let __taos = #_crate::helpers::tests::Builder::default()
                .naming(#naming)
                .precision(#precision)
                .dropping(#drop)
                .databases(#databases)
-               .log_level(#log_level)
                .build()?;
             let _taos = __taos.taos();
         };
@@ -310,6 +305,7 @@ impl Attr {
                     #[tokio::test]
                     async fn #fn_name() -> anyhow::Result<()> {
                         #tokens
+                        #common
                         #builder.await?;
                         Ok(())
                     }
@@ -320,6 +316,7 @@ impl Attr {
                     #[tokio::test]
                     async fn #fn_name() -> anyhow::Result<()> {
                         #tokens
+                        #common
                         #builder.await;
                         Ok(())
                     }
@@ -330,6 +327,7 @@ impl Attr {
                     #[std::prelude::v1::test]
                     fn #fn_name() -> anyhow::Result<()> {
                         #tokens
+                        #common
                         #builder?;
                         Ok(())
                     }
@@ -340,6 +338,7 @@ impl Attr {
                     #[std::prelude::v1::test]
                     fn #fn_name() -> anyhow::Result<()> {
                         #tokens
+                        #common
                         #builder;
                         Ok(())
                     }
@@ -409,6 +408,10 @@ mod tests {
             #[std::prelude::v1::test]
             fn test_fn() -> anyhow::Result<()> {
                 fn test_fn() { }
+
+                taos::helpers::tests::Common::default()
+                    .log_level(())
+                    .init()?;
                 test_fn();
                 Ok(())
             }
@@ -449,6 +452,9 @@ mod tests {
                 fn test() -> Result<()> {
                     Ok(())
                 }
+                taos::helpers::tests::Common::default()
+                    .log_level(())
+                    .init()?;
                 test()?;
                 Ok(())
             }
@@ -471,6 +477,9 @@ mod tests {
                 async fn test() -> Result<()> {
                     Ok(())
                 }
+                taos::helpers::tests::Common::default()
+                    .log_level(())
+                    .init()?;
                 test().await?;
                 Ok(())
             }
@@ -519,12 +528,14 @@ mod tests {
                 async fn test_a(taos: &Taos, database: &str) -> anyhow::Result<()> {
                     Ok(())
                 }
+                taos::helpers::tests::Common::default()
+                    .log_level(())
+                    .init()?;
                 let __taos = taos::helpers::tests::Builder::default()
                        .naming("random")
                        .precision(())
                        .dropping("always")
                        .databases(1usize)
-                       .log_level("warn")
                        .build()?;
                 let _taos = __taos.taos();
                 let _database = __taos.default_database();

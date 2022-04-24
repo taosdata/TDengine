@@ -6,26 +6,24 @@ use serde::Deserializer;
 
 use serde::de::value::Error;
 
-pub mod de2;
-
 use crate::{Field, Valuable};
 
 /// Row-based deserializer helper.
 ///
 /// 'b: field lifetime may go across the whole query.
-pub(crate) struct RecordDeserializer<'de, 'b: 'de, 'r: 'b, 'q: 'r, T, R>
+pub(crate) struct RecordDeserializer<'b, T, R>
 where
-    T: Valuable<'de, 'b, 'r, 'q>,
+    T: Valuable<'b>,
     R: IntoIterator<Item = (&'b Field, T)>,
 {
     inner: <R as IntoIterator>::IntoIter,
     value: Option<T>,
-    _marker: PhantomData<(&'de u8, &'b u8, &'r u8, &'q u8)>
+    _marker: PhantomData<&'b u8>,
 }
 
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r, T, R> From<R> for RecordDeserializer<'de, 'b, 'r, 'q, T, R>
+impl<'b, T, R> From<R> for RecordDeserializer<'b, T, R>
 where
-    T: Valuable<'de, 'b, 'r, 'q>,
+    T: Valuable<'b>,
     R: IntoIterator<Item = (&'b Field, T)>,
 {
     fn from(input: R) -> Self {
@@ -37,9 +35,9 @@ where
     }
 }
 
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r, T, R> RecordDeserializer<'de, 'b, 'r, 'q, T, R>
+impl<'b, T, R> RecordDeserializer<'b, T, R>
 where
-    T: Valuable<'de, 'b, 'r, 'q>,
+    T: Valuable<'b>,
     R: IntoIterator<Item = (&'b Field, T)>,
 {
     fn next_value(&mut self) -> Option<T> {
@@ -67,10 +65,10 @@ impl<'de> Deserializer<'de> for StringDeserializer {
     }
 }
 
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r, T, R> MapAccess<'de> for RecordDeserializer<'de, 'b, 'r, 'q, T, R>
+impl<'de, 'b, T, R> MapAccess<'de> for RecordDeserializer<'de, T, R>
 where
-    T: Valuable<'de, 'b, 'r, 'q>,
-    R: IntoIterator<Item = (&'b Field, T)>,
+    T: Valuable<'de>,
+    R: IntoIterator<Item = (&'de Field, T)>,
 {
     type Error = Error;
 
@@ -99,10 +97,10 @@ where
     }
 }
 
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r, T, R> SeqAccess<'de> for RecordDeserializer<'de, 'b, 'r, 'q, T, R>
+impl<'de, 'b, T, R> SeqAccess<'de> for RecordDeserializer<'de, T, R>
 where
-    T: Valuable<'de, 'b, 'r, 'q>,
-    R: IntoIterator<Item = (&'b Field, T)>,
+    T: Valuable<'de>,
+    R: IntoIterator<Item = (&'de Field, T)>,
 {
     type Error = Error;
 
@@ -120,10 +118,10 @@ where
     }
 }
 
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r, T, R> Deserializer<'de> for RecordDeserializer<'de, 'b, 'r, 'q, T, R>
+impl<'de, 'b, T, R> Deserializer<'de> for RecordDeserializer<'de, T, R>
 where
-    T: Valuable<'de, 'b, 'r, 'q>,
-    R: IntoIterator<Item = (&'b Field, T)>,
+    T: Valuable<'de>,
+    R: IntoIterator<Item = (&'de Field, T)>,
 {
     type Error = Error;
 

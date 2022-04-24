@@ -1,8 +1,6 @@
-use std::str::Utf8Error;
+use std::{borrow::Cow, str::Utf8Error};
 
 use serde::{Deserialize, Serialize};
-
-use crate::Valuable;
 
 use super::{Timestamp, Ty};
 
@@ -23,33 +21,11 @@ pub enum BorrowedValue<'b> {
     USmallInt(u16),
     UInt(u32),
     UBigInt(u64), // 14
-    Json(&'b [u8]),
+    Json(Cow<'b, [u8]>),
     VarBinary(&'b [u8]),
     Decimal(f64),
     Blob(&'b [u8]),
     MediumBlob(&'b [u8]),
-}
-
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'r, 'q> for BorrowedValue<'b> {
-    #[inline]
-    fn is_null(&self) -> bool {
-        use BorrowedValue::*;
-        matches!(self, Null)
-    }
-
-    #[inline]
-    fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-        self.clone()
-    }
-
-    #[inline]
-    fn into_owned_value(self) -> crate::Value {
-        self.into_value()
-    }
-
-    fn ty(&self) -> Ty {
-        self.ty()
-    }
 }
 
 impl<'b> BorrowedValue<'b> {
@@ -100,7 +76,7 @@ impl<'b> BorrowedValue<'b> {
         match self {
             Null => Ok(String::new()),
             VarChar(v) => Ok(v.to_string()),
-            Json(v) => Ok(unsafe { std::str::from_utf8_unchecked(*v) }.to_string()),
+            Json(v) => Ok(unsafe { std::str::from_utf8_unchecked(v) }.to_string()),
             NChar(v) => Ok(v.to_string()),
             TinyInt(v) => Ok(format!("{v}")),
             SmallInt(v) => Ok(format!("{v}")),
@@ -116,7 +92,7 @@ impl<'b> BorrowedValue<'b> {
                 .to_naive_datetime()
                 .format("%Y-%m-%dT%H:%M:%S%.f")
                 .to_string()),
-            _ => unreachable!("un supported type as borrowed str"),
+            _ => unreachable!("un supported type to string"),
         }
     }
 
@@ -138,7 +114,7 @@ impl<'b> BorrowedValue<'b> {
             VarChar(v) => Value::VarChar(v.to_string()),
             Timestamp(v) => Value::Timestamp(*v),
             Json(v) => {
-                Value::Json(serde_json::from_slice(*v).expect("json should always be deserialized"))
+                Value::Json(serde_json::from_slice(v).expect("json should always be deserialized"))
             }
             NChar(str) => Value::NChar(str.to_string()),
             VarBinary(_) => todo!(),
@@ -167,7 +143,7 @@ impl<'b> BorrowedValue<'b> {
             VarChar(v) => Value::VarChar(v.to_string()),
             Timestamp(v) => Value::Timestamp(v),
             Json(v) => {
-                Value::Json(serde_json::from_slice(v).expect("json should always be deserialized"))
+                Value::Json(serde_json::from_slice(&v).expect("json should always be deserialized"))
             }
             NChar(str) => Value::NChar(str.to_string()),
             VarBinary(_) => todo!(),
@@ -231,6 +207,32 @@ impl Value {
         }
     }
 
+    pub fn to_borrowed_value(&self) -> BorrowedValue {
+        use Value::*;
+        match self {
+            Null => BorrowedValue::Null,
+            Bool(v) => BorrowedValue::Bool(*v),
+            TinyInt(v) => BorrowedValue::TinyInt(*v),
+            SmallInt(v) => BorrowedValue::SmallInt(*v),
+            Int(v) => BorrowedValue::Int(*v),
+            BigInt(v) => BorrowedValue::BigInt(*v),
+            UTinyInt(v) => BorrowedValue::UTinyInt(*v),
+            USmallInt(v) => BorrowedValue::USmallInt(*v),
+            UInt(v) => BorrowedValue::UInt(*v),
+            UBigInt(v) => BorrowedValue::UBigInt(*v),
+            Float(v) => BorrowedValue::Float(*v),
+            Double(v) => BorrowedValue::Double(*v),
+            VarChar(v) => BorrowedValue::VarChar(v),
+            Timestamp(v) => BorrowedValue::Timestamp(*v),
+            Json(j) => BorrowedValue::Json(j.to_string().into_bytes().into()),
+            NChar(v) => BorrowedValue::NChar(v),
+            VarBinary(v) => BorrowedValue::VarBinary(v),
+            Decimal(v) => BorrowedValue::Decimal(*v),
+            Blob(v) => BorrowedValue::Blob(v),
+            MediumBlob(v) => BorrowedValue::MediumBlob(v),
+        }
+    }
+
     /// Check if the value is null.
     pub const fn is_null(&self) -> bool {
         matches!(self, Value::Null)
@@ -249,36 +251,18 @@ impl Value {
     }
 }
 
-impl<'b> crate::Valuable2<'b> for BorrowedValue<'b> {
+impl<'b> crate::Valuable<'b> for BorrowedValue<'b> {
     fn is_null(&self) -> bool {
-      use BorrowedValue::*;
+        use BorrowedValue::*;
         matches!(self, Null)
     }
 
     fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-        todo!()
+        self.clone()
     }
 
     fn into_owned_value(self) -> crate::Value {
-        self.to_value()
-    }
-
-    fn ty(&self) -> Ty {
-        self.ty()
-    }
-}
-impl<'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'q, 'q> for Value {
-    fn is_null(&self) -> bool {
-        use Value::*;
-        matches!(self, Null)
-    }
-
-    fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-        todo!()
-    }
-
-    fn into_owned_value(self) -> crate::Value {
-        self
+        self.into_value()
     }
 
     fn ty(&self) -> Ty {
@@ -286,14 +270,14 @@ impl<'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'q, 'q> for Value {
     }
 }
 
-impl<'de, 'v: 'de, 'b: 'de, 'r: 'b, 'q: 'r> Valuable<'de, 'b, 'r, 'q> for &'v Value {
+impl<'b> crate::Valuable<'b> for &'b Value {
     fn is_null(&self) -> bool {
         use Value::*;
         matches!(self, Null)
     }
 
     fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-        todo!()
+        self.to_borrowed_value()
     }
 
     fn into_owned_value(self) -> crate::Value {

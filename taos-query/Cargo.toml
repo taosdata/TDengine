@@ -21,5 +21,7 @@ nom = "7"
 paste = "1"
 [dev-dependencies]
 pretty_env_logger = "*"
+taos-macros = { path = "../taos-macros" }
+taos = { path = "../taos" }
 [features]
 nightly = []
