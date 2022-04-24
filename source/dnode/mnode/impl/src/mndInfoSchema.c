@@ -41,8 +41,8 @@ static const SInfosTableSchema mnodesSchema[] = {
 
 static const SInfosTableSchema modulesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "endpoint", .bytes = 134, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "module", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "endpoint", .bytes = 134 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "module", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableSchema qnodesSchema[] = {
@@ -75,14 +75,14 @@ static const SInfosTableSchema userDBSchema[] = {
     {.name = "vgroups", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "ntables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "replica", .bytes = 2, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "quorum", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "strict", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "days", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "cache", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "blocks", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "minrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "maxrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "wallevel", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
@@ -98,7 +98,7 @@ static const SInfosTableSchema userFuncSchema[] = {
     {.name = "name", .bytes = TSDB_FUNC_NAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "comment", .bytes = PATH_MAX - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "aggregate", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "comment", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "output_type", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "code_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "bufsize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -145,9 +145,9 @@ static const SInfosTableSchema userTblsSchema[] = {
 };
 
 static const SInfosTableSchema userTblDistSchema[] = {
-    {.name = "db_name", .bytes = 32, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "db_name", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "table_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "distributed_histogram", .bytes = 500, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "distributed_histogram", .bytes = 500 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "min_of_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "max_of_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "avg_of_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -168,46 +168,35 @@ static const SInfosTableSchema userUsersSchema[] = {
 };
 
 static const SInfosTableSchema grantsSchema[] = {
-    {.name = "version", .bytes = 8 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "expire time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "storage(GB)", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "databases", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "users", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "accounts", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "connections", .bytes = 11 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "streams", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "cpu cores", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "speed(PPS)", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "querytime", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "version", .bytes = 8 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "expire time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "storage(GB)", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "databases", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "users", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "accounts", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "connections", .bytes = 11 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "streams", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "cpu cores", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "speed(PPS)", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "querytime", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableSchema vgroupsSchema[] = {
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "tables", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "onlines", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "v1_dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "v1_status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "v1_status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "v2_dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "v2_status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "v2_status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "v3_dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "v3_status", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "compacting", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "v3_status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "nfiles", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-};
-
-// TODO put into perf schema
-static const SInfosTableSchema topicSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
 static const SInfosTableSchema consumerSchema[] = {
@@ -293,7 +282,6 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
-    {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema)},
     {TSDB_INS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
     {TSDB_INS_TABLE_SUBSCRIBES, subscribeSchema, tListLen(subscribeSchema)},
     {TSDB_INS_TABLE_TRANS, transSchema, tListLen(transSchema)},

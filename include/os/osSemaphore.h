@@ -22,21 +22,28 @@ extern "C" {
 
 #include <semaphore.h>
 
-#if defined (_TD_DARWIN_64)
-  typedef struct tsem_s *tsem_t;
-  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-  int tsem_wait(tsem_t *sem);
-  int tsem_post(tsem_t *sem);
-  int tsem_destroy(tsem_t *sem);
+#if defined(_TD_DARWIN_64)
+
+typedef struct tsem_s *tsem_t;
+
+int tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int tsem_wait(tsem_t *sem);
+int tsem_timewait(tsem_t *sim, int64_t nanosecs);
+int tsem_post(tsem_t *sem);
+int tsem_destroy(tsem_t *sem);
+
 #else
-  #define tsem_t sem_t
-  #define tsem_init sem_init
-  int tsem_wait(tsem_t* sem);
-  #define tsem_post sem_post
-  #define tsem_destroy sem_destroy
+
+#define tsem_t       sem_t
+#define tsem_init    sem_init
+int tsem_wait(tsem_t *sem);
+int tsem_timewait(tsem_t *sim, int64_t nanosecs);
+#define tsem_post    sem_post
+#define tsem_destroy sem_destroy
+
 #endif
 
-#if defined (_TD_DARWIN_64)
+#if defined(_TD_DARWIN_64)
 //  #define TdThreadRwlock TdThreadMutex
 //  #define taosThreadRwlockInit(lock, NULL) taosThreadMutexInit(lock, NULL)
 //  #define taosThreadRwlockDestroy(lock) taosThreadMutexDestroy(lock)
@@ -44,20 +51,20 @@ extern "C" {
 //  #define taosThreadRwlockRdlock(lock) taosThreadMutexLock(lock)
 //  #define taosThreadRwlockUnlock(lock) taosThreadMutexUnlock(lock)
 
-  #define TdThreadSpinlock TdThreadMutex
-  #define taosThreadSpinInit(lock, NULL) taosThreadMutexInit(lock, NULL)
-  #define taosThreadSpinDestroy(lock) taosThreadMutexDestroy(lock)
-  #define taosThreadSpinLock(lock) taosThreadMutexLock(lock)
-  #define taosThreadSpinUnlock(lock) taosThreadMutexUnlock(lock)
+#define TdThreadSpinlock               TdThreadMutex
+#define taosThreadSpinInit(lock, NULL) taosThreadMutexInit(lock, NULL)
+#define taosThreadSpinDestroy(lock)    taosThreadMutexDestroy(lock)
+#define taosThreadSpinLock(lock)       taosThreadMutexLock(lock)
+#define taosThreadSpinUnlock(lock)     taosThreadMutexUnlock(lock)
 #endif
 
 bool    taosCheckPthreadValid(TdThread thread);
 int64_t taosGetSelfPthreadId();
 int64_t taosGetPthreadId(TdThread thread);
-void    taosResetPthread(TdThread* thread);
+void    taosResetPthread(TdThread *thread);
 bool    taosComparePthread(TdThread first, TdThread second);
 int32_t taosGetPId();
-int32_t taosGetAppName(char* name, int32_t* len);
+int32_t taosGetAppName(char *name, int32_t *len);
 
 #ifdef __cplusplus
 }

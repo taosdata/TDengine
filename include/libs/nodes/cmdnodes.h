@@ -47,6 +47,7 @@ typedef struct SDatabaseOptions {
   SValueNode* pNumOfVgroups;
   SValueNode* pSingleStable;
   SValueNode* pStreamMode;
+  SValueNode* pStrict;
   SNodeList* pRetentions;
 } SDatabaseOptions;
 
@@ -240,12 +241,20 @@ typedef struct SDropComponentNodeStmt {
   int32_t dnodeId;
 } SDropComponentNodeStmt;
 
+typedef struct STopicOptions {
+  ENodeType type;
+  bool withTable;
+  bool withSchema;
+  bool withTag;
+} STopicOptions;
+
 typedef struct SCreateTopicStmt {
   ENodeType type;
   char topicName[TSDB_TABLE_NAME_LEN];
   char subscribeDbName[TSDB_DB_NAME_LEN];
   bool ignoreExists;
   SNode* pQuery;
+  STopicOptions* pOptions;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -271,6 +280,38 @@ typedef struct SKillStmt {
   ENodeType type;
   int32_t targetId;
 } SKillStmt;
+
+typedef struct SStreamOptions {
+  ENodeType type;
+  int8_t triggerType;
+  SNode* pWatermark;
+} SStreamOptions;
+
+typedef struct SCreateStreamStmt {
+  ENodeType type;
+  char streamName[TSDB_TABLE_NAME_LEN];
+  char targetDbName[TSDB_DB_NAME_LEN];
+  char targetTabName[TSDB_TABLE_NAME_LEN];
+  bool ignoreExists;
+  SStreamOptions* pOptions;
+  SNode* pQuery;
+} SCreateStreamStmt;
+
+typedef struct SDropStreamStmt {
+  ENodeType type;
+  char streamName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropStreamStmt;
+
+typedef struct SCreateFunctionStmt {
+  ENodeType type;
+  bool ignoreExists;
+  char funcName[TSDB_FUNC_NAME_LEN];
+  bool isAgg;
+  char libraryPath[PATH_MAX];
+  SDataType outputDt;
+  int32_t bufSize;
+} SCreateFunctionStmt;
 
 #ifdef __cplusplus
 }

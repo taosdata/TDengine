@@ -948,7 +948,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   DataSinkHandle sinkHandle = NULL;
   SQWTaskCtx *ctx = NULL;
 
-  QW_ERR_JRET(qwRegisterBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
+  QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_QUERY, &input, NULL));
 
@@ -1285,23 +1285,51 @@ _return:
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
+int32_t qwProcessHbLinkBroken(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
+  int32_t code = 0;
+  SSchedulerHbRsp rsp = {0};
+  SQWSchStatus *sch = NULL;
+
+  QW_ERR_RET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
+
+  QW_LOCK(QW_WRITE, &sch->hbConnLock);
+
+  if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
+    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    sch->hbConnInfo.handle = NULL;
+    sch->hbConnInfo.ahandle = NULL;
+
+    QW_DLOG("release hb handle due to connection broken, handle:%p", qwMsg->connInfo.handle);
+  } else {
+    QW_DLOG("ignore hb connection broken, handle:%p, currentHandle:%p", qwMsg->connInfo.handle, sch->hbConnInfo.handle);
+  }
+  
+  QW_UNLOCK(QW_WRITE, &sch->hbConnLock);
+  
+  qwReleaseScheduler(QW_READ, mgmt);
+  
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
 int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t code = 0;
   SSchedulerHbRsp rsp = {0};
   SQWSchStatus *sch = NULL;
-  uint64_t seqId = 0;
-  void *origHandle = NULL;
 
-  memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
+  if (qwMsg->code) {
+    QW_RET(qwProcessHbLinkBroken(mgmt, qwMsg, req));
+  }
   
   QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
+
+  QW_ERR_JRET(qwRegisterHbBrokenLinkArg(mgmt, req->sId, &qwMsg->connInfo));
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
     tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
   }
-  
+
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
   memcpy(&sch->hbEpId, &req->epId, sizeof(req->epId));
   
@@ -1314,7 +1342,14 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 
 _return:
 
+  memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
+
   qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
+
+  if (code) {
+    tmsgReleaseHandle(qwMsg->connInfo.handle, TAOS_CONN_SERVER);
+  }
+  
   QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   
   QW_RET(TSDB_CODE_SUCCESS);
@@ -1353,6 +1388,14 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
 
   void *pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
+    SQWSchStatus *sch = (SQWSchStatus *)pIter;
+    if (NULL == sch->hbConnInfo.handle) {
+      uint64_t *sId = taosHashGetKey(pIter, NULL);
+      QW_DLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
+      pIter = taosHashIterate(mgmt->schHash, pIter);
+      continue;
+    }
+    
     code = qwGenerateSchHbRsp(mgmt, (SQWSchStatus *)pIter, &rspList[i]);
     if (code) {
       taosHashCancelIterate(mgmt->schHash, pIter);
@@ -1469,6 +1512,9 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   //TODO STOP ALL QUERY
 
   //TODO FREE ALL
+
+  taosHashCleanup(mgmt->ctxHash);
+  taosHashCleanup(mgmt->schHash);
 
   taosMemoryFreeClear(*qWorkerMgmt);
 }

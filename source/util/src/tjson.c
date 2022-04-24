@@ -276,3 +276,37 @@ int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void
 }
 
 SJson* tjsonParse(const char* pStr) { return cJSON_Parse(pStr); }
+
+bool tjsonValidateJson(const char *jIn) {
+  if (!jIn){
+    return false;
+  }
+
+  // set json real data
+  cJSON *root = cJSON_Parse(jIn);
+  if (root == NULL){
+    return false;
+  }
+
+  if(!cJSON_IsObject(root)){
+    return false;
+  }
+  int size = cJSON_GetArraySize(root);
+  for(int i = 0; i < size; i++) {
+    cJSON* item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      return false;
+    }
+
+    char* jsonKey = item->string;
+    if (!jsonKey) return false;
+    for (size_t j = 0; j < strlen(jsonKey); ++j) {
+      if (isprint(jsonKey[j]) == 0) return false;
+    }
+
+    if (item->type == cJSON_Object || item->type == cJSON_Array) {
+      return false;
+    }
+  }
+  return true;
+}

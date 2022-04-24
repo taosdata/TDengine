@@ -34,7 +34,7 @@ static int32_t  mndProcessCreateQnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessDropQnodeReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropQnodeRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessQnodeListReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitQnode(SMnode *pMnode) {
@@ -444,8 +444,8 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  qlistRsp.epSetList = taosArrayInit(5, sizeof(SEpSet));
-  if (NULL == qlistRsp.epSetList) {
+  qlistRsp.addrsList = taosArrayInit(5, sizeof(SQueryNodeAddr));
+  if (NULL == qlistRsp.addrsList) {
     mError("failed to alloc epSet while process qnode list req");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -455,11 +455,13 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
     void *pIter = sdbFetch(pSdb, SDB_QNODE, NULL, (void **)&pObj);
     if (pIter == NULL) break;
 
-    SEpSet epSet = {.numOfEps = 1};
-    tstrncpy(epSet.eps[0].fqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
-    epSet.eps[0].port = pObj->pDnode->port;
+    SQueryNodeAddr nodeAddr = {0};
+    nodeAddr.nodeId = QNODE_HANDLE;
+    nodeAddr.epSet.numOfEps = 1;
+    tstrncpy(nodeAddr.epSet.eps[0].fqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
+    nodeAddr.epSet.eps[0].port = pObj->pDnode->port;
 
-    (void)taosArrayPush(qlistRsp.epSetList, &epSet);
+    (void)taosArrayPush(qlistRsp.addrsList, &nodeAddr);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -497,7 +499,7 @@ static int32_t mndProcessDropQnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
@@ -510,8 +512,8 @@ static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*)&pObj->id, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->bytes[cols]);

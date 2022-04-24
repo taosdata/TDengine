@@ -100,7 +100,7 @@ int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
 
   level = tsdbGetFidLevel(pSet->fid, pRtn);
 
-  if (tfsAllocDisk(pRepo->pTfs, level, &did) < 0) {
+  if (tfsAllocDisk(pRepo->pVnode->pTfs, level, &did) < 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
     return -1;
   }
@@ -427,7 +427,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
     pCommitIter->pTable->uid = pTbData->uid;
     pCommitIter->pTable->tid = pTbData->uid;
-    pCommitIter->pTable->pSchema = metaGetTbTSchema(pRepo->pMeta, pTbData->uid, 0);
+    pCommitIter->pTable->pSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
   }
 
   return 0;
@@ -459,7 +459,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
   STsdb     *pRepo = TSDB_COMMIT_REPO(pCommith);
   SDFileSet *pWSet = TSDB_COMMIT_WRITE_FSET(pCommith);
 
-  if (tfsAllocDisk(pRepo->pTfs, tsdbGetFidLevel(fid, &(pCommith->rtn)), &did) < 0) {
+  if (tfsAllocDisk(REPO_TFS(pRepo), tsdbGetFidLevel(fid, &(pCommith->rtn)), &did) < 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
     return -1;
   }
@@ -1201,6 +1201,23 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
   }
 }
 
+/**
+ * @brief Write SDataCols to data file.
+ *
+ * @param pRepo
+ * @param pTable
+ * @param pDFile
+ * @param pDFileAggr
+ * @param pDataCols The pDataCols would be generated from mem/imem directly with 2 bits bitmap or from tsdbRead
+ * interface with 1 bit bitmap.
+ * @param pBlock
+ * @param isLast
+ * @param isSuper
+ * @param ppBuf
+ * @param ppCBuf
+ * @param ppExBuf
+ * @return int
+ */
 int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
                        SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
   STsdbCfg     *pCfg = REPO_CFG(pRepo);
@@ -1244,14 +1261,15 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     pBlockCol->type = pDataCol->type;
     pAggrBlkCol->colId = pDataCol->colId;
 
-    if (tDataTypes[pDataCol->type].statisFunc) {
+    if (isSuper && pColumn->sma && tDataTypes[pDataCol->type].statisFunc) {
 #if 0
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
                                                &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
                                                &(pBlockCol->numOfNull));
 #endif
-      (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pAggrBlkCol->min), &(pAggrBlkCol->max),
-                                               &(pAggrBlkCol->sum), &(pAggrBlkCol->minIndex), &(pAggrBlkCol->maxIndex),
+      (*tDataTypes[pDataCol->type].statisFunc)(pDataCols->bitmapMode, pDataCol->pBitmap, pDataCol->pData, rowsToWrite,
+                                               &(pAggrBlkCol->min), &(pAggrBlkCol->max), &(pAggrBlkCol->sum),
+                                               &(pAggrBlkCol->minIndex), &(pAggrBlkCol->maxIndex),
                                                &(pAggrBlkCol->numOfNull));
 
       if (pAggrBlkCol->numOfNull == 0) {
@@ -1259,13 +1277,16 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       } else {
         TD_SET_COL_ROWS_MISC(pBlockCol);
       }
+    } else if (tdIsBitmapBlkNorm(pDataCol->pBitmap, rowsToWrite, pDataCols->bitmapMode)) {
+      // check if all rows normal
+      TD_SET_COL_ROWS_NORM(pBlockCol);
     } else {
       TD_SET_COL_ROWS_MISC(pBlockCol);
     }
 
     ++nColsNotAllNull;
 
-    if (pColumn->sma) {
+    if (isSuper && pColumn->sma) {
       ++nColsOfBlockSma;
     }
   }
@@ -1277,7 +1298,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   uint32_t toffset = 0;
   int32_t  tsize = (int32_t)tsdbBlockStatisSize(nColsNotAllNull, SBlockVerLatest);
   int32_t  lsize = tsize;
-  uint32_t tsizeAggr = (uint32_t)tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
+  uint32_t tsizeAggr = (uint32_t)tsdbBlockAggrSize(nColsOfBlockSma, SBlockVerLatest);
   int32_t  keyLen = 0;
   int32_t  nBitmaps = (int32_t)TD_BITMAP_BYTES(rowsToWrite);
   int32_t  sBitmaps = isSuper ? (int32_t)TD_BITMAP_BYTES_I(rowsToWrite) : nBitmaps;
@@ -1329,7 +1350,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       if (tBitmaps > 0) {
         bptr = POINTER_SHIFT(pBlockData, lsize + flen);
         if (isSuper && !tdDataColsIsBitmapI(pDataCols)) {
-          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, nBitmaps, (uint8_t *)pDataCol->pBitmap);
+          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, rowsToWrite, (uint8_t *)pDataCol->pBitmap);
         }
         tBitmapsLen =
             tsCompressTinyint((char *)pDataCol->pBitmap, tBitmaps, tBitmaps, bptr, tBitmaps + COMP_OVERFLOW_BYTES,

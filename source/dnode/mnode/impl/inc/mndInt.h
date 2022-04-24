@@ -47,21 +47,6 @@ typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
 typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
-
-typedef struct SMnodeLoad {
-  int64_t numOfDnode;
-  int64_t numOfMnode;
-  int64_t numOfVgroup;
-  int64_t numOfDatabase;
-  int64_t numOfSuperTable;
-  int64_t numOfChildTable;
-  int64_t numOfNormalTable;
-  int64_t numOfColumn;
-  int64_t totalPoints;
-  int64_t totalStorage;
-  int64_t compStorage;
-} SMnodeLoad;
-
 typedef struct SQWorkerMgmt SQHandle;
 
 typedef struct {
@@ -82,7 +67,6 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  bool     enable;
   SRWLatch lock;
   char     email[TSDB_FQDN_LEN];
 } STelemMgmt;
@@ -129,7 +113,6 @@ struct SMnode {
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(char *name, int32_t len);
-void    mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

@@ -18,6 +18,7 @@
 #include "catalog.h"
 #include "parUtil.h"
 #include "querynodes.h"
+#include "parInt.h"
 
 #define IS_RAW_PAYLOAD(t) \
   (((int)(t)) == PAYLOAD_TYPE_RAW)  // 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
@@ -102,7 +103,13 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
   }
 }
 
-void destroyBoundColumnInfo(SParsedDataColInfo* pColList) {
+void destroyBoundColumnInfo(void* pBoundInfo) {
+  if (NULL == pBoundInfo) {
+    return;
+  }
+
+  SParsedDataColInfo* pColList = (SParsedDataColInfo*)pBoundInfo;
+  
   taosMemoryFreeClear(pColList->boundColumns);
   taosMemoryFreeClear(pColList->cols);
   taosMemoryFreeClear(pColList->colIdxInfo);
@@ -149,7 +156,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
+int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
   int32_t len = tSerializeSVCreateTbReq(NULL, pCreateTbReq);
   if (pBlocks->nAllocSize - pBlocks->size < len) {
     pBlocks->nAllocSize += len + pBlocks->rowSize;
@@ -506,6 +513,28 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize) {
+  size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
+  uint32_t nAllocSizeOld = pDataBlock->nAllocSize;
+  
+  // expand the allocated size
+  if (remain < allSize) {
+    pDataBlock->nAllocSize = (pDataBlock->size + allSize) * 1.5;
+
+    char *tmp = taosMemoryRealloc(pDataBlock->pData, (size_t)pDataBlock->nAllocSize);
+    if (tmp != NULL) {
+      pDataBlock->pData = tmp;
+      memset(pDataBlock->pData + pDataBlock->size, 0, pDataBlock->nAllocSize - pDataBlock->size);
+    } else {
+      // do nothing, if allocate more memory failed
+      pDataBlock->nAllocSize = nAllocSizeOld;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows) {
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
   const int factor = 5;
@@ -541,3 +570,84 @@ int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo
                         pColInfo->boundNullLen);
   return TSDB_CODE_SUCCESS;
 }
+
+
+int32_t qResetStmtDataBlock(void* block, bool keepBuf) {
+  STableDataBlocks* pBlock = (STableDataBlocks*)block;
+
+  if (keepBuf) {
+    taosMemoryFreeClear(pBlock->pData);
+    pBlock->pData = taosMemoryMalloc(TSDB_PAYLOAD_SIZE);
+    if (NULL == pBlock->pData) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memset(pBlock->pData, 0, sizeof(SSubmitBlk));
+  } else {
+    pBlock->pData  = NULL;
+  }
+  
+  pBlock->ordered  = true;
+  pBlock->prevTS   = INT64_MIN;
+  pBlock->size     = sizeof(SSubmitBlk);
+  pBlock->tsSource = -1;
+  pBlock->numOfTables = 1;
+  pBlock->nAllocSize = TSDB_PAYLOAD_SIZE;
+  pBlock->headerSize = pBlock->size;
+  
+  memset(&pBlock->rowBuilder, 0, sizeof(pBlock->rowBuilder));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qCloneStmtDataBlock(void** pDst, void* pSrc) {
+  *pDst = taosMemoryMalloc(sizeof(STableDataBlocks));
+  if (NULL == *pDst) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  memcpy(*pDst, pSrc, sizeof(STableDataBlocks));
+  ((STableDataBlocks*)(*pDst))->cloned = true;
+  
+  return qResetStmtDataBlock(*pDst, false);
+}
+
+int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc) {
+  int32_t code = qCloneStmtDataBlock(pDst, pSrc);
+  if (code) {
+    return code;
+  }
+
+  STableDataBlocks *pBlock = (STableDataBlocks*)*pDst;
+  pBlock->pData = taosMemoryMalloc(pBlock->nAllocSize);
+  if (NULL == pBlock->pData) {
+    qFreeStmtDataBlock(pBlock);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  memset(pBlock->pData, 0, sizeof(SSubmitBlk));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+void qFreeStmtDataBlock(void* pDataBlock) {
+  if (pDataBlock == NULL) {
+    return;
+  }
+
+  taosMemoryFreeClear(((STableDataBlocks*)pDataBlock)->pData);
+  taosMemoryFreeClear(pDataBlock);
+}
+
+void qDestroyStmtDataBlock(void* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
+  STableDataBlocks* pDataBlock = (STableDataBlocks*)pBlock;
+
+  pDataBlock->cloned = false;
+  destroyDataBlock(pDataBlock);
+}
+

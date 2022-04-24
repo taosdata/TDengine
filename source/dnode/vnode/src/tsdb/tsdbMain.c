@@ -15,14 +15,12 @@
 
 #include "vnodeInt.h"
 
-static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
-                      SMeta *pMeta, STfs *pTfs);
+static STsdb *tsdbNew(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
 static void   tsdbFree(STsdb *pTsdb);
 static int    tsdbOpenImpl(STsdb *pTsdb);
 static void   tsdbCloseImpl(STsdb *pTsdb);
 
-STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta,
-                STfs *pTfs) {
+STsdb *tsdbOpen(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
   STsdb *pTsdb = NULL;
 
   // Set default TSDB Options
@@ -37,7 +35,7 @@ STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAl
   }
 
   // Create the handle
-  pTsdb = tsdbNew(path, vgId, pTsdbCfg, pMAF, pMeta, pTfs);
+  pTsdb = tsdbNew(path, pVnode, pTsdbCfg, pMAF);
   if (pTsdb == NULL) {
     // TODO: handle error
     return NULL;
@@ -61,11 +59,8 @@ void tsdbClose(STsdb *pTsdb) {
   }
 }
 
-void tsdbRemove(const char *path) { taosRemoveDir(path); }
-
 /* ------------------------ STATIC METHODS ------------------------ */
-static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
-                      SMeta *pMeta, STfs *pTfs) {
+static STsdb *tsdbNew(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
   STsdb *pTsdb = NULL;
 
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
@@ -75,11 +70,10 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
   }
 
   pTsdb->path = strdup(path);
-  pTsdb->vgId = vgId;
+  pTsdb->vgId = TD_VID(pVnode);
+  pTsdb->pVnode = pVnode;
   tsdbOptionsCopy(&(pTsdb->config), pTsdbCfg);
   pTsdb->pmaf = pMAF;
-  pTsdb->pMeta = pMeta;
-  pTsdb->pTfs = pTfs;
   pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
   return pTsdb;
@@ -156,7 +150,7 @@ int tsdbUnlockRepo(STsdb *pTsdb) {
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
-#define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
+#define TSDB_DEFAULT_COMPRESSION          TWO_STAGE_COMP
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
 static int32_t    tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
@@ -607,26 +601,26 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
 
   // Check minRowsPerFileBlock and maxRowsPerFileBlock
   if (pCfg->minRowsPerFileBlock == -1) {
-    pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+    pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MINROWS_FBLOCK;
   } else {
-    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
+    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MINROWS_FBLOCK) {
       tsdbError(
-          "vgId:%d invalid minRowsPerFileBlock configuration! minRowsPerFileBlock %d TSDB_MIN_MIN_ROW_FBLOCK %d "
-          "TSDB_MAX_MIN_ROW_FBLOCK %d",
-          pCfg->tsdbId, pCfg->minRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+          "vgId:%d invalid minRowsPerFileBlock configuration! minRowsPerFileBlock %d TSDB_MIN_MINROWS_FBLOCK %d "
+          "TSDB_MAX_MINROWS_FBLOCK %d",
+          pCfg->tsdbId, pCfg->minRowsPerFileBlock, TSDB_MIN_MINROWS_FBLOCK, TSDB_MAX_MINROWS_FBLOCK);
       terrno = TSDB_CODE_TDB_INVALID_CONFIG;
       return -1;
     }
   }
 
   if (pCfg->maxRowsPerFileBlock == -1) {
-    pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+    pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAXROWS_FBLOCK;
   } else {
-    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
+    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAXROWS_FBLOCK) {
       tsdbError(
-          "vgId:%d invalid maxRowsPerFileBlock configuration! maxRowsPerFileBlock %d TSDB_MIN_MAX_ROW_FBLOCK %d "
-          "TSDB_MAX_MAX_ROW_FBLOCK %d",
-          pCfg->tsdbId, pCfg->maxRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+          "vgId:%d invalid maxRowsPerFileBlock configuration! maxRowsPerFileBlock %d TSDB_MIN_MAXROWS_FBLOCK %d "
+          "TSDB_MAX_MAXROWS_FBLOCK %d",
+          pCfg->tsdbId, pCfg->maxRowsPerFileBlock, TSDB_MIN_MINROWS_FBLOCK, TSDB_MAX_MINROWS_FBLOCK);
       terrno = TSDB_CODE_TDB_INVALID_CONFIG;
       return -1;
     }

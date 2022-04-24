@@ -139,7 +139,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-  if (taosRealPath(fullDir, PATH_MAX) != 0) {
+  if (taosRealPath(fullDir, NULL, PATH_MAX) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to get realpath of dir:%s since %s", inputDir, terrstr());
     return -1;
@@ -472,6 +472,8 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "apollo_url";
     case CFG_STYPE_ARG_LIST:
       return "arg_list";
+    case CFG_STYPE_TAOS_OPTIONS:
+      return "taos_options";
     default:
       return "invalid";
   }
@@ -591,12 +593,12 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
 }
 
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
-  uInfo("load from env variables not implemented yet");
+  uDebug("load from env variables not implemented yet");
   return 0;
 }
 
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
-  uInfo("load from env file not implemented yet");
+  uDebug("load from env file not implemented yet");
   return 0;
 }
 
@@ -655,6 +657,6 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 }
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
-  uInfo("load from apoll url not implemented yet");
+  uDebug("load from apoll url not implemented yet");
   return 0;
 }

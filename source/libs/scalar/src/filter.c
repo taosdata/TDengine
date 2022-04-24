@@ -21,6 +21,7 @@
 #include "sclInt.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "ttime.h"
 
 OptrStr gOptrStr[] = {
   {0,                                      "invalid"},
@@ -57,28 +58,24 @@ OptrStr gOptrStr[] = {
   {OP_TYPE_IS_NOT_UNKNOWN,                 "not unknown"},
 
   // json operator
-  {OP_TYPE_JSON_GET_VALUE,                 "json get"},
+  {OP_TYPE_JSON_GET_VALUE,                 "->"},
   {OP_TYPE_JSON_CONTAINS,                  "json contains"}
 };
 
 bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result >= 0;
 }
 bool filterRangeCompGe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result > 0;
 }
 bool filterRangeCompLi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(minv, maxr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result <= 0;
 }
 bool filterRangeCompLe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(minv, maxr);
-  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result < 0;
 }
 bool filterRangeCompii (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
@@ -170,7 +167,7 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
   setChkInBytes1, setChkInBytes2, setChkInBytes4, setChkInBytes8, compareStrRegexCompMatch, 
   compareStrRegexCompNMatch, setChkNotInBytes1, setChkNotInBytes2, setChkNotInBytes4, setChkNotInBytes8,
-  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
+  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch, compareJsonContainsKey
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -221,7 +218,12 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         assert(0);
     }
   }
-  
+
+  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
+    return 28;
+  }
+
+
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:   comparFn = 1;   break;
@@ -985,6 +987,7 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   assert(FILTER_GET_FLAG(col->flag, FLD_TYPE_COLUMN));
   
   info->units[info->unitNum].compare.type = FILTER_GET_COL_FIELD_TYPE(col);
+  info->units[info->unitNum].compare.precision = FILTER_GET_COL_FIELD_PRECISION(col);
 
   *uidx = info->unitNum;
 
@@ -1049,6 +1052,8 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
 
       cell = cell->pNext;
     }
+    colDataDestroy(out.columnData);
+    taosMemoryFree(out.columnData);
   } else {
     filterAddFieldFromNode(info, node->pRight, &right);
     
@@ -1745,6 +1750,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     assert(FILTER_GET_FLAG(right->flag, FLD_TYPE_VALUE));
 
     uint32_t type = FILTER_UNIT_DATA_TYPE(unit);
+    int8_t precision = FILTER_UNIT_DATA_PRECISION(unit);
     SFilterField* fi = right;
     
     SValueNode* var = (SValueNode *)fi->desc;
@@ -1778,9 +1784,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       bytes = (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
 
       fi->data = taosMemoryCalloc(1, bytes);
-    } else if (type != TSDB_DATA_TYPE_JSON){
+    } else{
       if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
-/*      
+/*
         fi->data = taosMemoryCalloc(dType->bytes, tDataTypes[type].bytes);
         for (int32_t a = 0; a < dType->bytes; ++a) {
           int64_t *v = taosArrayGet(var->arr, a);
@@ -1791,31 +1797,30 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       } else {
         fi->data = taosMemoryCalloc(1, sizeof(int64_t));
       }
-    } else{     // type == TSDB_DATA_TYPE_JSON
-      // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
-    if(type != TSDB_DATA_TYPE_JSON) {
-      if (dType->type == type) {
-        assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+    if (dType->type == type) {
+      assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+    } else {
+      SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
+      out.columnData->info.type = type;
+      out.columnData->info.precision = precision;
+      if (IS_VAR_DATA_TYPE(type)) {
+        out.columnData->info.bytes = bytes;
       } else {
-        SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
-        out.columnData->info.type = type;
-        if (IS_VAR_DATA_TYPE(type)) {
-          out.columnData->info.bytes = bytes;
-        } else {
-          out.columnData->info.bytes = tDataTypes[type].bytes;
-        }
-
-        // todo refactor the convert
-        int32_t code = doConvertDataType(var, &out);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("convert value to type[%d] failed", type);
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-
-        memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
+        out.columnData->info.bytes = tDataTypes[type].bytes;
       }
+
+      // todo refactor the convert
+      int32_t code = doConvertDataType(var, &out);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("convert value to type[%d] failed", type);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
+      colDataDestroy(out.columnData);
+      taosMemoryFree(out.columnData);
     }
 
     // match/nmatch for nchar type need convert from ucs4 to mbs
@@ -2556,11 +2561,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].colId = FILTER_UNIT_COL_ID(info, unit);
     
     if (unit->right.type == FLD_TYPE_VALUE) {
-      if(FILTER_UNIT_DATA_TYPE(unit) == TSDB_DATA_TYPE_JSON){   // json value is tVariant
-        info->cunits[i].valData = FILTER_UNIT_JSON_VAL_DATA(info, unit);
-      }else{
-        info->cunits[i].valData = FILTER_UNIT_VAL_DATA(info, unit);
-      }
+      info->cunits[i].valData = FILTER_UNIT_VAL_DATA(info, unit);
     } else {
       info->cunits[i].valData = NULL;
     }
@@ -2886,18 +2887,8 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
-    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      if (!colData){  // for json->'key' is null
-        (*p)[i] = 1;
-      }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){  // for json is null
-        colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
-      }else{
-        (*p)[i] = 0;
-      }
-    }else{
-      (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
-    }
+    (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
+
     if ((*p)[i] == 0) {
       all = false;
     }    
@@ -2921,19 +2912,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
-    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      if (!colData) {   // for json->'key' is not null
-        (*p)[i] = 0;
-      }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){   // for json is not null
-        colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
-      }else{    // for json->'key' is not null
-        (*p)[i] = 1;
-      }
-    }else {
-      (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
-    }
-
+    (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     if ((*p)[i] == 0) {
       all = false;
     }
@@ -3389,6 +3368,12 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow       *win, bool *
     filterGetRangeRes(prev, &tra);
     win->skey = tra.s; 
     win->ekey = tra.e;
+    if (FILTER_GET_FLAG(tra.sflag, RANGE_FLG_EXCLUDE)) {
+      win->skey++;
+    }
+    if (FILTER_GET_FLAG(tra.eflag, RANGE_FLG_EXCLUDE)) {
+      win->ekey--;
+    }
   }
 
   filterFreeRangeCtx(prev);
@@ -3494,6 +3479,33 @@ int32_t filterFreeNcharColumns(SFilterInfo* info) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode* pNode) {
+  if (NULL == stat->nodeList) {
+    stat->nodeList = taosArrayInit(10, POINTER_BYTES);
+    if (NULL == stat->nodeList) {
+      FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+  }
+
+  if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
+    FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void fltConvertToTsValueNode(SFltTreeStat *stat, SValueNode* valueNode) {
+  char *timeStr = valueNode->datum.p;
+  if (convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, stat->precision, &valueNode->datum.i) !=
+      TSDB_CODE_SUCCESS) {
+    valueNode->datum.i = 0;
+  }
+  taosMemoryFree(timeStr);
+  
+  valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+}
+
 EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
 
@@ -3517,7 +3529,38 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(*pNode)) {
+    if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
+      return DEAL_RES_CONTINUE;
+    }
+    
+    SValueNode *valueNode = (SValueNode *)*pNode;
+    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR != valueNode->node.resType.type) {
+      return DEAL_RES_CONTINUE;
+    }
+
+    if (stat->precision < 0) {
+      int32_t code = fltAddValueNodeToConverList(stat, valueNode);
+      if (code) {
+        stat->code = code;
+        return DEAL_RES_ERROR;
+      }
+      
+      return DEAL_RES_CONTINUE;
+    }
+
+    fltConvertToTsValueNode(stat, valueNode);
+
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SColumnNode *colNode = (SColumnNode *)*pNode;
+    stat->precision = colNode->node.resType.precision;
+    return DEAL_RES_CONTINUE;
+  }
+  
+  if (QUERY_NODE_NODE_LIST == nodeType(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -3566,6 +3609,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
 
+      if (OP_TYPE_JSON_CONTAINS == node->opType) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+
       if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         SNode *t = node->pLeft;
         node->pLeft = node->pRight;
@@ -3600,9 +3648,22 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 }
 
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
+  int32_t code = 0;
   nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
-  FLT_RET(pStat->code);
+  FLT_ERR_JRET(pStat->code);
+
+  int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
+  for (int32_t i = 0; i < nodeNum; ++i) {
+    SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
+    
+    fltConvertToTsValueNode(pStat, valueNode);
+  }
+
+_return:
+
+  taosArrayDestroy(pStat->nodeList);
+  FLT_RET(code);
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
@@ -3676,16 +3737,19 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   info = *pInfo;
   info->options = options;
 
-  SFltTreeStat stat1 = {0};
-  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat1));
+  SFltTreeStat stat = {0};
+  stat.precision = -1;
+  stat.info = info;
+  
+  FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
 
-  info->scalarMode = stat1.scalarMode;
+  info->scalarMode = stat.scalarMode;
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
     info->sclCtx.node = pNode;
-    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat1));
+    FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
   }
   
   return code;

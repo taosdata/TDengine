@@ -31,44 +31,49 @@
 #define NC        "\033[0m"
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
-#define MAX_SQL_STR_LEN (1024 * 1024)
-#define MAX_ROW_STR_LEN (16 * 1024)
+#define MAX_SQL_STR_LEN            (1024 * 1024)
+#define MAX_ROW_STR_LEN            (16 * 1024)
+#define MAX_CONSUMER_THREAD_CNT    (16)
 
 typedef struct {
-  int32_t  expectMsgCnt;
-  int32_t  consumeMsgCnt;
-  TdThread thread;
+  TdThread    thread;
+  int32_t     consumerId;
+
+  int32_t     ifCheckData;
+  int64_t     expectMsgCnt; 
+  
+  int64_t     consumeMsgCnt;
+  int64_t     consumeRowCnt;
+  int32_t     checkresult;
+
+  char        topicString[1024];
+  char        keyString[1024];
+
+  int32_t     numOfTopic;
+  char        topics[32][64];
+
+  int32_t     numOfKey;
+  char        key[32][64];
+  char        value[32][64];  
+
+  tmq_t*      tmq;
+  tmq_list_t* topicList;
+  
 } SThreadInfo;
 
 typedef struct {
   // input from argvs
-  char    dbName[32];
-  char    topicString[256];
-  char    keyString[1024];
-  char    topicString1[256];
-  char    keyString1[1024];
-  int32_t showMsgFlag;
-  int32_t consumeDelay;  // unit s
-  int32_t consumeMsgCnt;
-  int32_t checkMode;
-
-  // save result after parse agrvs
-  int32_t numOfTopic;
-  char    topics[32][64];
-
-  int32_t numOfKey;
-  char    key[32][64];
-  char    value[32][64];
-
-  int32_t numOfTopic1;
-  char    topics1[32][64];
-
-  int32_t numOfKey1;
-  char    key1[32][64];
-  char    value1[32][64];
+  char           cdbName[32];
+  char           dbName[32];
+  int32_t        showMsgFlag;
+  int32_t        showRowFlag;
+  int32_t        consumeDelay;  // unit s
+  int32_t        numOfThread;  
+  SThreadInfo    stThreads[MAX_CONSUMER_THREAD_CNT];
 } SConfInfo;
 
 static SConfInfo g_stConfInfo;
+TdFilePtr g_fp = NULL;
 
 // char* g_pRowValue = NULL;
 // TdFilePtr g_fp = NULL;
@@ -81,30 +86,66 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, indent, "Configuration directory, default is ", configDir);
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s\n", indent, indent, "The name of the database for cosumer, no default ");
-  printf("%s%s\n", indent, "-t");
-  printf("%s%s%s\n", indent, indent, "The topic string for cosumer, no default ");
-  printf("%s%s\n", indent, "-k");
-  printf("%s%s%s\n", indent, indent, "The key-value string for cosumer, no default ");
-  printf("%s%s\n", indent, "-t1");
-  printf("%s%s%s\n", indent, indent, "The topic1 string for cosumer, no default ");
-  printf("%s%s\n", indent, "-k1");
-  printf("%s%s%s\n", indent, indent, "The key1-value1 string for cosumer, no default ");
   printf("%s%s\n", indent, "-g");
   printf("%s%s%s%d\n", indent, indent, "showMsgFlag, default is ", g_stConfInfo.showMsgFlag);
+  printf("%s%s\n", indent, "-r");
+  printf("%s%s%s%d\n", indent, indent, "showRowFlag, default is ", g_stConfInfo.showRowFlag);
   printf("%s%s\n", indent, "-y");
   printf("%s%s%s%d\n", indent, indent, "consume delay, default is s", g_stConfInfo.consumeDelay);
-  printf("%s%s\n", indent, "-m");
-  printf("%s%s%s%d\n", indent, indent, "consume msg count, default is s", g_stConfInfo.consumeMsgCnt);
-  printf("%s%s\n", indent, "-j");
-  printf("%s%s%s%d\n", indent, indent, "check mode, default is s", g_stConfInfo.checkMode);
   exit(EXIT_SUCCESS);
+}
+
+
+void initLogFile() {
+  // FILE *fp = fopen(g_stConfInfo.resultFileName, "a");
+  char file[256];
+  sprintf(file, "%s/../log/tmqlog.txt", configDir);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (NULL == pFile) {
+    fprintf(stderr, "Failed to open %s for save result\n", "./tmqlog.txt");
+    exit -1;
+  };
+  g_fp = pFile;
+}
+
+
+void saveConfigToLogFile() {
+  time_t    tTime = taosGetTimestampSec();
+  struct tm tm = *taosLocalTime(&tTime, NULL);
+
+  taosFprintfFile(g_fp, "###################################################################\n");
+  taosFprintfFile(g_fp, "# configDir:           %s\n",  configDir);
+  taosFprintfFile(g_fp, "# dbName:              %s\n",  g_stConfInfo.dbName);
+  taosFprintfFile(g_fp, "# cdbName:             %s\n",  g_stConfInfo.cdbName);
+  taosFprintfFile(g_fp, "# showMsgFlag:         %d\n",  g_stConfInfo.showMsgFlag);
+  taosFprintfFile(g_fp, "# showRowFlag:         %d\n",  g_stConfInfo.showRowFlag);
+  taosFprintfFile(g_fp, "# consumeDelay:        %d\n",  g_stConfInfo.consumeDelay);
+  taosFprintfFile(g_fp, "# numOfThread:         %d\n",  g_stConfInfo.numOfThread);
+
+  for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {	  
+    taosFprintfFile(g_fp, "# consumer %d info:\n", g_stConfInfo.stThreads[i].consumerId);
+	taosFprintfFile(g_fp, "  Topics: ");
+    for (int i = 0 ; i < g_stConfInfo.stThreads[i].numOfTopic; i++) {
+    taosFprintfFile(g_fp, "%s, ",  g_stConfInfo.stThreads[i].topics[i]);
+    }
+    taosFprintfFile(g_fp, "\n");  
+    taosFprintfFile(g_fp, "  Key: ");
+    for (int i = 0 ; i < g_stConfInfo.stThreads[i].numOfKey; i++) {
+      taosFprintfFile(g_fp, "%s:%s, ",  g_stConfInfo.stThreads[i].key[i], g_stConfInfo.stThreads[i].value[i]);
+    }
+    taosFprintfFile(g_fp, "\n");
+  }
+  
+  taosFprintfFile(g_fp, "# Test time:                %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
+                                                                           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  taosFprintfFile(g_fp, "###################################################################\n");
 }
 
 void parseArgument(int32_t argc, char* argv[]) {
   memset(&g_stConfInfo, 0, sizeof(SConfInfo));
   g_stConfInfo.showMsgFlag = 0;
-  g_stConfInfo.consumeDelay = 8000;
-  g_stConfInfo.consumeMsgCnt = 0;
+  g_stConfInfo.showRowFlag = 0;
+  g_stConfInfo.consumeDelay = 5;
 
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -112,40 +153,33 @@ void parseArgument(int32_t argc, char* argv[]) {
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
       strcpy(g_stConfInfo.dbName, argv[++i]);
+    } else if (strcmp(argv[i], "-w") == 0) {
+      strcpy(g_stConfInfo.cdbName, argv[++i]);
     } else if (strcmp(argv[i], "-c") == 0) {
       strcpy(configDir, argv[++i]);
-    } else if (strcmp(argv[i], "-t") == 0) {
-      strcpy(g_stConfInfo.topicString, argv[++i]);
-    } else if (strcmp(argv[i], "-k") == 0) {
-      strcpy(g_stConfInfo.keyString, argv[++i]);
-    } else if (strcmp(argv[i], "-t1") == 0) {
-      strcpy(g_stConfInfo.topicString1, argv[++i]);
-    } else if (strcmp(argv[i], "-k1") == 0) {
-      strcpy(g_stConfInfo.keyString1, argv[++i]);
     } else if (strcmp(argv[i], "-g") == 0) {
       g_stConfInfo.showMsgFlag = atol(argv[++i]);
+    } else if (strcmp(argv[i], "-r") == 0) {
+      g_stConfInfo.showRowFlag = atol(argv[++i]);
     } else if (strcmp(argv[i], "-y") == 0) {
       g_stConfInfo.consumeDelay = atol(argv[++i]);
-    } else if (strcmp(argv[i], "-m") == 0) {
-      g_stConfInfo.consumeMsgCnt = atol(argv[++i]);
-    } else if (strcmp(argv[i], "-j") == 0) {
-      g_stConfInfo.checkMode = atol(argv[++i]);
     } else {
       printf("%s unknow para: %s %s", GREEN, argv[++i], NC);
       exit(-1);
     }
   }
 
-  if (0 == g_stConfInfo.consumeMsgCnt) {
-    g_stConfInfo.consumeMsgCnt = 0x7fffffff;
-  }
+  initLogFile();
+  
+  taosFprintfFile(g_fp, "====parseArgument() success\n");
 
-#if 0
+#if 1
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
   pPrint("%s dbName:%s %s", GREEN, g_stConfInfo.dbName, NC);
-  pPrint("%s topicString:%s %s", GREEN, g_stConfInfo.topicString, NC);
-  pPrint("%s keyString:%s %s", GREEN, g_stConfInfo.keyString, NC);  
+  pPrint("%s cdbName:%s %s", GREEN, g_stConfInfo.cdbName, NC);
+  pPrint("%s consumeDelay:%d %s", GREEN, g_stConfInfo.consumeDelay, NC);
   pPrint("%s showMsgFlag:%d %s", GREEN, g_stConfInfo.showMsgFlag, NC);
+  pPrint("%s showRowFlag:%d %s", GREEN, g_stConfInfo.showRowFlag, NC);
 #endif
 }
 
@@ -171,73 +205,30 @@ void ltrim(char* str) {
   // return str;
 }
 
-void parseInputString() {
-  // printf("topicString: %s\n", g_stConfInfo.topicString);
-  // printf("keyString: %s\n\n", g_stConfInfo.keyString);
-
-  char*      token;
-  const char delim[2] = ",";
-  const char ch = ':';
-
-  token = strtok(g_stConfInfo.topicString, delim);
-  while (token != NULL) {
-    // printf("%s\n", token );
-    strcpy(g_stConfInfo.topics[g_stConfInfo.numOfTopic], token);
-    ltrim(g_stConfInfo.topics[g_stConfInfo.numOfTopic]);
-    // printf("%s\n", g_stConfInfo.topics[g_stConfInfo.numOfTopic]);
-    g_stConfInfo.numOfTopic++;
-
-    token = strtok(NULL, delim);
-  }
-
-  token = strtok(g_stConfInfo.topicString1, delim);
-  while (token != NULL) {
-    // printf("%s\n", token );
-    strcpy(g_stConfInfo.topics1[g_stConfInfo.numOfTopic1], token);
-    ltrim(g_stConfInfo.topics1[g_stConfInfo.numOfTopic1]);
-    // printf("%s\n", g_stConfInfo.topics[g_stConfInfo.numOfTopic]);
-    g_stConfInfo.numOfTopic1++;
-
-    token = strtok(NULL, delim);
-  }
-
-  token = strtok(g_stConfInfo.keyString, delim);
-  while (token != NULL) {
-    // printf("%s\n", token );
-    {
-      char* pstr = token;
-      ltrim(pstr);
-      char* ret = strchr(pstr, ch);
-      memcpy(g_stConfInfo.key[g_stConfInfo.numOfKey], pstr, ret - pstr);
-      strcpy(g_stConfInfo.value[g_stConfInfo.numOfKey], ret + 1);
-      // printf("key: %s, value: %s\n", g_stConfInfo.key[g_stConfInfo.numOfKey],
-      // g_stConfInfo.value[g_stConfInfo.numOfKey]);
-      g_stConfInfo.numOfKey++;
-    }
-
-    token = strtok(NULL, delim);
-  }
-
-  token = strtok(g_stConfInfo.keyString1, delim);
-  while (token != NULL) {
-    // printf("%s\n", token );
-    {
-      char* pstr = token;
-      ltrim(pstr);
-      char* ret = strchr(pstr, ch);
-      memcpy(g_stConfInfo.key1[g_stConfInfo.numOfKey1], pstr, ret - pstr);
-      strcpy(g_stConfInfo.value1[g_stConfInfo.numOfKey1], ret + 1);
-      // printf("key: %s, value: %s\n", g_stConfInfo.key[g_stConfInfo.numOfKey],
-      // g_stConfInfo.value[g_stConfInfo.numOfKey]);
-      g_stConfInfo.numOfKey1++;
-    }
-
-    token = strtok(NULL, delim);
-  }
-}
-
 static int running = 1;
-/*static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }*/
+static int32_t msg_process(TAOS_RES* msg, int64_t msgIndex, int32_t threadLable) {
+  char buf[1024];
+  int32_t totalRows = 0;
+
+  //printf("topic: %s\n", tmq_get_topic_name(msg));
+  //printf("vg:%d\n", tmq_get_vgroup_id(msg));
+  taosFprintfFile(g_fp, "msg index:%" PRId64 ", threadLable: %d\n",  msgIndex, threadLable);
+  taosFprintfFile(g_fp, "topic: %s, vgroupId: %d\n",  tmq_get_topic_name(msg), tmq_get_vgroup_id(msg));
+  
+  while (1) {
+    TAOS_ROW row = taos_fetch_row(msg);
+    if (row == NULL) break;
+	if (0 != g_stConfInfo.showRowFlag) {
+      TAOS_FIELD* fields      = taos_fetch_fields(msg);
+      int32_t     numOfFields = taos_field_count(msg);
+      taos_print_row(buf, row, fields, numOfFields);
+  	  taosFprintfFile(g_fp, "rows[%d]: %s\n", totalRows, buf);
+	}
+	totalRows++;
+  }
+
+  return totalRows;
+}
 
 int queryDB(TAOS* taos, char* command) {
   TAOS_RES* pRes = taos_query(taos, command);
@@ -252,288 +243,264 @@ int queryDB(TAOS* taos, char* command) {
   return 0;
 }
 
-tmq_t* build_consumer() {
-#if 0
-  char sqlStr[1024] = {0};
+static void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets) {
+  printf("tmq_commit_cb_print() commit %d\n", resp);
+}
 
+void build_consumer(SThreadInfo *pInfo) {
+  tmq_conf_t* conf = tmq_conf_new();
+
+  //tmq_conf_set(conf, "td.connect.ip", "localhost");
+  //tmq_conf_set(conf, "td.connect.port", "6030");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+
+  tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
+
+  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
+
+  // tmq_conf_set(conf, "group.id", "cgrp1");
+  for (int32_t i = 0; i < pInfo->numOfKey; i++) {
+    tmq_conf_set(conf, pInfo->key[i], pInfo->value[i]);
+  }
+
+  //tmq_conf_set(conf, "client.id", "c-001");
+
+  //tmq_conf_set(conf, "enable.auto.commit", "true");
+  //tmq_conf_set(conf, "enable.auto.commit", "false");
+
+  //tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
+  
+  //tmq_conf_set(conf, "auto.offset.reset", "none");
+  //tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  //tmq_conf_set(conf, "auto.offset.reset", "latest");
+  
+  pInfo->tmq = tmq_consumer_new(conf, NULL, 0);
+  return;
+}
+
+void build_topic_list(SThreadInfo *pInfo) {
+  pInfo->topicList = tmq_list_new();
+  // tmq_list_append(topic_list, "test_stb_topic_1");
+  for (int32_t i = 0; i < pInfo->numOfTopic; i++) {
+    tmq_list_append(pInfo->topicList, pInfo->topics[i]);
+  }
+  return;
+}
+
+int32_t saveConsumeResult(SThreadInfo *pInfo) {
+  char sqlStr[1024] = {0};
+  
   TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
-
-  sprintf(sqlStr, "use %s", g_stConfInfo.dbName);
+  
+  // schema: ts timestamp, consumerid int, consummsgcnt bigint, checkresult int
+  sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %" PRId64 ", %d)", 
+                               g_stConfInfo.cdbName, 
+                               pInfo->consumerId, 
+                               pInfo->consumeMsgCnt, 
+                               pInfo->consumeRowCnt, 
+                               pInfo->checkresult);
+  
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
-    printf("error in use db, reason:%s\n", taos_errstr(pRes));
+    printf("error in save consumeinfo, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
     exit(-1);
   }
+  
   taos_free_result(pRes);
-#endif
 
-  tmq_conf_t* conf = tmq_conf_new();
-  // tmq_conf_set(conf, "group.id", "tg2");
-  for (int32_t i = 0; i < g_stConfInfo.numOfKey; i++) {
-    tmq_conf_set(conf, g_stConfInfo.key[i], g_stConfInfo.value[i]);
-  }
-  tmq_conf_set(conf, "td.connect.user", "root");
-  tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
-  tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
-  assert(tmq);
-  tmq_conf_destroy(conf);
-  return tmq;
+  return 0;
 }
 
-tmq_list_t* build_topic_list() {
-  tmq_list_t* topic_list = tmq_list_new();
-  // tmq_list_append(topic_list, "test_stb_topic_1");
-  for (int32_t i = 0; i < g_stConfInfo.numOfTopic; i++) {
-    tmq_list_append(topic_list, g_stConfInfo.topics[i]);
-  }
-  return topic_list;
-}
-
-tmq_t* build_consumer_x() {
-#if 0
-  char sqlStr[1024] = {0};
-
-  TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  sprintf(sqlStr, "use %s", g_stConfInfo.dbName);
-  TAOS_RES* pRes = taos_query(pConn, sqlStr);
-  if (taos_errno(pRes) != 0) {
-    printf("error in use db, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    exit(-1);
-  }
-  taos_free_result(pRes);
-#endif
-
-  tmq_conf_t* conf = tmq_conf_new();
-  // tmq_conf_set(conf, "group.id", "tg2");
-  for (int32_t i = 0; i < g_stConfInfo.numOfKey1; i++) {
-    tmq_conf_set(conf, g_stConfInfo.key1[i], g_stConfInfo.value1[i]);
-  }
-  tmq_conf_set(conf, "td.connect.user", "root");
-  tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
-  tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
-  assert(tmq);
-  tmq_conf_destroy(conf);
-  return tmq;
-}
-
-tmq_list_t* build_topic_list_x() {
-  tmq_list_t* topic_list = tmq_list_new();
-  // tmq_list_append(topic_list, "test_stb_topic_1");
-  for (int32_t i = 0; i < g_stConfInfo.numOfTopic1; i++) {
-    tmq_list_append(topic_list, g_stConfInfo.topics1[i]);
-  }
-  return topic_list;
-}
-
-void loop_consume(tmq_t* tmq) {
+void loop_consume(SThreadInfo *pInfo) {
   tmq_resp_err_t err;
+  
+  int64_t totalMsgs = 0;
+  int64_t totalRows = 0;
 
-  int32_t totalMsgs = 0;
-  int32_t totalRows = 0;
-  int32_t skipLogNum = 0;
   while (running) {
-    TAOS_RES* tmqMsg = tmq_consumer_poll(tmq, 8000);
-    if (tmqMsg) {
-      totalMsgs++;
-
-#if 0
-	  TAOS_ROW row;
-	  while (NULL != (row = tmq_get_row(tmqMsg))) {
-        totalRows++;
-	  }
-#endif
-
-      /*skipLogNum += tmqGetSkipLogNum(tmqMsg);*/
+    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, g_stConfInfo.consumeDelay * 1000);
+    if (tmqMsg) {     
       if (0 != g_stConfInfo.showMsgFlag) {
-        /*msg_process(tmqMsg);*/
+        totalRows += msg_process(tmqMsg, totalMsgs, pInfo->consumerId);
       }
-      tmq_message_destroy(tmqMsg);
-    } else {
-      break;
-    }
-  }
 
-  err = tmq_consumer_close(tmq);
-  if (err) {
-    printf("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
-    exit(-1);
-  }
+      taos_free_result(tmqMsg);
 
-  printf("{consume success: %d, %d}", totalMsgs, totalRows);
-}
-
-int32_t parallel_consume(tmq_t* tmq, int threadLable) {
-  tmq_resp_err_t err;
-
-  int32_t totalMsgs = 0;
-  int32_t totalRows = 0;
-  int32_t skipLogNum = 0;
-  while (running) {
-    TAOS_RES* tmqMsg = tmq_consumer_poll(tmq, g_stConfInfo.consumeDelay * 1000);
-    if (tmqMsg) {
       totalMsgs++;
-
-      // printf("threadFlag: %d, totalMsgs: %d\n", threadLable, totalMsgs);
-
-#if 0
-	  TAOS_ROW row;
-	  while (NULL != (row = tmq_get_row(tmqMsg))) {
-        totalRows++;
-	  }
-#endif
-
-      /*skipLogNum += tmqGetSkipLogNum(tmqMsg);*/
-      if (0 != g_stConfInfo.showMsgFlag) {
-        /*msg_process(tmqMsg);*/
-      }
-      tmq_message_destroy(tmqMsg);
-
-      if (totalMsgs >= g_stConfInfo.consumeMsgCnt) {
+      
+      if (totalMsgs >= pInfo->expectMsgCnt) {
         break;
       }
     } else {
       break;
     }
   }
-
-  err = tmq_consumer_close(tmq);
+  
+  err = tmq_consumer_close(pInfo->tmq);
   if (err) {
     printf("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
 
-  // printf("%d", totalMsgs); // output to sim for check result
-  return totalMsgs;
+  pInfo->consumeMsgCnt = totalMsgs;
+  pInfo->consumeRowCnt = totalRows;
+
+  taosFprintfFile(g_fp, "==== consumerId: %d, consumeMsgCnt: %"PRId64", consumeRowCnt: %"PRId64"\n", pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt);
+  
 }
 
-void* threadFunc(void* param) {
+void *consumeThreadFunc(void *param) {
   int32_t totalMsgs = 0;
 
-  SThreadInfo* pInfo = (SThreadInfo*)param;
+  SThreadInfo *pInfo = (SThreadInfo *)param;
 
-  tmq_t*      tmq = build_consumer_x();
-  tmq_list_t* topic_list = build_topic_list_x();
-  if ((NULL == tmq) || (NULL == topic_list)) {
+  build_consumer(pInfo);
+  build_topic_list(pInfo);
+  if ((NULL == pInfo->tmq) || (NULL == pInfo->topicList)){
     return NULL;
   }
-
-  tmq_resp_err_t err = tmq_subscribe(tmq, topic_list);
+  
+  tmq_resp_err_t err = tmq_subscribe(pInfo->tmq, pInfo->topicList);
   if (err) {
     printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
+  
+  loop_consume(pInfo);
 
-  // if (0 == g_stConfInfo.consumeMsgCnt) {
-  //   loop_consume(tmq);
-  // } else {
-  pInfo->consumeMsgCnt = parallel_consume(tmq, 1);
-  //}
+  tmq_commit(pInfo->tmq, NULL, 0);
 
-  err = tmq_unsubscribe(tmq);
+  err = tmq_unsubscribe(pInfo->tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
-    pInfo->consumeMsgCnt = -1;
+	pInfo->consumeMsgCnt = -1;
     return NULL;
-  }
+  }  
+  
+  // save consume result into consumeresult table
+  saveConsumeResult(pInfo);
 
   return NULL;
 }
 
+void parseConsumeInfo() {
+  char*      token;
+  const char delim[2] = ",";
+  const char ch = ':';
+
+  for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {  	
+    token = strtok(g_stConfInfo.stThreads[i].topicString, delim);
+    while (token != NULL) {
+      // printf("%s\n", token );
+      strcpy(g_stConfInfo.stThreads[i].topics[g_stConfInfo.stThreads[i].numOfTopic], token);
+      ltrim(g_stConfInfo.stThreads[i].topics[g_stConfInfo.stThreads[i].numOfTopic]);
+      // printf("%s\n", g_stConfInfo.topics[g_stConfInfo.numOfTopic]);
+      g_stConfInfo.stThreads[i].numOfTopic++;
+  	
+      token = strtok(NULL, delim);
+    }
+    
+    token = strtok(g_stConfInfo.stThreads[i].keyString, delim);
+    while (token != NULL) {
+      // printf("%s\n", token );
+      {
+        char* pstr = token;
+        ltrim(pstr);
+        char* ret = strchr(pstr, ch);
+        memcpy(g_stConfInfo.stThreads[i].key[g_stConfInfo.stThreads[i].numOfKey], pstr, ret - pstr);
+        strcpy(g_stConfInfo.stThreads[i].value[g_stConfInfo.stThreads[i].numOfKey], ret + 1);
+        // printf("key: %s, value: %s\n", g_stConfInfo.key[g_stConfInfo.numOfKey],
+        // g_stConfInfo.value[g_stConfInfo.numOfKey]);
+        g_stConfInfo.stThreads[i].numOfKey++;
+      }
+  	
+      token = strtok(NULL, delim);
+    }
+  }
+}
+
+int32_t getConsumeInfo() {
+  char sqlStr[1024] = {0};
+  
+  TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+  
+  sprintf(sqlStr, "select * from %s.consumeinfo", g_stConfInfo.cdbName);
+  TAOS_RES* pRes = taos_query(pConn, sqlStr);
+  if (taos_errno(pRes) != 0) {
+    printf("error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
+    taosFprintfFile(g_fp, "error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
+    taosCloseFile(&g_fp);  
+    taos_free_result(pRes);
+    exit(-1);
+  }  
+  
+  TAOS_ROW	   row        = NULL;
+  int		   num_fields = taos_num_fields(pRes);
+  TAOS_FIELD*  fields     = taos_fetch_fields(pRes);
+  
+  // schema: ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int
+  
+  int32_t numOfThread = 0;
+  while ((row = taos_fetch_row(pRes))) {
+	int32_t*  lengths = taos_fetch_lengths(pRes);
+	
+    for (int i = 0; i < num_fields; ++i) {      
+      if (row[i] == NULL || 0 == i) {
+        continue;
+      }
+      
+      if ((1 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
+        g_stConfInfo.stThreads[numOfThread].consumerId = *((int32_t *)row[i]);
+      } else if ((2 == i) && (fields[i].type == TSDB_DATA_TYPE_BINARY)) {
+        memcpy(g_stConfInfo.stThreads[numOfThread].topicString, row[i], lengths[i]);
+      } else if ((3 == i) && (fields[i].type == TSDB_DATA_TYPE_BINARY)) {
+        memcpy(g_stConfInfo.stThreads[numOfThread].keyString, row[i], lengths[i]);
+      } else if ((4 == i) && (fields[i].type == TSDB_DATA_TYPE_BIGINT)) {
+        g_stConfInfo.stThreads[numOfThread].expectMsgCnt = *((int64_t *)row[i]);
+      } else if ((5 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
+        g_stConfInfo.stThreads[numOfThread].ifCheckData = *((int32_t *)row[i]);
+      }
+    }
+    numOfThread ++;
+  }
+  g_stConfInfo.numOfThread = numOfThread;
+
+  taos_free_result(pRes);
+
+  parseConsumeInfo();
+
+  return 0;
+}
+
+
 int main(int32_t argc, char* argv[]) {
   parseArgument(argc, argv);
-  parseInputString();
+  getConsumeInfo();
+  saveConfigToLogFile();
 
-  int32_t      numOfThreads = 1;
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
-  SThreadInfo* pInfo = (SThreadInfo*)taosMemoryCalloc(numOfThreads, sizeof(SThreadInfo));
 
-  if (g_stConfInfo.numOfTopic1) {
-    // pthread_create one thread to consume
-    for (int32_t i = 0; i < numOfThreads; ++i) {
-      pInfo[i].expectMsgCnt = 0;
-      pInfo[i].consumeMsgCnt = 0;
-      taosThreadCreate(&(pInfo[i].thread), &thattr, threadFunc, (void*)(pInfo + i));
-    }
+  // pthread_create one thread to consume
+  taosFprintfFile(g_fp, "==== create %d consume thread ====\n", g_stConfInfo.numOfThread);	
+  for (int32_t i = 0; i < g_stConfInfo.numOfThread; ++i) {
+    taosThreadCreate(&(g_stConfInfo.stThreads[i].thread), &thattr, consumeThreadFunc, (void *)(&(g_stConfInfo.stThreads[i])));
   }
 
-  int32_t     totalMsgs = 0;
-  tmq_t*      tmq = build_consumer();
-  tmq_list_t* topic_list = build_topic_list();
-  if ((NULL == tmq) || (NULL == topic_list)) {
-    return -1;
+  for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
+    taosThreadJoin(g_stConfInfo.stThreads[i].thread, NULL);
   }
 
-  tmq_resp_err_t err = tmq_subscribe(tmq, topic_list);
-  if (err) {
-    printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
-    exit(-1);
-  }
-
-  if (0 == g_stConfInfo.numOfTopic1) {
-    loop_consume(tmq);
-  } else {
-    totalMsgs = parallel_consume(tmq, 0);
-  }
-
-  err = tmq_unsubscribe(tmq);
-  if (err) {
-    printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
-    exit(-1);
-  }
-
-  if (g_stConfInfo.numOfTopic1) {
-    for (int32_t i = 0; i < numOfThreads; i++) {
-      taosThreadJoin(pInfo[i].thread, NULL);
-    }
-
-    // printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);
-    if (0 == g_stConfInfo.checkMode) {
-      if ((totalMsgs + pInfo->consumeMsgCnt) == g_stConfInfo.consumeMsgCnt) {
-        printf("success");
-      } else {
-        printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
-      }
-    } else if (1 == g_stConfInfo.checkMode) {
-      if ((totalMsgs == g_stConfInfo.consumeMsgCnt) && (pInfo->consumeMsgCnt == g_stConfInfo.consumeMsgCnt)) {
-        printf("success");
-      } else {
-        printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
-      }
-    } else if (2 == g_stConfInfo.checkMode) {
-      if ((totalMsgs + pInfo->consumeMsgCnt) == 3 * g_stConfInfo.consumeMsgCnt) {
-        printf("success");
-      } else {
-        printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
-      }
-    } else if (3 == g_stConfInfo.checkMode) {
-      if ((totalMsgs == 2 * g_stConfInfo.consumeMsgCnt) && (pInfo->consumeMsgCnt == 2 * g_stConfInfo.consumeMsgCnt)) {
-        printf("success");
-      } else {
-        printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
-      }
-    } else if (4 == g_stConfInfo.checkMode) {
-      if (((totalMsgs == 0) && (pInfo->consumeMsgCnt == 3 * g_stConfInfo.consumeMsgCnt)) ||
-          ((pInfo->consumeMsgCnt == 0) && (totalMsgs == 3 * g_stConfInfo.consumeMsgCnt)) ||
-          ((pInfo->consumeMsgCnt == g_stConfInfo.consumeMsgCnt) && (totalMsgs == 2 * g_stConfInfo.consumeMsgCnt)) ||
-          ((pInfo->consumeMsgCnt == 2 * g_stConfInfo.consumeMsgCnt) && (totalMsgs == g_stConfInfo.consumeMsgCnt))) {
-        printf("success");
-      } else {
-        printf("fail, consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
-      }
-    } else {
-      printf("fail, check mode unknow. consumer msg cnt: %d, %d", totalMsgs, pInfo->consumeMsgCnt);
-    }
-  }
-
+  //printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);	
+  
+  taosFprintfFile(g_fp, "==== close tmqlog ====\n");	
+  taosCloseFile(&g_fp);  
+  
   return 0;
 }
 

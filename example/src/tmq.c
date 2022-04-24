@@ -22,6 +22,7 @@
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {
   char buf[1024];
+  memset(buf, 0, 1024);
   printf("topic: %s\n", tmq_get_topic_name(msg));
   printf("vg:%d\n", tmq_get_vgroup_id(msg));
   while (1) {
@@ -100,8 +101,7 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*const char* sql = "select * from tu1";*/
-  /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));*/
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");*/
   pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from ct1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
@@ -140,7 +140,7 @@ int32_t create_topic() {
   return 0;
 }
 
-void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
+void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets) {
   printf("commit %d\n", resp);
 }
 
@@ -162,7 +162,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "td.connect.db", "abc1");
   tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
-  tmq_t* tmq = tmq_consumer_new1(conf, NULL, 0);
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   return tmq;
 }
 
@@ -188,7 +188,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       cnt++;
       /*printf("get data\n");*/
       /*msg_process(tmqmessage);*/
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
     }
@@ -218,9 +218,9 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       msg_process(tmqmessage);
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
 
-      if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
+      /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }
 
@@ -248,7 +248,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
       batchCnt++;
       /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
       /*msg_process(tmqmessage);*/
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
     } else {
       break;
     }

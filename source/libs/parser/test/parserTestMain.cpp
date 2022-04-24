@@ -14,12 +14,22 @@
  */
 
 #include <string>
+#include <stdio.h>
+#include <stdlib.h>
 
+#include <getopt.h>
 #include <gtest/gtest.h>
 
-#include "mockCatalog.h"
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
+#include "os.h"
+#include "parserTestUtil.h"
 #include "parToken.h"
 #include "functionMgt.h"
+#include "mockCatalog.h"
+
+bool g_isDump = false;
 
 class ParserEnv : public testing::Environment {
 public:
@@ -38,8 +48,27 @@ public:
   virtual ~ParserEnv() {}
 };
 
+static void parseArg(int argc, char* argv[]) {
+  int opt = 0;
+  const char *optstring = "";  
+  static struct option long_options[] = {
+      {"dump", no_argument, NULL, 'd'},
+      {0, 0, 0, 0}
+  };
+  while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
+    switch (opt) {
+      case 'd':
+        g_isDump = true;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 int main(int argc, char* argv[]) {
 	testing::AddGlobalTestEnvironment(new ParserEnv());
 	testing::InitGoogleTest(&argc, argv);
+  parseArg(argc, argv);
 	return RUN_ALL_TESTS();
 }

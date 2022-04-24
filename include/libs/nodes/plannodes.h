@@ -53,6 +53,11 @@ typedef struct SScanLogicNode {
   double ratio;
   SNodeList* pDynamicScanFuncs;
   int32_t dataRequired;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int8_t intervalUnit;
+  int8_t slidingUnit;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -109,6 +114,8 @@ typedef struct SWindowLogicNode {
   int64_t sessionGap;
   SNode* pTspk;
   SNode* pStateExpr;
+  int8_t triggerType;
+  int64_t watermark;
 } SWindowLogicNode;
 
 typedef struct SSortLogicNode {
@@ -148,7 +155,6 @@ typedef struct SLogicSubplan {
 
 typedef struct SQueryLogicPlan {
   ENodeType type;
-  int32_t totalLevel;
   SNodeList* pTopSubplans;
 } SQueryLogicPlan;
 
@@ -206,6 +212,11 @@ typedef struct STableScanPhysiNode {
   double ratio;
   int32_t dataRequired;
   SNodeList* pDynamicScanFuncs;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int8_t intervalUnit;
+  int8_t slidingUnit;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -251,6 +262,8 @@ typedef struct SWinodwPhysiNode {
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
   SNode* pTspk; // timestamp primary key
+  int8_t triggerType;
+  int64_t watermark;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -260,7 +273,6 @@ typedef struct SIntervalPhysiNode {
   int64_t    sliding;
   int8_t     intervalUnit;
   int8_t     slidingUnit;
-  uint8_t    precision;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
@@ -342,7 +354,10 @@ typedef struct SQueryPlan {
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
+  SNodeList* pPlaceholderValues;
 } SQueryPlan;
+
+void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
 
 #ifdef __cplusplus
 }

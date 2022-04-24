@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "parInt.h"
 
 #include "parAst.h"
@@ -50,7 +51,6 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         Parse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
-      case TK_NK_QUESTION:
       case TK_NK_ILLEGAL: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unrecognized token: \"%s\"", t0.z);
         cxt.valid = false;

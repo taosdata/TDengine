@@ -140,6 +140,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     if (dmRunParentProc(pWrapper) != 0) return -1;
   }
 
+  dmReportStartup(pWrapper->pDnode, pWrapper->name, "openned");
   return 0;
 }
 
@@ -161,6 +162,7 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     }
   }
 
+  dmReportStartup(pWrapper->pDnode, pWrapper->name, "started");
   return 0;
 }
 
@@ -172,6 +174,12 @@ void dmStopNode(SMgmtWrapper *pWrapper) {
 
 void dmCloseNode(SMgmtWrapper *pWrapper) {
   dInfo("node:%s, start to close", pWrapper->name);
+  pWrapper->deployed = false;
+
+  while (pWrapper->refCount > 0) {
+    taosMsleep(10);
+  }
+
   if (pWrapper->procType == DND_PROC_PARENT) {
     if (pWrapper->procId > 0 && taosProcExist(pWrapper->procId)) {
       dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pWrapper->procId);
@@ -184,17 +192,9 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
 
   dmStopNode(pWrapper);
 
-  pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed) {
-    (*pWrapper->fp.closeFp)(pWrapper);
-    pWrapper->deployed = false;
-  }
+  (*pWrapper->fp.closeFp)(pWrapper);
   taosWUnLockLatch(&pWrapper->latch);
-
-  while (pWrapper->refCount > 0) {
-    taosMsleep(10);
-  }
 
   if (pWrapper->procObj) {
     taosProcCleanup(pWrapper->procObj);

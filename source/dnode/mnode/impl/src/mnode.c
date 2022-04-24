@@ -22,12 +22,14 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
+#include "mndGrant.h"
 #include "mndInfoSchema.h"
-#include "mndPerfSchema.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
+#include "mndPerfSchema.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
+#include "mndQuery.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
@@ -40,12 +42,9 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndQuery.h"
-#include "mndGrant.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000
-#define TELEM_TIMER_MS 86400000
 
 static void *mndBuildTimerMsg(int32_t *pContLen) {
   SMTimerReq timerReq = {0};
@@ -97,7 +96,7 @@ static void mndPullupTelem(void *param, void *tmrId) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
-  taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
+  taosTmrReset(mndPullupTelem, tsTelemInterval * 1000, pMnode, pMnode->timer, &pMnode->telemTimer);
 }
 
 static int32_t mndInitTimer(SMnode *pMnode) {
@@ -117,7 +116,8 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndPullupTelem, 60000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
+  int32_t interval = tsTelemInterval < 10 ? tsTelemInterval : 10;
+  if (taosTmrReset(mndPullupTelem, interval * 1000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -262,6 +262,7 @@ static int32_t mndExecSteps(SMnode *pMnode) {
       return -1;
     } else {
       mDebug("%s is initialized", pStep->name);
+      tmsgReportStartup(pStep->name, "initialized");
     }
   }
 
@@ -413,31 +414,6 @@ int64_t mndGenerateUid(char *name, int32_t len) {
   } while (true);
 }
 
-void mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
-  memset(pLoad, 0, sizeof(SMnodeLoad));
-
-  SSdb *pSdb = pMnode->pSdb;
-  pLoad->numOfDnode = sdbGetSize(pSdb, SDB_DNODE);
-  pLoad->numOfMnode = sdbGetSize(pSdb, SDB_MNODE);
-  pLoad->numOfVgroup = sdbGetSize(pSdb, SDB_VGROUP);
-  pLoad->numOfDatabase = sdbGetSize(pSdb, SDB_DB);
-  pLoad->numOfSuperTable = sdbGetSize(pSdb, SDB_STB);
-
-  void *pIter = NULL;
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    pLoad->numOfChildTable += pVgroup->numOfTables;
-    pLoad->numOfColumn += pVgroup->numOfTimeSeries;
-    pLoad->totalPoints += pVgroup->pointsWritten;
-    pLoad->totalStorage += pVgroup->totalStorage;
-    pLoad->compStorage += pVgroup->compStorage;
-
-    sdbRelease(pSdb, pVgroup);
-  }
-}
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {
@@ -485,7 +461,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SMonMnodeDesc desc = {0};
     desc.mnode_id = pObj->id;
     tstrncpy(desc.mnode_ep, pObj->pDnode->ep, sizeof(desc.mnode_ep));
-    tstrncpy(desc.role, mndGetRoleStr(pObj->role), sizeof(desc.role));
+    tstrncpy(desc.role, syncStr(pObj->role), sizeof(desc.role));
     taosArrayPush(pClusterInfo->mnodes, &desc);
     sdbRelease(pSdb, pObj);
 
@@ -519,7 +495,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       SVnodeGid     *pVgid = &pVgroup->vnodeGid[i];
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
-      tstrncpy(pVnDesc->vnode_role, mndGetRoleStr(pVgid->role), sizeof(pVnDesc->vnode_role));
+      tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->role), sizeof(pVnDesc->vnode_role));
       if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
@@ -542,5 +518,10 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pGrantInfo->timeseries_total = INT32_MAX;
   }
 
+  return 0;
+}
+
+int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
+  pLoad->syncState = pMnode->syncMgmt.state;
   return 0;
 }

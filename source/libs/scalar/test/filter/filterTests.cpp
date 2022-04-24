@@ -27,6 +27,9 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #include <addr_any.h>
 
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
 #include "os.h"
 
 #include "tglobal.h"
@@ -155,7 +158,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     
-    colInfoDataEnsureCapacity(pColumn, rowNum);
+    colInfoDataEnsureCapacity(pColumn, 0, rowNum);
 
     for (int32_t i = 0; i < rowNum; ++i) {
       colDataAppend(pColumn, i, (const char *)value, false);
@@ -242,7 +245,7 @@ TEST(timerangeTest, greater) {
   int32_t code = filterGetTimeRange(opNode1, &win, &isStrict);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(isStrict, true);  
-  ASSERT_EQ(win.skey, tsmall);
+  ASSERT_EQ(win.skey, tsmall+1);
   ASSERT_EQ(win.ekey, INT64_MAX); 
   //filterFreeInfo(filter);
   nodesDestroyNode(opNode1);
@@ -273,11 +276,43 @@ TEST(timerangeTest, greater_and_lower) {
   int32_t code = filterGetTimeRange(logicNode, &win, &isStrict);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
+  ASSERT_EQ(win.skey, tsmall+1);
+  ASSERT_EQ(win.ekey, tbig-1); 
+  //filterFreeInfo(filter);
+  nodesDestroyNode(logicNode);
+}
+
+TEST(timerangeTest, greater_equal_and_lower_equal) {
+  SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  SScalarParam res = {0};
+  int64_t tsmall = 222, tbig = 333;
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
+  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
+  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  SNode *list[2] = {0};
+  list[0] = opNode1;
+  list[1] = opNode2;
+  
+  flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+
+  //SFilterInfo *filter = NULL;
+  //int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  //ASSERT_EQ(code, 0);
+  STimeWindow win = {0};
+  bool isStrict = false;
+  int32_t code = filterGetTimeRange(logicNode, &win, &isStrict);
+  ASSERT_EQ(isStrict, true);
+  ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, tbig); 
   //filterFreeInfo(filter);
   nodesDestroyNode(logicNode);
 }
+
 
 TEST(timerangeTest, greater_and_lower_not_strict) {
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode1 = NULL, *logicNode2 = NULL;
@@ -321,8 +356,8 @@ TEST(timerangeTest, greater_and_lower_not_strict) {
   int32_t code = filterGetTimeRange(logicNode1, &win, &isStrict);
   ASSERT_EQ(isStrict, false);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(win.skey, tsmall1);
-  ASSERT_EQ(win.ekey, tbig2); 
+  ASSERT_EQ(win.skey, tsmall1+1);
+  ASSERT_EQ(win.ekey, tbig2-1); 
   //filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
 }
@@ -364,7 +399,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   keep = filterRangeExecute(filter, &stat, 1, rowNum);
   ASSERT_EQ(keep, true);
 
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -419,7 +454,7 @@ TEST(columnTest, int_column_greater_smallint_value) {
   keep = filterRangeExecute(filter, &stat, 1, rowNum);
   ASSERT_EQ(keep, false);
 
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -463,7 +498,7 @@ TEST(columnTest, int_column_in_double_list) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -527,7 +562,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -575,7 +610,7 @@ TEST(columnTest, binary_column_like_binary) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -622,7 +657,7 @@ TEST(columnTest, binary_column_is_null) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -669,7 +704,7 @@ TEST(columnTest, binary_column_is_not_null) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -706,7 +741,7 @@ TEST(opTest, smallint_column_greater_int_column) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -744,7 +779,7 @@ TEST(opTest, smallint_value_add_int_column) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -787,7 +822,7 @@ TEST(opTest, bigint_column_multi_binary_column) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -830,7 +865,7 @@ TEST(opTest, smallint_column_and_binary_column) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -868,7 +903,7 @@ TEST(opTest, smallint_column_or_float_column) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -906,7 +941,7 @@ TEST(opTest, smallint_column_or_double_value) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -950,7 +985,7 @@ TEST(opTest, binary_column_is_true) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1021,7 +1056,7 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1090,7 +1125,7 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1159,7 +1194,7 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1228,7 +1263,7 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1299,7 +1334,7 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  SFilterColumnParam param = { src->info.numOfCols, src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 

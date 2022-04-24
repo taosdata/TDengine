@@ -14,7 +14,7 @@
  */
 
 #include "syncEnv.h"
-#include <assert.h>
+// #include <assert.h>
 
 SSyncEnv *gSyncEnv = NULL;
 
@@ -31,6 +31,7 @@ int32_t syncEnvStart() {
   taosSeedRand(taosGetTimestampSec());
   gSyncEnv = doSyncEnvStart(gSyncEnv);
   assert(gSyncEnv != NULL);
+  sTrace("syncEnvStart ok!");
   return ret;
 }
 
@@ -90,7 +91,10 @@ static SSyncEnv *doSyncEnvStart() {
 }
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
-  taosTmrCleanUp(pSyncEnv->pTimerManager);
+  if (pSyncEnv != NULL) {
+    taosTmrCleanUp(pSyncEnv->pTimerManager);
+    taosMemoryFree(pSyncEnv);
+  }
   return 0;
 }
 

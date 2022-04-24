@@ -31,6 +31,8 @@ extern "C" {
 // clang-format on
 
 // vnodeCfg ====================
+int vnodeEncodeConfig(const void* pObj, SJson* pJson);
+int vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
 // vnodeModule ====================
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
@@ -44,6 +46,11 @@ int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
+int vnodeBegin(SVnode* pVnode, int option);
+int vnodeSyncCommit(SVnode* pVnode);
+int vnodeAsyncCommit(SVnode* pVnode);
+
+#define vnodeShouldCommit vnodeBufPoolIsFull
 
 #if 1
 // SVBufPool
@@ -84,13 +91,8 @@ bool            vmaIsFull(SVMemAllocator* pVMA);
 // vnodeCfg.h
 extern const SVnodeCfg vnodeCfgDefault;
 
-int  vnodeCheckCfg(const SVnodeCfg*);
-void vnodeOptionsCopy(SVnodeCfg* pDest, const SVnodeCfg* pSrc);
+int vnodeCheckCfg(const SVnodeCfg*);
 
-// For commit
-#define vnodeShouldCommit vnodeBufPoolIsFull
-int vnodeSyncCommit(SVnode* pVnode);
-int vnodeAsyncCommit(SVnode* pVnode);
 #endif
 
 #ifdef __cplusplus

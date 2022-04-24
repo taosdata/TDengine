@@ -265,7 +265,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    toSDatablock(pRes, pInfo->binfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
     if (pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -284,9 +284,9 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
     }
 
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, true);
 
-    // there is an scalar expression that needs to be calculated before apply the group aggregation.
+    // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->pScalarExprInfo != NULL) {
       projectApplyFunctions(pInfo->pScalarExprInfo, pBlock, pBlock, pInfo->pScalarFuncCtx, pInfo->numOfScalarExpr, NULL);
     }
@@ -307,11 +307,11 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   //    pInfo->binfo.rowCellInfoOffset);
   //  }
 
-  blockDataEnsureCapacity(pRes, pInfo->binfo.capacity);
+  blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
 
   while(1) {
-    toSDatablock(pRes, pInfo->binfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
     doFilter(pInfo->pCondition, pRes);
 
     bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);
@@ -341,15 +341,15 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 
   pInfo->pScalarExprInfo = pScalarExprInfo;
   pInfo->numOfScalarExpr = numOfScalarExpr;
-  pInfo->pScalarFuncCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pInfo->binfo.rowCellInfoOffset);
-
+  pInfo->pScalarFuncCtx  = createSqlFunctionCtx(pScalarExprInfo, numOfScalarExpr, &pInfo->rowCellInfoOffset);
 
   int32_t code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, 4096, pResultBlock, pInfo->groupKeyLen, pTaskInfo->id.str);
+  initResultSizeInfo(pOperator, 4096);
+  initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, pResultBlock, pInfo->groupKeyLen, pTaskInfo->id.str);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   pOperator->name         = "GroupbyAggOperator";
@@ -410,8 +410,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       int32_t contentLen = 0;
 
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        int32_t* offset = pPage + startOffset;
-        columnLen       = pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
+        int32_t* offset = (int32_t*)((char*)pPage + startOffset);
+        columnLen       = (char*)pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
         char*    data   = (char*)(columnLen + sizeof(int32_t));
 
         if (colDataIsNull_s(pColInfoData, j)) {
@@ -424,8 +424,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           contentLen = varDataTLen(src);
         }
       } else {
-        char* bitmap = pPage + startOffset;
-        columnLen    = pPage + startOffset + BitmapLen(pInfo->rowCapacity);
+        char* bitmap = (char*)pPage + startOffset;
+        columnLen    = (char*)pPage + startOffset + BitmapLen(pInfo->rowCapacity);
         char* data   = (char*) columnLen + sizeof(int32_t);
 
         bool isNull = colDataIsNull_f(pColInfoData->nullbitmap, j);

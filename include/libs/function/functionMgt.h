@@ -110,18 +110,28 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_QENDTS,
   FUNCTION_TYPE_WSTARTTS,
   FUNCTION_TYPE_WENDTS,
-  FUNCTION_TYPE_WDURATION
+  FUNCTION_TYPE_WDURATION,
+
+  // user defined funcion
+  FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
+struct SCatalog;
+
+typedef struct SFmGetFuncInfoParam {
+  struct SCatalog* pCtg;
+  void *pRpc;
+  const SEpSet* pMgmtEps;
+} SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 
 int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 
@@ -137,6 +147,8 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
+bool fmIsMultiResFunc(int32_t funcId);
+bool fmIsUserDefinedFunc(int32_t funcId);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

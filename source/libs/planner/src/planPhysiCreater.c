@@ -16,6 +16,8 @@
 #include "planInt.h"
 
 #include "functionMgt.h"
+#include "tglobal.h"
+#include "catalog.h"
 
 typedef struct SSlotIdInfo {
   int16_t slotId;
@@ -38,7 +40,7 @@ typedef struct SPhysiPlanContext {
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (NULL != pStmtName) {
+    if (NULL != pStmtName && '\0' != pStmtName[0]) {
       return sprintf(pKey, "%s.%s", pStmtName, pCol->node.aliasName);
     }
     if ('\0' == pCol->tableAlias[0]) {
@@ -47,7 +49,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
     return sprintf(pKey, "%s.%s", pCol->tableAlias, pCol->colName);
   }
 
-  if (NULL != pStmtName) {
+  if (NULL != pStmtName && '\0' != pStmtName[0]) {
     return sprintf(pKey, "%s.%s", pStmtName, ((SExprNode*)pNode)->aliasName);
   }
   return sprintf(pKey, "%s", ((SExprNode*)pNode)->aliasName);
@@ -443,6 +445,11 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     nodesDestroyNode(pTableScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pTableScan->interval = pScanLogicNode->interval;
+  pTableScan->offset = pScanLogicNode->offset;
+  pTableScan->sliding = pScanLogicNode->sliding;
+  pTableScan->intervalUnit = pScanLogicNode->intervalUnit;
+  pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
 
   return createScanPhysiNodeFinalize(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
@@ -796,6 +803,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
     }
   }
 
+  pWindow->triggerType = pWindowLogicNode->triggerType;
+  pWindow->watermark = pWindowLogicNode->watermark;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pWindow;
   } else {
@@ -816,7 +826,6 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->sliding = pWindowLogicNode->sliding;
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
-  pInterval->precision = ((SColumnNode*)pWindowLogicNode->pTspk)->node.resType.precision;
 
   pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
   if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {
@@ -1226,7 +1235,13 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (tsQueryPolicy > QUERY_POLICY_VNODE) {
+    code = catalogGetQnodeList(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     setExplainInfo(pCxt, *pPlan);
   }

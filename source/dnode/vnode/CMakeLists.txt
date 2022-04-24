@@ -13,17 +13,16 @@ target_sources(
     "src/vnd/vnodeInt.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
-    "src/vnd/vnodeWrite.c"
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
+    "src/vnd/vnodeSync.c"
 
     # meta
-    # "src/meta/metaBDBImpl.c"
+    "src/meta/metaOpen.c"
     "src/meta/metaIdx.c"
-    "src/meta/metaMain.c"
     "src/meta/metaTable.c"
-    "src/meta/metaTbUid.c"
     "src/meta/metaTDBImpl.c"
+    # "src/meta/metaBDBImpl.c"
 
     # tsdb
     "src/tsdb/tsdbTDBImpl.c"

@@ -42,6 +42,7 @@ static int32_t dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
       dmUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
       dmUpdateEps(pDnode, statusRsp.pDnodeEps);
     }
+    rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
   }
 
@@ -71,9 +72,23 @@ void dmSendStatusReq(SDnode *pDnode) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pDnode->data.latch);
 
-  SMonVloadInfo info = {0};
-  dmGetVnodeLoads(pDnode, &info);
-  req.pVloads = info.pVloads;
+  SMonVloadInfo vinfo = {0};
+  dmGetVnodeLoads(pDnode, &vinfo);
+  req.pVloads = vinfo.pVloads;
+  pDnode->data.unsyncedVgId = 0;
+  pDnode->data.vndState = TAOS_SYNC_STATE_LEADER;
+  for (int32_t i = 0; i < taosArrayGetSize(req.pVloads); ++i) {
+    SVnodeLoad *pLoad = taosArrayGet(req.pVloads, i);
+    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
+      pDnode->data.unsyncedVgId = pLoad->vgId;
+      pDnode->data.vndState = pLoad->syncState;
+    }
+  }
+
+  SMonMloadInfo minfo = {0};
+  dmGetMnodeLoads(pDnode, &minfo);
+  pDnode->data.isMnode = minfo.isMnode;
+  pDnode->data.mndState = minfo.load.syncState;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
@@ -160,9 +175,9 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
-    dmCloseNode(pWrapper);
     pWrapper->required = false;
     pWrapper->deployed = false;
+    dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }
   taosThreadMutexUnlock(&pDnode->mutex);
@@ -201,6 +216,129 @@ static void dmStopMgmt(SMgmtWrapper *pWrapper) {
   dmStopStatusThread(pWrapper->pDnode);
 }
 
+static int32_t dmSpawnUdfd(SDnode *pDnode);
+
+void dmUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
+  dInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
+  SDnode *pDnode = process->data;
+  if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pDnode->udfdData.stopCalled)) {
+    dInfo("udfd process exit due to SIGINT or dnode-mgmt called stop");
+  } else {
+    dInfo("udfd process restart");
+    dmSpawnUdfd(pDnode);
+  }
+}
+
+static int32_t dmSpawnUdfd(SDnode *pDnode) {
+  dInfo("dnode start spawning udfd");
+  uv_process_options_t options = {0};
+
+  char path[PATH_MAX] = {0};
+  if (tsProcPath == NULL) {
+    path[0] = '.';
+  } else {
+    strncpy(path, tsProcPath, strlen(tsProcPath));
+    taosDirName(path);
+  }
+  strcat(path, "/udfd");
+  char* argsUdfd[] = {path, "-c", configDir, NULL};
+  options.args = argsUdfd;
+  options.file = path;
+
+  options.exit_cb = dmUdfdExit;
+
+  SUdfdData *pData = &pDnode->udfdData;
+  uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1);
+
+  uv_stdio_container_t child_stdio[3];
+  child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
+  child_stdio[0].data.stream = (uv_stream_t*) &pData->ctrlPipe;
+  child_stdio[1].flags = UV_IGNORE;
+  child_stdio[2].flags = UV_INHERIT_FD;
+  child_stdio[2].data.fd = 2;
+  options.stdio_count = 3;
+  options.stdio = child_stdio;
+
+  options.flags = UV_PROCESS_DETACHED;
+
+  char dnodeIdEnvItem[32] = {0};
+  char thrdPoolSizeEnvItem[32] = {0};
+  snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pDnode->data.dnodeId);
+  float numCpuCores = 4;
+  taosGetCpuCores(&numCpuCores);
+  snprintf(thrdPoolSizeEnvItem,32,  "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores*2);
+  char* envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, NULL};
+  options.env = envUdfd;
+
+  int err = uv_spawn(&pData->loop, &pData->process, &options);
+  pData->process.data = (void*)pDnode;
+
+  if (err != 0) {
+    dError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
+  }
+  return err;
+}
+
+static void dmUdfdCloseWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
+
+static void dmUdfdStopAsyncCb(uv_async_t *async) {
+  SDnode *pDnode = async->data;
+  SUdfdData *pData = &pDnode->udfdData;
+  uv_stop(&pData->loop);
+}
+
+static void dmWatchUdfd(void *args) {
+  SDnode *pDnode = args;
+  SUdfdData *pData = &pDnode->udfdData;
+  uv_loop_init(&pData->loop);
+  uv_async_init(&pData->loop, &pData->stopAsync, dmUdfdStopAsyncCb);
+  pData->stopAsync.data = pDnode;
+  int32_t err = dmSpawnUdfd(pDnode);
+  atomic_store_32(&pData->spawnErr, err);
+  uv_barrier_wait(&pData->barrier);
+  uv_run(&pData->loop, UV_RUN_DEFAULT);
+  uv_loop_close(&pData->loop);
+
+  uv_walk(&pData->loop, dmUdfdCloseWalkCb, NULL);
+  uv_run(&pData->loop, UV_RUN_DEFAULT);
+  uv_loop_close(&pData->loop);
+  return;
+}
+
+static int32_t dmStartUdfd(SDnode *pDnode) {
+  SUdfdData *pData = &pDnode->udfdData;
+  if (pData->startCalled) {
+    dInfo("dnode-mgmt start udfd already called");
+    return 0;
+  }
+  pData->startCalled = true;
+  uv_barrier_init(&pData->barrier, 2);
+  uv_thread_create(&pData->thread, dmWatchUdfd, pDnode);
+  uv_barrier_wait(&pData->barrier);
+  pData->needCleanUp = true;
+  return pData->spawnErr;
+}
+
+static int32_t dmStopUdfd(SDnode *pDnode) {
+  dInfo("dnode-mgmt to stop udfd. need cleanup: %d, spawn err: %d",
+        pDnode->udfdData.needCleanUp, pDnode->udfdData.spawnErr);
+  SUdfdData *pData = &pDnode->udfdData;
+  if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
+    return 0;
+  }
+  atomic_store_32(&pData->stopCalled, 1);
+  pData->needCleanUp = false;
+  uv_barrier_destroy(&pData->barrier);
+  uv_async_send(&pData->stopAsync);
+  uv_thread_join(&pData->thread);
+
+  return 0;
+}
+
 static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   dInfo("dnode-mgmt start to init");
   SDnode *pDnode = pWrapper->pDnode;
@@ -230,6 +368,11 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
     dError("failed to init transport since %s", terrstr());
     return -1;
   }
+  dmReportStartup(pDnode, "dnode-transport", "initialized");
+
+//  if (dmStartUdfd(pDnode) != 0) {
+//    dError("failed to start udfd");
+//  }
 
   dInfo("dnode-mgmt is initialized");
   return 0;
@@ -238,6 +381,7 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
 static void dmCleanupMgmt(SMgmtWrapper *pWrapper) {
   dInfo("dnode-mgmt start to clean up");
   SDnode *pDnode = pWrapper->pDnode;
+  dmStopUdfd(pDnode);
   dmStopWorker(pDnode);
 
   taosWLockLatch(&pDnode->data.latch);

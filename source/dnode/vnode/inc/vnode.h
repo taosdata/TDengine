@@ -21,6 +21,7 @@
 #include "tqueue.h"
 #include "trpc.h"
 
+#include "sync.h"
 #include "tarray.h"
 #include "tfs.h"
 #include "wal.h"
@@ -37,19 +38,19 @@ extern "C" {
 
 // vnode
 typedef struct SVnode    SVnode;
-typedef struct SMetaCfg  SMetaCfg;  // todo: remove
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct STqCfg    STqCfg;    // todo: remove
 typedef struct SVnodeCfg SVnodeCfg;
+
+extern const SVnodeCfg vnodeCfgDefault;
 
 int     vnodeInit(int nthreads);
 void    vnodeCleanup();
 int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
-void    vnodeDestroy(const char *path);
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
+void    vnodeDestroy(const char *path, STfs *pTfs);
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
-void    vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs);
-int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int     vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version);
+int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
@@ -59,6 +60,9 @@ int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
+
+int64_t vnodeGetSyncHandle(SVnode *pVnode);
+void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 
 // meta
 typedef struct SMeta      SMeta;  // todo: remove
@@ -73,7 +77,6 @@ char       *metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 typedef struct STsdb          STsdb;
-typedef struct SDataStatis    SDataStatis;
 typedef struct STsdbQueryCond STsdbQueryCond;
 typedef void                 *tsdbReaderT;
 
@@ -93,7 +96,7 @@ int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, con
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SDataStatis **pBlockStatis);
+int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
@@ -110,8 +113,8 @@ int     tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList
 int     tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
-int     tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
-SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
+int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, int32_t *pNumOfRows,
+                            int16_t *pNumOfCols);
 
 // need to reposition
 
@@ -134,14 +137,10 @@ struct STsdbCfg {
   SArray  *retentions;
 };
 
-struct STqCfg {
-  int32_t reserved;
-};
-
 struct SVnodeCfg {
   int32_t  vgId;
+  char     dbname[TSDB_DB_NAME_LEN];
   uint64_t dbId;
-  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -151,23 +150,11 @@ struct SVnodeCfg {
   int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
-  SMetaCfg metaCfg;
-  STqCfg   tqCfg;
   SWalCfg  walCfg;
-  SMsgCb   msgCb;
+  SSyncCfg syncCfg;  // sync integration
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
-};
-
-struct SDataStatis {
-  int16_t colId;
-  int16_t maxIndex;
-  int16_t minIndex;
-  int16_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
 };
 
 struct STsdbQueryCond {
@@ -183,6 +170,11 @@ typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
+
+// sync integration
+void    vnodeSyncSetQ(SVnode *pVnode, void *qHandle);
+void    vnodeSyncSetRpc(SVnode *pVnode, void *rpcHandle);
+int32_t vnodeSyncStart(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

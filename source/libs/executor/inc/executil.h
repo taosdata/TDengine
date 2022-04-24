@@ -60,7 +60,7 @@ typedef struct SResultRow {
   uint32_t      numOfRows;   // number of rows of current time window
   struct SResultRowEntryInfo* pEntryInfo;  // For each result column, there is a resultInfo
   STimeWindow   win;
-  char         *key;               // start key of current result row
+  char         *key;         // start key of current result row
 } SResultRow;
 
 typedef struct SResultRowPosition {
@@ -72,7 +72,8 @@ typedef struct SResultRowInfo {
   SResultRowPosition *pPosition;
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
-  int32_t      curPos;     // current active result row index of pResult list
+//  int32_t      curPos;     // current active result row index of pResult list
+  SResultRowPosition cur;
 } SResultRowInfo;
 
 struct STaskAttr;

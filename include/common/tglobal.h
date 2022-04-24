@@ -32,7 +32,6 @@ extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
-extern bool     tsEnableTelemetryReporting;
 
 // common
 extern int32_t tsRpcTimer;
@@ -82,12 +81,21 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 
+// telem
+extern bool     tsEnableTelem;
+extern int32_t  tsTelemInterval;
+extern char     tsTelemServer[];
+extern uint16_t tsTelemPort;
+
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
 extern int64_t tsQueryBufferSizeBytes;   // maximum allowed usage buffer size in byte for each data node
 extern bool    tsRetrieveBlockingModel;  // retrieve threads will be blocked
 extern bool    tsKeepOriginalColumnName;
 extern bool    tsDeadLockKillQuery;
+
+// query client
+extern int32_t tsQueryPolicy;
 
 // client
 extern int32_t tsMaxWildCardsLen;
@@ -130,7 +138,6 @@ void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);
 
 struct SConfig *taosGetCfg();
-int32_t taosAddClientLogCfg(SConfig *pCfg);
 
 #ifdef __cplusplus
 }

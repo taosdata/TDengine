@@ -31,12 +31,8 @@ typedef struct SCliConn {
   int          hThrdIdx;
   STransCtx    ctx;
 
-  bool       broken;   // link broken or not
-  ConnStatus status;   //
-  int        release;  // 1: release
-  // spi configure
-  char spi;
-  char secured;
+  bool       broken;  // link broken or not
+  ConnStatus status;  //
 
   char*    ip;
   uint32_t port;
@@ -44,7 +40,6 @@ typedef struct SCliConn {
   // debug and log info
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
-
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -102,6 +97,8 @@ static void cliSendCb(uv_write_t* req, int status);
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
 
+static void cliAppCb(SCliConn* pConn, STransMsg* pMsg);
+
 static SCliConn* cliCreateConn(SCliThrdObj* thrd);
 static void      cliDestroyConn(SCliConn* pConn, bool clear /*clear tcp handle or not*/);
 static void      cliDestroy(uv_handle_t* handle);
@@ -128,6 +125,15 @@ static void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static SCliThrdObj* createThrdObj();
 static void         destroyThrdObj(SCliThrdObj* pThrd);
+
+static void cliWalkCb(uv_handle_t* handle, void* arg);
+
+#define CLI_RELEASE_UV(loop)        \
+  do {                              \
+    uv_walk(loop, cliWalkCb, NULL); \
+    uv_run(loop, UV_RUN_DEFAULT);   \
+    uv_loop_close(loop);            \
+  } while (0);
 
 // snprintf may cause performance problem
 #define CONN_CONSTRUCT_HASH_KEY(key, ip, port)          \
@@ -294,8 +300,6 @@ void cliHandleResp(SCliConn* conn) {
          TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
          taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
 
-  conn->secured = pHead->secured;
-
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tTrace("except, server continue send while cli ignore it");
     // transUnrefCliHandle(conn);
@@ -309,7 +313,8 @@ void cliHandleResp(SCliConn* conn) {
 
   if (pCtx == NULL || pCtx->pSem == NULL) {
     tTrace("%s cli conn %p handle resp", pTransInst->label, conn);
-    (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
+    cliAppCb(conn, &transMsg);
+    //(pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   } else {
     tTrace("%s cli conn(sync) %p handle resp", pTransInst->label, conn);
     memcpy((char*)pCtx->pRsp, (char*)&transMsg, sizeof(transMsg));
@@ -375,7 +380,8 @@ void cliHandleExcept(SCliConn* pConn) {
         once = true;
         continue;
       }
-      (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
+      cliAppCb(pConn, &transMsg);
+      //(pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
     } else {
       tTrace("%s cli conn(sync) %p handle except", pTransInst->label, pConn);
       memcpy((char*)(pCtx->pRsp), (char*)(&transMsg), sizeof(transMsg));
@@ -546,6 +552,7 @@ static void cliDestroy(uv_handle_t* handle) {
   transCtxCleanup(&conn->ctx);
   transQueueDestroy(&conn->cliMsgs);
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
+  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
@@ -604,35 +611,16 @@ void cliSend(SCliConn* pConn) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
   }
-  STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
-  pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
-
   int msgLen = transMsgLenFromCont(pMsg->contLen);
 
-  if (!pConn->secured) {
-    char* buf = taosMemoryCalloc(1, msgLen + sizeof(STransUserMsg));
-    memcpy(buf, (char*)pHead, msgLen);
-
-    STransUserMsg* uMsg = (STransUserMsg*)(buf + msgLen);
-    memcpy(uMsg->user, pTransInst->user, tListLen(uMsg->user));
-    memcpy(uMsg->secret, pTransInst->secret, tListLen(uMsg->secret));
-
-    // to avoid mem leak
-    destroyUserdata(pMsg);
-
-    pMsg->pCont = (char*)buf + sizeof(STransMsgHead);
-    pMsg->contLen = msgLen + sizeof(STransUserMsg) - sizeof(STransMsgHead);
-
-    pHead = (STransMsgHead*)buf;
-    pHead->secured = 1;
-    msgLen += sizeof(STransUserMsg);
-  }
-
+  STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+  pHead->ahandle = pCtx != NULL ? (uint64_t)pCtx->ahandle : 0;
   pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
   pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
   pHead->msgType = pMsg->msgType;
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
   pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
+  memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
   tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
@@ -675,11 +663,12 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   destroyConnPool(pThrd->pool);
-
   uv_timer_stop(&pThrd->timer);
+  uv_walk(pThrd->loop, cliWalkCb, NULL);
 
   pThrd->quit = true;
-  uv_stop(pThrd->loop);
+
+  // uv_stop(pThrd->loop);
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = pMsg->msg.handle;
@@ -792,7 +781,6 @@ static void* cliWorkThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
   setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
-
   return NULL;
 }
 
@@ -857,8 +845,8 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   if (pThrd == NULL) {
     return;
   }
-  uv_stop(pThrd->loop);
   taosThreadJoin(pThrd->thread, NULL);
+  CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
   transDestroyAsyncPool(pThrd->asyncPool);
 
@@ -880,6 +868,11 @@ void cliSendQuit(SCliThrdObj* thrd) {
   msg->type = Quit;
   transSendAsync(thrd->asyncPool, &msg->q);
 }
+void cliWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
 
 int cliRBChoseIdx(STrans* pTransInst) {
   int64_t index = pTransInst->index;
@@ -887,6 +880,18 @@ int cliRBChoseIdx(STrans* pTransInst) {
     pTransInst->index = 0;
   }
   return index % pTransInst->numOfThreads;
+}
+void cliAppCb(SCliConn* pConn, STransMsg* transMsg) {
+  SCliThrdObj* pThrd = pConn->hostThrd;
+  STrans*      pTransInst = pThrd->pTransInst;
+
+  if (transMsg->code == TSDB_CODE_RPC_REDIRECT && pTransInst->retry != NULL) {
+    SMEpSet emsg = {0};
+    tDeserializeSMEpSet(transMsg->pCont, transMsg->contLen, &emsg);
+    pTransInst->retry(pTransInst, transMsg, &(emsg.epSet));
+  } else {
+    pTransInst->cfp(pTransInst->parent, transMsg, NULL);
+  }
 }
 
 void transCloseClient(void* arg) {

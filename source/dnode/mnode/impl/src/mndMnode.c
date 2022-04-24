@@ -75,19 +75,6 @@ void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
   sdbRelease(pMnode->pSdb, pObj);
 }
 
-const char *mndGetRoleStr(int32_t showType) {
-  switch (showType) {
-    case TAOS_SYNC_STATE_FOLLOWER:
-      return "unsynced";
-    case TAOS_SYNC_STATE_CANDIDATE:
-      return "slave";
-    case TAOS_SYNC_STATE_LEADER:
-      return "master";
-    default:
-      return "undefined";
-  }
-}
-
 void mndUpdateMnodeRole(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -615,7 +602,7 @@ static int32_t mndProcessDropMnodeRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
@@ -628,8 +615,8 @@ static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pObj->id, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, pShow->bytes[cols]);
@@ -637,12 +624,12 @@ static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    const char *roles = mndGetRoleStr(pObj->role);
-    char* b2 = taosMemoryCalloc(1, strlen(roles) + VARSTR_HEADER_SIZE);
+    const char *roles = syncStr(pObj->role);
+    char       *b2 = taosMemoryCalloc(1, strlen(roles) + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->bytes[cols]);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) b2, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pObj->roleTime, false);

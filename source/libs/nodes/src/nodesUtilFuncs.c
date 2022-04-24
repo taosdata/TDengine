@@ -84,6 +84,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SIndexOptions));
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return makeNode(type, sizeof(SExplainOptions));
+    case QUERY_NODE_STREAM_OPTIONS:
+      return makeNode(type, sizeof(SStreamOptions));
+    case QUERY_NODE_TOPIC_OPTIONS:
+      return makeNode(type, sizeof(STopicOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -146,12 +150,28 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDescribeStmt));
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return makeNode(type, sizeof(SNode));
+    case QUERY_NODE_COMPACT_STMT:
+      break;
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+      return makeNode(type, sizeof(SCreateFunctionStmt));
+    case QUERY_NODE_DROP_FUNCTION_STMT:
+      break;
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      return makeNode(type, sizeof(SCreateStreamStmt));
+    case QUERY_NODE_DROP_STREAM_STMT:
+      return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_MERGE_VGROUP_STMT:
+    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+    case QUERY_NODE_SYNCDB_STMT:
+      break;
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
@@ -169,7 +189,16 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CONFIGS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_SCORES_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_KILL_CONNECTION_STMT:
+    case QUERY_NODE_KILL_QUERY_STMT:
+      return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -675,6 +704,7 @@ int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL != pList->pTail) {
     pList->pTail->pNext = p;
   }
+  p->pPrev = pList->pTail;
   pList->pTail = p;
   ++(pList->length);
   return TSDB_CODE_SUCCESS;
@@ -981,6 +1011,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_NOT_LIKE:
     case OP_TYPE_MATCH:
     case OP_TYPE_NMATCH:
+    case OP_TYPE_JSON_CONTAINS:
     case OP_TYPE_IS_NULL:
     case OP_TYPE_IS_NOT_NULL:
     case OP_TYPE_IS_TRUE:
@@ -999,7 +1030,6 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
-    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;
@@ -1201,7 +1231,7 @@ void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = pNode->datum.p + VARSTR_HEADER_SIZE;
+      pVal->pz = pNode->datum.p;
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:

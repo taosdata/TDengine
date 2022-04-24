@@ -2735,10 +2735,12 @@ void schedulerDestroy(void) {
   if (schMgmt.jobRef) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
     int64_t refId = 0;
-    
+
     while (pJob) {
       refId = pJob->refId;
-      
+      if (refId == 0) {
+        break;
+      }
       taosRemoveRef(schMgmt.jobRef, pJob->refId);
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
@@ -2746,5 +2748,16 @@ void schedulerDestroy(void) {
 
     taosCloseRef(schMgmt.jobRef);
     schMgmt.jobRef = 0;
+  }
+
+  if (schMgmt.hbConnections) {
+    void   *pIter = taosHashIterate(schMgmt.hbConnections, NULL);
+    while (pIter != NULL) {
+      SSchHbTrans *hb = pIter;
+      schFreeRpcCtx(&hb->rpcCtx);
+      pIter = taosHashIterate(schMgmt.hbConnections, pIter);
+    }    
+    taosHashCleanup(schMgmt.hbConnections);
+    schMgmt.hbConnections = NULL;
   }
 }

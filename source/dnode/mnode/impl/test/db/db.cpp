@@ -45,12 +45,12 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     createReq.maxRows = 4096;
     createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
-    createReq.ttl = 0;
+    createReq.ttl = 1;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
-    createReq.quorum = 1;
+    createReq.strict = 1;
     createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;
@@ -82,13 +82,14 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     alterdbReq.daysToKeep2 = 500;
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
-    alterdbReq.quorum = 2;
+    alterdbReq.strict = 2;
     alterdbReq.cacheLastRow = 1;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
     void*   pReq = rpcMallocCont(contLen);
     tSerializeSAlterDbReq(pReq, contLen, &alterdbReq);
 
+    taosMsleep(1000); // Wait for the vnode to become the leader
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
@@ -139,12 +140,12 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     createReq.maxRows = 4096;
     createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
-    createReq.ttl = 0;
+    createReq.ttl = 1;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
-    createReq.quorum = 1;
+    createReq.strict = 1;
     createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;

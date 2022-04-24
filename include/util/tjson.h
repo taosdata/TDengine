@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+#ifdef WINDOWS
+#define tjsonGetNumberValue(pJson, pName, val) -1
+#else
 #define tjsonGetNumberValue(pJson, pName, val) \
   ({ \
     uint64_t _tmp = 0; \
@@ -29,6 +32,7 @@ extern "C" {
     val = _tmp; \
     _code; \
   })
+#endif
 
 typedef void SJson;
 
@@ -76,6 +80,7 @@ char* tjsonToString(const SJson* pJson);
 char* tjsonToUnformattedString(const SJson* pJson);
 
 SJson* tjsonParse(const char* pStr);
+bool   tjsonValidateJson(const char* pJson);
 
 #ifdef __cplusplus
 }

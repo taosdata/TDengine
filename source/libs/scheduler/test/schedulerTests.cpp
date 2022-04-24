@@ -25,7 +25,9 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
 #include "os.h"
 
 #include "tglobal.h"
@@ -275,9 +277,16 @@ void schtSetPlanToString() {
   static Stub stub;
   stub.set(qSubPlanToString, schtPlanToString);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qSubPlanToString", result);
+#endif
+#ifdef LINUX
     AddrAny any("libplanner.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qSubPlanToString$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtPlanToString);
     }
@@ -288,9 +297,16 @@ void schtSetExecNode() {
   static Stub stub;
   stub.set(qSetSubplanExecutionNode, schtExecNode);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qSetSubplanExecutionNode", result);
+#endif
+#ifdef LINUX
     AddrAny any("libplanner.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qSetSubplanExecutionNode$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtExecNode);
     }
@@ -301,9 +317,16 @@ void schtSetRpcSendRequest() {
   static Stub stub;
   stub.set(rpcSendRequest, schtRpcSendRequest);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRequest", result);
+#endif
+#ifdef LINUX
     AddrAny any("libtransport.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^rpcSendRequest$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtRpcSendRequest);
     }
@@ -324,9 +347,16 @@ void schtSetAsyncSendMsgToServer() {
   static Stub stub;
   stub.set(asyncSendMsgToServer, schtAsyncSendMsgToServer);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("asyncSendMsgToServer", result);
+#endif
+#ifdef LINUX
     AddrAny any("libtransport.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^asyncSendMsgToServer$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtAsyncSendMsgToServer);
     }
@@ -382,6 +412,7 @@ void *schtCreateFetchRspThread(void *param) {
   schReleaseJob(job);
   
   assert(code == 0);
+  return NULL;
 }
 
 
@@ -413,6 +444,7 @@ void *schtFetchRspThread(void *aa) {
       
     assert(code == 0 || code);
   }
+  return NULL;
 }
 
 void schtFreeQueryJob(int32_t freeThread) {
@@ -595,6 +627,7 @@ void* schtRunJobThread(void *aa) {
 
   schedulerDestroy();
 
+  return NULL;
 }
 
 void* schtFreeJobThread(void *aa) {
@@ -602,6 +635,7 @@ void* schtFreeJobThread(void *aa) {
     taosUsleep(taosRand() % 100);
     schtFreeQueryJob(1);
   }
+  return NULL;
 }
 
 

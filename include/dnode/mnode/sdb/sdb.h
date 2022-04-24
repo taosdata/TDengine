@@ -92,7 +92,13 @@ extern "C" {
 typedef struct SMnode  SMnode;
 typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
-typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
+
+typedef enum {
+  SDB_KEY_BINARY = 1,
+  SDB_KEY_INT32 = 2,
+  SDB_KEY_INT64 = 3,
+} EKeyType;
+
 typedef enum {
   SDB_STATUS_INIT = 0,
   SDB_STATUS_CREATING = 1,

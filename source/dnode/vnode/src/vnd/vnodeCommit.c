@@ -108,7 +108,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
     goto _err;
   }
 
-  pData = taosMemoryMalloc(size);
+  pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -118,6 +118,8 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
+
+  pData[size] = '\0';
 
   taosCloseFile(&pFile);
 
@@ -156,11 +158,22 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 static int vnodeCommit(void *arg) {
-  SVnode *pVnode = (SVnode *)arg;
+  SVnode    *pVnode = (SVnode *)arg;
+  char       dir[TSDB_FILENAME_LEN];
+  SVnodeInfo info = {0};
+
+  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  info.config = pVnode->config;
+  info.state.committed = pVnode->state.applied;
+  info.state.applied = pVnode->state.applied;
+
+  vnodeSaveInfo(dir, &info);
 
   // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
   tsdbCommit(pVnode->pTsdb);
+
+  vnodeCommitInfo(dir, &info);
 
   vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
@@ -179,64 +192,11 @@ static int vnodeEndCommit(SVnode *pVnode) {
 
 static FORCE_INLINE void vnodeWaitCommit(SVnode *pVnode) { tsem_wait(&pVnode->canCommit); }
 
-static int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
-  const SVnodeCfg *pCfg = (SVnodeCfg *)pObj;
-
-  if (tjsonAddIntegerToObject(pJson, "vgId", pCfg->vgId) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "wsize", pCfg->wsize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "ssize", pCfg->ssize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lsize", pCfg->lsize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "ttl", pCfg->ttl) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep", pCfg->keep) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
-
-  return 0;
-}
-
-static int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
-  SVnodeCfg *pCfg = (SVnodeCfg *)pObj;
-
-  if (tjsonGetNumberValue(pJson, "vgId", pCfg->vgId) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "dbId", pCfg->dbId) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "wsize", pCfg->wsize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "ssize", pCfg->ssize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "lsize", pCfg->lsize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "ttl", pCfg->ttl) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep", pCfg->keep) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
-
-  return 0;
-}
-
 static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
 
   return 0;
 }
@@ -245,6 +205,7 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   SVState *pState = (SVState *)pObj;
 
   if (tjsonGetNumberValue(pJson, "commit version", pState->committed) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "applied version", pState->applied) < 0) return -1;
 
   return 0;
 }
@@ -286,7 +247,7 @@ _err:
 static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   SJson *pJson = NULL;
 
-  pJson = tjsonCreateObject();
+  pJson = tjsonParse(pData);
   if (pJson == NULL) {
     return -1;
   }

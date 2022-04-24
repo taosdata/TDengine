@@ -137,26 +137,65 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
 }
 
 void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
-  SStartupReq *pStartup = &pDnode->startup;
+  SStartupInfo *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  pStartup->finished = 0;
+  dInfo("step:%s, %s", pStartup->name, pStartup->desc);
 }
 
-static void dmGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
-  pStartup->finished = (pDnode->status == DND_STAT_RUNNING);
+void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc) {
+  dmReportStartup(pWrapper->pDnode, pName, pDesc);
 }
 
-void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("startup req is received");
-  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
-  dmGetStartup(pDnode, pStartup);
+static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
+  pStatus->details[0] = 0;
 
-  dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
-  SRpcMsg rpcRsp = {
-      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
-  rpcSendResponse(&rpcRsp);
+  if (pDnode->status == DND_STAT_INIT) {
+    pStatus->statusCode = TSDB_SRV_STATUS_NETWORK_OK;
+    snprintf(pStatus->details, sizeof(pStatus->details), "%s: %s", pDnode->startup.name, pDnode->startup.desc);
+  } else if (pDnode->status == DND_STAT_STOPPED) {
+    pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
+  } else {
+    SDnodeData *pData = &pDnode->data;
+    if (pData->isMnode && pData->mndState != TAOS_SYNC_STATE_LEADER && pData->mndState == TAOS_SYNC_STATE_FOLLOWER) {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
+      snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(pData->mndState));
+    } else if (pData->unsyncedVgId != 0 && pData->vndState != TAOS_SYNC_STATE_LEADER &&
+               pData->vndState != TAOS_SYNC_STATE_FOLLOWER) {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
+      snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pData->unsyncedVgId,
+               syncStr(pData->vndState));
+    } else {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
+    }
+  }
+}
+
+void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
+  dDebug("server status req is received");
+
+  SServerStatusRsp statusRsp = {0};
+  dmGetServerStatus(pDnode, &statusRsp);
+
+  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle};
+  int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
+  if (rspLen < 0) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspLen;
+
+_OVER:
+  rpcSendResponse(&rspMsg);
 }
 
 void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {

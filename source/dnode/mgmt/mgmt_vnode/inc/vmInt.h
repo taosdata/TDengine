@@ -29,7 +29,6 @@ typedef struct SVnodesMgmt {
   SHashObj     *hash;
   SRWLatch      latch;
   SVnodesStat   state;
-  SVnodesStat   lastState;
   STfs         *pTfs;
   SQWorkerPool  queryPool;
   SQWorkerPool  fetchPool;
@@ -90,10 +89,7 @@ void       vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 // vmHandle.c
 void    vmInitMsgHandle(SMgmtWrapper *pWrapper);
 int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
-int32_t vmProcessAlterVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
-int32_t vmProcessSyncVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
-int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
 int32_t vmProcessGetMonVmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
@@ -109,6 +105,7 @@ void    vmStopWorker(SVnodesMgmt *pMgmt);
 int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 void    vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
+int32_t vmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);  // sync integration
 int32_t vmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);

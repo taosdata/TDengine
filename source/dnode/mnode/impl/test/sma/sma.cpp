@@ -54,9 +54,10 @@ void* MndTestSma::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.precision = 0;
   createReq.compression = 2;
   createReq.replications = 1;
-  createReq.quorum = 1;
+  createReq.strict = 1;
   createReq.update = 0;
   createReq.cacheLastRow = 0;
+  createReq.ttl = 1;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -257,6 +258,7 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateDbReq(dbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
+    taosMsleep(1000); // Wait for the vnode to become the leader
   }
 
   {
