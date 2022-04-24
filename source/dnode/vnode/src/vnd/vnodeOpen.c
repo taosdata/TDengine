@@ -144,7 +144,7 @@ _err:
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     // commit (TODO: use option to control)
-    vnodeSyncCommit(pVnode);
+    vnodeCommit(pVnode);
     // close vnode
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
