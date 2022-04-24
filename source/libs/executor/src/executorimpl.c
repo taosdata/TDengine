@@ -1121,6 +1121,10 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
         if (createDummyCol && pOneExpr->base.numOfParams == 1) {
+          pInput->totalRows = pBlock->info.rows;
+          pInput->numOfRows = pBlock->info.rows;
+          pInput->startRowIndex = 0;
+
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
           if (code != TSDB_CODE_SUCCESS) {
             return code;
@@ -6571,9 +6575,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           .offset = pTableScanNode->offset,
       };
 
-      return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pTableScanNode->dataRequired,
-                                         pScanPhyNode->count, pScanPhyNode->reverse, pColList, pResBlock,
-                                         pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
+      return createTableScanOperatorInfo(pDataReader, pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC,
+          numOfCols, pTableScanNode->dataRequired, pTableScanNode->scanSeq[0], pTableScanNode->scanSeq[1], pColList,
+          pResBlock, pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock*        pResBlock = createResDataBlock(pExchange->node.pOutputDataBlockDesc);
@@ -6721,7 +6725,7 @@ static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STa
                                         void* readHandle, uint64_t queryId, uint64_t taskId) {
   STsdbQueryCond cond = {.loadExternalRows = false};
 
-  cond.order = pTableScanNode->scan.order;
+  cond.order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   cond.numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
   cond.colList = taosMemoryCalloc(cond.numOfCols, sizeof(SColumnInfo));
   if (cond.colList == NULL) {

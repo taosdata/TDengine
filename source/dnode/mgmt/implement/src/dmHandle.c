@@ -146,10 +146,10 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
     dDebug("node:%s, has been created", pWrapper->name);
+    (void)dmOpenNode(pWrapper);
     pWrapper->required = true;
     pWrapper->deployed = true;
     pWrapper->procType = pDnode->ptype;
-    (void)dmOpenNode(pWrapper);
   }
 
   taosThreadMutexUnlock(&pDnode->mutex);
@@ -171,13 +171,13 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
   } else {
     dDebug("node:%s, has been dropped", pWrapper->name);
+    pWrapper->required = false;
+    pWrapper->deployed = false;
   }
 
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
-    pWrapper->required = false;
-    pWrapper->deployed = false;
     dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }
