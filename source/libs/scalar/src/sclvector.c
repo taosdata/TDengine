@@ -24,6 +24,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "ttypes.h"
+#include "ttime.h"
 
 #define LEFT_COL ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pRightCol : pRightCol->pData))
@@ -252,6 +253,15 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
     return p;
 }
 
+static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam* pOut, int32_t rowIndex) {
+  int64_t value = 0;
+  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+    value = 0;
+  }
+  
+  colDataAppendInt64(pOut->columnData, rowIndex, &value);
+}
+
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   int64_t value = strtoll(buf, NULL, 10);
   colDataAppendInt64(pOut->columnData, rowIndex, &value);
@@ -295,7 +305,7 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
   _bufConverteFunc func = NULL;
   if (TSDB_DATA_TYPE_BOOL == outType) {
     func = varToBool;
-  } else if (IS_SIGNED_NUMERIC_TYPE(outType) || TSDB_DATA_TYPE_TIMESTAMP == outType) {
+  } else if (IS_SIGNED_NUMERIC_TYPE(outType)) {
     func = varToSigned;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(outType)) {
     func = varToUnsigned;
@@ -305,6 +315,8 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     ASSERT(inType == TSDB_DATA_TYPE_VARCHAR);
     func = varToNchar;
     vton = true;
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == outType) {
+    func = varToTimestamp;
   } else {
     sclError("invalid convert outType:%d", outType);
     return TSDB_CODE_QRY_APP_ERROR;
@@ -594,8 +606,8 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
 /*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
 /*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
-/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   0,   7,   7,   7,   7,   0,   0,   0,   0,
-/*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   9,   9,   9,   7,   0,   7,   0,   0,
+/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   0,   7,   7,   7,   7,   0,   0,   0,   0,
+/*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   9,   9,   9,   7,   0,   7,   0,   0,
 /*NCHA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,   0,   0,   0,
 /*UTIN*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   12,  13,  14,  0,   7,   0,   0,
 /*USMA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   13,  14,  0,   7,   0,   0,

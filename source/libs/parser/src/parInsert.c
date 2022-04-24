@@ -1116,7 +1116,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     // FILE csv_file_path
-    if (TK_NK_FILE == sToken.type) {
+    if (TK_FILE == sToken.type) {
       // pSql -> csv_file_path
       NEXT_TOKEN(pCxt->pSql, sToken);
       if (0 == sToken.n || (TK_NK_STRING != sToken.type && TK_NK_ID != sToken.type)) {
@@ -1326,7 +1326,6 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_BIND_v2 *bind, char *msgBuf, int32
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
     
-    // 1. set the parsed value from sql string
     for (int c = 0; c < spd->numOfBound; ++c) {
       SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
 

@@ -237,8 +237,8 @@ typedef struct SSelectStmt {
   SNodeList* pGroupByList; // SGroupingSetNode
   SNode* pHaving;
   SNodeList* pOrderByList; // SOrderByExprNode
-  SNode* pLimit;
-  SNode* pSlimit;
+  SLimitNode* pLimit;
+  SLimitNode* pSlimit;
   char stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t precision;
   bool isEmptyResult;

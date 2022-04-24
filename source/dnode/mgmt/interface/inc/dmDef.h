@@ -151,8 +151,9 @@ typedef struct SUdfdData {
   uv_barrier_t  barrier;
   uv_process_t  process;
   int           spawnErr;
-  int8_t        stopping;
   uv_pipe_t     ctrlPipe;
+  uv_async_t    stopAsync;
+  int32_t        stopCalled;
 } SUdfdData;
 
 typedef struct SDnode {

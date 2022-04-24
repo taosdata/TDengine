@@ -17,13 +17,13 @@ void logTest() {
 int gg = 0;
 
 SyncTimeout *createMsg() {
-  SyncTimeout *pMsg = syncTimeoutBuild2(SYNC_TIMEOUT_PING, 999, 333, &gg);
+  SyncTimeout *pMsg = syncTimeoutBuild2(SYNC_TIMEOUT_PING, 999, 333, 1000, &gg);
   return pMsg;
 }
 
 void test1() {
   SyncTimeout *pMsg = createMsg();
-  syncTimeoutPrint2((char *)"test1:", pMsg);
+  syncTimeoutLog2((char *)"test1:", pMsg);
   syncTimeoutDestroy(pMsg);
 }
 
@@ -34,7 +34,7 @@ void test2() {
   syncTimeoutSerialize(pMsg, serialized, len);
   SyncTimeout *pMsg2 = syncTimeoutBuild();
   syncTimeoutDeserialize(serialized, len, pMsg2);
-  syncTimeoutPrint2((char *)"test2: syncTimeoutSerialize -> syncTimeoutDeserialize ", pMsg2);
+  syncTimeoutLog2((char *)"test2: syncTimeoutSerialize -> syncTimeoutDeserialize ", pMsg2);
 
   taosMemoryFree(serialized);
   syncTimeoutDestroy(pMsg);
@@ -46,7 +46,7 @@ void test3() {
   uint32_t     len;
   char *       serialized = syncTimeoutSerialize2(pMsg, &len);
   SyncTimeout *pMsg2 = syncTimeoutDeserialize2(serialized, len);
-  syncTimeoutPrint2((char *)"test3: syncTimeoutSerialize3 -> syncTimeoutDeserialize2 ", pMsg2);
+  syncTimeoutLog2((char *)"test3: syncTimeoutSerialize3 -> syncTimeoutDeserialize2 ", pMsg2);
 
   taosMemoryFree(serialized);
   syncTimeoutDestroy(pMsg);
@@ -59,8 +59,9 @@ void test4() {
   syncTimeout2RpcMsg(pMsg, &rpcMsg);
   SyncTimeout *pMsg2 = (SyncTimeout *)taosMemoryMalloc(rpcMsg.contLen);
   syncTimeoutFromRpcMsg(&rpcMsg, pMsg2);
-  syncTimeoutPrint2((char *)"test4: syncTimeout2RpcMsg -> syncTimeoutFromRpcMsg ", pMsg2);
+  syncTimeoutLog2((char *)"test4: syncTimeout2RpcMsg -> syncTimeoutFromRpcMsg ", pMsg2);
 
+  rpcFreeCont(rpcMsg.pCont);
   syncTimeoutDestroy(pMsg);
   syncTimeoutDestroy(pMsg2);
 }
@@ -70,16 +71,16 @@ void test5() {
   SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pMsg, &rpcMsg);
   SyncTimeout *pMsg2 = syncTimeoutFromRpcMsg2(&rpcMsg);
-  syncTimeoutPrint2((char *)"test5: syncTimeout2RpcMsg -> syncTimeoutFromRpcMsg2 ", pMsg2);
+  syncTimeoutLog2((char *)"test5: syncTimeout2RpcMsg -> syncTimeoutFromRpcMsg2 ", pMsg2);
 
+  rpcFreeCont(rpcMsg.pCont);
   syncTimeoutDestroy(pMsg);
   syncTimeoutDestroy(pMsg2);
 }
 
 int main() {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
 
   test1();
