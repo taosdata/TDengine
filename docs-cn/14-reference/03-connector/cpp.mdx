@@ -6,7 +6,7 @@ title: C/C++ Connector
 
 ## 总体介绍
 
-C/C++ 开发人员可以使用 TDengine 客户端附带函数库开发连接 TDengine 集群进行数据存储、查询等所有功能。C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型。
+C/C++ 开发人员可以使用 TDengine 客户端附带函数库开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型。
 
 ```c
 #include <taos.h>
@@ -42,7 +42,7 @@ TDengine 服务端或客户端安装后，taos.h 位于：
 
 在一台机器上启动 TDengine 服务，执行这些示例程序，按照提示输入 TDengine 服务的 FQDN，就可以正常运行，并打印出信息。
 
-**提示：**在 ARM 环境下编译时，请将 makefile 中的-msse4.2 打开，这个选项只有在 x64/x86 硬件平台上才能支持。
+**提示：**在 ARM 环境下编译时，请将 makefile 中的-msse4.2 去掉，这个选项只有在 x64/x86 硬件平台上才能支持。
 
 ## 基础 API
 
