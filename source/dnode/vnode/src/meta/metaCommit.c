@@ -27,3 +27,5 @@ int metaBegin(SMeta *pMeta) {
 
   return 0;
 }
+
+int metaCommit(SMeta *pMeta) { return tdbCommit(pMeta->pEnv, &pMeta->txn); }

@@ -72,6 +72,7 @@ int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 // vnodeCommit ====================
 int vnodeBegin(SVnode* pVnode);
 int vnodeShouldCommit(SVnode* pVnode);
+int vnodeCommit(SVnode* pVnode);
 int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);

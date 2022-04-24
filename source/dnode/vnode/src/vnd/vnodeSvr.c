@@ -136,12 +136,13 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
 
   vDebug("vgId: %d process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
 
-  // Check if it needs to commit
+  // commit if need
   if (vnodeShouldCommit(pVnode)) {
-    // tsem_wait(&(pVnode->canCommit));
-    if (vnodeAsyncCommit(pVnode) < 0) {
-      // TODO: handle error
-    }
+    // commit current change
+    vnodeCommit(pVnode);
+
+    // start a new one
+    vnodeBegin(pVnode);
   }
 
   return 0;
