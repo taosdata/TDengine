@@ -1,8 +1,8 @@
 #### test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406
-#basic1Of2Cons.sim: vgroups=1, consumer=2, one topic for one consumer, firstly insert data, then start consume. Include six topics
-#basic2Of2Cons.sim: vgroups=1, consumer=2, multi topics for one consumer, firstly insert data, then start consume. Include six topics
-#basic3Of2Cons.sim: vgroups=4, consumer=2, one topic for one consumer, firstly insert data, then start consume. Include six topics
-#basic4Of2Cons.sim: vgroups=4, consumer=2, multi topics for one consumer, firstly insert data, then start consume. Include six topics
+#basic1Of2Cons.sim: vgroups=1, one topic for 2 consumers, firstly insert data, then start consume. Include six topics
+#basic2Of2Cons.sim: vgroups=1, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
+#basic3Of2Cons.sim: vgroups=4, one topic for 2 consumers, firstly insert data, then start consume. Include six topics
+#basic4Of2Cons.sim: vgroups=4, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
 
 # notes1: Scalar function: ABS/ACOS/ASIN/ATAN/CEIL/COS/FLOOR/LOG/POW/ROUND/SIN/SQRT/TAN
 # The above use cases are combined with where filter conditions, such as: where ts > "2017-08-12 18:25:58.128Z" and sin(a) > 0.5;
