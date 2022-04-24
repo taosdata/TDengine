@@ -64,89 +64,7 @@ taosBenchmark -f <json file>
 <summary>insert.json</summary>
 
 ```json
-{
-  "filetype": "insert",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
-  "connection_pool_size": 8,
-  "thread_count": 4,
-  "result_file": "./insert_res.txt",
-  "confirm_parameter_prompt": "no",
-  "insert_interval": 0,
-  "interlace_rows": 100,
-  "num_of_records_per_req": 100,
-  "prepared_rand": 10000,
-  "chinese": "no",
-  "databases": [
-    {
-      "dbinfo": {
-        "name": "db",
-        "drop": "yes",
-        "replica": 1,
-        "days": 10,
-        "cache": 16,
-        "blocks": 8,
-        "precision": "ms",
-        "keep": 3650,
-        "minRows": 100,
-        "maxRows": 4096,
-        "comp": 2,
-        "walLevel": 1,
-        "cachelast": 0,
-        "quorum": 1,
-        "fsync": 3000,
-        "update": 0
-      },
-      "super_tables": [
-        {
-          "name": "stb",
-          "child_table_exists": "no",
-          "childtable_count": 100,
-          "childtable_prefix": "stb_",
-          "escape_character": "yes",
-          "auto_create_table": "no",
-          "batch_create_tbl_num": 5,
-          "data_source": "rand",
-          "insert_mode": "taosc",
-          "non_stop_mode": "no",
-          "line_protocol": "line",
-          "insert_rows": 100000,
-          "childtable_limit": 10,
-          "childtable_offset": 100,
-          "interlace_rows": 0,
-          "insert_interval": 0,
-          "partial_col_num": 0,
-          "disorder_ratio": 0,
-          "disorder_range": 1000,
-          "timestamp_step": 10,
-          "start_timestamp": "2020-10-01 00:00:00.000",
-          "sample_format": "csv",
-          "sample_file": "./sample.csv",
-          "use_sample_ts": "no",
-          "tags_file": "",
-          "columns": [
-            { "type": "INT", "name": "id" },
-            { "type": "DOUBLE", "count": 10 },
-            { "type": "BINARY", "len": 16, "count": 3 },
-            { "type": "BINARY", "len": 32, "count": 6 }
-          ],
-          "tags": [
-            { "type": "TINYINT", "count": 2, "max": 10, "min": 98 },
-            {
-              "type": "BINARY",
-              "len": 16,
-              "count": 5,
-              "values": ["beijing", "shanghai"]
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
+{{#include /taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -157,43 +75,7 @@ taosBenchmark -f <json file>
 <summary>query.json</summary>
 
 ```json
-{
-  "filetype": "query",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
-  "confirm_parameter_prompt": "no",
-  "databases": "db",
-  "query_times": 2,
-  "query_mode": "taosc",
-  "specified_table_query": {
-    "query_interval": 1,
-    "concurrent": 3,
-    "sqls": [
-      {
-        "sql": "select last_row(*) from stb0 ",
-        "result": "./query_res0.txt"
-      },
-      {
-        "sql": "select count(*) from stb00_1",
-        "result": "./query_res1.txt"
-      }
-    ]
-  },
-  "super_table_query": {
-    "stblname": "stb1",
-    "query_interval": 1,
-    "threads": 3,
-    "sqls": [
-      {
-        "sql": "select last_row(ts) from xxxx",
-        "result": "./query_res2.txt"
-      }
-    ]
-  }
-}
+{{#include /taos-tools/example/query.json}}
 ```
 
 </details>
@@ -204,41 +86,7 @@ taosBenchmark -f <json file>
 <summary>subscribe.json</summary>
 
 ```json
-{
-  "filetype": "subscribe",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
-  "databases": "db",
-  "confirm_parameter_prompt": "no",
-  "specified_table_query": {
-    "concurrent": 1,
-    "interval": 0,
-    "restart": "yes",
-    "keepProgress": "yes",
-    "sqls": [
-      {
-        "sql": "select * from stb00_0 ;",
-        "result": "./subscribe_res0.txt"
-      }
-    ]
-  },
-  "super_table_query": {
-    "stblname": "stb0",
-    "threads": 1,
-    "interval": 10000,
-    "restart": "yes",
-    "keepProgress": "yes",
-    "sqls": [
-      {
-        "sql": "select * from xxxx where ts > '2021-02-25 11:35:00.000' ;",
-        "result": "./subscribe_res1.txt"
-      }
-    ]
-  }
-}
+{{#include /taos-tools/example/subscribe.json}}
 ```
 
 </details>
