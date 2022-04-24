@@ -242,10 +242,11 @@ static void shellInitArgs(int argc, char *argv[]) {
     tstrncpy(shell.args.password, TSDB_DEFAULT_PASS, sizeof(shell.args.password));
   }
 
-  shell.args.pktLen = SHELL_DEF_PKG_LEN;
-  shell.args.pktNum = SHELL_DEF_PKG_NUM;
-  shell.args.displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
-  shell.args.user = TSDB_DEFAULT_USER;
+  SShellArgs *pArgs = &shell.args;
+  pArgs->user = TSDB_DEFAULT_USER;
+  pArgs->pktLen = SHELL_DEF_PKG_LEN;
+  pArgs->pktNum = SHELL_DEF_PKG_NUM;
+  pArgs->displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
 }
 
 static int32_t shellCheckArgs() {

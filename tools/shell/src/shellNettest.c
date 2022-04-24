@@ -17,11 +17,12 @@
 #include "shellInt.h"
 
 static void shellWorkAsClient() {
-  SRpcInit rpcInit = {0};
-  SEpSet   epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg  rpcRsp = {0};
-  void    *clientRpc = NULL;
-  char     pass[TSDB_PASSWORD_LEN + 1] = {0};
+  SShellArgs *pArgs = &shell.args;
+  SRpcInit    rpcInit = {0};
+  SEpSet      epSet = {.inUse = 0, .numOfEps = 1};
+  SRpcMsg     rpcRsp = {0};
+  void       *clientRpc = NULL;
+  char        pass[TSDB_PASSWORD_LEN + 1] = {0};
 
   taosEncryptPass_c((uint8_t *)("_pwd"), strlen("_pwd"), pass);
   rpcInit.label = "CHK";
@@ -39,18 +40,30 @@ static void shellWorkAsClient() {
     printf("failed to init net test client since %s\n", terrstr());
     goto _OVER;
   }
-  printf("net test client is initialized\n");
 
-  tstrncpy(epSet.eps[0].fqdn, shell.args.host, TSDB_FQDN_LEN);
-  epSet.eps[0].port = (uint16_t)shell.args.port;
+  if (pArgs->host == NULL) {
+    pArgs->host = tsFirst;
+  }
+  char fqdn[TSDB_FQDN_LEN] = {0};
+  tstrncpy(fqdn, pArgs->host, TSDB_FQDN_LEN);
+  strtok(fqdn, ":");
+
+  if (pArgs->port == 0) {
+    pArgs->port = tsServerPort;
+  }
+
+  printf("net test client is initialized, the server to connect to is %s:%u\n", fqdn, pArgs->port);
+
+  tstrncpy(epSet.eps[0].fqdn, pArgs->host, TSDB_FQDN_LEN);
+  epSet.eps[0].port = (uint16_t)pArgs->port;
 
   int32_t  totalSucc = 0;
   uint64_t startTime = taosGetTimestampUs();
 
-  for (int32_t i = 0; i < shell.args.pktNum; ++i) {
+  for (int32_t i = 0; i < pArgs->pktNum; ++i) {
     SRpcMsg rpcMsg = {.ahandle = (void *)0x9525, .msgType = TDMT_DND_NET_TEST};
-    rpcMsg.pCont = rpcMallocCont(shell.args.pktLen);
-    rpcMsg.contLen = shell.args.pktLen;
+    rpcMsg.pCont = rpcMallocCont(pArgs->pktLen);
+    rpcMsg.contLen = pArgs->pktLen;
 
     printf("net test request is sent, size:%d\n", rpcMsg.contLen);
     rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
@@ -65,8 +78,8 @@ static void shellWorkAsClient() {
   uint64_t endTime = taosGetTimestampUs();
   uint64_t elT = endTime - startTime;
 
-  printf("\ntotal succ:%5d/%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", totalSucc, shell.args.pktNum, elT / 1000.0,
-         shell.args.pktLen / (elT / 1000000.0) / 1024.0 / 1024.0 * totalSucc);
+  printf("\ntotal succ:%5d/%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", totalSucc, pArgs->pktNum, elT / 1000.0,
+         pArgs->pktLen / (elT / 1000000.0) / 1024.0 / 1024.0 * totalSucc);
 
 _OVER:
   if (clientRpc != NULL) {
@@ -88,8 +101,10 @@ static void shellProcessMsg(void *p, SRpcMsg *pRpc, SEpSet *pEpSet) {
 void shellNettestHandler(int32_t signum, void *sigInfo, void *context) { shellExit(); }
 
 static void shellWorkAsServer() {
+  SShellArgs *pArgs = &shell.args;
+
   SRpcInit rpcInit = {0};
-  rpcInit.localPort = shell.args.port;
+  rpcInit.localPort = pArgs->port;
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)shellProcessMsg;
@@ -102,7 +117,7 @@ static void shellWorkAsServer() {
     printf("failed to init net test server since %s", terrstr());
   }
 
-  printf("net test server is initialized\n");
+  printf("net test server is initialized, port:%u\n", pArgs->port);
 
   taosSetSignal(SIGTERM, shellNettestHandler);
   while (1) taosMsleep(10);
