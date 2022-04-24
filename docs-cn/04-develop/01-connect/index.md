@@ -234,6 +234,6 @@ install.packages("RJDBC")
 </Tabs>
 
 :::tip
-如果建立连接失败，大部分情况下是 FQDN 或防火墙的配置不正确，详细的排查方法请看[《常见问题及反馈》](https://docs.taosdata.com/train-fqa/faq)中的“遇到错误 Unable to establish connection, 我怎么办？”
+如果建立连接失败，大部分情况下是 FQDN 或防火墙的配置不正确，详细的排查方法请看[《常见问题及反馈》](https://docs.taosdata.com/train-faq/faq)中的“遇到错误 Unable to establish connection, 我怎么办？”
 
 :::

@@ -26,7 +26,7 @@ $ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdeng
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
-这条命令，启动一个运行了 TDengine server 的 docker 容器，并且将容器的 6030 到 6049 端口映射到宿主机的 6030 到 6049 端口上。如果宿主机已经运行了 TDengine server 并占用了相同端口，需要映射容器的端口到不同的未使用端口段。（详情参见 [TDengine 2.0 端口说明](/train-fqa/faq#port）。为了支持 TDengine 客户端操作 TDengine server 服务， TCP 和 UDP 端口都需要打开。
+这条命令，启动一个运行了 TDengine server 的 docker 容器，并且将容器的 6030 到 6049 端口映射到宿主机的 6030 到 6049 端口上。如果宿主机已经运行了 TDengine server 并占用了相同端口，需要映射容器的端口到不同的未使用端口段。（详情参见 [TDengine 2.0 端口说明](/train-faq/faq#port）。为了支持 TDengine 客户端操作 TDengine server 服务， TCP 和 UDP 端口都需要打开。
 
 - **docker run**：通过 Docker 运行一个容器
 - **-d**：让容器在后台运行
