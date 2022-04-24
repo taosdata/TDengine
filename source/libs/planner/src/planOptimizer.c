@@ -586,7 +586,7 @@ static bool opkIsPrimaryKeyOrderBy(SNodeList* pSortKeys) {
   if (1 != LIST_LENGTH(pSortKeys)) {
     return false;
   }
-  SNode* pNode = nodesListGetNode(pSortKeys, 0);
+  SNode* pNode = ((SOrderByExprNode*)nodesListGetNode(pSortKeys, 0))->pExpr;
   return (QUERY_NODE_COLUMN == nodeType(pNode) ? (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) : false);
 }
 
@@ -642,15 +642,20 @@ static EOrder opkGetPrimaryKeyOrder(SSortLogicNode* pSort) {
 static SNode* opkRewriteDownNode(SSortLogicNode* pSort) {
   SNode* pDownNode = nodesListGetNode(pSort->node.pChildren, 0);
   // todo
+  pSort->node.pChildren = NULL;
   return pDownNode;
 }
 
 static int32_t opkDoOptimized(SOptimizeContext* pCxt, SSortLogicNode* pSort, SNodeList* pScanNodes) {
   EOrder order = opkGetPrimaryKeyOrder(pSort);
-  SNode* pScan = NULL;
-  FOREACH(pScan, pScanNodes) {
-    ((SScanLogicNode*)pScan)->scanFlag = (ORDER_ASC == order ? MAIN_SCAN : REVERSE_SCAN);
+  if (ORDER_DESC == order) {
+    SNode* pScan = NULL;
+    FOREACH(pScan, pScanNodes) {
+      ((SScanLogicNode*)pScan)->scanSeq[0] = 0;
+      ((SScanLogicNode*)pScan)->scanSeq[1] = 1;
+    }
   }
+
   if (NULL == pSort->node.pParent) {
     // todo
     return TSDB_CODE_SUCCESS;
