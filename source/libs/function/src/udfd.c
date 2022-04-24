@@ -84,7 +84,7 @@ int32_t udfdLoadUdf(char *udfName, SEpSet *pEpSet, SUdf *udf) {
   strcpy(udf->name, udfName);
 
   //udfdFillUdfInfoFromMNode(global.clientRpc, pEpSet, udf->name, udf);
-  strcpy(udf->path, "libudf1.so");
+  strcpy(udf->path, "/home/slzhou/TDengine/debug/build/lib/libudf1.so");
   int err = uv_dlopen(udf->path, &udf->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
