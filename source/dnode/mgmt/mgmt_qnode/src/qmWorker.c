@@ -19,6 +19,7 @@
 static inline void qmSendRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
                  .ahandle = pMsg->rpcMsg.ahandle,
+                 .refId = pMsg->rpcMsg.refId,
                  .code = code,
                  .pCont = pMsg->pRsp,
                  .contLen = pMsg->rspLen};

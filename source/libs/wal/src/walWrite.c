@@ -295,7 +295,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   pWal->writeHead.head.version = index;
 
   int64_t offset = walGetCurFileOffset(pWal);
-  pWal->writeHead.head.len = bodyLen;
+  pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
 
   // sync info

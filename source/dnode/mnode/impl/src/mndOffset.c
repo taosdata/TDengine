@@ -172,7 +172,7 @@ static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
     bool          create = false;
     SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, key);
     if (pOffsetObj == NULL) {
-      pOffsetObj = taosMemoryMalloc(sizeof(SMqOffset));
+      pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));
       memcpy(pOffsetObj->key, key, TSDB_PARTITION_KEY_LEN);
       create = true;
     }
