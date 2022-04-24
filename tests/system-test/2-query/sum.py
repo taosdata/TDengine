@@ -22,7 +22,7 @@ NCHAR_COL   = "c9"
 TS_COL      = "c10"
 
 NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
-UN_NUM_COL = [BINARY_COL, NCHAR_COL, BOOL_COL]
+UN_NUM_COL = [BOOL_COL, BINARY_COL, NCHAR_COL, ]
 TS_TYPE_COL = [TS_COL]
 
 class TDTestCase:
@@ -42,7 +42,6 @@ class TDTestCase:
             )
             sum_condition.extend( f"{num_col} + {num_col_2}" for num_col_2 in NUM_COL )
             sum_condition.extend( f"{num_col} + {un_num_col} " for un_num_col in UN_NUM_COL )
-        sum_condition.extend(f"{un_num_col} + {ts_col} " for un_num_col in UN_NUM_COL for ts_col in TS_TYPE_COL)
 
         return sum_condition
 
@@ -77,7 +76,8 @@ class TDTestCase:
                 )
             )
             sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
-            sqls.extend( f"select sum( {num_col} + {ts_col} ) from {tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+            sqls.extend( f"select sum( {un_num_col} + {ts_col} ) from {tbanme} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select sum( {num_col} + {ts_col} ) from {tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
 
         return sqls
 
