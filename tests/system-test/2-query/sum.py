@@ -59,7 +59,7 @@ class TDTestCase:
 
             tdSql.query(f"select {condition} from {tbname} {where_condition} ")
             datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
-            sum_data = sum(datas)
+            sum_data = sum(filter(None, datas))
             tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} ")
             tdSql.checkData(0, 0, sum_data)
 
