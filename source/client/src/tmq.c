@@ -382,12 +382,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, conf->db, conf->port, CONN_TYPE__TMQ);
   if (pTmq->pTscObj == NULL) return NULL;
 
-  /*pTmq->inWaiting = 0;*/
   pTmq->status = 0;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
-  /*pTmq->waitingRequest = 0;*/
-  /*pTmq->readyRequest = 0;*/
   pTmq->epStatus = 0;
   pTmq->epSkipCnt = 0;
   // set conf

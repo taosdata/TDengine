@@ -1969,7 +1969,6 @@ typedef struct {
   int8_t  withTbName;
   int8_t  withSchema;
   int8_t  withTag;
-  int8_t  withTagSchema;
   char*   qmsg;
 } SMqRebVgReq;
 
@@ -1984,7 +1983,6 @@ static FORCE_INLINE int32_t tEncodeSMqRebVgReq(void** buf, const SMqRebVgReq* pR
   tlen += taosEncodeFixedI8(buf, pReq->withTbName);
   tlen += taosEncodeFixedI8(buf, pReq->withSchema);
   tlen += taosEncodeFixedI8(buf, pReq->withTag);
-  tlen += taosEncodeFixedI8(buf, pReq->withTagSchema);
   if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     tlen += taosEncodeString(buf, pReq->qmsg);
   }
@@ -2001,7 +1999,6 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   buf = taosDecodeFixedI8(buf, &pReq->withTbName);
   buf = taosDecodeFixedI8(buf, &pReq->withSchema);
   buf = taosDecodeFixedI8(buf, &pReq->withTag);
-  buf = taosDecodeFixedI8(buf, &pReq->withTagSchema);
   if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     buf = taosDecodeString(buf, &pReq->qmsg);
   }
@@ -2590,7 +2587,6 @@ typedef struct {
   int8_t     withTbName;
   int8_t     withSchema;
   int8_t     withTag;
-  int8_t     withTagSchema;
   SArray*    blockDataLen;    // SArray<int32_t>
   SArray*    blockData;       // SArray<SRetrieveTableRsp*>
   SArray*    blockTbName;     // SArray<char*>
@@ -2609,7 +2605,6 @@ static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp
     tlen += taosEncodeFixedI8(buf, pRsp->withTbName);
     tlen += taosEncodeFixedI8(buf, pRsp->withSchema);
     tlen += taosEncodeFixedI8(buf, pRsp->withTag);
-    tlen += taosEncodeFixedI8(buf, pRsp->withTagSchema);
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t*)taosArrayGet(pRsp->blockDataLen, i);
@@ -2632,7 +2627,6 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
     buf = taosDecodeFixedI8(buf, &pRsp->withSchema);
     buf = taosDecodeFixedI8(buf, &pRsp->withTag);
-    buf = taosDecodeFixedI8(buf, &pRsp->withTagSchema);
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = 0;
