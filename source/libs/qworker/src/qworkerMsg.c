@@ -339,7 +339,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorkerMgmt *mgmt, uint64_t sId, SQWConnInfo 
     .ahandle = pConn->ahandle,
     .msgType = TDMT_VND_QUERY_HEARTBEAT,
     .pCont   = msg,
-    .contLen = sizeof(SSchedulerHbReq),
+    .contLen = msgSize,
     .code    = TSDB_CODE_RPC_NETWORK_UNAVAIL,
   };
   
