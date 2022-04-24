@@ -647,12 +647,13 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   taosCloseFile(&pFile);
   if (line != NULL) taosMemoryFreeClear(line);
 
-  if (code == 0) {
+  if (code == 0 || (code != 0 && terrno == TSDB_CODE_CFG_NOT_FOUND)) {
     uInfo("load from cfg file %s success", filepath);
+    return 0;
   } else {
     uError("failed to load from cfg file %s since %s", filepath, terrstr());
+    return -1;
   }
-  return code;
 }
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
