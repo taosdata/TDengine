@@ -40,7 +40,7 @@ class TDTestCase:
                 )
             )
             sum_condition.extend( f"{num_col} + {num_col_2}" for num_col_2 in NUM_COL )
-            sum_condition.extend( f"{num_col} + {un_num_col} " for un_num_col in UN_NUM_COL )
+            sum_condition.extend( f"{num_col} + {un_num_col} " for un_num_col in [BINARY_COL, NCHAR_COL] )
 
         return sum_condition
 
