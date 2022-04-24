@@ -88,7 +88,7 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
     dTrace("msg:%p, is created and put into child queue, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType),
            pRpc->handle, pMsg->user);
     code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, pRpc->handle,
-                               PROC_FUNC_REQ);
+                               pRpc->refId, PROC_FUNC_REQ);
   } else {
     dTrace("msg:%p, should not processed in child process, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
     ASSERT(1);
@@ -356,7 +356,7 @@ static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t 
       dmSendRpcReq(pWrapper->pDnode, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
       break;
     case PROC_FUNC_RSP:
-      taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
+      pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
       dmSendRpcRsp(pWrapper->pDnode, pMsg);
       break;
     default:
