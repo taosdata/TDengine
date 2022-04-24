@@ -106,7 +106,7 @@ static void dmPrintVersion() {
 
 static void dmDumpCfg() {
   SConfig *pCfg = taosGetCfg();
-  cfgDumpCfg(pCfg, 0, 1);
+  cfgDumpCfg(pCfg, 0, true);
 }
 
 static SDnodeOpt dmGetOpt() {
