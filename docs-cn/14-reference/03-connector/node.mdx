@@ -8,7 +8,7 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-td2.0-connector 是 TDengine 的官方 Node.js 连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 数据的应用软件。
+`td2.0-connector` 是 TDengine 的官方 Node.js 连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 数据的应用软件。
 
 ## 支持的平台
 
@@ -59,14 +59,14 @@ Node.js 连接器支持的系统有：
 <Preparition />
 
 - 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 RESTful 连接器则可以跳过以下步骤，直接只用 npm 安装。
+我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
 
 ### Linux
 
 - `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
-- `node` 2.0.6 支持 >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0 ；2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
+- `td2.0-connector` 2.0.6 支持 Node.js LTS v10.9.0 或更高版本, Node.js LTS v12.8.0 或更高版本；2.0.5 及更早版本支持 Node.js LTS v10.x 版本。其他版本可能存在包兼容性的问题
 - `make`
-- c 语言编译器比如[GCC](https://gcc.gnu.org)
+- C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
 
 ### Windows
 
@@ -82,7 +82,7 @@ Node.js 连接器支持的系统有：
 - 安装 [Python](https://www.python.org/downloads/) 2.7(`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7`
 - 进入`cmd`命令行界面，`npm config set msvs_version 2017`
 
-如果以上步骤不能成功执行，可以参考微软的 Node.js 用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
+参考微软的 Node.js 用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
 
 如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
 
@@ -94,7 +94,7 @@ Node.js 连接器支持的系统有：
 npm install td2.0-connector
 ```
 
-- 安装 RESTful 连接器
+- 安装 REST 连接器
 
 ```bash
 npm i td2.0-rest-connector
@@ -116,7 +116,7 @@ npm install td2.0-connector
 node nodejsChecker.js host=localhost
 ```
 
-- 执行以上步骤后，在命令行会输出 nodejs 连接 TDengine 实例，并执行简答插入和查询的结果。
+- 执行以上步骤后，在命令行会输出 nodejs 连接 TDengine 实例，并执行简单插入和查询的结果。
 
 ## 建立连接
 
@@ -134,7 +134,7 @@ var cursor = conn.cursor(); // Initializing a new cursor
 conn.close();
 ```
 
-### 建立RESTful连接
+### 建立 REST 连接
 
 安装并引用 `td2.0-rest-connector` 包。
 
@@ -154,7 +154,7 @@ let cursor = conn.cursor();
 ## 使用示例
 | 示例程序                                                                                                                                      | 示例程序描述                         |
 |-----------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| [connection](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/cursorClose.js)                                  | 建立连接的示例。                 |
+| [connection](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/cursorClose.js)                                  | 建立连接的示例。                     |
 | [stmtBindBatch](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindParamBatchSample.js)                  | 绑定多行参数插入的示例。             |
 | [stmtBind](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindParamSample.js)                            | 一行一行绑定参数插入的示例。         |
 | [stmtBindSingleParamBatch](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindSingleParamBatchSample.js) | 按列绑定参数插入的示例。             |
@@ -165,7 +165,7 @@ let cursor = conn.cursor();
 | [schemless   insert](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testSchemalessInsert.js)                 | schemless 插入的示例。               |
 | [subscribe](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testSubscribe.js)                                 | 订阅的使用示例。                     |
 | [asyncQuery](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/tset.js)                                         | 异步查询的使用示例。                 |
-| [RESTful](https://github.com/taosdata/TDengine/tree/develop/src/connector/TypeScript-REST/example)                                            | RESTful 连接的 TypeScript 使用示例。 |
+| [REST](https://github.com/taosdata/TDengine/tree/develop/src/connector/TypeScript-REST/example)                                               | 使用 REST 连接的 TypeScript 使用示例。|
 
 ## 使用限制
 
@@ -189,7 +189,7 @@ Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/202
 
 ## 常见问题（optional)
 
-1. 使用 RESTful 连接需要启动 taosadapter。
+1. 使用 REST 连接需要启动 taosadapter。
 
    ``` bash
    sudo systemctl start taosadapter

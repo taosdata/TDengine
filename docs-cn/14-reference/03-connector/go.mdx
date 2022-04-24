@@ -8,13 +8,11 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-driver-go 是 TDengine 的官方 Go 语言连接器。Go 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。driver-go 实现了 Go [database/sql](https://golang.org/pkg/database/sql/) 包的接口，支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
+`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 连接 TDengine 数据库。REST 连接实现的功能特性集合和原生连接有少量不同。
 
-driver-go 也支持使用 REST 连接 TDengine 服务端。REST 连接实现的功能集合和原生连接有少量不同。
+本文介绍如何在 Windows 或 Linux 环境中安装 `driver-go`，并通过 `driver-go` 连接 TDengine 数据库、进行数据查询、数据写入等基本操作。
 
-本文介绍如何在 Windows 或 Linux 环境中安装 driver-go，并通过 driver-go 连接 TDengine 数据库、进行数据查询、数据写入等基本操作。
-
-Go 连接器的源码托管在 github。项目名称：driver-go。欢迎 [贡献源码](https://github.com/taosdata/driver-go) 或 [报告问题](https://github.com/taosdata/driver-go/issues)。
+Go 连接器的源码托管在 GitHub。项目名称：driver-go。欢迎 [贡献源码](https://github.com/taosdata/driver-go) 或 [报告问题](https://github.com/taosdata/driver-go/issues)。
 
 ## 支持的平台
 
@@ -315,7 +313,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (stmt *InsertStmt) Prepare(sql string) error`
 
-预处理 sql 语句。
+预处理 SQL 语句。
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 

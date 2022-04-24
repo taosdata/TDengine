@@ -8,11 +8,11 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-TDengine.Connector 是 TDengine 提供的 C# 连接器。C# 语言开发人员可以通过它开发存取 TDengine 数据库的 C# 应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 服务端。进行查询、订阅、schemaless 接口、参数绑定接口等功能。
+`TDengine.Connector` 是 TDengine 提供的 C# 连接器。C# 语言开发人员可以通过它开发存取 TDengine 数据库的 C# 应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 数据库。进行数据写入、查询、订阅、schemaless 数据写入、参数绑定接口数据写入等功能。
 
-TDengine.Connector 目前暂未提供使用 REST 连接d的接口，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
+`TDengine.Connector` 目前暂未提供 REST 连接方式，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
-本文介绍如何在 Windows 或 Linux 环境中安装 TDengine.Connector，并通过 TDengine.Connector 连接 TDengine 数据库、进行数据查询、数据写入等基本操作。
+本文介绍如何在 Windows 或 Linux 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 数据库，进行数据写入、查询等基本操作。
 
 ## 支持的平台
 
@@ -45,25 +45,11 @@ TDengine.Connector 目前暂未提供使用 REST 连接d的接口，用户可以
 
 <Preparition />
 
-
 ### 使用 dotnet CLI 安装
-
-使用 C# Connector 连接数据库前，需要具备以下条件：
-
-1. Linux 或 Windows 操作系统
-2. .Net 5.0 及以上运行时环境
-3. TDengine-client
-
-**注意**：使用 C# 连接器包时需要安装对应的客户端驱动。
-
-- 在 Linux 系统中成功安装 TDengine 客户端之后，TDengine.Connector 依赖的本地客户端驱动 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
-- 在 Windows 系统中成功安装 TDengine 客户端之后，TDengine.Connector 依赖的本地客户端驱动 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需单独指定。
-
-**注意**：在 Windows 环境下开发时，需要安装 TDengine 对应的 [Windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](/get-started/) 连接远程 TDengine Server。
 
 #### 使用 dotnet CLI 获取 C# 驱动
 
-可以在当前 .NET 项目的路径下，通过 dotnet 命令引用 Nuget 中发布的 TDengine.Connector 到当前项目。
+可以在当前 .NET 项目的路径下，通过 dotnet 命令引用 Nuget 中发布的 `TDengine.Connector` 到当前项目。
 
 ``` bash
 dotnet add package TDengine.Connector
@@ -71,12 +57,12 @@ dotnet add package TDengine.Connector
 
 #### 使用源码获取 C# 驱动
 
-可以下载 TDengine 的源码，直接引用最新版本的 TDengine.Connector库
+可以下载 TDengine 的源码，直接引用最新版本的 TDengine.Connector 库
 
 ```bash
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine/src/connector/C#/src/
-cp -r C#/src/TDengineDriver/ myProject
+cp -r TDengineDriver/ myProject
 
 cd myProject
 dotnet add TDengineDriver/TDengineDriver.csproj
@@ -145,7 +131,7 @@ namespace TDengineExample
 
 ### 第三方驱动
 
-Maikebing.Data.Taos 是一个 TDengine 的 ADO.NET 连接器，支持 Linux，Windows 平台。该连接器由社区贡献者`麦壳饼@@maikebing` 提供，具体请参考:
+`Maikebing.Data.Taos` 是一个 TDengine 的 ADO.NET 连接器，支持 Linux，Windows 平台。该连接器由社区贡献者`麦壳饼@@maikebing` 提供，具体请参考:
 
 * 接口下载:<https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos>
 * 用法说明:<https://www.taosdata.com/blog/2020/11/02/1901.html>
@@ -159,6 +145,6 @@ Maikebing.Data.Taos 是一个 TDengine 的 ADO.NET 连接器，支持 Linux，Wi
 * Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: 找不到指定的模块。
 
 一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\ ` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
-  
+
 ## API 参考
 [API 参考](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)
