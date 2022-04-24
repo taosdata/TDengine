@@ -457,6 +457,13 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
 void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
+  if (pSyncNode->replicaNum == 1) {
+    syncNodeBecomeLeader(pSyncNode);
+    syncNodeAppendNoop(pSyncNode);
+    syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
+    return;
+  }
+
   syncNodeBecomeFollower(pSyncNode);
 
   // for test
