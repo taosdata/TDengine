@@ -93,8 +93,8 @@ class taosdemoPerformace:
             "port": 6030,
             "user": "root",
             "password": "taosdata",
-            "thread_count": 16,
-            "thread_count_create_tbl": 8,
+            "thread_count": 10,
+            "thread_count_create_tbl": 4,
             "result_file": "./insert_res.txt",
             "databases": [db]
         }
@@ -240,7 +240,7 @@ if __name__ == '__main__':
         '-r',
         '--num-of-rows',
         action='store',
-        default=10000,
+        default=100000,
         type=int,
         help='num of rows (default: 100000)')
     args = parser.parse_args()

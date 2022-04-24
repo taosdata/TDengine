@@ -14,7 +14,7 @@ namespace Cases
     public class FetchFieldCases
     {
 
-         DatabaseFixture database;
+        DatabaseFixture database;
 
 
         public FetchFieldCases(DatabaseFixture fixture)
@@ -26,7 +26,7 @@ namespace Cases
         /// <describe>test taos_fetch_fields(), check the meta data</describe>
         /// <filename>FetchFields.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldJsonTag()"),TestExeOrder(1),Trait("Category", "FetchFieldJsonTag")]
+        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldJsonTag()"), TestExeOrder(1), Trait("Category", "FetchFieldJsonTag")]
         public void TestFetchFieldJsonTag()
         {
             IntPtr conn = database.conn;

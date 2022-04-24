@@ -99,7 +99,7 @@ class taosdemoQueryPerformace:
             sql = {
                 "sql": data[1],
                 "result_mode": "onlyformat",
-                "result_file": "/root/pxiao/query_sql_res%d.txt" % i
+                "result_file": "./query_sql_res%d.txt" % i
             }
             sqls.append(sql)
             i += 1

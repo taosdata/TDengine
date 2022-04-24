@@ -4,22 +4,25 @@ sidebar_label: C/C++
 title: C/C++ Connector
 ---
 
+## 总体介绍
 
-## 支持的系统
+C/C++ 开发人员可以使用 TDengine 客户端附带函数库开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型。
+
+```c
+#include <taos.h>
+```
+
+TDengine 服务端或客户端安装后，taos.h 位于：
+
+- Linux：`/usr/local/taos/include`
+- Windows：`C:\TDengine\include`
+
+## 支持的平台
 
 | **CPU 类型** | x64（64bit） |          |          | ARM64    | ARM32    |
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
 | **OS 类型**  | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
-
-C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型。安装后，taos.h 位于：
-
-- Linux：`/usr/local/taos/include`
-- Windows：`C:\TDengine\include`
-
-```c
-#include <taos.h>
-```
 
 注意：
 
@@ -39,7 +42,7 @@ C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TD
 
 在一台机器上启动 TDengine 服务，执行这些示例程序，按照提示输入 TDengine 服务的 FQDN，就可以正常运行，并打印出信息。
 
-**提示：**在 ARM 环境下编译时，请将 makefile 中的-msse4.2 打开，这个选项只有在 x64/x86 硬件平台上才能支持。
+**提示：**在 ARM 环境下编译时，请将 makefile 中的-msse4.2 去掉，这个选项只有在 x64/x86 硬件平台上才能支持。
 
 ## 基础 API
 
@@ -199,8 +202,6 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 说明：如果 `taos_stmt_execute` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare` 的解析结果，直接进行第 3 ～ 6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init` 步骤重新开始。
 
-除 C/C++ 语言外，TDengine 的 Java 语言本地连接 Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](/reference/connector/java#通过参数绑定写入数据)。
-
 接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
@@ -230,17 +231,17 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
-  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
   当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
-  （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
+  （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
   当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。TAGS 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
-  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
   以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
 
   ```c
@@ -272,7 +273,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `char * taos_stmt_errstr(TAOS_STMT *stmt)`
 
-  （2.1.3.0 版本新增）  
+  （2.1.3.0 版本新增）
   用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
 ## Schemaless 方式写入接口
@@ -281,40 +282,40 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
-  **功能说明**  
+  **功能说明**
    该接口将行协议的文本数据写入到 TDengine 中。
 
-  **参数说明**  
-   taos: 数据库连接，通过 taos_connect 函数建立的数据库连接。  
-   lines：文本数据。满足解析格式要求的无模式文本字符串。  
-   numLines:文本数据的行数，不能为 0 。  
-   protocol: 行协议类型，用于标识文本数据格式。  
+  **参数说明**
+   taos: 数据库连接，通过 taos_connect 函数建立的数据库连接。
+   lines：文本数据。满足解析格式要求的无模式文本字符串。
+   numLines:文本数据的行数，不能为 0 。
+   protocol: 行协议类型，用于标识文本数据格式。
    precision：文本数据中的时间戳精度字符串。
 
-  **返回值**  
-   TAOS_RES 结构体，应用可以通过使用 taos_errstr 获得错误信息，也可以使用 taos_errno 获得错误码。  
-   在某些情况下，返回的 TAOS_RES 为 NULL，此时仍然可以调用 taos_errno 来安全地获得错误码信息。  
+  **返回值**
+   TAOS_RES 结构体，应用可以通过使用 taos_errstr 获得错误信息，也可以使用 taos_errno 获得错误码。
+   在某些情况下，返回的 TAOS_RES 为 NULL，此时仍然可以调用 taos_errno 来安全地获得错误码信息。
    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
-  **说明**  
-   协议类型是枚举类型，包含以下三种格式：  
-   TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)  
-   TSDB_SML_TELNET_PROTOCOL: OpenTSDB 文本行协议  
+  **说明**
+   协议类型是枚举类型，包含以下三种格式：
+   TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
+   TSDB_SML_TELNET_PROTOCOL: OpenTSDB 文本行协议
    TSDB_SML_JSON_PROTOCOL: OpenTSDB Json 协议格式
 
-  时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：  
-   TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,  
-   TSDB_SML_TIMESTAMP_HOURS,  
-   TSDB_SML_TIMESTAMP_MINUTES,  
-   TSDB_SML_TIMESTAMP_SECONDS,  
-   TSDB_SML_TIMESTAMP_MILLI_SECONDS,  
-   TSDB_SML_TIMESTAMP_MICRO_SECONDS,  
+  时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：
+   TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+   TSDB_SML_TIMESTAMP_HOURS,
+   TSDB_SML_TIMESTAMP_MINUTES,
+   TSDB_SML_TIMESTAMP_SECONDS,
+   TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+   TSDB_SML_TIMESTAMP_MICRO_SECONDS,
    TSDB_SML_TIMESTAMP_NANO_SECONDS
 
-  需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。  
+  需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。
    对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
 
-  **支持版本**  
+  **支持版本**
    该功能接口从 2.3.0.0 版本开始支持。
 
   ```c

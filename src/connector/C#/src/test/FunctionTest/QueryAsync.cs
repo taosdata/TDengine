@@ -30,7 +30,7 @@ namespace Cases
         /// <describe>Test query without condition</describe>
         /// <filename>QueryAsync.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "QueryAsyncCases.QueryWithoutCondition()"),TestExeOrder(1),Trait("Category", "QueryAWithoutCondition")]
+        [Fact(DisplayName = "QueryAsyncCases.QueryWithoutCondition()"), TestExeOrder(1), Trait("Category", "QueryAWithoutCondition")]
         public void QueryWithoutCondition()
         {
             IntPtr conn = database.conn;
@@ -115,7 +115,7 @@ namespace Cases
         /// <describe>Test query with condition</describe>
         /// <filename>QueryAsync.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "QueryAsyncCases.QueryWithCondition()"),TestExeOrder(2),Trait("Category", "QueryAWithCondition")]
+        [Fact(DisplayName = "QueryAsyncCases.QueryWithCondition()"), TestExeOrder(2), Trait("Category", "QueryAWithCondition")]
         public void QueryWithCondition()
         {
             IntPtr conn = database.conn;
@@ -202,7 +202,7 @@ namespace Cases
         /// <describe>Test query with condition</describe>
         /// <filename>QueryAsync.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "QueryAsyncCases.QueryWithJsonCondition()"),TestExeOrder(3),Trait("Category", "QueryAWithJsonCondition")]
+        [Fact(DisplayName = "QueryAsyncCases.QueryWithJsonCondition()"), TestExeOrder(3), Trait("Category", "QueryAWithJsonCondition")]
         public void QueryWithJsonCondition()
         {
             IntPtr conn = database.conn;

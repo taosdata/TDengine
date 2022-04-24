@@ -4,79 +4,147 @@ sidebar_label: C#
 title: C# Connector
 ---
 
-## 简介
+import Preparition from "./_preparition.mdx"
 
-- C# 连接器支持的系统有：Linux 64/Windows x64/Windows x86
+## 总体介绍
 
-- C# 连接器支持从 [Nuget 下载引用](https://www.nuget.org/packages/TDengine.Connector/)
+`TDengine.Connector` 是 TDengine 提供的 C# 连接器。C# 语言开发人员可以通过它开发存取 TDengine 数据库的 C# 应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 数据库。进行数据写入、查询、订阅、schemaless 数据写入、参数绑定接口数据写入等功能。
 
-- 在 Windows 系统上，C# 应用程序可以使用 TDengine 的原生 C 接口来执行所有数据库操作，后续版本将提供 ORM（Dapper）框架驱动。
+`TDengine.Connector` 目前暂未提供 REST 连接方式，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
-## 安装准备
+本文介绍如何在 Windows 或 Linux 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 数据库，进行数据写入、查询等基本操作。
 
-- 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-- 接口文件 TDengineDrivercs.cs 和参考程序示例 TDengineTest.cs 均位于 Windows 客户端 install_directory/examples/C# 目录下。
-- 安装 [.NET SDK](https://dotnet.microsoft.com/download)
+## 支持的平台
 
-## 示例程序
+| **CPU 类型** | x64（64bit） |          |          |
+| ------------ | ------------ | -------- | -------- |
+| **OS 类型**  | Linux        | Win64    | Win32    |
+| **支持与否** | **支持**     | **支持** | **支持** |
 
-示例程序源码位于
+## 版本支持
 
-- {client_install_directory}/examples/C#
-- [C# example source code on GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/C%23)
+| TDengine.Connector |             TDengine 版本             |
+|--------------------|:-------------------------------------:|
+| 1.0.2 ~ 1.0.6      | v2.3.4+ |
 
-:::note
+## 支持的功能特性
 
-TDengineTest.cs C# 示例源程序，包含了数据库连接参数，以及如何执行数据插入、查询等操作。
+1. 连接管理
+2. 同步查询
+3. 异步查询
+4. 参数绑定
+5. 订阅功能
+6. Schemaless
 
-:::
+## 安装步骤
 
-## 安装验证
+### 安装前准备
 
-需要先安装 .NET SDK
+* 安装 [.NET SDK](https://dotnet.microsoft.com/download)
+ - （可选安装）[Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools)
 
-```cmd
-cd {client_install_directory}/examples/C#/C#Checker
-//运行测试
-dotnet run -- -h <FQDN>. // 此步骤会先build，然后再运行。
+<Preparition />
+
+### 使用 dotnet CLI 安装
+
+#### 使用 dotnet CLI 获取 C# 驱动
+
+可以在当前 .NET 项目的路径下，通过 dotnet 命令引用 Nuget 中发布的 `TDengine.Connector` 到当前项目。
+
+``` bash
+dotnet add package TDengine.Connector
 ```
 
-## C# 连接器的使用
+#### 使用源码获取 C# 驱动
 
-在 Windows 系统上，C# 应用程序可以使用 TDengine 的 C# 连接器接口来执行所有数据库的操作。使用的具体步骤如下所示：
+可以下载 TDengine 的源码，直接引用最新版本的 TDengine.Connector 库
 
-- 创建一个 C# project（需要 .NET SDK）.
+```bash
+git clone https://github.com/taosdata/TDengine.git
+cd TDengine/src/connector/C#/src/
+cp -r TDengineDriver/ myProject
 
-  ```cmd
-  mkdir test
-  cd test
-  dotnet new console
-  ```
+cd myProject
+dotnet add TDengineDriver/TDengineDriver.csproj
+```
 
-- 通过 Nuget 引用 TDengineDriver 包
+## 建立连接
 
-  ```cmd
-  dotnet add package TDengine.Connector
-  ```
+``` C#
+using TDengineDriver;
 
-- 在项目中需要用到 TDengineConnector 的地方引用 TDengineDriver namespace。
+namespace TDengineExample
+{
 
-  ```cs
-  using TDengineDriver;
-  ```
-- 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+    internal class EstablishConnection
+    {
+        static void Main(String[] args)
+        {
+            string host = "localhost";
+            short port = 6030;
+            string username = "root";
+            string password = "taosdata";
+            string dbname = "";
 
-:::note
+            var conn = TDengine.Connect(host, username, password, dbname, port);
+            if (conn == IntPtr.Zero)
+            {
+                Console.WriteLine("Connect to TDengine failed");
+            }
+            else
+            {
+                Console.WriteLine("Connect to TDengine success");
+            }
+            TDengine.Close(conn);
+            TDengine.Cleanup();
+        }
+    }
+}
 
-- TDengine V2.0.3.0 之后同时支持 32 位和 64 位 Windows 系统，所以 C# 项目在生成 .exe 文件时，“解决方案”/“项目”的“平台”请选择对应的 x86 或 x64。
-- 此接口目前已经在 Visual Studio 2015/2017 中验证过，其它 Visual Studio 版本尚待验证。
-- 此连接器需要用到 taos.dll 文件，所以在未安装客户端时需要在执行应用程序前，拷贝 Windows{client_install_directory}/driver 目录中的 taos.dll 文件到项目最后生成 .exe 可执行文件所在的文件夹。之后运行 exe 文件，即可访问 TDengine 数据库并做插入、查询等操作。
+```
 
-:::
+## 使用示例
 
-## 第三方驱动
+|示例程序                                                                                                               | 示例程序描述                                       |
+|--------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
+| [C#checker](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/C%23checker)                           | 使用 TDengine.Connector 可以通过 help 命令中提供的参数，测试C# Driver的同步写入和查询    |
+| [TDengineTest](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/TDengineTest)                       | 使用 TDengine.Connector 实现的简单写入和查询的示例 |
+| [insertCn](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/insertCn)                               | 使用 TDengine.Connector 实现的写入和查询中文字符的示例    |
+| [jsonTag](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/jsonTag)                                 | 使用 TDengine.Connector 实现的写入和查询 json tag 类型数据的示例 |
+| [stmt](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/stmt)                                       | 使用 TDengine.Connector 实现的参数绑定的示例 |
+| [schemaless](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/schemaless)                           | 使用 TDengine.Connector 实现的使用 schemaless 写入的示例 |
+| [benchmark](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/taosdemo)                              | 使用 TDengine.Connector 实现的简易 Benchmark |
+| [async   query](https://github.com/taosdata/TDengine/blob/develop/src/connector/C%23/examples/QueryAsyncSample.cs) | 使用 TDengine.Connector 实现的异步查询的示例 |
+| [subscribe](https://github.com/taosdata/TDengine/blob/develop/src/connector/C%23/examples/SubscribeSample.cs)      | 使用 TDengine.Connector 实现的订阅数据的示例 |
 
-Maikebing.Data.Taos 是一个 TDengine 的 ADO.NET 提供器，支持 Linux，Windows。该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考:
+## 重要更新记录
 
-- 接口下载:https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos
-- 用法说明:https://www.taosdata.com/blog/2020/11/02/1901.html
+| TDengine.Connector | 说明                           |
+|--------------------|--------------------------------|
+|        1.0.2       | 新增连接管理、同步查询、错误信息等功能。   |
+|        1.0.3       | 新增参数绑定、schemaless、 json tag等功能。 |
+|        1.0.4       | 新增异步查询，订阅等功能。修复绑定参数 bug。    |
+|        1.0.5       | 修复 Windows 同步查询中文报错 bug。   |
+|        1.0.6       | 修复 schemaless 在 1.0.4 和 1.0.5 中失效 bug。 |
+
+## 其他说明
+
+### 第三方驱动
+
+`Maikebing.Data.Taos` 是一个 TDengine 的 ADO.NET 连接器，支持 Linux，Windows 平台。该连接器由社区贡献者`麦壳饼@@maikebing` 提供，具体请参考:
+
+* 接口下载:<https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos>
+* 用法说明:<https://www.taosdata.com/blog/2020/11/02/1901.html>
+
+## 常见问题
+
+* "Unable to establish connection"，"Unable to resolve FQDN"
+
+一般是因为 FQDN 配置不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html)解决。
+
+* Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: 找不到指定的模块。
+
+一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\ ` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
+
+## API 参考
+[API 参考](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)

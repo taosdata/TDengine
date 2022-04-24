@@ -163,7 +163,7 @@ namespace Test.UtilsTools
             }
             else
             {
-                 throw new Exception("connection if already null");
+                throw new Exception("connection if already null");
             }
         }
         public static List<TDengineMeta> GetResField(IntPtr res)

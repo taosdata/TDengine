@@ -4,8 +4,16 @@ using System.Runtime.InteropServices;
 
 namespace TDengineDriver
 {
+    /// <summary>
+    /// Using to bind different columns types in multiple rows.
+    /// </summary>
     public class TaosMultiBind
     {
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BOOL"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable boolean array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindBool(bool?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -42,6 +50,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_TINYINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable sbyte array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindTinyInt(sbyte?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -81,6 +95,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_SMALLINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable short array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindSmallInt(short?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -118,6 +138,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_INT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable int array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindInt(int?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -153,6 +179,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BIGINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable long array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindBigint(long?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -189,6 +221,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_FLOAT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable float array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindFloat(float?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -228,6 +266,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_DOUBLE"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable double array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindDouble(double?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -267,6 +311,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UTINYINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable byte array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindUTinyInt(byte?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -305,6 +355,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_USMALLINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable ushort array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindUSmallInt(ushort?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -347,6 +403,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable uint array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindUInt(uint?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -389,6 +451,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UBIGINT"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable ulong array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindUBigInt(ulong?[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -431,6 +499,12 @@ namespace TDengineDriver
 
             return multiBind;
         }
+        
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BINARY"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable string array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindBinary(string[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -483,6 +557,11 @@ namespace TDengineDriver
             return multiBind;
         }
 
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_NCHAR"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable string array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindNchar(string[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -534,6 +613,11 @@ namespace TDengineDriver
             return multiBind;
         }
 
+        /// <summary>
+        /// Using to bind a array of <c><see cref="TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP"/></c> values.
+        /// </summary>
+        /// <param name="arr">A nullable long array.</param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static TAOS_MULTI_BIND MultiBindTimestamp(long[] arr)
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
@@ -569,6 +653,11 @@ namespace TDengineDriver
             return multiBind;
         }
 
+        /// <summary>
+        /// Used to free allocated unmanaged memory.
+        /// </summary>
+        /// <param name="mBinds">The <c><see cref="TAOS_MULTI_BIND"/></c> array have been instantiated. </param>
+        /// <returns><see cref="TAOS_MULTI_BIND"/></returns>
         public static void FreeTaosBind(TAOS_MULTI_BIND[] mBinds)
         {
             foreach (TAOS_MULTI_BIND bind in mBinds)
@@ -579,16 +668,25 @@ namespace TDengineDriver
             }
         }
 
-        private static char[] AlignCharArr(int offSet)
+        /// <summary>
+        /// Used to initial a char array with given length.
+        /// </summary>
+        /// <param name="length">The length you want to initial.</param>
+        /// <returns>A char array.</returns>
+        private static char[] AlignCharArr(int length)
         {
-            char[] alignChar = new char[offSet];
-            for (int i = 0; i < offSet; i++)
+            char[] alignChar = new char[length];
+            for (int i = 0; i < length; i++)
             {
                 alignChar[i] = char.MinValue;
             }
             return alignChar;
         }
-
+        /// <summary>
+        /// Calculate the max length of the element in the string array.
+        /// </summary>
+        /// <param name="strArr">A string array.</param>
+        /// <returns>Max length.</returns>
         private static int MaxElementLength(String[] strArr)
         {
             int max = 0;
@@ -602,7 +700,11 @@ namespace TDengineDriver
             }
             return max;
         }
-
+        /// <summary>
+        /// Change the string  to Byte Array.
+        /// </summary>
+        /// <param name="str">string</param>
+        /// <returns>Byte array.</returns>
         private static Byte[] GetStringEncodeByte(string str)
         {
             Byte[] strToBytes = null;
