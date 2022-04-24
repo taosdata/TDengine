@@ -17,7 +17,7 @@
 #include "dmImp.h"
 
 static void dmUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
-  if (pDnode->data.dnodeId == 0) {
+  if (pDnode->data.dnodeId == 0 || pDnode->data.clusterId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pDnode->data.latch);
     pDnode->data.dnodeId = pCfg->dnodeId;
@@ -57,6 +57,7 @@ void dmSendStatusReq(SDnode *pDnode) {
   req.dnodeVer = pDnode->data.dnodeVer;
   req.dnodeId = pDnode->data.dnodeId;
   req.clusterId = pDnode->data.clusterId;
+  if (req.clusterId == 0) req.dnodeId = 0;
   req.rebootTime = pDnode->data.rebootTime;
   req.updateTime = pDnode->data.updateTime;
   req.numOfCores = tsNumOfCores;

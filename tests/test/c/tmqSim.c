@@ -371,6 +371,8 @@ void *consumeThreadFunc(void *param) {
   
   loop_consume(pInfo);
 
+  tmq_commit(pInfo->tmq, NULL, 0);
+
   err = tmq_unsubscribe(pInfo->tmq);
   if (err) {
     printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));

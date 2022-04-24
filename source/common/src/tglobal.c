@@ -237,18 +237,20 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
-  snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+  if (taosIsDir(cfgDir)) {
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+  } else {
+    tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
+  }
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
     return -1;
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
-    if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
-      uInfo("cfg file:%s not read since %s", cfgFile, terrstr());
-      return 0;
-    }
+  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
+    uError("failed to load from cfg file:%s since %s", cfgFile, terrstr());
+    return -1;
   }
 
   if (cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile) != 0) {
