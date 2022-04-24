@@ -16,10 +16,10 @@
 #ifndef _TD_WAL_INT_H_
 #define _TD_WAL_INT_H_
 
-#include "tcompare.h"
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tcoding.h"
+#include "tcompare.h"
 #include "wal.h"
 
 #ifdef __cplusplus
@@ -41,10 +41,10 @@ typedef struct WalIdxEntry {
 } SWalIdxEntry;
 
 static inline int tSerializeWalIdxEntry(void** buf, SWalIdxEntry* pIdxEntry) {
-  int tlen;
+  int tlen = 0;
   tlen += taosEncodeFixedI64(buf, pIdxEntry->ver);
   tlen += taosEncodeFixedI64(buf, pIdxEntry->offset);
-  return 0;
+  return tlen;
 }
 
 static inline void* tDeserializeWalIdxEntry(void* buf, SWalIdxEntry* pIdxEntry) {
@@ -103,7 +103,7 @@ static inline int walValidHeadCksum(SWalHead* pHead) {
 }
 
 static inline int walValidBodyCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.len, pHead->cksumBody);
+  return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.bodyLen, pHead->cksumBody);
 }
 
 static inline int walValidCksum(SWalHead* pHead, void* body, int64_t bodyLen) {
