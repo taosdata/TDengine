@@ -113,7 +113,7 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
         pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-    SVnode       *pVnode = (SVnode *)(pFsm->data);
+    SVnode *      pVnode = (SVnode *)(pFsm->data);
     SyncApplyMsg *pSyncApplyMsg = syncApplyMsgBuild2(pMsg, pVnode->config.vgId, &cbMeta);
     SRpcMsg       applyMsg;
     syncApplyMsg2RpcMsg(pSyncApplyMsg, &applyMsg);
@@ -133,6 +133,7 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
     if (ret == 1 && cbMeta.state == TAOS_SYNC_STATE_LEADER) {
       applyMsg.handle = saveRpcMsg.handle;
       applyMsg.ahandle = saveRpcMsg.ahandle;
+      applyMsg.refId = saveRpcMsg.refId;
     } else {
       applyMsg.handle = NULL;
       applyMsg.ahandle = NULL;

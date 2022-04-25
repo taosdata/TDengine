@@ -59,6 +59,10 @@ static inline int32_t dmBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   pMsg->clientIp = connInfo.clientIp;
   pMsg->clientPort = connInfo.clientPort;
   memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
+  if ((pRpc->msgType & 1u)) {
+    assert(pRpc->refId != 0);
+  }
+  // assert(pRpc->handle != NULL && pRpc->refId != 0 && pMsg->rpcMsg.refId != 0);
   return 0;
 }
 
@@ -67,12 +71,15 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   SNodeMsg *pMsg = NULL;
   NodeMsgFp msgFp = NULL;
   uint16_t  msgType = pRpc->msgType;
+  bool      needRelease = false;
 
   if (pEpSet && pEpSet->numOfEps > 0 && msgType == TDMT_MND_STATUS_RSP) {
     dmSetMnodeEpSet(pWrapper->pDnode, pEpSet);
   }
 
   if (dmMarkWrapper(pWrapper) != 0) goto _OVER;
+
+  needRelease = true;
   if ((msgFp = dmGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
@@ -84,7 +91,7 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
     dTrace("msg:%p, is created and put into child queue, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType),
            pRpc->handle, pMsg->user);
     code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, pRpc->handle,
-                               PROC_FUNC_REQ);
+                               pRpc->refId, PROC_FUNC_REQ);
   } else {
     dTrace("msg:%p, should not processed in child process, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
     ASSERT(1);
@@ -107,7 +114,7 @@ _OVER:
         }
       }
 
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code, .refId = pRpc->refId};
       tmsgSendRsp(&rsp);
     }
     dTrace("msg:%p, is freed", pMsg);
@@ -115,7 +122,9 @@ _OVER:
     rpcFreeCont(pRpc->pCont);
   }
 
-  dmReleaseWrapper(pWrapper);
+  if (needRelease) {
+    dmReleaseWrapper(pWrapper);
+  }
 }
 
 static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -131,10 +140,17 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
+  if (msgType == TDMT_DND_NET_TEST) {
+    dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+    dmProcessServerStatusReq(pDnode, pMsg);
+    return;
+  }
+
   if (pDnode->status != DND_STAT_RUNNING) {
     dError("msg:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
     if (isReq) {
-      SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_APP_NOT_READY, .ahandle = pMsg->ahandle};
+      SRpcMsg rspMsg = {
+          .handle = pMsg->handle, .code = TSDB_CODE_APP_NOT_READY, .ahandle = pMsg->ahandle, .refId = pMsg->refId};
       rpcSendResponse(&rspMsg);
     }
     rpcFreeCont(pMsg->pCont);
@@ -143,7 +159,8 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (isReq && pMsg->pCont == NULL) {
     dError("req:%s not processed since its empty, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_INVALID_MSG_LEN, .ahandle = pMsg->ahandle};
+    SRpcMsg rspMsg = {
+        .handle = pMsg->handle, .code = TSDB_CODE_INVALID_MSG_LEN, .ahandle = pMsg->ahandle, .refId = pMsg->refId};
     rpcSendResponse(&rspMsg);
     return;
   }
@@ -151,7 +168,8 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (pWrapper == NULL) {
     dError("msg:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
     if (isReq) {
-      SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pMsg->ahandle};
+      SRpcMsg rspMsg = {
+          .handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pMsg->ahandle, .refId = pMsg->refId};
       rpcSendResponse(&rspMsg);
     }
     rpcFreeCont(pMsg->pCont);
@@ -170,6 +188,9 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   dTrace("msg:%s will be processed by %s, app:%p", TMSG_INFO(msgType), pWrapper->name, pMsg->ahandle);
+  if (isReq) {
+    assert(pMsg->refId != 0);
+  }
   dmProcessRpcMsg(pWrapper, pMsg, pEpSet);
 }
 
@@ -317,7 +338,7 @@ static void dmConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t 
   if (code != 0) {
     dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
     if (pRpc->msgType & 1U) {
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno, .refId = pRpc->refId};
       dmSendRsp(pWrapper, &rsp);
     }
 
@@ -346,7 +367,7 @@ static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t 
       dmSendRpcReq(pWrapper->pDnode, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
       break;
     case PROC_FUNC_RSP:
-      taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
+      pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
       dmSendRpcRsp(pWrapper->pDnode, pMsg);
       break;
     default:

@@ -13,17 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNETTEST_H
-#define TDENGINE_TNETTEST_H
+#include "planTestUtil.h"
+#include "planner.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace std;
 
-void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen, int32_t pkgNum, char *pkgType);
+class PlanOptimizeTest : public PlannerTestBase {
 
-#ifdef __cplusplus
+};
+
+TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
+  useDb("root", "test");
+
+  run("select * from t1 order by ts");
+  run("select * from t1 order by ts desc");
+  run("select c1 from t1 order by ts");
+  run("select c1 from t1 order by ts desc");
 }
-#endif
-
-#endif  // TDENGINE_TNETTEST_H
