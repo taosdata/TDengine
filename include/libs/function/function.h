@@ -319,6 +319,20 @@ struct SUdfInfo;
 void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 
+/**
+ * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
+ * @return error code
+ */
+int32_t udfcOpen();
+
+/**
+ * destroy udfd proxy
+ * @return error code
+ */
+int32_t udfcClose();
+
+typedef void *UdfcFuncHandle;
+
 #ifdef __cplusplus
 }
 #endif
