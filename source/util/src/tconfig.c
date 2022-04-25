@@ -641,7 +641,7 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   char   *buf, *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   int32_t index = 0;
-
+  if (envCmd == NULL) return 0;
   while (envCmd[index]!=NULL) {
     buf = taosMemoryMalloc(strlen(envCmd[index]));
     taosEnvToCfg(envCmd[index], buf);
@@ -905,6 +905,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
 
 int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl) {
   int32_t index = 0;
+  if (envCmd == NULL) return 0;
   while (envCmd[index]!=NULL) {
     if (bcmp(envCmd[index], "TAOS_APOLL_URL", 14) == 0) {
       char *p = strchr(envCmd[index], '=');
