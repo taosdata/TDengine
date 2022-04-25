@@ -517,10 +517,8 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     res->node.resType = node->node.resType;
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {
-      size_t tLen = varDataLen(output.columnData->pData);
-      ASSERT(tLen <= res->node.resType.bytes);
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
-      memcpy(res->datum.p, output.columnData->pData, tLen);
+      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
     }
