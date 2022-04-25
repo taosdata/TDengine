@@ -193,6 +193,10 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
 
       memcpy(pPage->pData, pPageH->pData, pPage->pageSize);
       tdbPageInit(pPage, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize);
+      pPage->kLen = pPageH->kLen;
+      pPage->vLen = pPageH->vLen;
+      pPage->maxLocal = pPageH->maxLocal;
+      pPage->minLocal = pPageH->minLocal;
     } else {
       memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
       pPage->pLruNext = NULL;

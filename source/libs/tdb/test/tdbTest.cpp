@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "os.h"
 #include "tdbInt.h"
 
 #include <string>
@@ -122,6 +123,8 @@ TEST(tdb_test, simple_test) {
   int            nData = 10000000;
   TXN            txn;
 
+  taosRemoveDir("tdb");
+
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
@@ -235,15 +238,17 @@ TEST(tdb_test, simple_test2) {
   TENV          *pEnv;
   TDB           *pDb;
   FKeyComparator compFunc;
-  int            nData = 10000;
+  int            nData = 1000000;
   TXN            txn;
 
+  taosRemoveDir("tdb");
+
   // Open Env
-  ret = tdbEnvOpen("tdb", 1024, 0, &pEnv);
+  ret = tdbEnvOpen("tdb", 1024, 10, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
-  compFunc = tKeyCmpr;
+  compFunc = tDefaultKeyCmpr;
   ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
