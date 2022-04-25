@@ -61,6 +61,7 @@ class TDTestCase:
             tdSql.checkData(0, 0, sum_data)
 
             tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
+            tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} {group_condition} ")
 
     def __sum_err_check(self,tbanme):
         sqls = []
