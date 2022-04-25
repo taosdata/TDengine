@@ -157,8 +157,9 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
   registerSqlObj(pNew);
   tscDebug("0x%"PRIx64":CDEL new sub insertion: %p", pSql->self, pNew);
 
-  // set vnode epset
-  tscSetDnodeEpSet(&pNew->epSet, pVgroupMsg);
+  SNewVgroupInfo vgroupInfo = {0};
+  taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pVgroupMsg->vgId, sizeof(pVgroupMsg->vgId), NULL, &vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
 
   return pNew;
 }
