@@ -23,7 +23,7 @@
 #include "tscSubquery.h"
 
 
-void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupMsg* pVgroupInfo);
+void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SNewVgroupInfo *pVgroupInfo);
 
 //
 // handle error
