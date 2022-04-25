@@ -42,17 +42,17 @@ class TDTestCase:
             "insert into stb_1 values(now,111,99.99,11.111111)(today(),1,11.111,22.222222)")
 
         tdLog.printNoPrefix("==========step3:query data==========")
-        for i in range(0, 10):
-            tdSql.query("select timezone() from ntb")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, time_zone)
-            i += 1
+        
+        tdSql.query("select timezone() from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, time_zone)
+            
 
-        for i in range(0, 10):
-            tdSql.query("select timezone() from db.ntb")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, time_zone)
-            i += 1
+        
+        tdSql.query("select timezone() from db.ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, time_zone)
+        
         tdSql.query("select timezone() from stb")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, time_zone)
