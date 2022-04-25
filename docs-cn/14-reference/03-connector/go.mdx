@@ -167,7 +167,7 @@ func main() {
 * [示例程序](https://github.com/taosdata/TDengine/tree/develop/examples/go)
 * [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
 
-### 使用限制
+## 使用限制
 
 由于 REST 接口无状态所以 `use db` 语法不会生效，需要将 db 名称放到 SQL 语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
 
@@ -223,7 +223,7 @@ func main() {
 }
 ```
 
-### 常见问题
+## 常见问题
 
 * 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
 
@@ -257,9 +257,9 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
-### 常用 API
+## 常用 API
 
-#### `database/sql`
+### `database/sql`
 
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
@@ -275,7 +275,7 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 `sql.Open` 内置的方法，用来执行查询语句。
 
-#### 高级功能
+### 高级功能
 
 af 包封装了订阅、stmt 等 TDengine 高级功能。
 
@@ -295,7 +295,7 @@ stmt 单行插入。
 
 stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
-##### 订阅
+订阅
 
 * `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
 
@@ -309,7 +309,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 取消订阅数据。
 
-##### schemaless 写入
+schemaless 写入
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
@@ -323,7 +323,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 写入 OpenTSDB json 协议。
 
-##### 批量 stmt 插入
+批量 stmt 插入
 
 * `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
 
