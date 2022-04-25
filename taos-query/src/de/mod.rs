@@ -6,25 +6,24 @@ use serde::Deserializer;
 
 use serde::de::value::Error;
 
-use crate::{Field, Valuable};
+use crate::common::BorrowedValue;
+use crate::{Field};
 
 /// Row-based deserializer helper.
 ///
 /// 'b: field lifetime may go across the whole query.
-pub(crate) struct RecordDeserializer<'b, T, R>
+pub(crate) struct RecordDeserializer<'b, R>
 where
-    T: Valuable<'b>,
-    R: IntoIterator<Item = (*const Field, T)>,
+    R: IntoIterator<Item = (&'b Field, BorrowedValue<'b>)>,
 {
     inner: <R as IntoIterator>::IntoIter,
-    value: Option<T>,
+    value: Option<BorrowedValue<'b>>,
     _marker: PhantomData<&'b u8>,
 }
 
-impl<'b, T, R> From<R> for RecordDeserializer<'b, T, R>
+impl<'b, R> From<R> for RecordDeserializer<'b, R>
 where
-    T: Valuable<'b>,
-    R: IntoIterator<Item = (*const Field, T)>,
+    R: IntoIterator<Item = (&'b Field, BorrowedValue<'b>)>,
 {
     fn from(input: R) -> Self {
         Self {
@@ -35,40 +34,18 @@ where
     }
 }
 
-impl<'b, T, R> RecordDeserializer<'b, T, R>
+impl<'b, R> RecordDeserializer<'b, R>
 where
-    T: Valuable<'b>,
-    R: IntoIterator<Item = (*const Field, T)>,
+    R: IntoIterator<Item = (&'b Field, BorrowedValue<'b>)>,
 {
-    fn next_value(&mut self) -> Option<T> {
+    fn next_value(&mut self) -> Option<BorrowedValue<'b>> {
         self.inner.next().map(|(_, v)| v)
     }
 }
 
-#[derive(Clone)]
-struct StringDeserializer(String);
-
-impl<'de> Deserializer<'de> for StringDeserializer {
-    type Error = Error;
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        visitor.visit_string(self.0)
-    }
-
-    serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit option
-        seq bytes byte_buf map unit_struct newtype_struct
-        tuple_struct struct tuple enum identifier ignored_any
-    }
-}
-
-impl<'de, 'b, T, R> MapAccess<'de> for RecordDeserializer<'de, T, R>
+impl<'de, 'b: 'de, R> MapAccess<'de> for RecordDeserializer<'b, R>
 where
-    T: Valuable<'de>,
-    R: IntoIterator<Item = (*const Field, T)>,
+    R: IntoIterator<Item = (&'b Field, BorrowedValue<'b>)>,
 {
     type Error = Error;
 
@@ -98,10 +75,9 @@ where
     }
 }
 
-impl<'de, 'b, T, R> SeqAccess<'de> for RecordDeserializer<'de, T, R>
+impl<'de, 'b: 'de, R> SeqAccess<'de> for RecordDeserializer<'b, R>
 where
-    T: Valuable<'de>,
-    R: IntoIterator<Item = (*const Field, T)>,
+    R: IntoIterator<Item = (&'b Field, BorrowedValue<'b>)>,
 {
     type Error = Error;
 
@@ -119,10 +95,9 @@ where
     }
 }
 
-impl<'de, 'b, T, R> Deserializer<'de> for RecordDeserializer<'de, T, R>
+impl<'de, 'b: 'de, R> Deserializer<'de> for RecordDeserializer<'b, R>
 where
-    T: Valuable<'de>,
-    R: IntoIterator<Item = (*const Field, T)>,
+    R: IntoIterator<Item = (&'b Field, BorrowedValue<'b>)>,
 {
     type Error = Error;
 

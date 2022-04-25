@@ -41,8 +41,8 @@ pub struct SyncBlock<'r> {
     num_of_rows: usize,
 }
 
-impl<'b, 'r> BlockExt<'b> for SyncBlock<'r> {
-    type Value = BorrowedValue<'b>;
+impl<'b, 'r> BlockExt for SyncBlock<'r> {
+    // type Value = BorrowedValue<'b>;
 
     fn num_of_rows(&self) -> usize {
         self.num_of_rows
@@ -56,7 +56,7 @@ impl<'b, 'r> BlockExt<'b> for SyncBlock<'r> {
         self.precision
     }
 
-    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (*const Field, Self::Value) {
+    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue) {
         let inner = self.data.add(col);
 
         let field = self.get_field_unchecked(col);

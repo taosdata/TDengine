@@ -251,42 +251,42 @@ impl Value {
     }
 }
 
-impl<'b> crate::Valuable<'b> for BorrowedValue<'b> {
-    fn is_null(&self) -> bool {
-        use BorrowedValue::*;
-        matches!(self, Null)
-    }
+// impl<'b> crate::Valuable for BorrowedValue<'b> {
+//     fn is_null(&self) -> bool {
+//         use BorrowedValue::*;
+//         matches!(self, Null)
+//     }
 
-    fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-        self.clone()
-    }
+//     fn as_borrowed_value(&self) -> BorrowedValue {
+//         self.clone()
+//     }
 
-    fn into_owned_value(self) -> crate::Value {
-        self.into_value()
-    }
+//     fn into_owned_value(self) -> crate::Value {
+//         self.into_value()
+//     }
 
-    fn ty(&self) -> Ty {
-        self.ty()
-    }
-}
+//     fn ty(&self) -> Ty {
+//         self.ty()
+//     }
+// }
 
-impl<'b> crate::Valuable<'b> for &'b Value {
-    fn is_null(&self) -> bool {
-        use Value::*;
-        matches!(self, Null)
-    }
+// impl<'b> crate::Valuable for &'b Value {
+//     fn is_null(&self) -> bool {
+//         use Value::*;
+//         matches!(self, Null)
+//     }
 
-    fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-        self.to_borrowed_value()
-    }
+//     fn as_borrowed_value(&self) -> BorrowedValue {
+//         self.to_borrowed_value()
+//     }
 
-    fn into_owned_value(self) -> crate::Value {
-        (*self).clone()
-    }
+//     fn into_owned_value(self) -> crate::Value {
+//         (*self).clone()
+//     }
 
-    fn ty(&self) -> Ty {
-        (*self).ty()
-    }
-}
+//     fn ty(&self) -> Ty {
+//         (*self).ty()
+//     }
+// }
 
 mod de;

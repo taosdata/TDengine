@@ -107,7 +107,7 @@ impl<'b, 'de> serde::de::EnumAccess<'de> for EnumTimestampDeserializer<'b> {
     }
 }
 
-impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b> {
+impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     type Error = Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -371,7 +371,7 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'b> {
     }
 }
 
-impl<'de, 'b: 'de> serde::de::IntoDeserializer<'de, Error> for BorrowedValue<'b> {
+impl<'de> serde::de::IntoDeserializer<'de, Error> for BorrowedValue<'de> {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {
