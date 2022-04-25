@@ -1042,7 +1042,7 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
   if (pBtc->iPage < 0) {
     // move a clean cursor
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,
-                            &((SBtreeInitPageArg){.pBt = pBt, .flags = 0}), pBtc->pTxn);
+                            &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
     if (ret < 0) {
       ASSERT(0);
       return -1;
@@ -1108,7 +1108,7 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
   if (pBtc->iPage < 0) {
     // move a clean cursor
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,
-                            &((SBtreeInitPageArg){.pBt = pBt, .flags = 0}), pBtc->pTxn);
+                            &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
     if (ret < 0) {
       ASSERT(0);
       return -1;
