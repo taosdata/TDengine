@@ -21,7 +21,7 @@ CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_n
 
 1. TAGS 列的数据类型不能是 timestamp 类型；（从 2.1.3.0 版本开始，TAGS 列中支持使用 timestamp 类型，但需注意在 TAGS 中的 timestamp 列写入数据时需要提供给定值，而暂不支持四则运算，例如 `NOW + 10s` 这类表达式）
 2. TAGS 列名不能与其他列名相同；
-3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/reference/keywords/) 章节）；
+3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/taos-sql/keywords/) 章节）；
 4. TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
 
 :::
