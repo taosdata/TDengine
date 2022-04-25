@@ -1568,13 +1568,8 @@ int32_t tSerializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pReq
   if (tEncodeI32(&encoder, pReq->codeLen) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->signature) < 0) return -1;
 
-  int32_t codeSize = 0;
   if (pReq->pCode != NULL) {
-    codeSize = strlen(pReq->pCode) + 1;
-  }
-  if (tEncodeI32(&encoder, codeSize) < 0) return -1;
-  if (pReq->pCode != NULL) {
-    if (tEncodeCStr(&encoder, pReq->pCode) < 0) return -1;
+    if (tEncodeBinary(&encoder, pReq->pCode, pReq->codeLen) < 0) return -1;
   }
 
   int32_t commentSize = 0;
@@ -1608,10 +1603,8 @@ int32_t tDeserializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pR
   if (tDecodeI32(&decoder, &pReq->codeLen) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->signature) < 0) return -1;
 
-  int32_t codeSize = 0;
-  if (tDecodeI32(&decoder, &codeSize) < 0) return -1;
-  if (codeSize > 0) {
-    pReq->pCode = taosMemoryCalloc(1, codeSize);
+  if (pReq->codeLen > 0) {
+    pReq->pCode = taosMemoryCalloc(1, pReq->codeLen);
     if (pReq->pCode == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -1734,7 +1727,7 @@ int32_t tSerializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp *
     if (tEncodeI32(&encoder, pInfo->codeSize) < 0) return -1;
     if (tEncodeI32(&encoder, pInfo->commentSize) < 0) return -1;
     if (pInfo->codeSize) {
-      if (tEncodeCStr(&encoder, pInfo->pCode) < 0) return -1;
+      if (tEncodeBinary(&encoder, pInfo->pCode, pInfo->codeSize) < 0) return -1;
     }
     if (pInfo->commentSize) {
       if (tEncodeCStr(&encoder, pInfo->pComment) < 0) return -1;

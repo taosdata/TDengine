@@ -17,7 +17,7 @@
 #include "dmImp.h"
 
 static void dmUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
-  if (pDnode->data.dnodeId == 0) {
+  if (pDnode->data.dnodeId == 0 || pDnode->data.clusterId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pDnode->data.latch);
     pDnode->data.dnodeId = pCfg->dnodeId;
@@ -57,6 +57,7 @@ void dmSendStatusReq(SDnode *pDnode) {
   req.dnodeVer = pDnode->data.dnodeVer;
   req.dnodeId = pDnode->data.dnodeId;
   req.clusterId = pDnode->data.clusterId;
+  if (req.clusterId == 0) req.dnodeId = 0;
   req.rebootTime = pDnode->data.rebootTime;
   req.updateTime = pDnode->data.updateTime;
   req.numOfCores = tsNumOfCores;
@@ -145,10 +146,10 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
     dDebug("node:%s, has been created", pWrapper->name);
+    (void)dmOpenNode(pWrapper);
     pWrapper->required = true;
     pWrapper->deployed = true;
     pWrapper->procType = pDnode->ptype;
-    (void)dmOpenNode(pWrapper);
   }
 
   taosThreadMutexUnlock(&pDnode->mutex);
@@ -170,13 +171,13 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
   } else {
     dDebug("node:%s, has been dropped", pWrapper->name);
+    pWrapper->required = false;
+    pWrapper->deployed = false;
   }
 
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
-    pWrapper->required = false;
-    pWrapper->deployed = false;
     dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }
@@ -310,6 +311,9 @@ static void dmWatchUdfd(void *args) {
 }
 
 static int32_t dmStartUdfd(SDnode *pDnode) {
+  char dnodeId[8] = {0};
+  snprintf(dnodeId, sizeof(dnodeId), "%d", pDnode->data.dnodeId);
+  uv_os_setenv("DNODE_ID", dnodeId);
   SUdfdData *pData = &pDnode->udfdData;
   if (pData->startCalled) {
     dInfo("dnode-mgmt start udfd already called");
@@ -370,9 +374,9 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   }
   dmReportStartup(pDnode, "dnode-transport", "initialized");
 
-//  if (dmStartUdfd(pDnode) != 0) {
-//    dError("failed to start udfd");
-//  }
+  if (dmStartUdfd(pDnode) != 0) {
+    dError("failed to start udfd");
+  }
 
   dInfo("dnode-mgmt is initialized");
   return 0;

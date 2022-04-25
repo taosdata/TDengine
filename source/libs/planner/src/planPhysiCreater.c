@@ -398,9 +398,6 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SScanLogicNo
   if (TSDB_CODE_SUCCESS == code) {
     pScanPhysiNode->uid = pScanLogicNode->pMeta->uid;
     pScanPhysiNode->tableType = pScanLogicNode->pMeta->tableType;
-    pScanPhysiNode->order = TSDB_ORDER_ASC;
-    pScanPhysiNode->count = 1;
-    pScanPhysiNode->reverse = 0;
     memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
   }
 
@@ -432,7 +429,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pTableScan->scanFlag = pScanLogicNode->scanFlag;
+  memcpy(pTableScan->scanSeq, pScanLogicNode->scanSeq, sizeof(pScanLogicNode->scanSeq));
   pTableScan->scanRange = pScanLogicNode->scanRange;
   pTableScan->ratio = pScanLogicNode->ratio;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);

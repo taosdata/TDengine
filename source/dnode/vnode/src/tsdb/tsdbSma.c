@@ -1510,7 +1510,6 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, char *pData, int64_t indexUid, 
   }
 
   STSma *pTSma = pItem->pSma;
-
 #endif
 
   STSmaReadH tReadH = {0};
