@@ -5,6 +5,11 @@ title: Go Connector
 ---
 
 import Preparition from "./_preparition.mdx"
+import GoInsert from "../../04-develop/03-insert-data/_go_sql.mdx"
+import GoInfluxLine from "../../04-develop/03-insert-data/_go_line.mdx"
+import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.mdx"
+import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
+import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
 ## 总体介绍
 
@@ -132,9 +137,31 @@ func main() {
 }
 ```
 
-## 示例程序
+## 使用示例
 
-使用 Go 连接器的示例代码请参考：
+### 写入数据
+
+#### SQL 写入
+
+<GoInsert />
+
+#### InfluxDB 行协议写入
+
+<GoInfluxLine />
+
+#### OpenTSDB Telnet 行协议写入
+
+<GoOpenTSDBTelnet />
+
+#### OpenTSDB JSON 行协议写入
+
+<GoOpenTSDBJson />
+
+### 查询数据
+
+<GoQuery />
+
+### 更多示例程序
 
 * [示例程序](https://github.com/taosdata/TDengine/tree/develop/examples/go)
 * [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
