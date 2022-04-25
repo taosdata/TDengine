@@ -92,14 +92,14 @@ typedef struct taosField {
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
 
-typedef struct TAOS_BIND_v2 {
+typedef struct TAOS_MULTI_BIND {
   int       buffer_type;
   void     *buffer;
-  int32_t   buffer_length;
+  uintptr_t buffer_length;
   int32_t  *length;
   char     *is_null;
   int       num;
-} TAOS_BIND_v2;
+} TAOS_MULTI_BIND;
 
 typedef enum {
   SET_CONF_RET_SUCC = 0,
@@ -130,16 +130,16 @@ const char *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT  *taos_stmt_init(TAOS *taos);
 DLL_EXPORT int         taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
-DLL_EXPORT int         taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND_v2 *tags);
+DLL_EXPORT int         taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags);
 DLL_EXPORT int         taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name);
 DLL_EXPORT int         taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name);
 
 DLL_EXPORT int         taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
 DLL_EXPORT int         taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
 DLL_EXPORT int         taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);
-DLL_EXPORT int         taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
-DLL_EXPORT int         taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
-DLL_EXPORT int         taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx);
+DLL_EXPORT int         taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind);
+DLL_EXPORT int         taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind);
+DLL_EXPORT int         taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx);
 DLL_EXPORT int         taos_stmt_add_batch(TAOS_STMT *stmt);
 DLL_EXPORT int         taos_stmt_execute(TAOS_STMT *stmt);
 DLL_EXPORT TAOS_RES   *taos_stmt_use_result(TAOS_STMT *stmt);

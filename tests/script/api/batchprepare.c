@@ -31,7 +31,7 @@ typedef struct {
   char*      binaryData;
   char*      isNull;
   int32_t*   binaryLen;
-  TAOS_BIND_v2* pBind;
+  TAOS_MULTI_BIND* pBind;
   char*         sql;
   int32_t*      colTypes;
   int32_t       colNum;
@@ -163,7 +163,7 @@ static int64_t taosGetTimestampUs() {
   return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
 }
 
-bool colExists(TAOS_BIND_v2* pBind, int32_t dataType) {
+bool colExists(TAOS_MULTI_BIND* pBind, int32_t dataType) {
   int32_t i = 0;
   while (true) {
     if (0 == pBind[i].buffer_type) {
@@ -393,7 +393,7 @@ int32_t prepareData(BindData *data) {
   data->colNum = 0;
   data->colTypes = taosMemoryCalloc(30, sizeof(int32_t));
   data->sql = taosMemoryCalloc(1, 1024);
-  data->pBind = taosMemoryCalloc((allRowNum/gCurCase->bindRowNum)*gCurCase->bindColNum, sizeof(TAOS_BIND_v2));
+  data->pBind = taosMemoryCalloc((allRowNum/gCurCase->bindRowNum)*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
   data->tsData = taosMemoryMalloc(allRowNum * sizeof(int64_t));
   data->boolData = taosMemoryMalloc(allRowNum * sizeof(bool));
   data->tinyData = taosMemoryMalloc(allRowNum * sizeof(int8_t));
@@ -463,7 +463,7 @@ void destroyData(BindData *data) {
   taosMemoryFree(data->colTypes);
 }
 
-int32_t bpBindParam(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   static int32_t n = 0;
   
   if (gCurCase->bindRowNum > 1) {
@@ -951,7 +951,7 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1164,7 +1164,7 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1378,7 +1378,7 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1569,7 +1569,7 @@ int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*5);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*5);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1722,7 +1722,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -1911,7 +1911,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2128,7 +2128,7 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2343,7 +2343,7 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2570,7 +2570,7 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
   int *lb = taosMemoryMalloc(10 * sizeof(int));
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 1*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
@@ -2791,7 +2791,7 @@ int stmt_funcb4(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -2950,7 +2950,7 @@ int stmt_funcb5(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(18000 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 3000*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 18000);
   char* no_null = taosMemoryMalloc(sizeof(char) * 18000);
 
@@ -3094,7 +3094,7 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(30000 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 3000*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
   char* no_null = taosMemoryMalloc(sizeof(int) * 200000);
 
   for (int i = 0; i < 30000; ++i) {
@@ -3185,7 +3185,7 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3347,7 +3347,7 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3505,7 +3505,7 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 900000*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -3665,7 +3665,7 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
   
   int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_BIND_v2 *params = taosMemoryCalloc(1, sizeof(TAOS_BIND_v2) * 60*10);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 60*10);
   char* is_null = taosMemoryMalloc(sizeof(char) * 60);
   char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
@@ -4147,6 +4147,7 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int autoCreate) {
     exit(1);
   }
   taos_free_result(result);
+  sleep(2);  //TODO REMOVE IT
 
   result = taos_query(taos, "use demo");
   taos_free_result(result);

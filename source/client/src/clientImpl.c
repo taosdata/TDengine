@@ -306,6 +306,11 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   return pRequest->code;
 }
 
+int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) {
+  *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+  return getPlan(pRequest, pQuery, &pRequest->body.pDag, *pNodeList);
+}
+
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     switch (pQuery->execMode) {

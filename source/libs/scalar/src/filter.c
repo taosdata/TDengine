@@ -3774,11 +3774,12 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
     output.columnData = createColumnInfoData(&type, pSrc->info.rows);
 
-    *p = (int8_t *)output.columnData->pData;
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
+    *p = (int8_t *)output.columnData->pData;
+
     taosArrayDestroy(pList);
     return false;
   }
