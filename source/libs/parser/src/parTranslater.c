@@ -306,7 +306,10 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
 
 static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode* pCol) {
   pCol->pProjectRef = (SNode*)pExpr;
-  nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
+  if (NULL == pExpr->pAssociation) {
+    pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  }
+  taosArrayPush(pExpr->pAssociation, &pCol);
   if (NULL != pTable) {
     strcpy(pCol->tableAlias, pTable->tableAlias);
   } else if (QUERY_NODE_COLUMN == nodeType(pExpr)) {

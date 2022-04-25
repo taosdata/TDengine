@@ -511,6 +511,8 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
+  res->translate = true;
+
   if (colDataIsNull_s(output.columnData, 0)) {
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
   } else {
@@ -553,6 +555,7 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
   }
 
   res->node.resType = node->node.resType;
+  res->translate = true;
 
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
@@ -595,6 +598,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   }
 
   res->node.resType = node->node.resType;
+  res->translate = true;
 
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {  // todo refactor

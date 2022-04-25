@@ -46,7 +46,7 @@ typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
   char aliasName[TSDB_COL_NAME_LEN];
-  SNodeList* pAssociationList;
+  SArray* pAssociation;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -81,7 +81,6 @@ typedef struct SValueNode {
   char* literal;
   bool isDuration;
   bool translate;
-  bool genByCalc;
   int16_t placeholderNo;
   union {
     bool b;
