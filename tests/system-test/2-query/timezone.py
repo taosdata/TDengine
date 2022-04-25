@@ -72,6 +72,7 @@ class TDTestCase:
 
         tdSql.query(f"select * from ntb where timezone()='{time_zone}'")
         tdSql.checkRows(2)
+        tdSql.error("select timezone()+1 from ntb")
 
     def stop(self):
         tdSql.close()
