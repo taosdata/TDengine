@@ -39,7 +39,7 @@ class TDTestCase:
             upper_condition.extend( f"cast( {char_col} + {char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
             upper_condition.extend( f"cast( {char_col} + {un_char_col} as binary(32) ) " for un_char_col in UN_CHAR_COL )
 
-        upper_condition.append('''test1234!@#$%^&*():'><?/.,][}{''')
+        upper_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
 
         return upper_condition
 
