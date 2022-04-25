@@ -548,7 +548,7 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 static int32_t udfdInitLog() {
   char logName[12] = {0};
   snprintf(logName, sizeof(logName), "%slog", "udfd");
-  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, 0);
+  return taosCreateLog(logName, 1, NULL, configDir, NULL, NULL, NULL, 0);
 }
 
 void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
@@ -656,7 +656,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, 0) != 0) {
+  if (taosInitCfg(NULL, configDir, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
     return -1;
   }
