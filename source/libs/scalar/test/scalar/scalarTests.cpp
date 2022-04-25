@@ -137,6 +137,11 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   rnode->node.resType.bytes = dataBytes;
   rnode->dataBlockId = 0;
 
+  if (NULL == block) {
+    *pNode = (SNode *)rnode;
+    return;
+  }
+
   if (NULL == *block) {
     SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 3;
@@ -889,6 +894,8 @@ TEST(constantTest, int_greater_int_is_true2) {
 }
 
 TEST(constantTest, greater_and_lower) {
+  scltInitLogFile();
+
   SNode *pval1 = NULL, *pval2 = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL, *res = NULL;
   bool eRes[5] = {false, false, true, true, true};
   int64_t v1 = 333, v2 = 222, v3 = -10, v4 = 20;
@@ -912,6 +919,115 @@ TEST(constantTest, greater_and_lower) {
   ASSERT_EQ(v->datum.b, true);
   nodesDestroyNode(res);
 }
+
+TEST(constantTest, column_and_value1) {
+  scltInitLogFile();
+
+  SNode *pval1 = NULL, *pval2 = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL, *res = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  int64_t v1 = 333, v2 = 222, v3 = -10, v4 = 20;
+  SNode *list[2] = {0};
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v1);
+  scltMakeValueNode(&pval2, TSDB_DATA_TYPE_BIGINT, &v2);
+  scltMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v3);
+  scltMakeColumnNode(&pval2, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL);
+  scltMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  list[0] = opNode1;
+  list[1] = opNode2;
+  scltMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+  
+  int32_t code = scalarCalculateConstants(logicNode, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_LOGIC_CONDITION);
+  SLogicConditionNode *v = (SLogicConditionNode *)res;
+  ASSERT_EQ(v->condType, LOGIC_COND_TYPE_AND);
+  ASSERT_EQ(v->pParameterList->length, 1);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, column_and_value2) {
+  scltInitLogFile();
+
+  SNode *pval1 = NULL, *pval2 = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL, *res = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  int64_t v1 = 333, v2 = 222, v3 = -10, v4 = 20;
+  SNode *list[2] = {0};
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v1);
+  scltMakeValueNode(&pval2, TSDB_DATA_TYPE_BIGINT, &v2);
+  scltMakeOpNode(&opNode1, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v3);
+  scltMakeColumnNode(&pval2, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL);
+  scltMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  list[0] = opNode1;
+  list[1] = opNode2;
+  scltMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+  
+  int32_t code = scalarCalculateConstants(logicNode, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, column_and_value3) {
+  scltInitLogFile();
+
+  SNode *pval1 = NULL, *pval2 = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL, *res = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  int64_t v1 = 333, v2 = 222, v3 = -10, v4 = 20;
+  SNode *list[2] = {0};
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v1);
+  scltMakeValueNode(&pval2, TSDB_DATA_TYPE_BIGINT, &v2);
+  scltMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v3);
+  scltMakeColumnNode(&pval2, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL);
+  scltMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  list[0] = opNode1;
+  list[1] = opNode2;
+  scltMakeLogicNode(&logicNode, LOGIC_COND_TYPE_OR, list, 2);
+  
+  int32_t code = scalarCalculateConstants(logicNode, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, column_and_value4) {
+  scltInitLogFile();
+
+  SNode *pval1 = NULL, *pval2 = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL, *res = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  int64_t v1 = 333, v2 = 222, v3 = -10, v4 = 20;
+  SNode *list[2] = {0};
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v1);
+  scltMakeValueNode(&pval2, TSDB_DATA_TYPE_BIGINT, &v2);
+  scltMakeOpNode(&opNode1, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  scltMakeValueNode(&pval1, TSDB_DATA_TYPE_BIGINT, &v3);
+  scltMakeColumnNode(&pval2, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL);
+  scltMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pval1, pval2);
+  list[0] = opNode1;
+  list[1] = opNode2;
+  scltMakeLogicNode(&logicNode, LOGIC_COND_TYPE_OR, list, 2);
+  
+  int32_t code = scalarCalculateConstants(logicNode, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_LOGIC_CONDITION);
+  SLogicConditionNode *v = (SLogicConditionNode *)res;
+  ASSERT_EQ(v->condType, LOGIC_COND_TYPE_OR);
+  ASSERT_EQ(v->pParameterList->length, 1);
+  nodesDestroyNode(res);
+}
+
 
 void makeJsonArrow(SSDataBlock **src, SNode **opNode, void *json, char *key){
   char keyVar[32] = {0};

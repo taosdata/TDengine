@@ -451,8 +451,9 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
+  void *pIter = NULL;
   while (1) {
-    void *pIter = sdbFetch(pSdb, SDB_QNODE, NULL, (void **)&pObj);
+    pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
     SQueryNodeAddr nodeAddr = {0};
@@ -472,7 +473,7 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
   }
 
   int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
-  void   *pRsp = taosMemoryMalloc(rspLen);
+  void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;

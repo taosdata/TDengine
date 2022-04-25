@@ -138,6 +138,91 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   return 0;
 }
 
+void walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity) { pRead->capacity = capacity; }
+
+int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
+  int32_t code;
+  // TODO: valid ver
+
+  if (pRead->curVersion != ver) {
+    code = walReadSeekVer(pRead, ver);
+    if (code < 0) return -1;
+  }
+
+  if (!taosValidFile(pRead->pReadLogTFile)) {
+    return -1;
+  }
+
+  code = taosReadFile(pRead->pReadLogTFile, pHead, sizeof(SWalHead));
+  if (code != sizeof(SWalHead)) {
+    return -1;
+  }
+
+  code = walValidHeadCksum(pHead);
+
+  if (code != 0) {
+    wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead) {
+  int32_t code;
+
+  ASSERT(pRead->curVersion == pHead->head.version);
+
+  code = taosLSeekFile(pRead->pReadLogTFile, pHead->head.bodyLen, SEEK_CUR);
+  if (code < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    pRead->curVersion = -1;
+    return -1;
+  }
+
+  pRead->curVersion++;
+
+  return 0;
+}
+
+int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead) {
+  SWalReadHead *pReadHead = &((*ppHead)->head);
+  int64_t       ver = pReadHead->version;
+
+  if (pRead->capacity < pReadHead->bodyLen) {
+    void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead) + pReadHead->bodyLen);
+    if (ptr == NULL) {
+      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      return -1;
+    }
+    *ppHead = ptr;
+    pRead->capacity = pReadHead->bodyLen;
+  }
+
+  if (pReadHead->bodyLen != taosReadFile(pRead->pReadLogTFile, pReadHead->body, pReadHead->bodyLen)) {
+    return -1;
+  }
+
+  if (pReadHead->version != ver) {
+    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version,
+           ver);
+    pRead->curVersion = -1;
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    return -1;
+  }
+
+  if (walValidBodyCksum(*ppHead) != 0) {
+    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
+    pRead->curVersion = -1;
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    return -1;
+  }
+
+  pRead->curVersion = ver + 1;
+  return 0;
+}
+
 int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead) {
   taosThreadMutexLock(&pRead->mutex);
   if (walReadWithHandle(pRead, ver) < 0) {
@@ -172,12 +257,14 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   if (code != sizeof(SWalHead)) {
     return -1;
   }
+
   code = walValidHeadCksum(pRead->pHead);
   if (code != 0) {
     wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
+
   if (pRead->capacity < pRead->pHead->head.bodyLen) {
     void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.bodyLen);
     if (ptr == NULL) {
