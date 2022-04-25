@@ -159,7 +159,7 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
 
   SNewVgroupInfo vgroupInfo = {0};
   taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pVgroupMsg->vgId, sizeof(pVgroupMsg->vgId), NULL, &vgroupInfo);
-  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pNew->epSet, &vgroupInfo);
 
   return pNew;
 }
