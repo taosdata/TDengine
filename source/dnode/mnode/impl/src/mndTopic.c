@@ -520,8 +520,11 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     int32_t cols = 0;
 
     char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tstrncpy(&topicName[VARSTR_HEADER_SIZE], pTopic->name, TSDB_TOPIC_NAME_LEN);
-    varDataSetLen(topicName, strlen(&topicName[VARSTR_HEADER_SIZE]));
+
+    SName n;
+    tNameFromString(&n, pTopic->name, T_NAME_ACCT|T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(topicName));
+    varDataSetLen(topicName, strlen(varDataVal(topicName)));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
@@ -535,7 +538,7 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
-    taosMemoryFree(sql);
+//    taosMemoryFree(sql);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);
