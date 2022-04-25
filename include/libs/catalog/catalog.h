@@ -51,7 +51,7 @@ typedef struct SMetaData {
   SArray    *pTableMeta;  // STableMeta array
   SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
-  SArray    *pEpSetList;  // qnode epset list, SArray<SEpSet>
+  SArray    *pQnodeList;  // qnode list, SArray<SQueryNodeAddr>
 } SMetaData;
 
 typedef struct SCatalogCfg {

@@ -450,7 +450,6 @@ typedef struct {
   int8_t         withTbName;
   int8_t         withSchema;
   int8_t         withTag;
-  int8_t         withTagSchema;
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -517,7 +516,6 @@ typedef struct {
   int8_t    withTbName;
   int8_t    withSchema;
   int8_t    withTag;
-  int8_t    withTagSchema;
   SHashObj* consumerHash;  // consumerId -> SMqConsumerEpInSub
   // TODO put -1 into unassignVgs
   // SArray*   unassignedVgs;
