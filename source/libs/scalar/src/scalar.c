@@ -329,28 +329,40 @@ _return:
 }
 
 int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *output) {
-  SScalarFuncExecFuncs ffpSet = {0};
-  int32_t code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
-  if (code) {
-    sclError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
-    SCL_ERR_RET(code);
-  }
-
   SScalarParam *params = NULL;
   int32_t rowNum = 0;
   int32_t paramNum = 0;
+  int32_t code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
 
-  output->columnData = createColumnInfoData(&node->node.resType, rowNum);
-  if (output->columnData == NULL) {
-    sclError("calloc %d failed", (int32_t)(rowNum * output->columnData->info.bytes));
-    SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  code = (*ffpSet.process)(params, paramNum, output);
-  if (code) {
-    sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+  if (fmIsUserDefinedFunc(node->funcId)) {
+#if 0  
+    UdfcFuncHandle udfHandle = NULL;
+    
+    SCL_ERR_JRET(setupUdf(node->functionName, &udfHandle));
+    code = callUdfScalarFunc(udfHandle, params, paramNum, output);
+    teardownUdf(udfHandle);
     SCL_ERR_JRET(code);
+#endif    
+  } else {
+    SScalarFuncExecFuncs ffpSet = {0};
+    code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
+    if (code) {
+      sclError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+      SCL_ERR_JRET(code);
+    }
+  
+    output->columnData = createColumnInfoData(&node->node.resType, rowNum);
+    if (output->columnData == NULL) {
+      sclError("calloc %d failed", (int32_t)(rowNum * output->columnData->info.bytes));
+      SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+
+    code = (*ffpSet.process)(params, paramNum, output);
+    if (code) {
+      sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+      SCL_ERR_JRET(code);
+    }
   }
 
 _return:
