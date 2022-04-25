@@ -385,7 +385,11 @@ int32_t mndProcessMsg(SNodeMsg *pMsg) {
     terrno = code;
     mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
   } else if (code != 0) {
-    mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+    if (terrno != TSDB_CODE_OPS_NOT_SUPPORT) {
+      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+    } else {
+      mTrace("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+    }
   } else {
     mTrace("msg:%p, is processed, app:%p", pMsg, ahandle);
   }

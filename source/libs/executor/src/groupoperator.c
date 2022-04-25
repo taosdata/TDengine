@@ -410,8 +410,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       int32_t contentLen = 0;
 
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        int32_t* offset = pPage + startOffset;
-        columnLen       = pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
+        int32_t* offset = (int32_t*)((char*)pPage + startOffset);
+        columnLen       = (char*)pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
         char*    data   = (char*)(columnLen + sizeof(int32_t));
 
         if (colDataIsNull_s(pColInfoData, j)) {
@@ -424,8 +424,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           contentLen = varDataTLen(src);
         }
       } else {
-        char* bitmap = pPage + startOffset;
-        columnLen    = pPage + startOffset + BitmapLen(pInfo->rowCapacity);
+        char* bitmap = (char*)pPage + startOffset;
+        columnLen    = (char*)pPage + startOffset + BitmapLen(pInfo->rowCapacity);
         char* data   = (char*) columnLen + sizeof(int32_t);
 
         bool isNull = colDataIsNull_f(pColInfoData->nullbitmap, j);

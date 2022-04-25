@@ -110,7 +110,7 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
 
   for (int i = 0; i < numOfCols; i++) {
     col_type_t  type = 0;
-    int8_t      sma = TSDB_BSMA_TYPE_NONE;
+    int8_t      sma = 0;
     col_id_t    colId = 0;
     col_bytes_t bytes = 0;
     buf = taosDecodeFixedI8(buf, &type);

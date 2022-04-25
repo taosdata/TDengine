@@ -119,7 +119,7 @@ int taosSetConsoleEcho(bool on) {
 #endif
 }
 
-void setTerminalMode() {
+void taosSetTerminalMode() {
 #if defined(WINDOWS)
 
 #else
@@ -152,7 +152,7 @@ void setTerminalMode() {
 #endif
 }
 
-int32_t getOldTerminalMode() {
+int32_t taosGetOldTerminalMode() {
 #if defined(WINDOWS)
   
 #else
@@ -170,7 +170,7 @@ int32_t getOldTerminalMode() {
 #endif
 }
 
-void resetTerminalMode() {
+void taosResetTerminalMode() {
 #if defined(WINDOWS)
 
 #else
@@ -183,16 +183,33 @@ void resetTerminalMode() {
 
 TdCmdPtr taosOpenCmd(const char *cmd) {
   if (cmd == NULL) return NULL;
+#ifdef WINDOWS
+  return (TdCmdPtr)_popen(cmd, "r");
+#else
   return (TdCmdPtr)popen(cmd, "r");
+#endif
 }
 
 int64_t taosGetLineCmd(TdCmdPtr pCmd, char ** __restrict ptrBuf) {
-  if (pCmd == NULL) {
+  if (pCmd == NULL || ptrBuf == NULL ) {
     return -1;
   }
-
+  if (*ptrBuf != NULL) {
+    taosMemoryFreeClear(*ptrBuf);
+  }
+#ifdef WINDOWS
+  *ptrBuf = taosMemoryMalloc(1024);
+  if (*ptrBuf == NULL) return -1;
+  if (fgets(*ptrBuf, 1023, (FILE*)pCmd) == NULL) {
+    taosMemoryFreeClear(*ptrBuf);
+    return -1;
+  }
+  (*ptrBuf)[1023] = 0;
+  return strlen(*ptrBuf);
+#else
   size_t len = 0;
   return getline(ptrBuf, &len, (FILE*)pCmd);
+#endif
 }
 
 int32_t taosEOFCmd(TdCmdPtr pCmd) {
@@ -206,7 +223,11 @@ int64_t taosCloseCmd(TdCmdPtr *ppCmd) {
   if (ppCmd == NULL || *ppCmd == NULL) {
     return 0;
   }
+#ifdef WINDOWS
+  _pclose((FILE*)(*ppCmd));
+#else
   pclose((FILE*)(*ppCmd));
+#endif
   *ppCmd = NULL;
   return 0;
 }

@@ -82,7 +82,8 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, int32_t* pNumOfRows) {
+int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, int32_t* pNumOfRows,
+                            int16_t* pNumOfCols) {
   /*int32_t         sversion = pHandle->pBlock->sversion;*/
   // TODO set to real sversion
   int32_t sversion = 0;
@@ -104,7 +105,6 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   SSchemaWrapper* pSchemaWrapper = pHandle->pSchemaWrapper;
 
   *pNumOfRows = pHandle->pBlock->numOfRows;
-  /*int32_t numOfCols = pHandle->pSchema->numOfCols;*/
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
   if (colNumNeed > pSchemaWrapper->nCols) {
@@ -142,6 +142,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   }
 
   int32_t colActual = taosArrayGetSize(*ppCols);
+  *pNumOfCols = colActual;
 
   // TODO in stream shuffle case, fetch groupId
   *pGroupId = 0;

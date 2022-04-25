@@ -39,7 +39,6 @@ enum {
 
 typedef struct SUdfSetupRequest {
   char udfName[TSDB_FUNC_NAME_LEN];
-  SEpSet epSet;
 } SUdfSetupRequest;
 
 typedef struct SUdfSetupResponse {
@@ -69,6 +68,9 @@ typedef struct SUdfTeardownRequest {
 
 
 typedef struct SUdfTeardownResponse {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } SUdfTeardownResponse;
 
 typedef struct SUdfRequest {
@@ -109,6 +111,7 @@ void freeUdfDataDataBlock(SUdfDataBlock *block);
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock);
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block);
 
+int32_t getUdfdPipeName(char* pipeName, int32_t size);
 #ifdef __cplusplus
 }
 #endif

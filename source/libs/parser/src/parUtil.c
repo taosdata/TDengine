@@ -23,15 +23,15 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INCOMPLETE_SQL:
       return "Incomplete SQL statement";
     case TSDB_CODE_PAR_INVALID_COLUMN:
-      return "Invalid column name : %s";
+      return "Invalid column name: %s";
     case TSDB_CODE_PAR_TABLE_NOT_EXIST:
-      return "Table does not exist : %s";
+      return "Table does not exist: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
-      return "Column ambiguously defined : %s";
+      return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
-      return "Invalid value type : %s";
+      return "Invalid value type: %s";
     case TSDB_CODE_PAR_INVALID_FUNTION:
-      return "Invalid function name : %s";
+      return "Invalid function name: %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
@@ -45,7 +45,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
       return "Tags number not matched";
     case TSDB_CODE_PAR_INVALID_TAG_NAME:
-      return "Invalid tag name : %s";
+      return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
     case TSDB_CODE_PAR_PASSWD_EMPTY:
@@ -61,7 +61,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
       return "Database not specified";
     case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:
-      return "Invalid identifier name : %s";
+      return "Invalid identifier name: %s";
     case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
       return "Corresponding super table not in this db";
     case TSDB_CODE_PAR_INVALID_RANGE_OPTION:
@@ -120,6 +120,16 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
       return "Query block has incorrect number of result columns";
+    case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
+      return "Incorrect TIMESTAMP value: %s";
+    case TSDB_CODE_PAR_INVALID_DAYS_VALUE:
+      return "Invalid days value, should be keep2 >= keep1 >= keep0 >= days";
+    case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
+      return "soffset/offset can not be less than 0";
+    case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
+      return "slimit/soffset only available for PARTITION BY query";
+    case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
+      return "Invalid topic query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

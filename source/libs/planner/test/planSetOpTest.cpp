@@ -27,3 +27,9 @@ TEST_F(PlanSetOpTest, unionAll) {
 
   run("select c1, c2 from t1 where c1 > 10 union all select c1, c2 from t1 where c1 > 20");
 }
+
+TEST_F(PlanSetOpTest, union) {
+  useDb("root", "test");
+
+  run("select c1, c2 from t1 where c1 > 10 union select c1, c2 from t1 where c1 > 20");
+}

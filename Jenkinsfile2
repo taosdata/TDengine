@@ -120,8 +120,8 @@ pipeline {
             timeout(time: 45, unit: 'MINUTES'){
               pre_test()
               sh'''
-              cd ${WKC}/tests
-              ./test-all.sh b1fq
+              cd ${WKC}/debug
+              ctest -VV
               '''
               sh'''
               export LD_LIBRARY_PATH=${WKC}/debug/build/lib
@@ -129,8 +129,8 @@ pipeline {
               ./fulltest.sh
               '''
               sh'''
-              cd ${WKC}/debug
-              ctest
+              cd ${WKC}/tests
+              ./test-all.sh b1fq
               '''
             }
           }

@@ -3265,6 +3265,9 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SColumnDat
     return TSDB_CODE_SUCCESS;
   }
 
+  tsdbDebug("vgId:%d succeed to load block statis part for uid %" PRIu64, REPO_ID(pHandle->pTsdb),
+            TSDB_READ_TABLE_UID(&pHandle->rhelper));
+
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
 
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);

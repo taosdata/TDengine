@@ -74,8 +74,8 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
     }
     char *data = colDataGetVarData(pColumnInfoData, row);
     return (*data == TSDB_DATA_TYPE_NULL);
-  } 
-  
+  }
+
   if (!pColumnInfoData->hasNull) {
     return false;
   }

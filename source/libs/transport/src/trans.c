@@ -39,6 +39,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
+  pRpc->retry = pInit->rfp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
@@ -100,11 +101,10 @@ void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
   SRpcMsg rpcMsg;
   memset(&rpcMsg, 0, sizeof(rpcMsg));
 
-  rpcMsg.contLen = sizeof(SEpSet);
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  if (rpcMsg.pCont == NULL) return;
-
-  memcpy(rpcMsg.pCont, pEpSet, sizeof(SEpSet));
+  SMEpSet msg = {.epSet = *pEpSet};
+  int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
+  rpcMsg.pCont = rpcMallocCont(len);
+  tSerializeSMEpSet(rpcMsg.pCont, len, &msg);
 
   rpcMsg.code = TSDB_CODE_RPC_REDIRECT;
   rpcMsg.handle = thandle;

@@ -63,13 +63,14 @@ typedef struct {
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   int (*afp)(void* parent, char* user, char* spi, char* encrypt, char* secret, char* ckey);
+  int (*retry)(void* parent, SRpcMsg*, SEpSet*);
 
-  int32_t         refCount;
-  void*           parent;
-  void*           idPool;     // handle to ID pool
-  void*           tmrCtrl;    // handle to timer
-  SHashObj*       hash;       // handle returned by hash utility
-  void*           tcphandle;  // returned handle from TCP initialization
+  int32_t       refCount;
+  void*         parent;
+  void*         idPool;     // handle to ID pool
+  void*         tmrCtrl;    // handle to timer
+  SHashObj*     hash;       // handle returned by hash utility
+  void*         tcphandle;  // returned handle from TCP initialization
   TdThreadMutex mutex;
 } SRpcInfo;
 

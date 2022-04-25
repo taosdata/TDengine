@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include "planTestUtil.h"
 
 #include <algorithm>
@@ -62,7 +63,7 @@ public:
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
 
       SQueryPlan* pPlan = nullptr;
-      doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
+      doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
 
       if (g_isDump) {
         dump();
@@ -162,7 +163,8 @@ private:
     res_.scaledLogicPlan_ = toString((SNode*)(*pLogicPlan));
   }
 
-  void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList) {
+  void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan) {
+    SArray* pExecNodeList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr));
     DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, pExecNodeList);
     res_.physiPlan_ = toString((SNode*)(*pPlan));
     SNode* pNode;

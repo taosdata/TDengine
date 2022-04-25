@@ -45,10 +45,12 @@ struct SMetaDB {
 #endif
 };
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push,1)
+typedef struct {
   tb_uid_t uid;
   int32_t  sver;
 } SSchemaDbKey;
+#pragma pack(pop)
 
 typedef struct {
   char    *name;
@@ -626,14 +628,8 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
 #ifdef META_TDB_SMA_TEST
   STSmaWrapper *pSW = NULL;
 
-  pSW = taosMemoryCalloc(1, sizeof(*pSW));
-  if (pSW == NULL) {
-    return NULL;
-  }
-
   SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
   if (pCur == NULL) {
-    taosMemoryFree(pSW);
     return NULL;
   }
 
@@ -651,6 +647,12 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       if (pSmaVal == NULL) {
         tsdbWarn("no tsma exists for indexUid: %" PRIi64, pSmaIdxKey->smaUid);
         continue;
+      }
+
+      if ((pSW == NULL) && ((pSW = taosMemoryCalloc(1, sizeof(*pSW))) == NULL)) {
+        TDB_FREE(pSmaVal);
+        metaCloseSmaCursor(pCur);
+        return NULL;
       }
 
       ++pSW->number;

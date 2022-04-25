@@ -43,6 +43,7 @@ typedef struct SRpcMsg {
   int32_t code;
   void *  handle;         // rpc handle returned to app
   void *  ahandle;        // app handle set by client
+  int64_t refId;          // refid, used by server
   int     noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int     persistHandle;  // persist handle or not
 
@@ -54,12 +55,13 @@ typedef struct {
   uint16_t clientPort;
   SRpcMsg  rpcMsg;
   int32_t  rspLen;
-  void    *pRsp;
-  void    *pNode;
+  void *   pRsp;
+  void *   pNode;
 } SNodeMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
 typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+typedef int (*RpcRfp)(void *parent, SRpcMsg *, SEpSet *);
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -80,22 +82,25 @@ typedef struct SRpcInit {
   RpcCfp cfp;
 
   // call back to retrieve the client auth info, for server app only
-  RpcAfp afp;;
+  RpcAfp afp;
+
+  // user defined retry func
+  RpcRfp rfp;
 
   void *parent;
 } SRpcInit;
 
 typedef struct {
-  void     *val;
+  void *val;
   int32_t (*clone)(void *src, void **dst);
-  void    (*freeFunc)(const void *arg);
+  void (*freeFunc)(const void *arg);
 } SRpcCtxVal;
 
 typedef struct {
-  int32_t   msgType;
-  void     *val;
+  int32_t msgType;
+  void *  val;
   int32_t (*clone)(void *src, void **dst);
-  void    (*freeFunc)(const void *arg);
+  void (*freeFunc)(const void *arg);
 } SRpcBrokenlinkVal;
 
 typedef struct {

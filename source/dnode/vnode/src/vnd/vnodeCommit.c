@@ -158,11 +158,22 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 static int vnodeCommit(void *arg) {
-  SVnode *pVnode = (SVnode *)arg;
+  SVnode    *pVnode = (SVnode *)arg;
+  char       dir[TSDB_FILENAME_LEN];
+  SVnodeInfo info = {0};
+
+  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  info.config = pVnode->config;
+  info.state.committed = pVnode->state.applied;
+  info.state.applied = pVnode->state.applied;
+
+  vnodeSaveInfo(dir, &info);
 
   // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
   tsdbCommit(pVnode->pTsdb);
+
+  vnodeCommitInfo(dir, &info);
 
   vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
@@ -185,6 +196,7 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
 
   return 0;
 }
@@ -193,6 +205,7 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   SVState *pState = (SVState *)pObj;
 
   if (tjsonGetNumberValue(pJson, "commit version", pState->committed) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "applied version", pState->applied) < 0) return -1;
 
   return 0;
 }

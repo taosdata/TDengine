@@ -135,6 +135,16 @@ void taos_free_result(TAOS_RES *res) {
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     destroyRequest(pRequest);
+  } else if (TD_RES_TMQ(res)) {
+    SMqRspObj *pRsp = (SMqRspObj *)res;
+    if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
+    if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
+    if (pRsp->rsp.blockSchema) taosArrayDestroy(pRsp->rsp.blockSchema);
+    if (pRsp->rsp.blockTbName) taosArrayDestroy(pRsp->rsp.blockTbName);
+    if (pRsp->rsp.blockTags) taosArrayDestroy(pRsp->rsp.blockTags);
+    if (pRsp->rsp.blockTagSchema) taosArrayDestroy(pRsp->rsp.blockTagSchema);
+    pRsp->resInfo.pRspMsg = NULL;
+    doFreeReqResultInfo(&pRsp->resInfo);
   }
 }
 

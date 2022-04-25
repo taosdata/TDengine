@@ -40,10 +40,12 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
-  taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGABRT, dmStopDnode);
   taosSetSignal(SIGBREAK, dmStopDnode);
+#ifndef WINDOWS
+  taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
+#endif
 
   if (!tsMultiProcess) {
   } else if (global.ntype == DNODE || global.ntype == NODE_END) {
@@ -104,7 +106,7 @@ static void dmPrintVersion() {
 
 static void dmDumpCfg() {
   SConfig *pCfg = taosGetCfg();
-  cfgDumpCfg(pCfg, 0, 1);
+  cfgDumpCfg(pCfg, 0, true);
 }
 
 static SDnodeOpt dmGetOpt() {
@@ -188,7 +190,7 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmInitLog() != 0) {
-    printf("failed to start since init log error\n");
+    dError("failed to start since init log error");
     return -1;
   }
 
