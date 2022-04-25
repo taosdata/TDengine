@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "libs/function/function.h"
 
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
@@ -275,7 +276,7 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   pWrapper->pMgmt = NULL;
 
   // syncCleanUp();
-
+  udfcClose();
   dInfo("vnode-mgmt is cleaned up");
 }
 
@@ -338,6 +339,10 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
   dmReportStartup(pDnode, "vnode-vnodes", "initialized");
+
+  if (udfcOpen() != 0) {
+    dError("failed to open udfc in dnode");
+  }
 
   code = 0;
 

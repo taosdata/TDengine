@@ -237,7 +237,6 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   pSubNew->withTbName = pSub->withTbName;
   pSubNew->withSchema = pSub->withSchema;
   pSubNew->withTag = pSub->withTag;
-  pSubNew->withTagSchema = pSub->withTagSchema;
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -270,7 +269,6 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   tlen += taosEncodeFixedI8(buf, pSub->withTbName);
   tlen += taosEncodeFixedI8(buf, pSub->withSchema);
   tlen += taosEncodeFixedI8(buf, pSub->withTag);
-  tlen += taosEncodeFixedI8(buf, pSub->withTagSchema);
 
   void   *pIter = NULL;
   int32_t sz = taosHashGetSize(pSub->consumerHash);
@@ -297,7 +295,6 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   buf = taosDecodeFixedI8(buf, &pSub->withTbName);
   buf = taosDecodeFixedI8(buf, &pSub->withSchema);
   buf = taosDecodeFixedI8(buf, &pSub->withTag);
-  buf = taosDecodeFixedI8(buf, &pSub->withTagSchema);
 
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);

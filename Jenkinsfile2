@@ -121,7 +121,7 @@ pipeline {
               pre_test()
               sh'''
               cd ${WKC}/debug
-              ctest
+              ctest -VV
               '''
               sh'''
               export LD_LIBRARY_PATH=${WKC}/debug/build/lib
