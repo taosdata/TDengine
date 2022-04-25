@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "taos.h"
 
 static int  running = 1;
@@ -47,6 +48,7 @@ int32_t init_env() {
     return -1;
   }
   taos_free_result(pRes);
+  sleep(1);
 
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
@@ -58,6 +60,7 @@ int32_t init_env() {
   pRes =
       taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)");
   if (taos_errno(pRes) != 0) {
+    assert(0);
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
@@ -265,10 +268,11 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 int main(int argc, char* argv[]) {
-  int code;
   if (argc > 1) {
     printf("env init\n");
-    code = init_env();
+    if (init_env() < 0) {
+      return -1;
+    }
     create_topic();
   }
   tmq_t*      tmq = build_consumer();
