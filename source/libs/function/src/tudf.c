@@ -1215,12 +1215,20 @@ int32_t teardownUdf(UdfcFuncHandle handle) {
   return err;
 }
 
-//memory layout |---handle----|-----result-----|---buffer----|
+//memory layout |---SUdfAggRes----|-----final result-----|---inter result----|
+typedef struct SUdfAggRes {
+  SUdfUvSession *session;
+  int8_t finalResNum;
+  int8_t interResNum;
+  char* finalResBuf;
+  char* interResBuf;
+} SUdfAggRes;
+
 bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   if (pFunc->udfFuncType == TSDB_FUNC_TYPE_SCALAR) {
     return false;
   }
-  pEnv->calcMemSize = sizeof(int64_t*) + pFunc->node.resType.bytes + pFunc->bufSize;
+  pEnv->calcMemSize = sizeof(SUdfAggRes) + pFunc->node.resType.bytes + pFunc->bufSize;
   return true;
 }
 
@@ -1233,15 +1241,20 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
     return false;
   }
   SUdfUvSession *session = (SUdfUvSession *)handle;
-  char *udfRes = (char*)GET_ROWCELL_INTERBUF(pResultCellInfo);
-  int32_t envSize = sizeof(int64_t) + session->outputLen + session->bufSize;
+  SUdfAggRes *udfRes = (SUdfAggRes*)GET_ROWCELL_INTERBUF(pResultCellInfo);
+  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
+  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+
+  int32_t envSize = sizeof(SUdfAggRes) + session->outputLen + session->bufSize;
   memset(udfRes, 0, envSize);
-  *(int64_t*)(udfRes) = (int64_t)handle;
+
+  udfRes->session = (SUdfUvSession *)handle;
   SUdfInterBuf buf = {0};
   if (callUdfAggInit(handle, &buf) != 0) {
     return false;
   }
-  memcpy(udfRes + sizeof(int64_t) + session->outputLen, buf.buf, buf.bufLen);
+  memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  udfRes->interResNum = buf.numOfResult;
   return true;
 }
 
