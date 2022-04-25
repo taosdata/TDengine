@@ -126,7 +126,6 @@ int32_t tDecodeSQueryNodeAddr(SCoder *pDecoder, SQueryNodeAddr *pAddr) {
   return 0;
 }
 
-
 int32_t taosEncodeSEpSet(void **buf, const SEpSet *pEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pEp->inUse);
@@ -2084,10 +2083,15 @@ int32_t tDeserializeSQnodeListRsp(void *buf, int32_t bufLen, SQnodeListRsp *pRsp
   if (tStartDecode(&decoder) < 0) return -1;
   int32_t num = 0;
   if (tDecodeI32(&decoder, &num) < 0) return -1;
-  pRsp->addrsList = taosArrayInit(num, sizeof(SQueryNodeAddr));
-  if (NULL == pRsp->addrsList) return -1;
+  if (NULL == pRsp->addrsList) {
+    pRsp->addrsList = taosArrayInit(num, sizeof(SQueryNodeAddr));
+    if (NULL == pRsp->addrsList) return -1;
+  }
+  
   for (int32_t i = 0; i < num; ++i) {
-    if (tDecodeSQueryNodeAddr(&decoder, TARRAY_GET_ELEM(pRsp->addrsList, i)) < 0) return -1;
+    SQueryNodeAddr addr = {0};
+    if (tDecodeSQueryNodeAddr(&decoder, &addr) < 0) return -1;
+    taosArrayPush(pRsp->addrsList, &addr);
   }
   tEndDecode(&decoder);
 
@@ -2740,11 +2744,11 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   if (tEncodeI8(&encoder, pReq->withTbName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->withSchema) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->withTag) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->subscribeDbName) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
-  if (0 == astLen && tEncodeCStr(&encoder, pReq->subscribeDbName) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -2766,6 +2770,7 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   if (tDecodeI8(&decoder, &pReq->withTbName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->withSchema) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->withTag) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->subscribeDbName) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
 
@@ -2780,7 +2785,6 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
     if (pReq->ast == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
   } else {
-    if (tDecodeCStrTo(&decoder, pReq->subscribeDbName) < 0) return -1;
   }
 
   tEndDecode(&decoder);
