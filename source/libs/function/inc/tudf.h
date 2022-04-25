@@ -42,8 +42,7 @@ enum {
   UDFC_CODE_INVALID_STATE = -5
 };
 
-
-
+typedef void *UdfcFuncHandle;
 
 /**
  * setup udf
@@ -95,9 +94,8 @@ typedef struct SUdfDataBlock {
 typedef struct SUdfInterBuf {
   int32_t bufLen;
   char* buf;
+  int8_t numOfResult; //zero or one
 } SUdfInterBuf;
-
-typedef void *UdfcFuncHandle;
 
 // output: interBuf
 int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
