@@ -579,7 +579,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char **envCmd, const char *cfgDir, const char *envFile,
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
                       char *apolloUrl, SArray *pArgs, bool tsc) {
   osDefaultInit();
 
@@ -632,7 +632,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char **envC
   return 0;
 }
 
-int32_t taosInitCfg(const char **envCmd, const char *cfgDir, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 

@@ -31,13 +31,13 @@ static int32_t parseArgs(int32_t argc, char *argv[]) {
 static int32_t initLog() {
   char logName[12] = {0};
   snprintf(logName, sizeof(logName), "%slog", "udfc");
-  return taosCreateLog(logName, 1, NULL, configDir, NULL, NULL, NULL, 0);
+  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }
 
 int main(int argc, char *argv[]) {
   parseArgs(argc, argv);
   initLog();
-  if (taosInitCfg(NULL, configDir, NULL, NULL, NULL, 0) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
     return -1;
   }

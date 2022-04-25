@@ -254,12 +254,12 @@ void taos_init_imp(void) {
 
   deltaToUtcInitOnce();
 
-  if (taosCreateLog("taoslog", 10, NULL, configDir, NULL, NULL, NULL, 1) != 0) {
+  if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
 
-  if (taosInitCfg(NULL, configDir, NULL, NULL, NULL, 1) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }

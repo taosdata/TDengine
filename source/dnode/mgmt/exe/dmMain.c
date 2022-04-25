@@ -136,7 +136,7 @@ static SDnodeOpt dmGetOpt() {
 static int32_t dmInitLog() {
   char logName[12] = {0};
   snprintf(logName, sizeof(logName), "%slog", dmLogName(global.ntype));
-  return taosCreateLog(logName, 1, global.envCmd, configDir, global.envFile, global.apolloUrl, global.pArgs, 0);
+  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void dmSetProcInfo(int32_t argc, char **argv) {
@@ -209,7 +209,7 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  if (taosInitCfg(global.envCmd, configDir, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
+  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
     dError("failed to start since read config error");
     taosCleanupArgs();
     return -1;
