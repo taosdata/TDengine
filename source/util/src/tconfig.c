@@ -885,7 +885,6 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
           paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
           if (vlen3 != 0) value3[vlen3] = 0;
         }
-        printf("%s(%d) %s name=%s, value=%s\n", __FILE__, __LINE__,__func__,name, value);
         cfgSetItem(pConfig, name, value, CFG_STYPE_APOLLO_URL);
         if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
           cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_APOLLO_URL);
@@ -909,7 +908,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
   int32_t index = 0;
   if (envCmd == NULL) return 0;
   while (envCmd[index]!=NULL) {
-    if (bcmp(envCmd[index], "TAOS_APOLL_URL", 14) == 0) {
+    if (bcmp(envCmd[index], "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(envCmd[index], '=');
       if (p != NULL) {
         p++;
@@ -935,7 +934,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         break;
       }
       if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-      if (bcmp(line, "TAOS_APOLL_URL", 14) == 0) {
+      if (bcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;
@@ -976,7 +975,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         break;
       }
       if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-      if (bcmp(line, "TAOS_APOLL_URL", 14) == 0) {
+      if (bcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;
