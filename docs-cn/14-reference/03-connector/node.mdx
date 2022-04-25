@@ -8,39 +8,27 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-`td2.0-connector` 是 TDengine 的官方 Node.js 连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 数据的应用软件。
+`td2.0-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
 
 ## 支持的平台
 
-Node.js 连接器支持的系统有：
-
-| **CPU 类型** | x64（64bit） |          |          | aarch64  | aarch32  |
-| ------------ | ------------ | -------- | -------- | -------- | -------- |
-| **OS 类型**  | Linux        | Win64    | Win32    | Linux    | Linux    |
-| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
+请参考[支持的平台列表](/reference/connector#支持的平台)
 
 ## 版本支持
 
-| td2.0-connector 版本 | TDengine 版本                                                    |
-|--------------------|------------------------------------------------------------------|
-| 2.0.7              | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x、ver-2.2.x.x、>ver-2.1.1.0 |
-| 2.0.8              | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x、ver-2.2.x.x、>ver-2.1.4.1 |
-| 2.0.9              | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x、ver-2.2.x.x、>ver-2.1.4.1 |
-| 2.0.10             | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x                            |
-| 2.0.11             | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x                            |
-| 2.0.12             | ver-2.5.0.x、ver-2.4.x.x、ver-2.3.x.x                            |
+请参考[版本支持列表](/reference/connector#版本支持)
 
 ## 支持的功能特性
 
 ### 原生连接
 
-“原生连接”指连接器通过客户端驱动程序 taosc 直接与 TDengine 数据库建立连接
+“原生连接”指连接器通过客户端驱动程序 taosc 直接与 TDengine 集群建立连接
 
 原生连接支持的功能特性如下：
 
 1. 连接管理
-2. 同步查询
-3. 异步查询
+2. 普通查询
+3. 连续查询
 4. 参数绑定
 5. 订阅功能
 6. Schemaless
@@ -48,8 +36,8 @@ Node.js 连接器支持的系统有：
 ### REST 连接
 
 1. 连接管理
-2. 同步查询
-3. Schemaless
+2. 普通查询
+3. 连续查询
 
 ## 安装步骤
 
@@ -59,7 +47,7 @@ Node.js 连接器支持的系统有：
 <Preparition />
 
 - 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
+我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 集群进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
 
 ### Linux
 

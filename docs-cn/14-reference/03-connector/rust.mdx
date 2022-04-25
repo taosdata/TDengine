@@ -8,13 +8,11 @@ import Preparition from "./_preparition.mdx"
 
 [![Crates.io](https://img.shields.io/crates/v/libtaos)](https://crates.io/crates/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos) [![docs.rs](https://img.shields.io/docsrs/libtaos)](https://docs.rs/libtaos)
 
-`libtaos` 是 TDengine 的官方 Rust 语言连接器。Rust 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。`libtaos` 使用不同的 “特性（Rust Cargo 包管理关键字 features）” 提供对通过客户端驱动程序（taosc）原生连接和使用 REST 连接 TDengine 数据库。以下是可使用的特性列表：
+`libtaos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`libtaos` 使用不同的 “特性（Cargo 关键字 features）” 提供对通过客户端驱动程序（taosc）原生连接和使用 REST 连接 TDengine 集群。以下是可使用的特性列表：
 
-| 启用特性 | 支持平台              | 说明                                                              |
-| -------- | --------------------- | ----------------------------------------------------------------- |
-| default  | Windows, Linux        | 使用 TDengine 客户端驱动（taosc），支持 STMT 接口和行协议接口     |
-| rest     | Windows, Linux, macOS | 使用 HTTP REST API 接口（rest），适用于全平台                     |
-| (+)r2d2  | -                     | 使用 [r2d2] 提供的连接池接口，需要与 default 或 rest 特性配合使用 |
+## 支持的平台
+
+请参考[支持的平台列表](/reference/connector#支持的平台)
 
 :::warning
 
@@ -24,11 +22,7 @@ Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容�
 
 ## 版本支持
 
-| 驱动  |  平台   |            最小支持版本            |
-| :---: | :-----: | :--------------------------------: |
-| taosc | Windows | 2.0.20.10 (行协议接口 >= 2.4.0.0)  |
-| taosc |  Linux  |  2.0.6.0 (行协议接口 >= 2.4.0.0)   |
-| rest  |   All   | 2.0.0.0 (不支持 STMT 和行协议接口) |
+请参考[版本支持列表](/reference/connector#版本支持)
 
 建议使用 2.4 版本以上的 TDengine，以避免已知问题。
 
