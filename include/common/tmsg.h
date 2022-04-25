@@ -230,12 +230,12 @@ typedef struct {
   int32_t totalLen;
   int32_t len;
   // head of SSubmitBlk
-  int64_t uid;        // table unique id
-  int64_t suid;       // stable id
-  int32_t sversion;   // data schema version
-  int32_t dataLen;    // data part length, not including the SSubmitBlk head
-  int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
+  // int64_t uid;        // table unique id
+  // int64_t suid;       // stable id
+  // int32_t sversion;   // data schema version
+  // int32_t dataLen;    // data part length, not including the SSubmitBlk head
+  // int32_t schemaLen;  // schema length, if length is 0, no schema exists
+  // int16_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
   const void* pMsg;
 } SSubmitMsgIter;
@@ -249,10 +249,10 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 // 1) use tInitSubmitMsgIterEx firstly as not decrease the merge conflicts
 // 2) replace tInitSubmitMsgIterEx with tInitSubmitMsgIter later
 // 3) finally, rename tInitSubmitMsgIterEx to tInitSubmitMsgIter
-int32_t tInitSubmitMsgIterEx(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
-int32_t tGetSubmitMsgNextEx(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
-int32_t tInitSubmitBlkIterEx(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
-STSRow* tGetSubmitBlkNextEx(SSubmitBlkIter* pIter);
+// int32_t tInitSubmitMsgIterEx(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
+// int32_t tGetSubmitMsgNextEx(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
+// int32_t tInitSubmitBlkIterEx(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
+// STSRow* tGetSubmitBlkNextEx(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks

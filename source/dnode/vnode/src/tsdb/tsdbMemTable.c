@@ -227,6 +227,34 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   return 0;
 }
 
+int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg) {
+  ASSERT(pMsg != NULL);
+  SSubmitMsgIter msgIter = {0};
+  SSubmitBlk    *pBlock = NULL;
+  SSubmitBlkIter blkIter = {0};
+  STSRow        *row = NULL;
+
+  terrno = TSDB_CODE_SUCCESS;
+  pMsg->length = htonl(pMsg->length);
+  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  while (true) {
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (pBlock == NULL) break;
+
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->suid = htobe64(pBlock->suid);
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->dataLen = htonl(pBlock->dataLen);
+    pBlock->schemaLen = htonl(pBlock->schemaLen);
+    pBlock->numOfRows = htons(pBlock->numOfRows);
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) return -1;
+  return 0;
+}
+
 static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;

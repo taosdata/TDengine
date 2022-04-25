@@ -678,9 +678,9 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
     return TSDB_CODE_FAILED;
   }
 
-  // if (tdScanAndConvertSubmitMsg(pMsg) != TSDB_CODE_SUCCESS) {
-  //   return TSDB_CODE_FAILED;
-  // }
+  if (tdScanAndConvertSubmitMsg(pMsg) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_FAILED;
+  }
 
   if (tsdbCheckAndInitSmaEnv(pTsdb, TSDB_SMA_TYPE_TIME_RANGE) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
@@ -705,25 +705,25 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
   SInterval      interval = {0};
   TSKEY          lastWinSKey = INT64_MIN;
 
-  if (tInitSubmitMsgIterEx(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
+  if (tInitSubmitMsgIter(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   }
 
   while (true) {
-    tGetSubmitMsgNextEx(&msgIter, &pBlock);
+    tGetSubmitMsgNext(&msgIter, &pBlock);
     if (!pBlock) break;
 
     STSmaWrapper *pSW = NULL;
     STSma        *pTSma = NULL;
 
     SSubmitBlkIter blkIter = {0};
-    if (tInitSubmitBlkIterEx(&msgIter, pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
+    if (tInitSubmitBlkIter(pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
       pSW = tdFreeTSmaWrapper(pSW);
       break;
     }
 
     while (true) {
-      STSRow *row = tGetSubmitBlkNextEx(&blkIter);
+      STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (!row) {
         tdFreeTSmaWrapper(pSW);
         break;
@@ -1763,6 +1763,8 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
   if (taosHashPut(SMA_STAT_INFO_HASH(pStat), &pReq->stbCfg.suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) !=
       TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
+  } else {
+    tsdbDebug("vgId:%d register rsma info succeed for suid:%" PRIi64, REPO_ID(pTsdb), pReq->stbCfg.suid);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1915,10 +1917,17 @@ static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid
   if (pRSmaInfo->taskInfo[0] && (qUpdateQualifiedTableId(pRSmaInfo->taskInfo[0], tbUids, true) != 0)) {
     tsdbError("vgId:%d update tbUidList failed for uid:%" PRIi64 " since %s", REPO_ID(pTsdb), *suid, terrstr(terrno));
     return TSDB_CODE_FAILED;
+  } else {
+    tsdbDebug("vgId:%d update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 ", uid:%" PRIi64, REPO_ID(pTsdb),
+              pRSmaInfo->taskInfo[0], *suid, *(int64_t *)taosArrayGet(tbUids, 0));
   }
+
   if (pRSmaInfo->taskInfo[1] && (qUpdateQualifiedTableId(pRSmaInfo->taskInfo[1], tbUids, true) != 0)) {
     tsdbError("vgId:%d update tbUidList failed for uid:%" PRIi64 " since %s", REPO_ID(pTsdb), *suid, terrstr(terrno));
     return TSDB_CODE_FAILED;
+  } else {
+    tsdbDebug("vgId:%d update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 ", uid:%" PRIi64, REPO_ID(pTsdb),
+              pRSmaInfo->taskInfo[1], *suid, *(int64_t *)taosArrayGet(tbUids, 0));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1955,7 +1964,7 @@ int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tsdbFetchSubmitReqSuids(const SSubmitReq *pMsg, STbUidStore *pStore) {
+static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
   ASSERT(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock = NULL;
@@ -1966,11 +1975,12 @@ static int32_t tsdbFetchSubmitReqSuids(const SSubmitReq *pMsg, STbUidStore *pSto
   // pMsg->length = htonl(pMsg->length);
   // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
-  if (tInitSubmitMsgIterEx(pMsg, &msgIter) < 0) return -1;
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
   while (true) {
-    if (tGetSubmitMsgNextEx(&msgIter, &pBlock) < 0) return -1;
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+
     if (!pBlock) break;
-    tsdbUidStorePut(pStore, msgIter.suid, NULL);
+    tsdbUidStorePut(pStore, pBlock->suid, NULL);
   }
 
   if (terrno != TSDB_CODE_SUCCESS) return -1;
@@ -2039,7 +2049,7 @@ int32_t tsdbExecuteRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t in
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t inputType) {
+int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, void *pMsg, int32_t inputType) {
   SSmaEnv *pEnv = REPO_RSMA_ENV(pTsdb);
   if (!pEnv) {
     // only applicable when rsma env exists

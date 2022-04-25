@@ -55,7 +55,7 @@ void   *tsdbUidStoreFree(STbUidStore *pStore);
 int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq);
 int32_t tsdbFetchTbUidList(void *pTsdb, void **result, void *suid, void *uid);
 int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pUidStore);
-int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t inputType);
+int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, void *pMsg, int32_t inputType);
 
 #ifdef __cplusplus
 }
