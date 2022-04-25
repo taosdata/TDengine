@@ -21,6 +21,7 @@
 #include "thash.h"
 #include "builtins.h"
 #include "catalog.h"
+#include "tudf.h"
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
@@ -145,6 +146,14 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->init = funcMgtBuiltins[funcId].initFunc;
   pFpSet->process = funcMgtBuiltins[funcId].processFunc;
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmGetUdafExecFuncs(SFuncExecFuncs* pFpSet) {
+  pFpSet->getEnv = udfAggGetEnv;
+  pFpSet->init = udfAggInit;
+  pFpSet->process = udfAggProcess;
+  pFpSet->finalize = udfAggFinalize;
   return TSDB_CODE_SUCCESS;
 }
 

@@ -119,6 +119,9 @@ typedef struct SFunctionNode {
   int32_t funcId;
   int32_t funcType;
   SNodeList* pParameterList;
+
+  int8_t udfFuncType; //TODO: fill by parser/planner
+  int32_t bufSize; //TODO: fill by parser/planner
 } SFunctionNode;
 
 typedef struct STableNode {

@@ -160,6 +160,9 @@ void udfdProcessRequest(uv_work_t *req) {
       rsp.type = request.type;
       rsp.code = 0;
       rsp.setupRsp.udfHandle = (int64_t)(handle);
+      rsp.setupRsp.outputType = udf->outputType;
+      rsp.setupRsp.outputLen = udf->outputLen;
+      rsp.setupRsp.bufSize = udf->bufSize;
       int32_t len = encodeUdfResponse(NULL, &rsp);
       rsp.msgLen = len;
       void *bufBegin = taosMemoryMalloc(len);

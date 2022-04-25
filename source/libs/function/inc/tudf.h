@@ -97,6 +97,8 @@ typedef struct SUdfInterBuf {
   char* buf;
 } SUdfInterBuf;
 
+typedef void *UdfcFuncHandle;
+
 // output: interBuf
 int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
 // input: block, state
@@ -118,6 +120,10 @@ int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t nu
  */
 int32_t teardownUdf(UdfcFuncHandle handle);
 
+bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
+int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
+int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 // end API to taosd and qworker
 //=============================================================================================================================
 // begin API to UDF writer.
