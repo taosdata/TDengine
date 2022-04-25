@@ -14,24 +14,9 @@ if(${BUILD_PTHREAD})
     cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-# iconv
-if(${BUILD_WITH_ICONV})
-    cat("${TD_SUPPORT_DIR}/iconv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
-# msvc regex
-if(${BUILD_MSVCREGEX})
-    cat("${TD_SUPPORT_DIR}/msvcregex_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
-# wcwidth
-if(${BUILD_WCWIDTH})
-    cat("${TD_SUPPORT_DIR}/wcwidth_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
-# wingetopt
-if(${BUILD_WINGETOPT})
-    cat("${TD_SUPPORT_DIR}/wingetopt_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+# gnu regex
+if(${BUILD_GNUREGEX})
+    cat("${TD_SUPPORT_DIR}/gnuregex_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
 # googletest
@@ -114,27 +99,8 @@ if(${BUILD_TEST})
     target_include_directories(
         gtest
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src>
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_linux>
     )
-    if(${TD_WINDOWS})
-        target_include_directories(
-            gtest
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_win>
-        )
-    endif(${TD_WINDOWS})
-    if(${TD_LINUX})
-        target_include_directories(
-            gtest
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_linux>
-        )
-    endif(${TD_LINUX})
-    if(${TD_DARWIN})
-        target_include_directories(
-            gtest
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_darwin>
-        )
-    endif(${TD_DARWIN})
-    
-    
 endif(${BUILD_TEST})
 
 # cJson
@@ -216,53 +182,6 @@ if(${BUILD_WITH_NURAFT})
     add_subdirectory(nuraft)
 endif(${BUILD_WITH_NURAFT})
 
-# pthread
-if(${BUILD_PTHREAD})
-    set(CMAKE_BUILD_TYPE release)
-    add_definitions(-DPTW32_STATIC_LIB) 
-    add_subdirectory(pthread)
-    set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
-    add_library(pthread STATIC IMPORTED GLOBAL)
-    SET_PROPERTY(TARGET pthread PROPERTY IMPORTED_LOCATION ${LIBRARY_OUTPUT_PATH}/pthread.lib)
-endif()
-
-# iconv
-if(${BUILD_WITH_ICONV})
-    add_subdirectory(iconv)
-endif(${BUILD_WITH_ICONV})
-
-# wingetopt
-if(${BUILD_WINGETOPT})
-    add_subdirectory(wingetopt)
-endif(${BUILD_WINGETOPT})
-
-# msvcregex
-if(${BUILD_MSVCREGEX})
-    add_library(msvcregex STATIC "")
-    target_sources(msvcregex
-        PRIVATE "msvcregex/regex.c"
-    )
-    target_include_directories(msvcregex
-        PRIVATE "msvcregex"
-    )
-    target_link_libraries(msvcregex 
-        INTERFACE Shell32
-    )
-    SET_TARGET_PROPERTIES(msvcregex PROPERTIES OUTPUT_NAME msvcregex)
-endif(${BUILD_MSVCREGEX})
-
-# msvcregex
-if(${BUILD_WCWIDTH})
-    add_library(wcwidth STATIC "")
-    target_sources(wcwidth
-        PRIVATE "wcwidth/wcwidth.c"
-    )
-    target_include_directories(wcwidth
-        PRIVATE "wcwidth"
-    )
-    SET_TARGET_PROPERTIES(wcwidth PROPERTIES OUTPUT_NAME wcwidth)
-endif(${BUILD_WCWIDTH})
-
 # CRAFT
 if(${BUILD_WITH_CRAFT})
     add_library(craft STATIC IMPORTED GLOBAL)
@@ -319,12 +238,8 @@ if(${BUILD_WITH_SQLITE})
     target_link_libraries(sqlite 
         INTERFACE m 
         INTERFACE pthread 
+        INTERFACE dl
     )
-    if(NOT TD_WINDOWS)
-        target_link_libraries(sqlite 
-            INTERFACE dl
-        )
-    endif(NOT TD_WINDOWS)
 endif(${BUILD_WITH_SQLITE})
 
 # pthread

@@ -124,7 +124,7 @@ enum {
 
 int64_t gUdfTaskSeqNum = 0;
 typedef struct SUdfdProxy {
-  int32_t dnodeId;
+  char udfdPipeName[UDF_LISTEN_PIPE_NAME_LEN];
   uv_barrier_t gUdfInitBarrier;
 
   uv_loop_t gUdfdLoop;
@@ -137,11 +137,11 @@ typedef struct SUdfdProxy {
   int8_t gUdfcState;
   QUEUE gUdfTaskQueue;
   QUEUE gUvProcTaskQueue;
-  //  int8_t gUdfcState = UDFC_STATE_INITAL;
-  //  QUEUE gUdfTaskQueue = {0};
-  //  QUEUE gUvProcTaskQueue = {0};
+
+  int8_t initialized;
 } SUdfdProxy;
 
+SUdfdProxy gUdfdProxy = {0};
 
 typedef struct SUdfUvSession {
   SUdfdProxy *udfc;
@@ -209,19 +209,27 @@ enum {
   UDFC_STATE_STARTNG, // starting after udfcOpen
   UDFC_STATE_READY, // started and begin to receive quests
   UDFC_STATE_STOPPING, // stopping after udfcClose
-  UDFC_STATUS_FINAL, // stopped
 };
+
+int32_t getUdfdPipeName(char* pipeName, int32_t size) {
+  char    dnodeId[8] = {0};
+  size_t  dnodeIdSize;
+  int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
+  if (err != 0) {
+    dnodeId[0] = '1';
+  }
+  snprintf(pipeName, size, "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+  return 0;
+}
 
 int32_t encodeUdfSetupRequest(void **buf, const SUdfSetupRequest *setup) {
   int32_t len = 0;
   len += taosEncodeBinary(buf, setup->udfName, TSDB_FUNC_NAME_LEN);
-  len += taosEncodeSEpSet(buf, &setup->epSet);
   return len;
 }
 
 void* decodeUdfSetupRequest(const void* buf, SUdfSetupRequest *request) {
   buf = taosDecodeBinaryTo(buf, request->udfName, TSDB_FUNC_NAME_LEN);
-  buf = taosDecodeSEpSet((void*)buf, &request->epSet);
   return (void*)buf;
 }
 
@@ -604,7 +612,7 @@ void onUdfcPipeClose(uv_handle_t *handle) {
 }
 
 int32_t udfcGetUvTaskResponseResult(SClientUdfTask *task, SClientUvTaskNode *uvTask) {
-  debugPrint("%s", "get uv task result");
+  fnDebug("udfc get uv task result. task: %p", task);
   if (uvTask->type == UV_TASK_REQ_RSP) {
     if (uvTask->rspBuf.base != NULL) {
       SUdfResponse rsp;
@@ -647,7 +655,6 @@ int32_t udfcGetUvTaskResponseResult(SClientUdfTask *task, SClientUvTaskNode *uvT
 }
 
 void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
-  debugPrint("%s", "client allocate buffer to receive from pipe");
   SClientUvConn *conn = handle->data;
   SClientConnBuf *connBuf = &conn->readBuf;
 
@@ -662,7 +669,7 @@ void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf
       buf->base = connBuf->buf;
       buf->len = connBuf->cap;
     } else {
-      //TODO: log error
+      fnError("udfc allocate buffer failure. size: %d", msgHeadSize);
       buf->base = NULL;
       buf->len = 0;
     }
@@ -674,13 +681,13 @@ void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf
       buf->base = connBuf->buf + connBuf->len;
       buf->len = connBuf->cap - connBuf->len;
     } else {
-      //TODO: log error free connBuf->buf
+      fnError("udfc re-allocate buffer failure. size: %d", connBuf->cap);
       buf->base = NULL;
       buf->len = 0;
     }
   }
 
-  debugPrint("\tconn buf cap - len - total : %d - %d - %d", connBuf->cap, connBuf->len, connBuf->total);
+  fnTrace("conn buf cap - len - total : %d - %d - %d", connBuf->cap, connBuf->len, connBuf->total);
 
 }
 
@@ -689,6 +696,7 @@ bool isUdfcUvMsgComplete(SClientConnBuf *connBuf) {
     connBuf->total = *(int32_t *) (connBuf->buf);
   }
   if (connBuf->len == connBuf->cap && connBuf->total == connBuf->cap) {
+    fnTrace("udfc complete message is received, now handle it");
     return true;
   }
   return false;
@@ -696,10 +704,10 @@ bool isUdfcUvMsgComplete(SClientConnBuf *connBuf) {
 
 void udfcUvHandleRsp(SClientUvConn *conn) {
   SClientConnBuf *connBuf = &conn->readBuf;
-  int64_t seqNum = *(int64_t *) (connBuf->buf + sizeof(int32_t)); // msglen int32_t then seqnum
+  int64_t seqNum = *(int64_t *) (connBuf->buf + sizeof(int32_t)); // msglen then seqnum
 
   if (QUEUE_EMPTY(&conn->taskQueue)) {
-    //LOG error
+    fnError("udfc no task waiting for response on connection");
     return;
   }
   bool found = false;
@@ -713,7 +721,7 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
         found = true;
         taskFound = task;
       } else {
-        //LOG error;
+        fnError("udfc more than one task waiting for the same response");
         continue;
       }
     }
@@ -727,7 +735,7 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
     uv_sem_post(&taskFound->taskSem);
     QUEUE_REMOVE(&taskFound->procTaskQueue);
   } else {
-    //TODO: LOG error
+    fnError("no task is waiting for the response.");
   }
   connBuf->buf = NULL;
   connBuf->total = -1;
@@ -751,7 +759,7 @@ void udfcUvHandleError(SClientUvConn *conn) {
 }
 
 void onUdfcRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  debugPrint("%s, nread: %zd", "client read from pipe", nread);
+  fnTrace("udfc client %p, client read from pipe. nread: %zd", client, nread);
   if (nread == 0) return;
 
   SClientUvConn *conn = client->data;
@@ -764,9 +772,9 @@ void onUdfcRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 
   }
   if (nread < 0) {
-    debugPrint("\tclient read error: %s", uv_strerror(nread));
+    fnError("udfc client pipe %p read error: %s", client, uv_strerror(nread));
     if (nread == UV_EOF) {
-      //TODO:
+      fnError("udfc client pipe %p closed", client);
     }
     udfcUvHandleError(conn);
   }
@@ -774,16 +782,15 @@ void onUdfcRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 }
 
 void onUdfClientWrite(uv_write_t *write, int status) {
-  debugPrint("%s", "after writing to pipe");
   SClientUvTaskNode *uvTask = write->data;
+  uv_pipe_t *pipe = uvTask->pipe;
   if (status == 0) {
-    uv_pipe_t *pipe = uvTask->pipe;
     SClientUvConn *conn = pipe->data;
     QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
   } else {
-    //TODO Log error;
+    fnError("udfc client %p write error.", pipe);
   }
-  debugPrint("\tlength:%zu", uvTask->reqBuf.len);
+  fnTrace("udfc client %p write length:%zu", pipe, uvTask->reqBuf.len);
   taosMemoryFree(write);
   taosMemoryFree(uvTask->reqBuf.base);
 }
@@ -841,7 +848,7 @@ int32_t createUdfcUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskN
 }
 
 int32_t queueUvUdfTask(SClientUvTaskNode *uvTask) {
-  debugPrint("%s, %d", "queue uv task", uvTask->type);
+  fnTrace("queue uv task to event loop, task: %d, %p", uvTask->type, uvTask);
   SUdfdProxy *udfc = uvTask->udfc;
   uv_mutex_lock(&udfc->gUdfTaskQueueMutex);
   QUEUE_INSERT_TAIL(&udfc->gUdfTaskQueue, &uvTask->recvTaskQueue);
@@ -855,7 +862,7 @@ int32_t queueUvUdfTask(SClientUvTaskNode *uvTask) {
 }
 
 int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
-  debugPrint("%s, type %d", "start uv task ", uvTask->type);
+  fnTrace("event loop start uv task. task: %d, %p", uvTask->type, uvTask);
   switch (uvTask->type) {
     case UV_TASK_CONNECT: {
       uv_pipe_t *pipe = taosMemoryMalloc(sizeof(uv_pipe_t));
@@ -874,8 +881,7 @@ int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
 
       uv_connect_t *connReq = taosMemoryMalloc(sizeof(uv_connect_t));
       connReq->data = uvTask;
-
-      uv_pipe_connect(connReq, pipe, "udf.sock", onUdfClientConnect);
+      uv_pipe_connect(connReq, pipe, uvTask->udfc->udfdPipeName, onUdfClientConnect);
       break;
     }
     case UV_TASK_REQ_RSP: {
@@ -971,27 +977,37 @@ void constructUdfService(void *argsThread) {
   uv_loop_close(&udfc->gUdfdLoop);
 }
 
-int32_t udfcOpen(int32_t dnodeId, UdfcHandle *udfc) {
-  SUdfdProxy *proxy = taosMemoryCalloc(1, sizeof(SUdfdProxy));
-  proxy->dnodeId = dnodeId;
+int32_t udfcOpen() {
+  int8_t old = atomic_val_compare_exchange_8(&gUdfdProxy.initialized, 0, 1);
+  if (old == 1) {
+    return 0;
+  }
+  SUdfdProxy *proxy = &gUdfdProxy;
+  getUdfdPipeName(proxy->udfdPipeName, UDF_LISTEN_PIPE_NAME_LEN);
   proxy->gUdfcState = UDFC_STATE_STARTNG;
   uv_barrier_init(&proxy->gUdfInitBarrier, 2);
   uv_thread_create(&proxy->gUdfLoopThread, constructUdfService, proxy);
-  uv_barrier_wait(&proxy->gUdfInitBarrier);
+  atomic_store_8(&proxy->gUdfcState, UDFC_STATE_READY);
   proxy->gUdfcState = UDFC_STATE_READY;
-  *udfc = proxy;
+  uv_barrier_wait(&proxy->gUdfInitBarrier);
+  fnInfo("udfc initialized")
   return 0;
 }
 
-int32_t udfcClose(UdfcHandle udfcHandle) {
-  SUdfdProxy *udfc = udfcHandle;
+int32_t udfcClose() {
+  int8_t old = atomic_val_compare_exchange_8(&gUdfdProxy.initialized, 1, 0);
+  if (old == 0) {
+    return 0;
+  }
+
+  SUdfdProxy *udfc = &gUdfdProxy;
   udfc->gUdfcState = UDFC_STATE_STOPPING;
   uv_async_send(&udfc->gUdfLoopStopAsync);
   uv_thread_join(&udfc->gUdfLoopThread);
   uv_mutex_destroy(&udfc->gUdfTaskQueueMutex);
   uv_barrier_destroy(&udfc->gUdfInitBarrier);
-  udfc->gUdfcState = UDFC_STATUS_FINAL;
-  taosMemoryFree(udfc);
+  udfc->gUdfcState = UDFC_STATE_INITAL;
+  fnInfo("udfc cleaned up");
   return 0;
 }
 
@@ -1009,12 +1025,15 @@ int32_t udfcRunUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   return task->errCode;
 }
 
-int32_t setupUdf(UdfcHandle udfc, char udfName[], SEpSet *epSet, UdfcFuncHandle *funcHandle) {
-  debugPrint("%s", "client setup udf");
+int32_t setupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
+  fnInfo("udfc setup udf. udfName: %s", udfName);
+  if (gUdfdProxy.gUdfcState != UDFC_STATE_READY) {
+    return UDFC_CODE_INVALID_STATE;
+  }
   SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
   task->session = taosMemoryMalloc(sizeof(SUdfUvSession));
-  task->session->udfc = udfc;
+  task->session->udfc = &gUdfdProxy;
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
@@ -1022,15 +1041,20 @@ int32_t setupUdf(UdfcHandle udfc, char udfName[], SEpSet *epSet, UdfcFuncHandle 
 
   int32_t errCode = udfcRunUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
-    //TODO: log error
-    return -1;
+    fnError("failed to connect to pipe. udfName: %s, pipe: %s", udfName, (&gUdfdProxy)->udfdPipeName);
+    return UDFC_CODE_CONNECT_PIPE_ERR;
   }
 
   udfcRunUvTask(task, UV_TASK_REQ_RSP);
 
   SUdfSetupResponse *rsp = &task->_setup.rsp;
   task->session->severHandle = rsp->udfHandle;
-  *funcHandle = task->session;
+  if (task->errCode != 0) {
+    fnError("failed to setup udf. err: %d", task->errCode)
+  } else {
+    fnInfo("sucessfully setup udf func handle. handle: %p", task->session);
+    *funcHandle = task->session;
+  }
   int32_t err = task->errCode;
   taosMemoryFree(task);
   return err;
@@ -1038,7 +1062,7 @@ int32_t setupUdf(UdfcHandle udfc, char udfName[], SEpSet *epSet, UdfcFuncHandle 
 
 int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdfInterBuf *state, SUdfInterBuf *state2,
                 SSDataBlock* output, SUdfInterBuf *newState) {
-  debugPrint("%s", "client call udf");
+  fnTrace("udfc call udf. callType: %d, funcHandle: %p", callType, handle);
 
   SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1076,35 +1100,37 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
 
   udfcRunUvTask(task, UV_TASK_REQ_RSP);
 
-  SUdfCallResponse *rsp = &task->_call.rsp;
-  switch (callType) {
-    case TSDB_UDF_CALL_AGG_INIT: {
-      *newState = rsp->resultBuf;
-      break;
-    }
-    case TSDB_UDF_CALL_AGG_PROC: {
-      *newState = rsp->resultBuf;
-      break;
-    }
-    case TSDB_UDF_CALL_AGG_MERGE: {
-      *newState = rsp->resultBuf;
-      break;
-    }
-    case TSDB_UDF_CALL_AGG_FIN: {
-      *newState = rsp->resultBuf;
-      break;
-    }
-    case TSDB_UDF_CALL_SCALA_PROC: {
-      *output = rsp->resultData;
-      break;
+  if (task->errCode != 0) {
+    fnError("call udf failure. err: %d", task->errCode);
+  } else {
+    SUdfCallResponse *rsp = &task->_call.rsp;
+    switch (callType) {
+      case TSDB_UDF_CALL_AGG_INIT: {
+        *newState = rsp->resultBuf;
+        break;
+      }
+      case TSDB_UDF_CALL_AGG_PROC: {
+        *newState = rsp->resultBuf;
+        break;
+      }
+      case TSDB_UDF_CALL_AGG_MERGE: {
+        *newState = rsp->resultBuf;
+        break;
+      }
+      case TSDB_UDF_CALL_AGG_FIN: {
+        *newState = rsp->resultBuf;
+        break;
+      }
+      case TSDB_UDF_CALL_SCALA_PROC: {
+        *output = rsp->resultData;
+        break;
+      }
     }
   }
-
   taosMemoryFree(task);
   return task->errCode;
 }
 
-//TODO: translate these calls to callUdf
 int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf) {
   int8_t callType = TSDB_UDF_CALL_AGG_INIT;
 
@@ -1148,7 +1174,7 @@ int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t nu
 }
 
 int32_t teardownUdf(UdfcFuncHandle handle) {
-  debugPrint("%s", "client teardown udf");
+  fnInfo("tear down udf. udf func handle: %p", handle);
 
   SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1159,7 +1185,6 @@ int32_t teardownUdf(UdfcFuncHandle handle) {
   req->udfHandle = task->session->severHandle;
 
   udfcRunUvTask(task, UV_TASK_REQ_RSP);
-
 
   SUdfTeardownResponse *rsp = &task->_teardown.rsp;
 

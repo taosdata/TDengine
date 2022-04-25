@@ -32,6 +32,9 @@ typedef struct SScalarCtx {
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM 10
 
+#define SCL_IS_CONST_NODE(_node) ((NULL == (_node)) || (QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
+#define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList)
+
 #define sclFatal(...)  qFatal(__VA_ARGS__)
 #define sclError(...)  qError(__VA_ARGS__)
 #define sclWarn(...)   qWarn(__VA_ARGS__)

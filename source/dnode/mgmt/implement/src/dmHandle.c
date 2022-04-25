@@ -311,6 +311,9 @@ static void dmWatchUdfd(void *args) {
 }
 
 static int32_t dmStartUdfd(SDnode *pDnode) {
+  char dnodeId[8] = {0};
+  snprintf(dnodeId, sizeof(dnodeId), "%d", pDnode->data.dnodeId);
+  uv_os_setenv("DNODE_ID", dnodeId);
   SUdfdData *pData = &pDnode->udfdData;
   if (pData->startCalled) {
     dInfo("dnode-mgmt start udfd already called");
@@ -320,8 +323,17 @@ static int32_t dmStartUdfd(SDnode *pDnode) {
   uv_barrier_init(&pData->barrier, 2);
   uv_thread_create(&pData->thread, dmWatchUdfd, pDnode);
   uv_barrier_wait(&pData->barrier);
-  pData->needCleanUp = true;
-  return pData->spawnErr;
+  int32_t err = atomic_load_32(&pData->spawnErr);
+  if (err != 0) {
+    uv_barrier_destroy(&pData->barrier);
+    uv_async_send(&pData->stopAsync);
+    uv_thread_join(&pData->thread);
+    pData->needCleanUp = false;
+    dInfo("dnode-mgmt udfd cleaned up after spawn err");
+  } else {
+    pData->needCleanUp = true;
+  }
+  return err;
 }
 
 static int32_t dmStopUdfd(SDnode *pDnode) {
@@ -336,7 +348,7 @@ static int32_t dmStopUdfd(SDnode *pDnode) {
   uv_barrier_destroy(&pData->barrier);
   uv_async_send(&pData->stopAsync);
   uv_thread_join(&pData->thread);
-
+  dInfo("dnode-mgmt udfd cleaned up");
   return 0;
 }
 
@@ -371,9 +383,9 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   }
   dmReportStartup(pDnode, "dnode-transport", "initialized");
 
-//  if (dmStartUdfd(pDnode) != 0) {
-//    dError("failed to start udfd");
-//  }
+  if (dmStartUdfd(pDnode) != 0) {
+    dError("failed to start udfd");
+  }
 
   dInfo("dnode-mgmt is initialized");
   return 0;
