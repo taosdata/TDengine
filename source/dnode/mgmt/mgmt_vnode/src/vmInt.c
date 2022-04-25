@@ -74,12 +74,6 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
     return -1;
   }
 
-  // sync integration
-  vnodeSyncSetQ(pImpl, NULL);
-  vnodeSyncSetRpc(pImpl, NULL);
-  int32_t ret = vnodeSyncStart(pImpl);
-  assert(ret == 0);
-
   taosWLockLatch(&pMgmt->latch);
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
   taosWUnLockLatch(&pMgmt->latch);
@@ -153,6 +147,7 @@ static void *vmOpenVnodeFunc(void *param) {
       pThread->failed++;
     } else {
       vmOpenVnode(pMgmt, pCfg, pImpl);
+      vnodeStart(pImpl);
       dDebug("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->opened++;
     }
@@ -364,10 +359,50 @@ static int32_t vmRequire(SMgmtWrapper *pWrapper, bool *required) {
   return 0;
 }
 
+static int32_t vmStart(SMgmtWrapper *pWrapper) {
+  dDebug("vnode-mgmt start to run");
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+
+  taosRLockLatch(&pMgmt->latch);
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    vnodeStart(pVnode->pImpl);
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+
+  taosRUnLockLatch(&pMgmt->latch);
+  return 0;
+}
+
+static void vmStop(SMgmtWrapper *pWrapper) {
+  dDebug("vnode-mgmt start to stop");
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  taosRLockLatch(&pMgmt->latch);
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    vnodeStop(pVnode->pImpl);
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+
+  taosRUnLockLatch(&pMgmt->latch);
+}
+
 void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = vmInit;
   mgmtFp.closeFp = vmCleanup;
+  mgmtFp.startFp = vmStart;
+  mgmtFp.stopFp = vmStop;
   mgmtFp.requiredFp = vmRequire;
 
   vmInitMsgHandle(pWrapper);
