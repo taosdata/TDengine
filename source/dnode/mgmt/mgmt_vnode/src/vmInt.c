@@ -147,7 +147,7 @@ static void *vmOpenVnodeFunc(void *param) {
       pThread->failed++;
     } else {
       vmOpenVnode(pMgmt, pCfg, pImpl);
-      vnodeStart(pImpl);
+      //vnodeStart(pImpl);
       dDebug("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->opened++;
     }
