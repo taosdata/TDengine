@@ -38,7 +38,7 @@ typedef struct STable        STable;
 
 int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable);
-int  tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitReq *pMsg, SSubmitRsp *pRsp);
+int  tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows);
 int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                            TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
@@ -62,7 +62,7 @@ struct STable {
 
 int     tsdbOpen(SVnode *pVnode, STsdb **ppTsdb);
 int     tsdbClose(STsdb *pTsdb);
-int     tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
+int     tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int     tsdbPrepareCommit(STsdb *pTsdb);
 int     tsdbCommit(STsdb *pTsdb);
 int32_t tsdbInitSma(STsdb *pTsdb);

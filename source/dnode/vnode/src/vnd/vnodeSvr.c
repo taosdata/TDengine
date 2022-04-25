@@ -21,7 +21,7 @@ static int vnodeProcessDropStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcM
 static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp);
+static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
   SNodeMsg *pMsg;
@@ -92,8 +92,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     } break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
-      pRsp->msgType = TDMT_VND_SUBMIT_RSP;
-      vnodeProcessSubmitReq(pVnode, ptr, pRsp);
+      if (vnodeProcessSubmitReq(pVnode, version, pMsg->pCont, pMsg->contLen, pRsp) < 0) goto _err;
       break;
     /* TQ */
     case TDMT_VND_MQ_VG_CHANGE:
@@ -352,13 +351,14 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMs
   return 0;
 }
 
-static int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pSubmitReq, SRpcMsg *pRsp) {
-  SSubmitRsp rsp = {0};
+static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
+  SSubmitRsp  rsp = {0};
 
   pRsp->code = 0;
 
   // handle the request
-  if (tsdbInsertData(pVnode->pTsdb, pSubmitReq, &rsp) < 0) {
+  if (tsdbInsertData(pVnode->pTsdb, version, pSubmitReq, &rsp) < 0) {
     pRsp->code = terrno;
     return -1;
   }
