@@ -93,7 +93,7 @@ STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
     return row;
   }
 }
-#if 0
+
 // TODO: KEEP one suite of iterator API finally.
 // 1) use tInitSubmitMsgIterEx firstly as not decrease the merge conflicts
 // 2) replace tInitSubmitMsgIterEx with tInitSubmitMsgIter later
@@ -173,7 +173,7 @@ STSRow *tGetSubmitBlkNextEx(SSubmitBlkIter *pIter) {
     return row;
   }
 }
-#endif
+
 int32_t tEncodeSEpSet(SCoder *pEncoder, const SEpSet *pEp) {
   if (tEncodeI8(pEncoder, pEp->inUse) < 0) return -1;
   if (tEncodeI8(pEncoder, pEp->numOfEps) < 0) return -1;

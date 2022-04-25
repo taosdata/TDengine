@@ -33,24 +33,24 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
 
 int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+  // pMsg->length = htonl(pMsg->length);
+  // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
   // iterate and convert
-  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  if (tInitSubmitMsgIterEx(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
-    if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
+    if (tGetSubmitMsgNextEx(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
     if (pReadHandle->pBlock == NULL) break;
 
-    pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
-    pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
-    pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
-    pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
-    pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
-    pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
+    // pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
+    // pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
+    // pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
+    // pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
+    // pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
+    // pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
   }
 
-  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  if (tInitSubmitMsgIterEx(pMsg, &pReadHandle->msgIter) < 0) return -1;
   pReadHandle->ver = ver;
   memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
   return 0;
@@ -58,7 +58,7 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
   while (1) {
-    if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+    if (tGetSubmitMsgNextEx(&pHandle->msgIter, &pHandle->pBlock) < 0) {
       return false;
     }
     if (pHandle->pBlock == NULL) return false;
@@ -66,7 +66,7 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
     /*pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);*/
     /*if (pHandle->tbUid == pHandle->pBlock->uid) {*/
     ASSERT(pHandle->tbIdHash);
-    void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
+    void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->msgIter.uid, sizeof(int64_t));
     if (ret != NULL) {
       /*printf("retrieve one tb %ld\n", pHandle->pBlock->uid);*/
       /*pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);*/
@@ -88,16 +88,18 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   // TODO set to real sversion
   int32_t sversion = 0;
   if (pHandle->sver != sversion) {
-    pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->pBlock->uid, sversion);
-
+    pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
+#if 0
     tb_uid_t quid;
-    STbCfg*  pTbCfg = metaGetTbInfoByUid(pHandle->pVnodeMeta, pHandle->pBlock->uid);
+    STbCfg*  pTbCfg = metaGetTbInfoByUid(pHandle->pVnodeMeta, pHandle->msgIter.uid);
     if (pTbCfg->type == META_CHILD_TABLE) {
       quid = pTbCfg->ctbCfg.suid;
     } else {
-      quid = pHandle->pBlock->uid;
+      quid = pHandle->msgIter.uid;
     }
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, quid, sversion, true);
+#endif
+    pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
     pHandle->sver = sversion;
   }
 
@@ -151,8 +153,8 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   tdSTSRowIterInit(&iter, pTschema);
   STSRow* row;
   int32_t curRow = 0;
-  tInitSubmitBlkIter(pHandle->pBlock, &pHandle->blkIter);
-  while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
+  tInitSubmitBlkIterEx(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
+  while ((row = tGetSubmitBlkNextEx(&pHandle->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block
     for (int32_t i = 0; i < colActual; i++) {
