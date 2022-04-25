@@ -98,24 +98,24 @@ typedef struct SIOCostSummary {
 } SIOCostSummary;
 
 typedef struct STsdbReadHandle {
-  STsdb*        pTsdb;
-  SQueryFilePos cur;       // current position
-  int16_t       order;
-  STimeWindow   window;    // the primary query time window that applies to all queries
+  STsdb*          pTsdb;
+  SQueryFilePos   cur;  // current position
+  int16_t         order;
+  STimeWindow     window;  // the primary query time window that applies to all queries
   SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
-  int32_t       numOfBlocks;
-  SArray*       pColumns;  // column list, SColumnInfoData array list
-  bool          locateStart;
-  int32_t       outputCapacity;
-  int32_t       realNumOfRows;
-  SArray*       pTableCheckInfo;  // SArray<STableCheckInfo>
-  int32_t       activeIndex;
-  bool          checkFiles;               // check file stage
-  int8_t        cachelastrow;             // check if last row cached
-  bool          loadExternalRow;          // load time window external data rows
-  bool          currentLoadExternalRows;  // current load external rows
-  int32_t       loadType;                 // block load type
-  char*         idStr;                    // query info handle, for debug purpose
+  int32_t         numOfBlocks;
+  SArray*         pColumns;  // column list, SColumnInfoData array list
+  bool            locateStart;
+  int32_t         outputCapacity;
+  int32_t         realNumOfRows;
+  SArray*         pTableCheckInfo;  // SArray<STableCheckInfo>
+  int32_t         activeIndex;
+  bool            checkFiles;               // check file stage
+  int8_t          cachelastrow;             // check if last row cached
+  bool            loadExternalRow;          // load time window external data rows
+  bool            currentLoadExternalRows;  // current load external rows
+  int32_t         loadType;                 // block load type
+  char*           idStr;                    // query info handle, for debug purpose
   int32_t type;  // query type: retrieve all data blocks, 2. retrieve only last row, 3. retrieve direct prev|next rows
   SDFileSet*         pFileGroup;
   SFSIter            fileIter;
@@ -1443,7 +1443,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 
       j++;
       i++;
-    } else {                                           // pColInfo->info.colId < src->colId, it is a NULL data
+    } else {  // pColInfo->info.colId < src->colId, it is a NULL data
       int32_t rowIndex = numOfRows;
       for (int32_t k = start; k < num + start; ++k, ++rowIndex) {  // TODO opt performance
         colDataAppend(pColInfo, rowIndex, NULL, true);
@@ -1454,10 +1454,11 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 
   while (i < requiredNumOfCols) {  // the remain columns are all null data
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-    int32_t rowIndex = numOfRows;
+    int32_t          rowIndex = numOfRows;
 
     for (int32_t k = start; k < num + start; ++k, ++rowIndex) {
-      colDataAppend(pColInfo, rowIndex, NULL, true);  // TODO add a fast version to set a number of consecutive NULL value.
+      colDataAppend(pColInfo, rowIndex, NULL,
+                    true);  // TODO add a fast version to set a number of consecutive NULL value.
     }
     i++;
   }
@@ -1777,7 +1778,8 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   STable* pTable = NULL;
   int32_t endPos = getEndPosInDataBlock(pTsdbReadHandle, &blockInfo);
 
-  tsdbDebug("%p uid:%" PRIu64 " start merge data block, file block range:%" PRIu64 "-%" PRIu64 " rows:%d, start:%d, end:%d, %s",
+  tsdbDebug("%p uid:%" PRIu64 " start merge data block, file block range:%" PRIu64 "-%" PRIu64
+            " rows:%d, start:%d, end:%d, %s",
             pTsdbReadHandle, pCheckInfo->tableId, blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows,
             cur->pos, endPos, pTsdbReadHandle->idStr);
 
@@ -3626,19 +3628,24 @@ SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColInd
 int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
                                  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo* pGroupInfo,
                                  SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId) {
-  STbCfg* pTbCfg = metaGetTbInfoByUid(pMeta, uid);
-  if (pTbCfg == NULL) {
+  SMetaReader mr = {0};
+
+  metaReaderInit(&mr, ((SMeta*)pMeta)->pVnode, 0);
+
+  if (metaGetTableEntryByUid(&mr, uid) < 0) {
     tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     goto _error;
   }
 
-  if (pTbCfg->type != META_SUPER_TABLE) {
+  if (mr.me.type != META_SUPER_TABLE) {
     tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId,
               reqId);
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;  // basically, this error is caused by invalid sql issued by client
     goto _error;
   }
+
+  metaReaderClear(&mr);
 
   // NOTE: not add ref count for super table
   SArray*         res = taosArrayInit(8, sizeof(STableKeyInfo));
@@ -3690,11 +3697,17 @@ int32_t tsdbQueryTableList(void* pMeta, SArray* pRes, void* filterInfo) {
   return TSDB_CODE_SUCCESS;
 }
 int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo* pGroupInfo) {
-  STbCfg* pTbCfg = metaGetTbInfoByUid(pMeta, uid);
-  if (pTbCfg == NULL) {
+  SMeta*      metaP = (SMeta*)pMeta;
+  SMetaReader mr = {0};
+
+  metaReaderInit(&mr, metaP->pVnode, 0);
+
+  if (metaGetTableEntryByUid(&mr, uid) < 0) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     goto _error;
   }
+
+  metaReaderClear(&mr);
 
   pGroupInfo->numOfTables = 1;
   pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
@@ -3708,6 +3721,7 @@ int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGr
   return TSDB_CODE_SUCCESS;
 
 _error:
+  metaReaderClear(&mr);
   return terrno;
 }
 

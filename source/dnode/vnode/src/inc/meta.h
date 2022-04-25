@@ -114,8 +114,6 @@ int             metaDropTable(SMeta* pMeta, tb_uid_t uid);
 int             metaCommit(SMeta* pMeta);
 int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
-STbCfg*         metaGetTbInfoByUid(SMeta* pMeta, tb_uid_t uid);
-STbCfg*         metaGetTbInfoByName(SMeta* pMeta, char* tbname, tb_uid_t* uid);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 void*           metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid, bool isDecode);

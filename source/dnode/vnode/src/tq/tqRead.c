@@ -90,10 +90,15 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   if (pHandle->sver != sversion) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->pBlock->uid, sversion);
 
-    tb_uid_t quid;
-    STbCfg*  pTbCfg = metaGetTbInfoByUid(pHandle->pVnodeMeta, pHandle->pBlock->uid);
-    if (pTbCfg->type == META_CHILD_TABLE) {
-      quid = pTbCfg->ctb.suid;
+    tb_uid_t    quid;
+    SMetaReader mr = {0};
+
+    metaReaderInit(&mr, pHandle->pVnodeMeta->pVnode, 0);
+
+    metaGetTableEntryByUid(&mr, pHandle->pBlock->uid);
+
+    if (mr.me.type == META_CHILD_TABLE) {
+      quid = mr.me.ctbEntry.suid;
     } else {
       quid = pHandle->pBlock->uid;
     }

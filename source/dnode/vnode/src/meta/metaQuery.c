@@ -132,39 +132,43 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
   return 0;
 }
 
-STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
-#if 0
-  int      ret;
-  SMetaDB *pMetaDb = pMeta->pDB;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-  STbCfg  *pTbCfg;
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
+  void           *pKey = NULL;
+  void           *pVal = NULL;
+  int             kLen = 0;
+  int             vLen = 0;
+  int             ret;
+  SSkmDbKey       skmDbKey;
+  SSchemaWrapper *pSW = NULL;
+  SSchema        *pSchema = NULL;
+  void           *pBuf;
+  SCoder          coder = {0};
 
-  // Fetch
-  pKey = &uid;
-  kLen = sizeof(uid);
-  pVal = NULL;
-  ret = tdbDbGet(pMetaDb->pTbDB, pKey, kLen, &pVal, &vLen);
+  // fetch
+  skmDbKey.uid = uid;
+  skmDbKey.sver = sver;
+  pKey = &skmDbKey;
+  kLen = sizeof(skmDbKey);
+  ret = tdbDbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
   if (ret < 0) {
     return NULL;
   }
 
-  // Decode
-  pTbCfg = taosMemoryMalloc(sizeof(*pTbCfg));
-  metaDecodeTbInfo(pVal, pTbCfg);
+  // decode
+  pBuf = pVal;
+  pSW = taosMemoryMalloc(sizeof(pSW));
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_DECODER);
+  tDecodeSSchemaWrapper(&coder, pSW);
+  pSchema = taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
+  memcpy(pSchema, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
+  tCoderClear(&coder);
+
+  pSW->pSchema = pSchema;
 
   TDB_FREE(pVal);
 
-  return pTbCfg;
-#endif
-  return NULL;
-}
-
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
-  // return metaGetTableSchemaImpl(pMeta, uid, sver, isinline, false);
-  return NULL;
+  return pSW;
 }
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
@@ -216,26 +220,25 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
 }
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
-#if 0
   tb_uid_t        quid;
-  SSchemaWrapper *pSW;
-  STSchemaBuilder sb;
+  SMetaReader     mr = {0};
+  STSchema       *pTSchema = NULL;
+  SSchemaWrapper *pSW = NULL;
+  STSchemaBuilder sb = {0};
   SSchema        *pSchema;
-  STSchema       *pTSchema;
-  STbCfg         *pTbCfg;
 
-  pTbCfg = metaGetTbInfoByUid(pMeta, uid);
-  if (pTbCfg->type == META_CHILD_TABLE) {
-    quid = pTbCfg->ctbCfg.suid;
+  metaReaderInit(&mr, pMeta->pVnode, 0);
+  metaGetTableEntryByUid(&mr, uid);
+
+  if (mr.me.type == TSDB_CHILD_TABLE) {
+    quid = mr.me.ctbEntry.suid;
   } else {
     quid = uid;
   }
 
-  pSW = metaGetTableSchemaImpl(pMeta, quid, sver, true, true);
-  if (pSW == NULL) {
-    return NULL;
-  }
+  metaReaderClear(&mr);
 
+  pSW = metaGetTableSchema(pMeta, quid, sver, 0);
   tdInitTSchemaBuilder(&sb, 0);
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
@@ -244,9 +247,9 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   pTSchema = tdGetSchemaFromBuilder(&sb);
   tdDestroyTSchemaBuilder(&sb);
 
+  taosMemoryFree(pSW->pSchema);
+  taosMemoryFree(pSW);
   return pTSchema;
-#endif
-  return NULL;
 }
 
 STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
@@ -310,36 +313,6 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
   return pSW;
 
 #endif
-#endif
-  return NULL;
-}
-
-STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
-#if 0
-  void *pKey;
-  void *pVal;
-  void *ppKey;
-  int   pkLen;
-  int   kLen;
-  int   vLen;
-  int   ret;
-
-  pKey = tbname;
-  kLen = strlen(tbname) + 1;
-  pVal = NULL;
-  ppKey = NULL;
-  ret = tdbDbPGet(pMeta->pDB->pNameIdx, pKey, kLen, &ppKey, &pkLen, &pVal, &vLen);
-  if (ret < 0) {
-    return NULL;
-  }
-
-  ASSERT(pkLen == kLen + sizeof(uid));
-
-  *uid = *(tb_uid_t *)POINTER_SHIFT(ppKey, kLen);
-  TDB_FREE(ppKey);
-  TDB_FREE(pVal);
-
-  return metaGetTbInfoByUid(pMeta, *uid);
 #endif
   return NULL;
 }
