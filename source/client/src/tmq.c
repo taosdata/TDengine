@@ -506,7 +506,6 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   tmq->clientTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
 
   SCMSubscribeReq req;
-  req.topicNum = sz;
   req.consumerId = tmq->consumerId;
   strcpy(req.cgroup, tmq->groupId);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
@@ -516,12 +515,16 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     char* topicName = taosArrayGetP(container, i);
 
     SName name = {0};
+#if 0
     char* dbName = getDbOfConnection(tmq->pTscObj);
     if (dbName == NULL) {
       return TMQ_RESP_ERR__FAIL;
     }
-    tNameSetDbName(&name, tmq->pTscObj->acctId, dbName, strlen(dbName));
+#endif
+    tNameSetDbName(&name, tmq->pTscObj->acctId, topicName, strlen(topicName));
+#if 0
     tNameFromString(&name, topicName, T_NAME_TABLE);
+#endif
 
     char* topicFname = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     if (topicFname == NULL) {
@@ -539,7 +542,9 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
     taosArrayPush(req.topicNames, &topicFname);
+#if 0
     taosMemoryFree(dbName);
+#endif
   }
 
   int   tlen = tSerializeSCMSubscribeReq(NULL, &req);
