@@ -252,26 +252,24 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
-  int32_t daysPerFile;
-  int32_t daysToKeep0;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
+  int32_t durationPerFile;
+  int32_t durationToKeep0;
+  int32_t durationToKeep1;
+  int32_t durationToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
-  int8_t  singleSTable;
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;

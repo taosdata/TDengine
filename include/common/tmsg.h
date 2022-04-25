@@ -526,29 +526,39 @@ int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pR
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;  // MB
-  int32_t totalBlocks;
-  int32_t daysPerFile;
-  int32_t daysToKeep0;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
+  int32_t numOfStables;  // single_stable
+  int32_t buffer;        // MB
+  int32_t pageSize;
+  int32_t pages;
+  int32_t durationPerFile;  // unit is minute
+  int32_t durationToKeep0;
+  int32_t durationToKeep1;
+  int32_t durationToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;  // time resolution
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
   int8_t  streamMode;
-  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
+
+  // deleted or changed
+  int32_t daysPerFile;     // durationPerFile
+  int32_t daysToKeep0;     // durationToKeep0
+  int32_t daysToKeep1;     // durationToKeep1
+  int32_t daysToKeep2;     // durationToKeep2
+  int32_t cacheBlockSize;  // MB
+  int32_t totalBlocks;
+  int32_t commitTime;
+  int32_t ttl;
+  int8_t  update;
+  int8_t  singleSTable;  // numOfStables
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -557,10 +567,13 @@ void    tFreeSCreateDbReq(SCreateDbReq* pReq);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
-  int32_t totalBlocks;
-  int32_t daysToKeep0;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
+  int32_t durationPerFile;
+  int32_t durationToKeep0;
+  int32_t durationToKeep1;
+  int32_t durationToKeep2;
   int32_t fsyncPeriod;
   int8_t  walLevel;
   int8_t  strict;
@@ -621,26 +634,24 @@ int32_t tDeserializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
-  int32_t daysPerFile;
-  int32_t daysToKeep0;
-  int32_t daysToKeep1;
-  int32_t daysToKeep2;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
+  int32_t durationPerFile;
+  int32_t durationToKeep0;
+  int32_t durationToKeep1;
+  int32_t durationToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
-  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;
 } SDbCfgRsp;
@@ -840,15 +851,16 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  dbUid;
   int32_t  vgVersion;
-  int32_t  cacheBlockSize;
-  int32_t  totalBlocks;
-  int32_t  daysPerFile;
-  int32_t  daysToKeep0;
-  int32_t  daysToKeep1;
-  int32_t  daysToKeep2;
+   int32_t numOfStables;
+  int32_t  buffer;
+  int32_t  pageSize;
+  int32_t  pages;
+  int32_t  durationPerFile;
+  int32_t  durationToKeep0;
+  int32_t  durationToKeep1;
+  int32_t  durationToKeep2;
   int32_t  minRows;
   int32_t  maxRows;
-  int32_t  commitTime;
   int32_t  fsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
@@ -857,7 +869,6 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   strict;
-  int8_t   update;
   int8_t   cacheLastRow;
   int8_t   replica;
   int8_t   selfIndex;
@@ -891,10 +902,14 @@ int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq
 
 typedef struct {
   int32_t  vgVersion;
-  int32_t  totalBlocks;
-  int32_t  daysToKeep0;
-  int32_t  daysToKeep1;
-  int32_t  daysToKeep2;
+  int32_t  buffer;
+  int32_t  pageSize;
+  int32_t  pages;
+  int32_t  durationPerFile;
+  int32_t  durationToKeep0;
+  int32_t  durationToKeep1;
+  int32_t  durationToKeep2;
+  int32_t  fsyncPeriod;
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLastRow;
@@ -949,7 +964,6 @@ typedef struct {
   int32_t  numOfColumns;
   int8_t   precision;
   int8_t   tableType;
-  int8_t   update;
   int32_t  sversion;
   int32_t  tversion;
   uint64_t suid;

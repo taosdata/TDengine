@@ -342,7 +342,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   pTsdb->pMeta = pMeta;
   pTsdb->vgId = 2;
-  pTsdb->config.daysPerFile = 10;  // default days is 10
+  pTsdb->config.durationPerFile = 10;  // default days is 10
   pTsdb->config.keep1 = 30;
   pTsdb->config.keep2 = 90;
   pTsdb->config.keep = 365;

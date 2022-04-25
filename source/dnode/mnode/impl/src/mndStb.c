@@ -1510,7 +1510,6 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   pRsp->numOfColumns = pStb->numOfColumns;
   pRsp->precision = pDb->cfg.precision;
   pRsp->tableType = TSDB_SUPER_TABLE;
-  pRsp->update = pDb->cfg.update;
   pRsp->sversion = pStb->version;
   pRsp->suid = pStb->uid;
   pRsp->tuid = pStb->uid;

@@ -41,12 +41,13 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   SCreateDbReq createReq = {0};
   strcpy(createReq.db, dbname);
   createReq.numOfVgroups = 2;
-  createReq.cacheBlockSize = 16;
-  createReq.totalBlocks = 10;
-  createReq.daysPerFile = 1000;
-  createReq.daysToKeep0 = 3650;
-  createReq.daysToKeep1 = 3650;
-  createReq.daysToKeep2 = 3650;
+  createReq.buffer = -1;
+  createReq.pageSize = -1;
+  createReq.pages = -1;
+  createReq.durationPerFile = 1000;
+  createReq.durationToKeep0 = 3650;
+  createReq.durationToKeep1 = 3650;
+  createReq.durationToKeep2 = 3650;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
   createReq.commitTime = 3600;
@@ -344,7 +345,6 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     EXPECT_EQ(metaRsp.numOfTags, 3);
     EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
-    EXPECT_EQ(metaRsp.update, 0);
     EXPECT_EQ(metaRsp.sversion, 1);
     EXPECT_EQ(metaRsp.tversion, 0);
     EXPECT_GT(metaRsp.suid, 0);

@@ -1519,12 +1519,12 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
   pReq->numOfVgroups = GET_OPTION_VAL(pStmt->pOptions->pNumOfVgroups, TSDB_DEFAULT_VN_PER_DB);
-  pReq->cacheBlockSize = GET_OPTION_VAL(pStmt->pOptions->pCacheBlockSize, TSDB_DEFAULT_CACHE_BLOCK_SIZE);
-  pReq->totalBlocks = GET_OPTION_VAL(pStmt->pOptions->pNumOfBlocks, TSDB_DEFAULT_TOTAL_BLOCKS);
-  pReq->daysPerFile = GET_OPTION_VAL(pStmt->pOptions->pDaysPerFile, TSDB_DEFAULT_DAYS_PER_FILE);
-  pReq->daysToKeep0 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 0), TSDB_DEFAULT_KEEP);
-  pReq->daysToKeep1 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 1), TSDB_DEFAULT_KEEP);
-  pReq->daysToKeep2 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 2), TSDB_DEFAULT_KEEP);
+  pReq->buffer = GET_OPTION_VAL(pStmt->pOptions->pCacheBlockSize, TSDB_DEFAULT_BUFFER_SIZE);
+  pReq->pages = GET_OPTION_VAL(pStmt->pOptions->pNumOfBlocks, TSDB_DEFAULT_TOTAL_PAGES);
+  pReq->durationPerFile = GET_OPTION_VAL(pStmt->pOptions->pDaysPerFile, TSDB_DEFAULT_DURATION_PER_FILE);
+  pReq->durationToKeep0 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 0), TSDB_DEFAULT_KEEP);
+  pReq->durationToKeep1 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 1), TSDB_DEFAULT_KEEP);
+  pReq->durationToKeep2 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 2), TSDB_DEFAULT_KEEP);
   pReq->minRows = GET_OPTION_VAL(pStmt->pOptions->pMinRowsPerBlock, TSDB_DEFAULT_MINROWS_FBLOCK);
   pReq->maxRows = GET_OPTION_VAL(pStmt->pOptions->pMaxRowsPerBlock, TSDB_DEFAULT_MAXROWS_FBLOCK);
   pReq->commitTime = -1;
@@ -1656,16 +1656,16 @@ static int32_t checkKeepOption(STranslateContext* pCxt, SNodeList* pKeep) {
                                 pKeep2->unit);
   }
 
-  int32_t daysToKeep0 = getBigintFromValueNode(pKeep0);
-  int32_t daysToKeep1 = getBigintFromValueNode(pKeep1);
-  int32_t daysToKeep2 = getBigintFromValueNode(pKeep2);
-  if (daysToKeep0 < TSDB_MIN_KEEP || daysToKeep1 < TSDB_MIN_KEEP || daysToKeep2 < TSDB_MIN_KEEP ||
-      daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_KEEP_VALUE, daysToKeep0, daysToKeep1, daysToKeep2,
+  int32_t durationToKeep0 = getBigintFromValueNode(pKeep0);
+  int32_t durationToKeep1 = getBigintFromValueNode(pKeep1);
+  int32_t durationToKeep2 = getBigintFromValueNode(pKeep2);
+  if (durationToKeep0 < TSDB_MIN_KEEP || durationToKeep1 < TSDB_MIN_KEEP || durationToKeep2 < TSDB_MIN_KEEP ||
+      durationToKeep0 > TSDB_MAX_KEEP || durationToKeep1 > TSDB_MAX_KEEP || durationToKeep2 > TSDB_MAX_KEEP) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_KEEP_VALUE, durationToKeep0, durationToKeep1, durationToKeep2,
                                 TSDB_MIN_KEEP, TSDB_MAX_KEEP);
   }
 
-  if (!((daysToKeep0 <= daysToKeep1) && (daysToKeep1 <= daysToKeep2))) {
+  if (!((durationToKeep0 <= durationToKeep1) && (durationToKeep1 <= durationToKeep2))) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_KEEP_ORDER);
   }
 
@@ -1699,18 +1699,18 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   if (NULL == pOptions->pDaysPerFile && NULL == pOptions->pKeep) {
     return TSDB_CODE_SUCCESS;
   }
-  int64_t daysPerFile = GET_OPTION_VAL(pOptions->pDaysPerFile, alter ? -1 : TSDB_DEFAULT_DAYS_PER_FILE);
-  int64_t daysToKeep0 = GET_OPTION_VAL(nodesListGetNode(pOptions->pKeep, 0), alter ? -1 : TSDB_DEFAULT_KEEP);
-  if (alter && (-1 == daysPerFile || -1 == daysToKeep0)) {
+  int64_t durationPerFile = GET_OPTION_VAL(pOptions->pDaysPerFile, alter ? -1 : TSDB_DEFAULT_DURATION_PER_FILE);
+  int64_t durationToKeep0 = GET_OPTION_VAL(nodesListGetNode(pOptions->pKeep, 0), alter ? -1 : TSDB_DEFAULT_KEEP);
+  if (alter && (-1 == durationPerFile || -1 == durationToKeep0)) {
     SDbCfgInfo dbCfg;
     int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
-    daysPerFile = (-1 == daysPerFile ? dbCfg.daysPerFile : daysPerFile);
-    daysToKeep0 = (-1 == daysPerFile ? dbCfg.daysToKeep0 : daysToKeep0);
+    durationPerFile = (-1 == durationPerFile ? dbCfg.durationPerFile : durationPerFile);
+    durationToKeep0 = (-1 == durationPerFile ? dbCfg.durationToKeep0 : durationToKeep0);
   }
-  if (daysPerFile > daysToKeep0) {
+  if (durationPerFile > durationToKeep0) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DAYS_VALUE);
   }
   return TSDB_CODE_SUCCESS;
@@ -1719,10 +1719,10 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions,
                                     bool alter) {
   int32_t code =
-      checkRangeOption(pCxt, "totalBlocks", pOptions->pNumOfBlocks, TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
+      checkRangeOption(pCxt, "totalBlocks", pOptions->pNumOfBlocks, TSDB_MIN_TOTAL_PAGES, TSDB_MAX_TOTAL_PAGES);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheBlockSize", pOptions->pCacheBlockSize, TSDB_MIN_CACHE_BLOCK_SIZE,
-                            TSDB_MAX_CACHE_BLOCK_SIZE);
+    code = checkRangeOption(pCxt, "cacheBlockSize", pOptions->pCacheBlockSize, TSDB_MIN_BUFFER_SIZE,
+                            TSDB_MAX_BUFFER_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "cacheLast", pOptions->pCachelast, TSDB_MIN_DB_CACHE_LAST_ROW,
@@ -1733,7 +1733,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     code =
-        checkRangeOption(pCxt, "daysPerFile", pOptions->pDaysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+        checkRangeOption(pCxt, "durationPerFile", pOptions->pDaysPerFile, TSDB_MIN_DURATION_PER_FILE, TSDB_MAX_DURATION_PER_FILE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "fsyncPeriod", pOptions->pFsyncPeriod, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
@@ -1836,10 +1836,10 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
-  pReq->totalBlocks = GET_OPTION_VAL(pStmt->pOptions->pNumOfBlocks, -1);
-  pReq->daysToKeep0 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 0), -1);
-  pReq->daysToKeep1 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 1), -1);
-  pReq->daysToKeep2 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 2), -1);
+  pReq->buffer = GET_OPTION_VAL(pStmt->pOptions->pNumOfBlocks, -1);
+  pReq->durationToKeep0 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 0), -1);
+  pReq->durationToKeep1 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 1), -1);
+  pReq->durationToKeep2 = GET_OPTION_VAL(nodesListGetNode(pStmt->pOptions->pKeep, 2), -1);
   pReq->fsyncPeriod = GET_OPTION_VAL(pStmt->pOptions->pFsyncPeriod, -1);
   pReq->walLevel = GET_OPTION_VAL(pStmt->pOptions->pWalLevel, -1);
   pReq->strict = GET_OPTION_VAL(pStmt->pOptions->pQuorum, -1);
