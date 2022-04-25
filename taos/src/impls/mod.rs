@@ -56,7 +56,7 @@ impl<'b, 'r> BlockExt<'b> for SyncBlock<'r> {
         self.precision
     }
 
-    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, Self::Value) {
+    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (*const Field, Self::Value) {
         let inner = self.data.add(col);
 
         let field = self.get_field_unchecked(col);
@@ -114,7 +114,7 @@ impl<'b, 'r> BlockExt<'b> for SyncBlock<'r> {
             }
             _ => BorrowedValue::Null,
         };
-        (field, value)
+        (field as _, value)
     }
 
     fn is_null(&self, row: usize, col: usize) -> bool {

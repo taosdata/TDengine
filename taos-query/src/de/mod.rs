@@ -14,7 +14,7 @@ use crate::{Field, Valuable};
 pub(crate) struct RecordDeserializer<'b, T, R>
 where
     T: Valuable<'b>,
-    R: IntoIterator<Item = (&'b Field, T)>,
+    R: IntoIterator<Item = (*const Field, T)>,
 {
     inner: <R as IntoIterator>::IntoIter,
     value: Option<T>,
@@ -24,7 +24,7 @@ where
 impl<'b, T, R> From<R> for RecordDeserializer<'b, T, R>
 where
     T: Valuable<'b>,
-    R: IntoIterator<Item = (&'b Field, T)>,
+    R: IntoIterator<Item = (*const Field, T)>,
 {
     fn from(input: R) -> Self {
         Self {
@@ -38,7 +38,7 @@ where
 impl<'b, T, R> RecordDeserializer<'b, T, R>
 where
     T: Valuable<'b>,
-    R: IntoIterator<Item = (&'b Field, T)>,
+    R: IntoIterator<Item = (*const Field, T)>,
 {
     fn next_value(&mut self) -> Option<T> {
         self.inner.next().map(|(_, v)| v)
@@ -68,7 +68,7 @@ impl<'de> Deserializer<'de> for StringDeserializer {
 impl<'de, 'b, T, R> MapAccess<'de> for RecordDeserializer<'de, T, R>
 where
     T: Valuable<'de>,
-    R: IntoIterator<Item = (&'de Field, T)>,
+    R: IntoIterator<Item = (*const Field, T)>,
 {
     type Error = Error;
 
@@ -77,9 +77,10 @@ where
         K: DeserializeSeed<'de>,
     {
         match self.inner.next() {
-            Some((name, value)) => {
+            Some((field, value)) => {
                 self.value = Some(value);
-                seed.deserialize(name.name().into_deserializer()).map(Some)
+                let field = unsafe { &*field };
+                seed.deserialize(field.name().into_deserializer()).map(Some)
             }
             _ => Ok(None),
         }
@@ -100,7 +101,7 @@ where
 impl<'de, 'b, T, R> SeqAccess<'de> for RecordDeserializer<'de, T, R>
 where
     T: Valuable<'de>,
-    R: IntoIterator<Item = (&'de Field, T)>,
+    R: IntoIterator<Item = (*const Field, T)>,
 {
     type Error = Error;
 
@@ -121,7 +122,7 @@ where
 impl<'de, 'b, T, R> Deserializer<'de> for RecordDeserializer<'de, T, R>
 where
     T: Valuable<'de>,
-    R: IntoIterator<Item = (&'de Field, T)>,
+    R: IntoIterator<Item = (*const Field, T)>,
 {
     type Error = Error;
 

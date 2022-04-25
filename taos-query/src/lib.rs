@@ -42,7 +42,7 @@ pub struct CellIter<'b, T: BlockExt<'b>> {
 }
 
 impl<'b, T: BlockExt<'b>> Iterator for CellIter<'b, T> {
-    type Item = (&'b Field, T::Value);
+    type Item = (*const Field, T::Value);
 
     fn next(&mut self) -> Option<Self::Item> {
         let col = self.col;
@@ -65,7 +65,7 @@ impl<'b, T> IntoIterator for RowInBlock<'b, T>
 where
     T: BlockExt<'b>,
 {
-    type Item = (&'b Field, T::Value);
+    type Item = (*const Field, T::Value);
 
     type IntoIter = CellIter<'b, T>;
 
@@ -143,7 +143,7 @@ where
     /// # Safety
     ///
     /// **DO NOT** call it directly.
-    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, Self::Value);
+    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (*const Field, Self::Value);
 
     /// Query by rows.
     fn iter_rows(&'b self) -> RowsIter<Self> {
@@ -406,8 +406,8 @@ mod tests {
             3
         }
 
-        unsafe fn cell_unchecked(&self, _row: usize, col: usize) -> (&Field, Self::Value) {
-            (self.get_field_unchecked(col), Value("abc"))
+        unsafe fn cell_unchecked(&self, _row: usize, col: usize) -> (*const Field, Self::Value) {
+            (self.get_field_unchecked(col) as _, Value("abc"))
         }
 
         fn precision(&self) -> Precision {
