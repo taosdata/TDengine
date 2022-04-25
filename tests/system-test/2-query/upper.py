@@ -44,7 +44,8 @@ class TDTestCase:
         return upper_condition
 
     def __where_condition(self, col):
-        return f" where count({col}) > 0 "
+        # return f" where count({col}) > 0 "
+        return ""
 
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
