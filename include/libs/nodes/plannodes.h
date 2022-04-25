@@ -46,7 +46,7 @@ typedef struct SScanLogicNode {
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
   EScanType scanType;
-  uint8_t scanFlag;         // denotes reversed scan of data or not
+  uint8_t scanSeq[2]; // first is scan count, and second is reverse scan count
   STimeWindow scanRange;
   SName tableName;
   bool showRewrite;
@@ -189,9 +189,6 @@ typedef struct SScanPhysiNode {
   SNodeList* pScanCols;
   uint64_t uid;           // unique id of the table
   int8_t tableType;
-  int32_t order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
-  int32_t count;         // repeat count
-  int32_t reverse;       // reverse scan count
   SName tableName;
 } SScanPhysiNode;
 
@@ -207,7 +204,7 @@ typedef struct SSystemTableScanPhysiNode {
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
-  uint8_t scanFlag;         // denotes reversed scan of data or not
+  uint8_t scanSeq[2]; // first is scan count, and second is reverse scan count
   STimeWindow scanRange;
   double ratio;
   int32_t dataRequired;

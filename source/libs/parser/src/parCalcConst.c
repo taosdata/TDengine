@@ -83,7 +83,7 @@ static EDealRes calcConstOperator(SOperatorNode** pNode, void* pContext) {
 
 static EDealRes calcConstFunction(SFunctionNode** pNode, void* pContext) {
   SFunctionNode* pFunc = *pNode;
-  if (!fmIsScalarFunc(pFunc->funcId)) {
+  if (!fmIsScalarFunc(pFunc->funcId) || fmIsUserDefinedFunc(pFunc->funcId)) {
     return DEAL_RES_CONTINUE;
   }
   SNode* pParam = NULL;

@@ -34,13 +34,9 @@ extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 
 // common
-extern int32_t tsRpcTimer;
-extern int32_t tsRpcMaxTime;
-extern bool    tsRpcForceTcp;  // all commands go to tcp protocol if this is enabled
 extern int32_t tsMaxConnections;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
-extern int32_t tsMaxTmrCtrl;
 extern int32_t tsCompressMsgSize;
 extern int32_t tsCompressColData;
 extern int32_t tsMaxNumOfDistinctResults;
@@ -98,9 +94,6 @@ extern bool    tsDeadLockKillQuery;
 extern int32_t tsQueryPolicy;
 
 // client
-extern int32_t tsMaxWildCardsLen;
-extern int32_t tsMaxRegexStringLen;
-extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
