@@ -60,7 +60,6 @@ int32_t init_env() {
   pRes =
       taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)");
   if (taos_errno(pRes) != 0) {
-    assert(0);
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
