@@ -32,7 +32,7 @@ class taosdemoPerformace:
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
-        self.config = "/etc/perf"
+        self.config = "/etc/%s" % self.branch
         self.conn = taos.connect(
             self.host,
             self.user,
@@ -88,7 +88,7 @@ class taosdemoPerformace:
 
         insert_data = {
             "filetype": "insert",
-            "cfgdir": "/etc/perf",
+            "cfgdir": "/etc/%s" % self.branch,
             "host": "127.0.0.1",
             "port": 6030,
             "user": "root",
@@ -112,6 +112,7 @@ class taosdemoPerformace:
         return output
 
     def getBuildPath(self):
+        buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -130,7 +131,7 @@ class taosdemoPerformace:
     def insertData(self):
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            print("taosdemo not found!")
+            print("perfMonitor not found!")
             sys.exit(1)
             
         binPath = buildPath + "/build/bin/"
@@ -198,9 +199,9 @@ if __name__ == '__main__':
         '-b',
         '--git-branch',
         action='store',
-        default='master',
+        default='2.4',
         type=str,
-        help='git branch (default: master)')
+        help='git branch (default: 2.4)')
     parser.add_argument(
         '-T',
         '--build-type',
