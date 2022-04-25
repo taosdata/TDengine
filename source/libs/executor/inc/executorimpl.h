@@ -399,8 +399,8 @@ typedef struct SOptrBasicInfo {
 // TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
 typedef struct SAggSupporter {
   SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
-  SHashObj*      pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
-  SArray*        pResultRowArrayList;  // The array list that contains the Result rows
+//  SHashObj*      pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
+//  SArray*        pResultRowArrayList;  // The array list that contains the Result rows
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row

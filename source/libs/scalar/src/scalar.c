@@ -489,7 +489,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   if (fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
-  
+
   FOREACH(tnode, node->pParameterList) {
     if (!SCL_IS_CONST_NODE(tnode)) {
       return DEAL_RES_CONTINUE;
@@ -517,8 +517,8 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     res->node.resType = node->node.resType;
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {
-      res->datum.p = output.columnData->pData;
-      output.columnData->pData = NULL;
+      res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
+      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
     }
