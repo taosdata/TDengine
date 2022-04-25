@@ -62,11 +62,9 @@ class TDTestCase:
                 tdSql.query(f"select {condition} from {tbname} {where_condition}  {group_condition} ")
                 datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
                 upper_data = [ str(data).upper()  if data else None for data in datas ]
-                tdSql.query(f"select upper( {condition} ) from {tbname} {where_condition} ")
+                tdSql.query(f"select upper( {condition} ) from {tbname} {where_condition}  {group_condition}")
                 for i in range(len(upper_data)):
                     tdSql.checkData(i, 0, upper_data[i] ) if upper_data[i] else tdSql.checkData(i, 0, None)
-
-            tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
 
     def __upper_err_check(self,tbanme):
         sqls = []
