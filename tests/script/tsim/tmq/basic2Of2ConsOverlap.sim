@@ -1,6 +1,6 @@
 #### test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406
 #basic1Of2Cons.sim: vgroups=1, one topic for 2 consumers, firstly insert data, then start consume. Include six topics
-#basic2Of2Cons.sim: vgroups=1, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
+#basic2Of2ConsOverlap.sim: vgroups=1, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
 #basic3Of2Cons.sim: vgroups=4, one topic for 2 consumers, firstly insert data, then start consume. Include six topics
 #basic4Of2Cons.sim: vgroups=4, multi topics for 2 consumers, firstly insert data, then start consume. Include six topics
 
@@ -56,25 +56,29 @@ sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
 $keyList = ' . group.id:cgrp1
 $keyList = $keyList . '
 
-$topicNum = 3
+$topicNum = 2
 
 #=============================== start consume =============================#
 
 
 print ================ test consume from stb
-print == multi toipcs: topic_stb_column + topic_stb_all + topic_stb_function
+print == overlap toipcs: topic_stb_column + topic_stb_all, topic_stb_function + topic_stb_all
 $topicList = ' . topic_stb_column
 $topicList = $topicList . ,
 $topicList = $topicList . topic_stb_all
-$topicList = $topicList . ,
-$topicList = $topicList . topic_stb_function
 $topicList = $topicList . '
 
 $consumerId    = 0
-$totalMsgOfStb = $ctbNum * $rowsPerCtb
-$totalMsgOfStb = $totalMsgOfStb * $topicNum
+$totalMsgOfOneTopic = $ctbNum * $rowsPerCtb
+$totalMsgOfStb = $totalMsgOfOneTopic * $topicNum
 $expectmsgcnt  = $totalMsgOfStb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+
+
+$topicList = ' . topic_stb_all
+$topicList = $topicList . ,
+$topicList = $topicList . topic_stb_function
+$topicList = $topicList . '
 $consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
@@ -103,31 +107,46 @@ if $data[0][1] == 1 then
   endi
 endi
 
-# either $data[0][2] == $totalMsgOfStb and $data[1][2] == 0
-# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfStb
-if $data[0][2] == $totalMsgOfStb then
-  if $data[1][2] == 0 then
-    goto check_ok_0
-  endi
-elif $data[0][2] == 0 then
-  if $data[1][2] == $totalMsgOfStb then
-    goto check_ok_0
-  endi
-endi
-return -1
-check_ok_0:
+# $data[0][2]/$data[1][2] should be between $totalMsgOfOneTopic and $totalMsgOfStb.
 
-if $data[0][3] == $totalMsgOfStb then
-  if $data[1][3] == 0 then
-    goto check_ok_1
-  endi
-elif $data[0][3] == 0 then
-  if $data[1][3] == $totalMsgOfStb then
-    goto check_ok_1
-  endi
+if $data[0][2] < $totalMsgOfOneTopic then
+  return -1
 endi
-return -1
-check_ok_1:
+if $data[0][2] > $totalMsgOfStb then
+  return -1
+endi
+if $data[1][2] < $totalMsgOfOneTopic then
+  return -1
+endi
+if $data[1][2] > $totalMsgOfStb then
+  return -1
+endi
+
+$totalMsgCons = $totalMsgOfOneTopic + $totalMsgOfStb
+$sumOfMsgCnt = $data[0][2] + $data[1][2]
+if $sumOfMsgCnt != $totalMsgCons then
+  return -1
+endi
+
+# $data[0][3]/$data[1][3] should be between $totalMsgOfOneTopic and $totalMsgOfStb.
+if $data[0][3] < $totalMsgOfOneTopic then
+  return -1
+endi
+if $data[0][3] > $totalMsgOfStb then
+  return -1
+endi
+if $data[1][3] < $totalMsgOfOneTopic then
+  return -1
+endi
+if $data[1][3] > $totalMsgOfStb then
+  return -1
+endi
+
+$totalMsgCons = $totalMsgOfOneTopic + $totalMsgOfStb
+$sumOfRows = $data[0][3] + $data[1][3]
+if $sumOfRows != $totalMsgCons then
+  return -1
+endi
 
 #######################################################################################
 # clear consume info and consume result 
@@ -150,23 +169,27 @@ endi
 
 
 print ================ test consume from ctb
-print == multi toipcs: topic_ctb_column + topic_ctb_all + topic_ctb_function
+print == overlap toipcs: topic_ctb_column + topic_ctb_all, topic_ctb_function + topic_ctb_all
 $topicList = ' . topic_ctb_column
 $topicList = $topicList . ,
 $topicList = $topicList . topic_ctb_all
-$topicList = $topicList . ,
-$topicList = $topicList . topic_ctb_function
 $topicList = $topicList . '
-
 $consumerId    = 0
-$totalMsgOfCtb = $rowsPerCtb * $topicNum
+
+$totalMsgOfOneTopic = $rowsPerCtb
+$totalMsgOfCtb = $totalMsgOfOneTopic * $topicNum
 $expectmsgcnt  = $totalMsgOfCtb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+
+$topicList = ' . topic_ctb_function
+$topicList = $topicList . ,
+$topicList = $topicList . topic_ctb_all
+$topicList = $topicList . '
 $consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
 print == start consumer to pull msgs from ctb
-print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
+print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
 system tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
 
 print == check consume result
@@ -190,31 +213,31 @@ if $data[0][1] == 1 then
   endi
 endi
 
-# either $data[0][2] == $totalMsgOfCtb and $data[1][2] == 0
-# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfCtb
-if $data[0][2] == $totalMsgOfCtb then
-  if $data[1][2] == 0 then
-    goto check_ok_2
-  endi
-elif $data[0][2] == 0 then
+# either $data[0][2] $totalMsgOfOneTopic and $data[1][2] == $totalMsgOfCtb
+# or     $data[0][2] $totalMsgOfCtb      and $data[1][2] == $totalMsgOfOneTopic
+if $data[0][2] == $totalMsgOfOneTopic then
   if $data[1][2] == $totalMsgOfCtb then
-    goto check_ok_2
+    goto check_ok_0
+  endi
+elif $data[1][2] == $totalMsgOfOneTopic then
+  if $data[0][2] == $totalMsgOfCtb then
+    goto check_ok_0
   endi
 endi
 return -1
-check_ok_2:
+check_ok_0:
 
-if $data[0][3] == $totalMsgOfCtb then
-  if $data[1][3] == 0 then
-    goto check_ok_3
-  endi
-elif $data[0][3] == 0 then
+if $data[0][3] == $totalMsgOfOneTopic then
   if $data[1][3] == $totalMsgOfCtb then
-    goto check_ok_3
+    goto check_ok_1
+  endi
+elif $data[1][3] == $totalMsgOfOneTopic then
+  if $data[0][3] == $totalMsgOfCtb then
+    goto check_ok_1
   endi
 endi
 return -1
-check_ok_3:
+check_ok_1:
 
 #######################################################################################
 # clear consume info and consume result 
@@ -237,18 +260,23 @@ endi
 
 
 print ================ test consume from ntb
-print == multi toipcs: topic_ntb_column + topic_ntb_all + topic_ntb_function
+print == overlap toipcs: topic_ntb_column + topic_ntb_all, topic_ntb_function + topic_ntb_all
 $topicList = ' . topic_ntb_column
 $topicList = $topicList . ,
 $topicList = $topicList . topic_ntb_all
-$topicList = $topicList . ,
-$topicList = $topicList . topic_ntb_function
 $topicList = $topicList . '
 
 $consumerId    = 0
-$totalMsgOfNtb = $rowsPerCtb * $topicNum
+$totalMsgOfOneTopic = $rowsPerCtb
+$totalMsgOfNtb = $totalMsgOfOneTopic * $topicNum
 $expectmsgcnt  = $totalMsgOfNtb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+
+
+$topicList = ' . topic_ntb_function
+$topicList = $topicList . ,
+$topicList = $topicList . topic_ntb_all
+$topicList = $topicList . '
 $consumerId    = 1
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
 
@@ -271,37 +299,37 @@ if $data[0][1] == 0 then
     return -1
   endi
 endi
-if $data[1][1] == 0 then
-  if $data[0][1] != 1 then
+if $data[0][1] == 1 then
+  if $data[1][1] != 0 then
     return -1
   endi
 endi
 
-# either $data[0][2] == $totalMsgOfNtb and $data[1][2] == 0
-# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfNtb
-if $data[0][2] == $totalMsgOfNtb then
-  if $data[1][2] == 0 then
-    goto check_ok_4
-  endi
-elif $data[0][2] == 0 then
+# either $data[0][2] $totalMsgOfOneTopic and $data[1][2] == $totalMsgOfNtb
+# or     $data[0][2] $totalMsgOfNtb      and $data[1][2] == $totalMsgOfOneTopic
+if $data[0][2] == $totalMsgOfOneTopic then
   if $data[1][2] == $totalMsgOfNtb then
-    goto check_ok_4
+    goto check_ok_2
+  endi
+elif $data[1][2] == $totalMsgOfOneTopic then
+  if $data[0][2] == $totalMsgOfNtb then
+    goto check_ok_2
   endi
 endi
 return -1
-check_ok_4:
+check_ok_2:
 
-if $data[0][3] == $totalMsgOfNtb then
-  if $data[1][3] == 0 then
-    goto check_ok_5
-  endi
-elif $data[0][3] == 0 then
+if $data[0][3] == $totalMsgOfOneTopic then
   if $data[1][3] == $totalMsgOfNtb then
-    goto check_ok_5
+    goto check_ok_3
+  endi
+elif $data[1][3] == $totalMsgOfOneTopic then
+  if $data[0][3] == $totalMsgOfNtb then
+    goto check_ok_3
   endi
 endi
 return -1
-check_ok_5:
+check_ok_3:
 
 #------ not need stop consumer, because it exit after pull msg overthan expect msg
 #system tsim/tmq/consume.sh -s stop -x SIGINT

@@ -32,13 +32,9 @@ int32_t  tsVersion = 30000000;
 int32_t  tsStatusInterval = 1;  // second
 
 // common
-int32_t tsRpcTimer = 300;
-int32_t tsRpcMaxTime = 600;    // seconds;
-bool    tsRpcForceTcp = true;  // disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns = 50000;
 int32_t tsMaxConnections = 50000;
 int32_t tsShellActivityTimer = 3;  // second
-int32_t tsMaxBinaryDisplayWidth = 30;
 bool    tsEnableSlaveQuery = true;
 bool    tsPrintAuth = false;
 
@@ -104,14 +100,6 @@ int32_t tsCompressColData = -1;
  * denote if 3.0 query pattern compatible for 2.0
  */
 int32_t tsCompatibleModel = 1;
-
-// client
-int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
-int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
-
-// the maximum number of results for projection query on super table that are returned from
-// one virtual node, to order according to timestamp
-int32_t tsMaxNumOfOrderedResults = 100000;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
@@ -237,18 +225,20 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
-  snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+  if (taosIsDir(cfgDir)) {
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+  } else {
+    tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
+  }
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
     return -1;
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
-    if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
-      uInfo("cfg file:%s not read since %s", cfgFile, terrstr());
-      return 0;
-    }
+  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
+    uError("failed to load from cfg file:%s since %s", cfgFile, terrstr());
+    return -1;
   }
 
   if (cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile) != 0) {
@@ -312,19 +302,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "tempDir", tsTempDir, 1) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxTmrCtrl", tsMaxTmrCtrl, 8, 2048, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcTimer", tsRpcTimer, 100, 3000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcMaxTime", tsRpcMaxTime, 100, 7200, 1) != 0) return -1;
-  if (cfgAddBool(pCfg, "rpcForceTcp", tsRpcForceTcp, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxWildCardsLength", tsMaxWildCardsLen, 0, TSDB_MAX_FIELD_LEN, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxRegexStringLen", tsMaxRegexStringLen, 0, TSDB_MAX_FIELD_LEN, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1) != 0)
-    return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
@@ -506,18 +487,10 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     return -1;
   }
 
-  tsMaxTmrCtrl = cfgGetItem(pCfg, "maxTmrCtrl")->i32;
-  tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
-  tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
-  tsRpcForceTcp = cfgGetItem(pCfg, "rpcForceTcp")->i32;
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
-  tsMaxWildCardsLen = cfgGetItem(pCfg, "maxWildCardsLength")->i32;
-  tsMaxRegexStringLen = cfgGetItem(pCfg, "maxRegexStringLen")->i32;
-  tsMaxNumOfOrderedResults = cfgGetItem(pCfg, "maxNumOfOrderedRes")->i32;
   tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
-  tsMaxBinaryDisplayWidth = cfgGetItem(pCfg, "maxBinaryDisplayWidth")->i32;
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   return 0;
@@ -708,6 +681,6 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   if (strcasecmp(option, "resetlog") == 0) {
     taosResetLog();
-    cfgDumpCfg(tsCfg, 1, false);
+    cfgDumpCfg(tsCfg, 0, false);
   }
 }
