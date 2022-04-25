@@ -2,13 +2,13 @@ use std::{
     borrow::{Borrow, Cow},
     ffi::c_void,
     marker::PhantomData,
-    rc::Rc,
+    rc::{Rc, Weak},
     slice,
 };
 use thiserror::Error;
 
 use taos_query::{common::*, *};
-use taos_sys::RawRes;
+use taos_sys::{DroppableRawRes, RawRes};
 
 use crate::{util::IntoCStr, Taos};
 
@@ -26,24 +26,22 @@ pub enum Error {
 // Result set live shorter than query lifetime.
 #[derive(Debug)]
 pub struct SyncResultSet<'q> {
-    raw: Rc<RawRes<'q>>,
-    fields: Rc<Cow<'q, [Field]>>,
+    raw: DroppableRawRes<'q>,
+    // fields: Rc<Cow<'q, [Field]>>,
     precision: Precision,
     records: Vec<i32>,
 }
 
 #[derive(Debug)]
-pub struct SyncBlock<'r, 'q> {
-    raw: Rc<RawRes<'q>>,
-    fields: Rc<Cow<'r, [Field]>>,
+pub struct SyncBlock<'r> {
+    raw: Rc<RawRes>,
     precision: Precision,
     data: *mut *mut c_void,
     lengths: &'r [i32],
     num_of_rows: usize,
-    _marker: PhantomData<&'q Field>,
 }
 
-impl<'b, 'r, 'q> BlockExt<'b> for SyncBlock<'r, 'q> {
+impl<'b, 'r> BlockExt<'b> for SyncBlock<'r> {
     type Value = BorrowedValue<'b>;
 
     fn num_of_rows(&self) -> usize {
@@ -51,7 +49,7 @@ impl<'b, 'r, 'q> BlockExt<'b> for SyncBlock<'r, 'q> {
     }
 
     fn fields(&self) -> &[Field] {
-        &self.fields
+        &self.raw.fields()
     }
 
     fn precision(&self) -> Precision {
@@ -126,7 +124,7 @@ impl<'b, 'r, 'q> BlockExt<'b> for SyncBlock<'r, 'q> {
 
 impl<'q> ResultSet for SyncResultSet<'q> {
     fn fields(&self) -> &[Field] {
-        &self.fields
+        &self.raw.fields()
     }
 
     fn precision(&self) -> Precision {
@@ -145,21 +143,50 @@ impl<'q> ResultSet for SyncResultSet<'q> {
 }
 
 impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
-    type Item = SyncBlock<'r, 'q>;
+    type Item = SyncBlock<'r>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Ok(Some((data, num_of_rows))) = self.raw.fetch_block() {
+        if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
             dbg!(num_of_rows);
             self.records.push(num_of_rows);
-            let lengths = self.raw.fetch_lengths();
+            // let lengths = self.raw.fetch_lengths();
+            // let raw = self.raw.raw();
+            // let fields = self.fields.clone();
+            let num_of_fields = self.num_of_fields();
+            let lengths = unsafe { std::slice::from_raw_parts(lengths, num_of_fields) };
+
+            // let lengths = self.raw.fetch_lengths();
             Some(SyncBlock {
-                raw: self.raw.clone(),
-                fields: self.fields.clone(),
+                raw: self.raw.raw(),
                 precision: self.precision(),
                 data,
                 lengths,
                 num_of_rows: num_of_rows as _,
-                _marker: PhantomData,
+                // _marker: PhantomData,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<'r, 'q> SyncBlock<'r> {
+    #[inline]
+    pub fn from_raw_with_ptr(
+        raw: Rc<RawRes>,
+        precision: Precision,
+        data: *mut *mut c_void,
+        num_of_rows: i32,
+    ) -> Option<Self> {
+        if num_of_rows > 0 {
+            let lengths = raw.fetch_lengths();
+            Some(SyncBlock {
+                raw,
+                data,
+                precision: precision,
+                lengths,
+                num_of_rows: num_of_rows as _,
+                // _marker: PhantomData,
             })
         } else {
             None
@@ -175,18 +202,18 @@ impl<'q> Queryable<'q> for Taos {
     fn query<T: AsRef<str>>(
         &'q self,
         sql: T,
-    ) -> Result<Result<Self::ResultSet, usize>, Self::Error> {
+    ) -> Result<Result<SyncResultSet<'q>, usize>, Self::Error> {
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
-        let fields = raw.fetch_fields();
+        let n = raw.num_fields();
         let precision = raw.precision();
-        match fields {
-            Some(fields) => Ok(Ok(SyncResultSet {
-                raw: Rc::new(raw),
-                fields: Rc::new(fields),
+        if n == 0 {
+            Ok(Err(raw.affected_rows() as _))
+        } else {
+            Ok(Ok(SyncResultSet {
+                raw,
                 precision,
                 records: Default::default(),
-            })),
-            None => Ok(Err(raw.affected_rows() as _)),
+            }))
         }
     }
 }
@@ -194,6 +221,8 @@ impl<'q> Queryable<'q> for Taos {
 #[taos_macros::test(crate, log_level = "info")]
 async fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
     let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?.unwrap();
+
+    assert!(rs.fields().len() == 5);
     #[derive(Debug, serde::Deserialize)]
     #[allow(dead_code)]
     struct Record {

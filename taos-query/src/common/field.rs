@@ -3,6 +3,7 @@ use std::ffi::CStr;
 use std::fmt::{Debug, Display};
 
 use super::ty::Ty;
+
 /// A `Field` represents the name and data type of one column or tag.
 ///
 /// For example, a table as "create table tb1 (ts timestamp, n nchar(100))".
@@ -13,51 +14,23 @@ use super::ty::Ty;
 ///    bytes length 8 which is the byte-width of `i64`.
 /// 2. `{ name: "n", ty: NChar, bytes: 100 }`, a `NCHAR` filed with name `n`,
 ///    bytes length 100 which is the length of the variable-length data.
-#[repr(C)]
-#[derive(Clone)]
+
+#[derive(Debug)]
 pub struct Field {
-    name: [u8; 65],
+    name: String,
     ty: Ty,
     bytes: u32,
 }
 
-impl Debug for Field {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Field")
-            .field("name", &self.name())
-            .field("ty", &self.ty)
-            .field("bytes", &self.bytes)
-            .finish()
-    }
-}
-
-#[test]
-fn field_size() {
-    assert_eq!(std::mem::size_of::<Field>(), 72);
-}
 impl Field {
-    #[cfg(feature = "nightly")]
-    pub const fn new(name: &str, ty: Ty, bytes: u32) -> Self {
-        let name_raw = name.as_bytes();
-        let mut name: [u8; 65] = [0; 65];
-        unsafe {
-            std::ptr::copy_nonoverlapping(name_raw.as_ptr(), name.as_mut_ptr(), name_raw.len())
-        };
-        Self { name, ty, bytes }
-    }
-    #[cfg(not(feature = "nightly"))]
-    pub fn new(name: &str, ty: Ty, bytes: u32) -> Self {
-        let name_raw = name.as_bytes();
-        let mut name: [u8; 65] = [0; 65];
-        unsafe {
-            std::ptr::copy_nonoverlapping(name_raw.as_ptr(), name.as_mut_ptr(), name_raw.len())
-        };
+    pub fn new(name: impl Into<String>, ty: Ty, bytes: u32) -> Self {
+        let name = name.into();
         Self { name, ty, bytes }
     }
 
     /// Field name.
-    pub fn name(&self) -> Cow<str> {
-        unsafe { CStr::from_ptr(self.name.as_ptr() as _).to_string_lossy() }
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     /// Data type of the field.

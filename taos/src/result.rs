@@ -4,13 +4,13 @@ use serde::de::DeserializeOwned;
 use std::{borrow::Cow, ffi::CStr};
 use taos_query::common::Field;
 
-use taos_sys::{ffi::*, *};
+use taos_sys::{ffi::*, DroppableRawRes as RawRes, *};
 
 use crate::*;
 
 #[derive(Debug)]
 pub enum TaosResult<'a> {
-    WithFields(RawRes<'a>, Cow<'a, [Field]>),
+    WithFields(RawRes<'a>),
     WithoutFields(RawRes<'a>),
 }
 
@@ -20,14 +20,14 @@ unsafe impl<'a> Sync for TaosResult<'a> {}
 impl<'a> TaosResult<'a> {
     pub(crate) const fn as_raw(&self) -> &RawRes {
         match self {
-            TaosResult::WithFields(res, _) => res,
+            TaosResult::WithFields(res) => res,
             TaosResult::WithoutFields(res) => res,
         }
     }
     pub(crate) fn from_raw(raw: RawRes<'a>) -> Self {
-        match raw.fetch_fields() {
-            Some(fields) => TaosResult::WithFields(raw, fields),
-            None => TaosResult::WithoutFields(raw),
+        match raw.num_fields() {
+            0 => TaosResult::WithoutFields(raw),
+            _ => TaosResult::WithFields(raw),
         }
     }
 
@@ -44,25 +44,24 @@ impl<'a> TaosResult<'a> {
         }
     }
 
-
     pub(crate) fn get_field_names_to_string_vec(&self) -> Vec<String> {
         match self {
-            TaosResult::WithFields(_, fields) => {
-                fields.iter().map(|f| f.name().into_owned()).collect()
+            TaosResult::WithFields(raw) => {
+                raw.fields().iter().map(|f| f.name().to_string()).collect()
             }
             _ => unreachable!("do not fetch fields in a result without fields"),
         }
     }
     pub(crate) unsafe fn get_field_unchecked(&self, index: usize) -> &Field {
         match self {
-            TaosResult::WithFields(_, fields) => &fields[index],
+            TaosResult::WithFields(raw) => &raw.fields()[index],
             _ => unreachable!("do not fetch fields in a result without fields"),
         }
     }
 
     pub fn num_of_fields(&self) -> usize {
         match self {
-            TaosResult::WithFields(_, fields) => fields.len(),
+            TaosResult::WithFields(raw) => raw.fields().len(),
             _ => 0,
         }
     }

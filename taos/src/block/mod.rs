@@ -19,7 +19,7 @@ use taos_sys::ffi::*;
 
 use taos_query::common::*;
 
-use crate::{timestamp::TimestampValue, Error, Result, TaosResult};
+use crate::{Error, Result, TaosResult};
 
 mod column;
 pub use column::*;

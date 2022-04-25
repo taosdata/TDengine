@@ -146,7 +146,7 @@ where
     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, Self::Value);
 
     /// Query by rows.
-    fn iter_rows(&'b self) -> RowsIter<'b, Self> {
+    fn iter_rows(&'b self) -> RowsIter<Self> {
         RowsIter {
             block: self,
             row: 0,
@@ -224,12 +224,12 @@ where
         self
     }
 
-    // fn rows_iter(
+    // fn rows_iter<'b>(
     //     &mut self,
     // ) -> std::iter::FlatMap<
     //     &mut Self,
-    //     RowsIter<'_, <&mut Self as Iterator>::Item>,
-    //     fn(<&mut Self as Iterator>::Item) -> RowsIter<'_, <&mut Self as Iterator>::Item>,
+    //     RowsIter<<&mut Self as Iterator>::Item>,
+    //     fn(<&mut Self as Iterator>::Item) -> RowsIter<<&mut Self as Iterator>::Item>,
     // > {
     //     self.flat_map(|block| block.iter_rows())
     // }
@@ -274,9 +274,8 @@ where
     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use itertools::Itertools;
         self.query("show databases")?
+            .map(|mut r| r.deserialize().try_collect())
             .expect("`show databases` must be queryable")
-            .deserialize()
-            .try_collect()
             .map_err(Into::into)
     }
 }

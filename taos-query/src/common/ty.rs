@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 // todo: useful?
 // pub const TY_NULL: Ty = Ty::Null; // 1 bytes
@@ -217,6 +217,11 @@ impl From<u8> for Ty {
     }
 }
 
+impl Display for Ty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
 macro_rules! _impl_from_primitive {
     ($($ty:ty) *) => {
       $(
