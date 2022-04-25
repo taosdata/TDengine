@@ -44,8 +44,6 @@ typedef struct STopBotResItem {
 } STopBotResItem;
 
 typedef struct STopBotRes {
-  int32_t         pageId;
-//  int32_t   num;
   STopBotResItem *pItems;
 } STopBotRes;
 
@@ -91,18 +89,6 @@ typedef struct SDiffInfo {
       __ctx->fpSet.process(__ctx);                                 \
     }                                                              \
   } while (0);
-
-#define DO_UPDATE_SUBSID_RES(ctx, ts)                                 \
-  do {                                                                \
-    for (int32_t _i = 0; _i < (ctx)->subsidiaryRes.numOfCols; ++_i) { \
-      SqlFunctionCtx *__ctx = (ctx)->subsidiaryRes.pCtx[_i];          \
-      if (__ctx->functionId == FUNCTION_TS_DUMMY) {                   \
-        __ctx->tag.i = (ts);                                          \
-        __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;                     \
-      }                                                               \
-      __ctx->fpSet.process(__ctx);                                    \
-    }                                                                 \
-  } while (0)
 
 #define UPDATE_DATA(ctx, left, right, num, sign, _ts) \
   do {                                                \
@@ -407,7 +393,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
+int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SInputColumnInfoData* pInput = &pCtx->input;
   int32_t type = pInput->pData[0]->info.type;
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -417,7 +403,7 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
     pAvgRes->result = pAvgRes->sum.dsum / ((double) pAvgRes->count);
   }
 
-  return functionFinalize(pCtx, pBlock, slotId);
+  return functionFinalize(pCtx, pBlock);
 }
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow){
@@ -841,7 +827,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t slotId) {
+int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SInputColumnInfoData* pInput = &pCtx->input;
   int32_t type = pInput->pData[0]->info.type;
   SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -1382,21 +1368,6 @@ int32_t diffFunction(SqlFunctionCtx *pCtx) {
     return forwardStep;
   }
 }
-
-typedef struct STopBotResItem {
-  SVariant v;
-  uint64_t uid;        // it is a table uid, used to extract tag data during building of the final result for the tag data
-  struct {
-   int32_t pageId;
-   int32_t offset;
-  } tuplePos;          // tuple data of this chosen row
-} STopBotResItem;
-
-typedef struct STopBotRes {
-//  int32_t         pageId;
-//  int32_t   num;
-  STopBotResItem *pItems;
-} STopBotRes;
 
 bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SValueNode* pkNode = (SValueNode*) nodesListGetNode(pFunc->pParameterList, 1);
