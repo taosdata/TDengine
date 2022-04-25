@@ -268,7 +268,6 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
 
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = numOfCols;
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
 
   pBlock->info.blockId = pNode->dataBlockId;
@@ -294,6 +293,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
     taosArrayPush(pBlock->pDataBlock, &idata);
   }
 
+  pBlock->info.numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   return pBlock;
 }
 
@@ -1032,6 +1032,8 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     pColInfo->info.bytes = tDataTypes[type].bytes;
 
     pInput->pData[paramIndex] = pColInfo;
+  } else {
+    pColInfo = pInput->pData[paramIndex];
   }
 
   ASSERT(!IS_VAR_DATA_TYPE(type));

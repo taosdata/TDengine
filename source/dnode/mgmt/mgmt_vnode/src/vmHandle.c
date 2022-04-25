@@ -202,6 +202,17 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     return code;
   }
 
+  code = vnodeStart(pImpl);
+  if (code != 0) {
+    tFreeSCreateVnodeReq(&createReq);
+    dError("vgId:%d, failed to start sync since %s", createReq.vgId, terrstr());
+    vnodeClose(pImpl);
+    vnodeDestroy(path, pMgmt->pTfs);
+    terrno = code;
+    return code;
+  }
+
+
   code = vmWriteVnodesToFile(pMgmt);
   if (code != 0) {
     tFreeSCreateVnodeReq(&createReq);
