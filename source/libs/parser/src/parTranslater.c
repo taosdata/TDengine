@@ -3673,7 +3673,9 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    pQuery->precision = extractResultTsPrecision((SSelectStmt*)pQuery->pRoot);
+    if (nodeType(pQuery->pRoot) == QUERY_NODE_SELECT_STMT) {
+      pQuery->precision = extractResultTsPrecision((SSelectStmt*)pQuery->pRoot);
+    }
   }
 
   if (NULL != pCxt->pDbs) {

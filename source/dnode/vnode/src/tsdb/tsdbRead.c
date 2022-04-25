@@ -3223,8 +3223,13 @@ void tsdbRetrieveDataBlockInfo(tsdbReaderT* pTsdbReadHandle, SDataBlockInfo* pDa
   tsdbDebug("data block generated, uid:%" PRIu64 " numOfRows:%d, tsrange:%" PRId64 " - %" PRId64 " %s", uid, cur->rows,
             cur->win.skey, cur->win.ekey, pHandle->idStr);
 
-  //  pDataBlockInfo->uid    = uid; // block Id may be over write by assigning uid fro this data block. Do NOT assign
-  //  the table uid
+  pDataBlockInfo->uid    = uid;
+
+#if 0
+  // for multi-group data query processing test purpose
+  pDataBlockInfo->groupId = uid;
+#endif
+
   pDataBlockInfo->rows = cur->rows;
   pDataBlockInfo->window = cur->win;
   pDataBlockInfo->numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pHandle));
