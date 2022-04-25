@@ -325,7 +325,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
       return -1;
     }
 
-    if (taosHashPut(hash, meta.tbName, strlen(meta.tbName) + 1, &meta, sizeof(meta))) {
+    if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -340,10 +340,10 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     return -1;
   }
 
-  STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName) + 1);
+  STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_INFOS_TBL;
+    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
     return -1;
   }
 

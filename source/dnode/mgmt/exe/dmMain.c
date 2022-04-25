@@ -24,6 +24,7 @@ static struct {
   bool         printVersion;
   char         envFile[PATH_MAX];
   char         apolloUrl[PATH_MAX];
+  const char **envCmd;
   SArray      *pArgs;  // SConfigPair
   SDnode      *pDnode;
   EDndNodeType ntype;
@@ -56,6 +57,9 @@ static void dmSetSignalHandle() {
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
+  int32_t cmdEnvIndex = 0;
+  global.envCmd = taosMemoryMalloc(argc-1);
+  memset(global.envCmd, 0, argc-1);
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -70,7 +74,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-a") == 0) {
       tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
-    } else if (strcmp(argv[i], "-e") == 0) {
+    } else if (strcmp(argv[i], "-E") == 0) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
@@ -84,6 +88,9 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
       global.printVersion = true;
+    } else if (strcmp(argv[i], "-e") == 0) {
+      global.envCmd[cmdEnvIndex] = argv[++i];
+      cmdEnvIndex++;
     } else {
     }
   }
@@ -129,7 +136,7 @@ static SDnodeOpt dmGetOpt() {
 static int32_t dmInitLog() {
   char logName[12] = {0};
   snprintf(logName, sizeof(logName), "%slog", dmLogName(global.ntype));
-  return taosCreateLog(logName, 1, configDir, global.envFile, global.apolloUrl, global.pArgs, 0);
+  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void dmSetProcInfo(int32_t argc, char **argv) {
@@ -168,6 +175,10 @@ static int32_t dmRunDnode() {
   return code;
 }
 
+static void taosCleanupArgs() {
+  if (global.envCmd != NULL) taosMemoryFree(global.envCmd);
+}
+
 int main(int argc, char const *argv[]) {
   if (!taosCheckSystemIsSmallEnd()) {
     printf("failed to start since on non-small-end machines\n");
@@ -176,26 +187,31 @@ int main(int argc, char const *argv[]) {
 
   if (dmParseArgs(argc, argv) != 0) {
     printf("failed to start since parse args error\n");
+    taosCleanupArgs();
     return -1;
   }
 
   if (global.generateGrant) {
     dmGenerateGrant();
+    taosCleanupArgs();
     return 0;
   }
 
   if (global.printVersion) {
     dmPrintVersion();
+    taosCleanupArgs();
     return 0;
   }
 
   if (dmInitLog() != 0) {
-    dError("failed to start since init log error");
+    printf("failed to start since init log error");
+    taosCleanupArgs();
     return -1;
   }
 
-  if (taosInitCfg(configDir, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
+  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
     dError("failed to start since read config error");
+    taosCleanupArgs();
     return -1;
   }
 
@@ -203,9 +219,11 @@ int main(int argc, char const *argv[]) {
     dmDumpCfg();
     taosCleanupCfg();
     taosCloseLog();
+    taosCleanupArgs();
     return 0;
   }
 
   dmSetProcInfo(argc, (char **)argv);
+  taosCleanupArgs();
   return dmRunDnode();
 }

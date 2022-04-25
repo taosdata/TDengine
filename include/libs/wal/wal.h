@@ -192,7 +192,13 @@ int32_t walEndSnapshot(SWal *);
 SWalReadHandle *walOpenReadHandle(SWal *);
 void            walCloseReadHandle(SWalReadHandle *);
 int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
-int32_t         walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
+
+// only for tq usage
+// int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
+void    walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity);
+int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead);
+int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead);
+int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead);
 
 // deprecated
 #if 0

@@ -46,7 +46,7 @@ int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
   SQueryTableRsp rsp = {.code = code};
 
   int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
-  void *  msg = rpcMallocCont(contLen);
+  void   *msg = rpcMallocCont(contLen);
   tSerializeSQueryTableRsp(msg, contLen, &rsp);
 
   SRpcMsg rpcRsp = {
@@ -87,7 +87,7 @@ int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo,
   SExplainRsp rsp = {.numOfPlans = num, .subplanInfo = execInfo};
 
   int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
-  void *  pRsp = rpcMallocCont(contLen);
+  void   *pRsp = rpcMallocCont(contLen);
   tSerializeSExplainRsp(pRsp, contLen, &rsp);
 
   SRpcMsg rpcRsp = {
@@ -107,7 +107,7 @@ int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo,
 
 int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
-  void *  pRsp = rpcMallocCont(contLen);
+  void   *pRsp = rpcMallocCont(contLen);
   tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
 
   SRpcMsg rpcRsp = {
@@ -223,7 +223,7 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
   showRsp.tableMeta.numOfColumns = cols;
 
   int32_t bufLen = tSerializeSShowRsp(NULL, 0, &showRsp);
-  void *  pBuf = rpcMallocCont(bufLen);
+  void   *pBuf = rpcMallocCont(bufLen);
   tSerializeSShowRsp(pBuf, bufLen, &showRsp);
 
   SRpcMsg rpcMsg = {
@@ -403,8 +403,8 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   bool               queryDone = false;
   SQueryContinueReq *msg = (SQueryContinueReq *)pMsg->pCont;
   bool               needStop = false;
-  SQWTaskCtx *       handles = NULL;
-  SQWorkerMgmt *     mgmt = (SQWorkerMgmt *)qWorkerMgmt;
+  SQWTaskCtx        *handles = NULL;
+  SQWorkerMgmt      *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
 
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     QW_ELOG("invalid cquery msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
@@ -538,7 +538,7 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  SQWorkerMgmt *  mgmt = (SQWorkerMgmt *)qWorkerMgmt;
+  SQWorkerMgmt   *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   int32_t         code = 0;
   STaskCancelReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
@@ -620,7 +620,7 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   int32_t         code = 0;
   SSchedulerHbReq req = {0};
-  SQWorkerMgmt *  mgmt = (SQWorkerMgmt *)qWorkerMgmt;
+  SQWorkerMgmt   *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
 
   if (NULL == pMsg->pCont) {
     QW_ELOG("invalid hb msg, msg:%p, msgLen:%d", pMsg->pCont, pMsg->contLen);

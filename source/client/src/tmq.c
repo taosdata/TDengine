@@ -376,18 +376,15 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   ASSERT(user);
   ASSERT(pass);
-  ASSERT(conf->db);
+  /*ASSERT(conf->db);*/
   ASSERT(conf->groupId[0]);
 
   pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, conf->db, conf->port, CONN_TYPE__TMQ);
   if (pTmq->pTscObj == NULL) return NULL;
 
-  /*pTmq->inWaiting = 0;*/
   pTmq->status = 0;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
-  /*pTmq->waitingRequest = 0;*/
-  /*pTmq->readyRequest = 0;*/
   pTmq->epStatus = 0;
   pTmq->epSkipCnt = 0;
   // set conf
@@ -509,7 +506,6 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   tmq->clientTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
 
   SCMSubscribeReq req;
-  req.topicNum = sz;
   req.consumerId = tmq->consumerId;
   strcpy(req.cgroup, tmq->groupId);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
@@ -519,12 +515,16 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     char* topicName = taosArrayGetP(container, i);
 
     SName name = {0};
+#if 0
     char* dbName = getDbOfConnection(tmq->pTscObj);
     if (dbName == NULL) {
       return TMQ_RESP_ERR__FAIL;
     }
-    tNameSetDbName(&name, tmq->pTscObj->acctId, dbName, strlen(dbName));
+#endif
+    tNameSetDbName(&name, tmq->pTscObj->acctId, topicName, strlen(topicName));
+#if 0
     tNameFromString(&name, topicName, T_NAME_TABLE);
+#endif
 
     char* topicFname = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     if (topicFname == NULL) {
@@ -542,7 +542,9 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
     taosArrayPush(req.topicNames, &topicFname);
+#if 0
     taosMemoryFree(dbName);
+#endif
   }
 
   int   tlen = tSerializeSCMSubscribeReq(NULL, &req);
@@ -1116,7 +1118,9 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
 
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
-  setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
+  if (!pWrapper->msg.withSchema) {
+    setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
+  }
 
   taosFreeQitem(pWrapper);
   return pRspObj;

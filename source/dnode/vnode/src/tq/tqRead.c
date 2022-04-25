@@ -65,7 +65,9 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
 
     /*pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);*/
     /*if (pHandle->tbUid == pHandle->pBlock->uid) {*/
-    ASSERT(pHandle->tbIdHash);
+    if (pHandle->tbIdHash == NULL) {
+      return true;
+    }
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
     if (ret != NULL) {
       /*printf("retrieve one tb %ld\n", pHandle->pBlock->uid);*/
@@ -107,26 +109,15 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   *pNumOfRows = pHandle->pBlock->numOfRows;
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
-  if (colNumNeed > pSchemaWrapper->nCols) {
-    colNumNeed = pSchemaWrapper->nCols;
-  }
+  if (colNumNeed == 0) {
+    *ppCols = taosArrayInit(pSchemaWrapper->nCols, sizeof(SColumnInfoData));
+    if (*ppCols == NULL) {
+      return -1;
+    }
 
-  *ppCols = taosArrayInit(colNumNeed, sizeof(SColumnInfoData));
-  if (*ppCols == NULL) {
-    return -1;
-  }
-
-  int32_t colMeta = 0;
-  int32_t colNeed = 0;
-  while (colMeta < pSchemaWrapper->nCols && colNeed < colNumNeed) {
-    SSchema* pColSchema = &pSchemaWrapper->pSchema[colMeta];
-    col_id_t colIdSchema = pColSchema->colId;
-    col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pHandle->pColIdList, colNeed);
-    if (colIdSchema < colIdNeed) {
-      colMeta++;
-    } else if (colIdSchema > colIdNeed) {
-      colNeed++;
-    } else {
+    int32_t colMeta = 0;
+    while (colMeta < pSchemaWrapper->nCols) {
+      SSchema*        pColSchema = &pSchemaWrapper->pSchema[colMeta];
       SColumnInfoData colInfo = {0};
       colInfo.info.bytes = pColSchema->bytes;
       colInfo.info.colId = pColSchema->colId;
@@ -137,7 +128,40 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
       }
       taosArrayPush(*ppCols, &colInfo);
       colMeta++;
-      colNeed++;
+    }
+  } else {
+    if (colNumNeed > pSchemaWrapper->nCols) {
+      colNumNeed = pSchemaWrapper->nCols;
+    }
+
+    *ppCols = taosArrayInit(colNumNeed, sizeof(SColumnInfoData));
+    if (*ppCols == NULL) {
+      return -1;
+    }
+
+    int32_t colMeta = 0;
+    int32_t colNeed = 0;
+    while (colMeta < pSchemaWrapper->nCols && colNeed < colNumNeed) {
+      SSchema* pColSchema = &pSchemaWrapper->pSchema[colMeta];
+      col_id_t colIdSchema = pColSchema->colId;
+      col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pHandle->pColIdList, colNeed);
+      if (colIdSchema < colIdNeed) {
+        colMeta++;
+      } else if (colIdSchema > colIdNeed) {
+        colNeed++;
+      } else {
+        SColumnInfoData colInfo = {0};
+        colInfo.info.bytes = pColSchema->bytes;
+        colInfo.info.colId = pColSchema->colId;
+        colInfo.info.type = pColSchema->type;
+
+        if (colInfoDataEnsureCapacity(&colInfo, 0, *pNumOfRows) < 0) {
+          goto FAIL;
+        }
+        taosArrayPush(*ppCols, &colInfo);
+        colMeta++;
+        colNeed++;
+      }
     }
   }
 

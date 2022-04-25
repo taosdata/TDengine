@@ -258,7 +258,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREADY_EXIST,     "Column already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
 
 // mnode-infoSchema
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_INFOS_TBL,        "Invalid information schema table name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 
 
 // mnode-func
