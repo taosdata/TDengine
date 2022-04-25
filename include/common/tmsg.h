@@ -275,7 +275,6 @@ typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   float   xFilesFactor;
-  int32_t aggregationMethod;
   int32_t delay;
   int32_t ttl;
   int32_t numOfColumns;
@@ -1495,10 +1494,8 @@ typedef struct {
   int32_t    delay;
   int32_t    qmsg1Len;
   int32_t    qmsg2Len;
-  func_id_t* pFuncIds;
   char*      qmsg1;  // not null: pAst1:qmsg1:SRetention1 => trigger aggr task1
   char*      qmsg2;  // not null: pAst2:qmsg2:SRetention2 => trigger aggr task2
-  int8_t     nFuncIds;
 } SRSmaParam;
 
 typedef struct SVCreateTbReq {

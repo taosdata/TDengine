@@ -119,6 +119,7 @@ typedef struct SFunctionNode {
   int32_t funcId;
   int32_t funcType;
   SNodeList* pParameterList;
+  int32_t udfBufSize;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -135,7 +136,7 @@ typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
-  char useDbName[TSDB_DB_NAME_LEN];
+  char qualDbName[TSDB_DB_NAME_LEN]; // SHOW qualDbName.TABLES
   double ratio;
 } SRealTableNode;
 

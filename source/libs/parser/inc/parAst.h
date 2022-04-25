@@ -95,7 +95,6 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
-SNode* createFunctionNodeNoArg(SAstCreateContext* pCxt, const SToken* pFuncName);
 SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt);
 SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
 SNode* createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2);
