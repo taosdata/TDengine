@@ -48,6 +48,19 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/sta
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_interval.py --keep
 
+#table_fun_str_query
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_base.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_upper.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_lower.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_ltrim.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_rtrim.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_length.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_substr.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_concat_ws.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_cast.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/str/table_str_interval.py --keep
+
 #stable_fun_math_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_interval.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_abs.py --keep
