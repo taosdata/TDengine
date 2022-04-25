@@ -486,7 +486,7 @@ _return:
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode* tnode = NULL;
-  if (fmIsUserDefinedFunc(node->funcId)) {
+  if (!fmIsScalarFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -616,10 +616,6 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclConstantsRewriter(SNode** pNode, void* pContext) {
-  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode)) {
-    return DEAL_RES_CONTINUE;
-  }
-
   SScalarCtx *ctx = (SScalarCtx *)pContext;
 
   if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
@@ -633,10 +629,8 @@ EDealRes sclConstantsRewriter(SNode** pNode, void* pContext) {
   if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
     return sclRewriteOperator(pNode, ctx);
   }  
-  
-  sclError("invalid node type for calculating constants, type:%d", nodeType(*pNode));
-  ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
-  return DEAL_RES_ERROR;
+
+  return DEAL_RES_CONTINUE;
 }
 
 EDealRes sclWalkFunction(SNode* pNode, SScalarCtx *ctx) {
