@@ -41,21 +41,23 @@ class TDTestCase:
 
         tdSql.query("select to_iso8601(ts) from ntb")
         tdSql.checkRows(3)
-        tdSql.query("select c1 from ntb where to_iso8601(ts)='2020-01-01T00:00:00.000+0800'")
+        tdSql.query("select c1 from ntb where ts = to_iso8601(1577808000000)")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,10)
-        tdSql.query("select * from ntb where to_iso8601(ts)='2020-01-01T00:00:00.000+0800'")
+        tdSql.query("select * from ntb where ts = to_iso8601(1577808000000)")
         tdSql.checkRows(1)
         tdSql.query("select to_iso8601(ts) from ntb where ts=today()")
         tdSql.checkRows(1)
-        # for i in range(1,30):
-        # tdSql.query("select to_iso8601(1) from ntb")
-        #     # tdSql.checkData(0,0,"1970-01-01T08:00:01+0800")
-        #     # i+=1
-        #     # sleep(0.5)
-        # tdSql.checkRows(3)
+        tdSql.checkData(0,1,10)
+        for i in range(1,10):
+            tdSql.query("select to_iso8601(1) from ntb")
+            tdSql.checkData(0,0,"1970-01-01T08:00:01+0800")
+            i+=1
+            sleep(0.2)
+            tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts) from ntb")
         tdSql.checkRows(3)
+        tdSql.query("select to_iso8601(ts) from db.ntb")
         
         tdSql.query("select to_iso8601(today()) from ntb")
         tdSql.checkRows(3)
@@ -64,6 +66,7 @@ class TDTestCase:
         
         tdSql.error("select to_iso8601(timezone()) from ntb")
         tdSql.error("select to_iso8601('abc') from ntb")
+
 
 
 
