@@ -380,6 +380,7 @@ static int32_t vmStart(SMgmtWrapper *pWrapper) {
 }
 
 static void vmStop(SMgmtWrapper *pWrapper) {
+#if 0
   dDebug("vnode-mgmt start to stop");
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   taosRLockLatch(&pMgmt->latch);
@@ -395,6 +396,7 @@ static void vmStop(SMgmtWrapper *pWrapper) {
   }
 
   taosRUnLockLatch(&pMgmt->latch);
+#endif
 }
 
 void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
