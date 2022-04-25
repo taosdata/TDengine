@@ -271,9 +271,7 @@ static void setupEnvForReverseScan(STableScanInfo* pTableScanInfo, SqlFunctionCt
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
   STableScanInfo* pTableScanInfo = pOperator->info;
 
-  SSDataBlock*     pBlock = pTableScanInfo->pResBlock;
-  STableGroupInfo* pTableGroupInfo = &pOperator->pTaskInfo->tableqinfoGroupInfo;
-
+  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
   *newgroup = false;
 
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
@@ -284,18 +282,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
     pTableScanInfo->numOfBlocks += 1;
     tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBlock->info);
 
-    // todo opt
-    //    if (pTableGroupInfo->numOfTables > 1 || (pRuntimeEnv->current == NULL && pTableGroupInfo->numOfTables == 1)) {
-    //      STableQueryInfo** pTableQueryInfo =
-    //          (STableQueryInfo**)taosHashGet(pTableGroupInfo->map, &pBlock->info.uid, sizeof(pBlock->info.uid));
-    //      if (pTableQueryInfo == NULL) {
-    //        break;
-    //      }
-    //
-    //      doTableQueryInfoTimeWindowCheck(pTaskInfo, *pTableQueryInfo, pTableScanInfo->order);
-    //    }
-
-    // this function never returns error?
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
@@ -308,6 +294,8 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
       continue;
     }
 
+    // reset the block to be 0 by default, this blockId is assigned by physical plan and is used by direct upstream operator.
+    pBlock->info.blockId = 0;
     return pBlock;
   }
 
@@ -405,11 +393,11 @@ SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, int32_t order, int
   pOperator->name         = "TableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfOutput = numOfOutput;
-  pOperator->getNextFn = doTableScan;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = numOfOutput;
+  pOperator->getNextFn    = doTableScan;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   static int32_t cost = 0;
   pOperator->cost.openCost = ++cost;
@@ -824,12 +812,12 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     int32_t          tableNameSlotId = 1;
     SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, tableNameSlotId);
 
-    char*   name = NULL;
+    char*   tb = NULL;
     int32_t numOfRows = 0;
 
     char n[TSDB_TABLE_NAME_LEN] = {0};
-    while ((name = metaTbCursorNext(pInfo->pCur)) != NULL) {
-      STR_TO_VARSTR(n, name);
+    while ((tb = metaTbCursorNext(pInfo->pCur)) != NULL) {
+      STR_TO_VARSTR(n, tb);
       colDataAppend(pTableNameCol, numOfRows, n, false);
       numOfRows += 1;
       if (numOfRows >= pInfo->capacity) {
@@ -991,4 +979,168 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   pOperator->pTaskInfo = pTaskInfo;
 
   return pOperator;
+}
+
+static SSDataBlock* doTagScan(SOperatorInfo* pOperator, bool* newgroup) {
+#if 0
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  int32_t maxNumOfTables = (int32_t)pResultInfo->capacity;
+
+  STagScanInfo *pInfo = pOperator->info;
+  SSDataBlock  *pRes = pInfo->pRes;
+  *newgroup = false;
+
+  int32_t count = 0;
+  SArray* pa = GET_TABLEGROUP(pRuntimeEnv, 0);
+
+  int32_t functionId = getExprFunctionId(&pOperator->pExpr[0]);
+  if (functionId == FUNCTION_TID_TAG) { // return the tags & table Id
+    assert(pQueryAttr->numOfOutput == 1);
+
+    SExprInfo* pExprInfo = &pOperator->pExpr[0];
+    int32_t rsize = pExprInfo->base.resSchema.bytes;
+
+    count = 0;
+
+    int16_t bytes = pExprInfo->base.resSchema.bytes;
+    int16_t type  = pExprInfo->base.resSchema.type;
+
+    for(int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
+      if (pQueryAttr->tagColList[i].colId == pExprInfo->base.pColumns->info.colId) {
+        bytes = pQueryAttr->tagColList[i].bytes;
+        type = pQueryAttr->tagColList[i].type;
+        break;
+      }
+    }
+
+    SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, 0);
+
+    while(pInfo->curPos < pInfo->totalTables && count < maxNumOfTables) {
+      int32_t i = pInfo->curPos++;
+      STableQueryInfo *item = taosArrayGetP(pa, i);
+
+      char *output = pColInfo->pData + count * rsize;
+      varDataSetLen(output, rsize - VARSTR_HEADER_SIZE);
+
+      output = varDataVal(output);
+      STableId* id = TSDB_TABLEID(item->pTable);
+
+      *(int16_t *)output = 0;
+      output += sizeof(int16_t);
+
+      *(int64_t *)output = id->uid;  // memory align problem, todo serialize
+      output += sizeof(id->uid);
+
+      *(int32_t *)output = id->tid;
+      output += sizeof(id->tid);
+
+      *(int32_t *)output = pQueryAttr->vgId;
+      output += sizeof(pQueryAttr->vgId);
+
+      char* data = NULL;
+      if (pExprInfo->base.pColumns->info.colId == TSDB_TBNAME_COLUMN_INDEX) {
+        data = tsdbGetTableName(item->pTable);
+      } else {
+        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.pColumns->info.colId, type, bytes);
+      }
+
+      doSetTagValueToResultBuf(output, data, type, bytes);
+      count += 1;
+    }
+
+    //qDebug("QInfo:0x%"PRIx64" create (tableId, tag) info completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
+  } else if (functionId == FUNCTION_COUNT) {// handle the "count(tbname)" query
+    SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, 0);
+    *(int64_t*)pColInfo->pData = pInfo->totalTables;
+    count = 1;
+
+    pOperator->status = OP_EXEC_DONE;
+    //qDebug("QInfo:0x%"PRIx64" create count(tbname) query, res:%d rows:1", GET_TASKID(pRuntimeEnv), count);
+  } else {  // return only the tags|table name etc.
+    SExprInfo* pExprInfo = &pOperator->pExpr[0];  // todo use the column list instead of exprinfo
+
+    count = 0;
+    while(pInfo->curPos < pInfo->totalTables && count < maxNumOfTables) {
+      int32_t i = pInfo->curPos++;
+
+      STableQueryInfo* item = taosArrayGetP(pa, i);
+
+      char *data = NULL, *dst = NULL;
+      int16_t type = 0, bytes = 0;
+      for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
+        // not assign value in case of user defined constant output column
+        if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.pColumns->flag)) {
+          continue;
+        }
+
+        SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, j);
+        type  = pExprInfo[j].base.resSchema.type;
+        bytes = pExprInfo[j].base.resSchema.bytes;
+
+        if (pExprInfo[j].base.pColumns->info.colId == TSDB_TBNAME_COLUMN_INDEX) {
+          data = tsdbGetTableName(item->pTable);
+        } else {
+          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.pColumns->info.colId, type, bytes);
+        }
+
+        dst  = pColInfo->pData + count * pExprInfo[j].base.resSchema.bytes;
+        doSetTagValueToResultBuf(dst, data, type, bytes);
+      }
+
+      count += 1;
+    }
+
+    if (pInfo->curPos >= pInfo->totalTables) {
+      pOperator->status = OP_EXEC_DONE;
+    }
+
+    //qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
+  }
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    setTaskStatus(pOperator->pRuntimeEnv, TASK_COMPLETED);
+  }
+
+  pRes->info.rows = count;
+  return (pRes->info.rows == 0)? NULL:pInfo->pRes;
+
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
+  STagScanInfo* pInfo = (STagScanInfo*)param;
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
+}
+
+SOperatorInfo* createTagScanOperatorInfo(void* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
+  STagScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    goto _error;
+  }
+
+  pInfo->pReader           = pReaderHandle;
+  pInfo->curPos            = 0;
+  pOperator->name          = "TagScanOperator";
+  pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_NOT_OPENED;
+  pOperator->info          = pInfo;
+  pOperator->getNextFn     = doTagScan;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pTaskInfo     = pTaskInfo;
+  pOperator->closeFn       = destroyTagScanOperatorInfo;
+
+  return pOperator;
+  _error:
+  taosMemoryFree(pInfo);
+  taosMemoryFree(pOperator);
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return NULL;
 }
