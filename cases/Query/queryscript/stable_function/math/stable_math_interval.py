@@ -39,7 +39,7 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# support binary and nchar type\ support str function [hanshu = ['upper\lower\ltrim\rtrim\length\substr\concat\concat_ws\cast']]
+        case1:# support math function [hanshu = ['sin\cos\tan\asin\acos\atan\pow\log\abs\sqrt\percentile\apercentile\derivative']
         case2:
         '''
         return case_description
