@@ -32,7 +32,7 @@ class insertFromCSVPerformace:
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
-        self.config = "/etc/perf"
+        self.config = "/etc/%s" % self.branchName
         self.conn = taos.connect(
             self.host,
             self.user,
@@ -95,6 +95,7 @@ class insertFromCSVPerformace:
 
         in_order_time = (float) (totalTime / 10)
         print("In order - Insert time: %f" % in_order_time)
+        cursor.execute("drop database if exists %s" % self.dbName)
         cursor.close()
 
 
@@ -133,9 +134,9 @@ if __name__ == '__main__':
         '-b',
         '--branch-name',
         action='store',
-        default='develop',
+        default='2.4',
         type=str,
-        help='branch name (default: develop)')
+        help='branch name (default: 2.4)')
     parser.add_argument(
         '-T',
         '--build-type',
