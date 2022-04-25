@@ -115,10 +115,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
           tdbPCacheRemovePageFromHash(pCache, pPage);
         }
 
-        // free the page
-        if (pTxn && pTxn->xFree) {
-          tdbPageDestroy(pPage, pTxn->xFree, pTxn->xArg);
-        }
+        tdbPageDestroy(pPage, pTxn->xFree, pTxn->xArg);
       }
     }
 
@@ -195,6 +192,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
       pPage->pPager = pPageH->pPager;
 
       memcpy(pPage->pData, pPageH->pData, pPage->pageSize);
+      tdbPageInit(pPage, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize);
     } else {
       memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
       pPage->pLruNext = NULL;
@@ -294,7 +292,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 
   // Open the hash table
   pCache->nPage = 0;
-  pCache->nHash = pCache->cacheSize;
+  pCache->nHash = pCache->cacheSize < 8 ? 8 : pCache->cacheSize;
   pCache->pgHash = (SPage **)tdbOsCalloc(pCache->nHash, sizeof(SPage *));
   if (pCache->pgHash == NULL) {
     // TODO
