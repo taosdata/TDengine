@@ -8,30 +8,25 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-`TDengine.Connector` 是 TDengine 提供的 C# 连接器。C# 语言开发人员可以通过它开发存取 TDengine 数据库的 C# 应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 数据库。进行数据写入、查询、订阅、schemaless 数据写入、参数绑定接口数据写入等功能。
+`TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 集群，进行数据写入、查询、订阅、schemaless 数据写入、参数绑定接口数据写入等功能。
 
 `TDengine.Connector` 目前暂未提供 REST 连接方式，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
-本文介绍如何在 Windows 或 Linux 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 数据库，进行数据写入、查询等基本操作。
+本文介绍如何在 Windows 或 Linux 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 集群，进行数据写入、查询等基本操作。
 
 ## 支持的平台
 
-| **CPU 类型** | x64（64bit） |          |          |
-| ------------ | ------------ | -------- | -------- |
-| **OS 类型**  | Linux        | Win64    | Win32    |
-| **支持与否** | **支持**     | **支持** | **支持** |
+请参考[支持的平台列表](/reference/connector#支持的平台)
 
 ## 版本支持
 
-| TDengine.Connector |             TDengine 版本             |
-|--------------------|:-------------------------------------:|
-| 1.0.2 ~ 1.0.6      | v2.3.4+ |
+请参考[版本支持列表](/reference/connector#版本支持)
 
 ## 支持的功能特性
 
 1. 连接管理
-2. 同步查询
-3. 异步查询
+2. 普通查询
+3. 连续查询
 4. 参数绑定
 5. 订阅功能
 6. Schemaless
@@ -147,4 +142,5 @@ namespace TDengineExample
 一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\ ` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
 ## API 参考
+
 [API 参考](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)

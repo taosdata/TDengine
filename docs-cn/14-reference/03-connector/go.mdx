@@ -8,31 +8,25 @@ import Preparition from "./_preparition.mdx"
 
 ## 总体介绍
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 语言开发人员可以通过它开发存取 TDengine 数据库的应用软件。`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 服务端，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 连接 TDengine 数据库。REST 连接实现的功能特性集合和原生连接有少量不同。
+`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
 
-本文介绍如何在 Windows 或 Linux 环境中安装 `driver-go`，并通过 `driver-go` 连接 TDengine 数据库、进行数据查询、数据写入等基本操作。
+本文介绍如何在 Windows 或 Linux 环境中安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
 
 Go 连接器的源码托管在 GitHub。项目名称：driver-go。欢迎 [贡献源码](https://github.com/taosdata/driver-go) 或 [报告问题](https://github.com/taosdata/driver-go/issues)。
 
 ## 支持的平台
 
-| **CPU 类型** | x64（64bit） |        |        | aarch64 | aarch32 |
-|------------|------------|--------|--------|---------|---------|
-| **OS 类型**  | Linux      | Win64  | Win32  | Linux   | Linux   |
-| **支持与否**   | **支持**     | **支持** | **支持** | **支持**  | **支持**  |
+请参考[支持的平台列表](/reference/connector#支持的平台)
 
 ## 版本支持
 
-|   分支    |                      功能                       | 建议 taosd 版本 |
-|:-------:|:---------------------------------------------:|:-----------:|
-| master  |    database/sql（cgo）、订阅、schemaless写入、stmt     | 2.2.0.0 及以上 |
-| develop | database/sql（cgo & REST）、订阅、schemaless写入、stmt | 2.4.0.4及以上  |
+请参考[版本支持列表](/reference/connector#版本支持)
 
 ## 支持的功能特性
 
 ### 原生连接
 
-“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 数据库建立连接。
+“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 集群建立连接。
 
 * database/sql (cgo 模式)
 * 订阅
@@ -235,10 +229,6 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
-## API
-
-全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
-
 ### 常用 API
 
 #### `database/sql`
@@ -342,3 +332,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 * `func (stmt *InsertStmt) Close() error`
 
 结束 stmt。
+
+## API 参考
+
+全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
