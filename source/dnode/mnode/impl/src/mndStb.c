@@ -439,7 +439,6 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
       }
     }
     if (pStb->ast2Len > 0) {
-      int32_t qmsgLen2 = 0;
       if (mndConvertRSmaTask(pStb->pAst2, 0, 0, &pRSmaParam->qmsg2, &pRSmaParam->qmsg2Len) != TSDB_CODE_SUCCESS) {
         taosMemoryFreeClear(pRSmaParam->qmsg1);
         taosMemoryFreeClear(req.stbCfg.pRSmaParam);

@@ -60,7 +60,6 @@ int32_t init_env() {
   pRes =
       taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)");
   if (taos_errno(pRes) != 0) {
-    assert(0);
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
@@ -104,8 +103,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from ct1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from ct1");*/
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -163,9 +162,10 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "td.connect.db", "abc1");
+  /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  assert(tmq);
   return tmq;
 }
 
