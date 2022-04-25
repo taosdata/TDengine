@@ -494,7 +494,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray **out) {
+int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray *out) {
   char *msg = NULL;
   int32_t msgLen = 0;
 
@@ -526,7 +526,7 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
     CTG_ERR_RET(code);
   }
 
-  ctgDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*out));
+  ctgDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(out));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2778,7 +2778,8 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
   }
 
   if (pReq->qNodeRequired) {
-    CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pTrans, pMgmtEps, &pRsp->pEpSetList));
+    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeAddr));
+    CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pTrans, pMgmtEps, pRsp->pQnodeList));
   }
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
@@ -2807,7 +2808,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, 
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pRpc, pMgmtEps, &pQnodeList));
+  CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pRpc, pMgmtEps, pQnodeList));
 
 _return:
 
