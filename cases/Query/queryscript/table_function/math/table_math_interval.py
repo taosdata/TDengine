@@ -45,10 +45,10 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_math_interval"
-    table_list = ['stable_1','stable_2',]
+    db = "table_math_interval"
+    table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
-    table_null_list = ['stable_null_data','stable_null_childtable']
+    table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
     table_null = str(random.sample(table_null_list,1)).replace("[","").replace("]","").replace("'","")
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
@@ -98,7 +98,7 @@ class TDTestQuery(TDCase):
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
                 cur1.execute('use "%s";' %self.db)                
-                stable_where = tdWhere.stable_where()
+                stable_where = tdWhere.regular_where()
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -183,7 +183,7 @@ class TDTestQuery(TDCase):
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
                 cur1.execute('use "%s";' %self.db)    
-                stable_where = tdWhere.stable_where()
+                stable_where = tdWhere.regular_where()
                 #sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
@@ -408,7 +408,7 @@ class TDTestQuery(TDCase):
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
                 cur1.execute('use "%s";' %self.db)                
-                stable_where = tdWhere.stable_where()
+                stable_where = tdWhere.regular_where()
                 #sql1 = 'select %s from %s group by tbname order by ts;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):

@@ -39,33 +39,33 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# support math function [hanshu = ['sin\cos\tan\asin\acos\atan\pow\log\abs\sqrt\percentile\apercentile\derivative']
+        case1:# support no type ,only () \ support time function [hanshu = ['now\today\time_zone\to_iso8601\to_unixtimestamp\truncate\timediff']]
         case2:
         '''
         return case_description
 
     #basic_param
-    db = "stable_math_interval"
-    table_list = ['stable_1','stable_2',]
+    db = "table_time_interval"
+    table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
-    table_null_list = ['stable_null_data','stable_null_childtable']
+    table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
     table_null = str(random.sample(table_null_list,1)).replace("[","").replace("]","").replace("'","")
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
     #控制interval sql生成数量，不在全部遍历
-    # if i == 1:int_sin_cos_tan()
-    # elif i == 2:int_pow_log() 
-    # elif i == 3:int_abs() 
-    # elif i == 4:int_sqrt() 
-    # elif i == 5:int_histogram() ****支持interval
-    # elif i == 6:int_percentile() 
-    # elif i == 7:int_apercentile() 
-    # elif i == 8:int_leastsquares() ****支持interval
-    # elif i == 9:int_derivative() 
-    # list_maths代表遍历时候选择的math函数。 
+    # if i == 1:time_now()
+    # elif i == 2:time_today() 
+    # elif i == 3:time_zone() 
+    # elif i == 4:time_to_iso8601() 
+    # elif i == 5:time_to_unixtimestamp()    
+    # elif i == 6:time_truncate()  
+    # elif i == 7:time_diff_1()   
+    # elif i == 8:time_diff_2()   
+    # elif i == 9:time_elapsed()  因此elapsed支持interval，因此在elapsed里单独写
+    # list_times代表遍历时候选择的time函数。
     # 同理，list_intervals是20种interval的组合，在queryutil.where.time_window_new中说明
-    list_maths = [1,2,3,4,6,7,9]
-    list_math = random.sample(list_maths,2) 
+    list_times = [1,2,3,4,5,6,7,8]
+    list_time = random.sample(list_times,2) 
     list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
     list_interval = random.sample(list_intervals,3) 
     
@@ -90,15 +90,15 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: support math function [hanshu = ['sin\cos\tan\asin\acos\atan\pow\log\abs\sqrt\percentile\apercentile\derivative']
-        for i in (self.list_math):    
-            func = tdFunction.func_stable_math(i)
+        # 1: support str function [hanshu = ['now\today\time_zone\to_iso8601\to_unixtimestamp\truncate\timediff']
+        for i in (self.list_time):    
+            func = tdFunction.func_stable_time(i)
             try:
                 taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
                 cur1.execute('use "%s";' %self.db)                
-                stable_where = tdWhere.stable_where()
+                stable_where = tdWhere.regular_where()
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -174,16 +174,16 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: support math function [hanshu = ['sin\cos\tan\asin\acos\atan\pow\log\abs\sqrt\percentile\apercentile\derivative']
-        for i in (self.list_math):  
-            func = tdFunction.func_stable_math(i)
+        # 1: support str function [hanshu = ['now\today\time_zone\to_iso8601\to_unixtimestamp\truncate\timediff']
+        for i in (self.list_time):  
+            func = tdFunction.func_stable_time(i)
             func_desc = func # for desc
             try:
                 taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
                 cur1.execute('use "%s";' %self.db)    
-                stable_where = tdWhere.stable_where()
+                stable_where = tdWhere.regular_where()
                 #sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
@@ -400,15 +400,15 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: support math function [hanshu = ['sin\cos\tan\asin\acos\atan\pow\log\abs\sqrt\percentile\apercentile\derivative']
-        for i in (self.list_math):  
-            func = tdFunction.func_stable_math(i)
+        # 1: support str function [hanshu = ['now\today\time_zone\to_iso8601\to_unixtimestamp\truncate\timediff']
+        for i in (self.list_time):  
+            func = tdFunction.func_stable_time(i)
             try:
                 taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
                 cur1.execute('use "%s";' %self.db)                
-                stable_where = tdWhere.stable_where()
+                stable_where = tdWhere.regular_where()
                 #sql1 = 'select %s from %s group by tbname order by ts;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):

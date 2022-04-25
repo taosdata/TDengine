@@ -25,6 +25,16 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/st
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_timediff.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep
 
+#table_fun_time_query
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_zone.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_to_iso8601.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_to_unixtimestamp.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_truncate.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_timediff.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/time/table_time_elapsed.py --keep
+
 #stable_fun_str_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_base.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep
@@ -49,6 +59,18 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/st
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep
+
+#table_fun_math_query
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_interval.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_abs.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_apercentile.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_derivative.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_histogram.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_leastsquares.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_percentile.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_pow_log.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_sin_cos_tan.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/math/table_math_sqrt.py --keep
 
 #stable_fun_numeric_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interval.py --keep
