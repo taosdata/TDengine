@@ -116,7 +116,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC 原生连接，taos-jdbcdriver 驱动包时需要依赖系统对应本地的客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 原生连接，taos-jdbcdriver 驱动包需要依赖系统对应本地的客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 url 中的配置参数如下：
 
