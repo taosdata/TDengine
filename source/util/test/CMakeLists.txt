@@ -31,7 +31,7 @@ ENDIF()
 #    TARGET_LINK_LIBRARIES(trefTest util common)
 #ENDIF ()
 
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
 # freelistTest
 add_executable(freelistTest "")

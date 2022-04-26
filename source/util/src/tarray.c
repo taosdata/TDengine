@@ -476,6 +476,7 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
   return (void*)buf;
 }
 
+// todo remove it
 // order array<type *>
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param) {
   taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);

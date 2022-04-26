@@ -395,7 +395,7 @@ void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos) {
 void shellShowOnScreen(SShellCmd *cmd) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    fprintf(stderr, "No stream device\n");
+    // fprintf(stderr, "No stream device\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
