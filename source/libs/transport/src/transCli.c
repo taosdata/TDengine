@@ -887,7 +887,9 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STransConnCtx* pCtx = pMsg->ctx;
   SEpSet*        pEpSet = &pCtx->epSet;
-
+  /*
+   * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
+   */
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
       ((pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgType == TDMT_MND_CONNECT)) {
@@ -897,10 +899,10 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       if (pCtx->retryCount < pEpSet->numOfEps) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
         cliHandleReq(pMsg, pThrd);
+        cliDestroy((uv_handle_t*)pConn->stream);
         return -1;
       }
 
-      // cliDestroy((uv_handle_t*)pConn->stream);
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
         pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
@@ -909,8 +911,9 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
         pCtx->epSet = emsg.epSet;
       }
-      // release pConn
       cliHandleReq(pMsg, pThrd);
+      // release pConn
+      addConnToPool(pThrd, conn);
       return -1;
     }
   }
