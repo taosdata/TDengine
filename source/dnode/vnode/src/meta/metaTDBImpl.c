@@ -406,15 +406,6 @@ static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_
   return pSchemaWrapper;
 }
 
-struct SMCtbCursor {
-  TDBC    *pCur;
-  tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-};
-
 struct SMSmaCursor {
   TDBC    *pCur;
   tb_uid_t uid;
