@@ -18,64 +18,35 @@ int32_t udf2_destroy() {
 }
 
 int32_t udf2_start(SUdfInterBuf *buf) {
-  
-}
-
-int32_t udf2(SUdfDataBlock block, SUdfInterBuf *interBuf) {
-
-}
-
-int32_t udf2_finish(SUdfInterBuf buf, SUdfInterBuf *resultData) {
-
-}
-
-int32_t udf2(SUdfDataBlock block, SUdfColumn *resultCol) {
-  SUdfColumnData *resultData = &resultCol->colData;
-  resultData->numOfRows = block.numOfRows;
-  SUdfColumnData *srcData = &block.udfCols[0]->colData;
-  resultData->varLengthColumn = srcData->varLengthColumn;
-
-  if (resultData->varLengthColumn) {
-    resultData->varLenCol.varOffsetsLen = srcData->varLenCol.varOffsetsLen;
-    resultData->varLenCol.varOffsets = malloc(resultData->varLenCol.varOffsetsLen);
-    memcpy(resultData->varLenCol.varOffsets, srcData->varLenCol.varOffsets, srcData->varLenCol.varOffsetsLen);
-
-    resultData->varLenCol.payloadLen = srcData->varLenCol.payloadLen;
-    resultData->varLenCol.payload = malloc(resultData->varLenCol.payloadLen);
-    memcpy(resultData->varLenCol.payload, srcData->varLenCol.payload, srcData->varLenCol.payloadLen);
-  } else {
-    resultData->fixLenCol.nullBitmapLen = srcData->fixLenCol.nullBitmapLen;
-    resultData->fixLenCol.nullBitmap = malloc(resultData->fixLenCol.nullBitmapLen);
-    memcpy(resultData->fixLenCol.nullBitmap, srcData->fixLenCol.nullBitmap, srcData->fixLenCol.nullBitmapLen);
-
-    resultData->fixLenCol.dataLen = srcData->fixLenCol.dataLen;
-    resultData->fixLenCol.data = malloc(resultData->fixLenCol.dataLen);
-    memcpy(resultData->fixLenCol.data, srcData->fixLenCol.data, srcData->fixLenCol.dataLen);
-    for (int32_t i = 0; i < resultData->numOfRows; ++i) {
-      *(resultData->fixLenCol.data + i * sizeof(int32_t)) = 88;
-    }
-  }
-
-  SUdfColumnMeta *meta = &resultCol->colMeta;
-  meta->bytes = 4;
-  meta->type = TSDB_DATA_TYPE_INT;
-  meta->scale = 0;
-  meta->precision = 0;
+  *(int64_t*)(buf->buf) = 0;
+  buf->bufLen = sizeof(int64_t);
+  buf->numOfResult = 0;
   return 0;
 }
 
-int32_t udf2_free(SUdfColumn *col) {
-  SUdfColumnData *data = &col->colData;
-  if (data->varLengthColumn) {
-    free(data->varLenCol.varOffsets);
-    data->varLenCol.varOffsets = NULL;
-    free(data->varLenCol.payload);
-    data->varLenCol.payload = NULL;
-  } else {
-    free(data->fixLenCol.nullBitmap);
-    data->fixLenCol.nullBitmap = NULL;
-    free(data->fixLenCol.data);
-    data->fixLenCol.data = NULL;
+int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf) {
+  int64_t sumSquares = *(int64_t*)interBuf->buf;
+  for (int32_t i = 0; i < block->numOfCols; ++i) {
+    for (int32_t j = 0; j < block->numOfRows; ++i) {
+      SUdfColumn* col = block->udfCols[i];
+      //TODO: check the bitmap for null value
+      int32_t* rows = (int32_t*)col->colData.fixLenCol.data;
+      sumSquares += rows[j] * rows[j];
+    }
   }
+
+  *(int64_t*)interBuf = sumSquares;
+  interBuf->bufLen = sizeof(int64_t);
+  //TODO: if all null value, numOfResult = 0;
+  interBuf->numOfResult = 1;
+  return 0;
+}
+
+int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
+  //TODO: check numOfResults;
+  int64_t sumSquares = *(int64_t*)(buf->buf);
+  *(double*)(resultData->buf) = sqrt(sumSquares);
+  resultData->bufLen = sizeof(double);
+  resultData->numOfResult = 1;
   return 0;
 }

@@ -17,10 +17,10 @@ int32_t udf1_destroy() {
   return 0;
 }
 
-int32_t udf1(SUdfDataBlock block, SUdfColumn *resultCol) {
+int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
   SUdfColumnData *resultData = &resultCol->colData;
-  resultData->numOfRows = block.numOfRows;
-  SUdfColumnData *srcData = &block.udfCols[0]->colData;
+  resultData->numOfRows = block->numOfRows;
+  SUdfColumnData *srcData = &block->udfCols[0]->colData;
   resultData->varLengthColumn = srcData->varLengthColumn;
 
   if (resultData->varLengthColumn) {

@@ -137,11 +137,11 @@ typedef int32_t (*TUdfTeardownFunc)();
 //typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
 
 typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
-typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumn *resultCol);
+typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock* block, SUdfColumn *resultCol);
 
 typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);
-typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock block, SUdfInterBuf *interBuf);
-typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf buf, SUdfInterBuf *resultData);
+typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock* block, SUdfInterBuf *interBuf);
+typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf* buf, SUdfInterBuf *resultData);
 
 
 // end API to UDF writer

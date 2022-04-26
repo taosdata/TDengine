@@ -187,7 +187,7 @@ void udfdProcessRequest(uv_work_t *req) {
       SUdfColumn output = {0};
       // TODO: call different functions according to call type, for now just calar
       if (call->callType == TSDB_UDF_CALL_SCALA_PROC) {
-        udf->scalarProcFunc(input, &output);
+        udf->scalarProcFunc(&input, &output);
       }
 
       SUdfResponse  response = {0};

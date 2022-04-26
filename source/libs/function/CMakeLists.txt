@@ -53,7 +53,7 @@ target_link_libraries(
 
 add_library(udf2 MODULE test/udf2.c)
 target_include_directories(
-        udf1
+        udf2
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
             "${TD_SOURCE_DIR}/include/util"
