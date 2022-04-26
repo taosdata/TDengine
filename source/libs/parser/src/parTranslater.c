@@ -600,14 +600,18 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     return DEAL_RES_ERROR;
   }
-  if (fmIsAggFunc(pFunc->funcId) && beforeHaving(pCxt->currClause)) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  if (fmIsAggFunc(pFunc->funcId)) {
+    if (beforeHaving(pCxt->currClause)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+    }
+    bool haveAggFunc = false;
+    nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
+    if (haveAggFunc) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+    }
+    pCxt->pCurrStmt->hasAggFuncs = true;
   }
-  bool haveAggFunc = false;
-  nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
-  if (haveAggFunc) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
-  }
+
   return DEAL_RES_CONTINUE;
 }
 
