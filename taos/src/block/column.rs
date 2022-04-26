@@ -132,7 +132,9 @@ impl<'block> BorrowedColumn<'block> {
                 }
             }
             Self::Binary(values) => match unsafe { values.get_unchecked(index) } {
-                Some(bytes) => BorrowedValue::VarChar(unsafe { std::str::from_utf8_unchecked(bytes) }),
+                Some(bytes) => {
+                    BorrowedValue::VarChar(unsafe { std::str::from_utf8_unchecked(bytes) })
+                }
                 None => BorrowedValue::Null,
             },
             Self::NChar(_values) => BorrowedValue::Null,

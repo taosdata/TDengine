@@ -1,15 +1,16 @@
 use std::{
     any::type_name,
+    cell::Cell,
     collections::BTreeMap,
     ops::{Deref, DerefMut},
-    rc::Rc, cell::Cell,
+    rc::Rc,
 };
 
 use bitvec_simd::BitVec;
 
-use serde::de::{self, Visitor, IntoDeserializer};
-use taos_query::common::Field;
 use crate::{Error, Result};
+use serde::de::{self, IntoDeserializer, Visitor};
+use taos_query::common::Field;
 
 use super::{value::BorrowedValue, Block};
 
@@ -221,7 +222,8 @@ impl<'a, 'de> MapReader<'a, 'de> {
         let n = de.num_of_fields();
         // let acc = unsafe { de.get_fields_unchecked() }.iter();
         let acc = de.get_field_names_to_string_vec().into_iter();
-        let fields = acc.clone()
+        let fields = acc
+            .clone()
             .enumerate()
             .map(|(index, field)| (field, index))
             .collect();
@@ -311,7 +313,8 @@ impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
         let value = self.value.take().unwrap(); // always be here, so it's safe to unwrap
         log::debug!("deserialize value: {:?}", value);
         log::trace!("target value: {:?}", type_name::<V::Value>());
-        seed.deserialize(value).map_err(<Self::Error as de::Error>::custom)
+        seed.deserialize(value)
+            .map_err(<Self::Error as de::Error>::custom)
     }
 }
 
@@ -332,7 +335,10 @@ impl<'de, 'a> de::SeqAccess<'de> for SeqReader<'a, 'de> {
         T: de::DeserializeSeed<'de>,
     {
         match self.de.next() {
-            Some(v) => seed.deserialize(dbg!(v)).map(Some).map_err(<Self::Error as de::Error>::custom),
+            Some(v) => seed
+                .deserialize(dbg!(v))
+                .map(Some)
+                .map_err(<Self::Error as de::Error>::custom),
             None => Ok(None),
         }
     }
@@ -350,7 +356,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         println!("call deserialize any");
         dbg!(type_name::<V>());
         match self.iter.next() {
-            Some(v) => v.deserialize_any(visitor).map_err(<Self::Error as de::Error>::custom),
+            Some(v) => v
+                .deserialize_any(visitor)
+                .map_err(<Self::Error as de::Error>::custom),
             None => Err(Error::from_string("expect value, not none")),
         }
     }
@@ -394,7 +402,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 if v.is_null() {
                     visitor.visit_none()
                 } else {
-                    visitor.visit_some(v).map_err(<Self::Error as de::Error>::custom)
+                    visitor
+                        .visit_some(v)
+                        .map_err(<Self::Error as de::Error>::custom)
                 }
             }
             _ => Err(<Self::Error as de::Error>::custom("expect next value")),

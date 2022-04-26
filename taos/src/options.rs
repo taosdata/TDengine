@@ -62,7 +62,7 @@ impl TaosOptions {
     }
     pub fn parse(dsn: &str) -> Result<Self> {
         if dsn.is_empty() {
-            return Ok(Self::new())
+            return Ok(Self::new());
         }
         let dsn = url::Url::parse(dsn).unwrap();
         dbg!(dsn);

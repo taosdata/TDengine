@@ -2,8 +2,8 @@ use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use bitvec_simd::BitVec;
 
-use taos_sys::{TAOS_MULTI_BIND};
 use taos_query::common::Ty;
+use taos_sys::TAOS_MULTI_BIND;
 
 #[derive(Debug)]
 pub struct MultiBind<'a>(TAOS_MULTI_BIND, PhantomData<&'a u8>);

@@ -18,13 +18,13 @@ pub trait ResultSetProps {
     fn precision(&self) -> Precision;
 }
 
-pub trait RowWise<R, T: Iterator<Item=R>>: Sized {
+pub trait RowWise<R, T: Iterator<Item = R>>: Sized {
     fn into_row_iter(self) -> T {
         todo!()
     }
 }
 
-pub trait AsyncColumnWise<C, I>: Send+Sized {
+pub trait AsyncColumnWise<C, I>: Send + Sized {
     fn into_column_stream(self) -> futures::stream::Iter<I> {
         todo!()
     }

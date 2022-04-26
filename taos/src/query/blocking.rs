@@ -30,7 +30,6 @@ pub trait Block<'de>: Sized {
 //     }
 // }
 
-
 pub trait SyncQuery {
     type Error;
     type ResultSet;

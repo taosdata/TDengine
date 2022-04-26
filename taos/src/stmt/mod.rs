@@ -1,5 +1,5 @@
 use crate::{util::IntoCStr, Code, Error, Result, Taos, TaosResult};
-use taos_query::common::{Column, BorrowedColumn};
+use taos_query::common::{BorrowedColumn, Column};
 use taos_sys::{ffi::*, *};
 
 use std::ffi::CStr;
@@ -189,7 +189,9 @@ impl<'b, 'c> From<&'c BorrowedColumn<'b>> for MultiBind<'c> {
             BorrowedColumn::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
             BorrowedColumn::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
             BorrowedColumn::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
-            BorrowedColumn::Timestamp(nulls, values) => MultiBind::from_raw_timestamps(nulls, values),
+            BorrowedColumn::Timestamp(nulls, values) => {
+                MultiBind::from_raw_timestamps(nulls, values)
+            }
             BorrowedColumn::Binary(values) => MultiBind::from_binary_vec(values),
             BorrowedColumn::NChar(values) => MultiBind::from_string_vec(values),
             _ => unreachable!(),
