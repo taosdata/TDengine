@@ -148,7 +148,7 @@ static void convertWhereStringCharset(tSqlExpr* pRight);
 int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded);
 
 static bool isTimeWindowQuery(SQueryInfo* pQueryInfo) {
-  return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0 || pQueryInfo->stateWindow;
+  return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0;
 }
 
 
@@ -7608,7 +7608,7 @@ int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 
 int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   bool        isProjectionFunction = false;
-  const char* msg1 = "functions not compatible with interval/session window/state window";
+  const char* msg1 = "functions not compatible with interval";
 
   // multi-output set/ todo refactor
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
