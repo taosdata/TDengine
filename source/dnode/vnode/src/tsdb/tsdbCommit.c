@@ -142,12 +142,13 @@ int tsdbPrepareCommit(STsdb *pTsdb) {
 }
 
 int tsdbCommit(STsdb *pRepo) {
-  STsdbMemTable *pMem = pRepo->imem;
-  SCommitH       commith = {0};
-  SDFileSet     *pSet = NULL;
-  int            fid;
+  SCommitH   commith = {0};
+  SDFileSet *pSet = NULL;
+  int        fid;
 
-  if (pRepo->imem == NULL) return 0;
+  // if (pRepo->imem == NULL) return 0;
+  pRepo->imem = pRepo->mem;
+  pRepo->mem = NULL;
 
   tsdbStartCommit(pRepo);
   // Resource initialization
