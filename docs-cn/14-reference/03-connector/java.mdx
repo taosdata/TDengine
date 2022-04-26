@@ -352,7 +352,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 **注意**：
 
-- JDBC REST 连接并不提供参数绑定这种使用方式
+- JDBC REST 连接暂时不提供参数绑定这种使用方式
 - 以下示例代码基于 taos-jdbcdriver-2.0.36
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
 - setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
@@ -622,7 +622,7 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 **注意**：
 
-- JDBC REST 连接并不提供无模式写入这种使用方式
+- JDBC REST 连接暂时不提供无模式写入这种使用方式
 - 以下示例代码基于 taos-jdbcdriver-2.0.36
 
 示例代码：
