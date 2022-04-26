@@ -153,7 +153,8 @@ _exit:
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
-  pLoad->syncState = TAOS_SYNC_STATE_LEADER;
+  //pLoad->syncState = TAOS_SYNC_STATE_LEADER;
+  pLoad->syncState = syncGetMyRole(pVnode->sync); // sync integration
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = 400;
   pLoad->totalStorage = 300;
