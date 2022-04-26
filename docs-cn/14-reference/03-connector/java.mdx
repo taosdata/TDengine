@@ -711,9 +711,9 @@ conn.close();
 
 > `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
 
-## 与连接池使用
+### 与连接池使用
 
-### HikariCP
+#### HikariCP
 
 使用示例如下：
 
@@ -747,7 +747,7 @@ conn.close();
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
 > 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)。
 
-### Druid
+#### Druid
 
 使用示例如下：
 
@@ -792,7 +792,7 @@ server_status()|
 Query OK, 1 row(s) in set (0.000141s)
 ```
 
-## 示例程序
+### 更多示例程序
 
 示例程序源码位于 `TDengine/examples/JDBC` 下:
 
