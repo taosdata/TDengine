@@ -177,6 +177,7 @@ typedef struct SField {
   char    name[TSDB_COL_NAME_LEN];
   uint8_t type;
   int32_t bytes;
+  int8_t  flags;
 } SField;
 
 typedef struct SRetention {
@@ -302,13 +303,11 @@ typedef struct {
   int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
-  int32_t numOfSmas;
   int32_t commentLen;
   int32_t ast1Len;
   int32_t ast2Len;
   SArray* pColumns;  // array of SField
   SArray* pTags;     // array of SField
-  SArray* pSmas;     // array of SField
   char*   comment;
   char*   pAst1;
   char*   pAst2;

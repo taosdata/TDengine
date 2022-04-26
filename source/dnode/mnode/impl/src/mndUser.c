@@ -21,8 +21,8 @@
 #include "mndTrans.h"
 #include "tbase64.h"
 
-#define TSDB_USER_VER_NUMBER   1
-#define TSDB_USER_RESERVE_SIZE 64
+#define USER_VER_NUMBER   1
+#define USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser);
@@ -35,7 +35,7 @@ static int32_t  mndProcessCreateUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
 int32_t mndInitUser(SMnode *pMnode) {
@@ -93,9 +93,9 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
   int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
-  int32_t size = sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN;
+  int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER_NUMBER, size);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) goto USER_ENCODE_OVER;
 
   int32_t dataPos = 0;
@@ -120,7 +120,7 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     db = taosHashIterate(pUser->writeDbs, db);
   }
 
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE, USER_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, USER_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, USER_ENCODE_OVER)
 
   terrno = 0;
@@ -142,7 +142,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto USER_DECODE_OVER;
 
-  if (sver != TSDB_USER_VER_NUMBER) {
+  if (sver != USER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto USER_DECODE_OVER;
   }
@@ -184,7 +184,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     taosHashPut(pUser->writeDbs, db, len, db, TSDB_DB_FNAME_LEN);
   }
 
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE, USER_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, USER_DECODE_OVER)
 
   terrno = 0;
 
@@ -639,7 +639,7 @@ GET_AUTH_OVER:
   return code;
 }
 
-static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->pNode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
@@ -652,29 +652,29 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pB
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
     char name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->bytes[cols]);
 
-    colDataAppend(pColInfo, numOfRows, (const char*) name, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
-    const char* src = pUser->superUser? "super":"normal";
-    char b[10+VARSTR_HEADER_SIZE] = {0};
+    const char *src = pUser->superUser ? "super" : "normal";
+    char        b[10 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, (const char*) b, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)b, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pUser->createdTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pUser->createdTime, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->acct, pShow->bytes[cols]);
-    colDataAppend(pColInfo, numOfRows, (const char*) name, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
     numOfRows++;
     sdbRelease(pSdb, pUser);

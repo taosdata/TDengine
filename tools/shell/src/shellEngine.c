@@ -213,13 +213,10 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
-  int64_t oresult = atomic_load_64(&shell.result);
-
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
-    atomic_store_64(&shell.result, 0);
     taos_free_result(pSql);
 
     return;
@@ -230,10 +227,7 @@ void shellRunSingleCommandImp(char *command) {
     int32_t error_no = 0;
 
     int32_t numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
-    if (numOfRows < 0) {
-      atomic_store_64(&shell.result, 0);
-      return;
-    }
+    if (numOfRows < 0) return;
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
@@ -250,8 +244,6 @@ void shellRunSingleCommandImp(char *command) {
   }
 
   printf("\n");
-
-  atomic_store_64(&shell.result, 0);
 }
 
 char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
@@ -398,7 +390,6 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
     row = taos_fetch_row(tres);
   } while (row != NULL);
 
-  atomic_store_64(&shell.result, 0);
   taosCloseFile(&pFile);
 
   return numOfRows;
@@ -766,7 +757,6 @@ void shellWriteHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  atomic_store_ptr(&shell.result, 0);
   fprintf(stderr, "\nDB error: %s (%.6fs)\n", taos_errstr(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
@@ -872,7 +862,6 @@ void shellGetGrantInfo() {
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\n", serverVersion, sinfo, expiretime);
     }
 
-    atomic_store_64(&shell.result, 0);
     taos_free_result(tres);
   }
 

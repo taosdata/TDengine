@@ -85,7 +85,6 @@ typedef struct {
   TAOS*           conn;
   TdThread        pid;
   tsem_t          cancelSem;
-  int64_t         result;
 } SShellObj;
 
 // shellArguments.c
