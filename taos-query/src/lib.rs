@@ -117,6 +117,28 @@ where
     }
 }
 
+
+pub struct ColsIter<'b, T: BlockExt> {
+    block: &'b T,
+    col: usize,
+}
+
+impl<'b, T> Iterator for ColsIter<'b, T>
+where T: BlockExt {
+    type Item = BorrowedColumn<'b>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.col >= self.block.field_count() {
+            return None;
+        }
+
+        let v = unsafe { self.block.get_col_unchecked(self.col) };
+        self.col += 1;
+        Some(v)
+    }
+    
+}
+
 type DeserializeIter<'b, B, T> =
     std::iter::Map<RowsIter<'b, B>, fn(RowInBlock<'b, B>) -> Result<T, serde::de::value::Error>>;
 
@@ -155,6 +177,10 @@ pub trait BlockExt: Debug + Sized {
     /// **DO NOT** call it directly.
     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue);
 
+    unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn {
+        todo!()
+    }
+
     /// Query by rows.
     fn iter_rows(&self) -> RowsIter<'_, Self> {
         RowsIter {
@@ -167,6 +193,13 @@ pub trait BlockExt: Debug + Sized {
         IntoRowsIter {
             block: Rc::new(self),
             row: Cell::new(0),
+        }
+    }
+
+    fn columns_iter(&self) -> ColsIter<'_, Self> {
+        ColsIter {
+            block: self,
+            col: 0,
         }
     }
 

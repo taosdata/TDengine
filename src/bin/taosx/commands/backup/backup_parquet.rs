@@ -12,6 +12,8 @@ use parquet::{
 };
 use std::{fs, path::PathBuf, sync::Arc};
 use taos::r2d2::TaosPool;
+use taos::BlockExt;
+
 pub async fn generate_parquet_schema(taos: &Taos, db: String, stb: &str) -> Arc<Type> {
     let mut fields = vec![];
     taos.use_database(&db).await.unwrap();

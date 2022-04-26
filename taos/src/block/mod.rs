@@ -18,12 +18,12 @@ use itertools::Itertools;
 use taos_sys::ffi::*;
 use taos_sys::*;
 
-use taos_query::common::*;
+pub use taos_query::common::*;
 
 use crate::{impls::SyncBlock, Error, Result, TaosResult};
 
 mod column;
-pub use column::*;
+// pub use column::*;
 
 mod row;
 pub use row::*;
@@ -450,7 +450,7 @@ impl<'a> Stream for BlockStream<'a> {
             s.completed = false;
             s.num_of_rows = 0;
             drop(s);
-            
+
             self.records.write().unwrap().push(num_of_rows);
 
             // Wake up poll.

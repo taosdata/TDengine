@@ -252,14 +252,14 @@ pub mod prelude {
 
 pub mod query;
 
+pub use taos_query::BlockExt;
 #[cfg(test)]
 mod tests {
-    use super::{client_info, Result, Taos, TaosOptions, TaosResult};
+    use super::{client_info, Result, Taos, TaosOptions};
     use taos_macros::test;
     use taos_query::BlockExt;
-    #[test(crate)]
+    #[test]
     async fn test_describe(taos: &Taos) -> Result<()> {
-        let taos = TaosOptions::new().build()?;
         let desc = taos.describe("log.logs").await?;
         dbg!(desc);
         Ok(())
