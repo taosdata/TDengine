@@ -2384,7 +2384,7 @@ typedef struct {
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
-  int64_t  blockingTime;
+  int64_t  waitTime;
   int64_t  currentOffset;
 } SMqPollReqV2;
 
@@ -2400,53 +2400,6 @@ typedef struct {
   SArray*        vgs;  // SArray<SMqSubVgEp>
   SSchemaWrapper schema;
 } SMqSubTopicEp;
-
-typedef struct {
-  SMqRspHead head;
-  int64_t    reqOffset;
-  int64_t    rspOffset;
-  int32_t    skipLogNum;
-  int32_t    dataLen;
-  SArray*    blockPos;   // beginning pos for each SRetrieveTableRsp
-  void*      blockData;  // serialized batched SRetrieveTableRsp
-} SMqPollRspV2;
-
-static FORCE_INLINE int32_t tEncodeSMqPollRspV2(void** buf, const SMqPollRspV2* pRsp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
-  tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
-  tlen += taosEncodeFixedI32(buf, pRsp->dataLen);
-  if (pRsp->dataLen != 0) {
-    int32_t sz = taosArrayGetSize(pRsp->blockPos);
-    tlen += taosEncodeFixedI32(buf, sz);
-    for (int32_t i = 0; i < sz; i++) {
-      int32_t blockPos = *(int32_t*)taosArrayGet(pRsp->blockPos, i);
-      tlen += taosEncodeFixedI32(buf, blockPos);
-    }
-    tlen += taosEncodeBinary(buf, pRsp->blockData, pRsp->dataLen);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqPollRspV2(const void* buf, SMqPollRspV2* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
-  buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
-  buf = taosDecodeFixedI32(buf, &pRsp->dataLen);
-  if (pRsp->dataLen != 0) {
-    int32_t sz;
-    buf = taosDecodeFixedI32(buf, &sz);
-    pRsp->blockPos = taosArrayInit(sz, sizeof(int32_t));
-    for (int32_t i = 0; i < sz; i++) {
-      int32_t blockPos;
-      buf = taosDecodeFixedI32(buf, &blockPos);
-      taosArrayPush(pRsp->blockPos, &blockPos);
-    }
-    buf = taosDecodeBinary(buf, &pRsp->blockData, pRsp->dataLen);
-  }
-  return (void*)buf;
-}
 
 typedef struct {
   SMqRspHead head;
