@@ -890,15 +890,16 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
-      ((pResp->code != 0) && msgType == TDMT_MND_CONNECT)) {
+      ((pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgType == TDMT_MND_CONNECT)) {
     pCtx->retryCount += 1;
     pMsg->st = taosGetTimestampUs();
-    if (msgType == TDMT_MND_CONNECT) {
+    if (msgType == TDMT_MND_CONNECT && pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
         cliHandleReq(pMsg, pThrd);
         return -1;
       }
+      cliDestroyConn(pConn, true);
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
         pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
