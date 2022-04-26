@@ -117,14 +117,15 @@ where
     }
 }
 
-
 pub struct ColsIter<'b, T: BlockExt> {
     block: &'b T,
     col: usize,
 }
 
 impl<'b, T> Iterator for ColsIter<'b, T>
-where T: BlockExt {
+where
+    T: BlockExt,
+{
     type Item = BorrowedColumn<'b>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -136,7 +137,6 @@ where T: BlockExt {
         self.col += 1;
         Some(v)
     }
-    
 }
 
 type DeserializeIter<'b, B, T> =
@@ -177,9 +177,7 @@ pub trait BlockExt: Debug + Sized {
     /// **DO NOT** call it directly.
     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue);
 
-    unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn {
-        todo!()
-    }
+    unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn;
 
     /// Query by rows.
     fn iter_rows(&self) -> RowsIter<'_, Self> {
@@ -499,6 +497,14 @@ mod tests {
             }
         }
 
+        fn precision(&self) -> Precision {
+            Precision::Microsecond
+        }
+
+        fn is_null(&self, _row: usize, _col: usize) -> bool {
+            false
+        }
+
         fn field_count(&self) -> usize {
             3
         }
@@ -518,12 +524,8 @@ mod tests {
             }
         }
 
-        fn precision(&self) -> Precision {
-            Precision::Microsecond
-        }
-
-        fn is_null(&self, _row: usize, _col: usize) -> bool {
-            false
+        unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn {
+            todo!()
         }
     }
 

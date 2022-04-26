@@ -5,6 +5,8 @@ use std::{
     slice,
     sync::Arc,
 };
+use bitvec_simd::BitVec;
+use itertools::Itertools;
 use thiserror::Error;
 
 use taos_query::{common::*, BlockExt, Queryable, ResultSet};
@@ -56,6 +58,10 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
 
     fn precision(&self) -> Precision {
         self.precision
+    }
+
+    fn is_null(&self, row: usize, col: usize) -> bool {
+        self.raw.is_null(row as _, col as _)
     }
 
     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue) {
@@ -119,8 +125,77 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
         (field as _, value)
     }
 
-    fn is_null(&self, row: usize, col: usize) -> bool {
-        self.raw.is_null(row as _, col as _)
+    unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn {
+        let inner = self.data.add(col);
+        let field = self.get_field_unchecked(col);
+        let num_of_rows = self.num_of_rows() as usize;
+        let is_nulls =
+            BitVec::from_bool_iterator((0..num_of_rows as usize).map(|row| self.is_null(row, col)));
+
+        macro_rules! column_transmute {
+            ($f:ident, $t:ty) => {
+                paste::paste! {
+                    BorrowedColumn::$f(is_nulls, {
+                        std::slice::from_raw_parts(*inner as *const $t, num_of_rows)
+                    })
+                }
+            };
+        }
+        match field.ty() {
+            Ty::Null => BorrowedColumn::Null(num_of_rows),
+            Ty::Bool => column_transmute!(Bool, bool),
+            Ty::TinyInt => column_transmute!(TinyInt, i8),
+            Ty::SmallInt => column_transmute!(SmallInt, i16),
+            Ty::Int => column_transmute!(Int, i32),
+            Ty::BigInt => column_transmute!(BigInt, i64),
+            Ty::UTinyInt => column_transmute!(UTinyInt, u8),
+            Ty::USmallInt => column_transmute!(USmallInt, u16),
+            Ty::UInt => column_transmute!(UInt, u32),
+            Ty::UBigInt => column_transmute!(UBigInt, u64),
+            Ty::Float => column_transmute!(Float, f32),
+            Ty::Double => column_transmute!(Double, f64),
+            Ty::Timestamp => {
+                let raw = std::slice::from_raw_parts(*inner as *const i64, num_of_rows);
+                BorrowedColumn::Timestamp(is_nulls, raw)
+            }
+            Ty::VarChar => {
+                let length = self.lengths.get_unchecked(col);
+                let item = (0..num_of_rows)
+                    .map(|n| {
+                        let ptr = (*inner as *const u8).offset(n as isize * *length as isize);
+                        let len = ptr.cast::<i16>().read();
+                        let start = ptr.offset(2);
+                        if is_nulls.get_unchecked(n) {
+                            None
+                        } else {
+                            Some(slice::from_raw_parts(start, len as _))
+                        }
+                    })
+                    .collect_vec();
+
+                BorrowedColumn::Binary(item)
+            }
+            Ty::NChar => {
+                let length = self.lengths.get_unchecked(col);
+                let item = (0..num_of_rows)
+                    .map(|n| {
+                        let ptr = (*inner as *const u8).offset(n as isize * *length as isize);
+                        let len = ptr.cast::<i16>().read();
+                        let start = ptr.offset(2);
+                        if is_nulls.get_unchecked(n) {
+                            None
+                        } else {
+                            Some(std::str::from_utf8_unchecked(slice::from_raw_parts(
+                                start as _, len as _,
+                            )))
+                        }
+                    })
+                    .collect_vec();
+
+                BorrowedColumn::NChar(item)
+            }
+            _ => unreachable!("unsupported borrowed column type"),
+        }
     }
 }
 
