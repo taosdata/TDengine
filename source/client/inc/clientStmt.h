@@ -34,8 +34,7 @@ typedef enum {
   STMT_PREPARE,
   STMT_SETTBNAME,
   STMT_SETTAGS,
-  STMT_FETCH_TAG_FIELDS,
-  STMT_FETCH_COL_FIELDS,
+  STMT_FETCH_FIELDS,
   STMT_BIND,
   STMT_BIND_COL,
   STMT_ADD_BATCH,
@@ -75,6 +74,8 @@ typedef struct SStmtSQLInfo {
   SQuery*      pQuery;
   char*        sqlStr;
   int32_t      sqlLen;
+  SArray*      nodeList;
+  SQueryPlan*  pQueryPlan;
 } SStmtSQLInfo;
 
 typedef struct STscStmt {
@@ -87,6 +88,8 @@ typedef struct STscStmt {
   SStmtBindInfo bInfo;
 } STscStmt;
 
+#define STMT_STATUS_NE(S) (pStmt->sql.status != STMT_##S)
+#define STMT_STATUS_EQ(S) (pStmt->sql.status == STMT_##S)
 
 #define STMT_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define STMT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
@@ -97,14 +100,15 @@ int stmtClose(TAOS_STMT *stmt);
 int stmtExec(TAOS_STMT *stmt);
 const char *stmtErrstr(TAOS_STMT *stmt);
 int stmtAffectedRows(TAOS_STMT *stmt);
+int stmtAffectedRowsOnce(TAOS_STMT *stmt);
 int stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
 int stmtSetTbName(TAOS_STMT *stmt, const char *tbName);
-int stmtSetTbTags(TAOS_STMT *stmt, TAOS_BIND_v2 *tags);
+int stmtSetTbTags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
 int stmtIsInsert(TAOS_STMT *stmt, int *insert);
 int stmtGetParamNum(TAOS_STMT *stmt, int *nums);
 int stmtAddBatch(TAOS_STMT *stmt);
 TAOS_RES *stmtUseResult(TAOS_STMT *stmt);
-int stmtBindBatch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int32_t colIdx);
+int stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int32_t colIdx);
 
 
 #ifdef __cplusplus

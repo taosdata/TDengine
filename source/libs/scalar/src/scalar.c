@@ -72,7 +72,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   
   for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
     SValueNode *valueNode = (SValueNode *)cell->pNode;
-
+    
     if (valueNode->node.resType.type != type) {
       out.columnData->info.type = type;
       out.columnData->info.bytes = tDataTypes[type].bytes;
@@ -177,7 +177,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      SCL_ERR_RET(scalarGenerateSetFromList((void**) &param->pHashFilter, node, nodeList->dataType.type));
+      SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, nodeList->dataType.type));
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
@@ -482,6 +482,79 @@ _return:
   SCL_RET(code);
 }
 
+EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opType) {
+  if (opType <= OP_TYPE_CALC_MAX) {
+    SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+    if (NULL == res) {
+      sclError("make value node failed");    
+      ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    
+    res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)res;
+  } else {
+    SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+    if (NULL == res) {
+      sclError("make value node failed");    
+      ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    
+    res->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    res->datum.b = false;
+    
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)res;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+EDealRes sclRewriteOperatorForNullValue(SNode** pNode, SScalarCtx *ctx) {
+  SOperatorNode *node = (SOperatorNode *)*pNode;
+
+  if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
+    SValueNode *valueNode = (SValueNode *)node->pLeft;
+    if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
+      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    }
+  }
+
+  if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
+    SValueNode *valueNode = (SValueNode *)node->pRight;
+    if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
+      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    }
+  }
+
+  if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
+    SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+    SNode* tnode = NULL;
+    WHERE_EACH(tnode, listNode->pNodeList) {
+      if (SCL_IS_NULL_VALUE_NODE(tnode)) {
+        if (node->opType == OP_TYPE_IN) {
+          ERASE_NODE(listNode->pNodeList);
+          continue;
+        } else { //OP_TYPE_NOT_IN
+          return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+        }
+      }
+
+      WHERE_NEXT;
+    }
+
+    if (listNode->pNodeList->length <= 0) {
+      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    }
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode* tnode = NULL;
@@ -574,12 +647,8 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
-  if (!SCL_IS_CONST_NODE(node->pLeft)) {
-    return DEAL_RES_CONTINUE;
-  }
-
-  if (!SCL_IS_CONST_NODE(node->pRight)) {
-    return DEAL_RES_CONTINUE;
+  if ((!SCL_IS_CONST_NODE(node->pLeft)) || (!SCL_IS_CONST_NODE(node->pRight))) {
+    return sclRewriteOperatorForNullValue(pNode, ctx);
   }
 
   SScalarParam output = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};

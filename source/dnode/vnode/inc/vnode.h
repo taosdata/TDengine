@@ -32,6 +32,8 @@
 #include "tmsg.h"
 #include "trow.h"
 
+#include "tdbInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,7 +61,7 @@ int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
-int     vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
+int     vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
@@ -68,19 +70,28 @@ int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 
 // meta
-typedef struct SMeta      SMeta;  // todo: remove
-typedef struct SMTbCursor SMTbCursor;
+typedef struct SMeta       SMeta;  // todo: remove
+typedef struct SMetaReader SMetaReader;
+typedef struct SMetaEntry  SMetaEntry;
 
+void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+void metaReaderClear(SMetaReader *pReader);
+int  metaReadNext(SMetaReader *pReader);
+
+#if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
 typedef SVCreateTSmaReq SSmaCfg;
 
+typedef struct SMTbCursor SMTbCursor;
+
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-char       *metaTbCursorNext(SMTbCursor *pTbCur);
+int         metaTbCursorNext(SMTbCursor *pTbCur);
+#endif
 
 // tsdb
-typedef struct STsdb          STsdb;
-typedef void                 *tsdbReaderT;
+typedef struct STsdb STsdb;
+typedef void        *tsdbReaderT;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
@@ -100,7 +111,7 @@ bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
 int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
-void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond);
+void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 int32_t      tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
@@ -130,6 +141,7 @@ struct STsdbCfg {
   int8_t   precision;
   int8_t   update;
   int8_t   compression;
+  int8_t   slLevel;
   int32_t  days;
   int32_t  minRows;
   int32_t  maxRows;
@@ -144,10 +156,10 @@ struct SVnodeCfg {
   int32_t  vgId;
   char     dbname[TSDB_DB_NAME_LEN];
   uint64_t dbId;
-  uint64_t wsize;
-  uint64_t ssize;
-  uint64_t lsize;
-  bool     isHeapAllocator;
+  int32_t  szPage;
+  int32_t  szCache;
+  uint64_t szBuf;
+  bool     isHeap;
   uint32_t ttl;
   uint32_t keep;
   int8_t   streamMode;
@@ -164,6 +176,48 @@ typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
+
+struct SMetaEntry {
+  int64_t     version;
+  int8_t      type;
+  tb_uid_t    uid;
+  const char *name;
+  union {
+    struct {
+      SSchemaWrapper schema;
+      SSchemaWrapper schemaTag;
+    } stbEntry;
+    struct {
+      int64_t     ctime;
+      int32_t     ttlDays;
+      tb_uid_t    suid;
+      const void *pTags;
+    } ctbEntry;
+    struct {
+      int64_t        ctime;
+      int32_t        ttlDays;
+      SSchemaWrapper schema;
+    } ntbEntry;
+  };
+};
+
+struct SMetaReader {
+  int32_t    flags;
+  SMeta     *pMeta;
+  SCoder     coder;
+  SMetaEntry me;
+  void      *pBuf;
+  int        szBuf;
+};
+
+struct SMTbCursor {
+  TDBC       *pDbc;
+  void       *pKey;
+  void       *pVal;
+  int         kLen;
+  int         vLen;
+  SMetaReader mr;
+};
 
 #ifdef __cplusplus
 }

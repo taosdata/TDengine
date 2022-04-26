@@ -59,7 +59,7 @@ int32_t mndInitConsumer(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndConsumerActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_SUB_EP, mndProcessAskEpReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_ASK_EP, mndProcessAskEpReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
   return sdbSetTable(pMnode->pSdb, table);
@@ -86,7 +86,7 @@ static int32_t mndProcessConsumerLostMsg(SNodeMsg *pMsg) {
   mndTransDrop(pTrans);
   return 0;
 FAIL:
-  // TODO delete consumer
+  tDeleteSMqConsumerObj(pConsumerNew);
   mndTransDrop(pTrans);
   return -1;
 }
@@ -197,11 +197,11 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
 }
 
 static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
-  SMnode           *pMnode = pMsg->pNode;
-  SMqCMGetSubEpReq *pReq = (SMqCMGetSubEpReq *)pMsg->rpcMsg.pCont;
-  SMqCMGetSubEpRsp  rsp = {0};
-  int64_t           consumerId = be64toh(pReq->consumerId);
-  int32_t           epoch = ntohl(pReq->epoch);
+  SMnode      *pMnode = pMsg->pNode;
+  SMqAskEpReq *pReq = (SMqAskEpReq *)pMsg->rpcMsg.pCont;
+  SMqAskEpRsp  rsp = {0};
+  int64_t      consumerId = be64toh(pReq->consumerId);
+  int32_t      epoch = ntohl(pReq->epoch);
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->pNode, consumerId);
   if (pConsumer == NULL) {
@@ -300,7 +300,7 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
     taosRUnLockLatch(&pConsumer->lock);
   }
   // encode rsp
-  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqCMGetSubEpRsp(NULL, &rsp);
+  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqAskEpRsp(NULL, &rsp);
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -311,10 +311,10 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
   ((SMqRspHead *)buf)->consumerId = pConsumer->consumerId;
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-  tEncodeSMqCMGetSubEpRsp(&abuf, &rsp);
+  tEncodeSMqAskEpRsp(&abuf, &rsp);
 
   // release consumer and free memory
-  tDeleteSMqCMGetSubEpRsp(&rsp);
+  tDeleteSMqAskEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
 
   // send rsp
@@ -322,7 +322,7 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
   pMsg->rspLen = tlen;
   return 0;
 FAIL:
-  tDeleteSMqCMGetSubEpRsp(&rsp);
+  tDeleteSMqAskEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
   return -1;
 }

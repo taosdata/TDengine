@@ -246,6 +246,12 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 
   pResInfo->numOfCols = numOfCols;
   // TODO handle memory leak
+  if (pResInfo->fields != NULL) {
+    taosMemoryFree(pResInfo->fields);
+  }
+  if (pResInfo->userFields != NULL) {
+    taosMemoryFree(pResInfo->userFields);
+  }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
 
@@ -303,6 +309,11 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   pRequest->code = res.code;
   terrno = res.code;
   return pRequest->code;
+}
+
+int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) {
+  *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+  return getPlan(pRequest, pQuery, &pRequest->body.pDag, *pNodeList);
 }
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery) {

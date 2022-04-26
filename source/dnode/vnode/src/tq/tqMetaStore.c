@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "vnodeInt.h"
+#include "tq.h"
 // #include <fcntl.h>
 // #include <string.h>
 // #include <unistd.h>
@@ -86,7 +86,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
   }
   strcpy(pMeta->dirPath, path);
 
-  char *name = taosMemoryMalloc(pathLen + 10) ;
+  char* name = taosMemoryMalloc(pathLen + 10);
 
   strcpy(name, path);
   if (!taosDirExist(name) && taosMkDir(name) != 0) {
