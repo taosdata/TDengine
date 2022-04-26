@@ -66,28 +66,31 @@ class TDTestCase:
                 for i in range(len(upper_data)):
                     tdSql.checkData(i, 0, upper_data[i] ) if upper_data[i] else tdSql.checkData(i, 0, None)
 
-    def __upper_err_check(self,tbanme):
+    def __upper_err_check(self,tbname):
         sqls = []
 
         for un_char_col in UN_CHAR_COL:
             sqls.extend(
                 (
-                    f"select upper( {un_char_col} ) from {tbanme} ",
-                    f"select upper(ceil( {un_char_col} )) from {tbanme} ",
+                    f"select upper( {un_char_col} ) from {tbname} ",
+                    f"select upper(ceil( {un_char_col} )) from {tbname} ",
+                    f"select {un_char_col} from {tbname} group by upper( {un_char_col} ) ",
                 )
             )
-            sqls.extend( f"select upper( {un_char_col} + {un_char_col_2} ) from {tbanme} " for un_char_col_2 in UN_CHAR_COL )
-            sqls.extend( f"select upper( {un_char_col} + {ts_col} ) from {tbanme} " for ts_col in TS_TYPE_COL )
 
-        sqls.extend( f"select upper( {ts_col} ) from {tbanme} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select upper( {char_col} + {ts_col} ) from {tbanme} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select upper( {char_col} + {char_col_2} ) from {tbanme} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+            sqls.extend( f"select upper( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in UN_CHAR_COL )
+            sqls.extend( f"select upper( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+
+        sqls.extend( f"select {char_col} from {tbname} group by upper( {char_col} ) " for char_col in CHAR_COL)
+        sqls.extend( f"select upper( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select upper( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select upper( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
         sqls.extend(
             (
-                f"select upper() from {tbanme} ",
-                f"select upper(*) from {tbanme} ",
-                f"select upper(ccccccc) from {tbanme} ",
-                f"select upper(111) from {tbanme} ",
+                f"select upper() from {tbname} ",
+                f"select upper(*) from {tbname} ",
+                f"select upper(ccccccc) from {tbname} ",
+                f"select upper(111) from {tbname} ",
             )
         )
 
