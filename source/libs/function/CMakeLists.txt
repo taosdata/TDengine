@@ -51,6 +51,21 @@ target_link_libraries(
     udf1 PUBLIC os
 )
 
+add_library(udf2 MODULE test/udf2.c)
+target_include_directories(
+        udf1
+        PUBLIC
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
+            "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+target_link_libraries(
+    udf2 PUBLIC os
+)
+
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
 target_include_directories(

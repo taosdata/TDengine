@@ -9,15 +9,27 @@
 #undef free
 #define free free
 
-int32_t udf1_init() {
+int32_t udf2_init() {
   return 0;
 }
 
-int32_t udf1_destroy() {
+int32_t udf2_destroy() {
   return 0;
 }
 
-int32_t udf1(SUdfDataBlock block, SUdfColumn *resultCol) {
+int32_t udf2_start(SUdfInterBuf *buf) {
+  
+}
+
+int32_t udf2(SUdfDataBlock block, SUdfInterBuf *interBuf) {
+
+}
+
+int32_t udf2_finish(SUdfInterBuf buf, SUdfInterBuf *resultData) {
+
+}
+
+int32_t udf2(SUdfDataBlock block, SUdfColumn *resultCol) {
   SUdfColumnData *resultData = &resultCol->colData;
   resultData->numOfRows = block.numOfRows;
   SUdfColumnData *srcData = &block.udfCols[0]->colData;
@@ -52,7 +64,7 @@ int32_t udf1(SUdfDataBlock block, SUdfColumn *resultCol) {
   return 0;
 }
 
-int32_t udf1_free(SUdfColumn *col) {
+int32_t udf2_free(SUdfColumn *col) {
   SUdfColumnData *data = &col->colData;
   if (data->varLengthColumn) {
     free(data->varLenCol.varOffsets);
