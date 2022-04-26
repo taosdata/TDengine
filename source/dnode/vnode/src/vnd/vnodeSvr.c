@@ -13,9 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sync.h"
-#include "syncTools.h"
-#include "vnodeInt.h"
+#include "vnd.h"
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -201,9 +199,7 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 
 // sync integration
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-
   if (syncEnvIsStart()) {
-
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
     assert(pSyncNode != NULL);
 

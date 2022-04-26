@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tsdb.h"
 
 int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb) {
   STsdb *pTsdb = NULL;
