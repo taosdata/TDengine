@@ -202,7 +202,7 @@ typedef struct SqlFunctionCtx {
   SPoint1                end;
   SFuncExecFuncs         fpSet;
   SScalarFuncExecFuncs   sfp;
-  SExprInfo             *pExpr;
+  struct SExprInfo      *pExpr;
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;

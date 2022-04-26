@@ -191,7 +191,7 @@ static SColumnInfo* extractColumnFilterInfo(SExprInfo* pExpr, int32_t numOfOutpu
 static int32_t setTimestampListJoinInfo(STaskRuntimeEnv* pRuntimeEnv, SVariant* pTag, STableQueryInfo* pTableQueryInfo);
 static void    releaseQueryBuf(size_t numOfTables);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
-// static STsdbQueryCond createTsdbQueryCond(STaskAttr* pQueryAttr, STimeWindow* win);
+// static SQueryTableDataCond createTsdbQueryCond(STaskAttr* pQueryAttr, STimeWindow* win);
 static STableIdInfo createTableIdInfo(STableQueryInfo* pTableQueryInfo);
 
 static int32_t getNumOfScanTimes(STaskAttr* pQueryAttr);
@@ -3587,8 +3587,8 @@ static void doTableQueryInfoTimeWindowCheck(SExecTaskInfo* pTaskInfo, STableQuer
 #endif
 }
 
-// STsdbQueryCond createTsdbQueryCond(STaskAttr* pQueryAttr, STimeWindow* win) {
-//   STsdbQueryCond cond = {
+// SQueryTableDataCond createTsdbQueryCond(STaskAttr* pQueryAttr, STimeWindow* win) {
+//   SQueryTableDataCond cond = {
 //       .colList   = pQueryAttr->tableCols,
 //       .order     = pQueryAttr->order.order,
 //       .numOfCols = pQueryAttr->numOfCols,
@@ -4677,7 +4677,7 @@ _error:
   return NULL;
 }
 
-static int32_t getTableScanOrder(STableScanInfo* pTableScanInfo) { return pTableScanInfo->order; }
+//static int32_t getTableScanOrder(STableScanInfo* pTableScanInfo) { return pTableScanInfo->order; }
 
 // this is a blocking operator
 static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
@@ -5657,8 +5657,7 @@ static STableQueryInfo* initTableQueryInfo(const STableGroupInfo* pTableGroupInf
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
-                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo,
-                                           const STableGroupInfo* pTableGroupInfo) {
+                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -6315,6 +6314,19 @@ static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOu
 static SArray* createSortInfo(SNodeList* pNodeList, SNodeList* pNodeListTarget);
 static SArray* createIndexMap(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
+static int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+
+static SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
+  SInterval interval = {
+      .interval     = pTableScanNode->interval,
+      .sliding      = pTableScanNode->sliding,
+      .intervalUnit = pTableScanNode->intervalUnit,
+      .slidingUnit  = pTableScanNode->slidingUnit,
+      .offset       = pTableScanNode->offset,
+  };
+
+  return interval;
+}
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                   uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
@@ -6325,7 +6337,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
-      int32_t     numOfCols = 0;
+      int32_t numOfCols = 0;
       tsdbReaderT pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableGroupInfo, (uint64_t)queryId, taskId);
       if (pDataReader == NULL && terrno != 0) {
         return NULL;
@@ -6335,16 +6347,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
       SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
 
-      SInterval interval = {
-          .interval = pTableScanNode->interval,
-          .sliding = pTableScanNode->sliding,
-          .intervalUnit = pTableScanNode->intervalUnit,
-          .slidingUnit = pTableScanNode->slidingUnit,
-          .offset = pTableScanNode->offset,
-      };
+      SQueryTableDataCond cond = {0};
+      int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        return NULL;
+      }
 
-      return createTableScanOperatorInfo(pDataReader, pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC,
-                                         numOfCols, pTableScanNode->dataRequired, pTableScanNode->scanSeq[0], pTableScanNode->scanSeq[1], pColList,
+      SInterval interval = extractIntervalInfo(pTableScanNode);
+      return createTableScanOperatorInfo(pDataReader, &cond, numOfCols, pTableScanNode->dataRequired, pTableScanNode->scanSeq, pColList,
                                          pResBlock, pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
@@ -6365,10 +6375,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      SSDataBlock*               pResBlock = createResDataBlock(pSysScanPhyNode->scan.node.pOutputDataBlockDesc);
+      SScanPhysiNode* pScanNode = &pSysScanPhyNode->scan;
 
-      struct SScanPhysiNode* pScanNode = &pSysScanPhyNode->scan;
-      SArray*                colList = extractScanColumnId(pScanNode->pScanCols);
+      SSDataBlock* pResBlock = createResDataBlock(pScanNode->node.pOutputDataBlockDesc);
+      SArray* colList = extractScanColumnId(pScanNode->pScanCols);
 
       SOperatorInfo* pOperator = createSysTableScanOperatorInfo(
           pHandle->meta, pResBlock, &pScanNode->tableName, pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet,
@@ -6489,38 +6499,47 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   return pOptr;
 }
 
-static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STableGroupInfo* pGroupInfo,
-                                        void* readHandle, uint64_t queryId, uint64_t taskId) {
-  STsdbQueryCond cond = {.loadExternalRows = false};
 
-  cond.order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
-  cond.numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
-  cond.colList = taosMemoryCalloc(cond.numOfCols, sizeof(SColumnInfo));
-  if (cond.colList == NULL) {
+static  int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode) {
+  pCond->loadExternalRows = false;
+
+  pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+  pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
+  pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
+  if (pCond->colList == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    return terrno;
   }
 
-  cond.twindow = pTableScanNode->scanRange;
-  cond.type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
-  //  cond.type = pTableScanNode->scanFlag;
+  pCond->twindow = pTableScanNode->scanRange;
+
+#if 1
+  //todo work around a problem, remove it later
+  if ((pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey > pCond->twindow.ekey) ||
+      (pCond->order == TSDB_ORDER_DESC && pCond->twindow.skey < pCond->twindow.ekey)) {
+    TSWAP(pCond->twindow.skey, pCond->twindow.ekey, int64_t);
+  }
+#endif
+
+  pCond->type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
+  //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;
-  for (int32_t i = 0; i < cond.numOfCols; ++i) {
+  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pTableScanNode->scan.pScanCols, i);
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
     if (pColNode->colType == COLUMN_TYPE_TAG) {
       continue;
     }
 
-    cond.colList[j].type = pColNode->node.resType.type;
-    cond.colList[j].bytes = pColNode->node.resType.bytes;
-    cond.colList[j].colId = pColNode->colId;
+    pCond->colList[j].type = pColNode->node.resType.type;
+    pCond->colList[j].bytes = pColNode->node.resType.bytes;
+    pCond->colList[j].colId = pColNode->colId;
     j += 1;
   }
 
-  cond.numOfCols = j;
-  return tsdbQueryTables(readHandle, &cond, pGroupInfo, queryId, taskId);
+  pCond->numOfCols = j;
+  return TSDB_CODE_SUCCESS;
 }
 
 SArray* extractScanColumnId(SNodeList* pNodeList) {
@@ -6738,7 +6757,13 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  return createDataReaderImpl(pTableScanNode, pTableGroupInfo, pHandle->reader, queryId, taskId);
+  SQueryTableDataCond cond = {0};
+  code = initQueryTableDataCond(&cond, pTableScanNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  return tsdbQueryTables(pHandle->reader, &cond, pTableGroupInfo, queryId, taskId);
 
 _error:
   terrno = code;

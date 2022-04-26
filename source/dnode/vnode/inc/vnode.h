@@ -77,16 +77,15 @@ char       *metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 typedef struct STsdb          STsdb;
-typedef struct STsdbQueryCond STsdbQueryCond;
 typedef void                 *tsdbReaderT;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
+tsdbReaderT *tsdbQueryTables(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
                              uint64_t taskId);
-tsdbReaderT  tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId,
+tsdbReaderT  tsdbQueryCacheLast(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
                                 void *pMemRef);
 int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
@@ -98,6 +97,7 @@ bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
 int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
+void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 int32_t      tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
@@ -155,15 +155,6 @@ struct SVnodeCfg {
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
-};
-
-struct STsdbQueryCond {
-  STimeWindow  twindow;
-  int32_t      order;  // desc|asc order to iterate the data block
-  int32_t      numOfCols;
-  SColumnInfo *colList;
-  bool         loadExternalRows;  // load external rows or not
-  int32_t      type;              // data block load type:
 };
 
 typedef struct {
