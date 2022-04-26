@@ -750,7 +750,7 @@ void shellReadHistory() {
 
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
-  TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_WRITE | TD_FILE_STREAM);
+  TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
   if (pFile == NULL) return;
 
   for (int32_t i = pHistory->hstart; i != pHistory->hend;) {

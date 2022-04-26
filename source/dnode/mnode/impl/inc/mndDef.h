@@ -350,7 +350,6 @@ typedef struct {
   int32_t  version;
   int32_t  nextColId;
   float    xFilesFactor;
-  int32_t  aggregationMethod;
   int32_t  delay;
   int32_t  ttl;
   int32_t  numOfColumns;

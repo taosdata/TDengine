@@ -14,6 +14,7 @@
  */
 
 #include "vnodeInt.h"
+#include "vnodeSync.h"
 
 int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   SVnodeInfo info = {0};
@@ -170,6 +171,16 @@ void vnodeClose(SVnode *pVnode) {
     taosMemoryFree(pVnode);
   }
 }
+
+// start the sync timer after the queue is ready
+int32_t vnodeStart(SVnode *pVnode) {
+  vnodeSyncSetQ(pVnode, NULL);
+  vnodeSyncSetRpc(pVnode, NULL);
+  vnodeSyncStart(pVnode);
+  return 0;
+}
+
+void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
 

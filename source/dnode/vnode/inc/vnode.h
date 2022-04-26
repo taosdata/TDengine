@@ -61,6 +61,9 @@ int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
 
+int32_t vnodeStart(SVnode *pVnode);
+void    vnodeStop(SVnode *pVnode);
+
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 
@@ -161,11 +164,6 @@ typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
-
-// sync integration
-void    vnodeSyncSetQ(SVnode *pVnode, void *qHandle);
-void    vnodeSyncSetRpc(SVnode *pVnode, void *rpcHandle);
-int32_t vnodeSyncStart(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

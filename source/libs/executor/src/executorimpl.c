@@ -1065,6 +1065,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
     SInputColumnInfoData* pInput = &pCtx[i].input;
     pInput->uid = pBlock->info.uid;
+    pInput->colDataAggIsSet = false;
 
     SExprInfo* pOneExpr = &pOperator->pExpr[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
@@ -3749,6 +3750,9 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
       }
 
       memcpy(pColInfoData->pData, pStart, colLen[i]);
+      //TODO setting this flag to true temporarily so aggregate function on stable will
+      //examine NULL value for non-primary key column
+      pColInfoData->hasNull = true;
       pStart += colLen[i];
     }
   } else {  // extract data according to pColList
