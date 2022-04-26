@@ -25,14 +25,16 @@ extern "C" {
 #include "tvariant.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
-#define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
-#define VGROUPS_INFO_SIZE(pInfo) (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
+#define TABLE_META_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
+#define VGROUPS_INFO_SIZE(pInfo) \
+  (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
 typedef struct SRawExprNode {
   ENodeType nodeType;
-  char* p;
-  uint32_t n;
-  SNode* pNode;
+  char*     p;
+  uint32_t  n;
+  SNode*    pNode;
 } SRawExprNode;
 
 typedef struct SDataType {
@@ -45,173 +47,155 @@ typedef struct SDataType {
 typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
-  char aliasName[TSDB_COL_NAME_LEN];
-  SNodeList* pAssociationList;
+  char      aliasName[TSDB_COL_NAME_LEN];
+  SArray*   pAssociation;
 } SExprNode;
 
-typedef enum EColumnType {
-  COLUMN_TYPE_COLUMN = 1,
-  COLUMN_TYPE_TAG
-} EColumnType;
+typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG } EColumnType;
 
 typedef struct SColumnNode {
-  SExprNode node; // QUERY_NODE_COLUMN
-  uint64_t tableId;
-  int8_t tableType;
-  col_id_t colId;
-  EColumnType colType; // column or tag
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  char tableAlias[TSDB_TABLE_NAME_LEN];
-  char colName[TSDB_COL_NAME_LEN];
-  SNode* pProjectRef;
-  int16_t dataBlockId;
-  int16_t slotId;
+  SExprNode   node;  // QUERY_NODE_COLUMN
+  uint64_t    tableId;
+  int8_t      tableType;
+  col_id_t    colId;
+  EColumnType colType;  // column or tag
+  char        dbName[TSDB_DB_NAME_LEN];
+  char        tableName[TSDB_TABLE_NAME_LEN];
+  char        tableAlias[TSDB_TABLE_NAME_LEN];
+  char        colName[TSDB_COL_NAME_LEN];
+  SNode*      pProjectRef;
+  int16_t     dataBlockId;
+  int16_t     slotId;
 } SColumnNode;
 
 typedef struct STargetNode {
   ENodeType type;
-  int16_t dataBlockId;
-  int16_t slotId;
-  SNode* pExpr;
+  int16_t   dataBlockId;
+  int16_t   slotId;
+  SNode*    pExpr;
 } STargetNode;
 
 typedef struct SValueNode {
-  SExprNode node; // QUERY_NODE_VALUE
-  char* literal;
-  bool isDuration;
-  bool translate;
-  bool genByCalc;
-  int16_t placeholderNo;
+  SExprNode node;  // QUERY_NODE_VALUE
+  char*     literal;
+  bool      isDuration;
+  bool      translate;
+  int16_t   placeholderNo;
   union {
-    bool b;
-    int64_t i;
+    bool     b;
+    int64_t  i;
     uint64_t u;
-    double d;
-    char* p;
+    double   d;
+    char*    p;
   } datum;
   char unit;
 } SValueNode;
 
 typedef struct SOperatorNode {
-  SExprNode node; // QUERY_NODE_OPERATOR
+  SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
-  SNode* pLeft;
-  SNode* pRight;
+  SNode*        pLeft;
+  SNode*        pRight;
 } SOperatorNode;
 
-
 typedef struct SLogicConditionNode {
-  SExprNode node; // QUERY_NODE_LOGIC_CONDITION
+  SExprNode           node;  // QUERY_NODE_LOGIC_CONDITION
   ELogicConditionType condType;
-  SNodeList* pParameterList;
+  SNodeList*          pParameterList;
 } SLogicConditionNode;
 
 typedef struct SNodeListNode {
-  ENodeType type; // QUERY_NODE_NODE_LIST
-  SDataType dataType;
+  ENodeType  type;  // QUERY_NODE_NODE_LIST
+  SDataType  dataType;
   SNodeList* pNodeList;
 } SNodeListNode;
 
 typedef struct SFunctionNode {
-  SExprNode node; // QUERY_NODE_FUNCTION
-  char functionName[TSDB_FUNC_NAME_LEN];
-  int32_t funcId;
-  int32_t funcType;
+  SExprNode  node;  // QUERY_NODE_FUNCTION
+  char       functionName[TSDB_FUNC_NAME_LEN];
+  int32_t    funcId;
+  int32_t    funcType;
   SNodeList* pParameterList;
-
-  int8_t udfFuncType; //TODO: fill by parser/planner
-  int32_t bufSize; //TODO: fill by parser/planner
+  int32_t    udfBufSize;
 } SFunctionNode;
 
 typedef struct STableNode {
   SExprNode node;
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  char tableAlias[TSDB_TABLE_NAME_LEN];
-  uint8_t precision;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  char      tableAlias[TSDB_TABLE_NAME_LEN];
+  uint8_t   precision;
 } STableNode;
 
 struct STableMeta;
 
 typedef struct SRealTableNode {
-  STableNode table; // QUERY_NODE_REAL_TABLE
+  STableNode         table;  // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
-  SVgroupsInfo* pVgroupList;
-  char useDbName[TSDB_DB_NAME_LEN];
-  double ratio;
+  SVgroupsInfo*      pVgroupList;
+  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
+  double             ratio;
 } SRealTableNode;
 
 typedef struct STempTableNode {
-  STableNode table; // QUERY_NODE_TEMP_TABLE
-  SNode* pSubquery;
+  STableNode table;  // QUERY_NODE_TEMP_TABLE
+  SNode*     pSubquery;
 } STempTableNode;
 
-typedef enum EJoinType {
-  JOIN_TYPE_INNER = 1
-} EJoinType;
+typedef enum EJoinType { JOIN_TYPE_INNER = 1 } EJoinType;
 
 typedef struct SJoinTableNode {
-  STableNode table; // QUERY_NODE_JOIN_TABLE
-  EJoinType joinType;
-  SNode* pLeft;
-  SNode* pRight;
-  SNode* pOnCond;
+  STableNode table;  // QUERY_NODE_JOIN_TABLE
+  EJoinType  joinType;
+  SNode*     pLeft;
+  SNode*     pRight;
+  SNode*     pOnCond;
 } SJoinTableNode;
 
-typedef enum EGroupingSetType {
-  GP_TYPE_NORMAL = 1
-} EGroupingSetType;
+typedef enum EGroupingSetType { GP_TYPE_NORMAL = 1 } EGroupingSetType;
 
 typedef struct SGroupingSetNode {
-  ENodeType type; // QUERY_NODE_GROUPING_SET
+  ENodeType        type;  // QUERY_NODE_GROUPING_SET
   EGroupingSetType groupingSetType;
-  SNodeList* pParameterList; 
+  SNodeList*       pParameterList;
 } SGroupingSetNode;
 
-typedef enum EOrder {
-  ORDER_ASC = 1,
-  ORDER_DESC
-} EOrder;
+typedef enum EOrder { ORDER_ASC = 1, ORDER_DESC } EOrder;
 
-typedef enum ENullOrder {
-  NULL_ORDER_DEFAULT = 1,
-  NULL_ORDER_FIRST,
-  NULL_ORDER_LAST
-} ENullOrder;
+typedef enum ENullOrder { NULL_ORDER_DEFAULT = 1, NULL_ORDER_FIRST, NULL_ORDER_LAST } ENullOrder;
 
 typedef struct SOrderByExprNode {
-  ENodeType type; // QUERY_NODE_ORDER_BY_EXPR
-  SNode* pExpr;
-  EOrder order;
+  ENodeType  type;  // QUERY_NODE_ORDER_BY_EXPR
+  SNode*     pExpr;
+  EOrder     order;
   ENullOrder nullOrder;
 } SOrderByExprNode;
 
 typedef struct SLimitNode {
-  ENodeType type; // QUERY_NODE_LIMIT
-  int64_t limit;
-  int64_t offset;
+  ENodeType type;  // QUERY_NODE_LIMIT
+  int64_t   limit;
+  int64_t   offset;
 } SLimitNode;
 
 typedef struct SStateWindowNode {
-  ENodeType type; // QUERY_NODE_STATE_WINDOW
-  SNode* pCol; // timestamp primary key
-  SNode* pExpr;
+  ENodeType type;  // QUERY_NODE_STATE_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  SNode*    pExpr;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
-  ENodeType type; // QUERY_NODE_SESSION_WINDOW
-  SColumnNode* pCol; // timestamp primary key
-  SValueNode* pGap; // gap between two session window(in microseconds)
+  ENodeType    type;  // QUERY_NODE_SESSION_WINDOW
+  SColumnNode* pCol;  // timestamp primary key
+  SValueNode*  pGap;  // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {
-  ENodeType type; // QUERY_NODE_INTERVAL_WINDOW
-  SNode* pCol; // timestamp primary key
-  SNode* pInterval; // SValueNode
-  SNode* pOffset;   // SValueNode
-  SNode* pSliding;  // SValueNode
-  SNode* pFill;
+  ENodeType type;       // QUERY_NODE_INTERVAL_WINDOW
+  SNode*    pCol;       // timestamp primary key
+  SNode*    pInterval;  // SValueNode
+  SNode*    pOffset;    // SValueNode
+  SNode*    pSliding;   // SValueNode
+  SNode*    pFill;
 } SIntervalWindowNode;
 
 typedef enum EFillMode {
@@ -224,42 +208,40 @@ typedef enum EFillMode {
 } EFillMode;
 
 typedef struct SFillNode {
-  ENodeType type; // QUERY_NODE_FILL
+  ENodeType type;  // QUERY_NODE_FILL
   EFillMode mode;
-  SNode* pValues; // SNodeListNode
+  SNode*    pValues;  // SNodeListNode
 } SFillNode;
 
 typedef struct SSelectStmt {
-  ENodeType type; // QUERY_NODE_SELECT_STMT
-  bool isDistinct;
-  SNodeList* pProjectionList;
-  SNode* pFromTable;
-  SNode* pWhere;
-  SNodeList* pPartitionByList;
-  SNode* pWindow;
-  SNodeList* pGroupByList; // SGroupingSetNode
-  SNode* pHaving;
-  SNodeList* pOrderByList; // SOrderByExprNode
+  ENodeType   type;  // QUERY_NODE_SELECT_STMT
+  bool        isDistinct;
+  SNodeList*  pProjectionList;
+  SNode*      pFromTable;
+  SNode*      pWhere;
+  SNodeList*  pPartitionByList;
+  SNode*      pWindow;
+  SNodeList*  pGroupByList;  // SGroupingSetNode
+  SNode*      pHaving;
+  SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
-  char stmtName[TSDB_TABLE_NAME_LEN];
-  uint8_t precision;
-  bool isEmptyResult;
+  char        stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t     precision;
+  bool        isEmptyResult;
+  bool        hasAggFuncs;
 } SSelectStmt;
 
-typedef enum ESetOperatorType {
-  SET_OP_TYPE_UNION_ALL = 1,
-  SET_OP_TYPE_UNION
-} ESetOperatorType;
+typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
 
 typedef struct SSetOperator {
-  ENodeType type; // QUERY_NODE_SET_OPERATOR
+  ENodeType        type;  // QUERY_NODE_SET_OPERATOR
   ESetOperatorType opType;
-  SNodeList* pProjectionList;
-  SNode* pLeft;
-  SNode* pRight;
-  SNodeList* pOrderByList; // SOrderByExprNode
-  SNode* pLimit;
+  SNodeList*       pProjectionList;
+  SNode*           pLeft;
+  SNode*           pRight;
+  SNodeList*       pOrderByList;  // SOrderByExprNode
+  SNode*           pLimit;
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -274,7 +256,6 @@ typedef enum ESqlClause {
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
 
-
 typedef enum {
   PAYLOAD_TYPE_KV = 0,
   PAYLOAD_TYPE_RAW = 1,
@@ -284,29 +265,29 @@ typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  char       *pData;        // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+  char*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef struct SVnodeModifOpStmt {
-  ENodeType    nodeType;
-  ENodeType    sqlNodeType;
-  SArray*      pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint8_t      payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
-  uint32_t     insertType;          // insert data from [file|sql statement| bound statement]
-  const char*  sql;                 // current sql statement position
+  ENodeType   nodeType;
+  ENodeType   sqlNodeType;
+  SArray*     pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
+  uint8_t     payloadType;  // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+  uint32_t    insertType;   // insert data from [file|sql statement| bound statement]
+  const char* sql;          // current sql statement position
 } SVnodeModifOpStmt;
 
 typedef struct SExplainOptions {
   ENodeType type;
-  bool verbose;
-  double ratio;
+  bool      verbose;
+  double    ratio;
 } SExplainOptions;
 
 typedef struct SExplainStmt {
-  ENodeType type;
-  bool analyze;
+  ENodeType        type;
+  bool             analyze;
   SExplainOptions* pOptions;
-  SNode* pQuery;
+  SNode*           pQuery;
 } SExplainStmt;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
@@ -327,10 +308,10 @@ bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
-void* nodesGetValueFromNode(SValueNode *pNode);
-char* nodesGetStrValueFromNode(SValueNode *pNode);
-char *getFillModeString(EFillMode mode);
-void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+void* nodesGetValueFromNode(SValueNode* pNode);
+char* nodesGetStrValueFromNode(SValueNode* pNode);
+char* getFillModeString(EFillMode mode);
+void  valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 #ifdef __cplusplus
 }

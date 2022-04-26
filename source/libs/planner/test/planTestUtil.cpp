@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <array>
 #include "planTestUtil.h"
+#include <array>
 
 #include <algorithm>
 
@@ -25,18 +25,19 @@
 using namespace std;
 using namespace testing;
 
-#define DO_WITH_THROW(func, ...) \
-  do { \
-    int32_t code__ = func(__VA_ARGS__); \
-    if (TSDB_CODE_SUCCESS != code__) { \
-      throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " code:" + to_string(code__) + ", strerror:" + string(tstrerror(code__)) + ", msg:" + string(stmtEnv_.msgBuf_.data())); \
-    } \
-  } while(0);
+#define DO_WITH_THROW(func, ...)                                                                                   \
+  do {                                                                                                             \
+    int32_t code__ = func(__VA_ARGS__);                                                                            \
+    if (TSDB_CODE_SUCCESS != code__) {                                                                             \
+      throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " code:" + to_string(code__) +                      \
+                          ", strerror:" + string(tstrerror(code__)) + ", msg:" + string(stmtEnv_.msgBuf_.data())); \
+    }                                                                                                              \
+  } while (0);
 
 bool g_isDump = false;
 
 class PlannerTestBaseImpl {
-public:
+ public:
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
@@ -74,24 +75,24 @@ public:
     }
   }
 
-private:
+ private:
   struct caseEnv {
     string acctId_;
     string db_;
   };
 
   struct stmtEnv {
-    string sql_;
+    string            sql_;
     array<char, 1024> msgBuf_;
   };
 
   struct stmtRes {
-    string ast_;
-    string rawLogicPlan_;
-    string optimizedLogicPlan_;
-    string splitLogicPlan_;
-    string scaledLogicPlan_;
-    string physiPlan_;
+    string         ast_;
+    string         rawLogicPlan_;
+    string         optimizedLogicPlan_;
+    string         splitLogicPlan_;
+    string         scaledLogicPlan_;
+    string         physiPlan_;
     vector<string> physiSubplans_;
   };
 
@@ -126,11 +127,11 @@ private:
       cout << subplan << endl;
     }
   }
-  
+
   void doParseSql(const string& sql, SQuery** pQuery) {
     stmtEnv_.sql_ = sql;
     transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
-  
+
     SParseContext cxt = {0};
     cxt.acctId = atoi(caseEnv_.acctId_.c_str());
     cxt.db = caseEnv_.db_.c_str();
@@ -138,7 +139,7 @@ private:
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
-  
+
     DO_WITH_THROW(qParseQuerySql, &cxt, pQuery);
     res_.ast_ = toString((*pQuery)->pRoot);
   }
@@ -170,9 +171,7 @@ private:
     SNode* pNode;
     FOREACH(pNode, (*pPlan)->pSubplans) {
       SNode* pSubplan;
-      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
-        res_.physiSubplans_.push_back(toString(pSubplan));
-      }
+      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) { res_.physiSubplans_.push_back(toString(pSubplan)); }
     }
   }
 
@@ -197,7 +196,7 @@ private:
   }
 
   string toString(const SNode* pRoot) {
-    char* pStr = NULL;
+    char*   pStr = NULL;
     int32_t len = 0;
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
     string str(pStr);
@@ -210,16 +209,10 @@ private:
   stmtRes res_;
 };
 
-PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {
-}
+PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}
 
-PlannerTestBase::~PlannerTestBase() {
-}
+PlannerTestBase::~PlannerTestBase() {}
 
-void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) {
-  impl_->useDb(acctId, db);
-}
+void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
 
-void PlannerTestBase::run(const std::string& sql) {
-  return impl_->run(sql);
-}
+void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }

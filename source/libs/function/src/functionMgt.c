@@ -25,7 +25,6 @@
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
-  SArray* pUdfTable; // SUdfInfo
 } SFuncMgtService;
 
 typedef struct SUdfInfo {
@@ -50,18 +49,12 @@ static void doInitFunctionTable() {
       return;
     }
   }
-
-  gFunMgtService.pUdfTable = NULL;
-}
-
-static int8_t getUdfType(int32_t funcId) {
-  SUdfInfo* pUdf = taosArrayGet(gFunMgtService.pUdfTable, funcId - FUNC_UDF_ID_START_OFFSET_VAL - 1);
-  return pUdf->funcType;
 }
 
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
   if (fmIsUserDefinedFunc(funcId)) {
-    return getUdfType(funcId);
+    return FUNC_MGT_AGG_FUNC == classification ? FUNC_AGGREGATE_UDF_ID == funcId :
+        (FUNC_MGT_SCALAR_FUNC == classification ? FUNC_SCALAR_UDF_ID == funcId : false);
   }
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -69,33 +62,23 @@ static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, classification);
 }
 
-static int32_t getUdfId(SFmGetFuncInfoParam* pParam, const char* pFuncName) {
+static int32_t getUdfInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
   SFuncInfo* pInfo = NULL;
-  int32_t code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFuncName, &pInfo);
-  if (TSDB_CODE_SUCCESS != code || NULL == pInfo) {
-    return -1;
+  int32_t code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFunc->functionName, &pInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
-  if (NULL == gFunMgtService.pUdfTable) {
-    gFunMgtService.pUdfTable = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SUdfInfo));
+  if (NULL == pInfo) {
+    snprintf(pParam->pErrBuf, pParam->errBufLen, "Invalid function name: %s", pFunc->functionName);
+    return TSDB_CODE_FUNC_INVALID_FUNTION;
   }
-  SUdfInfo info = { .outputDt.type = pInfo->outputType, .outputDt.bytes = pInfo->outputLen, .funcType = pInfo->funcType };
-  taosArrayPush(gFunMgtService.pUdfTable, &info);
+  pFunc->funcType = FUNCTION_TYPE_UDF;
+  pFunc->funcId = TSDB_FUNC_TYPE_AGGREGATE == pInfo->funcType ? FUNC_AGGREGATE_UDF_ID : FUNC_SCALAR_UDF_ID;
+  pFunc->node.resType.type = pInfo->outputType;
+  pFunc->node.resType.bytes = pInfo->outputLen;
+  pFunc->udfBufSize = pInfo->bufSize;
   tFreeSFuncInfo(pInfo);
   taosMemoryFree(pInfo);
-  return taosArrayGetSize(gFunMgtService.pUdfTable) + FUNC_UDF_ID_START_OFFSET_VAL;
-}
-
-static int32_t getFuncId(SFmGetFuncInfoParam* pParam, const char* pFuncName) {
-  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFuncName, strlen(pFuncName));
-  if (NULL == pVal) {
-    return getUdfId(pParam, pFuncName);
-  }
-  return *(int32_t*)pVal;
-}
-
-static int32_t getUdfResultType(SFunctionNode* pFunc) {
-  SUdfInfo* pUdf = taosArrayGet(gFunMgtService.pUdfTable, pFunc->funcId - FUNC_UDF_ID_START_OFFSET_VAL - 1);
-  pFunc->node.resType = pUdf->outputDt;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -104,28 +87,14 @@ int32_t fmFuncMgtInit() {
   return initFunctionCode;
 }
 
-int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
-  *pFuncId = getFuncId(pParam, pFuncName);
-  if (*pFuncId < 0) {
-    return TSDB_CODE_FAILED;
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
+  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
+  if (NULL != pVal) {
+    pFunc->funcId = *(int32_t*)pVal;
+    pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+    return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pParam->pErrBuf, pParam->errBufLen);
   }
-  if (fmIsUserDefinedFunc(*pFuncId)) {
-    *pFuncType = FUNCTION_TYPE_UDF;
-  } else {
-    *pFuncType = funcMgtBuiltins[*pFuncId].type;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (fmIsUserDefinedFunc(pFunc->funcId)) {
-    return getUdfResultType(pFunc);
-  }
-
-  if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
-    return TSDB_CODE_FAILED;
-  }
-  return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pErrBuf, len);
+  return getUdfInfo(pParam, pFunc);
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
@@ -203,7 +172,7 @@ bool fmIsMultiResFunc(int32_t funcId) {
 }
 
 bool fmIsUserDefinedFunc(int32_t funcId) {
-  return funcId > FUNC_UDF_ID_START_OFFSET_VAL;
+  return funcId > FUNC_UDF_ID_START;
 }
 
 void fmFuncMgtDestroy() {
