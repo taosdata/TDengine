@@ -162,7 +162,4 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) {
-  pSdb->curVer += val;
-  return pSdb->curVer;
-}
+int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) { return atomic_add_fetch_64(&pSdb->curVer, val); }

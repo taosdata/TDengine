@@ -311,6 +311,8 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
   }
 
+  pColumnInfoData->hasNull = pSource->hasNull;
+  pColumnInfoData->info = pSource->info;
   return 0;
 }
 

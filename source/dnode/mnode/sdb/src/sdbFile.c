@@ -28,7 +28,7 @@ static int32_t sdbRunDeployFp(SSdb *pSdb) {
     if (fp == NULL) continue;
 
     if ((*fp)(pSdb->pMnode) != 0) {
-      mError("failed to deploy sdb:%d since %s", i, terrstr());
+      mError("failed to deploy sdb:%s since %s", sdbTableName(i), terrstr());
       return -1;
     }
   }

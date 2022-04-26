@@ -1905,18 +1905,9 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
-    taosArrayPush(*pArray, &field);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
-  *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
-  SNode* pNode;
-  FOREACH(pNode, pList) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    SField       field = {.type = pCol->node.resType.type, .bytes = calcTypeBytes(pCol->node.resType)};
-    strcpy(field.name, pCol->colName);
+    if (pCol->sma) {
+      field.flags |= SCHEMA_SMA_ON;
+    }
     taosArrayPush(*pArray, &field);
   }
   return TSDB_CODE_SUCCESS;
@@ -2249,13 +2240,6 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
-  if (NULL == pStmt->pOptions->pSma) {
-    columnDefNodeToField(pStmt->pCols, &pReq->pSmas);
-    pReq->numOfSmas = pReq->numOfColumns;
-  } else {
-    columnNodeToField(pStmt->pOptions->pSma, &pReq->pSmas);
-    pReq->numOfSmas = LIST_LENGTH(pStmt->pOptions->pSma);
-  }
 
   SName tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
