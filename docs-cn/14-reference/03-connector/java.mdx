@@ -116,7 +116,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC 原生连接，taos-jdbcdriver 驱动包需要依赖系统对应本地的客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 url 中的配置参数如下：
 
@@ -183,7 +183,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用了 JDBC REST 连接的 RestfulDriver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-使用 JDBC REST 连接，不需要依赖本地函数库。与 JDBC 原生连接相比，仅需要：
+使用 JDBC REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
@@ -352,7 +352,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 **注意**：
 
-- JDBC REST 连接目前不支持参数绑定这种使用方式
+- JDBC REST 连接目前不支持参数绑定
 - 以下示例代码基于 taos-jdbcdriver-2.0.36
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
 - setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
@@ -620,7 +620,7 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 **注意**：
 
-- JDBC REST 连接目前不支持无模式写入这种使用方式
+- JDBC REST 连接目前不支持无模式写入
 - 以下示例代码基于 taos-jdbcdriver-2.0.36
 
 ```java
