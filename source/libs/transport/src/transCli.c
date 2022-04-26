@@ -903,7 +903,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   if (pCtx->pSem != NULL) {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    memcpy((char*)pCtx->pRsp, (char*)&pResp, sizeof(*pResp));
+    memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
     tsem_post(pCtx->pSem);
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
