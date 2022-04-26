@@ -27,10 +27,7 @@ typedef void   TAOS;
 typedef void   TAOS_STMT;
 typedef void   TAOS_RES;
 typedef void **TAOS_ROW;
-#if 0
-typedef void   TAOS_STREAM;
-#endif
-typedef void TAOS_SUB;
+typedef void   TAOS_SUB;
 
 // Data type definition
 #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
@@ -196,12 +193,6 @@ DLL_EXPORT TAOS_RES *taos_consume(TAOS_SUB *tsub);
 DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
 #endif
 
-#if 0
-DLL_EXPORT TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                                         int64_t stime, void *param, void (*callback)(void *));
-DLL_EXPORT void         taos_close_stream(TAOS_STREAM *tstr);
-#endif
-
 DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
 
@@ -241,12 +232,8 @@ DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
+DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t wait_time);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
-#if 0
-DLL_EXPORT tmq_resp_err_t tmq_assign(tmq_t* tmq, const tmq_topic_vgroup_list_t* vgroups);
-DLL_EXPORT tmq_resp_err_t tmq_assignment(tmq_t* tmq, tmq_topic_vgroup_list_t** vgroups);
-#endif
 DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, int32_t async);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
@@ -273,7 +260,7 @@ DLL_EXPORT char   *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT int32_t tmq_get_vgroup_id(TAOS_RES *res);
 // TODO
 #if 0
-DLL_EXPORT char   *tmq_get_block_table_name(TAOS_RES *res);
+DLL_EXPORT char   *tmq_get_table_name(TAOS_RES *res);
 #endif
 
 #if 0
