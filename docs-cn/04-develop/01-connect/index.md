@@ -32,7 +32,7 @@ TDengine 提供 REST API，容许在任何平台的任何应用程序通过它�
 关键不同点在于：
 
 1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30%左右。
-2. 使用原生连接可以体验 TDengine 的全部功能，如[原生接口写入](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
+2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
 
 ## 安装客户端驱动 taosc
 
