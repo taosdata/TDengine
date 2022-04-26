@@ -103,6 +103,9 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
+#define TRANS_RETRY_COUNT_LIMIT 10  // retry count limit
+#define TRANS_RETRY_INTERVAL    5   // ms retry interval
+
 typedef struct {
   SRpcInfo* pRpc;     // associated SRpcInfo
   SEpSet    epSet;    // ip list provided by app
@@ -137,14 +140,12 @@ typedef struct {
   int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
+  int8_t     retryCount;
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
 
-  int      hThrdIdx;
-  char*    ip;
-  uint32_t port;
-  // SEpSet*          pSet;      // for synchronous API
+  int hThrdIdx;
 } STransConnCtx;
 
 #pragma pack(push, 1)
@@ -215,8 +216,6 @@ void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
 bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
 bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
-void transConnCtxDestroy(STransConnCtx* ctx);
-
 void transFreeMsg(void* msg);
 
 //
@@ -262,8 +261,8 @@ void transUnrefCliHandle(void* handle);
 void transReleaseCliHandle(void* handle);
 void transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
-void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
+void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
