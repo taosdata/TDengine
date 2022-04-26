@@ -11,7 +11,7 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
     case STMT_PREPARE:
       break;
     case STMT_SETTBNAME:
-      if (STMT_STATUS_NE(PREPARE) && STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(EXECUTE)) {
+      if (STMT_STATUS_EQ(INIT) || STMT_STATUS_EQ(BIND) || STMT_STATUS_EQ(BIND_COL)) {
         code = TSDB_CODE_TSC_STMT_API_ERROR;
       }
       break;
@@ -44,6 +44,7 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
       if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS)) {
         code = TSDB_CODE_TSC_STMT_API_ERROR;
       }
+      break;
     default:
       code = TSDB_CODE_TSC_APP_ERROR;
       break;

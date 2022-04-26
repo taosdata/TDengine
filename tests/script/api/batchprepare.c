@@ -97,15 +97,14 @@ CaseCfg gCase[] = {
   {"insert:MBME4-C012", tListLen(fullColList), fullColList, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1},
   {"insert:MBME4-C002", tListLen(fullColList), fullColList, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1},
 
-
   {"insert:MPME1-FULL", tListLen(fullColList), fullColList, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 1},
   {"insert:MPME1-C012", tListLen(fullColList), fullColList, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1},
-
 };
 
 CaseCfg *gCurCase = NULL;
 
 typedef struct {
+  char     caseCatalog[255];
   int32_t  bindNullNum;
   bool     autoCreate;
   bool     checkParamNum;
@@ -118,6 +117,8 @@ typedef struct {
   int32_t  bindColTypeNum;
   int32_t* bindColTypeList;
   int32_t  runTimes;
+  int32_t  caseIdx;
+  int32_t  caseRunNum;
 } CaseCtrl;
 
 CaseCtrl gCaseCtrl = {
@@ -133,6 +134,8 @@ CaseCtrl gCaseCtrl = {
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
+  .caseIdx = -1,
+  .caseRunNum = -1,
 };
 
 int32_t taosGetTimeOfDay(struct timeval *tv) {
@@ -4147,7 +4150,6 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int autoCreate) {
     exit(1);
   }
   taos_free_result(result);
-  sleep(2);  //TODO REMOVE IT
 
   result = taos_query(taos, "use demo");
   taos_free_result(result);
@@ -4184,9 +4186,15 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int autoCreate) {
 
 void* runcase(TAOS *taos) {
   TAOS_STMT *stmt = NULL;
-  int32_t caseIdx = 0;
+  static int32_t caseIdx = 0;
+  static int32_t caseRunNum = 0;
+  int64_t beginUs, endUs, totalUs;
 
   for (int32_t i = 0; i < sizeof(gCase)/sizeof(gCase[0]); ++i) {
+    if (gCaseCtrl.caseRunNum > 0 && caseRunNum >= gCaseCtrl.caseRunNum) {
+      break;
+    }
+    
     CaseCfg cfg = gCase[i];
     gCurCase = &cfg;
 
@@ -4194,7 +4202,10 @@ void* runcase(TAOS *taos) {
       continue;
     }
 
-    printf("* Case %d - %s Begin *\n", caseIdx, gCurCase->caseDesc);
+    if (gCaseCtrl.caseIdx >= 0 && caseIdx < gCaseCtrl.caseIdx) {
+      caseIdx++;
+      continue;
+    }
 
     if (gCaseCtrl.runTimes) {
       gCurCase->runTimes = gCaseCtrl.runTimes;
@@ -4221,10 +4232,15 @@ void* runcase(TAOS *taos) {
       gCurCase->bindColNum = gCaseCtrl.bindColTypeNum;
       gCurCase->fullCol = false;
     }
-    
+
+    printf("* Case %d - [%s]%s Begin *\n", caseIdx, gCaseCtrl.caseCatalog, gCurCase->caseDesc);
+
+    totalUs = 0;
     for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
       prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->autoCreate);
-      
+
+      beginUs = taosGetTimestampUs();
+     
       stmt = taos_stmt_init(taos);
       if (NULL == stmt) {
         printf("taos_stmt_init failed, error:%s\n", taos_stmt_errstr(stmt));
@@ -4233,62 +4249,73 @@ void* runcase(TAOS *taos) {
 
       (*gCurCase->runFn)(stmt);
 
-      prepareCheckResult(taos);
-
       taos_stmt_close(stmt);
+
+      endUs = taosGetTimestampUs();
+      totalUs += (endUs - beginUs);
+
+      prepareCheckResult(taos);
     }
     
-    printf("* Case %d - %s End *\n", caseIdx, gCurCase->caseDesc);
+    printf("* Case %d - [%s]%s [AvgTime:%.3fms] End *\n", caseIdx, gCaseCtrl.caseCatalog, gCurCase->caseDesc, ((double)totalUs)/1000/gCurCase->runTimes);
 
     caseIdx++;
+    caseRunNum++;
   }
 
-  printf("test end\n");
-
   return NULL;
-
 }
 
 void runAll(TAOS *taos) {
-  printf("Normal Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Normal Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runcase(taos);
 
-  printf("Null Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Null Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindNullNum = 1;
   runcase(taos);
   gCaseCtrl.bindNullNum = 0;
 
-  printf("Bind Row Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Bind Row Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindRowNum = 1;
   runcase(taos);
   gCaseCtrl.bindRowNum = 0;
 
-  printf("Row Num Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Row Num Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.rowNum = 1000;
   gCaseCtrl.printRes = false;
   runcase(taos);
   gCaseCtrl.rowNum = 0;
   gCaseCtrl.printRes = true;
 
-  printf("Runtimes Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Runtimes Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.runTimes = 2;
   runcase(taos);
   gCaseCtrl.runTimes = 0;
 
-  printf("Check Param Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Check Param Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.checkParamNum = true;
   runcase(taos);
   gCaseCtrl.checkParamNum = false;
 
-  printf("Bind Col Num Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Bind Col Num Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColNum = 6;
   runcase(taos);
   gCaseCtrl.bindColNum = 0;
 
-  printf("Bind Col Type Test\n");
+  strcpy(gCaseCtrl.caseCatalog, "Bind Col Type Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
   gCaseCtrl.bindColTypeList = bindColTypeList;  
   runcase(taos);
+  
+  printf("All Test End\n");  
 }
 
 int main(int argc, char *argv[])
