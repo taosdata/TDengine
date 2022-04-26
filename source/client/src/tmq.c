@@ -16,7 +16,6 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"
-#include "planner.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
@@ -175,7 +174,6 @@ typedef struct {
   int32_t         epoch;
   int32_t         vgId;
   tsem_t          rspSem;
-  int32_t         sync;
 } SMqPollCbParam;
 
 typedef struct {
@@ -387,14 +385,16 @@ tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
   }
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* topic = taosArrayGetP(tmq->clientTopics, i);
-    tmq_list_append(*topics, strdup(topic->topicName));
+    tmq_list_append(*topics, topic->topicName);
   }
   return TMQ_RESP_ERR__SUCCESS;
 }
 
 tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq) {
-  tmq_list_t* lst = tmq_list_new();
-  return tmq_subscribe(tmq, lst);
+  tmq_list_t*    lst = tmq_list_new();
+  tmq_resp_err_t rsp = tmq_subscribe(tmq, lst);
+  tmq_list_destroy(lst);
+  return rsp;
 }
 
 #if 0
@@ -657,6 +657,9 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
+  // avoid double free if msg is sent
+  buf = NULL;
+
   tsem_wait(&param.rspSem);
   tsem_destroy(&param.rspSem);
 
@@ -807,25 +810,6 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (msgEpoch != tmqEpoch) {
     tscWarn("mismatch rsp from vg %d, epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
   }
-
-#if 0
-  if (pParam->sync == 1) {
-    /**pParam->msg = taosMemoryMalloc(sizeof(tmq_message_t));*/
-    *pParam->msg = taosAllocateQitem(sizeof(tmq_message_t));
-    if (*pParam->msg) {
-      memcpy(*pParam->msg, pMsg->pData, sizeof(SMqRspHead));
-      tDecodeSMqConsumeRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &((*pParam->msg)->consumeRsp));
-      if ((*pParam->msg)->consumeRsp.numOfTopics != 0) {
-        pVg->currentOffset = (*pParam->msg)->consumeRsp.rspOffset;
-      }
-      taosWriteQitem(tmq->mqueue, *pParam->msg);
-      tsem_post(&pParam->rspSem);
-      return 0;
-    }
-    tsem_post(&pParam->rspSem);
-    return -1;
-  }
-#endif
 
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper));
   if (pRspWrapper == NULL) {
@@ -1082,7 +1066,7 @@ tmq_resp_err_t tmq_seek(tmq_t* tmq, const tmq_topic_vgroup_t* offset) {
   return TMQ_RESP_ERR__FAIL;
 }
 
-SMqPollReqV2* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t waitTime, SMqClientTopic* pTopic, SMqClientVg* pVg) {
+SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t waitTime, SMqClientTopic* pTopic, SMqClientVg* pVg) {
   int64_t reqOffset;
   if (pVg->currentOffset >= 0) {
     reqOffset = pVg->currentOffset;
@@ -1094,7 +1078,7 @@ SMqPollReqV2* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t waitTime, SMqClientTopi
     reqOffset = tmq->resetOffsetCfg;
   }
 
-  SMqPollReqV2* pReq = taosMemoryMalloc(sizeof(SMqPollReqV2));
+  SMqPollReq* pReq = taosMemoryMalloc(sizeof(SMqPollReq));
   if (pReq == NULL) {
     return NULL;
   }
@@ -1114,7 +1098,7 @@ SMqPollReqV2* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t waitTime, SMqClientTopi
   pReq->reqId = generateRequestId();
 
   pReq->head.vgId = htonl(pVg->vgId);
-  pReq->head.contLen = htonl(sizeof(SMqPollReqV2));
+  pReq->head.contLen = htonl(sizeof(SMqPollReq));
   return pReq;
 }
 
@@ -1157,7 +1141,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t waitTime) {
 #endif
       }
       atomic_store_32(&pVg->vgSkipCnt, 0);
-      SMqPollReqV2* pReq = tmqBuildConsumeReqImpl(tmq, waitTime, pTopic, pVg);
+      SMqPollReq* pReq = tmqBuildConsumeReqImpl(tmq, waitTime, pTopic, pVg);
       if (pReq == NULL) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         tsem_post(&tmq->rspSem);
@@ -1175,7 +1159,6 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t waitTime) {
       pParam->pTopic = pTopic;
       pParam->vgId = pVg->vgId;
       pParam->epoch = tmq->epoch;
-      pParam->sync = 0;
 
       SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
       if (sendInfo == NULL) {
@@ -1188,7 +1171,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t waitTime) {
 
       sendInfo->msgInfo = (SDataBuf){
           .pData = pReq,
-          .len = sizeof(SMqPollReqV2),
+          .len = sizeof(SMqPollReq),
           .handle = NULL,
       };
       sendInfo->requestId = pReq->reqId;
@@ -1282,7 +1265,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
     return (TAOS_RES*)rspObj;
   }
 
-  if (atomic_load_8(&tmq->status) != TMQ_CONSUMER_STATUS__READY) {
+  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT) {
     return NULL;
   }
 

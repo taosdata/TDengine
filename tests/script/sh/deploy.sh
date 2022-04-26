@@ -128,6 +128,7 @@ echo "debugFlag              0"                  >> $TAOS_CFG
 echo "mDebugFlag             143"                >> $TAOS_CFG
 echo "dDebugFlag             143"                >> $TAOS_CFG
 echo "vDebugFlag             143"                >> $TAOS_CFG
+echo "tqDebugFlag            143"                >> $TAOS_CFG
 echo "tsdbDebugFlag          143"                >> $TAOS_CFG
 echo "cDebugFlag             143"                >> $TAOS_CFG
 echo "jniDebugFlag           143"                >> $TAOS_CFG
