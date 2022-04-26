@@ -383,7 +383,7 @@ typedef struct SSysTableScanInfo {
   int32_t             accountId;
   bool                showRewrite;
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
-  void*               pCur;        // cursor for iterate the local table meta store.
+  SMTbCursor*         pCur;        // cursor for iterate the local table meta store.
   SArray*             scanCols;    // SArray<int16_t> scan column id list
   SName               name;
   SSDataBlock*        pRes;
