@@ -81,9 +81,9 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_DROP_TABLE:
       break;
     case TDMT_VND_SUBMIT:
+      tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, ptr, STREAM_DATA_TYPE_SUBMIT_BLOCK);
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
       vnodeProcessSubmitReq(pVnode, ptr, pRsp);
-      tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, ptr, STREAM_DATA_TYPE_SUBMIT_BLOCK);
       break;
     case TDMT_VND_MQ_VG_CHANGE:
       if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
@@ -287,7 +287,6 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
   taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
   taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
   if (vCreateTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg1);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg2);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
@@ -334,7 +333,6 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
       taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
       taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
       if (pCreateTbReq->stbCfg.pRSmaParam) {
-        taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
         taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
       }
     } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
@@ -342,7 +340,6 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     } else {
       taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
       if (pCreateTbReq->ntbCfg.pRSmaParam) {
-        taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam->pFuncIds);
         taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
       }
     }
@@ -373,7 +370,6 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
   taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
   if (vAlterTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
     taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
   }
   taosMemoryFree(vAlterTbReq.name);

@@ -18,8 +18,8 @@
 
 #include "catalog.h"
 #include "os.h"
-#include "ttypes.h"
 #include "tname.h"
+#include "ttypes.h"
 
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
@@ -52,8 +52,8 @@ typedef struct SParsedDataColInfo {
   uint16_t       flen;        // TODO: get from STSchema
   uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;
-  uint16_t       boundNullLen;    // bound column len with all NULL value(without VarDataOffsetT/SColIdx part)
-  col_id_t      *boundColumns;    // bound column idx according to schema
+  uint16_t       boundNullLen;  // bound column len with all NULL value(without VarDataOffsetT/SColIdx part)
+  col_id_t      *boundColumns;  // bound column idx according to schema
   SBoundColumn  *cols;
   SBoundIdxInfo *colIdxInfo;
   int8_t         orderStatus;  // bound columns
@@ -72,12 +72,13 @@ typedef struct STableDataBlocks {
   int32_t     numOfTables;  // number of tables in current submit block
   int32_t     rowSize;      // row size for current table
   uint32_t    nAllocSize;
-  uint32_t    headerSize;   // header for table info (uid, tid, submit metadata)
+  uint32_t    headerSize;  // header for table info (uid, tid, submit metadata)
   uint32_t    size;
-  STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
-  char       *pData;
-  bool        cloned;
-  int32_t     createTbReqLen;
+  STableMeta *pTableMeta;  // the tableMeta of current table, the table meta will be used during submit, keep a ref to
+                           // avoid to be removed from cache
+  char              *pData;
+  bool               cloned;
+  int32_t            createTbReqLen;
   SParsedDataColInfo boundColumnInfo;
   SRowBuilder        rowBuilder;
 } STableDataBlocks;
@@ -89,8 +90,8 @@ static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
          (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
 }
 
-static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx,
-                                             int32_t *toffset, col_id_t *colIdx) {
+static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx, int32_t *toffset,
+                                             col_id_t *colIdx) {
   col_id_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
     schemaIdx = spd->boundColumns[idx] - PRIMARYKEY_TIMESTAMP_COL_ID;
@@ -114,8 +115,9 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
   }
 }
 
-static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* dataBuf, int32_t numOfRows) {
-  pBlocks->suid = (TSDB_NORMAL_TABLE == dataBuf->pTableMeta->tableType ? dataBuf->pTableMeta->uid : dataBuf->pTableMeta->suid);
+static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks *dataBuf, int32_t numOfRows) {
+  pBlocks->suid =
+      (TSDB_NORMAL_TABLE == dataBuf->pTableMeta->tableType ? dataBuf->pTableMeta->uid : dataBuf->pTableMeta->suid);
   pBlocks->uid = dataBuf->pTableMeta->uid;
   pBlocks->sversion = dataBuf->pTableMeta->sversion;
   pBlocks->schemaLen = dataBuf->createTbReqLen;
@@ -131,14 +133,15 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void    setBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_id_t numOfCols);
-void destroyBlockArrayList(SArray* pDataBlockList);
-void destroyBlockHashmap(SHashObj* pDataBlockHash);
-int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
-int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
-int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq);
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** pVgDataBlocks);
-int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq);
+void    destroyBlockArrayList(SArray *pDataBlockList);
+void    destroyBlockHashmap(SHashObj *pDataBlockHash);
+int     initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
+int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
+int32_t getDataBlockFromList(SHashObj *pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
+                             const STableMeta *pTableMeta, STableDataBlocks **dataBlocks, SArray *pBlockList,
+                             SVCreateTbReq *pCreateTbReq);
+int32_t mergeTableDataBlocks(SHashObj *pHashObj, uint8_t payloadType, SArray **pVgDataBlocks);
+int32_t buildCreateTbMsg(STableDataBlocks *pBlocks, SVCreateTbReq *pCreateTbReq);
 int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 
 #endif  // TDENGINE_DATABLOCKMGT_H

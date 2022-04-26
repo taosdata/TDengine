@@ -13,25 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PARSER_INT_H_
-#define _TD_PARSER_INT_H_
+#include "planTestUtil.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace std;
 
-#include "parToken.h"
-#include "parUtil.h"
-#include "parser.h"
+class PlanSuperTableTest : public PlannerTestBase {};
 
-int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
-int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
-int32_t translate(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
-int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
+TEST_F(PlanSuperTableTest, unionAll) {
+  useDb("root", "test");
 
-#ifdef __cplusplus
+  run("select tbname from st1");
 }
-#endif
-
-#endif /*_TD_PARSER_INT_H_*/
