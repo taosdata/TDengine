@@ -282,10 +282,10 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   topicObj.version = 1;
   topicObj.sql = strdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
-  topicObj.ast = strdup(pCreate->ast);
-  topicObj.astLen = strlen(pCreate->ast) + 1;
 
   if (pCreate->ast && pCreate->ast[0]) {
+    topicObj.ast = strdup(pCreate->ast);
+    topicObj.astLen = strlen(pCreate->ast) + 1;
     topicObj.subType = TOPIC_SUB_TYPE__TABLE;
     topicObj.withTbName = 0;
     topicObj.withSchema = 0;
@@ -314,6 +314,9 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
       return -1;
     }
   } else {
+    topicObj.ast = strdup("");
+    topicObj.astLen = 1;
+    topicObj.physicalPlan = strdup("");
     topicObj.subType = TOPIC_SUB_TYPE__DB;
     topicObj.withTbName = 1;
     topicObj.withSchema = 1;
@@ -520,8 +523,11 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     int32_t cols = 0;
 
     char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tstrncpy(&topicName[VARSTR_HEADER_SIZE], pTopic->name, TSDB_TOPIC_NAME_LEN);
-    varDataSetLen(topicName, strlen(&topicName[VARSTR_HEADER_SIZE]));
+
+    SName n;
+    tNameFromString(&n, pTopic->name, T_NAME_ACCT|T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(topicName));
+    varDataSetLen(topicName, strlen(varDataVal(topicName)));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
@@ -535,7 +541,7 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
-    taosMemoryFree(sql);
+//    taosMemoryFree(sql);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);

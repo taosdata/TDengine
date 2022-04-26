@@ -79,7 +79,11 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length;
   } else {
-    return pColumnInfoData->info.bytes * numOfRows;
+    if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+      return 0;
+    } else {
+      return pColumnInfoData->info.bytes * numOfRows;
+    }
   }
 }
 

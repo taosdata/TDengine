@@ -1265,8 +1265,11 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 }
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
+  memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+  varDataSetLen(output, strlen(tsTimezoneStr));
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    colDataAppend(pOutput->columnData, i, tsTimezoneStr, false);
+    colDataAppend(pOutput->columnData, i, output, false);
   }
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;

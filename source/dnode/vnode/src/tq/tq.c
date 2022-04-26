@@ -197,10 +197,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   }
   memcpy(data, msg, msgLen);
 
-  if (msgType == TDMT_VND_SUBMIT) {
-    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
-      return -1;
-    }
+  // make sure msgType == TDMT_VND_SUBMIT
+  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+    return -1;
   }
 
   SRpcMsg req = {
@@ -411,8 +410,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
+  rsp.withSchema = pExec->withSchema;
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
+  rsp.blockSchema = taosArrayInit(0, sizeof(void*));
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -512,6 +513,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
+
+          if (pExec->withSchema) {
+            SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
+            taosArrayPush(rsp.blockSchema, &pSW);
+          }
+
           rsp.blockNum++;
         }
         // db subscribe
@@ -540,6 +547,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
+
+          SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
+          taosArrayPush(rsp.blockSchema, &pSW);
+
           rsp.blockNum++;
         }
       } else {
@@ -586,6 +597,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   // TODO destroy
   taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
+  taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+
   return 0;
 }
 
@@ -827,12 +840,16 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     pExec->pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
     for (int32_t i = 0; i < 5; i++) {
       pExec->pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-      SReadHandle handle = {
-          .reader = pExec->pExecReader[i],
-          .meta = pTq->pVnode->pMeta,
-      };
-      pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
-      ASSERT(pExec->task[i]);
+      if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+        SReadHandle handle = {
+            .reader = pExec->pExecReader[i],
+            .meta = pTq->pVnode->pMeta,
+        };
+        pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
+        ASSERT(pExec->task[i]);
+      } else {
+        pExec->task[i] = NULL;
+      }
     }
     taosHashPut(pTq->execs, req.subKey, strlen(req.subKey), pExec, sizeof(STqExec));
     return 0;

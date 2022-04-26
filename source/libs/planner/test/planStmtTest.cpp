@@ -19,7 +19,7 @@
 using namespace std;
 
 class PlanStmtTest : public PlannerTestBase {
-public:
+ public:
   void prepare(const string& sql) {
     run(sql);
     // todo calloc pBindParams_
@@ -42,9 +42,9 @@ public:
     // todo
   }
 
-private:
+ private:
   TAOS_BIND_v2* pBindParams_;
-  int32_t paramNo_;
+  int32_t       paramNo_;
 };
 
 TEST_F(PlanStmtTest, stmt) {

@@ -81,6 +81,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_DROP_TABLE:
       break;
     case TDMT_VND_SUBMIT:
+      tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, ptr, STREAM_DATA_TYPE_SUBMIT_BLOCK);
       pRsp->msgType = TDMT_VND_SUBMIT_RSP;
       vnodeProcessSubmitReq(pVnode, ptr, pRsp);
       break;
@@ -101,7 +102,6 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-
       if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO
       }
@@ -193,108 +193,105 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 
 // sync integration
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
-  assert(pSyncNode != NULL);
 
-  ESyncState state = syncGetMyRole(pVnode->sync);
-  SyncTerm   currentTerm = syncGetMyTerm(pVnode->sync);
+  if (syncEnvIsStart()) {
 
-  SMsgHead *pHead = pMsg->pCont;
+    SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
+    assert(pSyncNode != NULL);
 
-  char  logBuf[512];
-  char *syncNodeStr = sync2SimpleStr(pVnode->sync);
-  snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
-  syncRpcMsgLog2(logBuf, pMsg);
-  taosMemoryFree(syncNodeStr);
+    ESyncState state = syncGetMyRole(pVnode->sync);
+    SyncTerm   currentTerm = syncGetMyTerm(pVnode->sync);
 
-  SRpcMsg *pRpcMsg = pMsg;
+    SMsgHead *pHead = pMsg->pCont;
 
-  if (pRpcMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
-    SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    char  logBuf[512];
+    char *syncNodeStr = sync2SimpleStr(pVnode->sync);
+    snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+    syncRpcMsgLog2(logBuf, pMsg);
+    taosMemoryFree(syncNodeStr);
 
-    syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
-    syncTimeoutDestroy(pSyncMsg);
+    SRpcMsg *pRpcMsg = pMsg;
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING) {
-    SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    if (pRpcMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
+      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnPingCb(pSyncNode, pSyncMsg);
-    syncPingDestroy(pSyncMsg);
+      syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      syncTimeoutDestroy(pSyncMsg);
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
-    SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING) {
+      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
-    syncPingReplyDestroy(pSyncMsg);
+      syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      syncPingDestroy(pSyncMsg);
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
-    SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
+      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
-    syncClientRequestDestroy(pSyncMsg);
+      syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      syncPingReplyDestroy(pSyncMsg);
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
-    SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
+      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
-    syncRequestVoteDestroy(pSyncMsg);
+      syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      syncClientRequestDestroy(pSyncMsg);
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
-    SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
+      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
-    syncRequestVoteReplyDestroy(pSyncMsg);
+      syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+      syncRequestVoteDestroy(pSyncMsg);
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
-    SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
+      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
-    syncAppendEntriesDestroy(pSyncMsg);
+      syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+      syncRequestVoteReplyDestroy(pSyncMsg);
 
-  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
-    SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
-    assert(pSyncMsg != NULL);
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
+      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
 
-    syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
-    syncAppendEntriesReplyDestroy(pSyncMsg);
+      syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesDestroy(pSyncMsg);
 
+    } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
+      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
+      assert(pSyncMsg != NULL);
+
+      syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesReplyDestroy(pSyncMsg);
+
+    } else {
+      vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
+    }
+
+    syncNodeRelease(pSyncNode);
   } else {
-    vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
+    vError("==vnodeProcessSyncReq== error syncEnv stop");
   }
-
-  syncNodeRelease(pSyncNode);
-
   return 0;
 }
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, void *pReq) {
   SVCreateTbReq vCreateTbReq = {0};
   tDeserializeSVCreateTbReq(pReq, &vCreateTbReq);
-  if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
+  if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq), NULL) < 0) {
     // TODO
     return -1;
   }
 
-  // TODO: remove the debug log
-  SRSmaParam *param = vCreateTbReq.stbCfg.pRSmaParam;
-  if (param) {
-    printf("qmsg1 len = %d, body = %s\n", param->qmsg1 ? (int32_t)strlen(param->qmsg1) : 0,
-           param->qmsg1 ? param->qmsg1 : "");
-    printf("qmsg1 len = %d, body = %s\n", param->qmsg2 ? (int32_t)strlen(param->qmsg2) : 0,
-           param->qmsg2 ? param->qmsg2 : "");
-  }
+  tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &vCreateTbReq);
 
   taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
   taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
   if (vCreateTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->pFuncIds);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg1);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam->qmsg2);
     taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
@@ -309,6 +306,13 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
   SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
   tDeserializeSVCreateTbBatchReq(pReq, &vCreateTbBatchReq);
   int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
+
+  STbDdlH ddlHandle = {
+      .ahandle = pVnode->pTsdb,
+      .result = NULL,
+      .fp = tsdbFetchTbUidList,
+  };
+
   for (int i = 0; i < reqNum; i++) {
     SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
 
@@ -324,7 +328,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
       taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
     }
 
-    if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
+    if (metaCreateTable(pVnode->pMeta, pCreateTbReq, &ddlHandle) < 0) {
       // TODO: handle error
       vError("vgId:%d, failed to create table: %s", TD_VID(pVnode), pCreateTbReq->name);
     }
@@ -334,7 +338,6 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
       taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
       taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
       if (pCreateTbReq->stbCfg.pRSmaParam) {
-        taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam->pFuncIds);
         taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
       }
     } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
@@ -342,11 +345,12 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, SRpcMsg *pMsg, void *pReq, SR
     } else {
       taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
       if (pCreateTbReq->ntbCfg.pRSmaParam) {
-        taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam->pFuncIds);
         taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
       }
     }
   }
+
+  tsdbUpdateTbUidList(pVnode->pTsdb, ddlHandle.result);
 
   vTrace("vgId:%d process create %" PRIzu " tables", TD_VID(pVnode), taosArrayGetSize(vCreateTbBatchReq.pArray));
   taosArrayDestroy(vCreateTbBatchReq.pArray);
@@ -371,7 +375,6 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq) {
   taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
   taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
   if (vAlterTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam->pFuncIds);
     taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
   }
   taosMemoryFree(vAlterTbReq.name);

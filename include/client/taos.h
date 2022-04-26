@@ -27,10 +27,7 @@ typedef void   TAOS;
 typedef void   TAOS_STMT;
 typedef void   TAOS_RES;
 typedef void **TAOS_ROW;
-#if 0
-typedef void   TAOS_STREAM;
-#endif
-typedef void TAOS_SUB;
+typedef void   TAOS_SUB;
 
 // Data type definition
 #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
@@ -88,17 +85,21 @@ typedef struct taosField {
   int32_t bytes;
 } TAOS_FIELD;
 
-#define DLL_EXPORT
+#ifdef WINDOWS
+  #define DLL_EXPORT    __declspec(dllexport)
+#else
+  #define DLL_EXPORT 
+#endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
 
 typedef struct TAOS_BIND_v2 {
-  int       buffer_type;
-  void     *buffer;
-  int32_t   buffer_length;
-  int32_t  *length;
-  char     *is_null;
-  int       num;
+  int      buffer_type;
+  void    *buffer;
+  int32_t  buffer_length;
+  int32_t *length;
+  char    *is_null;
+  int      num;
 } TAOS_BIND_v2;
 
 typedef enum {
@@ -128,35 +129,35 @@ DLL_EXPORT void  taos_close(TAOS *taos);
 
 const char *taos_data_type(int type);
 
-DLL_EXPORT TAOS_STMT  *taos_stmt_init(TAOS *taos);
-DLL_EXPORT int         taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
-DLL_EXPORT int         taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND_v2 *tags);
-DLL_EXPORT int         taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name);
-DLL_EXPORT int         taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name);
+DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
+DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
+DLL_EXPORT int        taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND_v2 *tags);
+DLL_EXPORT int        taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name);
+DLL_EXPORT int        taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name);
 
-DLL_EXPORT int         taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
-DLL_EXPORT int         taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
-DLL_EXPORT int         taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);
-DLL_EXPORT int         taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
-DLL_EXPORT int         taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
-DLL_EXPORT int         taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx);
-DLL_EXPORT int         taos_stmt_add_batch(TAOS_STMT *stmt);
-DLL_EXPORT int         taos_stmt_execute(TAOS_STMT *stmt);
-DLL_EXPORT TAOS_RES   *taos_stmt_use_result(TAOS_STMT *stmt);
-DLL_EXPORT int         taos_stmt_close(TAOS_STMT *stmt);
-DLL_EXPORT char       *taos_stmt_errstr(TAOS_STMT *stmt);
-DLL_EXPORT int         taos_stmt_affected_rows(TAOS_STMT *stmt);
-DLL_EXPORT int         taos_stmt_affected_rows_once(TAOS_STMT *stmt);
+DLL_EXPORT int       taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
+DLL_EXPORT int       taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
+DLL_EXPORT int       taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);
+DLL_EXPORT int       taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
+DLL_EXPORT int       taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind);
+DLL_EXPORT int       taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx);
+DLL_EXPORT int       taos_stmt_add_batch(TAOS_STMT *stmt);
+DLL_EXPORT int       taos_stmt_execute(TAOS_STMT *stmt);
+DLL_EXPORT TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt);
+DLL_EXPORT int       taos_stmt_close(TAOS_STMT *stmt);
+DLL_EXPORT char     *taos_stmt_errstr(TAOS_STMT *stmt);
+DLL_EXPORT int       taos_stmt_affected_rows(TAOS_STMT *stmt);
+DLL_EXPORT int       taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 
-DLL_EXPORT TAOS_RES   *taos_query(TAOS *taos, const char *sql);
-DLL_EXPORT TAOS_RES   *taos_query_l(TAOS *taos, const char *sql, int sqlLen);
+DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);
+DLL_EXPORT TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen);
 
-DLL_EXPORT TAOS_ROW    taos_fetch_row(TAOS_RES *res);
-DLL_EXPORT int         taos_result_precision(TAOS_RES *res);  // get the time precision of result
-DLL_EXPORT void        taos_free_result(TAOS_RES *res);
-DLL_EXPORT int         taos_field_count(TAOS_RES *res);
-DLL_EXPORT int         taos_num_fields(TAOS_RES *res);
-DLL_EXPORT int         taos_affected_rows(TAOS_RES *res);
+DLL_EXPORT TAOS_ROW taos_fetch_row(TAOS_RES *res);
+DLL_EXPORT int      taos_result_precision(TAOS_RES *res);  // get the time precision of result
+DLL_EXPORT void     taos_free_result(TAOS_RES *res);
+DLL_EXPORT int      taos_field_count(TAOS_RES *res);
+DLL_EXPORT int      taos_num_fields(TAOS_RES *res);
+DLL_EXPORT int      taos_affected_rows(TAOS_RES *res);
 
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
@@ -190,12 +191,6 @@ DLL_EXPORT TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, 
                                     void *param, int interval);
 DLL_EXPORT TAOS_RES *taos_consume(TAOS_SUB *tsub);
 DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
-#endif
-
-#if 0
-DLL_EXPORT TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                                         int64_t stime, void *param, void (*callback)(void *));
-DLL_EXPORT void         taos_close_stream(TAOS_STREAM *tstr);
 #endif
 
 DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
@@ -234,15 +229,11 @@ DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errst
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
-DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, tmq_list_t *topic_list);
+DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
+DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t wait_time);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
-#if 0
-DLL_EXPORT tmq_resp_err_t tmq_assign(tmq_t* tmq, const tmq_topic_vgroup_list_t* vgroups);
-DLL_EXPORT tmq_resp_err_t tmq_assignment(tmq_t* tmq, tmq_topic_vgroup_list_t** vgroups);
-#endif
 DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, int32_t async);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
@@ -269,7 +260,7 @@ DLL_EXPORT char   *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT int32_t tmq_get_vgroup_id(TAOS_RES *res);
 // TODO
 #if 0
-DLL_EXPORT char   *tmq_get_block_table_name(TAOS_RES *res);
+DLL_EXPORT char   *tmq_get_table_name(TAOS_RES *res);
 #endif
 
 #if 0

@@ -100,6 +100,8 @@ static int32_t convertToRetrieveType(char* name, int32_t len) {
     type = TSDB_MGMT_TABLE_QUERIES;
   }  else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_VNODES;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_TOPICS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TOPICS;
   } else {
 //    ASSERT(0);
   }
@@ -187,11 +189,14 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   }
 
   if (retrieveReq.showId == 0) {
-    STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb) + 1);
+    STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
     if (pMeta == NULL) {
-      terrno = TSDB_CODE_MND_INVALID_INFOS_TBL;
-      mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
-      return -1;
+      pMeta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+      if (pMeta == NULL) {
+        terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+        mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
+        return -1;
+      }
     }
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);

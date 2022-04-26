@@ -20,42 +20,42 @@
 using namespace std;
 
 static EDealRes rewriterTest(SNode** pNode, void* pContext) {
-	EDealRes* pRes = (EDealRes*)pContext;
-	if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
-		SOperatorNode* pOp = (SOperatorNode*)(*pNode);
-		if (QUERY_NODE_VALUE != nodeType(pOp->pLeft) || QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
-			*pRes = DEAL_RES_ERROR;
-		}
-		SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-		string tmp = to_string(stoi(((SValueNode*)(pOp->pLeft))->literal) + stoi(((SValueNode*)(pOp->pRight))->literal));
-		pVal->literal = strdup(tmp.c_str());
-		nodesDestroyNode(*pNode);
-		*pNode = (SNode*)pVal;
-	}
-	return DEAL_RES_CONTINUE;
+  EDealRes* pRes = (EDealRes*)pContext;
+  if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
+    SOperatorNode* pOp = (SOperatorNode*)(*pNode);
+    if (QUERY_NODE_VALUE != nodeType(pOp->pLeft) || QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+      *pRes = DEAL_RES_ERROR;
+    }
+    SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    string tmp = to_string(stoi(((SValueNode*)(pOp->pLeft))->literal) + stoi(((SValueNode*)(pOp->pRight))->literal));
+    pVal->literal = strdup(tmp.c_str());
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)pVal;
+  }
+  return DEAL_RES_CONTINUE;
 }
 
 TEST(NodesTest, traverseTest) {
-	SNode* pRoot = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
-	SOperatorNode* pOp = (SOperatorNode*)pRoot;
-	SOperatorNode* pLeft = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
-	pLeft->pLeft = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
-	((SValueNode*)(pLeft->pLeft))->literal = strdup("10");
-	pLeft->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
-	((SValueNode*)(pLeft->pRight))->literal = strdup("5");
-	pOp->pLeft = (SNode*)pLeft;
-	pOp->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
-	((SValueNode*)(pOp->pRight))->literal = strdup("3");
+  SNode*         pRoot = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SOperatorNode* pOp = (SOperatorNode*)pRoot;
+  SOperatorNode* pLeft = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  pLeft->pLeft = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  ((SValueNode*)(pLeft->pLeft))->literal = strdup("10");
+  pLeft->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  ((SValueNode*)(pLeft->pRight))->literal = strdup("5");
+  pOp->pLeft = (SNode*)pLeft;
+  pOp->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  ((SValueNode*)(pOp->pRight))->literal = strdup("3");
 
-	EXPECT_EQ(nodeType(pRoot), QUERY_NODE_OPERATOR);
-	EDealRes res = DEAL_RES_CONTINUE;
-	nodesRewriteExprPostOrder(&pRoot, rewriterTest, &res);
-	EXPECT_EQ(res, DEAL_RES_CONTINUE);
-	EXPECT_EQ(nodeType(pRoot), QUERY_NODE_VALUE);
-	EXPECT_EQ(string(((SValueNode*)pRoot)->literal), "18");
+  EXPECT_EQ(nodeType(pRoot), QUERY_NODE_OPERATOR);
+  EDealRes res = DEAL_RES_CONTINUE;
+  nodesRewriteExprPostOrder(&pRoot, rewriterTest, &res);
+  EXPECT_EQ(res, DEAL_RES_CONTINUE);
+  EXPECT_EQ(nodeType(pRoot), QUERY_NODE_VALUE);
+  EXPECT_EQ(string(((SValueNode*)pRoot)->literal), "18");
 }
 
 int main(int argc, char* argv[]) {
-	testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

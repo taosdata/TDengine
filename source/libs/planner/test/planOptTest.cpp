@@ -18,9 +18,7 @@
 
 using namespace std;
 
-class PlanOptimizeTest : public PlannerTestBase {
-
-};
+class PlanOptimizeTest : public PlannerTestBase {};
 
 TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
   useDb("root", "test");
