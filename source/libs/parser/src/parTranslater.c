@@ -19,6 +19,7 @@
 #include "cmdnodes.h"
 #include "functionMgt.h"
 #include "parUtil.h"
+#include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
 
@@ -305,7 +306,10 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
 
 static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode* pCol) {
   pCol->pProjectRef = (SNode*)pExpr;
-  nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
+  if (NULL == pExpr->pAssociation) {
+    pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  }
+  taosArrayPush(pExpr->pAssociation, &pCol);
   if (NULL != pTable) {
     strcpy(pCol->tableAlias, pTable->tableAlias);
   } else if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
@@ -587,13 +591,14 @@ static EDealRes haveAggFunction(SNode* pNode, void* pContext) {
 }
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
-                               .pRpc = pCxt->pParseCxt->pTransporter,
-                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet};
-  if (TSDB_CODE_SUCCESS != fmGetFuncInfo(&param, pFunc->functionName, &pFunc->funcId, &pFunc->funcType)) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_FUNTION, pFunc->functionName);
-  }
-  pCxt->errCode = fmGetFuncResultType(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  SFmGetFuncInfoParam param = {
+    .pCtg = pCxt->pParseCxt->pCatalog,
+    .pRpc = pCxt->pParseCxt->pTransporter,
+    .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
+    .pErrBuf = pCxt->msgBuf.buf,
+    .errBufLen = pCxt->msgBuf.len
+  };
+  pCxt->errCode = fmGetFuncInfo(&param, pFunc);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     return DEAL_RES_ERROR;
   }
@@ -759,6 +764,19 @@ static int32_t toVgroupsInfo(SArray* pVgs, SVgroupsInfo** pVgsInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t addMnodeToVgroupList(const SEpSet* pEpSet, SArray** pVgroupList) {
+  if (NULL == *pVgroupList) {
+    *pVgroupList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVgroupInfo));
+    if (NULL == *pVgroupList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  SVgroupInfo vg = { .vgId = MNODE_HANDLE };
+  memcpy(&vg.epSet, pEpSet, sizeof(SEpSet));
+  taosArrayPush(*pVgroupList, &vg);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
     return TSDB_CODE_SUCCESS;
@@ -766,11 +784,19 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
 
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* vgroupList = NULL;
-  if ('\0' != pRealTable->useDbName[0]) {
-    code = getDBVgInfo(pCxt, pRealTable->useDbName, &vgroupList);
+  if ('\0' != pRealTable->qualDbName[0]) {
+    // todo release after mnode can be processed
+    // if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
+      code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
+    // }
   } else {
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
+
+  // todo release after mnode can be processed
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
+  // }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
@@ -1965,13 +1991,6 @@ static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs
   if (1 != LIST_LENGTH(pFuncs)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
   }
-  SFunctionNode*      pFunc = nodesListGetNode(pFuncs, 0);
-  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
-                               .pRpc = pCxt->pParseCxt->pTransporter,
-                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet};
-  if (TSDB_CODE_SUCCESS != fmGetFuncInfo(&param, pFunc->functionName, &pFunc->funcId, &pFunc->funcType)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNTION, pFunc->functionName);
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1999,13 +2018,6 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableTags(pCxt, pStmt);
   }
   return code;
-}
-
-static int32_t getAggregationMethod(SNodeList* pFuncs) {
-  if (NULL == pFuncs) {
-    return -1;
-  }
-  return ((SFunctionNode*)nodesListGetNode(pFuncs, 0))->funcId;
 }
 
 static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
@@ -2229,7 +2241,6 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
 
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
-  pReq->aggregationMethod = getAggregationMethod(pStmt->pOptions->pFuncs);
   pReq->xFilesFactor = GET_OPTION_VAL(pStmt->pOptions->pFilesFactor, TSDB_DEFAULT_DB_FILE_FACTOR);
   pReq->delay = GET_OPTION_VAL(pStmt->pOptions->pDelay, TSDB_DEFAULT_DB_DELAY);
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
@@ -3193,7 +3204,7 @@ static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect)
   }
 
   if (NULL != pShow->pDbName) {
-    strcpy(((SRealTableNode*)pSelect->pFromTable)->useDbName, ((SValueNode*)pShow->pDbName)->literal);
+    strcpy(((SRealTableNode*)pSelect->pFromTable)->qualDbName, ((SValueNode*)pShow->pDbName)->literal);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3235,14 +3246,6 @@ static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
   }
   pReq->ntbCfg.pRSmaParam->delay = GET_OPTION_VAL(pOptions->pDelay, TSDB_DEFAULT_DB_DELAY);
   pReq->ntbCfg.pRSmaParam->xFilesFactor = GET_OPTION_VAL(pOptions->pFilesFactor, TSDB_DEFAULT_DB_FILE_FACTOR);
-  pReq->ntbCfg.pRSmaParam->nFuncIds = LIST_LENGTH(pOptions->pFuncs);
-  pReq->ntbCfg.pRSmaParam->pFuncIds = taosMemoryCalloc(pReq->ntbCfg.pRSmaParam->nFuncIds, sizeof(func_id_t));
-  if (NULL == pReq->ntbCfg.pRSmaParam->pFuncIds) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  int32_t index = 0;
-  SNode*  pFunc = NULL;
-  FOREACH(pFunc, pOptions->pFuncs) { pReq->ntbCfg.pRSmaParam->pFuncIds[index++] = ((SFunctionNode*)pFunc)->funcId; }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3428,10 +3431,6 @@ static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SS
     return parseJsontoTagData(pVal->literal, pBuilder, &pCxt->msgBuf, pSchema->colId);
   }
 
-  if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
-    return pCxt->errCode;
-  }
-
   if (pVal->node.resType.type == TSDB_DATA_TYPE_NULL) {
     // todo
   } else {
@@ -3440,6 +3439,23 @@ static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SS
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createValueFromFunction(STranslateContext* pCxt, SFunctionNode* pFunc, SValueNode** pVal) {
+  if (DEAL_RES_ERROR == translateFunction(pCxt, pFunc)) {
+    return pCxt->errCode;
+  }
+  return scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
+}
+
+static int32_t translateTagVal(STranslateContext* pCxt, SNode* pNode, SValueNode** pVal) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    return createValueFromFunction(pCxt, (SFunctionNode*)pNode, pVal);
+  } else if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    return (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pNode) ? pCxt->errCode : TSDB_CODE_SUCCESS);
+  } else {
+    return TSDB_CODE_FAILED;
+  }
 }
 
 static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableClause* pStmt, STableMeta* pSuperTableMeta,
@@ -3451,8 +3467,8 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
   }
 
   SSchema* pTagSchema = getTableTagSchema(pSuperTableMeta);
-  SNode *  pTag, *pVal;
-  FORBOTH(pTag, pStmt->pSpecificTags, pVal, pStmt->pValsOfTags) {
+  SNode *  pTag, *pNode;
+  FORBOTH(pTag, pStmt->pSpecificTags, pNode, pStmt->pValsOfTags) {
     SColumnNode* pCol = (SColumnNode*)pTag;
     SSchema*     pSchema = NULL;
     for (int32_t i = 0; i < numOfTags; ++i) {
@@ -3464,7 +3480,18 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
     if (NULL == pSchema) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pCol->colName);
     }
-    int32_t code = addValToKVRow(pCxt, (SValueNode*)pVal, pSchema, pBuilder);
+    SValueNode* pVal = NULL;
+    int32_t code = translateTagVal(pCxt, pNode, &pVal);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (NULL == pVal) {
+        pVal = (SValueNode*)pNode;
+      } else {
+        REPLACE_LIST2_NODE(pVal);
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addValToKVRow(pCxt, pVal, pSchema, pBuilder);
+    }
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -3480,10 +3507,21 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
   }
 
   SSchema* pTagSchema = getTableTagSchema(pSuperTableMeta);
-  SNode*   pVal;
+  SNode*   pNode;
   int32_t  index = 0;
-  FOREACH(pVal, pStmt->pValsOfTags) {
-    int32_t code = addValToKVRow(pCxt, (SValueNode*)pVal, pTagSchema + index++, pBuilder);
+  FOREACH(pNode, pStmt->pValsOfTags) {
+    SValueNode* pVal = NULL;
+    int32_t code = translateTagVal(pCxt, pNode, &pVal);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (NULL == pVal) {
+        pVal = (SValueNode*)pNode;
+      } else {
+        REPLACE_NODE(pVal);
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addValToKVRow(pCxt, pVal, pTagSchema + index++, pBuilder);
+    }
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
