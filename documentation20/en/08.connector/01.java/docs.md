@@ -23,7 +23,7 @@ In terms of implementation, the JDBC driver of TDengine is as consistent as poss
 <tr align="center"><th>Difference</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
 <tr align="center">
   <td>Supported OS</td>
-  <td>linux、windows</td>
+  <td>Linux, Windows</td>
   <td>all platform</td>
 </tr>
 <tr align="center">
@@ -54,25 +54,24 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## JDBC driver version and supported TDengine and JDK versions
 
-| taos-jdbcdriver | TDengine           | JDK    |
-| --------------- |--------------------|--------|
-| 2.0.36          | 2.4.0 and above    | 1.8.x  |
-| 2.0.35          | 2.3.0 and above    | 1.8.x  |
-| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x  |
-| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x  |
-| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x  |
-| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x  |
-| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x  |
-| 1.0.3           | 1.6.1.x and above  | 1.8.x  |
-| 1.0.2           | 1.6.1.x and above  | 1.8.x  |
-| 1.0.1           | 1.6.1.x and above  | 1.8.x  |
+| taos-jdbcdriver version | TDengine 2.0.x.x version | TDengine 2.2.x.x version | TDengine 2.4.x.x version | JDK version |
+| ----------------------- | ------------------------ | ------------------------ | ------------------------ | ----------- |
+| 2.0.38                  | X                        | X                        | 2.4.0.14 or later        | 1.8.x       |
+| 2.0.37                  | X                        | X                        | 2.4.0.6 or later         | 1.8.x       |
+| 2.0.36                  | X                        | 2.2.2.11 or later        | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.35                  | X                        | 2.2.2.11 or later        | 2.3.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.33 - 2.0.34         | 2.0.3.0 or later         | 2.2.0.0 or later         | 2.4.0.0 - 2.4.0.5        | 1.8.x       |
+| 2.0.31 - 2.0.32         | 2.1.3.0 - 2.1.7.7        | X                        | X                        | 1.8.x       |
+| 2.0.22 - 2.0.30         | 2.0.18.0 - 2.1.2.1       | X                        | X                        | 1.8.x       |
+| 2.0.12 - 2.0.21         | 2.0.8.0 - 2.0.17.4       | X                        | X                        | 1.8.x       |
+| 2.0.4 - 2.0.11          | 2.0.0.0 - 2.0.7.3        | X                        | X                        | 1.8.x       |
 
 ## DataType in TDengine and Java connector
 
 The TDengine supports the following data types and Java data types:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
-|-------------------|------------------------------------| ----------------------------------- |
+| ----------------- | ---------------------------------- | ----------------------------------- |
 | TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                  |
 | INT               | java.lang.Integer                  | java.lang.Integer                   |
 | BIGINT            | java.lang.Long                     | java.lang.Long                      |
@@ -85,6 +84,7 @@ The TDengine supports the following data types and Java data types:
 | NCHAR             | java.lang.String                   | java.lang.String                    |
 | JSON              | -                                  | java.lang.String                    |
 **Note**: JSON type can only be used in tag.
+
 ## Install Java connector
 
 ### Runtime Requirements
@@ -104,7 +104,7 @@ To run TDengine's Java connector, the following requirements shall be met:
 
 ### Obtain JDBC driver by maven
 
-To Java delevopers, TDengine provides `taos-jdbcdriver` according to the JDBC(3.0) API. Users can find and download it through [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver). Add the following dependencies in pom.xml for your maven projects.
+To Java developers, TDengine provides `taos-jdbcdriver` according to the JDBC(3.0) API. Users can find and download it through [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver). Add the following dependencies in pom.xml for your maven projects.
 
 ```xml
 <dependencies>
@@ -149,6 +149,16 @@ The JDBC-RESTful does not depend on the local function library. Compared with JD
 * JdbcUrl starts with "JDBC:TAOS-RS://"
 * Use port 6041 as the connection port
 
+JDBC 2.0.38 and later version with TDengine 2.4.0.12 (and later version) start to support a new bulk-pulling feature. It provides higher data transmission performance and larger volume data queries capability via WebSocket communication.
+
+Create bulk-pulling connection:
+
+```
+String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";Properties properties = new Properties();
+properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
+Connection connection = DriverManager.getConnection(url, properties);
+```
+
 For better write and query performance, Java applications can use the JDBC-JNI driver, as shown below:
 
 ```java
@@ -174,7 +184,7 @@ The configuration parameters in the URL are as follows:
 * charset: character set used by the client. The default value is the system character set.
 * locale: client locale. The default value is the current system locale.
 * timezone: timezone used by the client. The default value is the current timezone of the system.
-* batchfetch: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is flase.
+* batchfetch: True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is false.
 * timestampFormat: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * batchErrorIgnore: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
@@ -205,7 +215,7 @@ The configuration parameters in properties are as follows:
 * TSDBDriver.PROPERTY_KEY_CHARSET: character set used by the client. The default value is the system character set.
 * TSDBDriver.PROPERTY_KEY_LOCALE: client locale. The default value is the current system locale.
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE: timezone used by the client. The default value is the current timezone of the system.
-* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is flase.
+* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is false.
 * TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
@@ -309,19 +319,22 @@ try (Statement statement = connection.createStatement()) {
 
 The Java connector may report three types of error codes: JDBC Driver (error codes ranging from 0x2301 to 0x2350), JNI method (error codes ranging from 0x2351 to 0x2400), and TDengine Error. For details about the error code, see:
 
-- https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
-- https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
+- `https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java`
+- `https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h`
 
 ### Write data through parameter binding
+
 Starting with version 2.1.2.0, TDengine's JDBC-JNI implementation significantly improves support for data write (INSERT) scenarios with Parameter-Binding. When writing data in this way, you can avoid the resource consumption of SQL parsing, which can significantly improve write performance in many cases.
-Note:
-* Jdbc-restful implementations do not provide Parameter-Binding
+
+**Note**:
+
+* JDBC-RESTful implementations do not provide Parameter-Binding
 * The following sample code is based on taos-jdbcdriver-2.0.36
 * use setString to bind BINARY data, and use setNString to bind NCHAR data
 * Both setString and setNString require the user to declare the column width of the corresponding column in the table definition in the size parameter
 
-
 Sample Code:
+
 ```java
 public class ParameterBindingDemo {
  
@@ -578,15 +591,59 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
-### Set client configuration in JDBC
-Starting with TDEngine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
-Note:
+### Data Writing via Schemaless
+
+Starting with version 2.2.0.0, TDengine supports schemaless function. schemaless writing protocol is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet and JSON format protocols, Please see [Schemaless Writing](https://www.taosdata.com/docs/en/v2.0/insert#schemaless)
+
+**Note**:
+
+* JDBC-RESTful implementations do not provide Schemaless-Writing
+* The following sample code is based on taos-jdbcdriver-2.0.36
+
+Sample Code:
+
+```java
+public class SchemalessInsertTest {
+    private static final String host = "127.0.0.1";
+    private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
+    private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+
+    public static void main(String[] args) throws SQLException {
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(url)) {
+            init(connection);
+
+            SchemalessWriter writer = new SchemalessWriter(connection);
+            writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+            writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
+        }
+    }
+
+    private static void init(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("drop database if exists test_schemaless");
+            stmt.executeUpdate("create database if not exists test_schemaless");
+            stmt.executeUpdate("use test_schemaless");
+        }
+    }
+}
+```
+
+### Set client configuration in JDBC
+
+Starting with TDengine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
+
+**Note**:
+
 * JDBC-RESTful does not support setting client parameters.
 * The client parameters set in the java application are process-level. To update the client parameters, the application needs to be restarted. This is because these client parameters are global that take effect the first time the application is set up.
 * The following sample code is based on taos-jdbcdriver-2.0.36.
 
 Sample Code:
+
 ```java
 public class ClientParameterSetting {
     private static final String host = "127.0.0.1";
@@ -637,10 +694,9 @@ public class ClientParameterSetting {
 }
 ```
 
-
 ## Data Subscription
 
-#### Subscribe
+### Subscribe
 
 ```java
 TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
@@ -654,7 +710,7 @@ parameters:
 
 In the example above, a subscription named 'topic' is created which use the SQL statement 'select * from meters'. If the subscription already exists, it will continue with the previous query progress, rather than consuming all the data from scratch.
 
-#### Consume
+### Consume
 
 ```java
 int total = 0;
@@ -672,7 +728,7 @@ while(true) {
 
 The consume method returns a result set containing all the new data so far since the last consume. Make sure to call consume as often as you need (like Thread.sleep(1000) in the example), otherwise you will put unnecessary stress on the server.
 
-#### Close
+### Close
 
 ```java
 sub.close(true);
@@ -753,14 +809,15 @@ Query OK, 1 row(s) in set (0.000141s)
 
 ## Integrated with framework
 
-- Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
-- Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
+- Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
+- Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
 
 ## Example Codes
 
-you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
+you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
 ## FAQ
+
 - Why does not addBatch and executeBatch provide a performance benefit for executing "batch writes/updates"?
   **Cause**:In TDengine's JDBC implementation, SQL statements submitted through the addBatch method are executed in the order in which they are added. This method does not reduce the number of interactions with the server and does not improve performance.
   **Answer**：1. Concatenate multiple values in an INSERT statement; 2. Use multi-threaded concurrent insertion; 3. Use the parameter-binding to write

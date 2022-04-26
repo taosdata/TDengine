@@ -81,7 +81,7 @@
     <dependency>
       <groupId>net.opentsdb</groupId>
       <artifactId>opentsdb</artifactId>
-      <version>2.4.0</version>
+      <version>2.4.1</version>
     </dependency>
 
     <dependency>
@@ -118,7 +118,7 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.10.0.pr1</version>
+      <version>2.12.6.1</version>
     </dependency>
 
     <dependency>
@@ -216,7 +216,7 @@
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-core</artifactId>
-      <version>1.2.0</version>
+      <version>1.2.9</version>
     </dependency>
 
     <dependency>

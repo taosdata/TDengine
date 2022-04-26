@@ -8,19 +8,19 @@ RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 
-#install main path
-install_main_dir="/usr/local/taos"
+installDir="/usr/local/taos"
+clientName="taos"
+uninstallScript="rmtaos"
 
-log_link_dir="/usr/local/taos/log"
-cfg_link_dir="/usr/local/taos/cfg"
+#install main path
+install_main_dir=${installDir}
+
+log_link_dir=${installDir}/log
+cfg_link_dir=${installDir}/cfg
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
-
-
-# v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/taos"
 
 csudo=""
 if command -v sudo > /dev/null; then
@@ -28,18 +28,17 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  #pid=$(ps -ef | grep "taos" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$(pidof taos)" ]; then
+  if [ -n "$(pidof ${clientName})" ]; then
     ${csudo}kill -9 $pid   || :
   fi
 }
 
 function clean_bin() {
     # Remove link
-    ${csudo}rm -f ${bin_link_dir}/taos      || :
+    ${csudo}rm -f ${bin_link_dir}/${clientName}      || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo  || :
     ${csudo}rm -f ${bin_link_dir}/taosdump  || :
-    ${csudo}rm -f ${bin_link_dir}/rmtaos    || :
+    ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
 }
 

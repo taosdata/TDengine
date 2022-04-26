@@ -121,9 +121,9 @@ class ConcurrentInquiry:
         user = self.user
         password = self.password
         conn = taos.connect(
-            host,
-            user,
-            password,
+            host = '%s' % host,
+            user = '%s' % user,
+            password = '%s' % password,
             )
         cl = conn.cursor()
         self.r_stb_list(cl)
@@ -412,9 +412,9 @@ class ConcurrentInquiry:
         user = self.user
         password = self.password
         conn = taos.connect(
-            host,
-            user,
-            password,
+            host = '%s' % host,
+            user = '%s' % user,
+            password = '%s' % password,
             )
         cl = conn.cursor()
         cl.execute("drop database if  exists %s;" %self.dbname)
@@ -487,9 +487,9 @@ class ConcurrentInquiry:
         user = self.user
         password = self.password
         conn = taos.connect(
-            host,
-            user,
-            password,
+            host = '%s' % host,
+            user = '%s' % user,
+            password = '%s' % password,
             )
         cl = conn.cursor()
         cl.execute("use %s;" % self.dbname)
@@ -533,9 +533,9 @@ class ConcurrentInquiry:
         user = self.user
         password = self.password
         conn = taos.connect(
-            host,
-            user,
-            password,
+            host = '%s' % host,
+            user = '%s' % user,
+            password = '%s' % password,
             )
         cl = conn.cursor()
         cl.execute("use %s;" % self.dbname)
@@ -729,9 +729,9 @@ parser.add_argument(
     '-w',
     '--password',
     action='store', 
-    default='root',
+    default='taosdata',
     type=str,
-    help='user name')
+    help='password')
 parser.add_argument(
     '-n',
     '--number-of-tables',

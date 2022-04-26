@@ -289,6 +289,7 @@ python3 ./test.py -f query/bug6586.py
 # python3 ./test.py -f query/bug5903.py
 python3 ./test.py -f query/queryLimit.py
 python3 ./test.py -f query/queryPriKey.py
+python3 ./test.py -f query/queryNcharNull.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -416,6 +417,7 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f alter/alterBackQuoteCol.py
 
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsTagsAndOr.py

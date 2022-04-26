@@ -1,0 +1,31 @@
+配置 Prometheus 是通过编辑 Prometheus 配置文件 prometheus.yml （默认位置 /etc/prometheus/prometheus.yml）完成的。
+
+### 配置第三方数据库地址
+
+将其中的 remote_read url 和 remote_write url 指向运行 taosAdapter 服务的服务器域名或 IP 地址，REST 服务端口（taosAdapter 默认使用 6041），以及希望写入 TDengine 的数据库名称，并确保相应的 URL 形式如下：
+
+- remote_read url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_read/<database name>`
+- remote_write url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_write/<database name>`
+
+### 配置 Basic 验证
+
+- username： <TDengine's username>
+- password： <TDengine's password>
+
+### prometheus.yml 文件中 remote_write 和 remote_read 相关部分配置示例
+
+```yaml
+remote_write:
+  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+
+remote_read:
+  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+    remote_timeout: 10s
+    read_recent: true
+```

@@ -133,7 +133,7 @@ public class RestfulResultSetTest {
     @Test
     public void getBytes() throws SQLException {
         byte[] f1 = rs.getBytes("f1");
-        Assert.assertEquals("2021-01-01 00:00:00.000", new String(f1));
+        Assert.assertEquals("2021-01-01 00:00:00.0", new String(f1));
 
         byte[] f2 = rs.getBytes("f2");
         Assert.assertEquals(1, Ints.fromByteArray(f2));

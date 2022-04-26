@@ -50,7 +50,7 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
   } else {
     size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
-    strdequote(s.name);
+    stringProcess(s.name, (int32_t)strlen(s.name));
   }
 
   return s;
@@ -163,7 +163,7 @@ char *tableNameGetPosition(SStrToken* pToken, char target) {
       return pToken->z + i;
     }
   
-    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
+    if (*(pToken->z + i) == TS_BACKQUOTE_CHAR) {
       if (!inQuote) {
         inEscape = !inEscape;
       }
@@ -223,7 +223,7 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
   char* r = tableNameGetPosition(pToken, sep);  
 
   if (r != NULL) {  // record the table name token    
-    if (pToken->z[0] == TS_ESCAPE_CHAR && *(r - 1) == TS_ESCAPE_CHAR) {
+    if (pToken->z[0] == TS_BACKQUOTE_CHAR && *(r - 1) == TS_BACKQUOTE_CHAR) {
       pTable->n = (uint32_t)(r - pToken->z - 2);
       pTable->z = pToken->z + 1;
     } else {
@@ -243,6 +243,41 @@ static struct SSchema _s = {
     .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
     .name = TSQL_TBNAME_L,
 };
+
+static struct SSchema _tswin[6] = {
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_TSWIN_START,    TSDB_TSWIN_START_COLUMN_INDEX,    LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_TSWIN_STOP,     TSDB_TSWIN_STOP_COLUMN_INDEX,     LONG_BYTES},
+  {TSDB_DATA_TYPE_BIGINT,    TSQL_TSWIN_DURATION, TSDB_TSWIN_DURATION_COLUMN_INDEX, LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_QUERY_START,    TSDB_QUERY_START_COLUMN_INDEX,    LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_QUERY_STOP,     TSDB_QUERY_STOP_COLUMN_INDEX,     LONG_BYTES},
+  {TSDB_DATA_TYPE_BIGINT,    TSQL_QUERY_DURATION, TSDB_QUERY_DURATION_COLUMN_INDEX, LONG_BYTES},
+};
+
+SSchema* tGetTimeWindowColumnSchema(int16_t columnIndex) {
+  switch (columnIndex) {
+    case TSDB_TSWIN_START_COLUMN_INDEX: {
+      return &_tswin[0];
+    }
+    case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+      return &_tswin[1];
+    }
+    case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+      return &_tswin[2];
+    }
+    case TSDB_QUERY_START_COLUMN_INDEX: {
+      return &_tswin[3];
+    }
+    case TSDB_QUERY_STOP_COLUMN_INDEX: {
+      return &_tswin[4];
+    }
+    case TSDB_QUERY_DURATION_COLUMN_INDEX: {
+      return &_tswin[5];
+    }
+    default: {
+      return NULL;
+    }
+  }
+}
 
 SSchema* tGetTbnameColumnSchema() {
   return &_s;

@@ -171,7 +171,7 @@ class TDTestCase:
 
         tdSql.query("show create stable db.`%s` ; " % self.stb1)
         tdSql.checkData(0, 0, self.stb1)
-        tdSql.checkData(0, 1, "create table `%s` (`ts` TIMESTAMP,`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(20),`%s` NCHAR(20),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)\
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (`ts` TIMESTAMP,`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(20),`%s` NCHAR(20),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)\
  TAGS (`loc` NCHAR(20),`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(20),`%s` NCHAR(20),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)"
                         % (self.stb1, self.col_int, self.col_bigint, self.col_smallint, self.col_tinyint, self.col_bool,
                            self.col_binary, self.col_nchar, self.col_float, self.col_double, self.col_ts,
@@ -726,7 +726,7 @@ class TDTestCase:
         tdSql.checkData(
             0,
             1,
-            "create table `%s` (`ts` TIMESTAMP,`i` INT) TAGS (`j` INT)" %
+            "CREATE TABLE `%s` (`ts` TIMESTAMP,`i` INT) TAGS (`j` INT)" %
             self.stb2)
 
         tdSql.execute("create table `table!2` using `%s` tags(1)" % self.stb2)
@@ -817,7 +817,7 @@ class TDTestCase:
 
         tdSql.query("show create table `%s` ; " % self.regular_table)
         tdSql.checkData(0, 0, self.regular_table)
-        tdSql.checkData(0, 1, "create table `%s` (`ts` TIMESTAMP,`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(20),`%s` NCHAR(20),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)"
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (`ts` TIMESTAMP,`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(20),`%s` NCHAR(20),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)"
                         % (self.regular_table, self.col_int, self.col_bigint, self.col_smallint, self.col_tinyint, self.col_bool,
                            self.col_binary, self.col_nchar, self.col_float, self.col_double, self.col_ts))
 
@@ -1073,7 +1073,7 @@ class TDTestCase:
 
         tdSql.query("show create table `%s` ; " % self.regular_table)
         tdSql.checkData(0, 0, self.regular_table)
-        tdSql.checkData(0, 1, "create table `%s` (`ts` TIMESTAMP,`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(30),`%s` NCHAR(30),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)"
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (`ts` TIMESTAMP,`%s` INT,`%s` BIGINT,`%s` SMALLINT,`%s` TINYINT,`%s` BOOL,`%s` BINARY(30),`%s` NCHAR(30),`%s` FLOAT,`%s` DOUBLE,`%s` TIMESTAMP)"
                         % (self.regular_table, self.col_int, self.col_bigint, self.col_smallint, self.col_tinyint, self.col_bool,
                            self.col_binary, self.col_nchar, self.col_float, self.col_double, self.col_ts))
 

@@ -963,9 +963,14 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     terrno = TSDB_CODE_RPC_INVALID_SESSION_ID; return NULL;
   }
 
-  if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) != tsVersion >> 8) {
-    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
-    terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
+  // compatibility between old version client and new version server, since 2.4.0.0
+  if (rpcIsReq(pHead->msgType)){
+    if((htonl(pHead->msgVer) >> 16 != tsVersion >> 24) ||
+        ((htonl(pHead->msgVer) >> 16 == tsVersion >> 24) && htonl(pHead->msgVer) < ((2 << 16) | (4 << 8)))){
+      tError("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
+      terrno = TSDB_CODE_RPC_INVALID_VERSION;
+      return NULL;
+    }
   }
 
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
@@ -1159,6 +1164,19 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
     rpcMsg.ahandle = pConn->ahandle;
     rpcMsg.handle = pConn;
     rpcAddRef(pRpc);  // add the refCount for requests
+
+    switch (rpcMsg.msgType) {
+      case TSDB_MSG_TYPE_SUBMIT:
+        if (tsShortcutFlag & TSDB_SHORTCUT_RA_RPC_RECV_SUBMIT) {
+          SRpcMsg rMsg = {.handle = rpcMsg.handle, .pCont = NULL, .contLen = 0};
+          rpcSendResponse(&rMsg);
+          rpcFreeCont(rpcMsg.pCont);
+          return;
+        }
+        break;
+      default:
+        break;
+    }
 
     // notify the server app
     (*(pRpc->cfp))(&rpcMsg, NULL);
@@ -1523,14 +1541,14 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
 }
 
 static int rpcAuthenticateMsg(void *pMsg, int msgLen, void *pAuth, void *pKey) {
-  MD5_CTX context;
+  T_MD5_CTX context;
   int     ret = -1;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Final(&context);
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Update(&context, (uint8_t *)pMsg, msgLen);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Final(&context);
 
   if (memcmp(context.digest, pAuth, sizeof(context.digest)) == 0) ret = 0;
 
@@ -1538,13 +1556,13 @@ static int rpcAuthenticateMsg(void *pMsg, int msgLen, void *pAuth, void *pKey) {
 }
 
 static void rpcBuildAuthHead(void *pMsg, int msgLen, void *pAuth, void *pKey) {
-  MD5_CTX context;
+  T_MD5_CTX context;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Final(&context);
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Update(&context, (uint8_t *)pMsg, msgLen);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Final(&context);
 
   memcpy(pAuth, context.digest, sizeof(context.digest));
 }
@@ -1659,3 +1677,9 @@ static void rpcDecRef(SRpcInfo *pRpc)
   }
 }
 
+int32_t rpcUnusedSession(void * rpcInfo, bool bLock) {
+  SRpcInfo *info = (SRpcInfo *)rpcInfo;
+  if(info == NULL)
+     return 0;
+  return taosIdPoolNumOfFree(info->idPool, bLock);
+}

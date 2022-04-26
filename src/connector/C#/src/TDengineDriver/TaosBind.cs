@@ -2,7 +2,6 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-
 namespace TDengineDriver
 {
     /// <summary>
@@ -13,276 +12,349 @@ namespace TDengineDriver
     /// </summary>
     public class TaosBind
     {
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BOOL"/></c>.
+        /// </summary>
+        /// <param name="val">A not null boolean value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindBool(bool val)
         {
             TAOS_BIND bind = new TAOS_BIND();
             byte[] boolByteArr = BitConverter.GetBytes(val);
             int boolByteArrSize = Marshal.SizeOf(boolByteArr[0]) * boolByteArr.Length;
-            IntPtr bo = Marshal.AllocHGlobal(1);
-            Marshal.Copy(boolByteArr, 0, bo, boolByteArr.Length);
+            IntPtr c_bool = Marshal.AllocHGlobal(1);
+            Marshal.Copy(boolByteArr, 0, c_bool, boolByteArr.Length);
 
             int length = sizeof(Boolean);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BOOL;
-            bind.buffer = bo;
+            bind.buffer = c_bool;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
+
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_TINYINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null sbyte. </param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindTinyInt(sbyte val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
             byte[] tinyIntByteArr = BitConverter.GetBytes(val);
             int tinyIntByteArrSize = Marshal.SizeOf(tinyIntByteArr[0]) * tinyIntByteArr.Length;
-            IntPtr uManageTinyInt = Marshal.AllocHGlobal(tinyIntByteArrSize);
-            Marshal.Copy(tinyIntByteArr, 0, uManageTinyInt, tinyIntByteArr.Length);
+            IntPtr c_tinyint = Marshal.AllocHGlobal(tinyIntByteArrSize);
+            Marshal.Copy(tinyIntByteArr, 0, c_tinyint, tinyIntByteArr.Length);
 
             int length = sizeof(sbyte);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TINYINT;
-            bind.buffer = uManageTinyInt;
+            bind.buffer = c_tinyint;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
             return bind;
 
         }
-
+        
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_SMALLINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null short value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindSmallInt(short val)
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr uManageSmallInt = Marshal.AllocHGlobal(sizeof(short));
-            Marshal.WriteInt16(uManageSmallInt, val);
+            IntPtr c_smallint = Marshal.AllocHGlobal(sizeof(short));
+            Marshal.WriteInt16(c_smallint, val);
 
             int length = sizeof(short);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_SMALLINT;
-            bind.buffer = uManageSmallInt;
+            bind.buffer = c_smallint;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_INT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null int value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindInt(int val)
         {
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr uManageInt = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(uManageInt, val);
+            IntPtr c_int = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(c_int, val);
 
             int length = sizeof(int);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_INT;
-            bind.buffer = uManageInt;
+            bind.buffer = c_int;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BIGINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null long value.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindBigInt(long val)
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr uManageBigInt = Marshal.AllocHGlobal(sizeof(long));
-            Marshal.WriteInt64(uManageBigInt, val);
+            IntPtr c_bigint = Marshal.AllocHGlobal(sizeof(long));
+            Marshal.WriteInt64(c_bigint, val);
 
             int length = sizeof(long);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BIGINT;
-            bind.buffer = uManageBigInt;
+            bind.buffer = c_bigint;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UTINYINT"/></c>.
+        /// </summary>
+        /// <param name="val">An unsigned byte and can be null.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUTinyInt(byte val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            IntPtr uManageTinyInt = Marshal.AllocHGlobal(sizeof(byte));
-            Marshal.WriteByte(uManageTinyInt, val);
+            IntPtr c_unsigned_tinyint = Marshal.AllocHGlobal(sizeof(byte));
+            Marshal.WriteByte(c_unsigned_tinyint, val);
 
             int length = sizeof(byte);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UTINYINT;
-            bind.buffer = uManageTinyInt;
+            bind.buffer = c_unsigned_tinyint;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_USMALLINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null Uint16.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUSmallInt(UInt16 val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
             byte[] uSmallIntByteArr = BitConverter.GetBytes(val);
             int usmallSize = Marshal.SizeOf(uSmallIntByteArr[0]) * uSmallIntByteArr.Length;
-            IntPtr uManageUnsignSmallInt = Marshal.AllocHGlobal(usmallSize);
-            Marshal.Copy(uSmallIntByteArr, 0, uManageUnsignSmallInt, uSmallIntByteArr.Length);
+            IntPtr c_unsigned_smallint = Marshal.AllocHGlobal(usmallSize);
+            Marshal.Copy(uSmallIntByteArr, 0, c_unsigned_smallint, uSmallIntByteArr.Length);
 
             int length = sizeof(UInt16);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_USMALLINT;
-            bind.buffer = uManageUnsignSmallInt;
+            bind.buffer = c_unsigned_smallint;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null uint.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUInt(uint val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] uManageIntByteArr = BitConverter.GetBytes(val);
-            int usmallSize = Marshal.SizeOf(uManageIntByteArr[0]) * uManageIntByteArr.Length;
-            IntPtr uManageInt = Marshal.AllocHGlobal(usmallSize);
-            Marshal.Copy(uManageIntByteArr, 0, uManageInt, uManageIntByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int usmallSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_unsigned_int = Marshal.AllocHGlobal(usmallSize);
+            Marshal.Copy(byteArr, 0, c_unsigned_int, byteArr.Length);
 
             int length = sizeof(uint);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UINT;
-            bind.buffer = uManageInt;
+            bind.buffer = c_unsigned_int;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_UBIGINT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null ulong.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindUBigInt(ulong val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] uManageBigIntByteArr = BitConverter.GetBytes(val);
-            int usmallSize = Marshal.SizeOf(uManageBigIntByteArr[0]) * uManageBigIntByteArr.Length;
-            IntPtr uManageBigInt = Marshal.AllocHGlobal(usmallSize);
-            Marshal.Copy(uManageBigIntByteArr, 0, uManageBigInt, uManageBigIntByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int usmallSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_unsigned_bigint = Marshal.AllocHGlobal(usmallSize);
+            Marshal.Copy(byteArr, 0, c_unsigned_bigint, byteArr.Length);
 
             int length = sizeof(ulong);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UBIGINT;
-            bind.buffer = uManageBigInt;
+            bind.buffer = c_unsigned_bigint;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_FLOAT"/></c>.
+        /// </summary>
+        /// <param name="val">A not null float.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindFloat(float val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] floatByteArr = BitConverter.GetBytes(val);
-            int floatByteArrSize = Marshal.SizeOf(floatByteArr[0]) * floatByteArr.Length;
-            IntPtr uManageFloat = Marshal.AllocHGlobal(floatByteArrSize);
-            Marshal.Copy(floatByteArr, 0, uManageFloat, floatByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int floatByteArrSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_float = Marshal.AllocHGlobal(floatByteArrSize);
+            Marshal.Copy(byteArr, 0, c_float, byteArr.Length);
 
             int length = sizeof(float);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_FLOAT;
-            bind.buffer = uManageFloat;
+            bind.buffer = c_float;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_DOUBLE"/></c>.
+        /// </summary>
+        /// <param name="val">A not null double.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindDouble(Double val)
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] doubleByteArr = BitConverter.GetBytes(val);
-            int doubleByteArrSize = Marshal.SizeOf(doubleByteArr[0]) * doubleByteArr.Length;
-            IntPtr uManageDouble = Marshal.AllocHGlobal(doubleByteArrSize);
-            Marshal.Copy(doubleByteArr, 0, uManageDouble, doubleByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int doubleByteArrSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_double = Marshal.AllocHGlobal(doubleByteArrSize);
+            Marshal.Copy(byteArr, 0, c_double, byteArr.Length);
 
             int length = sizeof(Double);
-            IntPtr lengPtr = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_DOUBLE;
-            bind.buffer = uManageDouble;
+            bind.buffer = c_double;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_BINARY"/></c>.
+        /// </summary>
+        /// <param name="val">A not null string.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindBinary(String val)
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr umanageBinary = Marshal.StringToHGlobalAnsi(val);
+            // IntPtr unmanagedBinary = Marshal.StringToHGlobalAnsi(val);
+            IntPtr c_str = Marshal.StringToCoTaskMemUTF8(val);
 
-            var strToBytes = System.Text.Encoding.Default.GetBytes(val);
-            int leng = strToBytes.Length;
+            var strToBytes = System.Text.Encoding.UTF8.GetBytes(val);
+            int length = strToBytes.Length;
             IntPtr lenPtr = Marshal.AllocHGlobal(sizeof(ulong));
-            Marshal.WriteInt64(lenPtr, leng);
+            Marshal.WriteInt64(lenPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BINARY;
-            bind.buffer = umanageBinary;
-            bind.buffer_length = leng;
+            bind.buffer = c_str;
+            bind.buffer_length = length;
             bind.length = lenPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
+
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_NCHAR"/></c>.
+        /// </summary>
+        /// <param name="val">A not null string.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindNchar(String val)
         {
             TAOS_BIND bind = new TAOS_BIND();
-            var strToBytes = System.Text.Encoding.Default.GetBytes(val);
-            IntPtr umanageNchar = (IntPtr)Marshal.StringToHGlobalAnsi(val);
+            var strToBytes = System.Text.Encoding.UTF8.GetBytes(val);
+            // IntPtr unmanagedNchar = (IntPtr)Marshal.StringToHGlobalAnsi(val);
+            IntPtr c_str = (IntPtr)Marshal.StringToCoTaskMemUTF8(val);
 
 
-            int leng = strToBytes.Length;
+            int length = strToBytes.Length;
             IntPtr lenPtr = Marshal.AllocHGlobal(sizeof(ulong));
-            Marshal.WriteInt64(lenPtr, leng);
+            Marshal.WriteInt64(lenPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_NCHAR;
-            bind.buffer = umanageNchar;
-            bind.buffer_length = leng;
+            bind.buffer = c_str;
+            bind.buffer_length = length;
             bind.length = lenPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_NULL"/></c>.
+        /// </summary>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindNil()
         {
             TAOS_BIND bind = new TAOS_BIND();
@@ -296,27 +368,36 @@ namespace TDengineDriver
             return bind;
         }
 
+        /// <summary>
+        /// Used to bind TDengine's <c><see cref="TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP"/></c>.
+        /// </summary>
+        /// <param name="ts">A not null long.</param>
+        /// <returns><c><see cref="TAOS_BIND"/></c></returns>
         public static TAOS_BIND BindTimestamp(long ts)
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr uManageTs = Marshal.AllocHGlobal(sizeof(long));
-            Marshal.WriteInt64(uManageTs, ts);
+            IntPtr c_long = Marshal.AllocHGlobal(sizeof(long));
+            Marshal.WriteInt64(c_long, ts);
 
             int length = sizeof(long);
-            IntPtr lengPtr = Marshal.AllocHGlobal(4);
-            Marshal.WriteInt32(lengPtr, length);
+            IntPtr lengthPtr = Marshal.AllocHGlobal(4);
+            Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP;
-            bind.buffer = uManageTs;
+            bind.buffer = c_long;
             bind.buffer_length = length;
-            bind.length = lengPtr;
+            bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
 
             return bind;
 
         }
 
+        /// <summary>
+        /// Used to free allocated unmanaged memory.
+        /// </summary>
+        /// <param name="binds">An array of <see cref="TAOS_BIND"/></param>
         public static void FreeTaosBind(TAOS_BIND[] binds)
         {
             foreach (TAOS_BIND bind in binds)

@@ -6,8 +6,8 @@
 const ref = require('ref-napi');
 const os = require('os');
 const ffi = require('ffi-napi');
-const ArrayType = require('ref-array-napi');
-const Struct = require('ref-struct-napi');
+const ArrayType = require('ref-array-di')(ref);
+const Struct = require('ref-struct-di')(ref);
 const FieldTypes = require('./constants');
 const errors = require('./error');
 const _ = require('lodash')
@@ -20,6 +20,7 @@ const TAOSFIELD = {
   BYTES_OFFSET: 66,
   STRUCT_SIZE: 68,
 }
+
 function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -31,6 +32,7 @@ function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, precision =
   }
   return res;
 }
+
 function convertBool(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = new Array(data.length);
@@ -47,6 +49,7 @@ function convertBool(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   }
   return res;
 }
+
 function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -58,6 +61,7 @@ function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0
   }
   return res;
 }
+
 function convertTinyintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -81,6 +85,7 @@ function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, precision = 
   }
   return res;
 }
+
 function convertSmallintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -104,6 +109,7 @@ function convertInt(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   }
   return res;
 }
+
 function convertIntUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -116,7 +122,6 @@ function convertIntUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision
   return res;
 }
 
-
 function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -128,6 +133,7 @@ function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0)
   }
   return res;
 }
+
 function convertBigintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -140,7 +146,6 @@ function convertBigintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precis
   return res;
 }
 
-
 function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -152,6 +157,7 @@ function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) 
   }
   return res;
 }
+
 function convertDouble(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -322,18 +328,54 @@ function CTaosInterface(config = null, pass = false) {
     //void taos_unsubscribe(TAOS_SUB *tsub);
     'taos_unsubscribe': [ref.types.void, [ref.types.void_ptr]],
 
-    // Continuous Query
-    //TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-    //                              int64_t stime, void *param, void (*callback)(void *));
-    'taos_open_stream': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr, ref.types.int64, ref.types.void_ptr, ref.types.void_ptr]],
-    //void taos_close_stream(TAOS_STREAM *tstr);
-    'taos_close_stream': [ref.types.void, [ref.types.void_ptr]],
-
-    //Schemaless insert 
+    //Schemaless insert
     //TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol，int precision)
     // 'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.int, ref.types.int, ref.types.int]]
     'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, smlLine, 'int', 'int', 'int']]
 
+    //stmt APIs
+    // TAOS_STMT* taos_stmt_init(TAOS *taos)
+    , 'taos_stmt_init': [ref.types.void_ptr, [ref.types.void_ptr]]
+
+    // int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)
+    , 'taos_stmt_prepare': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr, ref.types.ulong]]
+
+    // int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)
+    , 'taos_stmt_set_tbname': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr]]
+
+    // int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)
+    , 'taos_stmt_set_tbname_tags': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr]]
+
+    // int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name)
+    , 'taos_stmt_set_sub_tbname': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr]]
+
+    // int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)
+    // , 'taos_stmt_bind_param': [ref.types.int, [ref.types.void_ptr, ref.refType(TAOS_BIND)]]
+    , 'taos_stmt_bind_param': [ref.types.int, [ref.types.void_ptr, ref.types.void_ptr]]
+
+
+    // int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx)  
+    , 'taos_stmt_bind_single_param_batch': [ref.types.int, [ref.types.void_ptr, ref.types.void_ptr, ref.types.int]]
+    // int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) 
+    , 'taos_stmt_bind_param_batch': [ref.types.int, [ref.types.void_ptr, ref.types.void_ptr]]
+
+    // int taos_stmt_add_batch(TAOS_STMT *stmt)
+    , 'taos_stmt_add_batch': [ref.types.int, [ref.types.void_ptr]]
+
+    // int taos_stmt_execute(TAOS_STMT *stmt) 
+    , 'taos_stmt_execute': [ref.types.int, [ref.types.void_ptr]]
+
+    // TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)  
+    , 'taos_stmt_use_result': [ref.types.void_ptr, [ref.types.void_ptr]]
+
+    // int taos_stmt_close(TAOS_STMT *stmt) 
+    , 'taos_stmt_close': [ref.types.int, [ref.types.void_ptr]]
+
+    // char * taos_stmt_errstr(TAOS_STMT *stmt)
+    , 'taos_stmt_errstr': [ref.types.char_ptr, [ref.types.void_ptr]]
+
+    // int taos_load_table_info(TAOS *taos, const char* tableNameList)
+    , 'taos_load_table_info': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr]]
   });
 
   if (pass == false) {
@@ -355,9 +397,11 @@ function CTaosInterface(config = null, pass = false) {
   }
   return this;
 }
+
 CTaosInterface.prototype.config = function config() {
   return this._config;
 }
+
 CTaosInterface.prototype.connect = function connect(host = null, user = "root", password = "taosdata", db = null, port = 0) {
   let _host, _user, _password, _db, _port;
   try {
@@ -399,10 +443,12 @@ CTaosInterface.prototype.connect = function connect(host = null, user = "root", 
   }
   return connection;
 }
+
 CTaosInterface.prototype.close = function close(connection) {
   this.libtaos.taos_close(connection);
   console.log("Connection is closed");
 }
+
 CTaosInterface.prototype.query = function query(connection, sql) {
   return this.libtaos.taos_query(connection, ref.allocCString(sql));
 }
@@ -410,6 +456,7 @@ CTaosInterface.prototype.query = function query(connection, sql) {
 CTaosInterface.prototype.affectedRows = function affectedRows(result) {
   return this.libtaos.taos_affected_rows(result);
 }
+
 CTaosInterface.prototype.useResult = function useResult(result) {
 
   let fields = [];
@@ -427,6 +474,7 @@ CTaosInterface.prototype.useResult = function useResult(result) {
   }
   return fields;
 }
+
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   let pblock = ref.NULL_POINTER;
   let num_of_rows = this.libtaos.taos_fetch_block(result, pblock);
@@ -467,31 +515,39 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   }
   return { blocks: blocks, num_of_rows }
 }
+
 CTaosInterface.prototype.fetchRow = function fetchRow(result, fields) {
   let row = this.libtaos.taos_fetch_row(result);
   return row;
 }
+
 CTaosInterface.prototype.freeResult = function freeResult(result) {
   this.libtaos.taos_free_result(result);
   result = null;
 }
+
 /** Number of fields returned in this result handle, must use with async */
 CTaosInterface.prototype.numFields = function numFields(result) {
   return this.libtaos.taos_num_fields(result);
 }
+
 // Fetch fields count by connection, the latest query
 CTaosInterface.prototype.fieldsCount = function fieldsCount(result) {
   return this.libtaos.taos_field_count(result);
 }
+
 CTaosInterface.prototype.fetchFields = function fetchFields(result) {
   return this.libtaos.taos_fetch_fields(result);
 }
+
 CTaosInterface.prototype.errno = function errno(result) {
   return this.libtaos.taos_errno(result);
 }
+
 CTaosInterface.prototype.errStr = function errStr(result) {
   return ref.readCString(this.libtaos.taos_errstr(result));
 }
+
 // Async
 CTaosInterface.prototype.query_a = function query_a(connection, sql, callback, param = ref.ref(ref.NULL)) {
   // void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, int), void *param)
@@ -550,6 +606,7 @@ CTaosInterface.prototype.fetch_rows_a = function fetch_rows_a(result, callback, 
   this.libtaos.taos_fetch_rows_a(result, asyncCallbackWrapper, param);
   return param;
 }
+
 // Fetch field meta data by result handle
 CTaosInterface.prototype.fetchFields_a = function fetchFields_a(result) {
   let pfields = this.fetchFields(result);
@@ -567,6 +624,7 @@ CTaosInterface.prototype.fetchFields_a = function fetchFields_a(result) {
   }
   return fields;
 }
+
 // Stop a query by result handle
 CTaosInterface.prototype.stopQuery = function stopQuery(result) {
   if (result != null) {
@@ -576,9 +634,11 @@ CTaosInterface.prototype.stopQuery = function stopQuery(result) {
     throw new errors.ProgrammingError("No result handle passed to stop query");
   }
 }
+
 CTaosInterface.prototype.getServerInfo = function getServerInfo(connection) {
   return ref.readCString(this.libtaos.taos_get_server_info(connection));
 }
+
 CTaosInterface.prototype.getClientInfo = function getClientInfo() {
   return ref.readCString(this.libtaos.taos_get_client_info());
 }
@@ -644,67 +704,25 @@ CTaosInterface.prototype.consume = function consume(subscription) {
   }
   return { data: data, fields: fields, result: result };
 }
+
 CTaosInterface.prototype.unsubscribe = function unsubscribe(subscription) {
   //void taos_unsubscribe(TAOS_SUB *tsub);
   this.libtaos.taos_unsubscribe(subscription);
 }
 
-// Continuous Query
-CTaosInterface.prototype.openStream = function openStream(connection, sql, callback, stime, stoppingCallback, param = ref.ref(ref.NULL)) {
-  try {
-    sql = ref.allocCString(sql);
-  }
-  catch (err) {
-    throw "Attribute Error: sql string is expected as a str";
-  }
-  var cti = this;
-  let asyncCallbackWrapper = function (param2, result2, row) {
-    let fields = cti.fetchFields_a(result2);
-    let precision = cti.libtaos.taos_result_precision(result2);
-    let blocks = new Array(fields.length);
-    blocks.fill(null);
-    let numOfRows2 = 1;
-    let offset = 0;
-    if (numOfRows2 > 0) {
-      for (let i = 0; i < fields.length; i++) {
-        if (!convertFunctions[fields[i]['type']]) {
-          throw new errors.DatabaseError("Invalid data type returned from database");
-        }
-        blocks[i] = convertFunctions[fields[i]['type']](row, numOfRows2, fields[i]['bytes'], offset, precision);
-        offset += fields[i]['bytes'] * numOfRows2;
-      }
-    }
-    callback(param2, result2, blocks, fields);
-  }
-  asyncCallbackWrapper = ffi.Callback(ref.types.void, [ref.types.void_ptr, ref.types.void_ptr, ref.refType(ref.types.void_ptr2)], asyncCallbackWrapper);
-  asyncStoppingCallbackWrapper = ffi.Callback(ref.types.void, [ref.types.void_ptr], stoppingCallback);
-  let streamHandle = this.libtaos.taos_open_stream(connection, sql, asyncCallbackWrapper, stime, param, asyncStoppingCallbackWrapper);
-  if (ref.isNull(streamHandle)) {
-    throw new errors.TDError('Failed to open a stream with TDengine');
-    return false;
-  }
-  else {
-    console.log("Succesfully opened stream");
-    return streamHandle;
-  }
-}
-CTaosInterface.prototype.closeStream = function closeStream(stream) {
-  this.libtaos.taos_close_stream(stream);
-  console.log("Closed stream");
-}
-//Schemaless insert API 
+//Schemaless insert API
 /**
  * TAOS* taos, char* lines[], int numLines, int protocol，int precision)
- * using  taos_errstr get error info, taos_errno get error code. Remmember 
- * to release taos_res, otherwile will lead memory leak.
+ * using  taos_errstr get error info, taos_errno get error code. Remember
+ * to release taos_res, otherwise will lead memory leak.
  * TAOS schemaless insert api
  * @param {*} connection a valid database connection
- * @param {*} lines string data, which statisfied with line proctocol
+ * @param {*} lines string data, which satisfied with line protocol
  * @param {*} numLines number of rows in param lines.
- * @param {*} protocal Line protocol, enum type (0,1,2,3),indicate different line protocol
+ * @param {*} protocol Line protocol, enum type (0,1,2,3),indicate different line protocol
  * @param {*} precision timestamp precision in lines, enum type (0,1,2,3,4,5,6)
- * @returns TAOS_RES 
- * 
+ * @returns TAOS_RES
+ *
  */
 CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection, lines, protocal, precision) {
   let _numLines = null;
@@ -726,4 +744,170 @@ CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection
     throw new errors.InterfaceError("Unsupport lines input")
   }
   return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, protocal, precision);
+}
+
+//stmt APIs
+
+/**
+ * init a TAOS_STMT object for later use.it should be freed with stmtClose.
+ * @param {*} connection valid taos connection 
+ * @returns  Not NULL returned for success, and NULL for failure. 
+ * 
+ */
+CTaosInterface.prototype.stmtInit = function stmtInit(connection) {
+  return this.libtaos.taos_stmt_init(connection)
+}
+
+/**
+ * prepare a sql statement,'sql' should be a valid INSERT/SELECT statement, 'length' is not used.
+ * @param {*} stmt 
+ * @param {string} sql  a valid INSERT/SELECT statement
+ * @param {ulong} length not used
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtPrepare = function stmtPrepare(stmt, sql, length) {
+  return this.libtaos.taos_stmt_prepare(stmt, ref.allocCString(sql), 0);
+}
+
+/**
+ * For INSERT only. Used to bind table name as a parmeter for the input stmt object.
+ * @param {*} stmt could be the value returned by 'stmtInit', 
+ *            that may be a valid object or NULL.
+ * @param {TaosBind} tableName target table name you want to  bind
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtSetTbname = function stmtSetTbname(stmt, tableName) {
+  return this.libtaos.taos_stmt_set_tbname(stmt, ref.allocCString(tableName));
+}
+
+/**
+ * For INSERT only. 
+ * Set a table name for binding table name as parameter and tag values for all  tag parameters. 
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @param {*} tableName use to set target table name
+ * @param {TaosMultiBind} tags use to set tag value for target table. 
+ * @returns 
+ */
+CTaosInterface.prototype.stmtSetTbnameTags = function stmtSetTbnameTags(stmt, tableName, tags) {
+  return this.libtaos.taos_stmt_set_tbname_tags(stmt, ref.allocCString(tableName), tags);
+}
+
+/**
+ * For INSERT only. 
+ * Set a table name for binding table name as parameter. Only used for binding all tables
+ * in one stable, user application must call 'loadTableInfo' API to load all table
+ * meta before calling this API. If the table meta is not cached locally, it will return error.
+ * @param {*} stmt could be the value returned by 'StmtInit', that may be a valid object or NULL.
+ * @param {*} subTableName table name which is belong to an stable
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtSetSubTbname = function stmtSetSubTbname(stmt, subTableName) {
+  return this.libtaos.taos_stmt_set_sub_tbname(stmt, subTableName);
+}
+
+/**
+ * bind a whole line data, for both INSERT and SELECT. The parameter 'bind' points to an array 
+ * contains the whole line data. Each item in array represents a column's value, the item 
+ * number and sequence should keep consistence with columns in sql statement. The usage of 
+ * structure TAOS_BIND is the same with MYSQL_BIND in MySQL.
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @param {*} binds points to an array contains the whole line data.
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.bindParam = function bindParam(stmt, binds) {
+  return this.libtaos.taos_stmt_bind_param(stmt, binds);
+}
+
+/**
+ * Bind a single column's data, INTERNAL used and for INSERT only. 
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @param {TaosMultiBind} mbind points to a column's data which could be the one or more lines. 
+ * @param {*} colIndex the column's index in prepared sql statement, it starts from 0.
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtBindSingleParamBatch = function stmtBindSingleParamBatch(stmt, mbind, colIndex) {
+  return this.libtaos.taos_stmt_bind_single_param_batch(stmt, mbind.ref(), colIndex);
+}
+
+/**
+ * For INSERT only.
+ * Bind one or multiple lines data.
+ * @param {*} stmt could be the value returned by 'stmtInit',
+ *            that may be a valid object or NULL.
+ * @param {*} mbinds Points to an array contains one or more lines data.The item 
+ *            number and sequence should keep consistence with columns
+ *            n sql statement. 
+ * @returns  0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtBindParamBatch = function stmtBindParamBatch(stmt, mbinds) {
+  return this.libtaos.taos_stmt_bind_param_batch(stmt, mbinds);
+}
+/**
+ * add all current bound parameters to batch process, for INSERT only.
+ * Must be called after each call to bindParam/bindSingleParamBatch, 
+ * or all columns binds for one or more lines with bindSingleParamBatch. User 
+ * application can call any bind parameter API again to bind more data lines after calling
+ * to this API.
+ * @param {*} stmt 
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.addBatch = function addBatch(stmt) {
+  return this.libtaos.taos_stmt_add_batch(stmt);
+}
+/**
+ * actually execute the INSERT/SELECT sql statement. User application can continue
+ * to bind new data after calling to this API.
+ * @param {*} stmt 
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtExecute = function stmtExecute(stmt) {
+  return this.libtaos.taos_stmt_execute(stmt);
+}
+
+/**
+ * For SELECT only,getting the query result. 
+ * User application should free it with API 'FreeResult' at the end.
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @returns Not NULL for success, NULL for failure.
+ */
+CTaosInterface.prototype.stmtUseResult = function stmtUseResult(stmt) {
+  return this.libtaos.taos_stmt_use_result(stmt);
+}
+
+/**
+ * user application call this API to load all tables meta info.
+ * This method must be called before stmtSetSubTbname(IntPtr stmt, string name);
+ * @param {*} taos taos connection
+ * @param {*} tableList tables need to load meta info are form in an array
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.loadTableInfo = function loadTableInfo(taos, tableList) {
+  let _tableListBuf = Buffer.alloc(ref.sizeof.pointer);
+  let _listStr = tableList.toString();
+
+  if ((_.isString(tableList) )|| (_.isArray(tableList))) {
+    ref.set(_tableListBuf, 0, ref.allocCString(_listStr), ref.types.char_ptr);
+    return this.libtaos.taos_load_table_info(taos, _tableListBuf);
+  } else {
+    throw new errors.InterfaceError("Unspport tableLis input");
+  }
+}
+
+/**
+ * Close STMT object and free resources.
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.closeStmt = function closeStmt(stmt) {
+  return this.libtaos.taos_stmt_close(stmt);
+}
+
+/**
+ * Get detail error message when got failure for any stmt API call. 
+ * If not failure, the result returned by this API is unknown.
+ * @param {*} stmt Could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @returns error string
+ */
+CTaosInterface.prototype.stmtErrStr = function stmtErrStr(stmt) {
+  return ref.readCString(this.libtaos.taos_stmt_errstr(stmt));
 }

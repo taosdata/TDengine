@@ -22,6 +22,8 @@ typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
 
 typedef int32_t (*_equal_fn_t)(const void *a, const void *b, size_t sz); 
 
+typedef void (*_hash_free_fn_t)(void *param);
+
 /**
  * murmur hash algorithm
  * @key  usually string
@@ -31,7 +33,8 @@ typedef int32_t (*_equal_fn_t)(const void *a, const void *b, size_t sz);
  */
 uint32_t MurmurHash3_32(const char *key, uint32_t len);
 
-/**
+uint64_t MurmurHash3_64(const void *key, uint32_t len);
+    /**
  *
  * @param key
  * @param len

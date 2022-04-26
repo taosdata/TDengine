@@ -23,7 +23,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 <tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
 <tr align="center">
   <td>支持的操作系统</td>
-  <td>linux、windows</td>
+  <td>Linux、Windows</td>
   <td>全平台</td>
 </tr>
 <tr align="center">
@@ -46,43 +46,45 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 </tr>
 </table>
 
-注意：与 JNI 方式不同，RESTful 接口是无状态的。在使用JDBC-RESTful时，需要在sql中指定表、超级表的数据库名称。（从 TDengine 2.2.0.0 版本开始，也可以在 RESTful url 中指定当前 SQL 语句所使用的默认数据库名。）例如：
+注意：
+* 与 JNI 方式不同，RESTful 接口是无状态的。在使用JDBC-RESTful时，需要在sql中指定表、超级表的数据库名称。例如：
 ```sql
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
 ```
+* 从taos-jdbcdriver-2.0.36和TDengine 2.2.0.0 版本开始，如果在url中指定了dbname，那么，JDBC-RESTful会默认使用/rest/sql/dbname作为resful请求的url，在sql中不需要指定dbname。例如：url为jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行sql：insert into t1 using weather(ts, temperatrue) tags('beijing') values(now, 24.6);
 
 ## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
-| taos-jdbcdriver 版本 | TDengine 版本        | JDK 版本 |
-|--------------------|--------------------| -------- |
-| 2.0.36             | 2.4.0 及以上          | 1.8.x    |
-| 2.0.35             | 2.3.0 及以上          | 1.8.x    |
-| 2.0.33 - 2.0.34    | 2.0.3.0 及以上        | 1.8.x    |
-| 2.0.31 - 2.0.32    | 2.1.3.0 及以上        | 1.8.x    |
-| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
-| 2.0.12 - 2.0.21    | 2.0.8.0 - 2.0.17.x | 1.8.x    |
-| 2.0.4 - 2.0.11     | 2.0.0.0 - 2.0.7.x  | 1.8.x    |
-| 1.0.3              | 1.6.1.x 及以上        | 1.8.x    |
-| 1.0.2              | 1.6.1.x 及以上        | 1.8.x    |
-| 1.0.1              | 1.6.1.x 及以上        | 1.8.x    |
+| taos-jdbcdriver 版本 | TDengine 2.0.x.x 版本 | TDengine 2.2.x.x 版本 | TDengine 2.4.x.x 版本 | JDK 版本 |
+| -------------------- | --------------------- | --------------------- | --------------------- | -------- |
+| 2.0.38               | X                     | X                     | 2.4.0.14 及以上       | 1.8.x    |
+| 2.0.37               | X                     | X                     | 2.4.0.6 及以上        | 1.8.x    |
+| 2.0.36               | X                     | 2.2.2.11 及以上       | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.35               | X                     | 2.2.2.11 及以上       | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.33 - 2.0.34      | 2.0.3.0 及以上        | 2.2.0.0 及以上        | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.31 - 2.0.32      | 2.1.3.0 - 2.1.7.7     | X                     | X                     | 1.8.x    |
+| 2.0.22 - 2.0.30      | 2.0.18.0 - 2.1.2.1    | X                     | X                     | 1.8.x    |
+| 2.0.12 - 2.0.21      | 2.0.8.0 - 2.0.17.4    | X                     | X                     | 1.8.x    |
+| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.3     | X                     | X                     | 1.8.x    |
+
 
 ## TDengine DataType 和 Java DataType
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
 | TDengine DataType | JDBCType （driver 版本 < 2.0.24） | JDBCType （driver 版本 >= 2.0.24） |
-|-------------------|-------------------------------| ------------------ |
-| TIMESTAMP         | java.lang.Long                | java.sql.Timestamp |
-| INT               | java.lang.Integer             | java.lang.Integer  |
-| BIGINT            | java.lang.Long                | java.lang.Long     |
-| FLOAT             | java.lang.Float               | java.lang.Float    |
-| DOUBLE            | java.lang.Double              | java.lang.Double   |
-| SMALLINT          | java.lang.Short               | java.lang.Short    |
-| TINYINT           | java.lang.Byte                | java.lang.Byte     |
-| BOOL              | java.lang.Boolean             | java.lang.Boolean  |
-| BINARY            | java.lang.String              | byte array         |
-| NCHAR             | java.lang.String              | java.lang.String   |
-| JSON              | -                             | java.lang.String   |
+| ----------------- | --------------------------------- | ---------------------------------- |
+| TIMESTAMP         | java.lang.Long                    | java.sql.Timestamp                 |
+| INT               | java.lang.Integer                 | java.lang.Integer                  |
+| BIGINT            | java.lang.Long                    | java.lang.Long                     |
+| FLOAT             | java.lang.Float                   | java.lang.Float                    |
+| DOUBLE            | java.lang.Double                  | java.lang.Double                   |
+| SMALLINT          | java.lang.Short                   | java.lang.Short                    |
+| TINYINT           | java.lang.Byte                    | java.lang.Byte                     |
+| BOOL              | java.lang.Boolean                 | java.lang.Boolean                  |
+| BINARY            | java.lang.String                  | byte array                         |
+| NCHAR             | java.lang.String                  | java.lang.String                   |
+| JSON              | -                                 | java.lang.String                   |
 
 注意：JSON类型仅在tag中支持。
 
@@ -113,7 +115,8 @@ maven 项目中，在pom.xml 中添加以下依赖：
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.18</version>
+ <!--具体版本请参考上面的版本对应表-->
+ <version>2.x.xx</version>
 </dependency>
 ```
 
@@ -149,7 +152,18 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
 3. 使用 6041 作为连接端口。
 
-如果希望获得更好的写入和查询性能，Java 应用可以使用 **JDBC-JNI** 的driver，如下所示：
+从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，**JDBC-RESTful** 的 driver 增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 **JDBC-RESTful** 支持大数据量查询，并提升查询性能。
+
+连接开启批量拉取方式：
+
+```
+String url = "jdbc:TAOS-RS://taosdemo.com:6041/?user=root&password=taosdata";Properties properties = new Properties();
+properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
+Connection connection = DriverManager.getConnection(url, properties);
+```
+
+如果希望获得更好的写入和查询性能，Java 应用可以使用 **JDBC-JNI** 的 driver，如下所示：
+
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
 String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata";
@@ -176,7 +190,7 @@ url中的配置参数如下：
 * timezone：客户端使用的时区，默认值为系统当前时区。
 * batchfetch: 仅在使用JDBC-JNI时生效。true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 * timestampFormat: 仅在使用JDBC-RESTful时生效. 'TIMESTAMP'：结果集中timestamp类型的字段为一个long值; 'UTC'：结果集中timestamp类型的字段为一个UTC时间格式的字符串; 'STRING'：结果集中timestamp类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
-* batchErrorIgnore：true：在执行Statement的executeBatch时，如果中间有一条sql执行失败，继续执行下面的sq了。false：不再执行失败sql后的任何语句。默认值为：false。
+* batchErrorIgnore：true：在执行Statement的executeBatch时，如果中间有一条sql执行失败，继续执行下面的sql了。false：不再执行失败sql后的任何语句。默认值为：false。
 
 #### 指定URL和Properties获取连接
 
@@ -205,7 +219,7 @@ properties 中的配置参数如下：
 * TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 * TSDBDriver.PROPERTY_KEY_LOCALE：客户端语言环境，默认值系统当前 locale。
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE：客户端使用的时区，默认值为系统当前时区。
-* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: 仅在使用JDBC-JNI时生效。true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
+* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 * TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: 仅在使用JDBC-RESTful时生效. 'TIMESTAMP'：结果集中timestamp类型的字段为一个long值; 'UTC'：结果集中timestamp类型的字段为一个UTC时间格式的字符串; 'STRING'：结果集中timestamp类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
 * TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行Statement的executeBatch时，如果中间有一条sql执行失败，继续执行下面的sq了。false：不再执行失败sql后的任何语句。默认值为：false。
 
@@ -344,6 +358,7 @@ JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（�
 * setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
 
 示例代码：
+
 ```java
 public class ParameterBindingDemo {
  
@@ -571,6 +586,7 @@ public class ParameterBindingDemo {
 ```
 
 用于设定 TAGS 取值的方法总共有：
+
 ```java
 public void setTagNull(int index, int type)
 public void setTagBoolean(int index, boolean value)
@@ -586,6 +602,7 @@ public void setTagNString(int index, String value)
 ```
 
 用于设定 VALUES 数据列的取值的方法总共有：
+
 ```java
 public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException
 public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException
@@ -599,14 +616,56 @@ public void setString(int columnIndex, ArrayList<String> list, int size) throws 
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
 
+### <a class="anchor" id="schemaless_java"></a>无模式写入
+
+从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](https://www.taosdata.com/docs/cn/v2.0/insert#schemaless)。
+
+注意：
+* JDBC-RESTful 实现并不提供无模式写入这种使用方式
+* 以下示例代码基于taos-jdbcdriver-2.0.36
+
+示例代码：
+
+```java
+public class SchemalessInsertTest {
+    private static final String host = "127.0.0.1";
+    private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
+    private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+
+    public static void main(String[] args) throws SQLException {
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(url)) {
+            init(connection);
+
+            SchemalessWriter writer = new SchemalessWriter(connection);
+            writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+            writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
+        }
+    }
+
+    private static void init(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("drop database if exists test_schemaless");
+            stmt.executeUpdate("create database if not exists test_schemaless");
+            stmt.executeUpdate("use test_schemaless");
+        }
+    }
+}
+```
+
 ### <a class="anchor" id="set-client-configuration"></a>设置客户端参数
+
 从TDengine-2.3.5.0版本开始，jdbc driver支持在应用的第一次连接中，设置TDengine的客户端参数。Driver支持JDBC-JNI方式中，通过jdbcUrl和properties两种方式设置client parameter。
+
 注意：
 * JDBC-RESTful不支持设置client parameter的功能。
 * 应用中设置的client parameter为进程级别的，即如果要更新client的参数，需要重启应用。这是因为client parameter是全局参数，仅在应用程序的第一次设置生效。
 * 以下示例代码基于taos-jdbcdriver-2.0.36。
 
 示例代码：
+
 ```java
 public class ClientParameterSetting {
     private static final String host = "127.0.0.1";
@@ -791,8 +850,8 @@ Query OK, 1 row(s) in set (0.000141s)
 
 ## 在框架中使用
 
-* Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate)
-* Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo)
+* Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/SpringJdbcTemplate)
+* Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/springbootdemo)
 
 ## 示例程序
 
@@ -802,7 +861,7 @@ Query OK, 1 row(s) in set (0.000141s)
 * Springbootdemo：springboot示例源程序
 * SpringJdbcTemplate：SpringJDBC模板
 
-请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
+请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
 ## 常见问题
 * 使用Statement的addBatch和executeBatch来执行“批量写入/更行”，为什么没有带来性能上的提升？

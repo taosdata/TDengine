@@ -7,9 +7,10 @@
 ## 用 C/C++ 语言来定义 UDF
 
 TDengine 提供 3 个 UDF 的源代码示例，分别为：
-* [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
-* [abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
-* [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+* [add_one.c](#add_one.c)
+* [abs_max.c](#abs_max.c)
+* [demo.c](#demo.c)
+
 
 ### 标量函数
 
@@ -142,3 +143,266 @@ SELECT X(c) FROM table/stable;
 4. UDF 只要创建成功，就会被持久化存储到 MNode 节点中；
 5. 无法通过 RESTful 接口来创建 UDF；
 6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
+
+## 代码附件
+### [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
+<span id="add_one.c">
+
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct SUdfInit{
+ int maybe_null;       /* 1 if function can return NULL */
+ int decimals;     /* for real functions */
+ long long length;       /* For string functions */
+ char  *ptr;            /* free pointer for function data */
+ int const_item;       /* 0 if result is independent of arguments */
+} SUdfInit;
+
+void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBUf, char* tsOutput,
+                        int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
+   int i;
+   int r = 0;
+  //  printf("add_one input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
+   if (itype == 4) {
+     for(i=0;i<numOfRows;++i) {
+      //  printf("input %d - %d", i, *((int *)data + i));
+       *((int *)dataOutput+i)=*((int *)data + i) + 1;
+      //  printf(", output %d\n", *((int *)dataOutput+i));
+       if (tsOutput) {
+         *(long long*)tsOutput=1000000;
+       }
+     }
+     *numOfOutput=numOfRows;
+
+    //  printf("add_one out, numOfOutput:%d\n", *numOfOutput);
+   }
+}
+```
+</span>
+ 
+### [abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
+
+<span id="abs_max.c">
+
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h> 
+
+typedef struct SUdfInit{
+ int maybe_null;       /* 1 if function can return NULL */
+ int decimals;     /* for real functions */
+ int64_t length;       /* For string functions */
+ char  *ptr;            /* free pointer for function data */
+ int const_item;       /* 0 if result is independent of arguments */
+} SUdfInit;
+
+
+#define TSDB_DATA_INT_NULL              0x80000000L
+#define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+
+void abs_max(char* data, short itype, short ibytes, int numOfRows, int64_t* ts, char* dataOutput, char* interBuf, char* tsOutput,
+                        int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
+   int i;
+   int64_t r = 0;
+   // printf("abs_max input data:%p, type:%d, rows:%d, ts:%p, %" PRId64 ", dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
+   if (itype == 5) {
+     r=*(int64_t *)dataOutput;
+     *numOfOutput=0;
+
+     for(i=0;i<numOfRows;++i) {
+       if (*((int64_t *)data + i) == TSDB_DATA_BIGINT_NULL) {
+         continue;
+       }
+
+       *numOfOutput=1;
+       //int64_t v = abs(*((int64_t *)data + i));
+       int64_t v = *((int64_t *)data + i);
+       if (v < 0) {
+          v = 0 - v;
+       }
+       
+       if (v > r) {
+          r = v;
+       }
+     }
+
+     *(int64_t *)dataOutput=r;
+
+   //   printf("abs_max out, dataoutput:%" PRId64", numOfOutput:%d\n", *(int64_t *)dataOutput, *numOfOutput);
+   }else {
+     *numOfOutput=0;
+   }
+}
+
+
+
+void abs_max_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf) {
+   int i;
+   //int64_t r = 0;
+   // printf("abs_max_finalize dataoutput:%p:%d, numOfOutput:%d, buf:%p\n", dataOutput, *dataOutput, *numOfOutput, buf);
+   // *numOfOutput=1;
+   // printf("abs_max finalize, dataoutput:%" PRId64", numOfOutput:%d\n", *(int64_t *)dataOutput, *numOfOutput);
+}
+
+void abs_max_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf) {
+   int64_t r = 0;
+   
+   if (numOfRows > 0) {
+      r = *((int64_t *)data);
+   }
+   // printf("abs_max_merge numOfRows:%d, dataoutput:%p, buf:%p\n", numOfRows, dataOutput, buf);
+   for (int i = 1; i < numOfRows; ++i) {
+   //   printf("abs_max_merge %d - %" PRId64"\n", i, *((int64_t *)data + i));
+     if (*((int64_t*)data + i) > r) {
+        r= *((int64_t*)data + i);
+     }
+   }
+   
+   *(int64_t*)dataOutput=r;
+   if (numOfRows > 0) {
+     *numOfOutput=1;
+   } else {
+     *numOfOutput=0;
+   }
+   
+   // printf("abs_max_merge, dataoutput:%" PRId64", numOfOutput:%d\n", *(int64_t *)dataOutput, *numOfOutput);
+}
+
+
+int abs_max_init(SUdfInit* buf) {
+   // printf("abs_max init\n");
+   return 0;
+}
+
+
+void abs_max_destroy(SUdfInit* buf) {
+   // printf("abs_max destroy\n");
+}
+```
+</span>
+
+### [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+
+<span id="demo.c">
+
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct SUdfInit{
+ int maybe_null;       /* 1 if function can return NULL */
+ int decimals;     /* for real functions */
+ long long length;       /* For string functions */
+ char  *ptr;            /* free pointer for function data */
+ int const_item;       /* 0 if result is independent of arguments */
+} SUdfInit;
+
+typedef struct SDemo{
+  double sum;
+  int num;
+  short otype;
+}SDemo;
+
+#define FLOAT_NULL            0x7FF00000              // it is an NAN
+#define DOUBLE_NULL           0x7FFFFF0000000000L     // it is an NAN
+
+
+void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,
+                        int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
+   int i;
+   double r = 0;
+   SDemo *p = (SDemo *)interBuf;
+   SDemo *q = (SDemo *)dataOutput;
+   printf("demo input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, interBUf:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, interBuf, tsOutput, numOfOutput, buf);
+
+   for(i=0;i<numOfRows;++i) {
+     if (itype == 4) {
+       r=*((int *)data+i);
+     } else if (itype == 6) {
+       r=*((float *)data+i);
+     } else if (itype == 7) {
+       r=*((double *)data+i);
+     }
+
+     p->sum += r*r;
+   }
+
+   p->otype = otype;
+   p->num += numOfRows;
+
+   q->sum = p->sum;
+   q->num = p->num;
+   q->otype = p->otype;
+
+   *numOfOutput=1;
+
+   printf("demo out, sum:%f, num:%d, numOfOutput:%d\n", p->sum, p->num, *numOfOutput);
+}
+
+
+void demo_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf) {
+   int i;
+   SDemo *p = (SDemo *)data;
+   SDemo res = {0};
+   printf("demo_merge input data:%p, rows:%d, dataoutput:%p, numOfOutput:%p, buf:%p\n", data, numOfRows, dataOutput, numOfOutput, buf);
+
+   for(i=0;i<numOfRows;++i) {
+     res.sum += p->sum * p->sum;
+     res.num += p->num;
+     p++;
+   }
+
+   p->sum = res.sum;
+   p->num = res.num;
+
+   *numOfOutput=1;
+
+   printf("demo out, sum:%f, num:%d, numOfOutput:%d\n", p->sum, p->num, *numOfOutput);
+}
+
+
+
+void demo_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf) {
+   SDemo *p = (SDemo *)interBuf;
+   printf("demo_finalize interbuf:%p, numOfOutput:%p, buf:%p, sum:%f, num:%d\n", interBuf, numOfOutput, buf, p->sum, p->num);
+   if (p->otype == 6) {
+     if (p->num != 30000) {
+       *(unsigned int *)dataOutput = FLOAT_NULL;  
+     } else {
+       *(float *)dataOutput = (float)(p->sum / p->num);  
+     }
+     printf("finalize values:%f\n", *(float *)dataOutput);
+   } else if (p->otype == 7) {
+     if (p->num != 30000) {
+       *(unsigned long long *)dataOutput = DOUBLE_NULL;  
+     } else {    
+       *(double *)dataOutput = (double)(p->sum / p->num);
+     }
+     printf("finalize values:%f\n", *(double *)dataOutput);
+   }
+
+   *numOfOutput=1;
+
+   printf("demo finalize, numOfOutput:%d\n", *numOfOutput);
+}
+
+
+int demo_init(SUdfInit* buf) {
+   printf("demo init\n");
+   return 0;
+}
+
+
+void demo_destroy(SUdfInit* buf) {
+   printf("demo destroy\n");
+}
+```
+</span>
+
+  

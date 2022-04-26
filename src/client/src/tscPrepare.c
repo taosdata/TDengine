@@ -1534,10 +1534,10 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
 }
 
 int32_t stmtValidateValuesFields(SSqlCmd *pCmd, char * sql) {
-  int32_t loopCont = 1, index0 = 0, values = 0;
+  int32_t index0 = 0, values = 0;
   SStrToken sToken;
   
-  while (loopCont) {
+  while (1) {
     sToken = tStrGetToken(sql, &index0, false);
     if (sToken.n <= 0) {
       return TSDB_CODE_SUCCESS;
@@ -1658,7 +1658,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->qId = 0;
   pRes->numOfRows = 0;
 
-  strcpy(pSql->sqlstr, sql);
+  strntolower(pSql->sqlstr, sql, (int32_t)sqlLen);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {
@@ -1849,6 +1849,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     tscResetSqlCmd(pCmd, false, pSql->self);
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
+  
 
   code = tsParseSql(pStmt->pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -2006,9 +2007,23 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
   STscStmt* pStmt = (STscStmt*)stmt;
   STMT_CHECK
 
-  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX || colIdx < 0) {
-    tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
-    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param"));
+  if (bind == NULL) {
+    tscError("0x%" PRIx64 " invalid parameter: bind is NULL", pStmt->pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param: bind is NULL"));
+  }
+
+  if (bind->num <= 0 || bind->num > INT16_MAX) {
+    char errMsg[128];
+    sprintf(errMsg, "invalid parameter: bind->num:%d out of range [0, %d)", bind->num, INT16_MAX);
+    tscError("0x%" PRIx64 " %s", pStmt->pSql->self, errMsg);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), errMsg));
+  }
+
+  if (colIdx < 0) {
+    char errMsg[128];
+    sprintf(errMsg, "invalid parameter: column index:%d less than 0", colIdx);
+    tscError("0x%" PRIx64 " %s", pStmt->pSql->self, errMsg);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), errMsg));
   }
 
   if (!pStmt->isInsert) {

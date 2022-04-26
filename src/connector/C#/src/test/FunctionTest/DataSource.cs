@@ -116,7 +116,7 @@ namespace Test.UtilsTools.DataSource
         }
         // Get the tag data within and string list 
         // Which will be retrieved as a string List
-        private static List<String> GetTagCnData()
+        private static List<String> GetTagCNData()
         {
             List<String> tagData = new List<String>();
             tagData.Add(true.ToString());
@@ -136,7 +136,7 @@ namespace Test.UtilsTools.DataSource
         }
         // A line of data that's without CN character.
         // Which is construct as an TAOS_BIND array
-        public static TAOS_BIND[] GetNtableCNRow()
+        public static TAOS_BIND[] GetNTableCNRow()
         {
             TAOS_BIND[] binds = new TAOS_BIND[15];
             binds[0] = TaosBind.BindTimestamp(1637064040000);
@@ -157,7 +157,7 @@ namespace Test.UtilsTools.DataSource
             return binds;
         }
         //Get and list data that will be insert into table
-        public static List<String> GetNtableCNRowData()
+        public static List<String> GetNTableCNRowData()
         {
             var data = new List<string>{
                 "1637064040000",
@@ -180,16 +180,16 @@ namespace Test.UtilsTools.DataSource
         }
         // Get the data value and tag values which have chinese characters
         // And retrieved as a string list.This is single Line.
-        public static List<String> GetStableCNRowData()
+        public static List<String> GetSTableCNRowData()
         {
-            List<String> columnData = GetNtableCNRowData();
-            List<String> tagData = GetTagCnData();
+            List<String> columnData = GetNTableCNRowData();
+            List<String> tagData = GetTagCNData();
             columnData.AddRange(tagData);
             return columnData;
         }
 
         // A line of data that's without CN character
-        public static TAOS_BIND[] GetNtableRow()
+        public static TAOS_BIND[] GetNTableRow()
         {
             TAOS_BIND[] binds = new TAOS_BIND[15];
             binds[0] = TaosBind.BindTimestamp(1637064040000);
@@ -209,8 +209,8 @@ namespace Test.UtilsTools.DataSource
             binds[14] = TaosBind.BindNil();
             return binds;
         }
-        // A List of data ,use as expectResData. The value is equal to getNtableRow()
-        public static List<String> GetNtableRowData()
+        // A List of data ,use as expectResData. The value is equal to getNTableRow()
+        public static List<String> GetNTableRowData()
         {
             var data = new List<string>{
             "1637064040000",
@@ -232,7 +232,7 @@ namespace Test.UtilsTools.DataSource
             return data;
         }
 
-        // Five lines of data, that is construct as taos_mutli_bind array. 
+        // Five lines of data, that is construct as taos_multi_bind array. 
         // There aren't any CN character
         public static TAOS_MULTI_BIND[] GetMultiBindArr()
         {
@@ -280,8 +280,8 @@ namespace Test.UtilsTools.DataSource
             }
             return rowData;
         }
-        // Five lines of data, that is construct as taos_mutli_bind array. 
-        // There aren some CN characters and letters.
+        // Five lines of data, that is construct as taos_multi_bind array. 
+        // There are some CN characters and letters.
         public static TAOS_MULTI_BIND[] GetMultiBindCNArr()
         {
             TAOS_MULTI_BIND[] mBinds = new TAOS_MULTI_BIND[14];
@@ -332,7 +332,7 @@ namespace Test.UtilsTools.DataSource
         public static List<String> GetMultiBindStableCNRowData()
         {
             List<String> columnData = new List<string>();
-            List<String> tagData = GetTagCnData();
+            List<String> tagData = GetTagCNData();
             for (int i = 0; i < tsArr.Length; i++)
             {
                 columnData.Add(tsArr[i].ToString());
@@ -371,18 +371,18 @@ namespace Test.UtilsTools.DataSource
             TaosBind.FreeTaosBind(binds);
         }
 
-        public static void FreeTaosMBind(TAOS_MULTI_BIND[] mbinds)
+        public static void FreeTaosMBind(TAOS_MULTI_BIND[] mBinds)
         {
-            TaosMultiBind.FreeTaosBind(mbinds);
+            TaosMultiBind.FreeTaosBind(mBinds);
         }
         //Get the TDengineMeta list from the ddl either normal table or stable
-        public static List<TDengineMeta> GetMetaFromDLL(string dllStr)
+        public static List<TDengineMeta> GetMetaFromDDL(string dllStr)
         {
             var expectResMeta = new List<TDengineMeta>();
             //"CREATE TABLE meters(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);";
-            int bracetInd = dllStr.IndexOf("(");
+            int bracketInd = dllStr.IndexOf("(");
             //(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);
-            string subDllStr = dllStr.Substring(bracetInd);
+            string subDllStr = dllStr.Substring(bracketInd);
 
             String[] stableSeparators = new String[] { "tags", "TAGS" };
             //(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT)

@@ -63,7 +63,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        setObject(parameterIndex, "NULL");
+        setObject(parameterIndex, null);
     }
 
     @Override

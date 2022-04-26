@@ -26,74 +26,81 @@ bool isInteger(double x){
   return (x == truncated);
 }
 
-int32_t strdequote(char *z) {
+int32_t strDealWithEscape(char *z, int32_t len){
   if (z == NULL) {
     return 0;
   }
 
-  int32_t quote = z[0];
-  if (quote != '\'' && quote != '"') {
-    return (int32_t)strlen(z);
-  }
-
-  int32_t i = 1, j = 0;
-
-  while (z[i] != 0) {
-    if (z[i] == quote) {
-      if (z[i + 1] == quote) {
-        z[j++] = (char)quote;
-        i++;
-      } else {
-        z[j++] = 0;
-        return (j - 1);
-      }
-    } else {
-      z[j++] = z[i];
-    }
-
-    i++;
-  }
-
-  return j + 1;  // only one quote, do nothing
-}
-
-// delete escape character: \\, \', \"
-int32_t strRmquote(char *z, int32_t len){
-  char delim = 0;
-  int32_t cnt = 0;
   int32_t j = 0;
-  for (size_t k = 0; k < len; ++k) {
-    if (!delim && (z[k] == '\'' || z[k] == '"')){   // find the start ' or "
-      delim = z[k];
+  for (int32_t i = 0; i < len; i++) {
+    if (z[i] == '\\') {   // deal with escape character
+      if(z[i+1] == 'n'){
+        z[j++] = '\n';
+      }else if(z[i+1] == 'r'){
+        z[j++] = '\r';
+      }else if(z[i+1] == 't'){
+        z[j++] = '\t';
+      }else if(z[i+1] == '\\'){
+        z[j++] = '\\';
+      }else if(z[i+1] == '\''){
+        z[j++] = '\'';
+      }else if(z[i+1] == '"'){
+        z[j++] = '"';
+      }else if(z[i+1] == '%'){
+        z[j++] = z[i];
+        z[j++] = z[i+1];
+      }else if(z[i+1] == '_'){
+        z[j++] = z[i];
+        z[j++] = z[i+1];
+      }else{
+        z[j++] = z[i+1];
+      }
+
+      i++;
+      continue;
     }
 
-    if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
-      //match '_' '%' self
-    }else if(z[k] == '\\'){
-      z[j] = z[k + 1];
-      cnt++;
-      j++;
-      k++;
-      continue;
-    }else if(z[k] == delim){
-      continue;
-    }
-    z[j] = z[k];
-    j++;
+    z[j++] = z[i];
   }
   z[j] = 0;
   return j;
 }
 
-int32_t strRmquoteEscape(char *z, int32_t len) {
-  if (len <= 0) return len;
+/*
+ * remove the quotation marks at both ends
+ * "fsd" => fsd
+ * "f""sd" =>f"sd
+ *  'fsd' => fsd
+ * 'f''sd' =>f'sd
+ *  `fsd => fsd
+ * `f``sd` =>f`sd
+ */
+static int32_t strdequote(char *z, int32_t n){
+  if(z == NULL || n < 2) return n;
+  int32_t quote = z[0];
+  z[0] = 0;
+  z[n - 1] = 0;
+  int32_t i = 1, j = 0;
+  while (i < n) {
+    if (i < n - 1 && z[i] == quote && z[i + 1] == quote) { // two consecutive quotation marks keep one
+      z[j++] = (char)quote;
+      i += 2;
+    } else {
+      z[j++] = z[i++];
+    }
+  }
+  z[j - 1] = 0;
+  return j - 1;
+}
 
-  if (z[0] == '\'' || z[0] == '\"') {
-    return strRmquote(z, len);
-  } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
-    memmove(z, z + 1, len - 2);
-    z[len - 2] = '\0';
-    return len - 2;
+int32_t stringProcess(char *z, int32_t len) {
+  if (z == NULL || len < 2) return len;
+
+  if ((z[0] == '\'' && z[len - 1] == '\'')|| (z[0] == '"' && z[len - 1] == '"')) {
+    int32_t n = strdequote(z, len);
+    return strDealWithEscape(z, n);
+  } else if (z[0] == TS_BACKQUOTE_CHAR && z[len - 1] == TS_BACKQUOTE_CHAR) {
+    return strdequote(z, len);
   }
 
   return len;
@@ -134,7 +141,6 @@ size_t strtrim(char *z) {
   } else if (j != i) {
     z[i] = 0;
   }
-  
   return i;
 }
 
@@ -190,9 +196,9 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
   bool inEsc = false;
   char escChar = 0;
   char *str = src, *res = NULL;
-  
+
   for (int32_t i = 0; i < len; ++i) {
-    if (src[i] == TS_ESCAPE_CHAR || src[i] == '\'' || src[i] == '\"') {
+    if (src[i] == TS_BACKQUOTE_CHAR || src[i] == '\'' || src[i] == '\"') {
       if (!inEsc) {
         escChar = src[i];
         src[i] = 0;
@@ -209,7 +215,7 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
 
         str = src + i + 1;
       }
-      
+
       inEsc = !inEsc;
       continue;
     }
@@ -217,8 +223,6 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
 
   return str ? strstr(str, dst) : NULL;
 }
-
-
 
 char* strtolower(char *dst, const char *src) {
   int esc = 0;
@@ -440,66 +444,6 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
   return 0;
 }
 
-// TODO move to comm module
-bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
-  if (versionStr == NULL || versionNubmer == NULL) {
-    return false;
-  }
-
-  int versionNumberPos[5] = {0};
-  int len = (int)strlen(versionStr);
-  int dot = 0;
-  for (int pos = 0; pos < len && dot < 4; ++pos) {
-    if (versionStr[pos] == '.') {
-      versionStr[pos] = 0;
-      versionNumberPos[++dot] = pos + 1;
-    }
-  }
-
-  if (dot != 3) {
-    return false;
-  }
-
-  for (int pos = 0; pos < 4; ++pos) {
-    versionNubmer[pos] = atoi(versionStr + versionNumberPos[pos]);
-  }
-  versionStr[versionNumberPos[1] - 1] = '.';
-  versionStr[versionNumberPos[2] - 1] = '.';
-  versionStr[versionNumberPos[3] - 1] = '.';
-
-  return true;
-}
-
-int taosCheckVersion(char *input_client_version, char *input_server_version, int comparedSegments) {
-  char client_version[TSDB_VERSION_LEN] = {0};
-  char server_version[TSDB_VERSION_LEN] = {0};
-  int clientVersionNumber[4] = {0};
-  int serverVersionNumber[4] = {0};
-
-  tstrncpy(client_version, input_client_version, sizeof(client_version));
-  tstrncpy(server_version, input_server_version, sizeof(server_version));
-
-  if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
-    uError("invalid client version:%s", client_version);
-    return TSDB_CODE_TSC_INVALID_VERSION;
-  }
-
-  if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
-    uError("invalid server version:%s", server_version);
-    return TSDB_CODE_TSC_INVALID_VERSION;
-  }
-
-  for(int32_t i = 0; i < comparedSegments; ++i) {
-    if (clientVersionNumber[i] != serverVersionNumber[i]) {
-      uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version,
-             client_version);
-      return TSDB_CODE_TSC_INVALID_VERSION;
-    }
-  }
-
-  return 0;
-}
-
 char *taosIpStr(uint32_t ipInt) {
   static char ipStrArray[3][30];
   static int ipStrIndex = 0;
@@ -511,11 +455,11 @@ char *taosIpStr(uint32_t ipInt) {
 }
 
 void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
-  MD5_CTX context;
+  T_MD5_CTX context;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Final(&context);
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)pMsg, msgLen);
+  tMD5Final(&context);
 
   memcpy(pKey, context.digest, sizeof(context.digest));
 }

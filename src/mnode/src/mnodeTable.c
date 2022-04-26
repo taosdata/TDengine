@@ -851,15 +851,15 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
       memcpy(pSubMsg->pCont + sizeof(SCMCreateTableMsg), p, htonl(p->len));
       code = mnodeValidateCreateTableMsg(p, pSubMsg);
 
-      if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
-	++pSubMsg->pBatchMasterMsg->successed;
-	mnodeDestroySubMsg(pSubMsg);
-	continue;
+      if (code == TSDB_CODE_SUCCESS || ( p->igExists == 1 && code == TSDB_CODE_MND_TABLE_ALREADY_EXIST )) {
+        ++pSubMsg->pBatchMasterMsg->successed;
+        mnodeDestroySubMsg(pSubMsg);
+        continue;
       }
 
       if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-	mnodeDestroySubMsg(pSubMsg);
-	return code;
+        mnodeDestroySubMsg(pSubMsg);
+        return code;
       }
     }
 
@@ -1046,11 +1046,21 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
 
   if (code == TSDB_CODE_SUCCESS) {
     mLInfo("stable:%s, is created in sdb, uid:%" PRIu64, pTable->info.tableId, pTable->uid);
+    if(pMsg->pBatchMasterMsg)
+      pMsg->pBatchMasterMsg->successed ++;    
   } else {
     mError("msg:%p, app:%p stable:%s, failed to create in sdb, reason:%s", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
            tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .pTable = tsSuperTableSdb};
     sdbDeleteRow(&desc);
+    if(pMsg->pBatchMasterMsg)
+      pMsg->pBatchMasterMsg->received ++;
+  }
+
+  // if super table create by batch msg, check done and send finished to client
+  if(pMsg->pBatchMasterMsg) {
+    if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected)
+      dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);    
   }
 
   return code;
@@ -2248,7 +2258,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
       }
       code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid, vgId);
       if (code != TSDB_CODE_SUCCESS) {
-        mError("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+        mInfo("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
                pCreate->tableName, tstrerror(code));
         return code;
       }

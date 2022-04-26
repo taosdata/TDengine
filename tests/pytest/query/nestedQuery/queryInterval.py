@@ -92,6 +92,16 @@ class TDTestCase:
         tdSql.query("select top(avg_val,2) from(select avg(value) as avg_val from st where loc='beijing1' interval(8m) sliding(3m));")
         tdSql.checkData(0, 1, 120)
 
+        # TS-802
+        tdSql.query("select first(*) from st interval(5m) limit 10")
+        tdSql.checkRows(10)
+
+        tdSql.query("select * from (select first(*) from st interval(5m) limit 10) order by ts")
+        tdSql.checkRows(10)
+
+        tdSql.query("select * from (select first(*) from st interval(5m) limit 10) order by ts desc")
+        tdSql.checkRows(10)
+
         # clear env
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")

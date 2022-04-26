@@ -46,7 +46,6 @@ TaosQuery.prototype.execute = async function execute() {
       reject(err);
     }
     resolve(result)
-
   });
   return executionPromise;
 }

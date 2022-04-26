@@ -90,6 +90,8 @@ typedef struct SResultRow {
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   STimeWindow   win;
   char         *key;               // start key of current result row
+  SHashObj     *uniqueHash;  // for unique function
+  SHashObj     *modeHash;  // for unique function
 } SResultRow;
 
 typedef struct SResultRowCell {
@@ -228,6 +230,7 @@ typedef struct SQueryAttr {
   bool             stabledev;        // super table stddev query
   bool             tsCompQuery;      // is tscomp query
   bool             diffQuery;        // is diff query
+  bool             stateQuery;       // is state query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needTableSeqScan; // need scan table by table
@@ -281,6 +284,7 @@ typedef struct SQueryAttr {
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t          vgId;
   SArray          *pUdfInfo;             // no need to free
+  int32_t          interBytesForGlobal;
 } SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
@@ -325,6 +329,8 @@ typedef struct SQueryRuntimeEnv {
   SHashObj             *pTableRetrieveTsMap;
   SUdfInfo             *pUdfInfo;  
   bool                  udfIsCopy;
+  SHashObj             *pTablesRead;    // record child tables already read rows by tid hash
+  int32_t              cntTableReadOver; // read table over count  
 } SQueryRuntimeEnv;
 
 enum {
@@ -428,6 +434,8 @@ typedef struct SQueryParam {
   int32_t          tableScanOperator;
   SArray          *pOperator;
   SUdfInfo        *pUdfInfo;
+  int16_t         schemaVersion;
+  int16_t         tagVersion;
 } SQueryParam;
 
 typedef struct SColumnDataParam{
@@ -542,10 +550,17 @@ typedef struct SFillOperatorInfo {
   bool         multigroupResult;
 } SFillOperatorInfo;
 
+typedef struct SGroupbyDataInfo {
+  int32_t index;  // index of col in dataBlock
+  int32_t type;
+  int32_t bytes;
+} SGroupbyDataInfo;
+
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
-  int32_t        colIndex;
-  char          *prevData;   // previous group by value
+  SArray         *pGroupbyDataInfo;
+  int32_t        totalBytes;
+  char           *prevData;   // previous data buf
 } SGroupbyOperatorInfo;
 
 typedef struct SSWindowOperatorInfo {
@@ -660,7 +675,8 @@ void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFil
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
-void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv);
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv, bool extendLarge);
+void shrinkOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
@@ -719,4 +735,10 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
 int32_t getColumnDataFromId(void *param, int32_t id, void **data);
 
 void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
+
+// add table read rows count. pHashTables must not be NULL
+void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows);
+// tsdb scan table callback table or query is over. param is SQueryRuntimeEnv*
+bool qReadOverCB(void* param, int8_t type, int32_t tid);
+
 #endif  // TDENGINE_QEXECUTOR_H

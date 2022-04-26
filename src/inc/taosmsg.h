@@ -335,8 +335,8 @@ typedef struct {
 
 typedef struct {
   int8_t  extend;
-  char    clientVersion[TSDB_VERSION_LEN];
-  char    msgVersion[TSDB_VERSION_LEN];
+  char    clientVersion[TSDB_VERSION_LEN];  // useless
+  char    msgVersion[TSDB_VERSION_LEN];     // useless
   char    db[TSDB_TABLE_FNAME_LEN];
   char    appName[TSDB_APPNAME_LEN];
   int32_t pid;
@@ -372,7 +372,7 @@ typedef struct {
 typedef struct {
   int8_t   extend;
   char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
+  char     pass[TSDB_PASS_LEN];
   SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
@@ -384,7 +384,7 @@ typedef struct {
 typedef struct {
   int8_t extend;
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_KEY_LEN];
+  char   pass[TSDB_PASS_LEN];
   int8_t privilege;
   int8_t flag;
 } SCreateUserMsg, SAlterUserMsg;
@@ -503,8 +503,8 @@ typedef struct {
   uint32_t    tagCondLen;       // tag length in current query
   int32_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
-  int16_t     orderByIdx;
-  int16_t     orderType;        // used in group by xx order by xxx
+  int16_t     orderByIdx;       // useless
+  int16_t     groupOrderType;   // used for group order
   int64_t     vgroupLimit;      // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
@@ -920,7 +920,7 @@ typedef struct {
 
 typedef struct {
   int8_t   extend;
-  char     clientVer[TSDB_VERSION_LEN];
+  char     clientVer[TSDB_VERSION_LEN];   // useless
   uint32_t connId;
   int32_t  pid;
   int32_t  numOfQueries;
@@ -978,7 +978,9 @@ typedef struct {
 } STLV;
 
 enum {
-  TLV_TYPE_DUMMY = 1,
+  TLV_TYPE_END_MARK = -1,
+  //TLV_TYPE_DUMMY = 1,
+  TLV_TYPE_META_VERSION = 1,
 };
 
 #pragma pack(pop)

@@ -268,7 +268,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
                 if (precision == TimestampPrecision.MS) {
                     // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
-                    return row.getTimestamp(colIndex);
+                    return (Timestamp) row.getTimestamp(colIndex);
                 }
                 if (precision == TimestampPrecision.US) {
                     // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
@@ -302,6 +302,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.taos_type = taos_type;
         }
 
+        public int getTaosType() {
+            return taos_type;
+        }
     }
 
     @Override
@@ -479,9 +482,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return Shorts.toByteArray((short) value);
         if (value instanceof Byte)
             return new byte[]{(byte) value};
-        if (value instanceof Timestamp) {
-            return Utils.formatTimestamp((Timestamp) value).getBytes();
-        }
 
         return value.toString().getBytes();
     }

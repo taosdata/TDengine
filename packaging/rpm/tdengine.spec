@@ -68,6 +68,8 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
+#cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
+
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
 fi
@@ -79,7 +81,7 @@ cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/incl
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 #cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
-cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
+cp -r %{_compiledir}/../examples/*                  %{buildroot}%{homepath}/examples
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{userlocalpath}/bin
