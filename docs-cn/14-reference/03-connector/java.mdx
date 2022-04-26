@@ -181,9 +181,9 @@ String jdbcUrl = "jdbc:TAOS-RS://taosdemo.com:6041/test?user=root&password=taosd
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-以上示例，使用 JDBC REST 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
+以上示例，使用 JDBC REST 连接建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-使用 JDBC REST 接口，不需要依赖本地函数库。与 JDBC 原生连接相比，仅需要：
+使用 JDBC REST 连接，不需要依赖本地函数库。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
