@@ -913,7 +913,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       }
       cliHandleReq(pMsg, pThrd);
       // release pConn
-      addConnToPool(pThrd, conn);
+      addConnToPool(pThrd, pConn);
       return -1;
     }
   }
