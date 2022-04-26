@@ -15,92 +15,58 @@
 
 #include "vnodeInt.h"
 
-static STsdb *tsdbNew(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
-static void   tsdbFree(STsdb *pTsdb);
-static int    tsdbOpenImpl(STsdb *pTsdb);
-static void   tsdbCloseImpl(STsdb *pTsdb);
-
-STsdb *tsdbOpen(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb) {
   STsdb *pTsdb = NULL;
+  int    slen = 0;
 
-  // Set default TSDB Options
-  // if (pTsdbCfg == NULL) {
-  pTsdbCfg = &defautlTsdbOptions;
-  // }
+  *ppTsdb = NULL;
+  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_TSDB_DIR) + 3;
 
-  // Validate the options
-  if (tsdbValidateOptions(pTsdbCfg) < 0) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  // Create the handle
-  pTsdb = tsdbNew(path, pVnode, pTsdbCfg, pMAF);
+  // create handle
+  pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
   if (pTsdb == NULL) {
-    // TODO: handle error
-    return NULL;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
-  taosMkDir(path);
-
-  // Open the TSDB
-  if (tsdbOpenImpl(pTsdb) < 0) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  return pTsdb;
-}
-
-void tsdbClose(STsdb *pTsdb) {
-  if (pTsdb) {
-    tsdbCloseImpl(pTsdb);
-    tsdbFree(pTsdb);
-  }
-}
-
-/* ------------------------ STATIC METHODS ------------------------ */
-static STsdb *tsdbNew(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
-  STsdb *pTsdb = NULL;
-
-  pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
-  if (pTsdb == NULL) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  pTsdb->path = strdup(path);
-  pTsdb->vgId = TD_VID(pVnode);
+  pTsdb->path = (char *)&pTsdb[1];
+  sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+          VNODE_TSDB_DIR);
   pTsdb->pVnode = pVnode;
-  tsdbOptionsCopy(&(pTsdb->config), pTsdbCfg);
-  pTsdb->pmaf = pMAF;
-  pTsdb->fs = tsdbNewFS(pTsdbCfg);
+  pTsdb->vgId = TD_VID(pVnode);
+  pTsdb->repoLocked = false;
+  tdbMutexInit(&pTsdb->mutex, NULL);
+  pTsdb->config = pVnode->config.tsdbCfg;
+  pTsdb->fs = tsdbNewFS(&pTsdb->config);
 
-  return pTsdb;
+  // create dir (TODO: use tfsMkdir)
+  taosMkDir(pTsdb->path);
+
+  // open tsdb
+  if (tsdbOpenFS(pTsdb) < 0) {
+    goto _err;
+  }
+
+  tsdbDebug("vgId: %d tsdb is opened", TD_VID(pVnode));
+
+  *ppTsdb = pTsdb;
+  return 0;
+
+_err:
+  taosMemoryFree(pTsdb);
+  return -1;
 }
 
-static void tsdbFree(STsdb *pTsdb) {
+int tsdbClose(STsdb *pTsdb) {
   if (pTsdb) {
-    tsdbFreeSmaEnv(REPO_TSMA_ENV(pTsdb));
-    tsdbFreeSmaEnv(REPO_RSMA_ENV(pTsdb));
+    tsdbCloseFS(pTsdb);
+    // tsdbFreeSmaEnv(REPO_TSMA_ENV(pTsdb));
+    // tsdbFreeSmaEnv(REPO_RSMA_ENV(pTsdb));
     tsdbFreeFS(pTsdb->fs);
-    taosMemoryFreeClear(pTsdb->path);
+    // taosMemoryFreeClear(pTsdb->path);
     taosMemoryFree(pTsdb);
   }
-}
-
-static int tsdbOpenImpl(STsdb *pTsdb) {
-  tsdbOpenFS(pTsdb);
-
-  // tsdbInitSma(pTsdb);
-  // TODO
-
   return 0;
-}
-
-static void tsdbCloseImpl(STsdb *pTsdb) {
-  tsdbCloseFS(pTsdb);
-  // TODO
 }
 
 int tsdbLockRepo(STsdb *pTsdb) {

@@ -126,6 +126,8 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
+typedef void (*TransCbFp)(SMnode* pMnode, void* param);
+
 typedef struct {
   int32_t    id;
   ETrnStage  stage;
@@ -148,6 +150,8 @@ typedef struct {
   int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
+  TransCbFp  transCbFp;
+  void*      transCbParam;
 } STrans;
 
 typedef struct {
@@ -436,14 +440,12 @@ static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) 
 }
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
-  int64_t uid;
-  // TODO: use subDbUid
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
   int64_t        dbUid;
-  int64_t        subDbUid;
   int32_t        version;
   int8_t         subType;  // db or table
   int8_t         withTbName;

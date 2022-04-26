@@ -15,8 +15,6 @@
 
 #include "vnodeInt.h"
 
-static int      tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
-static int      tsdbMemTableInsertTbData(STsdb *pRepo, SSubmitBlk *pBlock, int32_t *pAffectedRows);
 static STbData *tsdbNewTbData(tb_uid_t uid);
 static void     tsdbFreeTbData(STbData *pTbData);
 static char    *tsdbGetTsTupleKey(const void *data);
@@ -24,84 +22,49 @@ static int      tsdbTbDataComp(const void *arg1, const void *arg2);
 static char    *tsdbTbDataGetUid(const void *arg);
 static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row);
 
-STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
-  STsdbMemTable *pMemTable = (STsdbMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
+int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
+  STsdbMemTable *pMemTable;
+  SVnode        *pVnode;
+
+  *ppMemTable = NULL;
+  pVnode = pTsdb->pVnode;
+
+  // alloc handle
+  pMemTable = (STsdbMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return -1;
   }
 
+  pMemTable->pPool = pTsdb->pVnode->inUse;
   T_REF_INIT_VAL(pMemTable, 1);
-  taosInitRWLatch(&(pMemTable->latch));
-  pMemTable->keyMax = TSKEY_MIN;
+  taosInitRWLatch(&pMemTable->latch);
   pMemTable->keyMin = TSKEY_MAX;
+  pMemTable->keyMax = TSKEY_MIN;
   pMemTable->nRow = 0;
-  pMemTable->pMA = pTsdb->pmaf->create(pTsdb->pmaf);
-  if (pMemTable->pMA == NULL) {
-    taosMemoryFree(pMemTable);
-    return NULL;
-  }
-
-  // Initialize the container
-  pMemTable->pSlIdx =
-      tSkipListCreate(5, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t), tsdbTbDataComp, SL_DISCARD_DUP_KEY, tsdbTbDataGetUid);
+  pMemTable->pSlIdx = tSkipListCreate(pVnode->config.tsdbCfg.slLevel, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t),
+                                      tsdbTbDataComp, SL_DISCARD_DUP_KEY, tsdbTbDataGetUid);
   if (pMemTable->pSlIdx == NULL) {
-    pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
     taosMemoryFree(pMemTable);
-    return NULL;
+    return -1;
   }
 
   pMemTable->pHashIdx = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pMemTable->pHashIdx == NULL) {
-    pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
     tSkipListDestroy(pMemTable->pSlIdx);
     taosMemoryFree(pMemTable);
-    return NULL;
-  }
-
-  return pMemTable;
-}
-
-void tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable) {
-  if (pMemTable) {
-    taosHashCleanup(pMemTable->pHashIdx);
-    tSkipListDestroy(pMemTable->pSlIdx);
-    if (pMemTable->pMA) {
-      pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
-    }
-    taosMemoryFree(pMemTable);
-  }
-}
-
-int tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
-  SSubmitBlk    *pBlock = NULL;
-  SSubmitMsgIter msgIter = {0};
-  int32_t        affectedrows = 0, numOfRows = 0;
-
-  if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
-    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pTsdb), tstrerror(terrno));
-    }
     return -1;
   }
 
-  tInitSubmitMsgIter(pMsg, &msgIter);
-  while (true) {
-    tGetSubmitMsgNext(&msgIter, &pBlock);
-    if (pBlock == NULL) break;
-    if (tsdbMemTableInsertTbData(pTsdb, pBlock, &affectedrows) < 0) {
-      return -1;
-    }
-
-    numOfRows += pBlock->numOfRows;
-  }
-
-  if (pRsp != NULL) {
-    pRsp->affectedRows = affectedrows;
-    pRsp->numOfRows = numOfRows;
-  }
-
+  *ppMemTable = pMemTable;
   return 0;
+}
+
+void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
+  if (pMemTable) {
+    taosHashCleanup(pMemTable->pHashIdx);
+    tSkipListDestroy(pMemTable->pSlIdx);
+    taosMemoryFree(pMemTable);
+  }
 }
 
 /**
@@ -255,78 +218,7 @@ int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg) {
   return 0;
 }
 
-static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
-  ASSERT(pMsg != NULL);
-  // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock = NULL;
-  SSubmitBlkIter blkIter = {0};
-  STSRow        *row = NULL;
-  TSKEY          now = taosGetTimestamp(pTsdb->config.precision);
-  TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep2;
-  TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.days;
-
-  terrno = TSDB_CODE_SUCCESS;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
-  while (true) {
-    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
-    if (pBlock == NULL) break;
-
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->suid = htobe64(pBlock->suid);
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->dataLen = htonl(pBlock->dataLen);
-    pBlock->schemaLen = htonl(pBlock->schemaLen);
-    pBlock->numOfRows = htons(pBlock->numOfRows);
-
-#if 0
-    if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
-                pBlock->tid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    STable *pTable = pMeta->tables[pBlock->tid];
-    if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
-                pBlock->tid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pTsdb), TABLE_CHAR_NAME(pTable));
-      terrno = TSDB_CODE_TDB_INVALID_ACTION;
-      return -1;
-    }
-
-    // Check schema version and update schema if needed
-    if (tsdbCheckTableSchema(pTsdb, pBlock, pTable) < 0) {
-      if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-        continue;
-      } else {
-        return -1;
-      }
-    }
-
-    tsdbInitSubmitBlkIter(pBlock, &blkIter);
-    while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-      if (tsdbCheckRowRange(pTsdb, pTable, row, minKey, maxKey, now) < 0) {
-        return -1;
-      }
-    }
-#endif
-  }
-
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
-  return 0;
-}
-
-static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
+int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
   // STsdbMeta       *pMeta = pRepo->tsdbMeta;
   // int32_t          points = 0;
   // STable          *pTable = NULL;
@@ -337,11 +229,9 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   STSRow        *row;
   TSKEY          keyMin;
   TSKEY          keyMax;
+  SSubmitBlk    *pBlkCopy;
 
-  // SMemTable       *pMemTable = NULL;
-  // STableData      *pTableData = NULL;
-  // STsdbCfg        *pCfg = &(pRepo->config);
-
+  // create container is nedd
   tptr = taosHashGet(pMemTable->pHashIdx, &(pBlock->uid), sizeof(pBlock->uid));
   if (tptr == NULL) {
     pTbData = tsdbNewTbData(pBlock->uid);
@@ -358,7 +248,11 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
     pTbData = *(STbData **)tptr;
   }
 
-  tInitSubmitBlkIter(pBlock, &blkIter);
+  // copy data to buffer pool
+  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, pBlock->dataLen + sizeof(*pBlock));
+  memcpy(pBlkCopy, pBlock, pBlock->dataLen + sizeof(*pBlock));
+
+  tInitSubmitBlkIter(pBlkCopy, &blkIter);
   if (blkIter.row == NULL) return 0;
   keyMin = TD_ROW_KEY(blkIter.row);
 
@@ -376,31 +270,6 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
   (*pAffectedRows) += pBlock->numOfRows;
-
-  // STSRow* lastRow = NULL;
-  // int64_t osize = SL_SIZE(pTableData->pData);
-  // tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow);
-  // tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
-  // int64_t dsize = SL_SIZE(pTableData->pData) - osize;
-  // (*pAffectedRows) += points;
-
-  // if(lastRow != NULL) {
-  //   TSKEY lastRowKey = TD_ROW_KEY(lastRow);
-  //   if (pMemTable->keyFirst > firstRowKey) pMemTable->keyFirst = firstRowKey;
-  //   pMemTable->numOfRows += dsize;
-
-  //   if (pTableData->keyFirst > firstRowKey) pTableData->keyFirst = firstRowKey;
-  //   pTableData->numOfRows += dsize;
-  //   if (pMemTable->keyLast < lastRowKey) pMemTable->keyLast = lastRowKey;
-  //   if (pTableData->keyLast < lastRowKey) pTableData->keyLast = lastRowKey;
-  //   if (tsdbUpdateTableLatestInfo(pRepo, pTable, lastRow) < 0) {
-  //     return -1;
-  //   }
-  // }
-
-  // STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion, -1);
-  // pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
-  // pRepo->stat.totalStorage += points * schemaVLen(pSchema);
 
   return 0;
 }
@@ -526,7 +395,6 @@ static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
 static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow* row);
 static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static STSRow*      tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
-static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitReq *pMsg);
 static int          tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows);
 static int          tsdbInitSubmitMsgIter(SSubmitReq *pMsg, SSubmitMsgIter *pIter);
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);

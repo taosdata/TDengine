@@ -142,12 +142,13 @@ int tsdbPrepareCommit(STsdb *pTsdb) {
 }
 
 int tsdbCommit(STsdb *pRepo) {
-  STsdbMemTable *pMem = pRepo->imem;
-  SCommitH       commith = {0};
-  SDFileSet     *pSet = NULL;
-  int            fid;
+  SCommitH   commith = {0};
+  SDFileSet *pSet = NULL;
+  int        fid;
 
-  if (pRepo->imem == NULL) return 0;
+  // if (pRepo->imem == NULL) return 0;
+  pRepo->imem = pRepo->mem;
+  pRepo->mem = NULL;
 
   tsdbStartCommit(pRepo);
   // Resource initialization
@@ -239,7 +240,7 @@ static void tsdbStartCommit(STsdb *pRepo) {
 
 static void tsdbEndCommit(STsdb *pTsdb, int eno) {
   tsdbEndFSTxn(pTsdb);
-  tsdbFreeMemTable(pTsdb, pTsdb->imem);
+  tsdbMemTableDestroy(pTsdb, pTsdb->imem);
   pTsdb->imem = NULL;
   tsdbInfo("vgId:%d commit over, %s", REPO_ID(pTsdb), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 }
