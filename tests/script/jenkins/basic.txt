@@ -82,7 +82,7 @@
 ./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
-./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+# ./test.sh -f tsim/sma/tsmaCreateInsertData.sim
 
 # --- valgrind
 #./test.sh -f tsim/valgrind/checkError.sim -v
