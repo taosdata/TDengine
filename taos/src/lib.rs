@@ -57,7 +57,6 @@ pub struct Taos(RawTaos);
 unsafe impl Send for Taos {}
 unsafe impl Sync for Taos {}
 
-
 impl Taos {
     pub fn new<'a>(
         host: impl Into<NullableCStr<'a>>,
@@ -191,7 +190,9 @@ impl Taos {
         &'query self,
         sql: impl IntoCStr<'query>,
     ) -> Result<TaosResult<'query>> {
-        self.0.query(sql.into_c_str().as_ptr()).map(TaosResult::from_raw)
+        self.0
+            .query(sql.into_c_str().as_ptr())
+            .map(TaosResult::from_raw)
     }
 
     pub(crate) fn as_raw(&self) -> *mut taos_sys::ffi::TAOS {
@@ -199,16 +200,20 @@ impl Taos {
     }
 
     pub async fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>> {
+        use futures::stream::StreamExt;
         self.query(format!("describe {table}"))
             .await?
-            .rows_de_stream()
+            .rows_de_stream::<ColumnMeta>()
+            .map(|res| res.map_err(<Error as serde::de::Error>::custom))
             .try_collect()
             .await
     }
     pub async fn databases(&self) -> Result<Vec<ShowDatabase>> {
+        use futures::stream::StreamExt;
         self.query(format!("show databases"))
             .await?
             .rows_de_stream()
+            .map(|res| res.map_err(<Error as serde::de::Error>::custom))
             .try_collect()
             .await
     }
@@ -251,6 +256,7 @@ pub mod query;
 mod tests {
     use super::{client_info, Result, Taos, TaosOptions, TaosResult};
     use taos_macros::test;
+    use taos_query::BlockExt;
     #[test(crate)]
     async fn test_describe(taos: &Taos) -> Result<()> {
         let taos = TaosOptions::new().build()?;
@@ -306,7 +312,7 @@ mod tests {
                     .enumerate()
                     .map(|(bi, partial)| {
                         partial
-                            .rows_iter()
+                            .iter_rows()
                             .enumerate()
                             .map(|(ri, values)| {
                                 println!("block {bi}, row {ri}: {values:?}");

@@ -184,3 +184,5 @@ pub struct ShowDatabase {
     pub props: DatabaseProperties,
     pub status: String,
 }
+
+unsafe impl Send for ShowDatabase {}

@@ -2,12 +2,12 @@ use std::{
     borrow::{Borrow, Cow},
     ffi::c_void,
     marker::PhantomData,
-    rc::{Rc, Weak},
     slice,
+    sync::Arc,
 };
 use thiserror::Error;
 
-use taos_query::{common::*, *};
+use taos_query::{common::*, BlockExt, Queryable, ResultSet};
 use taos_sys::{DroppableRawRes, RawRes};
 
 use crate::{util::IntoCStr, Taos};
@@ -27,19 +27,21 @@ pub enum Error {
 #[derive(Debug)]
 pub struct SyncResultSet<'q> {
     raw: DroppableRawRes<'q>,
-    // fields: Rc<Cow<'q, [Field]>>,
     precision: Precision,
-    records: Vec<i32>,
+    records: Arc<Vec<i32>>,
 }
 
 #[derive(Debug)]
 pub struct SyncBlock<'r> {
-    raw: Rc<RawRes>,
+    raw: Arc<RawRes>,
     precision: Precision,
     data: *mut *mut c_void,
     lengths: &'r [i32],
     num_of_rows: usize,
 }
+
+unsafe impl<'r> Send for SyncBlock<'r> {}
+unsafe impl<'r> Sync for SyncBlock<'r> {}
 
 impl<'b, 'r> BlockExt for SyncBlock<'r> {
     // type Value = BorrowedValue<'b>;
@@ -148,14 +150,11 @@ impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
             dbg!(num_of_rows);
-            self.records.push(num_of_rows);
-            // let lengths = self.raw.fetch_lengths();
-            // let raw = self.raw.raw();
-            // let fields = self.fields.clone();
+            Arc::<Vec<i32>>::get_mut(&mut self.records).map(|records| records.push(num_of_rows));
+
             let num_of_fields = self.num_of_fields();
             let lengths = unsafe { std::slice::from_raw_parts(lengths, num_of_fields) };
 
-            // let lengths = self.raw.fetch_lengths();
             Some(SyncBlock {
                 raw: self.raw.raw(),
                 precision: self.precision(),
@@ -173,11 +172,11 @@ impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
 impl<'r, 'q> SyncBlock<'r> {
     #[inline]
     pub fn from_raw_with_ptr(
-        raw: Rc<RawRes>,
-        precision: Precision,
+        raw: Arc<RawRes>,
         data: *mut *mut c_void,
         num_of_rows: i32,
     ) -> Option<Self> {
+        let precision = raw.precision();
         if num_of_rows > 0 {
             let lengths = raw.fetch_lengths();
             Some(SyncBlock {
@@ -191,6 +190,15 @@ impl<'r, 'q> SyncBlock<'r> {
         } else {
             None
         }
+    }
+
+    #[inline]
+    pub fn from_async_query(
+        raw: Arc<RawRes>,
+        data: *mut *mut c_void,
+        num_of_rows: i32,
+    ) -> Option<Self> {
+        Self::from_raw_with_ptr(raw, data, num_of_rows)
     }
 }
 
@@ -219,7 +227,7 @@ impl<'q> Queryable<'q> for Taos {
 }
 
 #[taos_macros::test(crate, log_level = "info")]
-async fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
+fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
     let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?.unwrap();
 
     assert!(rs.fields().len() == 5);
@@ -241,8 +249,8 @@ async fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
     Ok(())
 }
 
-#[taos_macros::test(crate, log_level = "info")]
-async fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Error> {
+#[taos_macros::test(crate)]
+fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Error> {
     use itertools::Itertools;
     let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?.unwrap();
 
@@ -258,3 +266,5 @@ async fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Err
     println!("total blocks: {}, total rows: {}", blocks, records);
     Ok(())
 }
+
+mod r#async;

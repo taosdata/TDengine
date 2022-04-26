@@ -9,7 +9,7 @@ use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
     os::raw::*,
-    rc::Rc,
+    sync::Arc,
 };
 
 use once_cell::sync::OnceCell;
@@ -164,10 +164,13 @@ pub struct RawRes {
     fields: OnceCell<Vec<Field>>,
 }
 
+unsafe impl Send for RawRes {}
+unsafe impl Sync for RawRes {}
+
 #[derive(Debug)]
 pub struct DroppableRawRes<'q> {
-    raw: Rc<RawRes>,
-    _marker: PhantomData<&'q RawTaos>,
+    raw: Arc<RawRes>,
+    _marker: PhantomData<&'q u8>,
 }
 
 impl<'q> Deref for DroppableRawRes<'q> {
@@ -181,7 +184,7 @@ impl<'q> Deref for DroppableRawRes<'q> {
 impl<'q> DroppableRawRes<'q> {
     pub fn new(raw: RawRes) -> Self {
         Self {
-            raw: Rc::new(raw),
+            raw: Arc::new(raw),
             _marker: PhantomData,
         }
     }
@@ -190,14 +193,14 @@ impl<'q> DroppableRawRes<'q> {
         RawRes::from_ptr_with_code(ptr, code).map(Self::new)
     }
 
-    pub fn raw(&self) -> Rc<RawRes> {
+    pub fn raw(&self) -> Arc<RawRes> {
         self.raw.clone()
     }
 }
 
 impl<'q> Drop for DroppableRawRes<'q> {
     fn drop(&mut self) {
-        if let Some(raw) = Rc::get_mut(&mut self.raw) {
+        if let Some(raw) = Arc::get_mut(&mut self.raw) {
             raw.free_result();
         } else {
             log::error!("there's other result pointer in-use, please check");
@@ -262,14 +265,9 @@ impl RawRes {
     }
     #[inline]
     pub fn fields<'any>(&self) -> &[Field] {
-        let len = unsafe { taos_num_fields(self.as_ptr()) };
-        // dbg!(from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize));
-        // let len = self.num_fields();
         let fields = self.fields.get_or_init(|| {
-            dbg!(from_raw_fields(
-                unsafe { taos_fetch_fields(self.as_ptr()) },
-                len as usize
-            ))
+            let len = unsafe { taos_num_fields(self.as_ptr()) };
+            from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
         });
         &fields
     }

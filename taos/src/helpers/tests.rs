@@ -325,6 +325,10 @@ impl Common {
             let mut builder = pretty_env_logger::formatted_timed_builder();
             if let Some(lv) = self.log_level.to_log_level_filter() {
                 builder.filter_level(dbg!(lv));
+            } else {
+                if let Ok(s) = ::std::env::var("RUST_LOG") {
+                    builder.parse_filters(&s);
+                }
             }
             builder
                 .format_module_path(true)

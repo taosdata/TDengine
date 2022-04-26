@@ -1,11 +1,12 @@
 use std::{
     ffi::c_void,
+    marker::PhantomData,
     ops::Deref,
     os::raw::c_int,
     ptr,
     rc::Rc,
     slice,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     task::{Poll, Waker},
 };
 
@@ -14,12 +15,12 @@ use bstr::ByteSlice;
 use futures::Stream;
 use itertools::Itertools;
 
-use taos_sys::*;
 use taos_sys::ffi::*;
+use taos_sys::*;
 
 use taos_query::common::*;
 
-use crate::{Error, Result, TaosResult};
+use crate::{impls::SyncBlock, Error, Result, TaosResult};
 
 mod column;
 pub use column::*;
@@ -31,8 +32,11 @@ mod value;
 pub use value::*;
 
 pub struct BlockStream<'a> {
-    result: &'a TaosResult<'a>,
+    // result: &'a TaosResult<'a>,
+    raw: Arc<RawRes>,
+    records: Arc<RwLock<Vec<i32>>>,
     state: Arc<Mutex<BlockState>>,
+    _marker: PhantomData<&'a u8>,
 }
 
 impl<'a> BlockStream<'a> {
@@ -43,8 +47,30 @@ impl<'a> BlockStream<'a> {
             num_of_rows: 0,
             waker: None,
         }));
+        let raw = result.as_raw().raw();
 
-        Self { result, state }
+        Self {
+            raw,
+            state,
+            records: Arc::new(RwLock::new(Vec::new())),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn from_raw(raw: Arc<RawRes>, records: Arc<RwLock<Vec<i32>>>) -> Self {
+        let state = Arc::new(Mutex::new(BlockState {
+            completed: false,
+            result: std::ptr::null_mut(),
+            num_of_rows: 0,
+            waker: None,
+        }));
+
+        Self {
+            raw,
+            state,
+            records,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -80,7 +106,7 @@ impl<'a> Deref for Block<'a> {
 
 impl<'a> Block<'a> {
     #[inline]
-    fn new(result: &'a TaosResult<'a>, block:TAOS_ROW, num_of_rows: i32) -> Self {
+    fn new(result: &'a TaosResult<'a>, block: TAOS_ROW, num_of_rows: i32) -> Self {
         let lengths = result.as_raw().fetch_lengths();
         // let lengths = unsafe { taos_fetch_lengths(result.as_raw()) };
         let num_of_fields = result.num_of_fields();
@@ -222,7 +248,9 @@ impl<'a> Block<'a> {
                 let len = ptr.cast::<i16>().read();
                 let start = ptr.offset(2);
 
-                BorrowedValue::VarChar(std::str::from_utf8_unchecked(slice::from_raw_parts(start, len as _)))
+                BorrowedValue::VarChar(std::str::from_utf8_unchecked(slice::from_raw_parts(
+                    start, len as _,
+                )))
             }
             Ty::NChar => {
                 let length = self.get_length_unchecked(col);
@@ -393,7 +421,7 @@ impl<'block, 'a> ExactSizeIterator for ColumnsIter<'block, 'a> {
 
 impl<'a> Stream for BlockStream<'a> {
     // type Item = (*mut TAOS_RES, i32);
-    type Item = Block<'a>;
+    type Item = SyncBlock<'a>;
 
     fn poll_next(
         self: std::pin::Pin<&mut Self>,
@@ -421,13 +449,21 @@ impl<'a> Stream for BlockStream<'a> {
             let num_of_rows = s.num_of_rows;
             s.completed = false;
             s.num_of_rows = 0;
-            Poll::Ready(Some(Self::Item::from_async_query(self.result, num_of_rows)))
+            drop(s);
+            
+            self.records.write().unwrap().push(num_of_rows);
+
+            // Wake up poll.
+            Poll::Ready(Self::Item::from_async_query(
+                self.raw.clone(),
+                self.raw.block(),
+                num_of_rows,
+            ))
         } else if s.completed && s.num_of_rows == 0 {
-            // s.completed = false;
             Poll::Ready(None)
         } else {
             let res = if s.result.is_null() {
-                self.result.as_raw().as_ptr()
+                self.raw.as_ptr()
             } else {
                 s.result
             };

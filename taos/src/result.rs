@@ -2,11 +2,11 @@ use block::Row;
 use futures::Stream;
 use serde::de::DeserializeOwned;
 use std::{borrow::Cow, ffi::CStr};
-use taos_query::common::Field;
+use taos_query::{common::Field, IntoRowsIter, RowInBlock};
 
 use taos_sys::{ffi::*, DroppableRawRes as RawRes, *};
 
-use crate::*;
+use crate::{impls::SyncBlock, *};
 
 #[derive(Debug)]
 pub enum TaosResult<'a> {
@@ -78,18 +78,22 @@ impl<'a> TaosResult<'a> {
         block::BlockStream::new(self)
     }
 
-    pub fn rows_stream(&self) -> impl Stream<Item = Row> {
-        use futures::StreamExt;
-        block::BlockStream::new(self)
-            .flat_map(|block| futures::stream::iter(block.into_iter_rows()))
-    }
-    pub fn rows_de_stream<T>(&self) -> impl Stream<Item = Result<T>> + '_
+    // pub fn rows_stream(&self) -> impl Stream<Item = RowInBlock<SyncBlock<'_>>> {
+    //     use futures::StreamExt;
+
+    //     use taos_query::{BlockExt, ResultSet};
+    //     block::BlockStream::new(self)
+    //         .flat_map(|block| futures::stream::iter(block.deserialize_into_vec()))
+    // }
+    pub fn rows_de_stream<'b, T: 'a + 'b>(
+        &self,
+    ) -> impl Stream<Item = std::result::Result<T, serde::de::value::Error>> + '_
     where
         T: DeserializeOwned,
     {
         use futures::StreamExt;
-
-        self.rows_stream()
-            .map(|row| T::deserialize(&mut row.deserializer()))
+        use taos_query::BlockExt;
+        block::BlockStream::new(self)
+            .flat_map(|block| futures::stream::iter(block.deserialize_into_vec()))
     }
 }

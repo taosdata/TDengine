@@ -8,6 +8,7 @@ mod de;
 pub mod helpers;
 mod insert;
 
+use async_trait::async_trait;
 use common::*;
 use helpers::*;
 
@@ -118,10 +119,7 @@ where
 
 type DeserializeIter<'b, B, T> =
     std::iter::Map<RowsIter<'b, B>, fn(RowInBlock<'b, B>) -> Result<T, serde::de::value::Error>>;
-type DeserializeIntoIter<'b, B, T> = std::iter::Map<
-    &'b IntoRowsIter<B>,
-    fn(RowInBlock<'b, B>) -> Result<T, serde::de::value::Error>,
->;
+
 pub trait BlockExt: Debug + Sized {
     /// A block should container number of rows.
     fn num_of_rows(&self) -> usize;
@@ -291,10 +289,10 @@ where
     }
 }
 
-pub trait AsyncResultSet
+pub trait AsyncResultSet: Send
 where
-    Self::BlockStream: futures::stream::Stream,
-    for<'b> <Self::BlockStream as futures::stream::Stream>::Item: BlockExt,
+    Self::BlockStream: futures::stream::Stream + Send,
+    for<'b> <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
 {
     type BlockStream;
     // type Block: for<'b> BlockExt;
@@ -330,6 +328,51 @@ where
         use futures::stream::StreamExt;
         self.block_stream()
             .flat_map(|block| futures::stream::iter(block.deserialize_into_vec::<T>()))
+    }
+}
+
+/// The synchronous query trait for TDengine connection.
+#[async_trait]
+pub trait AsyncQueryable<'q>: Send
+where
+    <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
+    for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
+        BlockExt + Send,
+{
+    type Error: Debug + From<serde::de::value::Error> + From<anyhow::Error> + Send;
+    // type B: for<'b> BlockExt<'b, 'b>;
+    type AsyncResultSet: AsyncResultSet;
+
+    async fn query<T: AsRef<str> + Send>(
+        &'q self,
+        sql: T,
+    ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error>;
+
+    async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        self.query(sql).await.map(|res| match res {
+            Ok(_) => 0, // todo: if we should get the selected rows if not update query?
+            Err(affected) => affected,
+        })
+    }
+    async fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
+        use futures::stream::TryStreamExt;
+        Ok(self
+            .query("show databases")
+            .await?
+            .expect("`show databases` must be queryable")
+            .deserialize_stream()
+            .try_collect()
+            .await?)
+    }
+    async fn describe(&'q self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
+        use futures::stream::TryStreamExt;
+        Ok(self
+            .query(format!("describe {table}"))
+            .await?
+            .expect("`show databases` must be queryable")
+            .deserialize_stream()
+            .try_collect()
+            .await?)
     }
 }
 
@@ -400,39 +443,8 @@ mod tests {
         }
     }
 
-    // impl<'b, 's: 'b> Valuable<'b> for Value<'s> {
-    //     fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-    //         todo!()
-    //     }
-
-    //     fn into_owned_value(self) -> crate::Value {
-    //         todo!()
-    //     }
-
-    //     fn is_null(&self) -> bool {
-    //         false
-    //     }
-
-    //     fn ty(&self) -> Ty {
-    //         Ty::VarChar
-    //     }
-    // }
-
     #[derive(Debug)]
     struct MyResultSet<'q>(PhantomData<(&'q u8)>);
-
-    // impl<'i, 'r: 'i, 'q: 'r> IntoIterator for &'i mut MyResultSet<'r, 'q>
-    // where
-    //     Self: 'r,
-    // {
-    //     type Item = Block<'r, 'q>;
-
-    //     type IntoIter = BlocksIter<'i, 'r, MyResultSet<'r, 'q>>;
-
-    //     fn into_iter(self) -> Self::IntoIter {
-    //         BlocksIter(self, PhantomData)
-    //     }
-    // }
 
     #[derive(Debug)]
     struct Block<'r, 'q>(PhantomData<(&'r u8, &'q u8)>);
