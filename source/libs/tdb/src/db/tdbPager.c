@@ -81,6 +81,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   pPager->pageSize = tdbPCacheGetPageSize(pCache);
   // pPager->dbOrigSize
   ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
+  pPager->dbFileSize = pPager->dbOrigSize;
 
   *ppPager = pPager;
   return 0;
