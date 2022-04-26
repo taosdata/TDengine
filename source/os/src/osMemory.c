@@ -82,7 +82,7 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
 #endif
 
 void *taosMemoryMalloc(int32_t size) {
-  if (size == 0) return NULL;
+  if (size < 1) return NULL;
   
 #ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));
