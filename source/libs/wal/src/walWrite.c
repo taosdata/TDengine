@@ -255,7 +255,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
 
   // no wal
   if (pWal->cfg.level == TAOS_WAL_NOLOG) return 0;
-  if (bodyLen > WAL_MAX_SIZE) {
+  if (bodyLen > TSDB_MAX_WAL_SIZE) {
     terrno = TSDB_CODE_WAL_SIZE_LIMIT;
     return -1;
   }
