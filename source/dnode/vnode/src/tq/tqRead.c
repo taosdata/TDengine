@@ -108,7 +108,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   STSchema*       pTschema = pHandle->pSchema;
   SSchemaWrapper* pSchemaWrapper = pHandle->pSchemaWrapper;
 
-  *pNumOfRows = pHandle->pBlock->numOfRows;
+  *pNumOfRows = pHandle->msgIter.numOfRows;
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
   if (colNumNeed == 0) {
