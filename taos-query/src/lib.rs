@@ -364,7 +364,7 @@ where
 
 /// The synchronous query trait for TDengine connection.
 #[async_trait]
-pub trait AsyncQueryable<'q>: Send
+pub trait AsyncQueryable<'q>: Send + Sync
 where
     <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
     for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
@@ -405,7 +405,36 @@ where
             .try_collect()
             .await?)
     }
+
+    fn exec_sync<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        futures::executor::block_on(self.exec(sql))
+    }
+
+    fn query_sync<T: AsRef<str> + Send>(
+        &'q self,
+        sql: T,
+    ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error> {
+        futures::executor::block_on(self.query(sql))
+    }
 }
+
+// pub trait AsyncQueryableSync<'q>: AsyncQueryable<'q>
+// where
+//     <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
+//     for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
+//         BlockExt + Send,
+// {
+//     fn exec_sync<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+//         futures::executor::block_on(self.exec(sql))
+//     }
+
+//     fn query_sync<T: AsRef<str> + Send>(
+//         &'q self,
+//         sql: T,
+//     ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error> {
+//         futures::executor::block_on(self.query(sql))
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
