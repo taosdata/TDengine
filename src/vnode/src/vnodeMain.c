@@ -490,10 +490,6 @@ int32_t vnodeClose(int32_t vgId) {
 
   pVnode->preClose = 1;
 
-  // wait result threads need deal
-  if(pVnode->tqueue)
-    freeWaitThread(pVnode);
-
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
   vnodeRelease(pVnode);
   vnodeCleanUp(pVnode);
