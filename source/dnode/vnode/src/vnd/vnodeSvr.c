@@ -335,7 +335,7 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpc
 
 static int vnodeProcessDropStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
   // TODO
-  ASSERT(0);
+  // ASSERT(0);
   return 0;
 }
 
