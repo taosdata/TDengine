@@ -485,10 +485,10 @@ _return:
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode* tnode = NULL;
-  if (fmIsUserDefinedFunc(node->funcId)) {
+  if (!fmIsScalarFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
-  
+
   FOREACH(tnode, node->pParameterList) {
     if (!SCL_IS_CONST_NODE(tnode)) {
       return DEAL_RES_CONTINUE;
@@ -510,14 +510,16 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
+  res->translate = true;
+
   if (colDataIsNull_s(output.columnData, 0)) {
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
   } else {
     res->node.resType = node->node.resType;
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {
-      res->datum.p = output.columnData->pData;
-      output.columnData->pData = NULL;
+      res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
+      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
     }
@@ -552,6 +554,7 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
   }
 
   res->node.resType = node->node.resType;
+  res->translate = true;
 
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
@@ -587,20 +590,25 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
 
   SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
   if (NULL == res) {
-    sclError("make value node failed");    
-    sclFreeParam(&output);    
+    sclError("make value node failed");
+    sclFreeParam(&output);
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
-  res->node.resType = node->node.resType;
+  res->translate = true;
 
-  int32_t type = output.columnData->info.type;
-  if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
-    res->datum.p = output.columnData->pData;
-    output.columnData->pData = NULL;
+  if (colDataIsNull_s(output.columnData, 0)) {
+    res->node.resType.type = TSDB_DATA_TYPE_NULL;
   } else {
-    memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+    res->node.resType = node->node.resType;
+    int32_t type = output.columnData->info.type;
+    if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
+      res->datum.p = output.columnData->pData;
+      output.columnData->pData = NULL;
+    } else {
+      memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+    }
   }
 
   nodesDestroyNode(*pNode);
@@ -611,10 +619,6 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclConstantsRewriter(SNode** pNode, void* pContext) {
-  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode)) {
-    return DEAL_RES_CONTINUE;
-  }
-
   SScalarCtx *ctx = (SScalarCtx *)pContext;
 
   if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
@@ -627,17 +631,15 @@ EDealRes sclConstantsRewriter(SNode** pNode, void* pContext) {
 
   if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
     return sclRewriteOperator(pNode, ctx);
-  }  
-  
-  sclError("invalid node type for calculating constants, type:%d", nodeType(*pNode));
-  ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
-  return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
 }
 
 EDealRes sclWalkFunction(SNode* pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)pNode;
   SScalarParam output = {0};
-  
+
   ctx->code = sclExecFunction(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;
@@ -654,7 +656,7 @@ EDealRes sclWalkFunction(SNode* pNode, SScalarCtx *ctx) {
 EDealRes sclWalkLogic(SNode* pNode, SScalarCtx *ctx) {
   SLogicConditionNode *node = (SLogicConditionNode *)pNode;
   SScalarParam output = {0};
-  
+
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;

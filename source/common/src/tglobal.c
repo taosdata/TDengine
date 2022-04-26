@@ -220,7 +220,7 @@ struct SConfig *taosGetCfg() {
   return tsCfg;
 }
 
-static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
+static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile, char *apolloUrl) {
   char cfgDir[PATH_MAX] = {0};
   char cfgFile[PATH_MAX + 100] = {0};
 
@@ -230,6 +230,8 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
+
+  if (apolloUrl == NULL || apolloUrl[0] == '\0') cfgGetApollUrl(envCmd, envFile, apolloUrl);
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
@@ -248,6 +250,11 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
 
   if (cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL) != 0) {
     uError("failed to load from global env variables since %s", terrstr());
+    return -1;
+  }
+
+  if (cfgLoad(pCfg, CFG_STYPE_ENV_CMD, envCmd) != 0) {
+    uError("failed to load from cmd env variables since %s", terrstr());
     return -1;
   }
 
@@ -325,8 +332,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 0, 100000, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSizeKB, 0, INT64_MAX, 1) != 0) return -1;
-  if (cfgAddInt64(pCfg, "totalMemory(KB)", tsTotalMemoryKB, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "pageSizeKB", tsPageSizeKB, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt64(pCfg, "totalMemoryKB", tsTotalMemoryKB, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os nodename", info.nodename, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os release", info.release, 1) != 0) return -1;
@@ -572,8 +579,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
-                      const char *apolloUrl, SArray *pArgs, bool tsc) {
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
+                      char *apolloUrl, SArray *pArgs, bool tsc) {
   osDefaultInit();
 
   SConfig *pCfg = cfgInit();
@@ -588,7 +595,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     if (taosAddServerLogCfg(pCfg) != 0) return -1;
   }
 
-  if (taosLoadCfg(pCfg, cfgDir, envFile, apolloUrl) != 0) {
+  if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
     uError("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
@@ -625,7 +632,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   return 0;
 }
 
-int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, SArray *pArgs, bool tsc) {
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -640,7 +647,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
   }
   taosAddSystemCfg(tsCfg);
 
-  if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
+  if (taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
     uError("failed to load cfg since %s", terrstr());
     cfgCleanup(tsCfg);
     tsCfg = NULL;

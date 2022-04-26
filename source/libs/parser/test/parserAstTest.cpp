@@ -18,14 +18,14 @@
 
 #include <gtest/gtest.h>
 
-#include "parserTestUtil.h"
 #include "parInt.h"
+#include "parserTestUtil.h"
 
 using namespace std;
 using namespace testing;
 
 class ParserTest : public Test {
-protected:
+ protected:
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -51,7 +51,7 @@ protected:
     return res;
   }
 
-private:
+ private:
   static const int max_err_len = 1024;
 
   bool runImpl(int32_t parseCode, int32_t translateCode) {
@@ -105,7 +105,7 @@ private:
   }
 
   string toString(const SNode* pRoot, bool format = false) {
-    char* pStr = NULL;
+    char*   pStr = NULL;
     int32_t len = 0;
     int32_t code = nodesNodeToString(pRoot, format, &pStr, &len);
     if (code != TSDB_CODE_SUCCESS) {
@@ -130,18 +130,18 @@ private:
     calcConstAstStr_.clear();
   }
 
-  string acctId_;
-  string db_;
-  char errMagBuf_[max_err_len];
-  string sqlBuf_;
+  string        acctId_;
+  string        db_;
+  char          errMagBuf_[max_err_len];
+  string        sqlBuf_;
   SParseContext cxt_;
-  SQuery* query_;
-  string parseErrStr_;
-  string parsedAstStr_;
-  string translateErrStr_;
-  string translatedAstStr_;
-  string calcConstErrStr_;
-  string calcConstAstStr_;
+  SQuery*       query_;
+  string        parseErrStr_;
+  string        parsedAstStr_;
+  string        translateErrStr_;
+  string        translatedAstStr_;
+  string        calcConstErrStr_;
+  string        calcConstAstStr_;
 };
 
 TEST_F(ParserTest, createAccount) {
@@ -207,7 +207,9 @@ TEST_F(ParserTest, selectConstant) {
   bind("SELECT 123, 20.4, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 10s FROM t1");
   ASSERT_TRUE(run());
 
-  bind("SELECT 1234567890123456789012345678901234567890, 20.1234567890123456789012345678901234567890, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 15s FROM t1");
+  bind(
+      "SELECT 1234567890123456789012345678901234567890, 20.1234567890123456789012345678901234567890, 'abc', \"wxy\", "
+      "TIMESTAMP '2022-02-09 17:30:20', true, false, 15s FROM t1");
   ASSERT_TRUE(run());
 
   bind("SELECT 123 + 45 FROM t1 where 2 - 1");
@@ -353,7 +355,7 @@ TEST_F(ParserTest, selectSemanticError) {
 
   // TSDB_CODE_PAR_INVALID_FUNTION
   bind("SELECT cnt(*) FROM t1");
-  ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_INVALID_FUNTION));
+  ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_FUNC_INVALID_FUNTION));
 
   // TSDB_CODE_PAR_FUNTION_PARA_NUM
   // TSDB_CODE_PAR_FUNTION_PARA_TYPE
@@ -449,32 +451,32 @@ TEST_F(ParserTest, createDatabase) {
   bind("create database wxy_db");
   ASSERT_TRUE(run());
 
-  bind("create database if not exists wxy_db "
-       "BLOCKS 100 "
-       "CACHE 100 "
-       "CACHELAST 2 "
-       "COMP 1 "
-       "DAYS 100 "
-       "FSYNC 100 "
-       "MAXROWS 1000 "
-       "MINROWS 100 "
-       "KEEP 100 "
-       "PRECISION 'ms' "
-       "QUORUM 1 "
-       "REPLICA 3 "
-       "TTL 100 "
-       "WAL 2 "
-       "VGROUPS 100 "
-       "SINGLE_STABLE 0 "
-       "STREAM_MODE 1 "
-       "RETENTIONS '15s:7d,1m:21d,15m:5y'"
-      );
+  bind(
+      "create database if not exists wxy_db "
+      "BLOCKS 100 "
+      "CACHE 100 "
+      "CACHELAST 2 "
+      "COMP 1 "
+      "DAYS 100 "
+      "FSYNC 100 "
+      "MAXROWS 1000 "
+      "MINROWS 100 "
+      "KEEP 100 "
+      "PRECISION 'ms' "
+      "QUORUM 1 "
+      "REPLICA 3 "
+      "TTL 100 "
+      "WAL 2 "
+      "VGROUPS 100 "
+      "SINGLE_STABLE 0 "
+      "STREAM_MODE 1 "
+      "RETENTIONS '15s:7d,1m:21d,15m:5y'");
   ASSERT_TRUE(run());
 
-  bind("create database if not exists wxy_db "
-       "DAYS 100m "
-       "KEEP 200m,300h,400d "
-      );
+  bind(
+      "create database if not exists wxy_db "
+      "DAYS 100m "
+      "KEEP 200m,300h,400d ");
   ASSERT_TRUE(run());
 }
 
@@ -484,14 +486,14 @@ TEST_F(ParserTest, alterDatabase) {
   bind("alter database wxy_db BLOCKS 200");
   ASSERT_TRUE(run());
 
-  bind("alter database wxy_db "
-       "BLOCKS 200 "
-       "CACHELAST 1 "
-       "FSYNC 200 "
-       "KEEP 200 "
-       "QUORUM 2 "
-       "WAL 1 "
-      );
+  bind(
+      "alter database wxy_db "
+      "BLOCKS 200 "
+      "CACHELAST 1 "
+      "FSYNC 200 "
+      "KEEP 200 "
+      "QUORUM 2 "
+      "WAL 1 ");
   ASSERT_TRUE(run());
 }
 
@@ -515,45 +517,55 @@ TEST_F(ParserTest, createTable) {
   bind("create table t1(ts timestamp, c1 int)");
   ASSERT_TRUE(run());
 
-  bind("create table if not exists test.t1("
-       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 SMALLINT, "
-       "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
-      );
+  bind(
+      "create table if not exists test.t1("
+      "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 "
+      "SMALLINT, "
+      "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), "
+      "c14 JSON, c15 VARCHAR(50)) "
+      "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)");
   ASSERT_TRUE(run());
-  
-  bind("create table if not exists test.t1("
-       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 SMALLINT, "
-       "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
-       "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
-       "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2"
-      );
+
+  bind(
+      "create table if not exists test.t1("
+      "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 "
+      "SMALLINT, "
+      "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), "
+      "c14 JSON, c15 VARCHAR(50)) "
+      "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 "
+      "BINARY(20), a8 SMALLINT, "
+      "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), "
+      "a14 JSON, a15 VARCHAR(50)) "
+      "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2");
   ASSERT_TRUE(run());
-  
+
   bind("create table if not exists t1 using st1 tags(1, 'wxy')");
   ASSERT_TRUE(run());
 
-  bind("create table "
-       "if not exists test.t1 using test.st1 (tag1, tag2) tags(1, 'abc') "
-       "if not exists test.t2 using test.st1 (tag1, tag2) tags(2, 'abc') "
-       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc') "
-       "if not exists test.t4 using test.st1 (tag1, tag2) tags(3, null) "
-       "if not exists test.t5 using test.st1 (tag1, tag2) tags(null, 'abc') "
-       "if not exists test.t6 using test.st1 (tag1, tag2) tags(null, null)"
-      );
+  bind(
+      "create table "
+      "if not exists test.t1 using test.st1 (tag1, tag2) tags(1, 'abc') "
+      "if not exists test.t2 using test.st1 (tag1, tag2) tags(2, 'abc') "
+      "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc') "
+      "if not exists test.t4 using test.st1 (tag1, tag2) tags(3, null) "
+      "if not exists test.t5 using test.st1 (tag1, tag2) tags(null, 'abc') "
+      "if not exists test.t6 using test.st1 (tag1, tag2) tags(null, null)");
   ASSERT_TRUE(run());
 
   bind("create stable t1(ts timestamp, c1 int) TAGS(id int)");
   ASSERT_TRUE(run());
 
-  bind("create stable if not exists test.t1("
-       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 SMALLINT, "
-       "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
-       "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
-       "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2"
-      );
+  bind(
+      "create stable if not exists test.t1("
+      "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 "
+      "SMALLINT, "
+      "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), "
+      "c14 JSON, c15 VARCHAR(50)) "
+      "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 "
+      "BINARY(20), a8 SMALLINT, "
+      "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), "
+      "a14 JSON, a15 VARCHAR(50)) "
+      "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2");
   ASSERT_TRUE(run());
 }
 

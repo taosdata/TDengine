@@ -15,32 +15,27 @@
 
 #include "querynodes.h"
 
-#define COMPARE_SCALAR_FIELD(fldname) \
-	do { \
-		if (a->fldname != b->fldname) \
-			return false; \
-	} while (0)
+#define COMPARE_SCALAR_FIELD(fldname)           \
+  do {                                          \
+    if (a->fldname != b->fldname) return false; \
+  } while (0)
 
-#define COMPARE_STRING(a, b)	\
-	(((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) == (b))
+#define COMPARE_STRING(a, b) (((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) == (b))
 
-#define COMPARE_STRING_FIELD(fldname) \
-	do { \
-		if (!COMPARE_STRING(a->fldname, b->fldname)) \
-			return false; \
-	} while (0)
+#define COMPARE_STRING_FIELD(fldname)                          \
+  do {                                                         \
+    if (!COMPARE_STRING(a->fldname, b->fldname)) return false; \
+  } while (0)
 
-#define COMPARE_NODE_FIELD(fldname) \
-	do { \
-		if (!nodesEqualNode(a->fldname, b->fldname)) \
-			return false; \
-	} while (0)
+#define COMPARE_NODE_FIELD(fldname)                            \
+  do {                                                         \
+    if (!nodesEqualNode(a->fldname, b->fldname)) return false; \
+  } while (0)
 
-#define COMPARE_NODE_LIST_FIELD(fldname) \
-	do { \
-		if (!nodeNodeListEqual(a->fldname, b->fldname)) \
-			return false; \
-	} while (0)
+#define COMPARE_NODE_LIST_FIELD(fldname)                          \
+  do {                                                            \
+    if (!nodeNodeListEqual(a->fldname, b->fldname)) return false; \
+  } while (0)
 
 static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
   if (a == b) {
@@ -55,7 +50,7 @@ static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
     return false;
   }
 
-  SNode* na, *nb;
+  SNode *na, *nb;
   FORBOTH(na, a, nb, b) {
     if (!nodesEqualNode(na, nb)) {
       return false;
@@ -125,7 +120,7 @@ bool nodesEqualNode(const SNodeptr a, const SNodeptr b) {
     case QUERY_NODE_GROUPING_SET:
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
-      return false; // todo
+      return false;  // todo
     default:
       break;
   }

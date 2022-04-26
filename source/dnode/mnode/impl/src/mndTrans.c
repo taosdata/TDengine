@@ -193,9 +193,9 @@ TRANS_ENCODE_OVER:
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRow *    pRow = NULL;
-  STrans *     pTrans = NULL;
-  char *       pData = NULL;
+  SSdbRow     *pRow = NULL;
+  STrans      *pTrans = NULL;
+  char        *pData = NULL;
   int32_t      dataLen = 0;
   int8_t       sver = 0;
   int32_t      redoLogNum = 0;
@@ -456,7 +456,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
 }
 
 static STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
-  SSdb *  pSdb = pMnode->pSdb;
+  SSdb   *pSdb = pMnode->pSdb;
   STrans *pTrans = sdbAcquire(pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
@@ -574,6 +574,11 @@ void mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen) {
   pTrans->rpcRspLen = contLen;
 }
 
+void mndTransSetCb(STrans *pTrans, TransCbFp fp, void *param) {
+  pTrans->transCbFp = fp;
+  pTrans->transCbParam = param;
+}
+
 void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
   pTrans->dbUid = pDb->uid;
   memcpy(pTrans->dbname, pDb->name, TSDB_DB_FNAME_LEN);
@@ -626,7 +631,7 @@ static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewT
   if (mndIsBasicTrans(pNewTrans)) return 0;
 
   STrans *pTrans = NULL;
-  void *  pIter = NULL;
+  void   *pIter = NULL;
   int32_t code = 0;
 
   while (1) {
@@ -707,6 +712,8 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pNew->rpcRefId = pTrans->rpcRefId;
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
+  pNew->transCbFp = pTrans->transCbFp;
+  pNew->transCbParam = pTrans->transCbParam;
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
 
@@ -830,14 +837,14 @@ HANDLE_ACTION_RSP_OVER:
 }
 
 static int32_t mndTransExecuteLogs(SMnode *pMnode, SArray *pArray) {
-  SSdb *  pSdb = pMnode->pSdb;
+  SSdb   *pSdb = pMnode->pSdb;
   int32_t arraySize = taosArrayGetSize(pArray);
 
   if (arraySize == 0) return 0;
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWriteNotFree(pSdb, pRaw);
+    int32_t  code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       return code;
     }
@@ -1117,6 +1124,11 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
   }
 
   mDebug("trans:%d, finished, code:0x%04x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+
+  if (pTrans->transCbFp != NULL) {
+    (*pTrans->transCbFp)(pMnode, pTrans->transCbParam);
+  }
+
   return continueExec;
 }
 
@@ -1205,11 +1217,11 @@ static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
 }
 
 static int32_t mndProcessKillTransReq(SNodeMsg *pReq) {
-  SMnode *      pMnode = pReq->pNode;
+  SMnode       *pMnode = pReq->pNode;
   SKillTransReq killReq = {0};
   int32_t       code = -1;
-  SUserObj *    pUser = NULL;
-  STrans *      pTrans = NULL;
+  SUserObj     *pUser = NULL;
+  STrans       *pTrans = NULL;
 
   if (tDeserializeSKillTransReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -1249,7 +1261,7 @@ KILL_OVER:
 
 void mndTransPullup(SMnode *pMnode) {
   STrans *pTrans = NULL;
-  void *  pIter = NULL;
+  void   *pIter = NULL;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
@@ -1264,11 +1276,11 @@ void mndTransPullup(SMnode *pMnode) {
 
 static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->pNode;
-  SSdb *  pSdb = pMnode->pSdb;
+  SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   STrans *pTrans = NULL;
   int32_t cols = 0;
-  char *  pWrite;
+  char   *pWrite;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_TRANS, pShow->pIter, (void **)&pTrans);
