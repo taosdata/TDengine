@@ -319,6 +319,23 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1 ")
         tdSql.checkData(0,0,25)
 
+        # bug fix for compute 
+        tdSql.query("select c1, abs(c1) -0 ,ceil(c1)-0 from ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 8.000000000)
+
+        tdSql.query(" select c1, abs(c1) -0 ,ceil(c1-0.1)-0.1 from ct4")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 7.900000000)
+
     def ceil_func_filter(self):
         pass
         
@@ -372,7 +389,6 @@ class TDTestCase:
         tdSql.checkData(4, 2, -32762.000000000)
         tdSql.checkData(4, 3, -123.000000000)
         tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
-
 
         self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select ceil(c1+1) ,ceil(c2) , ceil(c3*1) , ceil(c4/2), ceil(c5)/2, ceil(c6) from sub1_bound ")
         
