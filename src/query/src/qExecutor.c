@@ -332,7 +332,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
     tmp *= numOfRows;
     if (tmp >= 1024*1024*1024) {   // 1G
       qError("size is too large, failed to allocate column buffer for output buffer");
-      tmp = 128*1024*1024;
+      goto _clean;
     }
     int32_t size = (int32_t)MAX(tmp, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
@@ -2131,7 +2131,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->sasArray = calloc(pQueryAttr->numOfOutput, sizeof(SScalarExprSupport));
 
   if (pRuntimeEnv->sasArray == NULL || pRuntimeEnv->pResultRowHashTable == NULL || pRuntimeEnv->keyBuf == NULL ||
-      pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL) {
+      pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL || pRuntimeEnv->pool == NULL) {
     goto _clean;
   }
 

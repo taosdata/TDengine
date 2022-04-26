@@ -206,7 +206,7 @@ SResultRowPool* initResultRowPool(size_t size) {
   tmp *= p->numOfElemPerBlock;
   if (tmp > 1024*1024*1024){
     qError("ResultRow blockSize is too large:%" PRId64, tmp);
-    tmp = 128*1024*1024;
+    return NULL;
   }
   p->blockSize = (int32_t)tmp;
   p->position.pos = 0;
