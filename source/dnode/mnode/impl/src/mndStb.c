@@ -87,7 +87,6 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT32(pRaw, dataPos, pStb->version, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, _OVER)
   SDB_SET_INT32(pRaw, dataPos, (int32_t)(pStb->xFilesFactor * 10000), _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pStb->aggregationMethod, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->delay, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ttl, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, _OVER)
@@ -175,7 +174,6 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   int32_t xFilesFactor = 0;
   SDB_GET_INT32(pRaw, dataPos, &xFilesFactor, _OVER)
   pStb->xFilesFactor = xFilesFactor / 10000.0f;
-  SDB_GET_INT32(pRaw, dataPos, &pStb->aggregationMethod, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->delay, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ttl, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, _OVER)
@@ -404,7 +402,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.name = (char *)tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
-  req.rollup = pStb->aggregationMethod > -1 ? 1 : 0;
+  req.rollup = pStb->pAst1 > 0 ? 1 : 0;
   req.type = TD_SUPER_TABLE;
   req.stbCfg.suid = pStb->uid;
   req.stbCfg.nCols = pStb->numOfColumns;
@@ -433,29 +431,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 
     pRSmaParam->xFilesFactor = pStb->xFilesFactor;
     pRSmaParam->delay = pStb->delay;
-    pRSmaParam->nFuncIds = 1;  // only 1 aggregation method supported currently
-    pRSmaParam->pFuncIds = (func_id_t *)taosMemoryCalloc(pRSmaParam->nFuncIds, sizeof(func_id_t));
-    if (pRSmaParam->pFuncIds == NULL) {
-      taosMemoryFreeClear(req.stbCfg.pRSmaParam);
-      taosMemoryFreeClear(req.stbCfg.pSchema);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-    for (int32_t f = 0; f < pRSmaParam->nFuncIds; ++f) {
-      *(pRSmaParam->pFuncIds + f) = pStb->aggregationMethod;
-    }
     if (pStb->ast1Len > 0) {
       if (mndConvertRSmaTask(pStb->pAst1, 0, 0, &pRSmaParam->qmsg1, &pRSmaParam->qmsg1Len) != TSDB_CODE_SUCCESS) {
-        taosMemoryFreeClear(pRSmaParam->pFuncIds);
         taosMemoryFreeClear(req.stbCfg.pRSmaParam);
         taosMemoryFreeClear(req.stbCfg.pSchema);
         return NULL;
       }
     }
     if (pStb->ast2Len > 0) {
-      int32_t qmsgLen2 = 0;
       if (mndConvertRSmaTask(pStb->pAst2, 0, 0, &pRSmaParam->qmsg2, &pRSmaParam->qmsg2Len) != TSDB_CODE_SUCCESS) {
-        taosMemoryFreeClear(pRSmaParam->pFuncIds);
         taosMemoryFreeClear(pRSmaParam->qmsg1);
         taosMemoryFreeClear(req.stbCfg.pRSmaParam);
         taosMemoryFreeClear(req.stbCfg.pSchema);
@@ -470,7 +454,6 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     if (pRSmaParam) {
-      taosMemoryFreeClear(pRSmaParam->pFuncIds);
       taosMemoryFreeClear(pRSmaParam->qmsg1);
       taosMemoryFreeClear(pRSmaParam->qmsg2);
       taosMemoryFreeClear(pRSmaParam);
@@ -488,7 +471,6 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 
   *pContLen = contLen;
   if (pRSmaParam) {
-    taosMemoryFreeClear(pRSmaParam->pFuncIds);
     taosMemoryFreeClear(pRSmaParam->qmsg1);
     taosMemoryFreeClear(pRSmaParam->qmsg2);
     taosMemoryFreeClear(pRSmaParam);
@@ -706,7 +688,6 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
   stbObj.version = 1;
   stbObj.nextColId = 1;
   stbObj.xFilesFactor = pCreate->xFilesFactor;
-  stbObj.aggregationMethod = pCreate->aggregationMethod;
   stbObj.delay = pCreate->delay;
   stbObj.ttl = pCreate->ttl;
   stbObj.numOfColumns = pCreate->numOfColumns;

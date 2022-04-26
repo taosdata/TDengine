@@ -79,7 +79,11 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length;
   } else {
-    return pColumnInfoData->info.bytes * numOfRows;
+    if (pColumnInfoData->info.type == TSDB_DATA_TYPE_NULL) {
+      return 0;
+    } else {
+      return pColumnInfoData->info.bytes * numOfRows;
+    }
   }
 }
 
@@ -644,12 +648,12 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
 
 /**
  * @refitem blockDataToBuf for the meta size
- *
  * @param pBlock
  * @return
  */
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
-  return sizeof(int32_t) + pBlock->info.numOfCols * sizeof(int32_t);
+  // | total rows/total length | block group id | each column length |
+  return sizeof(int32_t) + sizeof(uint64_t) + pBlock->info.numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -1218,7 +1222,6 @@ void colDataDestroy(SColumnInfoData* pColData) {
 
   taosMemoryFree(pColData->pData);
 }
-
 
 static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   int32_t len = BitmapLen(total);

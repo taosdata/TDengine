@@ -231,6 +231,10 @@ static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool conver
   msg->resIter++;
   if (msg->resIter < msg->rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(msg->rsp.blockData, msg->resIter);
+    if (msg->rsp.withSchema) {
+      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(msg->rsp.blockSchema, msg->resIter);
+      setResSchemaInfo(&msg->resInfo, pSW->pSchema, pSW->nCols);
+    }
     setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4);
     return &msg->resInfo;
   }

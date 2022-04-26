@@ -22,10 +22,8 @@ using namespace std;
 using namespace testing;
 
 namespace {
-  string toString(int32_t code) {
-    return tstrerror(code);
-  }
-}
+string toString(int32_t code) { return tstrerror(code); }
+}  // namespace
 
 // syntax:
 // INSERT INTO
@@ -35,7 +33,7 @@ namespace {
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
 class InsertTest : public Test {
-protected:
+ protected:
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -44,12 +42,11 @@ protected:
   void bind(const char* sql) {
     reset();
     cxt_.acctId = atoi(acctId_.c_str());
-    cxt_.db = (char*) db_.c_str();
+    cxt_.db = (char*)db_.c_str();
     strcpy(sqlBuf_, sql);
     cxt_.sqlLen = strlen(sql);
     sqlBuf_[cxt_.sqlLen] = '\0';
     cxt_.pSql = sqlBuf_;
-
   }
 
   int32_t run() {
@@ -62,19 +59,21 @@ protected:
 
   void dumpReslut() {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
-    size_t num = taosArrayGetSize(pStmt->pDataBlocks);
-    cout << "payloadType:" << (int32_t)pStmt->payloadType << ", insertType:" << pStmt->insertType << ", numOfVgs:" << num << endl;    
+    size_t             num = taosArrayGetSize(pStmt->pDataBlocks);
+    cout << "payloadType:" << (int32_t)pStmt->payloadType << ", insertType:" << pStmt->insertType
+         << ", numOfVgs:" << num << endl;
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, i);
       cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
       SSubmitReq* submit = (SSubmitReq*)vg->pData;
       cout << "length:" << ntohl(submit->length) << ", numOfBlocks:" << ntohl(submit->numOfBlocks) << endl;
-      int32_t numOfBlocks = ntohl(submit->numOfBlocks);
+      int32_t     numOfBlocks = ntohl(submit->numOfBlocks);
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         cout << "Block:" << i << endl;
-        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << be64toh(blk->suid) << ", padding:" << ntohl(blk->padding) << ", sversion:" << ntohl(blk->sversion)
-            << ", dataLen:" << ntohl(blk->dataLen) << ", schemaLen:" << ntohl(blk->schemaLen) << ", numOfRows:" << ntohs(blk->numOfRows) << endl;
+        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << be64toh(blk->suid) << ", padding:" << ntohl(blk->padding)
+             << ", sversion:" << ntohl(blk->sversion) << ", dataLen:" << ntohl(blk->dataLen)
+             << ", schemaLen:" << ntohl(blk->schemaLen) << ", numOfRows:" << ntohs(blk->numOfRows) << endl;
         blk = (SSubmitBlk*)(blk->data + ntohl(blk->dataLen));
       }
     }
@@ -93,7 +92,7 @@ protected:
       SSubmitReq* submit = (SSubmitReq*)vg->pData;
       ASSERT_GE(ntohl(submit->length), 0);
       ASSERT_GE(ntohl(submit->numOfBlocks), 0);
-      int32_t numOfBlocks = ntohl(submit->numOfBlocks);
+      int32_t     numOfBlocks = ntohl(submit->numOfBlocks);
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         ASSERT_EQ(ntohs(blk->numOfRows), (0 == i ? numOfRows1 : (numOfRows2 > 0 ? numOfRows2 : numOfRows1)));
@@ -102,7 +101,7 @@ protected:
     }
   }
 
-private:
+ private:
   static const int max_err_len = 1024;
   static const int max_sql_len = 1024 * 1024;
 
@@ -114,17 +113,15 @@ private:
     code_ = TSDB_CODE_SUCCESS;
   }
 
-  SVnodeModifOpStmt* getVnodeModifStmt(SQuery* pQuery) {
-    return (SVnodeModifOpStmt*)pQuery->pRoot;
-  }
+  SVnodeModifOpStmt* getVnodeModifStmt(SQuery* pQuery) { return (SVnodeModifOpStmt*)pQuery->pRoot; }
 
-  string acctId_;
-  string db_;
-  char errMagBuf_[max_err_len];
-  char sqlBuf_[max_sql_len];
+  string        acctId_;
+  string        db_;
+  char          errMagBuf_[max_err_len];
+  char          sqlBuf_[max_sql_len];
   SParseContext cxt_;
-  int32_t code_;
-  SQuery* res_;
+  int32_t       code_;
+  SQuery*       res_;
 };
 
 // INSERT INTO tb_name VALUES (field1_value, ...)
@@ -141,7 +138,9 @@ TEST_F(InsertTest, singleTableSingleRowTest) {
 TEST_F(InsertTest, singleTableMultiRowTest) {
   setDatabase("root", "test");
 
-  bind("insert into t1 values (now, 1, 'beijing', 3, 4, 5)(now+1s, 2, 'shanghai', 6, 7, 8)(now+2s, 3, 'guangzhou', 9, 10, 11)");
+  bind(
+      "insert into t1 values (now, 1, 'beijing', 3, 4, 5)(now+1s, 2, 'shanghai', 6, 7, 8)(now+2s, 3, 'guangzhou', 9, "
+      "10, 11)");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);
@@ -161,20 +160,23 @@ TEST_F(InsertTest, multiTableSingleRowTest) {
 TEST_F(InsertTest, multiTableMultiRowTest) {
   setDatabase("root", "test");
 
-  bind("insert into st1s1 values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")"
-                  " st1s2 values (now, 10, \"131028\")(now+1s, 20, \"132028\")");
+  bind(
+      "insert into st1s1 values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")"
+      " st1s2 values (now, 10, \"131028\")(now+1s, 20, \"132028\")");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(2, 3, 2);
 }
 
-// INSERT INTO 
+// INSERT INTO
 //    tb1_name USING st1_name [(tag1_name, ...)] TAGS (tag1_value, ...) VALUES (field1_value, ...)
 //    tb2_name USING st2_name [(tag1_name, ...)] TAGS (tag1_value, ...) VALUES (field1_value, ...)
 TEST_F(InsertTest, autoCreateTableTest) {
   setDatabase("root", "test");
 
-  bind("insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
+  bind(
+      "insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, "
+      "\"guangzhou\")");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);

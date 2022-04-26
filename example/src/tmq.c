@@ -18,6 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include "taos.h"
+#include "osSleep.h"
 
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {
@@ -101,8 +102,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from ct1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from ct1");*/
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -160,9 +161,10 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "td.connect.db", "abc1");
+  /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  assert(tmq);
   return tmq;
 }
 
@@ -265,10 +267,11 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 int main(int argc, char* argv[]) {
-  int code;
   if (argc > 1) {
     printf("env init\n");
-    code = init_env();
+    if (init_env() < 0) {
+      return -1;
+    }
     create_topic();
   }
   tmq_t*      tmq = build_consumer();

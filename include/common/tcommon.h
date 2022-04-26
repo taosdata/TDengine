@@ -99,6 +99,15 @@ typedef struct SColumnInfoData {
   };
 } SColumnInfoData;
 
+typedef struct SQueryTableDataCond {
+  STimeWindow  twindow;
+  int32_t      order;  // desc|asc order to iterate the data block
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+  bool         loadExternalRows;  // load external rows or not
+  int32_t      type;              // data block load type:
+} SQueryTableDataCond;
+
 void*   blockDataDestroy(SSDataBlock* pBlock);
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
@@ -229,7 +238,6 @@ typedef struct SResSchame {
   char    name[TSDB_COL_NAME_LEN];
 } SResSchema;
 
-// TODO move away to executor.h
 typedef struct SExprBasicInfo {
   SResSchema   resSchema;
   int16_t      numOfParams;  // argument value of each function
