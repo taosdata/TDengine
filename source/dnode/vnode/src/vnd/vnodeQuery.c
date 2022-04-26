@@ -54,6 +54,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   metaReaderInit(&mer1, pVnode->pMeta, 0);
 
   if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
+    code = terrno;
     goto _exit;
   }
 
@@ -105,6 +106,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
+_exit:
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.refId = pMsg->refId;
@@ -114,7 +116,6 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
   tmsgSendRsp(&rpcMsg);
 
-_exit:
   taosMemoryFree(metaRsp.pSchemas);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
@@ -123,8 +124,8 @@ _exit:
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
-  //pLoad->syncState = TAOS_SYNC_STATE_LEADER;
-  pLoad->syncState = syncGetMyRole(pVnode->sync); // sync integration
+  // pLoad->syncState = TAOS_SYNC_STATE_LEADER;
+  pLoad->syncState = syncGetMyRole(pVnode->sync);  // sync integration
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = 400;
   pLoad->totalStorage = 300;
