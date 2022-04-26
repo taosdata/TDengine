@@ -25,7 +25,7 @@ using namespace std;
 using namespace testing;
 
 class PlannerTest : public Test {
-protected:
+ protected:
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -45,13 +45,14 @@ protected:
     int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] qParseQuerySql code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
+      cout << "sql:[" << cxt_.pSql << "] qParseQuerySql code:" << code << ", strerror:" << tstrerror(code)
+           << ", msg:" << errMagBuf_ << endl;
       return false;
     }
 
     const string syntaxTreeStr = toString(query_->pRoot, false);
-  
-    SLogicNode* pLogicNode = nullptr;
+
+    SLogicNode*  pLogicNode = nullptr;
     SPlanContext cxt = {0};
     cxt.queryId = 1;
     cxt.acctId = 0;
@@ -63,7 +64,7 @@ protected:
       cout << "sql:[" << cxt_.pSql << "] createLogicPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
-  
+
     cout << "====================sql : [" << cxt_.pSql << "]" << endl;
     cout << "syntax tree : " << endl;
     cout << syntaxTreeStr << endl;
@@ -90,12 +91,13 @@ protected:
       return false;
     }
 
-    code = createPhysiPlan(&cxt, pLogicPlan, &plan_, NULL);
+    SArray* pExecNodeList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr));
+    code = createPhysiPlan(&cxt, pLogicPlan, &plan_, pExecNodeList);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] createPhysiPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
-  
+
     cout << "unformatted physical plan : " << endl;
     cout << toString((const SNode*)plan_, false) << endl;
     SNode* pNode;
@@ -110,7 +112,7 @@ protected:
     return true;
   }
 
-private:
+ private:
   static const int max_err_len = 1024;
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
@@ -141,7 +143,7 @@ private:
   }
 
   string toString(const SNode* pRoot, bool format = true) {
-    char* pStr = NULL;
+    char*   pStr = NULL;
     int32_t len = 0;
     int32_t code = nodesNodeToString(pRoot, format, &pStr, &len);
     if (code != TSDB_CODE_SUCCESS) {
@@ -153,13 +155,13 @@ private:
     return str;
   }
 
-  string acctId_;
-  string db_;
-  char errMagBuf_[max_err_len];
-  string sqlBuf_;
+  string        acctId_;
+  string        db_;
+  char          errMagBuf_[max_err_len];
+  string        sqlBuf_;
   SParseContext cxt_;
-  SQuery* query_;
-  SQueryPlan* plan_;
+  SQuery*       query_;
+  SQueryPlan*   plan_;
 };
 
 TEST_F(PlannerTest, selectBasic) {
@@ -192,7 +194,9 @@ TEST_F(PlannerTest, selectJoin) {
   bind("SELECT t1.*, t2.* FROM st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
   ASSERT_TRUE(run());
 
-  bind("SELECT t1.c1, t2.c1 FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1 and t1.c2 = 'abc' and t2.c2 = 'qwe'");
+  bind(
+      "SELECT t1.c1, t2.c1 FROM st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1 and t1.c2 = 'abc' and "
+      "t2.c2 = 'qwe'");
   ASSERT_TRUE(run());
 }
 
@@ -210,12 +214,17 @@ TEST_F(PlannerTest, selectGroupBy) {
 
   bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
   ASSERT_TRUE(run());
+
+  bind("SELECT sum(ceil(c1)) FROM t1 GROUP BY ceil(c1)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, selectSubquery) {
   setDatabase("root", "test");
 
-  bind("SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 group by b");
+  bind(
+      "SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 "
+      "group by b");
   ASSERT_TRUE(run());
 }
 
@@ -362,7 +371,9 @@ TEST_F(PlannerTest, createTopic) {
 TEST_F(PlannerTest, createStream) {
   setDatabase("root", "test");
 
-  bind("create stream if not exists s1 trigger window_close watermark 10s into st1 as select count(*) from t1 interval(10s)");
+  bind(
+      "create stream if not exists s1 trigger window_close watermark 10s into st1 as select count(*) from t1 "
+      "interval(10s)");
   ASSERT_TRUE(run());
 }
 

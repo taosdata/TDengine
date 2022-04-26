@@ -16,8 +16,8 @@
 #include "cmdnodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
-#include "querynodes.h"
 #include "query.h"
+#include "querynodes.h"
 #include "taoserror.h"
 #include "tjson.h"
 
@@ -29,7 +29,7 @@ static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
 const char* nodesNodeName(ENodeType type) {
   switch (type) {
     case QUERY_NODE_COLUMN:
-      return "Column";    
+      return "Column";
     case QUERY_NODE_VALUE:
       return "Value";
     case QUERY_NODE_OPERATOR:
@@ -306,7 +306,7 @@ static int32_t tableComInfoToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableComInfoRowSize, pNode->rowSize);
   }
-  
+
   return code;
 }
 
@@ -323,7 +323,7 @@ static int32_t jsonToTableComInfo(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetNumberValue(pJson, jkTableComInfoRowSize, pNode->rowSize);
   }
-  
+
   return code;
 }
 
@@ -345,7 +345,7 @@ static int32_t schemaToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkSchemaName, pNode->name);
   }
-  
+
   return code;
 }
 
@@ -362,7 +362,7 @@ static int32_t jsonToSchema(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkSchemaName, pNode->name);
   }
-  
+
   return code;
 }
 
@@ -398,7 +398,8 @@ static int32_t tableMetaToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkTableMetaComInfo, tableComInfoToJson, &pNode->tableInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddArray(pJson, jkTableMetaColSchemas, schemaToJson, pNode->schema, sizeof(SSchema), TABLE_TOTAL_COL_NUM(pNode));
+    code = tjsonAddArray(pJson, jkTableMetaColSchemas, schemaToJson, pNode->schema, sizeof(SSchema),
+                         TABLE_TOTAL_COL_NUM(pNode));
   }
 
   return code;
@@ -713,13 +714,9 @@ static int32_t jsonToPhysiScanNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static int32_t physiTagScanNodeToJson(const void* pObj, SJson* pJson) {
-  return physiScanNodeToJson(pObj, pJson);
-}
+static int32_t physiTagScanNodeToJson(const void* pObj, SJson* pJson) { return physiScanNodeToJson(pObj, pJson); }
 
-static int32_t jsonToPhysiTagScanNode(const SJson* pJson, void* pObj) {
-  return jsonToPhysiScanNode(pJson, pObj);
-}
+static int32_t jsonToPhysiTagScanNode(const SJson* pJson, void* pObj) { return jsonToPhysiScanNode(pJson, pObj); }
 
 static const char* jkTableScanPhysiPlanScanCount = "ScanCount";
 static const char* jkTableScanPhysiPlanReverseScanCount = "ReverseScanCount";
@@ -732,7 +729,7 @@ static const char* jkTableScanPhysiPlanInterval = "Interval";
 static const char* jkTableScanPhysiPlanOffset = "Offset";
 static const char* jkTableScanPhysiPlanSliding = "Sliding";
 static const char* jkTableScanPhysiPlanIntervalUnit = "intervalUnit";
-static const char* jkTableScanPhysiPlanSlidingUnit  = "slidingUnit";
+static const char* jkTableScanPhysiPlanSlidingUnit = "slidingUnit";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -822,13 +819,9 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static int32_t physiStreamScanNodeToJson(const void* pObj, SJson* pJson) {
-  return physiScanNodeToJson(pObj, pJson);
-}
+static int32_t physiStreamScanNodeToJson(const void* pObj, SJson* pJson) { return physiScanNodeToJson(pObj, pJson); }
 
-static int32_t jsonToPhysiStreamScanNode(const SJson* pJson, void* pObj) {
-  return jsonToPhysiScanNode(pJson, pObj);
-}
+static int32_t jsonToPhysiStreamScanNode(const SJson* pJson, void* pObj) { return jsonToPhysiScanNode(pJson, pObj); }
 
 static const char* jkEndPointFqdn = "Fqdn";
 static const char* jkEndPointPort = "Port";
@@ -1178,7 +1171,7 @@ static const char* jkIntervalPhysiPlanInterval = "Interval";
 static const char* jkIntervalPhysiPlanOffset = "Offset";
 static const char* jkIntervalPhysiPlanSliding = "Sliding";
 static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
-static const char* jkIntervalPhysiPlanSlidingUnit  = "slidingUnit";
+static const char* jkIntervalPhysiPlanSlidingUnit = "slidingUnit";
 static const char* jkIntervalPhysiPlanFill = "Fill";
 
 static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
@@ -1331,13 +1324,9 @@ static int32_t jsonToPhysicDataSinkNode(const SJson* pJson, void* pObj) {
   return jsonToNodeObject(pJson, jkDataSinkInputDataBlockDesc, (SNode**)&pNode->pInputDataBlockDesc);
 }
 
-static int32_t physiDispatchNodeToJson(const void* pObj, SJson* pJson) {
-  return physicDataSinkNodeToJson(pObj, pJson);
-}
+static int32_t physiDispatchNodeToJson(const void* pObj, SJson* pJson) { return physicDataSinkNodeToJson(pObj, pJson); }
 
-static int32_t jsonToPhysiDispatchNode(const SJson* pJson, void* pObj) {
-  return jsonToPhysicDataSinkNode(pJson, pObj);
-}
+static int32_t jsonToPhysiDispatchNode(const SJson* pJson, void* pObj) { return jsonToPhysicDataSinkNode(pJson, pObj); }
 
 static const char* jkSubplanIdQueryId = "QueryId";
 static const char* jkSubplanIdGroupId = "GroupId";
@@ -1709,7 +1698,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
       break;
   }
 
-  return code ;
+  return code;
 }
 
 static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
@@ -2015,7 +2004,8 @@ static int32_t vgroupsInfoToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkVgroupsInfoNum, pNode->numOfVgroups);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddArray(pJson, jkVgroupsInfoVgroups, vgroupInfoToJson, pNode->vgroups, sizeof(SVgroupInfo), pNode->numOfVgroups);
+    code = tjsonAddArray(pJson, jkVgroupsInfoVgroups, vgroupInfoToJson, pNode->vgroups, sizeof(SVgroupInfo),
+                         pNode->numOfVgroups);
   }
 
   return code;
@@ -2660,10 +2650,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       return jsonToPhysiTableScanNode(pJson, pObj);
-   case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return jsonToPhysiStreamScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      return jsonToPhysiSysTableScanNode(pJson, pObj);  
+      return jsonToPhysiSysTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return jsonToPhysiProjectNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
