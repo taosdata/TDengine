@@ -1333,7 +1333,7 @@ typedef struct {
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
-  SArray* topicNames;  // SArray<char*>
+  SArray* topicNames;  // SArray<char**>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
