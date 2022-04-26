@@ -72,8 +72,6 @@ extern "C" {
 #define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
 #define WAL_MAGIC        0xFAFBFCFDULL
 
-#define WAL_CUR_FAILED 1
-
 #pragma pack(push, 1)
 typedef enum {
   TAOS_WAL_NOLOG = 0,
