@@ -27,7 +27,7 @@ const SVnodeCfg vnodeCfgDefault = {
     .keep = 0,
     .streamMode = 0,
     .isWeak = 0,
-    .tsdbCfg = {.precision = TWO_STAGE_COMP,
+    .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
                 .update = 0,
                 .compression = 2,
                 .slLevel = 5,
