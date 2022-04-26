@@ -251,11 +251,14 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 
 int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
                              int32_t bodyLen) {
-  if (pWal == NULL) return -1;
   int code = 0;
 
   // no wal
   if (pWal->cfg.level == TAOS_WAL_NOLOG) return 0;
+  if (bodyLen > WAL_MAX_SIZE) {
+    terrno = TSDB_CODE_WAL_SIZE_LIMIT;
+    return -1;
+  }
 
   if (index == pWal->vers.lastVer + 1) {
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
