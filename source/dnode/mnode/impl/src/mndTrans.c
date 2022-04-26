@@ -844,7 +844,7 @@ static int32_t mndTransExecuteLogs(SMnode *pMnode, SArray *pArray) {
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWriteNotFree(pSdb, pRaw);
+    int32_t  code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       return code;
     }

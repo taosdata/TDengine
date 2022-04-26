@@ -6,5 +6,5 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    sdb os common util
+    sdb os common util wal
 )

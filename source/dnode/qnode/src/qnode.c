@@ -17,7 +17,7 @@
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-//#include "tudf.h"
+#include "libs/function/function.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
@@ -26,7 +26,9 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  //udfcOpen();
+  if (udfcOpen() != 0) {
+    qError("qnode can not open udfc");
+  }
 
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     taosMemoryFreeClear(pQnode);
@@ -40,7 +42,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
 void qndClose(SQnode *pQnode) {
   qWorkerDestroy((void **)&pQnode->pQuery);
 
-  //udfcClose();
+  udfcClose();
 
   taosMemoryFree(pQnode);
 }
