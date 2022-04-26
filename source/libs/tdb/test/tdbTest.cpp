@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "os.h"
 #include "tdbInt.h"
 
 #include <string>
@@ -122,6 +123,8 @@ TEST(tdb_test, simple_test) {
   int            nData = 10000000;
   TXN            txn;
 
+  taosRemoveDir("tdb");
+
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
@@ -218,6 +221,91 @@ TEST(tdb_test, simple_test) {
       TDB_FREE(pVal);
     }
   }
+
+  ret = tdbDbDrop(pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Close a database
+  tdbDbClose(pDb);
+
+  // Close Env
+  ret = tdbEnvClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+}
+
+TEST(tdb_test, simple_test2) {
+  int            ret;
+  TENV          *pEnv;
+  TDB           *pDb;
+  FKeyComparator compFunc;
+  int            nData = 1000000;
+  TXN            txn;
+
+  taosRemoveDir("tdb");
+
+  // Open Env
+  ret = tdbEnvOpen("tdb", 1024, 10, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Create a database
+  compFunc = tDefaultKeyCmpr;
+  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  {
+    char      key[64];
+    char      val[64];
+    int64_t   txnid = 0;
+    SPoolMem *pPool;
+
+    // open the pool
+    pPool = openPool();
+
+    // start a transaction
+    txnid++;
+    tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    tdbBegin(pEnv, &txn);
+
+    for (int iData = 1; iData <= nData; iData++) {
+      sprintf(key, "key%d", iData);
+      sprintf(val, "value%d", iData);
+      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      GTEST_ASSERT_EQ(ret, 0);
+    }
+
+    {  // Iterate to query the DB data
+      TDBC *pDBC;
+      void *pKey = NULL;
+      void *pVal = NULL;
+      int   vLen, kLen;
+      int   count = 0;
+
+      ret = tdbDbcOpen(pDb, &pDBC);
+      GTEST_ASSERT_EQ(ret, 0);
+
+      for (;;) {
+        ret = tdbDbNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+        if (ret < 0) break;
+
+        std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+        std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+        std::cout << std::endl;
+
+        count++;
+      }
+
+      GTEST_ASSERT_EQ(count, nData);
+
+      tdbDbcClose(pDBC);
+
+      TDB_FREE(pKey);
+      TDB_FREE(pVal);
+    }
+  }
+
+  // commit the transaction
+  tdbCommit(pEnv, &txn);
+  tdbTxnClose(&txn);
 
   ret = tdbDbDrop(pDb);
   GTEST_ASSERT_EQ(ret, 0);

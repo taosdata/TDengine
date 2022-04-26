@@ -3234,7 +3234,7 @@ typedef struct SVgroupTablesBatch {
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ntbCfg.pSchema);
+  taosMemoryFreeClear(pReq->ntb.schema.pSchema);
 }
 
 static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
@@ -3242,12 +3242,14 @@ static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
+#if 0
   pReq->ntbCfg.pRSmaParam = taosMemoryCalloc(1, sizeof(SRSmaParam));
   if (NULL == pReq->ntbCfg.pRSmaParam) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pReq->ntbCfg.pRSmaParam->delay = GET_OPTION_VAL(pOptions->pDelay, TSDB_DEFAULT_DB_DELAY);
   pReq->ntbCfg.pRSmaParam->xFilesFactor = GET_OPTION_VAL(pOptions->pFilesFactor, TSDB_DEFAULT_DB_FILE_FACTOR);
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3262,16 +3264,17 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
-  req.ntbCfg.nCols = LIST_LENGTH(pStmt->pCols);
-  req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchema));
-  if (NULL == req.name || NULL == req.ntbCfg.pSchema) {
+  req.ntb.schema.nCols = LIST_LENGTH(pStmt->pCols);
+  req.ntb.schema.sver = 0;
+  req.ntb.schema.pSchema = taosMemoryCalloc(req.ntb.schema.nCols, sizeof(SSchema));
+  if (NULL == req.name || NULL == req.ntb.schema.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SNode*   pCol;
   col_id_t index = 0;
   FOREACH(pCol, pStmt->pCols) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
+    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schema.pSchema + index);
     ++index;
   }
   if (TSDB_CODE_SUCCESS != buildSmaParam(pStmt->pOptions, &req)) {
@@ -3292,7 +3295,11 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 }
 
 static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
-  int   tlen = sizeof(SMsgHead) + tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
+  int    tlen;
+  SCoder coder = {0};
+
+  tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen);
+  tlen += sizeof(SMsgHead);  //+ tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = taosMemoryMalloc(tlen);
   if (NULL == buf) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -3300,7 +3307,10 @@ static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* 
   ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tSerializeSVCreateTbBatchReq(&pBuf, &(pTbBatch->req));
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncodeSVCreateTbBatchReq(&coder, &pTbBatch->req);
+  tCoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {
@@ -3322,9 +3332,9 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
     taosMemoryFreeClear(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
-      taosMemoryFreeClear(pTableReq->ntbCfg.pSchema);
+      taosMemoryFreeClear(pTableReq->ntb.schema.pSchema);
     } else if (pTableReq->type == TSDB_CHILD_TABLE) {
-      taosMemoryFreeClear(pTableReq->ctbCfg.pTag);
+      taosMemoryFreeClear(pTableReq->ctb.pTag);
     }
   }
 
@@ -3405,8 +3415,8 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, c
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
   req.name = strdup(pTableName);
-  req.ctbCfg.suid = suid;
-  req.ctbCfg.pTag = row;
+  req.ctb.suid = suid;
+  req.ctb.pTag = row;
 
   SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (pTableBatch == NULL) {

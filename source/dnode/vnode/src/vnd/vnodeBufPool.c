@@ -17,7 +17,7 @@
 
 /* ------------------------ STRUCTURES ------------------------ */
 
-static int vnodeBufPoolCreate(int size, SVBufPool **ppPool);
+static int vnodeBufPoolCreate(int64_t size, SVBufPool **ppPool);
 static int vnodeBufPoolDestroy(SVBufPool *pPool);
 
 int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
@@ -30,17 +30,17 @@ int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
     // create pool
     ret = vnodeBufPoolCreate(size, &pPool);
     if (ret < 0) {
-      vError("vgId:%d failed to open vnode buffer pool since %s", TD_VNODE_ID(pVnode), tstrerror(terrno));
+      vError("vgId:%d failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
       vnodeCloseBufPool(pVnode);
       return -1;
     }
 
-    // add pool to queue
+    // add pool to vnode
     pPool->next = pVnode->pPool;
     pVnode->pPool = pPool;
   }
 
-  vDebug("vgId:%d vnode buffer pool is opened, pool size: %" PRId64, TD_VNODE_ID(pVnode), size);
+  vDebug("vgId:%d vnode buffer pool is opened, pool size: %" PRId64, TD_VID(pVnode), size);
 
   return 0;
 }
@@ -53,7 +53,7 @@ int vnodeCloseBufPool(SVnode *pVnode) {
     vnodeBufPoolDestroy(pPool);
   }
 
-  vDebug("vgId:%d vnode buffer pool is closed", TD_VNODE_ID(pVnode));
+  vDebug("vgId:%d vnode buffer pool is closed", TD_VID(pVnode));
 
   return 0;
 }
@@ -75,7 +75,7 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
   pPool->ptr = pPool->node.data;
 }
 
-void *vnodeBufPoolMalloc(SVBufPool *pPool, size_t size) {
+void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p;
 
@@ -120,7 +120,7 @@ void vnodeBufPoolFree(SVBufPool *pPool, void *p) {
 }
 
 // STATIC METHODS -------------------
-static int vnodeBufPoolCreate(int size, SVBufPool **ppPool) {
+static int vnodeBufPoolCreate(int64_t size, SVBufPool **ppPool) {
   SVBufPool *pPool;
 
   pPool = taosMemoryMalloc(sizeof(SVBufPool) + size);

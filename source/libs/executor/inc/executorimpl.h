@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+// clang-format off
 #ifndef TDENGINE_EXECUTORIMPL_H
 #define TDENGINE_EXECUTORIMPL_H
 
@@ -37,6 +38,8 @@ extern "C" {
 #include "tlockfree.h"
 #include "tmsg.h"
 #include "tpagedbuf.h"
+
+#include "vnode.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -385,7 +388,7 @@ typedef struct SSysTableScanInfo {
   int32_t             accountId;
   bool                showRewrite;
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
-  void*               pCur;        // cursor for iterate the local table meta store.
+  SMTbCursor*         pCur;        // cursor for iterate the local table meta store.
   SArray*             scanCols;    // SArray<int16_t> scan column id list
   SName               name;
   SSDataBlock*        pRes;

@@ -1693,6 +1693,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
  * @return int32_t
  */
 int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
+#if 0
   SRSmaParam *param = pReq->stbCfg.pRSmaParam;
 
   if (!param) {
@@ -1764,6 +1765,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
    tsdbDebug("vgId:%d register rsma info succeed for suid:%" PRIi64, REPO_ID(pTsdb), pReq->stbCfg.suid);
   }
 
+#endif
   return TSDB_CODE_SUCCESS;
 }
 

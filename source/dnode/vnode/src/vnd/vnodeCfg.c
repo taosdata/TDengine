@@ -19,17 +19,18 @@ const SVnodeCfg vnodeCfgDefault = {
     .vgId = -1,
     .dbname = "",
     .dbId = 0,
-    .wsize = 96 * 1024 * 1024,
-    .ssize = 1 * 1024 * 1024,
-    .lsize = 1024,
-    .isHeapAllocator = false,
+    .szPage = 4096,
+    .szCache = 256,
+    .szBuf = 96 * 1024 * 1024,
+    .isHeap = false,
     .ttl = 0,
     .keep = 0,
     .streamMode = 0,
     .isWeak = 0,
-    .tsdbCfg = {.precision = TWO_STAGE_COMP,
+    .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
                 .update = 0,
                 .compression = 2,
+                .slLevel = 5,
                 .days = 10,
                 .minRows = 100,
                 .maxRows = 4096,
@@ -53,10 +54,10 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "vgId", pCfg->vgId) < 0) return -1;
   if (tjsonAddStringToObject(pJson, "dbname", pCfg->dbname) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "wsize", pCfg->wsize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "ssize", pCfg->ssize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lsize", pCfg->lsize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szPage", pCfg->szPage) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "ttl", pCfg->ttl) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep", pCfg->keep) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
@@ -64,6 +65,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "slLevel", pCfg->tsdbCfg.slLevel) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
@@ -103,10 +105,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "vgId", pCfg->vgId) < 0) return -1;
   if (tjsonGetStringValue(pJson, "dbname", pCfg->dbname) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "dbId", pCfg->dbId) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "wsize", pCfg->wsize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "ssize", pCfg->ssize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "lsize", pCfg->lsize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szPage", pCfg->szPage) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szCache", pCfg->szCache) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "ttl", pCfg->ttl) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep", pCfg->keep) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
@@ -114,6 +116,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "slLevel", pCfg->tsdbCfg.slLevel) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
@@ -150,10 +153,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   return 0;
 }
 
-int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
+int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
   uint32_t hashValue = 0;
 
-  switch (pVnodeOptions->hashMethod) {
+  switch (pVnode->config.hashMethod) {
     default:
       hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
       break;
@@ -167,5 +170,5 @@ int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
   }
 #endif
 
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }
