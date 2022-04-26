@@ -48,7 +48,7 @@ TDengine 服务端或客户端安装后，taos.h 位于：
 
 - `void taos_init()`
 
-  初始化运行环境。如果应用没有主动调用该 API，那么应用在调用`taos_connect()`时将自动调用，故应用程序一般无需手动调用该 API。
+  初始化运行环境。如果应用没有主动调用该 API，那么应用在调用 `taos_connect()` 时将自动调用，故应用程序一般无需手动调用该 API。
 
 - `void taos_cleanup()`
 
@@ -75,7 +75,7 @@ TDengine 服务端或客户端安装后，taos.h 位于：
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续 API 调用。
 
   :::info
-  同一进程可以根据不同的 host/port 连接多个 taosd 集群
+  同一进程可以根据不同的 host/port 连接多个 TDengine 集群
 
   :::
 
@@ -89,7 +89,7 @@ TDengine 服务端或客户端安装后，taos.h 位于：
 
 - `void taos_close(TAOS *taos)`
 
-  关闭连接，其中`taos`是`taos_connect`函数返回的指针。
+  关闭连接，其中`taos`是 `taos_connect()` 函数返回的指针。
 
 ## 同步查询 API
 
@@ -97,7 +97,7 @@ TDengine 服务端或客户端安装后，taos.h 位于：
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  该 API 用来执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。 其中的 `taos` 参数是通过 `taos_connect()` 获得的指针。不能通过返回值是否是 NULL 来判断执行结果是否失败，而是需要用 `taos_errno()` 函数解析结果集中的错误代码来进行判断。
+  该 API 用来执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。 其中的 `taos` 参数是通过 `taos_connect()` 获得的指针。不能通过返回值是否是 `NULL` 来判断执行结果是否失败，而是需要用 `taos_errno()` 函数解析结果集中的错误代码来进行判断。
 
 - `int taos_result_precision(TAOS_RES *res)`
 
@@ -170,7 +170,7 @@ typedef struct taosField {
 
   - taos：调用 `taos_connect()` 返回的数据库连接
   - sql：需要执行的 SQL 语句
-  - fp：用户定义的回调函数，其第三个参数 `code` 用于指示操作是否成功，`0` 表示成功，负数表示失败(调用 `taos_errstr()` 获取失败原因)。应用在定义回调函数的时候，主要处理第二个参数 `TAOS_RES *`，该参数是查询返回的结果集
+  - fp：用户定义的回调函数，其第三个参数 `code` 用于指示操作是否成功，`0` 表示成功，负数表示失败（调用 `taos_errstr()` 可获取失败原因）。应用在定义回调函数的时候，主要处理第二个参数 `TAOS_RES *`，该参数是查询返回的结果集
   - param：应用提供一个用于回调的参数
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
@@ -178,7 +178,7 @@ typedef struct taosField {
   批量获取异步查询的结果集，只能与 `taos_query_a()` 配合使用。其中：
 
   - res：`taos_query_a()` 回调时返回的结果集
-  - fp：回调函数。其参数`param`是用户可定义的传递给回调函数的参数结构体；`numOfRows`是获取到的数据的行数（不是整个查询结果集的函数）。 在回调函数中，应用可以通过调用 `taos_fetch_row()` 前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用`taos_fetch_rows_a`获取下一批记录进行处理，直到返回的记录数（numOfRows）为零（结果返回完成）或记录数为负值（查询出错）。
+  - fp：回调函数。其参数 `param` 是用户可定义的传递给回调函数的参数结构体；`numOfRows` 是获取到的数据的行数（不是整个查询结果集的函数）。 在回调函数中，应用可以通过调用 `taos_fetch_row()` 前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用 `taos_fetch_rows_a()` 获取下一批记录进行处理，直到返回的记录数 `numOfRows` 为零（结果返回完成）或记录数为负值（查询出错）。
 
 TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
@@ -272,7 +272,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `char * taos_stmt_errstr(TAOS_STMT *stmt)`
 
   （2.1.3.0 版本新增）
-  用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
+  用于在其他 STMT API 返回错误（返回错误码或空指针）时获取错误信息。
 
 ## Schemaless 方式写入接口
 
@@ -284,7 +284,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
    该接口将行协议的文本数据写入到 TDengine 中。
 
   **参数说明**
-   taos: 数据库连接，通过 taos_connect 函数建立的数据库连接。
+   taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
    lines：文本数据。满足解析格式要求的无模式文本字符串。
    numLines:文本数据的行数，不能为 0 。
    protocol: 行协议类型，用于标识文本数据格式。
@@ -292,25 +292,25 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
   **返回值**
    TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
-   在某些情况下，返回的 TAOS_RES 为 NULL，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
+   在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
    协议类型是枚举类型，包含以下三种格式：
-   TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
-   TSDB_SML_TELNET_PROTOCOL: OpenTSDB 文本行协议
-   TSDB_SML_JSON_PROTOCOL: OpenTSDB Json 协议格式
+   - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
+   - TSDB_SML_TELNET_PROTOCOL: OpenTSDB Telnet 文本行协议
+   - TSDB_SML_JSON_PROTOCOL: OpenTSDB Json 协议格式
 
   时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：
-   TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
-   TSDB_SML_TIMESTAMP_HOURS,
-   TSDB_SML_TIMESTAMP_MINUTES,
-   TSDB_SML_TIMESTAMP_SECONDS,
-   TSDB_SML_TIMESTAMP_MILLI_SECONDS,
-   TSDB_SML_TIMESTAMP_MICRO_SECONDS,
-   TSDB_SML_TIMESTAMP_NANO_SECONDS
+   - TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+   - TSDB_SML_TIMESTAMP_HOURS,
+   - TSDB_SML_TIMESTAMP_MINUTES,
+   - TSDB_SML_TIMESTAMP_SECONDS,
+   - TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+   - TSDB_SML_TIMESTAMP_MICRO_SECONDS,
+   - TSDB_SML_TIMESTAMP_NANO_SECONDS
 
-  需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。
+  需要注意的是，时间戳分辨率参数只在协议类型为 `SML_LINE_PROTOCOL` 的时候生效。
    对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
 
   **支持版本**
@@ -363,7 +363,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
   - fp：收到查询结果时的回调函数（稍后介绍函数原型），只在异步调用时使用，同步调用时此参数应该传 `NULL`
   - param：调用回调函数时的附加参数，系统 API 将其原样传递到回调函数，不进行任何处理
-  - interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用`taos_consume`的间隔小于此周期，API 将会阻塞，直到时间间隔超过此周期。
+  - interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用 `taos_consume()` 的间隔小于此周期，API 将会阻塞，直到时间间隔超过此周期。
 
 - `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
@@ -371,7 +371,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
   - tsub：订阅对象
   - res：查询结果集，注意结果集中可能没有记录
-  - param：调用 `taos_subscribe`时客户程序提供的附加参数
+  - param：调用 `taos_subscribe()` 时客户程序提供的附加参数
   - code：错误码
 
   :::note
