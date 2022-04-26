@@ -88,6 +88,12 @@ def pre_test(){
     cmake .. > /dev/null
     make -j4> /dev/null
     '''
+    sh'''
+    cd ${WKPY}
+    git reset --hard
+    git pull
+    pip3 install .
+    '''
     return 1
 }
 
@@ -97,6 +103,7 @@ pipeline {
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDengine'
+      WKPY= '/var/lib/jenkins/workspace/taos-connector-python'
   }
   stages {
       stage('pre_build'){
@@ -113,12 +120,17 @@ pipeline {
             timeout(time: 45, unit: 'MINUTES'){
               pre_test()
               sh'''
-              cd ${WKC}/tests
-              ./test-all.sh b1fq
+              cd ${WKC}/debug
+              ctest -VV
               '''
               sh'''
-              cd ${WKC}/debug
-              ctest
+              export LD_LIBRARY_PATH=${WKC}/debug/build/lib
+              cd ${WKC}/tests/system-test
+              ./fulltest.sh
+              '''
+              sh'''
+              cd ${WKC}/tests
+              ./test-all.sh b1fq
               '''
             }
           }

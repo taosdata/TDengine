@@ -74,8 +74,8 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
     }
     char *data = colDataGetVarData(pColumnInfoData, row);
     return (*data == TSDB_DATA_TYPE_NULL);
-  } 
-  
+  }
+
   if (!pColumnInfoData->hasNull) {
     return false;
   }
@@ -238,10 +238,16 @@ static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32
 
 static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
                                              int8_t needCompress) {
-  int32_t* colSizes = (int32_t*)data;
+  int32_t* actualLen = (int32_t*) data;
+  data += sizeof(int32_t);
 
+  uint64_t* groupId = (uint64_t*) data;
+  data += sizeof(uint64_t);
+
+  int32_t* colSizes = (int32_t*)data;
   data += numOfCols * sizeof(int32_t);
-  *dataLen = (numOfCols * sizeof(int32_t));
+
+  *dataLen = (numOfCols * sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t));
 
   int32_t numOfRows = pBlock->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
@@ -273,6 +279,9 @@ static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* da
 
     colSizes[col] = htonl(colSizes[col]);
   }
+
+  *actualLen = *dataLen;
+  *groupId = pBlock->info.groupId;
 }
 
 #ifdef __cplusplus

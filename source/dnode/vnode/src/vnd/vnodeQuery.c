@@ -22,21 +22,21 @@ int vnodeQueryOpen(SVnode *pVnode) {
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
-  STbCfg         *pTbCfg = NULL;
-  STbCfg         *pStbCfg = NULL;
+  STbCfg *        pTbCfg = NULL;
+  STbCfg *        pStbCfg = NULL;
   tb_uid_t        uid;
   int32_t         nCols;
   int32_t         nTagCols;
   SSchemaWrapper *pSW = NULL;
-  STableMetaRsp  *pTbMetaMsg = NULL;
+  STableMetaRsp * pTbMetaMsg = NULL;
   STableMetaRsp   metaRsp = {0};
-  SSchema        *pTagSchema;
+  SSchema *       pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
   int32_t         code = 0;
   char            tableFName[TSDB_TABLE_FNAME_LEN];
   int32_t         rspLen = 0;
-  void           *pRsp = NULL;
+  void *          pRsp = NULL;
 
   STableInfoReq infoReq = {0};
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
@@ -142,6 +142,7 @@ _exit:
 
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
+  rpcMsg.refId = pMsg->refId;
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;

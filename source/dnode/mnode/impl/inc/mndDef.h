@@ -135,6 +135,7 @@ typedef struct {
   int32_t    failedTimes;
   void*      rpcHandle;
   void*      rpcAHandle;
+  int64_t    rpcRefId;
   void*      rpcRsp;
   int32_t    rpcRspLen;
   SArray*    redoLogs;
@@ -349,7 +350,6 @@ typedef struct {
   int32_t  version;
   int32_t  nextColId;
   float    xFilesFactor;
-  int32_t  aggregationMethod;
   int32_t  delay;
   int32_t  ttl;
   int32_t  numOfColumns;
@@ -449,7 +449,6 @@ typedef struct {
   int8_t         withTbName;
   int8_t         withSchema;
   int8_t         withTag;
-  int8_t         withTagSchema;
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -516,7 +515,6 @@ typedef struct {
   int8_t    withTbName;
   int8_t    withSchema;
   int8_t    withTag;
-  int8_t    withTagSchema;
   SHashObj* consumerHash;  // consumerId -> SMqConsumerEpInSub
   // TODO put -1 into unassignVgs
   // SArray*   unassignedVgs;

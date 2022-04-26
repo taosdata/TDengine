@@ -30,8 +30,6 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type: %s";
-    case TSDB_CODE_PAR_INVALID_FUNTION:
-      return "Invalid function name: %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
@@ -128,6 +126,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "soffset/offset can not be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
       return "slimit/soffset only available for PARTITION BY query";
+    case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
+      return "Invalid topic query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

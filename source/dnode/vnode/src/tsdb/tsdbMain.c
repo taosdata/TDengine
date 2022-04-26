@@ -81,8 +81,8 @@ static STsdb *tsdbNew(const char *path, SVnode *pVnode, const STsdbCfg *pTsdbCfg
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
-    // tsdbFreeSmaEnv(REPO_TSMA_ENV(pTsdb));
-    // tsdbFreeSmaEnv(REPO_RSMA_ENV(pTsdb));
+    tsdbFreeSmaEnv(REPO_TSMA_ENV(pTsdb));
+    tsdbFreeSmaEnv(REPO_RSMA_ENV(pTsdb));
     tsdbFreeFS(pTsdb->fs);
     taosMemoryFreeClear(pTsdb->path);
     taosMemoryFree(pTsdb);

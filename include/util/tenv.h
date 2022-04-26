@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -13,17 +14,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNETTEST_H
-#define TDENGINE_TNETTEST_H
+#ifndef _TD_ENV_H_
+#define _TD_ENV_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen, int32_t pkgNum, char *pkgType);
+int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t cfgNameMaxLen);
+int32_t taosEnvToCfg(const char *envStr, char *cfgStr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TNETTEST_H
+#endif /*_TD_ENV_H_*/

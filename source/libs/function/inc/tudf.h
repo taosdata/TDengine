@@ -29,29 +29,20 @@ extern "C" {
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
 #define UDF_LISTEN_PIPE_NAME_PREFIX "udfd.sock."
+#define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
 //======================================================================================
 //begin API to taosd and qworker
 
 enum {
   UDFC_CODE_STOPPING = -1,
-  UDFC_CODE_PIPE_READ_ERR = -3,
+  UDFC_CODE_PIPE_READ_ERR = -2,
+  UDFC_CODE_CONNECT_PIPE_ERR = -3,
+  UDFC_CODE_LOAD_UDF_FAILURE = -4,
+  UDFC_CODE_INVALID_STATE = -5
 };
 
-typedef void *UdfcHandle;
-typedef void *UdfcFuncHandle;
 
-/**
- * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
- * @return error code
- */
-int32_t udfcOpen(int32_t dnodeId, UdfcHandle* proxyHandle);
-
-/**
- * destroy udfd proxy
- * @return error code
- */
-int32_t udfcClose(UdfcHandle proxyhandle);
 
 
 /**
@@ -60,7 +51,7 @@ int32_t udfcClose(UdfcHandle proxyhandle);
  * @param handle, out
  * @return error code
  */
-int32_t setupUdf(UdfcHandle proxyHandle, char udfName[], SEpSet *epSet, UdfcFuncHandle *handle);
+int32_t setupUdf(char udfName[], UdfcFuncHandle *handle);
 
 typedef struct SUdfColumnMeta {
   int16_t type;
