@@ -1650,103 +1650,11 @@ typedef struct {
   char    data[];
 } SVShowTablesFetchRsp;
 
-typedef struct SMqCMGetSubEpReq {
+typedef struct {
   int64_t consumerId;
   int32_t epoch;
   char    cgroup[TSDB_CGROUP_LEN];
-} SMqCMGetSubEpReq;
-
-static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pMsg->contLen);
-  tlen += taosEncodeFixedI32(buf, pMsg->vgId);
-  return tlen;
-}
-
-typedef struct SMqHbRsp {
-  int8_t status;  // idle or not
-  int8_t vnodeChanged;
-  int8_t epChanged;  // should use new epset
-  int8_t reserved;
-  SEpSet epSet;
-} SMqHbRsp;
-
-static FORCE_INLINE int32_t taosEncodeSMqHbRsp(void** buf, const SMqHbRsp* pRsp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI8(buf, pRsp->status);
-  tlen += taosEncodeFixedI8(buf, pRsp->vnodeChanged);
-  tlen += taosEncodeFixedI8(buf, pRsp->epChanged);
-  tlen += taosEncodeSEpSet(buf, &pRsp->epSet);
-  return tlen;
-}
-
-static FORCE_INLINE void* taosDecodeSMqHbRsp(void* buf, SMqHbRsp* pRsp) {
-  buf = taosDecodeFixedI8(buf, &pRsp->status);
-  buf = taosDecodeFixedI8(buf, &pRsp->vnodeChanged);
-  buf = taosDecodeFixedI8(buf, &pRsp->epChanged);
-  buf = taosDecodeSEpSet(buf, &pRsp->epSet);
-  return buf;
-}
-
-typedef struct SMqHbOneTopicBatchRsp {
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  SArray* rsps;  // SArray<SMqHbRsp>
-} SMqHbOneTopicBatchRsp;
-
-static FORCE_INLINE int32_t taosEncodeSMqHbOneTopicBatchRsp(void** buf, const SMqHbOneTopicBatchRsp* pBatchRsp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeString(buf, pBatchRsp->topicName);
-  int32_t sz = taosArrayGetSize(pBatchRsp->rsps);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqHbRsp* pRsp = (SMqHbRsp*)taosArrayGet(pBatchRsp->rsps, i);
-    tlen += taosEncodeSMqHbRsp(buf, pRsp);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* taosDecodeSMqHbOneTopicBatchRsp(void* buf, SMqHbOneTopicBatchRsp* pBatchRsp) {
-  int32_t sz;
-  buf = taosDecodeStringTo(buf, pBatchRsp->topicName);
-  buf = taosDecodeFixedI32(buf, &sz);
-  pBatchRsp->rsps = taosArrayInit(sz, sizeof(SMqHbRsp));
-  for (int32_t i = 0; i < sz; i++) {
-    SMqHbRsp rsp;
-    buf = taosDecodeSMqHbRsp(buf, &rsp);
-    buf = taosArrayPush(pBatchRsp->rsps, &rsp);
-  }
-  return buf;
-}
-
-typedef struct SMqHbBatchRsp {
-  int64_t consumerId;
-  SArray* batchRsps;  // SArray<SMqHbOneTopicBatchRsp>
-} SMqHbBatchRsp;
-
-static FORCE_INLINE int32_t taosEncodeSMqHbBatchRsp(void** buf, const SMqHbBatchRsp* pBatchRsp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pBatchRsp->consumerId);
-  int32_t sz;
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqHbOneTopicBatchRsp* pRsp = (SMqHbOneTopicBatchRsp*)taosArrayGet(pBatchRsp->batchRsps, i);
-    tlen += taosEncodeSMqHbOneTopicBatchRsp(buf, pRsp);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* taosDecodeSMqHbBatchRsp(void* buf, SMqHbBatchRsp* pBatchRsp) {
-  buf = taosDecodeFixedI64(buf, &pBatchRsp->consumerId);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pBatchRsp->batchRsps = taosArrayInit(sz, sizeof(SMqHbOneTopicBatchRsp));
-  for (int32_t i = 0; i < sz; i++) {
-    SMqHbOneTopicBatchRsp rsp;
-    buf = taosDecodeSMqHbOneTopicBatchRsp(buf, &rsp);
-    buf = taosArrayPush(pBatchRsp->batchRsps, &rsp);
-  }
-  return buf;
-}
+} SMqAskEpReq;
 
 typedef struct {
   int32_t key;
@@ -2470,22 +2378,6 @@ typedef struct {
   int64_t consumerId;
 } SMqRspHead;
 
-#if 0
-typedef struct {
-  SMsgHead head;
-
-  int64_t consumerId;
-  int64_t blockingTime;
-  int32_t epoch;
-  int8_t  withSchema;
-  char    cgroup[TSDB_CGROUP_LEN];
-
-  int64_t  currentOffset;
-  uint64_t reqId;
-  char     topic[TSDB_TOPIC_FNAME_LEN];
-} SMqPollReq;
-#endif
-
 typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
@@ -2508,18 +2400,6 @@ typedef struct {
   SArray*        vgs;  // SArray<SMqSubVgEp>
   SSchemaWrapper schema;
 } SMqSubTopicEp;
-
-typedef struct {
-  SMqRspHead head;
-  int64_t    reqOffset;
-  int64_t    rspOffset;
-  int32_t    skipLogNum;
-  // TODO: replace with topic name
-  int32_t numOfTopics;
-  // TODO: remove from msg
-  SSchemaWrapper* schema;
-  SArray*         pBlockData;  // SArray<SSDataBlock>
-} SMqPollRsp;
 
 typedef struct {
   SMqRspHead head;
@@ -2644,7 +2524,7 @@ typedef struct {
   SMqRspHead head;
   char       cgroup[TSDB_CGROUP_LEN];
   SArray*    topics;  // SArray<SMqSubTopicEp>
-} SMqCMGetSubEpRsp;
+} SMqAskEpRsp;
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
   // taosMemoryFree(pSubTopicEp->schema.pSchema);
@@ -2664,10 +2544,6 @@ static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
   buf = taosDecodeFixedI64(buf, &pVgEp->offset);
   buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
   return buf;
-}
-
-static FORCE_INLINE void tDeleteSMqCMGetSubEpRsp(SMqCMGetSubEpRsp* pRsp) {
-  taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
 }
 
 static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp) {
@@ -2702,7 +2578,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
   return buf;
 }
 
-static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
+static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pRsp) {
   int32_t tlen = 0;
   // tlen += taosEncodeString(buf, pRsp->cgroup);
   int32_t sz = taosArrayGetSize(pRsp->topics);
@@ -2714,7 +2590,7 @@ static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSu
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
+static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
   // buf = taosDecodeStringTo(buf, pRsp->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
@@ -2728,6 +2604,10 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
     taosArrayPush(pRsp->topics, &topicEp);
   }
   return buf;
+}
+
+static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
+  taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
 }
 
 #pragma pack(pop)
