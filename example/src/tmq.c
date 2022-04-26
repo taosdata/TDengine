@@ -48,7 +48,6 @@ int32_t init_env() {
     return -1;
   }
   taos_free_result(pRes);
-  taosSsleep(1);
 
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {

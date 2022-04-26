@@ -72,7 +72,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
     }
 
     mTrace("wal:%" PRId64 ", will be restored, content:%p", ver, pHead->head.body);
-    if (sdbWriteNotFree(pSdb, (void *)pHead->head.body) < 0) {
+    if (sdbWriteWithoutFree(pSdb, (void *)pHead->head.body) < 0) {
       mError("failed to read wal from sdb since %s, ver:%" PRId64, terrstr(), ver);
       goto WAL_RESTORE_OVER;
     }

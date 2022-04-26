@@ -56,7 +56,7 @@ struct tmq_conf_t {
   int8_t         autoCommit;
   int8_t         resetOffset;
   uint16_t       port;
-  uint16_t       autoCommitInterval;
+  int32_t        autoCommitInterval;
   char*          ip;
   char*          user;
   char*          pass;
@@ -76,16 +76,24 @@ struct tmq_t {
   char           groupId[TSDB_CGROUP_LEN];
   char           clientId[256];
   int8_t         autoCommit;
-  int64_t        consumerId;
+  int32_t        autoCommitInterval;
   int32_t        resetOffsetCfg;
+  int64_t        consumerId;
   tmq_commit_cb* commit_cb;
 
   // status
   int8_t  status;
-  int8_t  epStatus;
   int32_t epoch;
+#if 0
+  int8_t  epStatus;
   int32_t epSkipCnt;
+#endif
   int64_t pollCnt;
+
+  // timer
+  tmr_h hbTimer;
+  tmr_h reportTimer;
+  tmr_h commitTimer;
 
   // connection
   STscObj* pTscObj;
@@ -109,6 +117,12 @@ enum {
   TMQ_CONSUMER_STATUS__INIT = 0,
   TMQ_CONSUMER_STATUS__SUBSCRIBED,
   TMQ_CONSUMER_STATUS__READY,
+};
+
+enum {
+  TMQ_DELAYED_TASK__HB = 1,
+  TMQ_DELAYED_TASK__REPORT,
+  TMQ_DELAYED_TASK__COMMIT,
 };
 
 typedef struct {
@@ -280,6 +294,50 @@ static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
   return sprintf(dst, "%s:%d", topicName, vg);
 }
 
+void tmqAssignDelayedHbTask(void* param, void* tmrId) {
+  tmq_t*  tmq = (tmq_t*)param;
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t));
+  *pTaskType = TMQ_DELAYED_TASK__HB;
+  taosWriteQitem(tmq->delayedTask, pTaskType);
+}
+
+void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
+  tmq_t*  tmq = (tmq_t*)param;
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t));
+  *pTaskType = TMQ_DELAYED_TASK__COMMIT;
+  taosWriteQitem(tmq->delayedTask, pTaskType);
+}
+
+void tmqAssignDelayedReportTask(void* param, void* tmrId) {
+  tmq_t*  tmq = (tmq_t*)param;
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t));
+  *pTaskType = TMQ_DELAYED_TASK__REPORT;
+  taosWriteQitem(tmq->delayedTask, pTaskType);
+}
+
+int32_t tmqHandleAllDelayedTask(tmq_t* tmq) {
+  STaosQall* qall = taosAllocateQall();
+  taosReadAllQitems(tmq->delayedTask, qall);
+  while (1) {
+    int8_t* pTaskType = NULL;
+    taosGetQitem(qall, (void**)&pTaskType);
+    if (pTaskType == NULL) break;
+
+    if (*pTaskType == TMQ_DELAYED_TASK__HB) {
+      tmqAskEp(tmq, false);
+      taosTmrReset(tmqAssignDelayedHbTask, 1000, tmq, tmqMgmt.timer, &tmq->hbTimer);
+    } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
+      tmq_commit(tmq, NULL, true);
+      taosTmrReset(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, tmq, tmqMgmt.timer, &tmq->commitTimer);
+    } else if (*pTaskType == TMQ_DELAYED_TASK__REPORT) {
+    } else {
+      ASSERT(0);
+    }
+  }
+  taosFreeQall(qall);
+  return 0;
+}
+
 void tmqClearUnhandleMsg(tmq_t* tmq) {
   SMqRspWrapper* msg = NULL;
   while (1) {
@@ -408,13 +466,15 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->status = TMQ_CONSUMER_STATUS__INIT;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
-  pTmq->epStatus = 0;
-  pTmq->epSkipCnt = 0;
+  /*pTmq->epStatus = 0;*/
+  /*pTmq->epSkipCnt = 0;*/
 
   // set conf
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
-  pTmq->autoCommit = conf->autoCommit;
+  /*pTmq->autoCommit = conf->autoCommit;*/
+  pTmq->autoCommit = 0;
+  pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->commit_cb = conf->commit_cb;
   pTmq->resetOffsetCfg = conf->resetOffset;
 
@@ -605,6 +665,14 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, true)) {
     tscDebug("not ready, retry\n");
     taosMsleep(500);
+  }
+
+  // init hb timer
+  tmq->hbTimer = taosTmrStart(tmqAssignDelayedHbTask, 1000, tmq, tmqMgmt.timer);
+
+  // init auto commit timer
+  if (tmq->autoCommit) {
+    tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, tmq, tmqMgmt.timer);
   }
 
   code = 0;
@@ -909,7 +977,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
 END:
-  atomic_store_8(&tmq->epStatus, 0);
+  /*atomic_store_8(&tmq->epStatus, 0);*/
   if (pParam->sync) {
     tsem_post(&pParam->rspSem);
   }
@@ -918,6 +986,7 @@ END:
 
 int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   int32_t code = 0;
+#if 0
   int8_t  epStatus = atomic_val_compare_exchange_8(&tmq->epStatus, 0, 1);
   if (epStatus == 1) {
     int32_t epSkipCnt = atomic_add_fetch_32(&tmq->epSkipCnt, 1);
@@ -925,11 +994,12 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
     if (epSkipCnt < 5000) return 0;
   }
   atomic_store_32(&tmq->epSkipCnt, 0);
+#endif
   int32_t           tlen = sizeof(SMqCMGetSubEpReq);
   SMqCMGetSubEpReq* req = taosMemoryMalloc(tlen);
   if (req == NULL) {
     tscError("failed to malloc get subscribe ep buf");
-    atomic_store_8(&tmq->epStatus, 0);
+    /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
   req->consumerId = htobe64(tmq->consumerId);
@@ -940,7 +1010,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   if (pParam == NULL) {
     tscError("failed to malloc subscribe param");
     taosMemoryFree(req);
-    atomic_store_8(&tmq->epStatus, 0);
+    /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
   pParam->tmq = tmq;
@@ -952,7 +1022,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
     taosMemoryFree(req);
-    atomic_store_8(&tmq->epStatus, 0);
+    /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
 
@@ -1216,7 +1286,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   }
 
   while (1) {
-    tmqAskEp(tmq, false);
+    tmqHandleAllDelayedTask(tmq);
     tmqPollImpl(tmq, blocking_time);
 
     /*tsem_wait(&tmq->rspSem);*/

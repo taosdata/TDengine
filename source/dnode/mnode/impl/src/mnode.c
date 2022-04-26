@@ -368,7 +368,7 @@ int32_t mndProcessMsg(SNodeMsg *pMsg) {
   }
 
   if (isReq && (pRpc->contLen == 0 || pRpc->pCont == NULL)) {
-    terrno = TSDB_CODE_MND_INVALID_MSG_LEN;
+    terrno = TSDB_CODE_INVALID_MSG_LEN;
     mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     return -1;
   }
