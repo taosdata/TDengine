@@ -1292,7 +1292,7 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     assert(pExpr != NULL);
 
     int32_t functionId = pExpr->base.functionId;
-    if (functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
+    if (functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
   }
@@ -7661,7 +7661,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     int32_t f = pExpr->base.functionId;
     if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) ||
         f == TSDB_FUNC_DIFF || f == TSDB_FUNC_SCALAR_EXPR || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG || f == TSDB_FUNC_SAMPLE ||
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
         f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)
     {
       isProjectionFunction = true;
@@ -8639,7 +8639,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
 
 
 int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
-  const char* msg1 = "TWA/Diff/Derivative/Irate/elapsed/csum are not allowed to apply to super table without group by tbname";
+  const char* msg1 = "TWA/Diff/Derivative/Irate/elapsed are not allowed to apply to super table without group by tbname";
   const char* msg2 = "group by not supported in nested interp query";
   const char* msg3 = "order by not supported in nested interp query";
   const char* msg4 = "first column should be timestamp for interp query";
