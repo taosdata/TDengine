@@ -327,6 +327,10 @@ void transQueueClear(STransQueue* queue);
  */
 void transQueueDestroy(STransQueue* queue);
 
+/*
+ * init global func
+ */
+void transThreadOnce();
 #ifdef __cplusplus
 }
 #endif

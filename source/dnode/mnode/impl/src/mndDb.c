@@ -234,6 +234,8 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   return 0;
 }
 
+static int32_t mndGetGlobalVgroupVersion(SMnode *pMnode) { return sdbGetTableVer(pMnode->pSdb, SDB_VGROUP); }
+
 SDbObj *mndAcquireDb(SMnode *pMnode, const char *db) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = sdbAcquire(pSdb, SDB_DB, db);
@@ -618,7 +620,7 @@ static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOl
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }
@@ -1191,8 +1193,7 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
   char *p = strchr(usedbReq.db, '.');
   if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
     memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
-    //mndGetGlobalVgroupVersion(); TODO
-    static int32_t vgVersion = 1;
+    int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
       if (usedbRsp.pVgroupInfos == NULL) {

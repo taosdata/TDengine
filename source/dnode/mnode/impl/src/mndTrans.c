@@ -484,6 +484,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->createdTime = taosGetTimestampMs();
   pTrans->rpcHandle = pReq->handle;
   pTrans->rpcAHandle = pReq->ahandle;
+  pTrans->rpcRefId = pReq->refId;
   pTrans->redoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->commitLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
@@ -571,6 +572,11 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
 void mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen) {
   pTrans->rpcRsp = pCont;
   pTrans->rpcRspLen = contLen;
+}
+
+void mndTransSetCb(STrans *pTrans, TransCbFp fp, void *param) {
+  pTrans->transCbFp = fp;
+  pTrans->transCbParam = param;
 }
 
 void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
@@ -703,8 +709,11 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
 
   pNew->rpcHandle = pTrans->rpcHandle;
   pNew->rpcAHandle = pTrans->rpcAHandle;
+  pNew->rpcRefId = pTrans->rpcRefId;
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
+  pNew->transCbFp = pTrans->transCbFp;
+  pNew->transCbParam = pTrans->transCbParam;
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
 
@@ -767,6 +776,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     SRpcMsg rspMsg = {.handle = pTrans->rpcHandle,
                       .code = pTrans->code,
                       .ahandle = pTrans->rpcAHandle,
+                      .refId = pTrans->rpcRefId,
                       .pCont = rpcCont,
                       .contLen = pTrans->rpcRspLen};
     tmsgSendRsp(&rspMsg);
@@ -1114,6 +1124,11 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
   }
 
   mDebug("trans:%d, finished, code:0x%04x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+
+  if (pTrans->transCbFp != NULL) {
+    (*pTrans->transCbFp)(pMnode, pTrans->transCbParam);
+  }
+
   return continueExec;
 }
 

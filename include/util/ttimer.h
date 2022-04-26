@@ -41,10 +41,6 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *han
 
 void taosTmrCleanUp(void *handle);
 
-int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
-
-void taosUninitTimer();
-
 #ifdef __cplusplus
 }
 #endif

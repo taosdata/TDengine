@@ -14,14 +14,12 @@
  */
 
 #include <assert.h>
-#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "taos.h"
 #include "taoserror.h"
@@ -103,8 +101,8 @@ void initLogFile() {
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (NULL == pFile) {
     fprintf(stderr, "Failed to open %s for save result\n", "./tmqlog.txt");
-    exit -1;
-  };
+    exit(-1);
+  }
   g_fp = pFile;
 }
 
@@ -125,13 +123,13 @@ void saveConfigToLogFile() {
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {	  
     taosFprintfFile(g_fp, "# consumer %d info:\n", g_stConfInfo.stThreads[i].consumerId);
 	taosFprintfFile(g_fp, "  Topics: ");
-    for (int i = 0 ; i < g_stConfInfo.stThreads[i].numOfTopic; i++) {
-    taosFprintfFile(g_fp, "%s, ",  g_stConfInfo.stThreads[i].topics[i]);
+    for (int j = 0 ; j < g_stConfInfo.stThreads[i].numOfTopic; j++) {
+    taosFprintfFile(g_fp, "%s, ",  g_stConfInfo.stThreads[i].topics[j]);
     }
     taosFprintfFile(g_fp, "\n");  
     taosFprintfFile(g_fp, "  Key: ");
-    for (int i = 0 ; i < g_stConfInfo.stThreads[i].numOfKey; i++) {
-      taosFprintfFile(g_fp, "%s:%s, ",  g_stConfInfo.stThreads[i].key[i], g_stConfInfo.stThreads[i].value[i]);
+    for (int k = 0 ; k < g_stConfInfo.stThreads[i].numOfKey; k++) {
+      taosFprintfFile(g_fp, "%s:%s, ",  g_stConfInfo.stThreads[i].key[k], g_stConfInfo.stThreads[i].value[k]);
     }
     taosFprintfFile(g_fp, "\n");
   }

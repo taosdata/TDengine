@@ -125,15 +125,15 @@ typedef struct SFmGetFuncInfoParam {
   struct SCatalog* pCtg;
   void *pRpc;
   const SEpSet* pMgmtEps;
+  char* pErrBuf;
+  int32_t errBufLen;
 } SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
-
-int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);

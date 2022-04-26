@@ -159,7 +159,6 @@ typedef struct {
   int8_t        withTbName;
   int8_t        withSchema;
   int8_t        withTag;
-  int8_t        withTagSchema;
   char*         qmsg;
   STqPushHandle pushHandle;
   // SRWLatch        lock;

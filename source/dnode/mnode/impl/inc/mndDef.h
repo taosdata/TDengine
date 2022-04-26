@@ -126,6 +126,8 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
+typedef void (*TransCbFp)(SMnode* pMnode, void* param);
+
 typedef struct {
   int32_t    id;
   ETrnStage  stage;
@@ -135,6 +137,7 @@ typedef struct {
   int32_t    failedTimes;
   void*      rpcHandle;
   void*      rpcAHandle;
+  int64_t    rpcRefId;
   void*      rpcRsp;
   int32_t    rpcRspLen;
   SArray*    redoLogs;
@@ -147,6 +150,8 @@ typedef struct {
   int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
+  TransCbFp  transCbFp;
+  void*      transCbParam;
 } STrans;
 
 typedef struct {
@@ -349,7 +354,6 @@ typedef struct {
   int32_t  version;
   int32_t  nextColId;
   float    xFilesFactor;
-  int32_t  aggregationMethod;
   int32_t  delay;
   int32_t  ttl;
   int32_t  numOfColumns;
@@ -449,7 +453,6 @@ typedef struct {
   int8_t         withTbName;
   int8_t         withSchema;
   int8_t         withTag;
-  int8_t         withTagSchema;
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -516,7 +519,6 @@ typedef struct {
   int8_t    withTbName;
   int8_t    withSchema;
   int8_t    withTag;
-  int8_t    withTagSchema;
   SHashObj* consumerHash;  // consumerId -> SMqConsumerEpInSub
   // TODO put -1 into unassignVgs
   // SArray*   unassignedVgs;

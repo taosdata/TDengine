@@ -114,6 +114,11 @@ if $data[1][2] >= $expectmsgcnt then
   return -1
 endi
 
+$sumOfConsMsg = $data[0][2] + $data[1][2]
+if $sumOfConsMsg != $expectmsgcnt then
+  return -1
+endi
+
 if $data[0][3] <= 0 then
   return -1
 endi
@@ -125,6 +130,11 @@ if $data[1][3] <= 0 then
   return -1
 endi
 if $data[1][3] >= $expectmsgcnt then
+  return -1
+endi
+
+$sumOfConsRow = $data[0][3] + $data[1][3]
+if $sumOfConsRow != $expectmsgcnt then
   return -1
 endi
 
@@ -189,39 +199,32 @@ if $data[0][1] == 1 then
   endi
 endi
 
-if $data[0][2] != $totalMsgOfCtb then
-  if $data[1][2] != $totalMsgOfCtb then
-    return -1
+# either $data[0][2] == $totalMsgOfCtb and $data[1][2] == 0
+# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfCtb
+if $data[0][2] == $totalMsgOfCtb then
+  if $data[1][2] == 0 then
+    goto check_ok_0
   endi
-  if $data[0][2] != 0 then
-    return -1
-  endi
-endi
-if $data[1][2] != $totalMsgOfCtb then
-  if $data[0][2] != $totalMsgOfCtb then
-    return -1
-  endi
-  if $data[1][2] != 0 then
-    return -1
+elif $data[0][2] == 0 then
+  if $data[1][2] == $totalMsgOfCtb then
+    goto check_ok_0
   endi
 endi
+return -1
+check_ok_0:
 
-if $data[0][3] != $totalMsgOfCtb then
-  if $data[1][3] != $totalMsgOfCtb then
-    return -1
+if $data[0][3] == $totalMsgOfCtb then
+  if $data[1][3] == 0 then
+    goto check_ok_1
   endi
-  if $data[0][3] != 0 then
-    return -1
-  endi  
-endi
-if $data[1][3] != $totalMsgOfCtb then
-  if $data[0][3] != $totalMsgOfCtb then
-    return -1
+elif $data[0][3] == 0 then
+  if $data[1][3] == $totalMsgOfCtb then
+    goto check_ok_1
   endi
-  if $data[1][3] != 0 then
-    return -1
-  endi  
 endi
+return -1
+check_ok_1:
+
 
 #######################################################################################
 # clear consume info and consume result 
@@ -284,39 +287,31 @@ if $data[1][1] == 0 then
   endi
 endi
 
-if $data[0][2] != $totalMsgOfNtb then
-  if $data[1][2] != $totalMsgOfNtb then
-    return -1
+# either $data[0][2] == $totalMsgOfNtb and $data[1][2] == 0
+# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfNtb
+if $data[0][2] == $totalMsgOfNtb then
+  if $data[1][2] == 0 then
+    goto check_ok_2
   endi
-  if $data[0][2] != 0 then
-    return -1
-  endi
-endi
-if $data[1][2] != $totalMsgOfNtb then
-  if $data[0][2] != $totalMsgOfNtb then
-    return -1
-  endi
-  if $data[1][2] != 0 then
-    return -1
+elif $data[0][2] == 0 then
+  if $data[1][2] == $totalMsgOfNtb then
+    goto check_ok_2
   endi
 endi
+return -1
+check_ok_2:
 
-if $data[0][3] != $totalMsgOfNtb then
-  if $data[1][3] != $totalMsgOfNtb then
-    return -1
+if $data[0][3] == $totalMsgOfNtb then
+  if $data[1][3] == 0 then
+    goto check_ok_3
   endi
-  if $data[0][3] != 0 then
-    return -1
-  endi  
-endi
-if $data[1][3] != $totalMsgOfNtb then
-  if $data[0][3] != $totalMsgOfNtb then
-    return -1
+elif $data[0][3] == 0 then
+  if $data[1][3] == $totalMsgOfNtb then
+    goto check_ok_3
   endi
-  if $data[1][3] != 0 then
-    return -1
-  endi  
 endi
+return -1
+check_ok_3:
 
 #------ not need stop consumer, because it exit after pull msg overthan expect msg
 #system tsim/tmq/consume.sh -s stop -x SIGINT
