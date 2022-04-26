@@ -405,7 +405,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, SQueryTableDataCon
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->numOfOutput = numOfOutput;
-  pOperator->getNextFn = doTableScan;
+  pOperator->fpSet.getNextFn = doTableScan;
   pOperator->pTaskInfo = pTaskInfo;
 
   static int32_t cost = 0;
@@ -429,7 +429,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle) {
   pOperator->blockingOptr = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->getNextFn = doTableScanImpl;
+  pOperator->fpSet.getNextFn = doTableScanImpl;
 
   return pOperator;
 }
@@ -502,8 +502,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* 
   //  pOperator->operatorType = OP_TableBlockInfoScan;
   pOperator->blockingOptr = false;
   pOperator->status = OP_NOT_OPENED;
-  pOperator->_openFn = operatorDummyOpenFn;
-  pOperator->getNextFn = doBlockInfoScan;
+  pOperator->fpSet._openFn = operatorDummyOpenFn;
+  pOperator->fpSet.getNextFn = doBlockInfoScan;
 
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
@@ -532,7 +532,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
-  pTaskInfo->code = pOperator->_openFn(pOperator);
+  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -659,9 +659,9 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->numOfOutput = pResBlock->info.numOfCols;
-  pOperator->_openFn = operatorDummyOpenFn;
-  pOperator->getNextFn = doStreamBlockScan;
-  pOperator->closeFn = operatorDummyCloseFn;
+  pOperator->fpSet._openFn = operatorDummyOpenFn;
+  pOperator->fpSet.getNextFn = doStreamBlockScan;
+  pOperator->fpSet.closeFn = operatorDummyCloseFn;
   pOperator->pTaskInfo = pTaskInfo;
 
   return pOperator;
@@ -981,8 +981,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->numOfOutput = pResBlock->info.numOfCols;
-  pOperator->getNextFn = doSysTableScan;
-  pOperator->closeFn = destroySysScanOperator;
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator,
+                                         NULL, NULL, NULL);
   pOperator->pTaskInfo = pTaskInfo;
 
   return pOperator;
@@ -1139,11 +1139,12 @@ SOperatorInfo* createTagScanOperatorInfo(void* pReaderHandle, SExprInfo* pExpr, 
   pOperator->blockingOptr = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->getNextFn = doTagScan;
+
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doTagScan, NULL, NULL, destroyTagScanOperatorInfo, NULL, NULL, NULL);
   pOperator->pExpr = pExpr;
   pOperator->numOfOutput = numOfOutput;
   pOperator->pTaskInfo = pTaskInfo;
-  pOperator->closeFn = destroyTagScanOperatorInfo;
 
   return pOperator;
 _error:

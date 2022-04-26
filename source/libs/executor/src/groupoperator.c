@@ -277,7 +277,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
 
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
@@ -360,12 +360,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pOperator->numOfOutput  = numOfCols;
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->_openFn      = operatorDummyOpenFn;
-  pOperator->getNextFn    = hashGroupbyAggregate;
-  pOperator->closeFn      = destroyGroupOperatorInfo;
-  pOperator->encodeResultRow = aggEncodeResultRow;
-  pOperator->decodeResultRow = aggDecodeResultRow;
 
+  createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, NULL, destroyGroupOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
@@ -562,7 +558,7 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator, bool* newgroup) {
 
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
@@ -618,14 +614,13 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   pOperator->blockingOptr = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
-
   pInfo->binfo.pRes       = pResultBlock;
   pOperator->numOfOutput  = numOfCols;
   pOperator->pExpr        = pExprInfo;
   pOperator->info         = pInfo;
-  pOperator->_openFn      = operatorDummyOpenFn;
-  pOperator->getNextFn    = hashPartition;
-  pOperator->closeFn      = destroyPartitionOperatorInfo;
+
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo,
+                                         NULL, NULL, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
