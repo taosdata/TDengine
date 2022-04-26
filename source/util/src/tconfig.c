@@ -145,6 +145,12 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
+  if (taosRealPath(fullDir, NULL, PATH_MAX) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to get realpath of dir:%s since %s", inputDir, terrstr());
+    return -1;
+  }
+
   taosMemoryFreeClear(pItem->str);
   pItem->str = strdup(fullDir);
   if (pItem->str == NULL) {
@@ -823,7 +829,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   }
   p++;
 
-  if (bcmp(url, "jsonFile", 8) == 0) {
+  if (memcmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
       uError("fial to load json file: %s", filepath);
@@ -893,8 +899,8 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     }
     tjsonDelete(pJson);
 
-  // } else if (bcmp(url, "jsonUrl", 7) == 0) {
-  // } else if (bcmp(url, "etcdUrl", 7) == 0) {
+  // } else if (memcmp(url, "jsonUrl", 7) == 0) {
+  // } else if (memcmp(url, "etcdUrl", 7) == 0) {
   } else {
     uError("Unsupported url: %s", url);
     return -1;
@@ -908,7 +914,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
   int32_t index = 0;
   if (envCmd == NULL) return 0;
   while (envCmd[index]!=NULL) {
-    if (bcmp(envCmd[index], "TAOS_APOLLO_URL", 14) == 0) {
+    if (memcmp(envCmd[index], "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(envCmd[index], '=');
       if (p != NULL) {
         p++;
@@ -934,7 +940,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         break;
       }
       if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-      if (bcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
+      if (memcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;
@@ -975,7 +981,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         break;
       }
       if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-      if (bcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
+      if (memcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;

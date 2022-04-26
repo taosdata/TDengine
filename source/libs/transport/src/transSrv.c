@@ -979,7 +979,8 @@ void transCloseServer(void* arg) {
 
   transSrvInst--;
   if (transSrvInst == 0) {
-    transModuleInit = PTHREAD_ONCE_INIT;
+    TdThreadOnce tmpInit = PTHREAD_ONCE_INIT;
+    memcpy(&transModuleInit, &tmpInit, sizeof(TdThreadOnce));
     uvCloseExHandleMgt();
   }
 }

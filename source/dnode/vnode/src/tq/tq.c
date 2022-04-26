@@ -197,10 +197,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   }
   memcpy(data, msg, msgLen);
 
-  if (msgType == TDMT_VND_SUBMIT) {
-    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
-      return -1;
-    }
+  // make sure msgType == TDMT_VND_SUBMIT
+  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+    return -1;
   }
 
   SRpcMsg req = {
