@@ -148,7 +148,7 @@ static void convertWhereStringCharset(tSqlExpr* pRight);
 int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded);
 
 static bool isTimeWindowQuery(SQueryInfo* pQueryInfo) {
-  return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0;
+  return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0 || pQueryInfo->stateWindow;
 }
 
 
@@ -7608,7 +7608,7 @@ int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 
 int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   bool        isProjectionFunction = false;
-  const char* msg1 = "functions not compatible with interval";
+  const char* msg1 = "functions not compatible with interval/session window/state window";
 
   // multi-output set/ todo refactor
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
@@ -7650,8 +7650,8 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     int32_t f = pExpr->base.functionId;
     if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) ||
         f == TSDB_FUNC_DIFF || f == TSDB_FUNC_SCALAR_EXPR || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG || f == TSDB_FUNC_STATE_COUNT ||
-        f == TSDB_FUNC_STATE_DURATION)
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG || f == TSDB_FUNC_SAMPLE ||
+        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)
     {
       isProjectionFunction = true;
       break;
@@ -8646,7 +8646,6 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
         f == TSDB_FUNC_IRATE ||
         f == TSDB_FUNC_DIFF ||
         f == TSDB_FUNC_ELAPSED ||
-        f == TSDB_FUNC_CSUM ||
         f == TSDB_FUNC_STATE_COUNT ||
         f == TSDB_FUNC_STATE_DURATION) {
       for (int32_t j = 0; j < upNum; ++j) {
