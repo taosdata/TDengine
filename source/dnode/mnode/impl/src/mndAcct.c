@@ -17,8 +17,8 @@
 #include "mndAcct.h"
 #include "mndShow.h"
 
-#define TSDB_ACCT_VER_NUMBER   1
-#define TSDB_ACCT_RESERVE_SIZE 128
+#define ACCT_VER_NUMBER   1
+#define ACCT_RESERVE_SIZE 128
 
 static int32_t  mndCreateDefaultAcct(SMnode *pMnode);
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct);
@@ -55,6 +55,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   acctObj.createdTime = taosGetTimestampMs();
   acctObj.updateTime = acctObj.createdTime;
   acctObj.acctId = 1;
+  acctObj.status = 0;
   acctObj.cfg = (SAcctCfg){.maxUsers = INT32_MAX,
                            .maxDbs = INT32_MAX,
                            .maxStbs = INT32_MAX,
@@ -79,7 +80,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, TSDB_ACCT_VER_NUMBER, sizeof(SAcctObj) + TSDB_ACCT_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, ACCT_VER_NUMBER, sizeof(SAcctObj) + ACCT_RESERVE_SIZE);
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -100,7 +101,7 @@ static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTopics, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState, _OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, ACCT_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -122,7 +123,7 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != TSDB_ACCT_VER_NUMBER) {
+  if (sver != ACCT_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -151,7 +152,7 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTopics, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pAcct->cfg.maxStorage, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.accessState, _OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, ACCT_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
