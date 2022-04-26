@@ -195,6 +195,8 @@ typedef enum EOperatorType {
   OP_TYPE_JSON_CONTAINS
 } EOperatorType;
 
+#define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR
+
 typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_AND = 1,
   LOGIC_COND_TYPE_OR,
