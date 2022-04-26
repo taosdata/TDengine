@@ -4678,10 +4678,10 @@ _error:
 
 int32_t getTableScanOrder(SOperatorInfo* pOperator) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    if (pOperator->pDownstream[0] != NULL) {
-      return getTableScanOrder(pOperator->pDownstream[0]);
-    } else {
+    if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
       return TSDB_ORDER_ASC;
+    } else {
+      return getTableScanOrder(pOperator->pDownstream[0]);
     }
   }
 
