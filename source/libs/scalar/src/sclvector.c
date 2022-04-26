@@ -179,7 +179,7 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     } else if (srcType==TSDB_DATA_TYPE_NULL){
       p = NULL;
     } else {
-      assert(0);
+      ASSERT(0);
     }
     return p;
 }
@@ -1596,7 +1596,7 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     case OP_TYPE_JSON_CONTAINS:
       return vectorJsonContains;
     default:
-      assert(0);
+      ASSERT(0);
       return NULL;
   }
 }
