@@ -488,6 +488,8 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     code = createColumnByRewriteExps(pCxt, pWindow->pFuncs, &pWindow->node.pTargets);
   }
 
+  pSelect->hasAggFuncs = false;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pWindow;
   } else {

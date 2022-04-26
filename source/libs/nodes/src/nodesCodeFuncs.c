@@ -2371,6 +2371,7 @@ static const char* jkSelectStmtOrderBy = "OrderBy";
 static const char* jkSelectStmtLimit = "Limit";
 static const char* jkSelectStmtSlimit = "Slimit";
 static const char* jkSelectStmtStmtName = "StmtName";
+static const char* jkSelectStmtHasAggFuncs = "HasAggFuncs";
 
 static int32_t selectStmtTojson(const void* pObj, SJson* pJson) {
   const SSelectStmt* pNode = (const SSelectStmt*)pObj;
@@ -2408,6 +2409,9 @@ static int32_t selectStmtTojson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkSelectStmtStmtName, pNode->stmtName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSelectStmtHasAggFuncs, pNode->hasAggFuncs);
   }
 
   return code;
@@ -2449,6 +2453,9 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkSelectStmtStmtName, pNode->stmtName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSelectStmtHasAggFuncs, &pNode->hasAggFuncs);
   }
 
   return code;
