@@ -150,34 +150,36 @@ int64_t getVectorBigintValue_JSON(void *src, int32_t index){
 
 _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     _getBigintValue_fn_t p = NULL;
-    if(srcType==TSDB_DATA_TYPE_TINYINT) {
-        p = getVectorBigintValue_TINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
-        p = getVectorBigintValue_UTINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
-        p = getVectorBigintValue_SMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
-        p = getVectorBigintValue_USMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_INT) {
-        p = getVectorBigintValue_INT;
-    }else if(srcType==TSDB_DATA_TYPE_UINT) {
-        p = getVectorBigintValue_UINT;
-    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
-        p = getVectorBigintValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
-        p = getVectorBigintValue_UBIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
-        p = getVectorBigintValue_FLOAT;
-    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
-        p = getVectorBigintValue_DOUBLE;
-    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
-        p = getVectorBigintValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_BOOL) {
-        p = getVectorBigintValue_BOOL;
-    }else if(srcType==TSDB_DATA_TYPE_JSON) {
-        p = getVectorBigintValue_JSON;
-    }else {
-        assert(0);
+    if (srcType==TSDB_DATA_TYPE_TINYINT) {
+      p = getVectorBigintValue_TINYINT;
+    } else if (srcType==TSDB_DATA_TYPE_UTINYINT) {
+      p = getVectorBigintValue_UTINYINT;
+    } else if (srcType==TSDB_DATA_TYPE_SMALLINT) {
+      p = getVectorBigintValue_SMALLINT;
+    } else if (srcType==TSDB_DATA_TYPE_USMALLINT) {
+      p = getVectorBigintValue_USMALLINT;
+    } else if (srcType==TSDB_DATA_TYPE_INT) {
+      p = getVectorBigintValue_INT;
+    } else if (srcType==TSDB_DATA_TYPE_UINT) {
+      p = getVectorBigintValue_UINT;
+    } else if (srcType==TSDB_DATA_TYPE_BIGINT) {
+      p = getVectorBigintValue_BIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_UBIGINT) {
+      p = getVectorBigintValue_UBIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_FLOAT) {
+      p = getVectorBigintValue_FLOAT;
+    } else if (srcType==TSDB_DATA_TYPE_DOUBLE) {
+      p = getVectorBigintValue_DOUBLE;
+    } else if (srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+      p = getVectorBigintValue_BIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_BOOL) {
+      p = getVectorBigintValue_BOOL;
+    } else if (srcType==TSDB_DATA_TYPE_JSON) {
+      p = getVectorBigintValue_JSON;
+    } else if (srcType==TSDB_DATA_TYPE_NULL){
+      p = NULL;
+    } else {
+      assert(0);
     }
     return p;
 }

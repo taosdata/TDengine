@@ -86,6 +86,8 @@ static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType)
     p = getVectorDoubleValue_JSON;
   } else if (srcType == TSDB_DATA_TYPE_BOOL) {
     p = getVectorDoubleValue_BOOL;
+  } else if (srcType == TSDB_DATA_TYPE_NULL) {
+    p = NULL;
   } else {
     assert(0);
   }
