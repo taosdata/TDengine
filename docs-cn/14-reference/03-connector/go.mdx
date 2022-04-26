@@ -12,7 +12,9 @@ import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.md
 import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
+`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+
+`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
 
 本文介绍如何在 Windows 或 Linux 环境中安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
 
