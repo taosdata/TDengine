@@ -1,5 +1,5 @@
 ---
-toc_max_heading_level: 3
+toc_max_heading_level: 4
 sidebar_position: 5
 sidebar_label: Rust
 title: Rust Connector
@@ -142,15 +142,15 @@ async fn demo() -> Result<(), Error> {
 
 <RustInsert />
 
-### InfluxDB 行协议写入
+#### InfluxDB 行协议写入
 
 <RustInfluxLine />
 
-### OpenTSDB Telnet 行协议写入
+#### OpenTSDB Telnet 行协议写入
 
 <RustOpenTSDBTelnet />
 
-### OpenTSDB JSON 行协议写入
+#### OpenTSDB JSON 行协议写入
 
 <RustOpenTSDBJson />
 
@@ -280,11 +280,11 @@ let mut stmt: Stmt = taos.stmt("insert into ? values(?,?)")?;
 
 参数绑定对象提供了一组接口用于实现参数绑定：
 
-#### `.set_tbname(tbname: impl ToCString)`
+##### `.set_tbname(tbname: impl ToCString)`
 
 用于绑定表名。
 
-#### `.set_tbname_tags(tbname: impl ToCString, tags: impl IntoParams)`
+##### `.set_tbname_tags(tbname: impl ToCString, tags: impl IntoParams)`
 
 当 SQL 语句使用超级表时，用于绑定子表表名和标签值：
 
@@ -295,7 +295,7 @@ let v = Field::Json(serde_json::from_str("{\"tag1\":\"一二三四五六七八�
 stmt.set_tbname_tags("tb0", [&tag])?;
 ```
 
-#### `.bind(params: impl IntoParams)`
+##### `.bind(params: impl IntoParams)`
 
 用于绑定值类型。使用 [Field] 结构体构建需要的类型并绑定：
 
@@ -305,7 +305,7 @@ let value = Field::Float(0.0);
 stmt.bind(vec![ts, value].iter())?;
 ```
 
-#### `.execute()`
+##### `.execute()`
 
 执行 SQL。[Stmt] 对象可以复用，在执行后可以重新绑定并执行。
 
