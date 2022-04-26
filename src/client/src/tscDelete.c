@@ -23,7 +23,7 @@
 #include "tscSubquery.h"
 
 
-void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupMsg* pVgroupInfo);
+void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SNewVgroupInfo *pVgroupInfo);
 
 //
 // handle error
@@ -85,6 +85,7 @@ void tscSubDeleteCallback(void *param, TAOS_RES *tres, int code) {
     return;
   }
 
+  // record
   tscInfo("0x%"PRIx64":CDEL sub:0x%"PRIx64" query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve row(s)=%d tables(s)=%d", trsupport->pParentSql->self,
       pSql->self, pVgroup->epAddr[pSql->epSet.inUse].fqdn, pVgroup->vgId, trsupport->subqueryIndex, pSql->res.numOfRows, pSql->res.numOfTables);
 
@@ -156,8 +157,9 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
   registerSqlObj(pNew);
   tscDebug("0x%"PRIx64":CDEL new sub insertion: %p", pSql->self, pNew);
 
-  // set vnode epset
-  tscSetDnodeEpSet(&pNew->epSet, pVgroupMsg);
+  SNewVgroupInfo vgroupInfo = {0};
+  taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pVgroupMsg->vgId, sizeof(pVgroupMsg->vgId), NULL, &vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pNew->epSet, &vgroupInfo);
 
   return pNew;
 }

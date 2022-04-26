@@ -2389,6 +2389,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
   pRuntimeEnv->pTableRetrieveTsMap = NULL;
+  
+  taosHashCleanup(pRuntimeEnv->pTablesRead);
+  pRuntimeEnv->pTablesRead = NULL;
 
   taosHashCleanup(pRuntimeEnv->pResultRowListSet);
   pRuntimeEnv->pResultRowListSet = NULL;

@@ -61,9 +61,9 @@ typedef struct {
 
 typedef struct {
   int32_t     startTime;
-  pthread_t*  pthread;
-  tsem_t*      psem;
-  void*       param;
+  pthread_t * pthread;
+  tsem_t *    psem;
+  void *      param;
 } SWaitThread;
 
 // vnodeStatus
@@ -106,7 +106,10 @@ int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
 
 // wait thread
 void vnodeAddWait(void* pVnode, pthread_t* pthread, tsem_t* psem, void* param);
-void vnodeRemoveWait(void* pVnode, void* param); 
+void vnodeRemoveWait(void* pVnode, void* param);
+// get wait thread count
+bool vnodeWaitTooMany(void* vparam);
+tsem_t* vnodeSemWait(void* vparam);
 
 #ifdef __cplusplus
 }

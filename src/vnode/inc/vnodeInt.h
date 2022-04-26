@@ -76,6 +76,9 @@ typedef struct {
   char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   pthread_mutex_t statusMutex;
   void *   tqueue; // async threads queue
+  // thread for wait deal result to response client
+  SList *  waitThreads;
+  tsem_t   semWait;
 } SVnodeObj;
 
 #ifdef __cplusplus

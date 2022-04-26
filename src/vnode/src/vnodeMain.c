@@ -274,6 +274,9 @@ int32_t vnodeOpen(int32_t vgId) {
   tsem_init(&pVnode->sem, 0, 0);
   pthread_mutex_init(&pVnode->statusMutex, NULL);
   vnodeSetInitStatus(pVnode);
+  // wait thread init
+  tsem_init(&pVnode->semWait, 0, 1);
+  pVnode->waitThreads = tdListNew(sizeof(SWaitThread));  
 
   tsdbIncCommitRef(pVnode->vgId);
 
@@ -422,14 +425,29 @@ int32_t vnodeOpen(int32_t vgId) {
 }
 
 #define LOOP_CNT 10
-void freeWaitThread(SVnodeObj* pVnode) {
- // check wait thread empty
-  int type = 0;
+void vnodeStopWaitingThread(SVnodeObj* pVnode) {
+  // check wait thread empty
   SWaitThread* pWaitThread = NULL;
-  while(taosReadQitem(pVnode->tqueue, &type, (void** )&pWaitThread) > 0) {
+  vDebug("vgId:%d :SDEL stop waiting thread count=%d", pVnode->vgId, listNEles(pVnode->waitThreads));
+  if(listNEles(pVnode->waitThreads) == 0) {
+    return;
+  }
+  vInfo("vgId:%d :SDEL stop waiting thread not zero. count=%d", pVnode->vgId, listNEles(pVnode->waitThreads));
+
+  // get lock
+  tsem_wait(&pVnode->semWait);
+
+  // loop stop
+  while (1) {
+    SListNode * pNode = tdListPopHead(pVnode->waitThreads);
+    if(pNode == NULL)
+      break;
+
     // thread is running    
+    pWaitThread = (SWaitThread *)pNode->data;
     int32_t loop = LOOP_CNT;
     while (taosThreadRunning(pWaitThread->pthread)) {
+      vInfo("vgId:%d :SDEL loop=%d thread runing post to quit. pthread=%p", pVnode->vgId, loop, pWaitThread->pthread);
       // only post once
       if(loop == LOOP_CNT) 
         tsem_post(pWaitThread->psem);
@@ -441,6 +459,7 @@ void freeWaitThread(SVnodeObj* pVnode) {
 
     // free all
     if(loop == 0) {
+      vInfo("vgId:%d :SDEL force kill thread to quit. pthread=%p pWrite=%p", pVnode->vgId, pWaitThread->pthread, pWaitThread->param);
       // thread not stop , so need kill
       taosDestoryThread(pWaitThread->pthread);
       // write msg need remove from queue
@@ -448,13 +467,17 @@ void freeWaitThread(SVnodeObj* pVnode) {
       if (pWrite)
         vnodeFreeFromWQueue(pWrite->pVnode, pWrite);
     } else {
+      vInfo("vgId:%d :SDEL quit thread ok. pthread=%p pWrite=%p", pVnode->vgId, pWaitThread->pthread, pWaitThread->param);
       free(pWaitThread->pthread);
     }
     tsem_destroy(pWaitThread->psem);
-    taosFreeQitem(pWaitThread);
+    
+    // free node
+    free(pNode);
   }
 
-  taosCloseQueue(pVnode->tqueue);
+  // unlock
+  tsem_post(&pVnode->semWait);  
 }
 
 int32_t vnodeClose(int32_t vgId) {
@@ -481,7 +504,10 @@ int32_t vnodeClose(int32_t vgId) {
 void vnodeDestroy(SVnodeObj *pVnode) {
   int32_t code = 0;
   int32_t vgId = pVnode->vgId;
-  
+
+    // stop wait thread if have
+  vnodeStopWaitingThread(pVnode);
+
   if (pVnode->qMgmt) {
     qCleanupQueryMgmt(pVnode->qMgmt);
     pVnode->qMgmt = NULL;
@@ -547,6 +573,8 @@ void vnodeDestroy(SVnodeObj *pVnode) {
     dnodeSendStatusMsgToMnode();
   }
 
+  pVnode->waitThreads = tdListFree(pVnode->waitThreads);
+  tsem_destroy(pVnode->semWait);  
   tsem_destroy(&pVnode->sem);
   pthread_mutex_destroy(&pVnode->statusMutex);
   free(pVnode);
@@ -613,34 +641,59 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
 
 // wait thread
 void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
-  SVnodeObj* pVnode = (SVnodeObj* )vparam;
-  if(pVnode->tqueue == NULL) {
-    pVnode->tqueue = taosOpenQueue();
-  }
+  SVnodeObj*   pVnode      = (SVnodeObj* )vparam;
+  SWaitThread waitThread = {0};
 
-  SWaitThread* pWaitThread = (SWaitThread* )taosAllocateQitem(sizeof(SWaitThread));
-  pWaitThread->pthread     = pthread;
-  pWaitThread->startTime   = taosGetTimestampSec();
-  pWaitThread->psem        = psem;
-  pWaitThread->param       = param;
+  waitThread.pthread     = pthread;
+  waitThread.startTime   = taosGetTimestampSec();
+  waitThread.psem        = psem;
+  waitThread.param       = param;
 
-  int32_t crc = crc32c_sf(0, (crc_stream)param, sizeof(void* ));
-  taosWriteQitem(pVnode->tqueue, crc, pWaitThread);
+  // append
+  tdListAppend(pVnode->waitThreads, &waitThread);
+  vDebug("vgId:%d :SDEL add wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
 }
 
 // called in wait thread
 void vnodeRemoveWait(void* vparam, void* param) {
     SVnodeObj* pVnode = (SVnodeObj* )vparam;
-    int32_t crc = crc32c_sf(0, (crc_stream)param, sizeof(void* ));
+    SListIter iter = {0};
 
-    SWaitThread* pWaitThread = NULL;
-    taosSearchQitem(pVnode->tqueue, crc, (void** )&pWaitThread);
-    if (pWaitThread == NULL) {
-      // not found
-      return ;
+    tsem_wait(&pVnode->semWait);
+    tdListInitIter(pVnode->waitThreads, &iter, TD_LIST_FORWARD);
+
+    while (1) {
+      SListNode* pNode = tdListNext(&iter);
+      if (pNode == NULL)
+        break;
+
+      SWaitThread * pWaitThread = (SWaitThread *)pNode->data;
+      if (pWaitThread->param == param) {
+        // found , free SWaitThread memeber
+        free(pWaitThread->pthread);
+        tdListPopNode(pVnode->waitThreads, pNode);
+        vDebug("vgId:%d :SDEL removed wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+        // free pListNode self
+        free(pNode);
+        break;
+      }
     }
+    tsem_post(&pVnode->semWait);
+}
 
-    // free thread
-    free(pWaitThread->pthread);
-    taosFreeQitem(pWaitThread);
+// get wait thread count
+bool vnodeWaitTooMany(void* vparam) {
+  SVnodeObj* pVnode = (SVnodeObj* )vparam;
+  int32_t count = listNEles(pVnode->waitThreads);
+  if( count > 32 ) {
+    vError("vgId:%d :SDEL wait threads too many. count=%d", pVnode->vgId, count);
+    return true;
+  }
+
+  return false;
+}
+
+tsem_t* vnodeSemWait(void* vparam) {
+  SVnodeObj* pVnode = (SVnodeObj* )vparam;
+  return &pVnode->semWait;
 }

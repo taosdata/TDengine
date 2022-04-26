@@ -1212,6 +1212,9 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   taosArrayDestroy(&pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
+  } else if (pInfo->type == TSDB_SQL_DELETE_DATA) {
+    tSqlExprDestroy(pInfo->pDelData->pWhere);
+    tfree(pInfo->pDelData);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
