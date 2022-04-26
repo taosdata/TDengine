@@ -245,6 +245,9 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
 
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
 
+  // reset the block to be 0 by default, this blockId is assigned by physical plan and is used by direct upstream operator.
+  pBlock->info.blockId = 0;
+
   doFilter(pTableScanInfo->pFilterNode, pBlock);
   if (pBlock->info.rows == 0) {
     pCost->filterOutBlocks += 1;
@@ -292,8 +295,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
       continue;
     }
 
-    // reset the block to be 0 by default, this blockId is assigned by physical plan and is used by direct upstream operator.
-    pBlock->info.blockId = 0;
     return pBlock;
   }
 
