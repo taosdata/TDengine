@@ -169,7 +169,7 @@ static int32_t calcConstSelectCondition(SCalcConstContext* pCxt, SSelectStmt* pS
 static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
   SArray* pAssociation = NULL;
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
-    pAssociation == taosArrayDup(((SExprNode*)pProject)->pAssociation);
+    pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation);
     if (NULL == pAssociation) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
