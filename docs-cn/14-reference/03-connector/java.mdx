@@ -656,7 +656,11 @@ public class SchemalessInsertTest {
 }
 ```
 
-### 创建订阅
+### 订阅
+
+TDengine Java 连机器支持订阅功能，应用 API 如下：
+
+#### 创建订阅
 
 ```java
 TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
@@ -670,7 +674,7 @@ TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from met
 
 如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic` 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
 
-### 订阅消费数据
+#### 订阅消费数据
 
 ```java
 int total = 0;
@@ -688,7 +692,7 @@ while(true) {
 
 `consume` 方法返回一个结果集，其中包含从上次 `consume` 到目前为止的所有新数据。请务必按需选择合理的调用 `consume` 的频率（如例子中的 `Thread.sleep(1000)`），否则会给服务端造成不必要的压力。
 
-### 关闭订阅
+#### 关闭订阅
 
 ```java
 sub.close(true);
