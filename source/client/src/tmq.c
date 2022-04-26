@@ -25,7 +25,14 @@
 #include "tref.h"
 #include "ttimer.h"
 
-int32_t tmqAskEp(tmq_t* tmq, bool sync);
+int32_t tmqAskEp(tmq_t* tmq, bool async);
+
+typedef struct {
+  int8_t inited;
+  tmr_h  timer;
+} SMqMgmt;
+
+static SMqMgmt tmqMgmt = {0};
 
 typedef struct {
   int8_t  tmqRspType;
@@ -33,9 +40,9 @@ typedef struct {
 } SMqRspWrapper;
 
 typedef struct {
-  int8_t           tmqRspType;
-  int32_t          epoch;
-  SMqCMGetSubEpRsp msg;
+  int8_t      tmqRspType;
+  int32_t     epoch;
+  SMqAskEpRsp msg;
 } SMqAskEpRspWrapper;
 
 struct tmq_list_t {
@@ -63,13 +70,6 @@ struct tmq_conf_t {
   char*          db;
   tmq_commit_cb* commit_cb;
 };
-
-typedef struct {
-  int8_t inited;
-  tmr_h  timer;
-} SMqMgmt;
-
-static SMqMgmt tmqMgmt = {0};
 
 struct tmq_t {
   // conf
@@ -164,7 +164,7 @@ typedef struct {
 typedef struct {
   tmq_t*  tmq;
   int32_t code;
-  int32_t sync;
+  int32_t async;
   tsem_t  rspSem;
 } SMqAskEpCbParam;
 
@@ -188,6 +188,7 @@ typedef struct {
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
   conf->autoCommit = false;
+  conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   return conf;
 }
@@ -324,7 +325,7 @@ int32_t tmqHandleAllDelayedTask(tmq_t* tmq) {
     if (pTaskType == NULL) break;
 
     if (*pTaskType == TMQ_DELAYED_TASK__HB) {
-      tmqAskEp(tmq, false);
+      tmqAskEp(tmq, true);
       taosTmrReset(tmqAssignDelayedHbTask, 1000, tmq, tmqMgmt.timer, &tmq->hbTimer);
     } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
       tmq_commit(tmq, NULL, true);
@@ -472,8 +473,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   // set conf
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
-  /*pTmq->autoCommit = conf->autoCommit;*/
-  pTmq->autoCommit = 0;
+  pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->commit_cb = conf->commit_cb;
   pTmq->resetOffsetCfg = conf->resetOffset;
@@ -662,8 +662,8 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   if (code != 0) goto FAIL;
 
   // TODO: add max retry cnt
-  while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, true)) {
-    tscDebug("not ready, retry\n");
+  while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
+    tscDebug("not ready, retry");
     taosMsleep(500);
   }
 
@@ -854,7 +854,7 @@ CREATE_MSG_FAIL:
   return -1;
 }
 
-bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
+bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
   bool    set = false;
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
@@ -936,7 +936,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
   tmq_t*           tmq = pParam->tmq;
   pParam->code = code;
   if (code != 0) {
-    tscError("consumer %ld get topic endpoint error, not ready, wait:%d", tmq->consumerId, pParam->sync);
+    tscError("consumer %ld get topic endpoint error, not ready, wait:%d", tmq->consumerId, pParam->async);
     goto END;
   }
 
@@ -950,15 +950,15 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  if (pParam->sync) {
-    SMqCMGetSubEpRsp rsp;
-    tDecodeSMqCMGetSubEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp);
+  if (!pParam->async) {
+    SMqAskEpRsp rsp;
+    tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp);
     /*printf("rsp epoch %ld sz %ld\n", rsp.epoch, rsp.topics->size);*/
     /*printf("tmq epoch %ld sz %ld\n", tmq->epoch, tmq->clientTopics->size);*/
     if (tmqUpdateEp(tmq, head->epoch, &rsp)) {
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
     }
-    tDeleteSMqCMGetSubEpRsp(&rsp);
+    tDeleteSMqAskEpRsp(&rsp);
   } else {
     SMqAskEpRspWrapper* pWrapper = taosAllocateQitem(sizeof(SMqAskEpRspWrapper));
     if (pWrapper == NULL) {
@@ -969,7 +969,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     pWrapper->tmqRspType = TMQ_MSG_TYPE__EP_RSP;
     pWrapper->epoch = head->epoch;
     memcpy(&pWrapper->msg, pMsg->pData, sizeof(SMqRspHead));
-    tDecodeSMqCMGetSubEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->msg);
+    tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->msg);
 
     taosWriteQitem(tmq->mqueue, pWrapper);
     /*tsem_post(&tmq->rspSem);*/
@@ -978,13 +978,13 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
 
 END:
   /*atomic_store_8(&tmq->epStatus, 0);*/
-  if (pParam->sync) {
+  if (!pParam->async) {
     tsem_post(&pParam->rspSem);
   }
   return code;
 }
 
-int32_t tmqAskEp(tmq_t* tmq, bool sync) {
+int32_t tmqAskEp(tmq_t* tmq, bool async) {
   int32_t code = 0;
 #if 0
   int8_t  epStatus = atomic_val_compare_exchange_8(&tmq->epStatus, 0, 1);
@@ -995,8 +995,8 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   }
   atomic_store_32(&tmq->epSkipCnt, 0);
 #endif
-  int32_t           tlen = sizeof(SMqCMGetSubEpReq);
-  SMqCMGetSubEpReq* req = taosMemoryMalloc(tlen);
+  int32_t      tlen = sizeof(SMqAskEpReq);
+  SMqAskEpReq* req = taosMemoryMalloc(tlen);
   if (req == NULL) {
     tscError("failed to malloc get subscribe ep buf");
     /*atomic_store_8(&tmq->epStatus, 0);*/
@@ -1014,7 +1014,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
     return -1;
   }
   pParam->tmq = tmq;
-  pParam->sync = sync;
+  pParam->async = async;
   tsem_init(&pParam->rspSem, 0, 0);
 
   SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
@@ -1036,7 +1036,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
   sendInfo->fp = tmqAskEpCb;
-  sendInfo->msgType = TDMT_MND_GET_SUB_EP;
+  sendInfo->msgType = TDMT_MND_MQ_ASK_EP;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
@@ -1045,7 +1045,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
-  if (sync) {
+  if (!async) {
     tsem_wait(&pParam->rspSem);
     code = pParam->code;
     taosMemoryFree(pParam);
@@ -1209,7 +1209,7 @@ int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* pReset) 
     /*printf("ep %d %d\n", rspMsg->head.epoch, tmq->epoch);*/
     if (rspWrapper->epoch > atomic_load_32(&tmq->epoch)) {
       SMqAskEpRspWrapper* pEpRspWrapper = (SMqAskEpRspWrapper*)rspWrapper;
-      SMqCMGetSubEpRsp*   rspMsg = &pEpRspWrapper->msg;
+      SMqAskEpRsp*        rspMsg = &pEpRspWrapper->msg;
       tmqUpdateEp(tmq, rspWrapper->epoch, rspMsg);
       /*tmqClearUnhandleMsg(tmq);*/
       *pReset = true;
@@ -1270,15 +1270,6 @@ SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t blockingTime, bool pollIfReset) {
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   SMqRspObj* rspObj;
   int64_t    startTime = taosGetTimestampMs();
-
-  // TODO: put into delayed queue
-#if 0
-  int8_t status = atomic_load_8(&tmq->status);
-  while (0 != tmqAskEp(tmq, status != TMQ_CONSUMER_STATUS__READY)) {
-    tscDebug("not ready, retry\n");
-    taosSsleep(1);
-  }
-#endif
 
   rspObj = tmqHandleAllRsp(tmq, blocking_time, false);
   if (rspObj) {

@@ -13,14 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "planTestUtil.h"
+#include "meta.h"
 
-using namespace std;
+static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) { return vnodeBufPoolMalloc((SVBufPool *)pPool, size); }
+static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
-class PlanSuperTableTest : public PlannerTestBase {};
+int metaBegin(SMeta *pMeta) {
+  tdbTxnOpen(&pMeta->txn, 0, metaMalloc, metaFree, pMeta->pVnode->inUse, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
-TEST_F(PlanSuperTableTest, tbname) {
-  useDb("root", "test");
+  if (tdbBegin(pMeta->pEnv, &pMeta->txn) < 0) {
+    return -1;
+  }
 
-  run("select tbname from st1");
+  return 0;
 }
+
+int metaCommit(SMeta *pMeta) { return tdbCommit(pMeta->pEnv, &pMeta->txn); }

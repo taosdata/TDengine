@@ -13,14 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "planTestUtil.h"
+#include "tsdb.h"
 
-using namespace std;
+int tsdbBegin(STsdb *pTsdb) {
+  STsdbMemTable *pMem;
 
-class PlanSuperTableTest : public PlannerTestBase {};
+  if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
+    return -1;
+  }
 
-TEST_F(PlanSuperTableTest, tbname) {
-  useDb("root", "test");
-
-  run("select tbname from st1");
+  return 0;
 }

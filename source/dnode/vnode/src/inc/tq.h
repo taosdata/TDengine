@@ -16,6 +16,8 @@
 #ifndef _TD_VNODE_TQ_H_
 #define _TD_VNODE_TQ_H_
 
+#include "vnodeInt.h"
+
 #include "executor.h"
 #include "os.h"
 #include "tcache.h"
@@ -237,17 +239,7 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
-void tqClose(STQ*);
 // required by vnode
-int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
-int tqCommit(STQ*);
-
-int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
 
 int32_t tqSerializeConsumer(const STqConsumer*, STqSerializedHead**);
 int32_t tqDeserializeConsumer(STQ*, const STqSerializedHead*, STqConsumer**);

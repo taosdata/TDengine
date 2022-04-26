@@ -43,7 +43,7 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow) {
     (*deleteFp)(pSdb, pRow->pObj);
   }
 
-  sdbPrintOper(pSdb, pRow, "freeRow");
+  sdbPrintOper(pSdb, pRow, "free");
 
   mTrace("row:%p, is freed", pRow->pObj);
   taosMemoryFreeClear(pRow);

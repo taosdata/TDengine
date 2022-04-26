@@ -13,7 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tsdbSma.h"
+#include "tsdb.h"
 
 static const char *TSDB_SMA_DNAME[] = {
     "",      // TSDB_SMA_TYPE_BLOCK
@@ -677,7 +678,6 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
-
 
   if (tsdbCheckAndInitSmaEnv(pTsdb, TSDB_SMA_TYPE_TIME_RANGE) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
@@ -1693,6 +1693,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
  * @return int32_t
  */
 int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
+#if 0
   SRSmaParam *param = pReq->stbCfg.pRSmaParam;
 
   if (!param) {
@@ -1764,6 +1765,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
    tsdbDebug("vgId:%d register rsma info succeed for suid:%" PRIi64, REPO_ID(pTsdb), pReq->stbCfg.suid);
   }
 
+#endif
   return TSDB_CODE_SUCCESS;
 }
 

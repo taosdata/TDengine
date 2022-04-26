@@ -380,6 +380,10 @@ static int32_t sortScanCols(SNodeList* pScanCols) {
 }
 
 static int32_t createScanCols(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode, SNodeList* pScanCols) {
+  if (NULL == pScanCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   pScanPhysiNode->pScanCols = nodesCloneList(pScanCols);
   if (NULL == pScanPhysiNode->pScanCols) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -394,9 +398,22 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SScanLogicNo
     // Data block describe also needs to be set without scanning column, such as SELECT COUNT(*) FROM t
     code = addDataBlockSlots(pCxt, pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc);
   }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pScanLogicNode->pScanPseudoCols) {
+    pScanPhysiNode->pScanPseudoCols = nodesCloneList(pScanLogicNode->pScanPseudoCols);
+    if (NULL == pScanPhysiNode->pScanPseudoCols) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pScanPhysiNode->pScanPseudoCols, pScanPhysiNode->node.pOutputDataBlockDesc);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode);
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     pScanPhysiNode->uid = pScanLogicNode->pMeta->uid;
     pScanPhysiNode->tableType = pScanLogicNode->pMeta->tableType;
@@ -1190,6 +1207,11 @@ static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubp
     ++(pQueryPlan->numOfSubplans);
   }
 
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pSubplan);
+    return code;
+  }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pParent) {
     code = nodesListMakeAppend(&pParent->pChildren, pSubplan);
     if (TSDB_CODE_SUCCESS == code) {
@@ -1205,10 +1227,6 @@ static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubp
         break;
       }
     }
-  }
-
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pSubplan);
   }
 
   return code;

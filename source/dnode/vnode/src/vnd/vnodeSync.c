@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sync.h"
-#include "syncTools.h"
-#include "tmsgcb.h"
-#include "vnodeInt.h"
+#include "vnd.h"
+// #include "sync.h"
+// #include "syncTools.h"
+// #include "tmsgcb.h"
+// #include "vnodeInt.h"
 
 // sync integration
 
@@ -113,7 +114,7 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
         pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-    SVnode *      pVnode = (SVnode *)(pFsm->data);
+    SVnode       *pVnode = (SVnode *)(pFsm->data);
     SyncApplyMsg *pSyncApplyMsg = syncApplyMsgBuild2(pMsg, pVnode->config.vgId, &cbMeta);
     SRpcMsg       applyMsg;
     syncApplyMsg2RpcMsg(pSyncApplyMsg, &applyMsg);
