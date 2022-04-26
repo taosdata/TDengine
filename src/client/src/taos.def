@@ -53,3 +53,7 @@ taos_is_null
 taos_insert_lines
 taos_schemaless_insert
 taos_result_block
+taos_stmt_affected_rows
+taos_is_update_query
+taos_reset_current_db
+taos_parse_time

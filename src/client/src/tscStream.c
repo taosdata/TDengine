@@ -211,6 +211,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
     tfree(pSql->pSubs);
     pSql->subState.numOfSub = 0;
 
+    pSql->parseRetry = 0;
     int32_t code = tsParseSql(pSql, true);
     if (code == TSDB_CODE_SUCCESS) {
       cbParseSql(pStream, pSql, code);
@@ -220,6 +221,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
       tscError("0x%"PRIx64" open stream failed, code:%s", pSql->self, tstrerror(code));
       taosReleaseRef(tscObjRef, pSql->self);
       free(pStream);
+      return;
     }
 
 //    tscSetRetryTimer(pStream, pStream->pSql, retryDelay);

@@ -121,6 +121,7 @@ clean_service
 ${csudo}rm -f ${bin_link_dir}/taos       || :
 ${csudo}rm -f ${bin_link_dir}/taosd      || :
 ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
+${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
 ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
 ${csudo}rm -f ${bin_link_dir}/set_core   || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :

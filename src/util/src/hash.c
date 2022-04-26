@@ -599,6 +599,7 @@ void taosHashClear(SHashObj *pHashObj) {
   __wr_unlock(&pHashObj->lock, pHashObj->type);
 }
 
+// the input paras should be SHashObj **, so the origin input will be set by tfree(*pHashObj)
 void taosHashCleanup(SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return;

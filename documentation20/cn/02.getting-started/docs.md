@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/cn/getting-started/#通过源码安装) 或者 [安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装) 来安装。
+TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务，之前版本使用内置 http 服务。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/cn/getting-started/#通过源码安装) 或者 [安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装) 来安装。
 
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
@@ -134,10 +134,10 @@ taos> source <filename>;
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
 
-启动 TDengine 的服务，在 Linux 终端执行 taosdemo
+启动 TDengine 的服务，在 Linux 终端执行 taosBenchmark （曾命名为 taosdemo）：
 
 ```bash
-$ taosdemo
+$ taosBenchmark
 ```
 
 该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
@@ -175,10 +175,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
-## <a class="anchor" id="taosdemo"></a> taosdemo 详细功能列表
+## <a class="anchor" id="taosBenchmark"></a> taosBenchmark 详细功能列表
 
-taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
-taosdemo 详细使用方法请参照 [如何使用taosdemo对TDengine进行性能测试](https://www.taosdata.com/cn/documentation/getting-started/taosdemo )。
+taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
+taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/cn/documentation/getting-started/taosBenchmark )。
 
 ## 客户端和报警模块
 

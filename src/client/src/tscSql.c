@@ -201,9 +201,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
       if (terrno ==TSDB_CODE_RPC_FQDN_ERROR) {
-        printf("taos connect failed, reason: %s\n\n", taos_errstr(pSql));
+        printf("connect failed, reason: %s\n\n", taos_errstr(pSql));
       } else {
-        printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+        printf("connect failed, reason: %s.\n\n", tstrerror(terrno));
       }
       taos_free_result(pSql);
       taos_close(pObj);
@@ -213,8 +213,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     tscDebug("%p DB connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj, pObj->pRpcObj->pDnodeConn);
     taos_free_result(pSql);
   
-    // version compare only requires the first 3 segments of the version string
-    int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);
+    // version compare only requires the first 1 segments of the version string
+    int code = taosCheckVersion(version, taos_get_server_info(pObj), 1);
     if (code != 0) {
       terrno = code;
       taos_close(pObj);
@@ -223,6 +223,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
       return pObj;
     }
   }
+
+  printf("connect failed, reason: %s\n\n", taos_errstr(pSql));
 
   return NULL;
 }
@@ -679,7 +681,11 @@ char *taos_errstr(TAOS_RES *tres) {
   }
 
   if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd) || pSql->res.code == TSDB_CODE_RPC_FQDN_ERROR) {
-    return pSql->cmd.payload;
+    if (pSql->cmd.payload[0] != '\0') {
+      return pSql->cmd.payload;
+    }
+
+    return (char*)tstrerror(pSql->res.code);
   } else {
     return (char*)tstrerror(pSql->res.code);
   }

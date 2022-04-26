@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>Quick Install
 
-TDengine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
+TDengine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. From 2.4 and later version, TDengine use a stand-alone software, taosAdapteer to provide http service. The early version uses the http server embedded in the taosd. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
 
 ### <a class="anchor" id="source-install"></a>Install from Source
 
@@ -138,10 +138,10 @@ taos> source <filename>;
 
 ## <a class="anchor" id="demo"></a>Experience TDengine’s Lightning Speed
 
-After starting the TDengine server, you can execute the command `taosdemo` in the Linux terminal.
+After starting the TDengine server, you can execute the command `taosBenchmark` (was named `taosdemo`) in the Linux terminal.
 
 ```bash 
-$ taosdemo
+$ taosBenchmark
 ```
 
 Using this command, a STable named `meters` will be created in the database `test`. There are 10k tables under this STable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
@@ -180,10 +180,10 @@ taos> select avg(f1), max(f2), min(f3) from test.meters where areaid=10;
 taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 ```
 
-## <a class="anchor" id="taosdemo"></a> Using taosdemo in detail
+## <a class="anchor" id="taosBenchmark"></a> Using taosBenchmark in detail
 
-you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
-Please refer to [How to use taosdemo to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosdemo) for detail.
+you can run command `taosBenchmark` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosBenchmark --help` and then take a try using different options.
+Please refer to [How to use taosBenchmark to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosBenchmark) for detail.
 
 ## Client and Alarm Module
 

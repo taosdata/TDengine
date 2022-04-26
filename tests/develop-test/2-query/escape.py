@@ -23,7 +23,6 @@ class TDTestCase:
         case1: [TD-12251] json type containing single quotes cannot be inserted
         case2: [TD-12334] '\' escape unknown
         case3: [TD-11071] escape table creation problem
-        case4: [TD-6232]  fix abnormal escaping results about '\'
         case5: [TD-12815] like wildcards (% _)  are not supported nchar type
         '''
         return
@@ -61,6 +60,10 @@ class TDTestCase:
         tdSql.query(r'show tables like "zz\\ "')
         tdSql.checkRows(1)
 
+        tdSql.execute(r"insert into `zz\\ ` values(1591060658000, 1)")
+        tdSql.query(r'select * from `zz\\ `')
+        tdSql.checkRows(1)
+
         # [TD-11071]
         tdSql.execute('create table es (ts timestamp, s int) tags(j int)')
         tdSql.execute(r'create table `zz\t` using es tags(11)')
@@ -74,45 +77,93 @@ class TDTestCase:
         tdSql.checkData(3, 0, r'      ')
 
         # [TD-6232]
-        tdSql.execute('create table tt(ts timestamp, i nchar(128))')
+        tdSql.execute(r'create table tt(ts timestamp, `i\t` nchar(128))')
         tdSql.execute(r"insert into tt values(1591060628000, '\t')")
         tdSql.execute(r"insert into tt values(1591060638000, '\n')")
         tdSql.execute(r"insert into tt values(1591060648000, '\r')")
-        tdSql.execute(r"insert into tt values(1591060658000, '\\')")
+        tdSql.execute(r"insert into tt values(1591060658000, '\\t')")
         tdSql.execute(r"insert into tt values(1591060668000, '\"')")
         tdSql.execute(r"insert into tt values(1591060678000, '\'')")
         tdSql.execute(r"insert into tt values(1591060688000, '\%')")
+        tdSql.execute(r"insert into tt values(1591060688100, '\\%')")
+        tdSql.execute(r"insert into tt values(1591060688200, '\\\%')")
         tdSql.execute(r"insert into tt values(1591060698000, '\_')")
         tdSql.execute(r"insert into tt values(1591060708000, '\9')")
 
-        tdSql.query(r"select * from tt where i='\t'")
+        tdSql.query(r"select * from tt where `i\t`='\t'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\n'")
+        tdSql.query(r"select * from tt where `i\t`='\n'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\r'")
+        tdSql.query(r"select * from tt where `i\t`='\r'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\\'")
+        tdSql.checkData(0, 1, '\r')
+        tdSql.query(r"select * from tt where `i\t`='\\t'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\"'")
+        tdSql.checkData(0, 1, r'\t')
+        tdSql.query(r"select * from tt where `i\t`='\"'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\''")
+        tdSql.query(r"select * from tt where `i\t`='\''")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\%'")
+        tdSql.query(r"select * from tt where `i\t`='\%'")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, r'\%')
+        tdSql.query(r"select * from tt where `i\t`='\\%'")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, r'\%')
+        tdSql.query(r"select * from tt where `i\t`='\\\%'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\_'")
+        tdSql.checkData(0, 1, r'\\%')
+        tdSql.query(r"select * from tt where `i\t`='\_'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='\9'")
+        tdSql.checkData(0, 1, r'\_')
+        tdSql.query(r"select * from tt where `i\t`='\9'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i='9'")
+        tdSql.query(r"select * from tt where `i\t`='9'")
         tdSql.checkRows(1)
 
+        tdSql.execute(r'create table tb(ts timestamp, `i\t` binary(128))')
+        tdSql.execute(r"insert into tb values(1591060628000, '\t')")
+        tdSql.query(r"select * from tb where `i\t`='\t'")
+        tdSql.checkRows(1)
+        tdSql.execute(r"insert into tb values(1591060629000, '\\%')")
+        tdSql.query(r"select * from tb where `i\t`='\%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, r'\%')
+
         # [TD-12815] like wildcard(%, _) are not supported nchar
+        tdSql.execute(r"insert into tt values(1591050708000, 'h\%d')")
         tdSql.execute(r"insert into tt values(1591070708000, 'h%d')")
+        tdSql.execute(r"insert into tt values(1591080808000, 'h\_j')")
         tdSql.execute(r"insert into tt values(1591080708000, 'h_j')")
-        tdSql.query(r"select * from tt where i like 'h\%d'")
+        tdSql.execute(r"insert into tt values(1591090708000, 'h\\j')")
+        tdSql.query(r"select * from tt where `i\t` like 'h\\\%d'")
         tdSql.checkRows(1)
-        tdSql.query(r"select * from tt where i like 'h\_j'")
+        tdSql.query(r"select * from tt where `i\t` like 'h\%d'")
         tdSql.checkRows(1)
+        tdSql.query(r"select * from tt where `i\t` like 'h\\\_j'")
+        tdSql.checkRows(1)
+        tdSql.query(r"select * from tt where `i\t` like 'h\_j'")
+        tdSql.checkRows(1)
+        tdSql.query(r"select * from tt where `i\t` like 'h\\j'")
+        tdSql.checkRows(1)
+        tdSql.query(r"select * from tt where `i\t` match 'h\\\\j'")
+        tdSql.checkRows(1)
+
+        # normal test
+        tdSql.error(r"select * from tt where i\t='\t'")
+        tdSql.error(r"select * from zz\t where s=1")
+        tdSql.error(r"select i\t from tt where `i\t`='\t'")
+
+        tdSql.execute(r'create table `\n`(ts timestamp, `i\"` nchar(128))')
+        tdSql.execute(r"insert into `\n` values(1591060708000, 'js')")
+        tdSql.query(r"select `i\"` from `\n` where `i\"`='js'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'js')
+
+        tdSql.query(r'show tables like "\\n"')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, r"\n")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

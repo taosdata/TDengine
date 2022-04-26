@@ -116,9 +116,26 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      *str = '\'';
+      bool squote = false;
+      for (int32_t i = 0; i < bufSize; ++i) {
+        if (((char *)buf)[i] == '\'') {
+          squote = true;
+          break;
+        }
+      }
+
+      if (squote) {
+        *str = '\"';
+      } else {
+        *str = '\'';
+      }
+
       memcpy(str + 1, buf, bufSize);
-      *(str + bufSize + 1) = '\'';
+      if (squote) {
+        *(str + bufSize + 1) = '\"';
+      } else {
+        *(str + bufSize + 1) = '\'';
+      }
       n = bufSize + 2;
       break;
 
@@ -394,7 +411,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscNeedTableSeqScan(SQueryInfo* pQueryInfo) {
-  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED));
+  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED) || (pQueryInfo->tsBuf != NULL));
 }
 
 bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo) {
@@ -2369,7 +2386,7 @@ TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
   return &((SInternalField*)TARRAY_GET_ELEM(pFieldInfo->internalField, index))->field;
 }
 
-int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
+int32_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, index);
   assert(pInfo != NULL && pInfo->pExpr->pExpr == NULL);
 
@@ -2972,7 +2989,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         if (sep == NULL) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        *dbIncluded = true;
+        if (dbIncluded) *dbIncluded = true;
 
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
@@ -4235,6 +4252,10 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     }
 
     return;
+  } else if (hasMoreClauseToTry(pSql)) {
+    if (pthread_mutex_init(&pSql->subState.mutex, NULL) != 0) {
+      goto _error;
+    }
   }
 
   pSql->cmd.active = pQueryInfo;
@@ -4517,6 +4538,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   pRes->final = finalBk;
   pRes->numOfTotal = num;
 
+  pthread_mutex_lock(&pSql->subState.mutex);
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     taos_free_result(pSql->pSubs[i]);
   }
@@ -4524,6 +4546,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   tfree(pSql->pSubs);
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+  pthread_mutex_unlock(&pSql->subState.mutex);
   pthread_mutex_destroy(&pSql->subState.mutex);
 
   pSql->fp = fp;
@@ -5376,7 +5399,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+int parseJsontoTagData(char* json, uint32_t jsonLength, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
   // set json NULL data
   uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
   uint32_t jsonNULL = TSDB_DATA_JSON_NULL;
@@ -5387,7 +5410,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   varDataSetLen(nullTypeVal + CHAR_BYTES, INT_BYTES);
   *(uint32_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
-  if (!json || strtrim(json) == 0 || strcasecmp(json, "null") == 0){
+  if (!json || strtrim(json) == 0 || (jsonLength == strlen("null") && strncasecmp(json, "null", 4) == 0)){
     *(uint32_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;

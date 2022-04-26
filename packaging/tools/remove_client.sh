@@ -36,8 +36,6 @@ function kill_client() {
 function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
 }

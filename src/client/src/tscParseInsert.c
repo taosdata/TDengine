@@ -1064,7 +1064,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           tfree(tmp);
           return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
         }
-        code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
+        code = parseJsontoTagData(sToken.z, sToken.n, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
         if (code != TSDB_CODE_SUCCESS) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
@@ -1584,15 +1584,17 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   int32_t  index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
-  assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
-
   pCmd->count   = 0;
   pCmd->command = TSDB_SQL_INSERT;
   SInsertStatementParam* pInsertParam = &pCmd->insertParam;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
+
+  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
+  if (sToken.type != TK_INSERT && sToken.type != TK_IMPORT) {
+    return tscSQLSyntaxErrMsg(pInsertParam->msg, NULL, sToken.z);
+  }
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false);
   if (sToken.type != TK_INTO) {

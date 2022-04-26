@@ -2170,6 +2170,10 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   
   // set the corresponding tag data for each record
   // todo check malloc failure
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
+  }
+
   char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
@@ -2987,12 +2991,18 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
+    // ASC
     int32_t numOfRows = (pCtx->param[0].i64 == 1)? 1:pCtx->size;
     memcpy(pCtx->pOutput, pData, (size_t) numOfRows * pCtx->inputBytes);
   } else {
+    // DESC
     for(int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
-             pCtx->inputBytes);
+      char* dst = pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes;
+      char* src = pData + i * pCtx->inputBytes;
+      if (IS_VAR_DATA_TYPE(pCtx->inputType))
+        varDataCopy(dst, src);
+      else
+        memcpy(dst, src, pCtx->inputBytes);
     }
   }
 }
@@ -4618,9 +4628,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
     }
   }
 
-  if (notNullElems <= 0) {
-    assert(pCtx->hasNull);
-  } else {
+ {
     for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
       SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
       if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
@@ -4695,6 +4703,10 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
     *pTimestamp = *(pRes->timeStamps + i);
     pOutput += pCtx->outputBytes;
     pTimestamp++;
+  }
+  
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
   }
 
   char **tagOutputs = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
@@ -5119,7 +5131,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "twa",
                               TSDB_FUNC_TWA,
                               TSDB_FUNC_TWA,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               twa_function_setup,
                               twa_function,
                               twa_function_finalizer,
@@ -5395,7 +5407,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "elapsed",
                               TSDB_FUNC_ELAPSED,
                               TSDB_FUNC_ELAPSED,
-                              TSDB_BASE_FUNC_SO,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
                               elapsedSetup,
                               elapsedFunction,
                               elapsedFinalizer,

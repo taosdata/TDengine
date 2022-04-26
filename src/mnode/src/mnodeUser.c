@@ -355,13 +355,41 @@ static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t  numOfRows = 0;
   SUserObj *pUser    = NULL;
+  SUserObj *userObj  = NULL;
+  char     *user     = NULL;
   int32_t  cols      = 0;
+  size_t   len1      = 0;
+  size_t   len2;
+  int32_t  acctId     = -1;
   char     *pWrite;
+
+  if (pConn) {
+    userObj = mnodeGetUserFromConn(pConn);
+    if (userObj && userObj->pAcct) {
+      user = userObj->pAcct->user;
+      if (user) {
+        len1 = strlen(user);
+        if (len1 == 0) {
+          user = NULL;
+        }
+      }
+
+      acctId = userObj->pAcct->acctId;
+    }
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextUser(pShow->pIter, &pUser);
     if (pUser == NULL) break;
-    
+
+    if (user && pUser->pAcct) {
+      len2 = strlen(pUser->pAcct->user);
+
+      if ((len1 != len2 || strncmp(user, pUser->pAcct->user, len1)) && acctId != pUser->pAcct->acctId) {
+        continue;
+      }
+    }
+
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

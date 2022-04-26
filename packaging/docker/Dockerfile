@@ -4,19 +4,29 @@ WORKDIR /root
 
 ARG pkgFile
 ARG dirName
+ARG cpuType
 RUN echo ${pkgFile} && echo ${dirName}
 
 COPY ${pkgFile} /root/
 RUN tar -zxf ${pkgFile}
-WORKDIR /root/${dirName}/
-RUN /bin/bash install.sh -e no
+WORKDIR /root/
+RUN cd /root/${dirName}/ && /bin/bash install.sh -e no && cd /root
+RUN rm /root/${pkgFile}
+RUN rm -rf /root/${dirName}
 
-RUN apt-get clean && apt-get update && apt-get install -y locales && locale-gen en_US.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get clean && apt-get update && apt-get install -y locales tzdata netcat && locale-gen en_US.UTF-8
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-EXPOSE 6030 6031 6032 6033 6034 6035 6036 6037 6038 6039 6040 6041 6042
-CMD ["run_taosd.sh"]
-VOLUME [ "/var/lib/taos", "/var/log/taos","/etc/taos/" ]
+COPY ./bin/* /usr/bin/
+
+ENV TINI_VERSION v0.19.0
+RUN bash -c 'echo -e "Downloading tini-${cpuType} ..."'
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
+RUN chmod +x /tini
+ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
+CMD ["taosd"]
+VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]

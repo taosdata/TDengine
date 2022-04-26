@@ -169,19 +169,15 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
 
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${bin_link_dir}/perfMonitor || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
-    ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
+    ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
+    ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
     ${csudo}cp -r ${binary_dir}/build/bin/taos ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
-    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo || :
-    [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/taosd ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
@@ -189,7 +185,7 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/set_core.sh ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/run_taosd.sh ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/run_taosd_and_taosadapter.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
@@ -197,11 +193,9 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
     [ -x ${install_main_dir}/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-    [ -x ${install_main_dir}/run_taosd.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh || :
+    [ -x ${install_main_dir}/run_taosd_and_taosadapter.sh ]  && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   else
 
@@ -213,8 +207,6 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${clientName} ] || [ -x ${install_main_2_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || ${csudo}ln -s ${install_main_2_dir}/bin/${clientName} || :
     [ -x ${install_main_dir}/bin/${serverName} ] || [ -x ${install_main_2_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || ${csudo}ln -s ${install_main_2_dir}/bin/${serverName} || :
     [ -x ${install_main_dir}/bin/taosadapter ] || [ -x ${install_main_2_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || ${csudo}ln -s ${install_main_2_dir}/bin/taosadapter || :
-    [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
   fi
 }
 
@@ -438,9 +430,9 @@ function install_connector() {
 
 function install_examples() {
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples
+    ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples
   else
-    ${csudo}cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples || ${csudo}cp -rf ${source_dir}/tests/examples/* ${install_main_2_dir}/examples
+    ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || ${csudo}cp -rf ${source_dir}/examples/* ${install_main_2_dir}/examples
   fi
 }
 
@@ -508,8 +500,8 @@ function install_service_on_systemd() {
 
   ${csudo}bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'Description=${productName} server service' >> ${taosd_service_config}"
-  ${csudo}bash -c "echo 'After=network-online.target taosadapter.service'        >> ${taosd_service_config}"
-  ${csudo}bash -c "echo 'Wants=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+  ${csudo}bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
+  ${csudo}bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
   ${csudo}bash -c "echo                                      >> ${taosd_service_config}"
   ${csudo}bash -c "echo '[Service]'                          >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"

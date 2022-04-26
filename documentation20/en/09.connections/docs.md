@@ -63,7 +63,7 @@ Enter the data source configuration page and modify the corresponding configurat
 
 ![img](../images/connections/add_datasource3.jpg)
 
-- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), default  [http://localhost:6041](http://localhost:6041/)
+- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), use [http://localhost:6041](http://localhost:6041/) to access the interface by default. Note the 2.4 and later version of TDengine use a stand-alone software, taosAdapter to provide RESTful interface. Please refer to its document for configuration and deployment. 
 - User: TDengine username.
 - Password: TDengine user password.
 

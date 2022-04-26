@@ -19,6 +19,12 @@ system sh/deploy.sh -n dnode5 -i 5
 system sh/cfg.sh -n dnode5 -c maxVgroupsPerDb -v 4
 system sh/cfg.sh -n dnode5 -c maxTablesPerVnode -v 1000
 
+system sh/cfg.sh -n dnode1 -c balance -v 1
+system sh/cfg.sh -n dnode2 -c balance -v 1
+system sh/cfg.sh -n dnode3 -c balance -v 1
+system sh/cfg.sh -n dnode4 -c balance -v 1
+system sh/cfg.sh -n dnode5 -c balance -v 1
+
 print =============== prepare data
 system sh/exec.sh -n dnode1 -s start
 sql connect

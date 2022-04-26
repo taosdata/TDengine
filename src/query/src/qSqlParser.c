@@ -18,6 +18,7 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tcmdtype.h"
+#include "tcompare.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "ttokendef.h"
@@ -318,12 +319,17 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   }
 
   if ((pLeft != NULL && pRight != NULL) &&
-      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM)) {
+      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM ||
+       optrType == TK_EQ || optrType == TK_NE || optrType == TK_LT || optrType == TK_GT || optrType == TK_LE || optrType == TK_GE ||
+       optrType == TK_AND || optrType == TK_OR)) {
     /*
      * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
      */
     if ((pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_INTEGER) ||
+        (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_BOOL) ||
+        (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_BOOL) ||
+        (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_INTEGER) ||
         (pLeft->tokenId == TK_TIMESTAMP && pRight->tokenId == TK_TIMESTAMP)) {
       pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
       pExpr->tokenId = pLeft->tokenId;
@@ -360,12 +366,46 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
           break;
         }
+        case TK_EQ: {
+          pExpr->value.i64 = (pLeft->value.i64 == pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_NE: {
+          pExpr->value.i64 = (pLeft->value.i64 != pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_LT: {
+          pExpr->value.i64 = (pLeft->value.i64 < pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_GT: {
+          pExpr->value.i64 = (pLeft->value.i64 > pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_LE: {
+          pExpr->value.i64 = (pLeft->value.i64 <= pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_GE: {
+          pExpr->value.i64 = (pLeft->value.i64 >= pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_AND: {
+          pExpr->value.i64 = (pLeft->value.i64 && pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_OR: {
+          pExpr->value.i64 = (pLeft->value.i64 || pRight->value.i64) ? 1 : 0;
+          break;
+        }
       }
 
       tSqlExprDestroy(pLeft);
       tSqlExprDestroy(pRight);
     } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
                (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_BOOL) ||
                (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {
       pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->tokenId  = TK_FLOAT;
@@ -393,6 +433,80 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         }
         case TK_REM: {
           pExpr->value.dKey = left - ((int64_t)(left / right)) * right;
+          break;
+        }
+        case TK_EQ: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == 0) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_NE: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) != 0) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_LT: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == -1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_GT: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == 1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_LE: {
+          int32_t res = compareDoubleVal(&left, &right);
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (res == 0 || res == -1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_GE: {
+          int32_t res = compareDoubleVal(&left, &right);
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (res == 0 || res == 1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_AND: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          pExpr->value.i64 = (left && right) ? 1 : 0;
+          break;
+        }
+        case TK_OR: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          pExpr->value.i64 = (left || right) ? 1 : 0;
           break;
         }
       }
@@ -505,7 +619,7 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
   memcpy(pExpr, pSrc, sizeof(*pSrc));
-  
+
   if (pSrc->pLeft) {
     pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
   }
@@ -518,7 +632,7 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tVariantAssign(&pExpr->value, &pSrc->value);
 
   //we don't clone paramList now because clone is only used for between/and
-  assert(pSrc->Expr.paramList == NULL);
+  pExpr->Expr.paramList = NULL;
   return pExpr;
 }
 

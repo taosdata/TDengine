@@ -56,6 +56,7 @@ class TDTestCase:
         self.subResult = subResult
         self.expectResult = expectResult
         args0 = (filename, subResult, expectResult)
+        print("Queryfile:%s ,result is %s != expect: %s" % args0)
         assert subResult == expectResult , "Queryfile:%s ,result is %s != expect: %s" % args0    
 
     def run(self):
@@ -75,22 +76,12 @@ class TDTestCase:
         os.system("rm -rf ./all_subscribe_res*")  
 
         # insert data
-        os.system("nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json & >/dev/null 2>&1" % binPath)
-        sleep(5)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json" % binPath)
         tdSql.query("select count(*) from subnsdb.stb0")
-        if tdSql.checkData(0,0,100):
-            pass
-        else:
-            sleep(5)
-            tdSql.query("select count(*) from subnsdb.stb0")  # if records not write done ,sleep and wait records write done!
+        tdSql.checkData(0,0,100)
         
         os.system(" nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json & >/dev/null 2>&1" % binPath)
-        sleep(5)
-
-        if os.path.exists("./subscribe_res0.txt") and os.path.exists("./subscribe_res1.txt") and os.path.exists("./subscribe_res2.txt"):
-            pass
-        else:
-            sleep(5)   # make sure query is ok 
+        sleep(3)
         print('taosBenchmark query done!')
             
         # merge result files
@@ -100,7 +91,7 @@ class TDTestCase:
         os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
         sleep(5)
         
-        # correct subscribeTimes testcase
+        # check subscribeTimes testcase
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,200)
 
@@ -114,7 +105,7 @@ class TDTestCase:
         # insert extral data     
         tdSql.execute("use subnsdb")
         tdSql.execute("insert into tb0_0 values(now,100.1000,'subtest1',now-1s)")
-        sleep(15)   
+        sleep(5)   
 
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
@@ -129,8 +120,7 @@ class TDTestCase:
         os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
         os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
         
-  
-         
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
