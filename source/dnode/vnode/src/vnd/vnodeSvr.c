@@ -385,7 +385,7 @@ _exit:
 }
 
 static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  ASSERT(0);
+  // ASSERT(0);
 #if 0
   SVCreateTbReq vAlterTbReq = {0};
   vTrace("vgId:%d, process alter stb req", TD_VID(pVnode));
