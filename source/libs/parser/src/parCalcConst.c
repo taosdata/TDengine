@@ -20,8 +20,8 @@
 
 typedef struct SCalcConstContext {
   SParseContext* pParseCxt;
-  SMsgBuf msgBuf;
-  int32_t code;
+  SMsgBuf        msgBuf;
+  int32_t        code;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
@@ -35,7 +35,7 @@ static int32_t calcConstNode(SNode** pNode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pNew = NULL;
+  SNode*  pNew = NULL;
   int32_t code = scalarCalculateConstants(*pNode, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pNode = pNew;
@@ -46,7 +46,7 @@ static int32_t calcConstNode(SNode** pNode) {
 static int32_t calcConstList(SNodeList* pList) {
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
-    SNode* pNew = NULL;
+    SNode*  pNew = NULL;
     int32_t code = scalarCalculateConstants(pNode, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(pNew);
@@ -128,7 +128,7 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
       }
       // todo empty table
       break;
-    }  
+    }
     default:
       break;
   }
@@ -196,7 +196,7 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SNodeList* pProject
       ERASE_NODE(pProjections);
       continue;
     }
-    SNode* pNew = NULL;
+    SNode*  pNew = NULL;
     int32_t code = calcConstProject(pProj, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(pNew);
@@ -281,13 +281,11 @@ static bool isEmptyResultQuery(SNode* pStmt) {
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
-  SCalcConstContext cxt = {
-    .pParseCxt = pParseCxt,
-    .msgBuf.buf = pParseCxt->pMsg,
-    .msgBuf.len = pParseCxt->msgLen,
-    .code = TSDB_CODE_SUCCESS
-  };
-  int32_t code = calcConstQuery(&cxt, pQuery->pRoot, false);
+  SCalcConstContext cxt = {.pParseCxt = pParseCxt,
+                           .msgBuf.buf = pParseCxt->pMsg,
+                           .msgBuf.len = pParseCxt->msgLen,
+                           .code = TSDB_CODE_SUCCESS};
+  int32_t           code = calcConstQuery(&cxt, pQuery->pRoot, false);
   if (TSDB_CODE_SUCCESS == code && isEmptyResultQuery(pQuery->pRoot)) {
     pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }

@@ -591,25 +591,27 @@ static EDealRes haveAggFunction(SNode* pNode, void* pContext) {
 }
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  SFmGetFuncInfoParam param = {
-    .pCtg = pCxt->pParseCxt->pCatalog,
-    .pRpc = pCxt->pParseCxt->pTransporter,
-    .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
-    .pErrBuf = pCxt->msgBuf.buf,
-    .errBufLen = pCxt->msgBuf.len
-  };
+  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
+                               .pRpc = pCxt->pParseCxt->pTransporter,
+                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
+                               .pErrBuf = pCxt->msgBuf.buf,
+                               .errBufLen = pCxt->msgBuf.len};
   pCxt->errCode = fmGetFuncInfo(&param, pFunc);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     return DEAL_RES_ERROR;
   }
-  if (fmIsAggFunc(pFunc->funcId) && beforeHaving(pCxt->currClause)) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  if (fmIsAggFunc(pFunc->funcId)) {
+    if (beforeHaving(pCxt->currClause)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+    }
+    bool haveAggFunc = false;
+    nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
+    if (haveAggFunc) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+    }
+    pCxt->pCurrStmt->hasAggFuncs = true;
   }
-  bool haveAggFunc = false;
-  nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
-  if (haveAggFunc) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
-  }
+
   return DEAL_RES_CONTINUE;
 }
 
@@ -771,7 +773,7 @@ static int32_t addMnodeToVgroupList(const SEpSet* pEpSet, SArray** pVgroupList) 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  SVgroupInfo vg = { .vgId = MNODE_HANDLE };
+  SVgroupInfo vg = {.vgId = MNODE_HANDLE};
   memcpy(&vg.epSet, pEpSet, sizeof(SEpSet));
   taosArrayPush(*pVgroupList, &vg);
   return TSDB_CODE_SUCCESS;
@@ -787,7 +789,7 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   if ('\0' != pRealTable->qualDbName[0]) {
     // todo release after mnode can be processed
     // if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
-      code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
+    code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
     // }
   } else {
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
@@ -3481,7 +3483,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pCol->colName);
     }
     SValueNode* pVal = NULL;
-    int32_t code = translateTagVal(pCxt, pNode, &pVal);
+    int32_t     code = translateTagVal(pCxt, pNode, &pVal);
     if (TSDB_CODE_SUCCESS == code) {
       if (NULL == pVal) {
         pVal = (SValueNode*)pNode;
@@ -3511,7 +3513,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
   int32_t  index = 0;
   FOREACH(pNode, pStmt->pValsOfTags) {
     SValueNode* pVal = NULL;
-    int32_t code = translateTagVal(pCxt, pNode, &pVal);
+    int32_t     code = translateTagVal(pCxt, pNode, &pVal);
     if (TSDB_CODE_SUCCESS == code) {
       if (NULL == pVal) {
         pVal = (SValueNode*)pNode;
