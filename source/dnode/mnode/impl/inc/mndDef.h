@@ -126,6 +126,8 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
+typedef void (*TransCbFp)(SMnode* pMnode, void* param);
+
 typedef struct {
   int32_t    id;
   ETrnStage  stage;
@@ -148,6 +150,8 @@ typedef struct {
   int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
+  TransCbFp  transCbFp;
+  void*      transCbParam;
 } STrans;
 
 typedef struct {
