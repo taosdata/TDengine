@@ -103,9 +103,8 @@ static SSyncEnv *doSyncEnvStart() {
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
   assert(pSyncEnv == gSyncEnv);
-  atomic_store_8(&(pSyncEnv->isStart), 0); 
-
   if (pSyncEnv != NULL) {
+    atomic_store_8(&(pSyncEnv->isStart), 0); 
     taosTmrCleanUp(pSyncEnv->pTimerManager);
     taosMemoryFree(pSyncEnv);
   }
