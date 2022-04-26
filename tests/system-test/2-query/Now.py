@@ -122,6 +122,17 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select now() from ntb where ts=today()")
         tdSql.checkRows(1)
+        tdSql.query("select now()+1 from ntb")
+        tdSql.checkRows(3)
+        tdSql.query("select now()+9223372036854775807 from ntb")
+        tdSql.checkRows(3)
+        tdSql.query("select now()+1.5 from ntb")
+        tdSql.checkRows(3)
+
+
+        tdSql.error("select now()+'abc' from ntb")
+        tdSql.error("select now()+abc from ntb")
+        
 
         # stable
         tdSql.query("select now() from stb")
