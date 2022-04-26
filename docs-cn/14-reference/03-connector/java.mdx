@@ -2,23 +2,23 @@
 toc_max_heading_level: 4
 sidebar_position: 2
 sidebar_label: Java
-title: Java Connector
-description: 此连接器基于标准 JDBC API 实现。
+title: TDengine Java Connector
+description: 此 TDengine 连接器基于标准 JDBC API 实现。
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器。Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
-
-`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。`taos-jdbcdriver`（2.0.18 及更高版本）也支持使用 REST 连接 TDengine 集群。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器, Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.0.18 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](tdengine-jdbc-connector.png)
 
-上图显示了两种 Java 应用使用连接器访问 TDengine 的方式：
+上图显示了两种 Java 应用使用连接器访问 TDengine 的两种方式：
 
 - JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 TSDBDriver 直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
 - JDBC REST 连接：Java 应用通过 RestfulDriver 将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 服务器（taosAdapter），通过 REST 服务器请求 taosd 并返回结果。
+
+使用 REST 连接器，不依赖 TDengine 客户端驱动，可以跨平台，更加方便灵活，但性能比原生连接器低约30%。
 
 :::info
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
@@ -63,7 +63,9 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 使用 Java Connector 连接数据库前，需要具备以下条件：
 
 - 已安装 Java 1.8 或以上版本运行时环境和 Maven 3.6 或以上版本
-- 已安装客户端驱动（使用原生连接必须安装，使用 REST 连接无需安装），具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
+- 已安装 TDengine 客户端驱动（使用原生连接必须安装，使用 REST 连接无需安装），具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
+
+### 安装连接器
 
 <Tabs defaultValue="maven">
 <TabItem value="maven" label="使用 Maven 安装">
@@ -105,8 +107,10 @@ mvn clean install -Dmaven.test.skip=true
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
+对于建立连接，原生连接器与 REST 连接器有细微不同。
+
 <Tabs defaultValue="native">
-<TabItem value="native" label="建立原生连接">
+<TabItem value="native" label="原生连接器">
 
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -173,7 +177,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 </TabItem>
-<TabItem value="rest" label="建立 REST 连接">
+<TabItem value="rest" label="REST 连接器">
 
 ```java
 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
@@ -266,7 +270,7 @@ properties 中的配置参数如下：
 
 1. JDBC URL 参数，如上所述，可以在 JDBC URL 的参数中指定。
 2. Properties connProps
-3. 客户端配置文件 taos.cfg
+3. 使用原生连接时，TDengine 客户端驱动的配置文件 taos.cfg
 
 例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
 
