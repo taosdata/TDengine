@@ -346,11 +346,11 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 }
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
-  SMqPollReqV2* pReq = pMsg->pCont;
-  int64_t       consumerId = pReq->consumerId;
-  int64_t       waitTime = pReq->waitTime;
-  int32_t       reqEpoch = pReq->epoch;
-  int64_t       fetchOffset;
+  SMqPollReq* pReq = pMsg->pCont;
+  int64_t     consumerId = pReq->consumerId;
+  int64_t     waitTime = pReq->waitTime;
+  int32_t     reqEpoch = pReq->epoch;
+  int64_t     fetchOffset;
 
   // get offset to fetch message
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {

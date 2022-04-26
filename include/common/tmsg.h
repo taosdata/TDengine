@@ -2385,7 +2385,7 @@ typedef struct {
   int64_t  consumerId;
   int64_t  waitTime;
   int64_t  currentOffset;
-} SMqPollReqV2;
+} SMqPollReq;
 
 typedef struct {
   int32_t vgId;
