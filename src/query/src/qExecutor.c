@@ -334,7 +334,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
       qError("size is too large, failed to allocate column buffer for output buffer");
       goto _clean;
     }
-    int32_t size = (int32_t)MAX(tmp, minSize);
+    size_t size = (size_t)MAX(tmp, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     if (idata.pData == NULL) {
       qError("failed to allocate column buffer for output buffer");
@@ -9556,7 +9556,7 @@ void setResultBufSize(SQueryAttr* pQueryAttr, SRspResultInfo* pResultInfo) {
 
   // the minimum number of rows for projection query
   const int32_t MIN_ROWS_FOR_PRJ_QUERY = 8192;
-  const int32_t DEFAULT_MIN_ROWS = 4096;
+  const int32_t DEFAULT_MIN_ROWS = 1024;
 
   const float THRESHOLD_RATIO = 0.85f;
 
