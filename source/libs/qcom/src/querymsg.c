@@ -342,27 +342,19 @@ PROCESS_META_OVER:
 
 int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
   SQnodeListRsp out = {0};
-  int32_t       code = -1;
+  int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
     code = TSDB_CODE_TSC_INVALID_INPUT;
-    goto PROCESS_QLIST_OVER;
+    return code;
   }
 
+  out.addrsList = (SArray *)output;
   if (tDeserializeSQnodeListRsp(msg, msgSize, &out) != 0) {
     qError("invalid qnode list rsp msg, msgSize:%d", msgSize);
     code = TSDB_CODE_INVALID_MSG;
-    goto PROCESS_QLIST_OVER;
+    return code;
   }
-
-PROCESS_QLIST_OVER:
-
-  if (code != 0) {
-    tFreeSQnodeListRsp(&out);
-    out.epSetList = NULL;
-  }
-
-  *(SArray **)output = out.epSetList;
 
   return code;
 }

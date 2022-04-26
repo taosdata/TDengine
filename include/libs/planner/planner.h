@@ -35,6 +35,10 @@ typedef struct SPlanContext {
   int8_t triggerType;
   int64_t watermark;
   bool isStmtQuery;
+  void* pTransporter;
+  struct SCatalog* pCatalog;
+  char* pMsg;
+  int32_t msgLen;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

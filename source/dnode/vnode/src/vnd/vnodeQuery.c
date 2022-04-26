@@ -107,6 +107,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
+  rpcMsg.refId = pMsg->refId;
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;

@@ -267,6 +267,7 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
 
   return 0;
 }
@@ -275,6 +276,7 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   SVState *pState = (SVState *)pObj;
 
   if (tjsonGetNumberValue(pJson, "commit version", pState->committed) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "applied version", pState->applied) < 0) return -1;
 
   return 0;
 }

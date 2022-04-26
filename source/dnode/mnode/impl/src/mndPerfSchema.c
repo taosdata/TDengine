@@ -49,6 +49,7 @@ static const SPerfsTableSchema topicSchema[] = {
 
 static const SPerfsTableSchema consumerSchema[] = {
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "app_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "status", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -61,6 +62,7 @@ static const SPerfsTableSchema subscribeSchema[] = {
     {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "offset", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
 };
 
@@ -126,7 +128,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
   STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, tbName, strlen(tbName));
   if (NULL == meta) {
     mError("invalid performance schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_INFOS_TBL;
+    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
     return -1;
   }
 

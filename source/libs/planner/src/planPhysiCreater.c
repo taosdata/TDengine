@@ -16,6 +16,8 @@
 #include "planInt.h"
 
 #include "functionMgt.h"
+#include "tglobal.h"
+#include "catalog.h"
 
 typedef struct SSlotIdInfo {
   int16_t slotId;
@@ -396,9 +398,6 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SScanLogicNo
   if (TSDB_CODE_SUCCESS == code) {
     pScanPhysiNode->uid = pScanLogicNode->pMeta->uid;
     pScanPhysiNode->tableType = pScanLogicNode->pMeta->tableType;
-    pScanPhysiNode->order = TSDB_ORDER_ASC;
-    pScanPhysiNode->count = 1;
-    pScanPhysiNode->reverse = 0;
     memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
   }
 
@@ -430,7 +429,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pTableScan->scanFlag = pScanLogicNode->scanFlag;
+  memcpy(pTableScan->scanSeq, pScanLogicNode->scanSeq, sizeof(pScanLogicNode->scanSeq));
   pTableScan->scanRange = pScanLogicNode->scanRange;
   pTableScan->ratio = pScanLogicNode->ratio;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
@@ -1233,7 +1232,13 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (tsQueryPolicy > QUERY_POLICY_VNODE) {
+    code = catalogGetQnodeList(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     setExplainInfo(pCxt, *pPlan);
   }

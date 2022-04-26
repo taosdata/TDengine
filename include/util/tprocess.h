@@ -53,8 +53,8 @@ int32_t   taosProcRun(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
 
 int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                            void *handle, EProcFuncType ftype);
-void    taosProcRemoveHandle(SProcObj *pProc, void *handle);
+                            void *handle, int64_t handleRef, EProcFuncType ftype);
+int64_t taosProcRemoveHandle(SProcObj *pProc, void *handle);
 void    taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle));
 void    taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                              EProcFuncType ftype);

@@ -199,7 +199,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   TSWAP(pScan->pMeta, pRealTable->pMeta, STableMeta*);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList, SVgroupsInfo*);
-  pScan->scanFlag = MAIN_SCAN;
+  pScan->scanSeq[0] = 1;
+  pScan->scanSeq[1] = 0;
   pScan->scanRange = TSWINDOW_INITIALIZER;  
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
@@ -639,8 +640,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   }
 
   if (NULL != pSelect->pLimit) {
-    pProject->limit = ((SLimitNode*)pSelect->pLimit)->limit;
-    pProject->offset = ((SLimitNode*)pSelect->pLimit)->offset;
+    pProject->limit = pSelect->pLimit->limit;
+    pProject->offset = pSelect->pLimit->offset;
   } else {
     pProject->limit = -1;
     pProject->offset = -1;

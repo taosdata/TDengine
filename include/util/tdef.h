@@ -76,8 +76,6 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS "taosdata"
 #endif
 
-#define SHELL_MAX_PASSWORD_LEN 20
-
 #define TSDB_TRUE  1
 #define TSDB_FALSE 0
 #define TSDB_OK    0
@@ -118,7 +116,6 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_LICENCES               "grants"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
-#define TSDB_INS_TABLE_TOPICS                 "topics"
 #define TSDB_INS_TABLE_CONSUMERS              "consumers"
 #define TSDB_INS_TABLE_SUBSCRIBES             "subscribes"
 #define TSDB_INS_TABLE_TRANS                  "trans"

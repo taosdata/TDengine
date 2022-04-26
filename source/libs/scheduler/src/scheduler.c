@@ -369,7 +369,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
       }
 
       for (int32_t n = 0; n < childNum; ++n) {
-        SSubplan  *child = (SSubplan *)nodesListGetNode(pPlan->pChildren, n);
+        SSubplan * child = (SSubplan *)nodesListGetNode(pPlan->pChildren, n);
         SSchTask **childTask = taosHashGet(planToTask, &child, POINTER_BYTES);
         if (NULL == childTask || NULL == *childTask) {
           SCH_TASK_ELOG("subplan children relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
@@ -401,7 +401,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
       }
 
       for (int32_t n = 0; n < parentNum; ++n) {
-        SSubplan  *parent = (SSubplan *)nodesListGetNode(pPlan->pParents, n);
+        SSubplan * parent = (SSubplan *)nodesListGetNode(pPlan->pParents, n);
         SSchTask **parentTask = taosHashGet(planToTask, &parent, POINTER_BYTES);
         if (NULL == parentTask || NULL == *parentTask) {
           SCH_TASK_ELOG("subplan parent relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
@@ -491,7 +491,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
   int32_t        taskNum = 0;
-  SSchLevel     *pLevel = NULL;
+  SSchLevel *    pLevel = NULL;
 
   level.status = JOB_TASK_STATUS_NOT_START;
 
@@ -1267,7 +1267,7 @@ int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCo
 int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, int32_t rspCode) {
   int32_t                code = 0;
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  SSchTask              *pTask = NULL;
+  SSchTask *             pTask = NULL;
 
   SSchJob *pJob = schAcquireJob(pParam->refId);
   if (NULL == pJob) {
@@ -1617,8 +1617,8 @@ _return:
 int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   int32_t              code = 0;
   SSchHbCallbackParam *param = NULL;
-  SMsgSendInfo        *pMsgSendInfo = NULL;
-  SQueryNodeAddr      *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
+  SMsgSendInfo *       pMsgSendInfo = NULL;
+  SQueryNodeAddr *     addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   SQueryNodeEpId       epId = {0};
 
   epId.nodeId = addr->nodeId;
@@ -1759,10 +1759,10 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
   }
 
   SRpcCtxVal dst = {0};
-  void      *pIter = taosHashIterate(pSrc->args, NULL);
+  void *     pIter = taosHashIterate(pSrc->args, NULL);
   while (pIter) {
     SRpcCtxVal *pVal = (SRpcCtxVal *)pIter;
-    int32_t    *msgType = taosHashGetKey(pIter, NULL);
+    int32_t *   msgType = taosHashGetKey(pIter, NULL);
 
     dst = *pVal;
     dst.val = NULL;
@@ -1916,7 +1916,7 @@ _return:
 
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType) {
   uint32_t msgSize = 0;
-  void    *msg = NULL;
+  void *   msg = NULL;
   int32_t  code = 0;
   bool     isCandidateAddr = false;
   bool     persistHandle = false;
@@ -2673,7 +2673,7 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
-      SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
+      SSchTask *    pTask = taosArrayGet(pLevel->subTasks, m);
       SQuerySubDesc subDesc = {.tid = pTask->taskId, .status = pTask->status};
 
       taosArrayPush(pSub, &subDesc);

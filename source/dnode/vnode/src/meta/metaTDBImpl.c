@@ -252,7 +252,7 @@ void metaCloseDB(SMeta *pMeta) {
   }
 }
 
-int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
+int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg, STbDdlH *pHandle) {
   tb_uid_t       uid;
   SMetaDB       *pMetaDb;
   void          *pKey;
@@ -350,6 +350,12 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, pVal, vLen, &pMetaDb->txn);
     if (ret < 0) {
       return -1;
+    }
+    // child table handle for rsma
+    if (pHandle && pHandle->fp) {
+      if (((*pHandle->fp)(pHandle->ahandle, &pHandle->result, &ctbIdxKey.suid, &uid)) < 0) {
+        return -1;
+      };
     }
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
     pKey = &uid;

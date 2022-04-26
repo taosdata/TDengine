@@ -60,6 +60,10 @@ _err:
 int tsdbClose(STsdb *pTsdb) {
   if (pTsdb) {
     tsdbCloseFS(pTsdb);
+    // tsdbFreeSmaEnv(REPO_TSMA_ENV(pTsdb));
+    // tsdbFreeSmaEnv(REPO_RSMA_ENV(pTsdb));
+    tsdbFreeFS(pTsdb->fs);
+    taosMemoryFreeClear(pTsdb->path);
     taosMemoryFree(pTsdb);
   }
   return 0;

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "libs/function/function.h"
 
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
@@ -137,6 +138,7 @@ static void *vmOpenVnodeFunc(void *param) {
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
+    msgCb.queueFps[SYNC_QUEUE] = vmPutMsgToSyncQueue;  // sync integration
     msgCb.qsizeFp = vmGetQueueSize;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
     SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
@@ -145,6 +147,7 @@ static void *vmOpenVnodeFunc(void *param) {
       pThread->failed++;
     } else {
       vmOpenVnode(pMgmt, pCfg, pImpl);
+      //vnodeStart(pImpl);
       dDebug("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->opened++;
     }
@@ -266,6 +269,9 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   // walCleanUp();
   taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
+
+  // syncCleanUp();
+  udfcClose();
   dInfo("vnode-mgmt is cleaned up");
 }
 
@@ -306,6 +312,12 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   }
   dmReportStartup(pDnode, "vnode-wal", "initialized");
 
+  // sync integration
+  if (syncInit() != 0) {
+    dError("failed to open sync since %s", terrstr());
+    return -1;
+  }
+
   if (vnodeInit(tsNumOfCommitThreads) != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;
@@ -322,6 +334,10 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
   dmReportStartup(pDnode, "vnode-vnodes", "initialized");
+
+  if (udfcOpen() != 0) {
+    dError("failed to open udfc in dnode");
+  }
 
   code = 0;
 
@@ -343,10 +359,52 @@ static int32_t vmRequire(SMgmtWrapper *pWrapper, bool *required) {
   return 0;
 }
 
+static int32_t vmStart(SMgmtWrapper *pWrapper) {
+  dDebug("vnode-mgmt start to run");
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+
+  taosRLockLatch(&pMgmt->latch);
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    vnodeStart(pVnode->pImpl);
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+
+  taosRUnLockLatch(&pMgmt->latch);
+  return 0;
+}
+
+static void vmStop(SMgmtWrapper *pWrapper) {
+#if 0
+  dDebug("vnode-mgmt start to stop");
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  taosRLockLatch(&pMgmt->latch);
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    vnodeStop(pVnode->pImpl);
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+
+  taosRUnLockLatch(&pMgmt->latch);
+#endif
+}
+
 void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = vmInit;
   mgmtFp.closeFp = vmCleanup;
+  mgmtFp.startFp = vmStart;
+  mgmtFp.stopFp = vmStop;
   mgmtFp.requiredFp = vmRequire;
 
   vmInitMsgHandle(pWrapper);

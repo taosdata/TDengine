@@ -21,6 +21,7 @@
 #include "sclInt.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "ttime.h"
 
 OptrStr gOptrStr[] = {
   {0,                                      "invalid"},
@@ -986,6 +987,7 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   assert(FILTER_GET_FLAG(col->flag, FLD_TYPE_COLUMN));
   
   info->units[info->unitNum].compare.type = FILTER_GET_COL_FIELD_TYPE(col);
+  info->units[info->unitNum].compare.precision = FILTER_GET_COL_FIELD_PRECISION(col);
 
   *uidx = info->unitNum;
 
@@ -1748,6 +1750,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     assert(FILTER_GET_FLAG(right->flag, FLD_TYPE_VALUE));
 
     uint32_t type = FILTER_UNIT_DATA_TYPE(unit);
+    int8_t precision = FILTER_UNIT_DATA_PRECISION(unit);
     SFilterField* fi = right;
     
     SValueNode* var = (SValueNode *)fi->desc;
@@ -1801,6 +1804,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     } else {
       SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
       out.columnData->info.type = type;
+      out.columnData->info.precision = precision;
       if (IS_VAR_DATA_TYPE(type)) {
         out.columnData->info.bytes = bytes;
       } else {
@@ -3475,6 +3479,33 @@ int32_t filterFreeNcharColumns(SFilterInfo* info) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode* pNode) {
+  if (NULL == stat->nodeList) {
+    stat->nodeList = taosArrayInit(10, POINTER_BYTES);
+    if (NULL == stat->nodeList) {
+      FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+  }
+
+  if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
+    FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void fltConvertToTsValueNode(SFltTreeStat *stat, SValueNode* valueNode) {
+  char *timeStr = valueNode->datum.p;
+  if (convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, stat->precision, &valueNode->datum.i) !=
+      TSDB_CODE_SUCCESS) {
+    valueNode->datum.i = 0;
+  }
+  taosMemoryFree(timeStr);
+  
+  valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+}
+
 EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
 
@@ -3504,25 +3535,23 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     }
     
     SValueNode *valueNode = (SValueNode *)*pNode;
-    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type) {
+    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR != valueNode->node.resType.type) {
       return DEAL_RES_CONTINUE;
     }
 
-#if 0    
     if (stat->precision < 0) {
-      //TODO
+      int32_t code = fltAddValueNodeToConverList(stat, valueNode);
+      if (code) {
+        stat->code = code;
+        return DEAL_RES_ERROR;
+      }
+      
       return DEAL_RES_CONTINUE;
     }
 
-    char *timeStr = valueNode->datum.p;
-    if (taosParseTime(valueNode->datum.p, &valueNode->datum.i, valueNode->node.resType.bytes, stat->precision, tsDaylight) !=
-        TSDB_CODE_SUCCESS) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
-    }
-    TODO
-#else
+    fltConvertToTsValueNode(stat, valueNode);
+
     return DEAL_RES_CONTINUE;
-#endif
   }
 
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -3619,9 +3648,22 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 }
 
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
+  int32_t code = 0;
   nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
-  FLT_RET(pStat->code);
+  FLT_ERR_JRET(pStat->code);
+
+  int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
+  for (int32_t i = 0; i < nodeNum; ++i) {
+    SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
+    
+    fltConvertToTsValueNode(pStat, valueNode);
+  }
+
+_return:
+
+  taosArrayDestroy(pStat->nodeList);
+  FLT_RET(code);
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {

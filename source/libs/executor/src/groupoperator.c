@@ -265,7 +265,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
     if (pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -308,10 +308,10 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   //  }
 
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
-  initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, false);
 
   while(1) {
-    doBuildResultDatablock(pRes, pOperator->resultInfo.capacity, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset);
+    doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
     doFilter(pInfo->pCondition, pRes);
 
     bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);

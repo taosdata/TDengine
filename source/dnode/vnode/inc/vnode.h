@@ -21,6 +21,7 @@
 #include "tqueue.h"
 #include "trpc.h"
 
+#include "sync.h"
 #include "tarray.h"
 #include "tfs.h"
 #include "wal.h"
@@ -61,6 +62,12 @@ int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
+
+int32_t vnodeStart(SVnode *pVnode);
+void    vnodeStop(SVnode *pVnode);
+
+int64_t vnodeGetSyncHandle(SVnode *pVnode);
+void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -159,6 +166,7 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
+  SSyncCfg syncCfg;  // sync integration
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;

@@ -350,10 +350,11 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STagScanInfo {
-  SColumnInfo* pCols;
-  SSDataBlock* pRes;
+  SColumnInfo *pCols;
+  SSDataBlock *pRes;
   int32_t      totalTables;
   int32_t      curPos;
+  void        *pReader;
 } STagScanInfo;
 
 typedef struct SStreamBlockScanInfo {
@@ -379,13 +380,11 @@ typedef struct SSysTableScanInfo {
   SEpSet                 epSet;
   tsem_t                 ready;
 
-  int32_t accountId;
-  bool    showRewrite;
-  SNode*  pCondition;  // db_name filter condition, to discard data that are not in current database
-  SMTbCursor*   pCur;        // cursor for iterate the local table meta store.
-  SArray* scanCols;    // SArray<int16_t> scan column id list
-
-//  int32_t             type;  // show type, TODO remove it
+  int32_t             accountId;
+  bool                showRewrite;
+  SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
+  void*               pCur;        // cursor for iterate the local table meta store.
+  SArray*             scanCols;    // SArray<int16_t> scan column id list
   SName               name;
   SSDataBlock*        pRes;
   int32_t             capacity;
@@ -403,8 +402,8 @@ typedef struct SOptrBasicInfo {
 // TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
 typedef struct SAggSupporter {
   SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
-  SHashObj*      pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
-  SArray*        pResultRowArrayList;  // The array list that contains the Result rows
+//  SHashObj*      pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
+//  SArray*        pResultRowArrayList;  // The array list that contains the Result rows
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
@@ -611,8 +610,8 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
                     SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
-void    doBuildResultDatablock(SSDataBlock* pBlock, int32_t rowCapacity, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
-                     SDiskbasedBuf* pBuf, int32_t* rowCellOffset);
+void    doBuildResultDatablock(SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
+                     SDiskbasedBuf* pBuf, int32_t* rowCellOffset, SqlFunctionCtx* pCtx);
 void    finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf,
                                       SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void    doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
@@ -631,7 +630,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t dataLoadFlag, int32_t repeatTime,
+SOperatorInfo* createTableScanOperatorInfo(void* pReaderHandle, int32_t order, int32_t numOfCols, int32_t dataLoadFlag, int32_t repeatTime,
                                            int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition,
                                            SInterval* pInterval, double ratio, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
@@ -671,12 +670,12 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTagScanOperatorInfo(void* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput, SExecTaskInfo* pTaskInfo);
 
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                         SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createTagScanOperatorInfo(SReaderHandle* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput);
 #endif
 
 void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,

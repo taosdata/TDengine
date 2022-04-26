@@ -31,7 +31,6 @@ int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
 
   if (pEp->port == 0) {
     pEp->port = tsServerPort;
-    return -1;
   }
 
   return 0;
@@ -645,12 +644,12 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
 
 /**
  * @refitem blockDataToBuf for the meta size
- *
  * @param pBlock
  * @return
  */
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
-  return sizeof(int32_t) + pBlock->info.numOfCols * sizeof(int32_t);
+  // | total rows/total length | block group id | each column length |
+  return sizeof(int32_t) + sizeof(uint64_t) + pBlock->info.numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -1219,7 +1218,6 @@ void colDataDestroy(SColumnInfoData* pColData) {
 
   taosMemoryFree(pColData->pData);
 }
-
 
 static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   int32_t len = BitmapLen(total);

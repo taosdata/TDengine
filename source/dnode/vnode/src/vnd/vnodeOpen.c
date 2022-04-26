@@ -14,6 +14,7 @@
  */
 
 #include "vnodeInt.h"
+#include "vnodeSync.h"
 
 int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   SVnodeInfo info = {0};
@@ -35,6 +36,8 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
   info.config = *pCfg;
+  info.state.committed = -1;
+  info.state.applied = -1;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
     vError("vgId: %d failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
@@ -75,8 +78,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->path = (char *)&pVnode[1];
   strcpy(pVnode->path, path);
   pVnode->config = info.config;
-  pVnode->state.committed = info.state.committed;
-  pVnode->state.processed = pVnode->state.applied = pVnode->state.committed;
+  pVnode->state = info.state;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
 
@@ -128,6 +130,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+  // open sync
+  if (vnodeSyncOpen(pVnode, dir)) {
+    vError("vgId: %d failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   return pVnode;
 
 _err:
@@ -143,9 +151,8 @@ _err:
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    // commit (TODO: use option to control)
     vnodeCommit(pVnode);
-    // close vnode
+    vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
@@ -157,3 +164,17 @@ void vnodeClose(SVnode *pVnode) {
     taosMemoryFree(pVnode);
   }
 }
+
+// start the sync timer after the queue is ready
+int32_t vnodeStart(SVnode *pVnode) {
+  vnodeSyncSetQ(pVnode, NULL);
+  vnodeSyncSetRpc(pVnode, NULL);
+  vnodeSyncStart(pVnode);
+  return 0;
+}
+
+void vnodeStop(SVnode *pVnode) {}
+
+int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
+
+void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) { pSnapshot->lastApplyIndex = pVnode->state.committed; }

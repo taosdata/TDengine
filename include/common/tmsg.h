@@ -227,8 +227,16 @@ typedef struct {
 } SSubmitBlkIter;
 
 typedef struct {
-  int32_t     totalLen;
-  int32_t     len;
+  int32_t totalLen;
+  int32_t len;
+  // head of SSubmitBlk
+  // int64_t uid;        // table unique id
+  // int64_t suid;       // stable id
+  // int32_t sversion;   // data schema version
+  // int32_t dataLen;    // data part length, not including the SSubmitBlk head
+  // int32_t schemaLen;  // schema length, if length is 0, no schema exists
+  // int16_t numOfRows;  // total number of rows in current submit block
+  // head of SSubmitBlk
   const void* pMsg;
 } SSubmitMsgIter;
 
@@ -236,6 +244,15 @@ int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
+
+// TODO: KEEP one suite of iterator API finally.
+// 1) use tInitSubmitMsgIterEx firstly as not decrease the merge conflicts
+// 2) replace tInitSubmitMsgIterEx with tInitSubmitMsgIter later
+// 3) finally, rename tInitSubmitMsgIterEx to tInitSubmitMsgIter
+// int32_t tInitSubmitMsgIterEx(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
+// int32_t tGetSubmitMsgNextEx(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
+// int32_t tInitSubmitBlkIterEx(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
+// STSRow* tGetSubmitBlkNextEx(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks
@@ -281,7 +298,6 @@ typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   float   xFilesFactor;
-  int32_t aggregationMethod;
   int32_t delay;
   int32_t ttl;
   int32_t numOfColumns;
@@ -645,12 +661,17 @@ int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
 typedef struct {
-  SArray* epSetList;  // SArray<SEpSet>
+  SArray* addrsList;  // SArray<SQueryNodeAddr>
 } SQnodeListRsp;
 
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
+
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  SEpSet  epSet;
+} SQueryNodeAddr;
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -1289,16 +1310,14 @@ typedef struct {
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  int8_t  igExists;
-  int8_t  withTbName;
-  int8_t  withSchema;
-  int8_t  withTag;
-  int8_t  withTagSchema;
-  char*   sql;
-  char*   ast;
-  int64_t subDbUid;
-  char    subscribeDbName[TSDB_DB_NAME_LEN];
+  char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
+  int8_t igExists;
+  int8_t withTbName;
+  int8_t withSchema;
+  int8_t withTag;
+  char*  sql;
+  char*  ast;
+  char   subscribeDbName[TSDB_DB_NAME_LEN];
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
@@ -1317,30 +1336,34 @@ typedef struct {
 } SMqConsumerLostMsg;
 
 typedef struct {
-  int32_t topicNum;
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
-  SArray* topicNames;  // SArray<char*>
+  SArray* topicNames;  // SArray<char**>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pReq->topicNum);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->cgroup);
 
-  for (int32_t i = 0; i < pReq->topicNum; i++) {
+  int32_t topicNum = taosArrayGetSize(pReq->topicNames);
+  tlen += taosEncodeFixedI32(buf, topicNum);
+
+  for (int32_t i = 0; i < topicNum; i++) {
     tlen += taosEncodeString(buf, (char*)taosArrayGetP(pReq->topicNames, i));
   }
   return tlen;
 }
 
 static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
-  buf = taosDecodeFixedI32(buf, &pReq->topicNum);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
-  pReq->topicNames = taosArrayInit(pReq->topicNum, sizeof(void*));
-  for (int32_t i = 0; i < pReq->topicNum; i++) {
+
+  int32_t topicNum;
+  buf = taosDecodeFixedI32(buf, &topicNum);
+
+  pReq->topicNames = taosArrayInit(topicNum, sizeof(void*));
+  for (int32_t i = 0; i < topicNum; i++) {
     char* name;
     buf = taosDecodeString(buf, &name);
     taosArrayPush(pReq->topicNames, &name);
@@ -1490,14 +1513,12 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
-  float      xFilesFactor;
-  int32_t    delay;
-  int32_t    qmsg1Len;
-  int32_t    qmsg2Len;
-  func_id_t* pFuncIds;
-  char*      qmsg1;  // not null: pAst1:qmsg1:SRetention1 => trigger aggr task1
-  char*      qmsg2;  // not null: pAst2:qmsg2:SRetention2 => trigger aggr task2
-  int8_t     nFuncIds;
+  float   xFilesFactor;
+  int32_t delay;
+  int32_t qmsg1Len;
+  int32_t qmsg2Len;
+  char*   qmsg1;  // pAst1:qmsg1:SRetention1 => trigger aggr task1
+  char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
 } SRSmaParam;
 
 int tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
@@ -1994,7 +2015,6 @@ typedef struct {
   int8_t  withTbName;
   int8_t  withSchema;
   int8_t  withTag;
-  int8_t  withTagSchema;
   char*   qmsg;
 } SMqRebVgReq;
 
@@ -2009,7 +2029,6 @@ static FORCE_INLINE int32_t tEncodeSMqRebVgReq(void** buf, const SMqRebVgReq* pR
   tlen += taosEncodeFixedI8(buf, pReq->withTbName);
   tlen += taosEncodeFixedI8(buf, pReq->withSchema);
   tlen += taosEncodeFixedI8(buf, pReq->withTag);
-  tlen += taosEncodeFixedI8(buf, pReq->withTagSchema);
   if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     tlen += taosEncodeString(buf, pReq->qmsg);
   }
@@ -2026,7 +2045,6 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   buf = taosDecodeFixedI8(buf, &pReq->withTbName);
   buf = taosDecodeFixedI8(buf, &pReq->withSchema);
   buf = taosDecodeFixedI8(buf, &pReq->withTag);
-  buf = taosDecodeFixedI8(buf, &pReq->withTagSchema);
   if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     buf = taosDecodeString(buf, &pReq->qmsg);
   }
@@ -2077,80 +2095,6 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
 }
 
 typedef struct {
-  int64_t leftForVer;
-  int32_t vgId;
-  int32_t epoch;
-  int64_t consumerId;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-} SMqCancelConnReq;
-
-static FORCE_INLINE int32_t tEncodeSMqCancelConnReq(void** buf, const SMqCancelConnReq* pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->leftForVer);
-  tlen += taosEncodeFixedI32(buf, pReq->vgId);
-  tlen += taosEncodeFixedI32(buf, pReq->epoch);
-  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
-  tlen += taosEncodeString(buf, pReq->topicName);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqCancelConnReq(void* buf, SMqCancelConnReq* pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->leftForVer);
-  buf = taosDecodeFixedI32(buf, &pReq->vgId);
-  buf = taosDecodeFixedI32(buf, &pReq->epoch);
-  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
-  buf = taosDecodeStringTo(buf, pReq->topicName);
-  return buf;
-}
-
-typedef struct {
-  int8_t reserved;
-} SMqCancelConnRsp;
-
-typedef struct {
-  int64_t leftForVer;
-  int32_t vgId;
-  int64_t oldConsumerId;
-  int64_t newConsumerId;
-  char*   topic;
-} SMqMVRebReq;
-
-static FORCE_INLINE int32_t tEncodeSMqMVRebReq(void** buf, const SMqMVRebReq* pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->leftForVer);
-  tlen += taosEncodeFixedI32(buf, pReq->vgId);
-  tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
-  tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
-  tlen += taosEncodeString(buf, pReq->topic);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqMVRebReq(void* buf, SMqMVRebReq* pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->leftForVer);
-  buf = taosDecodeFixedI32(buf, &pReq->vgId);
-  buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
-  buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
-  buf = taosDecodeString(buf, &pReq->topic);
-  return buf;
-}
-
-typedef struct {
-  SMsgHead header;
-  int32_t  vgId;
-  int64_t  consumerId;
-  char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CGROUP_LEN];
-} SMqSetCVgRsp;
-
-typedef struct {
-  SMsgHead header;
-  int32_t  vgId;
-  int64_t  consumerId;
-  char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CGROUP_LEN];
-} SMqMVRebRsp;
-
-typedef struct {
   int32_t vgId;
   int64_t offset;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
@@ -2171,6 +2115,25 @@ int32_t tDecodeSMqOffset(SCoder* decoder, SMqOffset* pOffset);
 int32_t tEncodeSMqCMCommitOffsetReq(SCoder* encoder, const SMqCMCommitOffsetReq* pReq);
 int32_t tDecodeSMqCMCommitOffsetReq(SCoder* decoder, SMqCMCommitOffsetReq* pReq);
 
+static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
+  SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
+  if (pSW == NULL) return pSW;
+  pSW->nCols = pSchemaWrapper->nCols;
+  pSW->sver = pSchemaWrapper->sver;
+  pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
+  if (pSW->pSchema == NULL) {
+    taosMemoryFree(pSW);
+    return NULL;
+  }
+  memcpy(pSW->pSchema, pSchemaWrapper->pSchema, pSW->nCols * sizeof(SSchema));
+  return pSW;
+}
+
+static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
+  taosMemoryFree(pSchemaWrapper->pSchema);
+  taosMemoryFree(pSchemaWrapper);
+}
+
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);
@@ -2181,13 +2144,13 @@ static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema
   return tlen;
 }
 
-static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
+static FORCE_INLINE void* taosDecodeSSchema(const void* buf, SSchema* pSchema) {
   buf = taosDecodeFixedI8(buf, &pSchema->type);
   buf = taosDecodeFixedI8(buf, &pSchema->flags);
   buf = taosDecodeFixedI32(buf, &pSchema->bytes);
   buf = taosDecodeFixedI16(buf, &pSchema->colId);
   buf = taosDecodeStringTo(buf, pSchema->name);
-  return buf;
+  return (void*)buf;
 }
 
 static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
@@ -2218,7 +2181,7 @@ static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWr
   return tlen;
 }
 
-static FORCE_INLINE void* taosDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
+static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeVariantI32(buf, &pSW->nCols);
   buf = taosDecodeVariantI32(buf, &pSW->sver);
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
@@ -2229,7 +2192,7 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pS
   for (int32_t i = 0; i < pSW->nCols; i++) {
     buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
   }
-  return buf;
+  return (void*)buf;
 }
 
 static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SCoder* pEncoder, const SSchemaWrapper* pSW) {
@@ -2614,7 +2577,6 @@ typedef struct {
   int8_t     withTbName;
   int8_t     withSchema;
   int8_t     withTag;
-  int8_t     withTagSchema;
   SArray*    blockDataLen;    // SArray<int32_t>
   SArray*    blockData;       // SArray<SRetrieveTableRsp*>
   SArray*    blockTbName;     // SArray<char*>
@@ -2633,13 +2595,16 @@ static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp
     tlen += taosEncodeFixedI8(buf, pRsp->withTbName);
     tlen += taosEncodeFixedI8(buf, pRsp->withSchema);
     tlen += taosEncodeFixedI8(buf, pRsp->withTag);
-    tlen += taosEncodeFixedI8(buf, pRsp->withTagSchema);
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t*)taosArrayGet(pRsp->blockDataLen, i);
       void*   data = taosArrayGetP(pRsp->blockData, i);
       tlen += taosEncodeFixedI32(buf, bLen);
       tlen += taosEncodeBinary(buf, data, bLen);
+      if (pRsp->withSchema) {
+        SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRsp->blockSchema, i);
+        tlen += taosEncodeSSchemaWrapper(buf, pSW);
+      }
     }
   }
   return tlen;
@@ -2652,11 +2617,11 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
   pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
+  pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
     buf = taosDecodeFixedI8(buf, &pRsp->withSchema);
     buf = taosDecodeFixedI8(buf, &pRsp->withTag);
-    buf = taosDecodeFixedI8(buf, &pRsp->withTagSchema);
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = 0;
@@ -2665,6 +2630,11 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
       buf = taosDecodeBinary(buf, &data, bLen);
       taosArrayPush(pRsp->blockDataLen, &bLen);
       taosArrayPush(pRsp->blockData, &data);
+      if (pRsp->withSchema) {
+        SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
+        buf = taosDecodeSSchemaWrapper(buf, pSW);
+        taosArrayPush(pRsp->blockSchema, &pSW);
+      }
     }
   }
   return (void*)buf;

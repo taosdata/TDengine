@@ -199,15 +199,6 @@ static const SInfosTableSchema vgroupsSchema[] = {
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
-// TODO put into perf schema
-static const SInfosTableSchema topicSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-};
-
 static const SInfosTableSchema consumerSchema[] = {
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -291,7 +282,6 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
-    {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema)},
     {TSDB_INS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
     {TSDB_INS_TABLE_SUBSCRIBES, subscribeSchema, tListLen(subscribeSchema)},
     {TSDB_INS_TABLE_TRANS, transSchema, tListLen(transSchema)},
@@ -335,7 +325,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
       return -1;
     }
 
-    if (taosHashPut(hash, meta.tbName, strlen(meta.tbName) + 1, &meta, sizeof(meta))) {
+    if (taosHashPut(hash, meta.tbName, strlen(meta.tbName), &meta, sizeof(meta))) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -350,10 +340,10 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     return -1;
   }
 
-  STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName) + 1);
+  STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_INFOS_TBL;
+    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
     return -1;
   }
 

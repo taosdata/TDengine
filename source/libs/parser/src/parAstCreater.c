@@ -146,44 +146,42 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
       pCxt->valid = false;
     }
   } else {
+    trimEscape(pDbName);
     if (pDbName->n >= TSDB_DB_NAME_LEN) {
       generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
       pCxt->valid = false;
     }
   }
-  if (pCxt->valid) {
-    trimEscape(pDbName);
-  }
   return pCxt->valid;
 }
 
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
+  trimEscape(pTableName);
   if (NULL != pTableName && pTableName->n >= TSDB_TABLE_NAME_LEN) {
     generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
     pCxt->valid = false;
     return false;
   }
-  trimEscape(pTableName);
   return true;
 }
 
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
+  trimEscape(pColumnName);
   if (NULL != pColumnName && pColumnName->n >= TSDB_COL_NAME_LEN) {
     generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
     pCxt->valid = false;
     return false;
   }
-  trimEscape(pColumnName);
   return true;
 }
 
 static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
+  trimEscape(pIndexName);
   if (NULL != pIndexName && pIndexName->n >= TSDB_INDEX_NAME_LEN) {
     generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
     pCxt->valid = false;
     return false;
   }
-  trimEscape(pIndexName);
   return true;
 }
 
@@ -370,39 +368,6 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   return (SNode*)func;
 }
 
-SNode* createFunctionNodeNoArg(SAstCreateContext* pCxt, const SToken* pFuncName) {
-  SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  CHECK_OUT_OF_MEM(func);
-  char buf[64] = {0};
-
-  int32_t dataType;
-  switch (pFuncName->type) {
-    case TK_NOW: {
-      int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-      snprintf(buf, sizeof(buf), "%"PRId64, ts);
-      dataType = TSDB_DATA_TYPE_BIGINT;
-      break;
-    }
-    case TK_TODAY: {
-      int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
-      snprintf(buf, sizeof(buf), "%"PRId64, ts);
-      dataType = TSDB_DATA_TYPE_BIGINT;
-      break;
-    }
-    case TK_TIMEZONE: {
-      strncpy(buf, tsTimezoneStr, strlen(tsTimezoneStr));
-      dataType = TSDB_DATA_TYPE_BINARY;
-      break;
-    }
-  }
-  SToken token = {.type = pFuncName->type, .n = strlen(buf), .z = buf};
-
-  SNodeList *pParameterList = createNodeList(pCxt, createValueNode(pCxt, dataType, &token));
-  strncpy(func->functionName, pFuncName->z, pFuncName->n);
-  func->pParameterList = pParameterList;
-  return (SNode*)func;
-}
-
 SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt) {
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
@@ -445,10 +410,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   } else {
     strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
   }
-  strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
-  if (NULL != pCxt->pQueryCxt->db) {
-    strcpy(realTable->useDbName, pCxt->pQueryCxt->db);
-  }  
+  strncpy(realTable->table.tableName, pTableName->z, pTableName->n); 
   return (SNode*)realTable;
 }
 
@@ -609,14 +571,14 @@ SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrder
 
 SNode* addSlimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    ((SSelectStmt*)pStmt)->pSlimit = pSlimit;
+    ((SSelectStmt*)pStmt)->pSlimit = (SLimitNode*)pSlimit;
   }
   return pStmt;
 }
 
 SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    ((SSelectStmt*)pStmt)->pLimit = pLimit;
+    ((SSelectStmt*)pStmt)->pLimit = (SLimitNode*)pLimit;
   }
   return pStmt;
 }
@@ -771,7 +733,10 @@ SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOptio
   return pOptions;
 }
 
-SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment) {
+SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment) {
+  if (!checkColumnName(pCxt, pColName)) {
+    return NULL;
+  }
   SColumnDefNode* pCol = (SColumnDefNode*)nodesMakeNode(QUERY_NODE_COLUMN_DEF);
   CHECK_OUT_OF_MEM(pCol);
   strncpy(pCol->colName, pColName->z, pColName->n);
@@ -1101,7 +1066,17 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
-SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName, SNode* pQuery, const SToken* pSubscribeDbName) {
+SNode* createTopicOptions(SAstCreateContext* pCxt) {
+  STopicOptions* pOptions = nodesMakeNode(QUERY_NODE_TOPIC_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->withTable = false;
+  pOptions->withSchema = false;
+  pOptions->withTag = false;
+  return (SNode*)pOptions;
+}
+
+SNode* createCreateTopicStmt(SAstCreateContext* pCxt,
+    bool ignoreExists, const SToken* pTopicName, SNode* pQuery, const SToken* pSubscribeDbName, SNode* pOptions) {
   SCreateTopicStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
@@ -1110,6 +1085,7 @@ SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const S
   if (NULL != pSubscribeDbName) {
     strncpy(pStmt->subscribeDbName, pSubscribeDbName->z, pSubscribeDbName->n);
   }
+  pStmt->pOptions = (STopicOptions*)pOptions;
   return (SNode*)pStmt;
 }
 

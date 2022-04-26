@@ -18,8 +18,10 @@
 
 #include "executor.h"
 #include "os.h"
+#include "tcache.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"
 
@@ -81,7 +83,6 @@ typedef struct STqOffsetStore STqOffsetStore;
 
 struct STqReadHandle {
   int64_t           ver;
-  int64_t           tbUid;
   SHashObj*         tbIdHash;
   const SSubmitReq* pMsg;
   SSubmitBlk*       pBlock;
@@ -142,26 +143,36 @@ typedef struct {
 } STqMetaStore;
 
 typedef struct {
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t consumerId;
-  int32_t epoch;
-  int8_t  subType;
-  int8_t  withTbName;
-  int8_t  withSchema;
-  int8_t  withTag;
-  int8_t  withTagSchema;
-  char*   qmsg;
+  int64_t  consumerId;
+  int32_t  epoch;
+  int32_t  skipLogNum;
+  int64_t  reqOffset;
+  SRWLatch lock;
+  SRpcMsg* handle;
+} STqPushHandle;
+
+typedef struct {
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        subType;
+  int8_t        withTbName;
+  int8_t        withSchema;
+  int8_t        withTag;
+  char*         qmsg;
+  STqPushHandle pushHandle;
   // SRWLatch        lock;
   SWalReadHandle* pWalReader;
-  // number should be identical to fetch thread num
-  STqReadHandle* pStreamReader[4];
-  qTaskInfo_t    task[4];
+  // task number should be the same with fetch thread
+  STqReadHandle* pExecReader[5];
+  qTaskInfo_t    task[5];
 } STqExec;
 
 struct STQ {
   char* path;
   // STqMetaStore* tqMeta;
-  SHashObj* execs;  // subKey -> tqExec
+  SHashObj* pushMgr;  // consumerId -> STqExec*
+  SHashObj* execs;    // subKey -> STqExec
   SHashObj* pStreamTasks;
   SVnode*   pVnode;
   SWal*     pWal;
@@ -205,20 +216,6 @@ typedef struct {
   SArray* topics;  // SArray<STqTopic>
 } STqConsumer;
 
-enum {
-  TQ_PUSHER_TYPE__CLIENT = 1,
-  TQ_PUSHER_TYPE__STREAM,
-};
-
-typedef struct {
-  int8_t   type;
-  int8_t   reserved[3];
-  int32_t  ttl;
-  int64_t  consumerId;
-  SRpcMsg* pMsg;
-  // SMqPollRsp* rsp;
-} STqClientPusher;
-
 typedef struct {
   int8_t      type;
   int8_t      nodeType;
@@ -227,10 +224,6 @@ typedef struct {
   qTaskInfo_t task;
   // TODO sync function
 } STqStreamPusher;
-
-typedef struct {
-  SHashObj* pHash;  // <id, STqPush*>
-} STqPushMgr;
 
 typedef struct {
   int8_t inited;
@@ -247,14 +240,11 @@ void tqCleanUp();
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void tqClose(STQ*);
 // required by vnode
-int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
+int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
-// int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-// int32_t tqProcessRebReq(STQ* pTq, char* msg);
-// int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
@@ -294,16 +284,6 @@ int64_t tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
 int32_t tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t tqOffsetPersistAll(STqOffsetStore* pStore);
-
-// tqPush
-int32_t tqPushMgrInit();
-void    tqPushMgrCleanUp();
-
-STqPushMgr* tqPushMgrOpen();
-void        tqPushMgrClose(STqPushMgr* pushMgr);
-
-STqClientPusher* tqAddClientPusher(STqPushMgr* pushMgr, SRpcMsg* pMsg, int64_t consumerId, int64_t ttl);
-STqStreamPusher* tqAddStreamPusher(STqPushMgr* pushMgr, int64_t streamId, SEpSet* pEpSet);
 
 #ifdef __cplusplus
 }

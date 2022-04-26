@@ -3225,8 +3225,13 @@ void tsdbRetrieveDataBlockInfo(tsdbReaderT* pTsdbReadHandle, SDataBlockInfo* pDa
   tsdbDebug("data block generated, uid:%" PRIu64 " numOfRows:%d, tsrange:%" PRId64 " - %" PRId64 " %s", uid, cur->rows,
             cur->win.skey, cur->win.ekey, pHandle->idStr);
 
-  //  pDataBlockInfo->uid    = uid; // block Id may be over write by assigning uid fro this data block. Do NOT assign
-  //  the table uid
+  pDataBlockInfo->uid    = uid;
+
+#if 0
+  // for multi-group data query processing test purpose
+  pDataBlockInfo->groupId = uid;
+#endif
+
   pDataBlockInfo->rows = cur->rows;
   pDataBlockInfo->window = cur->win;
   pDataBlockInfo->numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pHandle));
@@ -3636,6 +3641,8 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
     tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     goto _error;
+  } else {
+    tsdbDebug("%p succeed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
   }
 
   if (mr.me.type != META_SUPER_TABLE) {

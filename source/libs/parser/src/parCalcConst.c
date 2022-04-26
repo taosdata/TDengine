@@ -16,79 +16,45 @@
 #include "functionMgt.h"
 #include "parInt.h"
 #include "scalar.h"
+#include "ttime.h"
 
 typedef struct SCalcConstContext {
+  SParseContext* pParseCxt;
+  SMsgBuf msgBuf;
   int32_t code;
 } SCalcConstContext;
 
-static int32_t calcConstQuery(SNode* pStmt);
+static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
 
-static EDealRes doCalcConst(SNode** pNode, SCalcConstContext* pCxt) {
+static int32_t calcConstSubquery(SCalcConstContext* pCxt, STempTableNode* pTempTable) {
+  return calcConstQuery(pCxt, pTempTable->pSubquery, true);
+}
+
+static int32_t calcConstNode(SNode** pNode) {
+  if (NULL == *pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNode* pNew = NULL;
-  pCxt->code = scalarCalculateConstants(*pNode, &pNew);
-  if (TSDB_CODE_SUCCESS != pCxt->code) {
-    return DEAL_RES_ERROR;
+  int32_t code = scalarCalculateConstants(*pNode, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pNode = pNew;
   }
-  ((SValueNode*)pNew)->genByCalc = true;
-  ((SValueNode*)pNew)->translate = true;
-  *pNode = pNew;
-  return DEAL_RES_CONTINUE;
+  return code;
 }
 
-static EDealRes calcConstOperator(SOperatorNode** pNode, void* pContext) {
-  SOperatorNode* pOp = *pNode;
-  if (QUERY_NODE_VALUE == nodeType(pOp->pLeft) && (NULL == pOp->pRight || QUERY_NODE_VALUE == nodeType(pOp->pRight))) {
-    return doCalcConst((SNode**)pNode, (SCalcConstContext*)pContext);
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static EDealRes calcConstFunction(SFunctionNode** pNode, void* pContext) {
-  SFunctionNode* pFunc = *pNode;
-  if (!fmIsScalarFunc(pFunc->funcId)) {
-    return DEAL_RES_CONTINUE;
-  }
-  SNode* pParam = NULL;
-  FOREACH(pParam, pFunc->pParameterList) {
-    if (QUERY_NODE_VALUE != nodeType(pParam)) {
-      return DEAL_RES_CONTINUE;
+static int32_t calcConstList(SNodeList* pList) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    SNode* pNew = NULL;
+    int32_t code = scalarCalculateConstants(pNode, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      REPLACE_NODE(pNew);
+    } else {
+      return code;
     }
   }
-  return doCalcConst((SNode**)pNode, (SCalcConstContext*)pContext);
-}
-
-static EDealRes calcConstLogicCond(SLogicConditionNode** pNode, void* pContext) {
-  SLogicConditionNode* pCond = *pNode;
-  SNode* pParam = NULL;
-  FOREACH(pParam, pCond->pParameterList) {
-    // todo calc "true and c1 > 10"
-    if (QUERY_NODE_VALUE != nodeType(pParam)) {
-      return DEAL_RES_CONTINUE;
-    }
-  }
-  return doCalcConst((SNode**)pNode, (SCalcConstContext*)pContext);
-}
-
-static EDealRes calcConstSubquery(STempTableNode** pNode, void* pContext) {
-  SCalcConstContext* pCxt = pContext;
-  pCxt->code = calcConstQuery((*pNode)->pSubquery);
-  return (TSDB_CODE_SUCCESS == pCxt->code ? DEAL_RES_CONTINUE : DEAL_RES_ERROR);
-}
-
-static EDealRes calcConst(SNode** pNode, void* pContext) {
-  switch (nodeType(*pNode)) {
-    case QUERY_NODE_OPERATOR:
-      return calcConstOperator((SOperatorNode**)pNode, pContext);
-    case QUERY_NODE_FUNCTION:
-      return calcConstFunction((SFunctionNode**)pNode, pContext);
-    case QUERY_NODE_LOGIC_CONDITION:
-      return calcConstLogicCond((SLogicConditionNode**)pNode, pContext);
-    case QUERY_NODE_TEMP_TABLE:
-      return calcConstSubquery((STempTableNode**)pNode, pContext);
-    default:
-      break;
-  }
-  return DEAL_RES_CONTINUE;
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool isCondition(const SNode* pNode) {
@@ -136,18 +102,41 @@ static int32_t rewriteCondition(SCalcConstContext* pCxt, SNode** pNode) {
   return pCxt->code;
 }
 
-static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
-  if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
-    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
-    pCxt->code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
-    if (TSDB_CODE_SUCCESS == pCxt->code) {
-      pCxt->code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
-    }
-    if (TSDB_CODE_SUCCESS == pCxt->code && NULL != pJoin->pOnCond) {
-      pCxt->code = rewriteCondition(pCxt, &pJoin->pOnCond);
-    }
+static int32_t calcConstCondition(SCalcConstContext* pCxt, SNode** pNode) {
+  int32_t code = rewriteCondition(pCxt, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(pNode);
   }
-  return pCxt->code;
+  return code;
+}
+
+static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_TEMP_TABLE: {
+      code = calcConstSubquery(pCxt, (STempTableNode*)pTable);
+      break;
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+      code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
+      }
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        code = calcConstCondition(pCxt, &pJoin->pOnCond);
+      }
+      // todo empty table
+      break;
+    }  
+    default:
+      break;
+  }
+  return code;
+}
+
+static int32_t calcConstFromTable(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
+  return rewriteConditionForFromTable(pCxt, pSelect->pFromTable);
 }
 
 static void rewriteConstCondition(SSelectStmt* pSelect, SNode** pCond) {
@@ -162,84 +151,145 @@ static void rewriteConstCondition(SSelectStmt* pSelect, SNode** pCond) {
   }
 }
 
-static int32_t calcConstFromTable(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
-  pCxt->code = rewriteConditionForFromTable(pCxt, pSelect->pFromTable);
-  if (TSDB_CODE_SUCCESS == pCxt->code) {
-    nodesRewriteExprPostOrder(&pSelect->pFromTable, calcConst, pCxt);
-  }
-  return pCxt->code;
-}
-
-static int32_t calcConstCondition(SCalcConstContext* pCxt, SSelectStmt* pSelect, SNode** pCond) {
+static int32_t calcConstSelectCondition(SCalcConstContext* pCxt, SSelectStmt* pSelect, SNode** pCond) {
   if (NULL == *pCond) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pCxt->code = rewriteCondition(pCxt, pCond);
-  if (TSDB_CODE_SUCCESS == pCxt->code) {
-    nodesRewriteExprPostOrder(pCond, calcConst, pCxt);
+  int32_t code = rewriteCondition(pCxt, pCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(pCond);
   }
-  if (TSDB_CODE_SUCCESS == pCxt->code) {
+  if (TSDB_CODE_SUCCESS == code) {
     rewriteConstCondition(pSelect, pCond);
   }
-  return pCxt->code;
+  return code;
 }
 
-static int32_t calcConstSelect(SSelectStmt* pSelect) {
-  SCalcConstContext cxt = { .code = TSDB_CODE_SUCCESS };
-  nodesRewriteExprsPostOrder(pSelect->pProjectionList, calcConst, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstFromTable(&cxt, pSelect);
+static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
+  SArray* pAssociation = NULL;
+  if (NULL != ((SExprNode*)pProject)->pAssociation) {
+    pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation);
+    if (NULL == pAssociation) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstCondition(&cxt, pSelect, &pSelect->pWhere);
+
+  int32_t code = scalarCalculateConstants(pProject, pNew);
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(pNew) && NULL != pAssociation) {
+    int32_t size = taosArrayGetSize(pAssociation);
+    for (int32_t i = 0; i < size; ++i) {
+      SNode** pCol = taosArrayGet(pAssociation, i);
+      *pCol = nodesCloneNode(pNew);
+      if (NULL == *pCol) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
   }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprsPostOrder(pSelect->pPartitionByList, calcConst, &cxt);
-  }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprPostOrder(&pSelect->pWindow, calcConst, &cxt);
-  }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprsPostOrder(pSelect->pGroupByList, calcConst, &cxt);
-  }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    cxt.code = calcConstCondition(&cxt, pSelect, &pSelect->pHaving);
-  }
-  if (TSDB_CODE_SUCCESS == cxt.code) {
-    nodesRewriteExprsPostOrder(pSelect->pOrderByList, calcConst, &cxt);
-  }
-  return cxt.code;
+  return code;
 }
 
-static int32_t calcConstQuery(SNode* pStmt) {
-  switch (nodeType(pStmt)) {
-    case QUERY_NODE_SELECT_STMT:
-      return calcConstSelect((SSelectStmt*)pStmt);    
-    case QUERY_NODE_EXPLAIN_STMT:
-      return calcConstQuery(((SExplainStmt*)pStmt)->pQuery);
-    default:
-      break;
+static int32_t calcConstProjections(SCalcConstContext* pCxt, SNodeList* pProjections, bool subquery) {
+  SNode* pProj = NULL;
+  WHERE_EACH(pProj, pProjections) {
+    if (subquery && NULL == ((SExprNode*)pProj)->pAssociation) {
+      ERASE_NODE(pProjections);
+      continue;
+    }
+    SNode* pNew = NULL;
+    int32_t code = calcConstProject(pProj, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      REPLACE_NODE(pNew);
+    } else {
+      return code;
+    }
+    WHERE_NEXT;
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isEmptyResultQuery(SNode* pStmt) {
+static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
+  int32_t code = calcConstProjections(pCxt, pSelect->pProjectionList, subquery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstFromTable(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstSelectCondition(pCxt, pSelect, &pSelect->pWhere);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstList(pSelect->pPartitionByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(&pSelect->pWindow);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstList(pSelect->pGroupByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstSelectCondition(pCxt, pSelect, &pSelect->pHaving);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstList(pSelect->pOrderByList);
+  }
+  return code;
+}
+
+static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery) {
+  int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
-      return ((SSelectStmt*)pStmt)->isEmptyResult;    
+      code = calcConstSelect(pCxt, (SSelectStmt*)pStmt, subquery);
+      break;
     case QUERY_NODE_EXPLAIN_STMT:
-      return isEmptyResultQuery(((SExplainStmt*)pStmt)->pQuery);
+      code = calcConstQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery, subquery);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      code = calcConstQuery(pCxt, pSetOp->pLeft, subquery);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = calcConstQuery(pCxt, pSetOp->pRight, subquery);
+      }
+      break;
+    }
     default:
       break;
   }
-  return false;
+  return code;
+}
+
+static bool isEmptyResultQuery(SNode* pStmt) {
+  bool isEmptyResult = false;
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      isEmptyResult = ((SSelectStmt*)pStmt)->isEmptyResult;
+      break;
+    case QUERY_NODE_EXPLAIN_STMT:
+      isEmptyResult = isEmptyResultQuery(((SExplainStmt*)pStmt)->pQuery);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      isEmptyResult = isEmptyResultQuery(pSetOp->pLeft);
+      if (isEmptyResult) {
+        isEmptyResult = isEmptyResultQuery(pSetOp->pRight);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return isEmptyResult;
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
-  int32_t code = calcConstQuery(pQuery->pRoot);
-  if (TSDB_CODE_SUCCESS == code) {
-    pQuery->execMode = isEmptyResultQuery(pQuery->pRoot) ? QUERY_EXEC_MODE_EMPTY_RESULT : pQuery->execMode;
+  SCalcConstContext cxt = {
+    .pParseCxt = pParseCxt,
+    .msgBuf.buf = pParseCxt->pMsg,
+    .msgBuf.len = pParseCxt->msgLen,
+    .code = TSDB_CODE_SUCCESS
+  };
+  int32_t code = calcConstQuery(&cxt, pQuery->pRoot, false);
+  if (TSDB_CODE_SUCCESS == code && isEmptyResultQuery(pQuery->pRoot)) {
+    pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
   }
   return code;
 }

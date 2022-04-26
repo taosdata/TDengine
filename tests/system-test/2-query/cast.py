@@ -6,6 +6,7 @@ import inspect
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 
 
 
@@ -15,56 +16,50 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        tdSql.prepare()
+    def __cast_to_bigint(self, col_name, tbname):
+        __sql = f"select cast({col_name} as bigint), {col_name} from {tbname}"
+        tdSql.query(sql=__sql)
+        data_tb_col = [result[1] for result in tdSql.queryResult]
+        for i in range(len(tdSql.queryRows)):
+            tdSql.checkData( i, 0, None ) if data_tb_col[i] is None else tdSql.checkData( i, 0, int(data_tb_col[i]) )
 
-        tdLog.printNoPrefix("==========step1:create table")
-        tdSql.execute(
-            '''create table stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            tags (t1 int)
-            '''
-        )
-        tdSql.execute(
-            '''
-            create table t1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            '''
-        )
-        for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+    def __range_to_bigint(self,cols,tables):
+        for col in cols:
+            for table in tables:
+                self.__cast_to_bigint(col_name=col, tbname=table)
 
-        tdLog.printNoPrefix("==========step2:insert data")
-        for i in range(9):
-            tdSql.execute(
-                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-            tdSql.execute(
-                f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
-        tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+    def __cast_to_timestamp(self, col_name, tbname):
+        __sql = f"select cast({col_name} as timestamp), {col_name} from {tbname}"
+        tdSql.query(sql=__sql)
+        data_tb_col = [result[1] for result in tdSql.queryResult]
+        for i in range(len(tdSql.queryRows)):
+            if data_tb_col[i] is None:
+                tdSql.checkData( i, 0 , None )
+            if (col_name == "c2" or col_name == "double" ) and tbname == "t1" and i == 10:
+                continue
+            else:
+                utc_zone = datetime.timezone.utc
+                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
+                date_init_stamp = datetime.datetime.utcfromtimestamp(data_tb_col[i]/1000)
+                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
+                tdSql.checkData( i, 0, date_data)
 
-        tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+    def __range_to_timestamp(self, cols, tables):
+        for col in cols:
+            for table in tables:
+                self.__cast_to_timestamp(col_name=col, tbname=table)
 
-        tdSql.execute(
-            f'''insert into t1 values
-            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
-            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
-            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
-            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
-            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
-            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
-            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
-            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
-            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
-            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            '''
-        )
+    def __test_bigint(self):
+        __table_list = ["ct1", "ct4", "t1"]
+        __col_list = ["c1","c2","c3","c4","c5","c6","c7","c10","c1+c2"]
+        self.__range_to_bigint(cols=__col_list, tables=__table_list)
+
+    def __test_timestamp(self):
+        __table_list = ["ct1", "ct4", "t1"]
+        __col_list = ["c1","c2","c3","c4","c5","c6","c7","c1+c2"]
+        self.__range_to_timestamp(cols=__col_list, tables=__table_list)
+
+    def all_test(self):
 
         tdSql.query("select c1  from ct4")
         data_ct4_c1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
@@ -82,9 +77,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: cast int to binary, expect changes to str(int) ")
 
-        tdSql.query("select cast(c1 as binary(32)) as b from ct4")
-        for i in range(len(data_ct4_c1)):
-            tdSql.checkData( i, 0, str(data_ct4_c1[i]) )
+        #tdSql.query("select cast(c1 as binary(32)) as b from ct4")
+        #for i in range(len(data_ct4_c1)):
+        #    tdSql.checkData( i, 0, str(data_ct4_c1[i]) )
         tdSql.query("select cast(c1 as binary(32)) as b from t1")
         for i in range(len(data_t1_c1)):
             tdSql.checkData( i, 0, str(data_t1_c1[i]) )
@@ -240,7 +235,7 @@ class TDTestCase:
                 tdSql.checkData( i, 0, date_data)
 
 
-        tdLog.printNoPrefix("==========step16: cast smallint to bigint, expect no changes")
+        tdLog.printNoPrefix("==========step16: cast tinyint to bigint, expect no changes")
         tdSql.query("select c4  from ct4")
         data_ct4_c4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
         tdSql.query("select c4  from t1")
@@ -254,7 +249,7 @@ class TDTestCase:
             tdSql.checkData( i, 0, data_t1_c4[i])
 
 
-        tdLog.printNoPrefix("==========step17: cast smallint to binary, expect changes to str(int) ")
+        tdLog.printNoPrefix("==========step17: cast tinyint to binary, expect changes to str(int) ")
 
         tdSql.query("select cast(c4 as binary(32)) as b from ct4")
         for i in range(len(data_ct4_c4)):
@@ -263,7 +258,7 @@ class TDTestCase:
         for i in range(len(data_t1_c4)):
             tdSql.checkData( i, 0, str(data_t1_c4[i]) )
 
-        tdLog.printNoPrefix("==========step18: cast smallint to nchar, expect changes to str(int) ")
+        tdLog.printNoPrefix("==========step18: cast tinyint to nchar, expect changes to str(int) ")
 
         tdSql.query("select cast(c4 as nchar(32)) as b from ct4")
         for i in range(len(data_ct4_c4)):
@@ -272,7 +267,7 @@ class TDTestCase:
         for i in range(len(data_t1_c4)):
             tdSql.checkData( i, 0, str(data_t1_c4[i]) )
 
-        tdLog.printNoPrefix("==========step19: cast smallint to timestamp, expect changes to timestamp ")
+        tdLog.printNoPrefix("==========step19: cast tinyint to timestamp, expect changes to timestamp ")
 
         tdSql.query("select cast(c4 as timestamp) as b from ct4")
         for i in range(len(data_ct4_c4)):
@@ -624,7 +619,67 @@ class TDTestCase:
         tdSql.error("select cast(c8 as timestamp ) as b from ct4")
         tdSql.error("select cast(c9 as timestamp ) as b from ct4")
         tdSql.error("select cast(c9 as binary(64) ) as b from ct4")
+        pass
 
+    def run(self):
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table")
+        tdSql.execute(
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+        )
+        tdSql.execute(
+            '''
+            create table t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+
+        tdLog.printNoPrefix("==========step2:insert data")
+        for i in range(9):
+            tdSql.execute(
+                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute("insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute("insert into ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+        self.all_test()
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.execute("use db")
+
+        self.all_test()
 
     def stop(self):
         tdSql.close()

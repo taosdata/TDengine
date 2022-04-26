@@ -60,6 +60,7 @@ class TDSql:
         self.cursor.execute(s)
         s = 'use db'
         self.cursor.execute(s)
+        time.sleep(2)	
 
     def error(self, sql):
         expectErrNotOccured = True

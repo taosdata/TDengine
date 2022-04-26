@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "tdef.h"
-#include "tname.h"
+#include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "catalog.h"
+#include "os.h"
 #include "query.h"
+#include "tdef.h"
+#include "tname.h"
 
 int32_t (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
@@ -50,7 +50,13 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   SConnectRsp connectRsp = {0};
   tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp);
-  assert(connectRsp.epSet.numOfEps > 0);
+  /*assert(connectRsp.epSet.numOfEps > 0);*/
+  if (connectRsp.epSet.numOfEps == 0) {
+    taosMemoryFree(pMsg->pData);
+    setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
 
   if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
@@ -82,18 +88,20 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
+SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
 
   pMsgSendInfo->requestObjRefId = pRequest->self;
-  pMsgSendInfo->requestId       = pRequest->requestId;
-  pMsgSendInfo->param           = pRequest;
-  pMsgSendInfo->msgType         = pRequest->type;
+  pMsgSendInfo->requestId = pRequest->requestId;
+  pMsgSendInfo->param = pRequest;
+  pMsgSendInfo->msgType = pRequest->type;
 
   assert(pRequest != NULL);
   pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
 
-  pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)? genericRspCallback:handleRequestRspFp[TMSG_INDEX(pRequest->type)];
+  pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)
+                         ? genericRspCallback
+                         : handleRequestRspFp[TMSG_INDEX(pRequest->type)];
   return pMsgSendInfo;
 }
 
@@ -114,7 +122,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
     SUseDbRsp usedbRsp = {0};
     tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
-    struct SCatalog *pCatalog = NULL;
+    struct SCatalog* pCatalog = NULL;
 
     if (usedbRsp.vgVersion >= 0) {
       int32_t code1 = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -151,13 +159,14 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     taosMemoryFreeClear(output.dbVgroup);
 
     tscError("failed to build use db output since %s", terrstr());
-  } else {
+  } else if (output.dbVgroup) {
     struct SCatalog* pCatalog = NULL;
 
     int32_t code1 = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (code1 != TSDB_CODE_SUCCESS) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
+      taosMemoryFreeClear(output.dbVgroup);
     } else {
       catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
     }

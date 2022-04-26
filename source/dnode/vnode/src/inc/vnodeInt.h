@@ -76,7 +76,7 @@ typedef struct {
 
 // SVState
 struct SVState {
-  int64_t processed;
+  // int64_t processed;
   int64_t committed;
   int64_t applied;
 };
@@ -101,11 +101,14 @@ struct SVnode {
   SWal*      pWal;
   STQ*       pTq;
   SSink*     pSink;
+  int64_t    sync;
   tsem_t     canCommit;
   SQHandle*  pQuery;
 };
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
+
+typedef struct STbDdlH STbDdlH;
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
@@ -117,6 +120,10 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 #include "tsdb.h"
 
 #include "tq.h"
+
+#include "vnodeSync.h"
+
+#include "tsdbSma.h"
 
 #ifdef __cplusplus
 }
