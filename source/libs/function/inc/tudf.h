@@ -42,19 +42,7 @@ enum {
   UDFC_CODE_INVALID_STATE = -5
 };
 
-typedef void *UdfcFuncHandle;
 
-/**
- * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
- * @return error code
- */
-int32_t udfcOpen();
-
-/**
- * destroy udfd proxy
- * @return error code
- */
-int32_t udfcClose();
 
 
 /**

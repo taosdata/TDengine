@@ -40,8 +40,6 @@
 
 #define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.str)
 
-#define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-
 typedef struct SGroupResInfo {
   int32_t totalGroup;
   int32_t currentGroup;
@@ -68,11 +66,16 @@ typedef struct SResultRowPosition {
   int32_t offset;
 } SResultRowPosition;
 
+typedef struct SResKeyPos {
+  SResultRowPosition pos;
+  uint64_t  groupId;
+  char      key[];
+} SResKeyPos;
+
 typedef struct SResultRowInfo {
   SResultRowPosition *pPosition;
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
-//  int32_t      curPos;     // current active result row index of pResult list
   SResultRowPosition cur;
 } SResultRowInfo;
 
@@ -135,7 +138,7 @@ typedef struct {
   int32_t colId;
 } SStddevInterResult;
 
-void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
+void    initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, bool sortGroupResult);
 void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);

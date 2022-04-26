@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -13,8 +14,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_TIMER_H_
-#define _TD_UTIL_TIMER_H_
+#ifndef _TD_ENV_H_
+#define _TD_ENV_H_
 
 #include "os.h"
 
@@ -22,27 +23,11 @@
 extern "C" {
 #endif
 
-typedef void *tmr_h;
-typedef void (*TAOS_TMR_CALLBACK)(void *, void *);
-
-extern int32_t taosTmrThreads;
-
-#define MSECONDS_PER_TICK 5
-
-void *taosTmrInit(int32_t maxTmr, int32_t resoultion, int32_t longest, const char *label);
-
-tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle);
-
-bool taosTmrStop(tmr_h tmrId);
-
-bool taosTmrStopA(tmr_h *timerId);
-
-bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle, tmr_h *pTmrId);
-
-void taosTmrCleanUp(void *handle);
+int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t cfgNameMaxLen);
+int32_t taosEnvToCfg(const char *envStr, char *cfgStr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_TIMER_H_*/
+#endif /*_TD_ENV_H_*/

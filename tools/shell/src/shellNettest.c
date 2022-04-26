@@ -67,7 +67,7 @@ static void shellWorkAsClient() {
 
     printf("request is sent, size:%d\n", rpcMsg.contLen);
     rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
-    if (rpcRsp.code == 0 &&rpcRsp.contLen == rpcMsg.contLen) {
+    if (rpcRsp.code == 0 && rpcRsp.contLen == rpcMsg.contLen) {
       printf("response is received, size:%d\n", rpcMsg.contLen);
       if (rpcRsp.code == 0) totalSucc++;
     } else {
@@ -97,8 +97,12 @@ static void shellProcessMsg(void *p, SRpcMsg *pRpc, SEpSet *pEpSet) {
   printf("request is received, size:%d\n", pRpc->contLen);
   fflush(stdout);
   SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
-  rsp.pCont = rpcMallocCont(shell.args.pktLen);
-  rsp.contLen = shell.args.pktLen;
+  rsp.pCont = rpcMallocCont(pRpc->contLen);
+  if (rsp.pCont == NULL) {
+    rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    rsp.contLen = pRpc->contLen;
+  }
   rpcSendResponse(&rsp);
 }
 
