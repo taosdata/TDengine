@@ -309,7 +309,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     return NULL;
   }
 
-//  SResultRowInfo* pResultRowInfo = pTableScanInfo->pResultRowInfo;
   *newgroup = false;
 
   while (pTableScanInfo->current < pTableScanInfo->scanInfo.numOfAsc) {
