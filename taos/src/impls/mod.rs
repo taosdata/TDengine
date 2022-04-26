@@ -1,3 +1,5 @@
+use bitvec_simd::BitVec;
+use itertools::Itertools;
 use std::{
     borrow::{Borrow, Cow},
     ffi::c_void,
@@ -5,8 +7,6 @@ use std::{
     slice,
     sync::Arc,
 };
-use bitvec_simd::BitVec;
-use itertools::Itertools;
 use thiserror::Error;
 
 use taos_query::{common::*, BlockExt, Queryable, ResultSet};
@@ -217,6 +217,10 @@ impl<'q> ResultSet for SyncResultSet<'q> {
             }),
         )
     }
+
+    fn affected_rows(&self) -> i32 {
+        self.raw.affected_rows()
+    }
 }
 
 impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
@@ -282,28 +286,46 @@ impl<'q> Queryable<'q> for Taos {
 
     type ResultSet = SyncResultSet<'q>;
 
-    fn query<T: AsRef<str>>(
-        &'q self,
-        sql: T,
-    ) -> Result<Result<SyncResultSet<'q>, usize>, Self::Error> {
+    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<SyncResultSet<'q>, Self::Error> {
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
-        let n = raw.num_fields();
+        // let n = raw.num_fields();
         let precision = raw.precision();
-        if n == 0 {
-            Ok(Err(raw.affected_rows() as _))
-        } else {
-            Ok(Ok(SyncResultSet {
-                raw,
-                precision,
-                records: Default::default(),
-            }))
-        }
+        Ok(SyncResultSet {
+            raw,
+            precision,
+            records: Default::default(),
+        })
     }
 }
 
 #[taos_macros::test(crate, log_level = "info")]
+fn sync_query_on_non_queryable_sql(taos: &Taos, _database: &str) -> Result<(), Error> {
+    let mut rs = <Taos as Queryable>::query(taos, "use log")?;
+
+    assert!(rs.precision() == Precision::Millisecond); // `ms` is the default precision.
+    assert!(rs.fields().len() == 0);
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Record {
+        ts: String,
+        level: i8,
+        content: String,
+        dnode_id: i32,
+        dnode_ep: String,
+    }
+
+    for record in rs.deserialize() {
+        let _: Record = record?;
+    }
+
+    assert_eq!(rs.summary(), (0, 0));
+    Ok(())
+}
+#[taos_macros::test(crate, log_level = "info")]
 fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
-    let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?.unwrap();
+    let affected_rows = <Taos as Queryable>::exec(taos, "use log")?;
+    assert!(affected_rows == 0);
+    let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?;
 
     assert!(rs.fields().len() == 5);
     #[derive(Debug, serde::Deserialize)]
@@ -327,7 +349,7 @@ fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
 #[taos_macros::test(crate)]
 fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Error> {
     use itertools::Itertools;
-    let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?.unwrap();
+    let mut rs = <Taos as Queryable>::query(taos, "select * from log.logs limit 10000")?;
 
     for block in &mut rs {
         let des = block

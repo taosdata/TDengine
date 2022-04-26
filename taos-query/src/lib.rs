@@ -259,17 +259,17 @@ where
 {
     // type Block: for<'b> BlockExt;
 
-    fn fields(&self) -> &[Field];
+    fn affected_rows(&self) -> i32;
 
     fn precision(&self) -> Precision;
+
+    fn fields(&self) -> &[Field];
 
     fn num_of_fields(&self) -> usize {
         self.fields().len()
     }
 
     fn summary(&self) -> (usize, usize);
-
-    // fn fetch_block(&mut self) -> Option<<&mut Self as Iterator>Block>;
 
     fn blocks_iter(&mut self) -> &mut Self {
         self
@@ -303,19 +303,15 @@ where
     fn query<T: AsRef<str>>(
         &'q self,
         sql: T,
-    ) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
+    ) -> Result<Self::ResultSet, Self::Error>;
 
     fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
-        self.query(sql).map(|res| match res {
-            Ok(_) => 0, // todo: if we should get the selected rows if not update query?
-            Err(affected) => affected,
-        })
+        self.query(sql).map(|res| res.affected_rows() as _)
     }
     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use itertools::Itertools;
         self.query("show databases")?
-            .map(|mut r| r.deserialize().try_collect())
-            .expect("`show databases` must be queryable")
+            .deserialize().try_collect()
             .map_err(Into::into)
     }
 }
@@ -328,17 +324,17 @@ where
     type BlockStream;
     // type Block: for<'b> BlockExt;
 
-    fn fields(&self) -> &[Field];
+    fn affected_rows(&self) -> i32;
 
     fn precision(&self) -> Precision;
+
+    fn fields(&self) -> &[Field];
 
     fn num_of_fields(&self) -> usize {
         self.fields().len()
     }
 
     fn summary(&self) -> (usize, usize);
-
-    // fn fetch_block(&mut self) -> Option<<&mut Self as Iterator>Block>;
 
     fn block_stream(&self) -> Self::BlockStream;
 
@@ -377,20 +373,16 @@ where
     async fn query<T: AsRef<str> + Send>(
         &'q self,
         sql: T,
-    ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error>;
+    ) -> Result<Self::AsyncResultSet, Self::Error>;
 
     async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
-        self.query(sql).await.map(|res| match res {
-            Ok(_) => 0, // todo: if we should get the selected rows if not update query?
-            Err(affected) => affected,
-        })
+        self.query(sql).await.map(|res| res.affected_rows() as _)
     }
     async fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use futures::stream::TryStreamExt;
         Ok(self
             .query("show databases")
             .await?
-            .expect("`show databases` must be queryable")
             .deserialize_stream()
             .try_collect()
             .await?)
@@ -400,7 +392,6 @@ where
         Ok(self
             .query(format!("describe {table}"))
             .await?
-            .expect("`show databases` must be queryable")
             .deserialize_stream()
             .try_collect()
             .await?)
@@ -413,28 +404,10 @@ where
     fn query_sync<T: AsRef<str> + Send>(
         &'q self,
         sql: T,
-    ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error> {
+    ) -> Result<Self::AsyncResultSet, Self::Error> {
         futures::executor::block_on(self.query(sql))
     }
 }
-
-// pub trait AsyncQueryableSync<'q>: AsyncQueryable<'q>
-// where
-//     <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
-//     for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
-//         BlockExt + Send,
-// {
-//     fn exec_sync<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
-//         futures::executor::block_on(self.exec(sql))
-//     }
-
-//     fn query_sync<T: AsRef<str> + Send>(
-//         &'q self,
-//         sql: T,
-//     ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error> {
-//         futures::executor::block_on(self.query(sql))
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

@@ -66,6 +66,10 @@ impl<'q> AsyncResultSet for AsyncRs<'q> {
     fn block_stream(&self) -> Self::BlockStream {
         crate::block::BlockStream::from_raw(self.raw.raw(), self.records.clone())
     }
+
+    fn affected_rows(&self) -> i32 {
+        self.raw.affected_rows()
+    }
 }
 
 #[async_trait]
@@ -76,10 +80,9 @@ impl<'q> AsyncQueryable<'q> for Taos {
     async fn query<T: AsRef<str> + Send>(
         &'q self,
         sql: T,
-    ) -> Result<Result<Self::AsyncResultSet, usize>, Self::Error> {
+    ) -> Result<Self::AsyncResultSet, Self::Error> {
         use tokio::sync::oneshot::{channel, Sender};
-        let (sender, rx) =
-            channel::<Result<Result<Self::AsyncResultSet, usize>, taos_error::Error>>();
+        let (sender, rx) = channel::<Result<Self::AsyncResultSet, taos_error::Error>>();
 
         pub unsafe extern "C" fn async_query_callback(
             param: *mut c_void,
@@ -88,13 +91,9 @@ impl<'q> AsyncQueryable<'q> for Taos {
         ) {
             let sender = param as *mut Sender<_>;
             let sender = Box::from_raw(sender);
+            let code = if code > 0 { 0 } else { code };
+            let res = DroppableRawRes::from_ptr_with_code(ptr, code.into()).map(AsyncRs::new);
 
-            let res = match code {
-                code if code > 0 => Ok(Err(code as usize)),
-                _ => DroppableRawRes::from_ptr_with_code(ptr, code.into())
-                    .map(AsyncRs::new)
-                    .map(Ok),
-            };
             log::trace!(
                 "in async query callback, got TAOS_RES: {res:?}, will be send to:{sender:?}"
             );
@@ -123,7 +122,6 @@ mod tests {
         let rs: AsyncRs =
             <Taos as AsyncQueryable>::query(taos, "select * from log.logs limit 10000")
                 .await?
-                .unwrap()
                 .into();
 
         assert!(rs.fields().len() == 5);
@@ -147,6 +145,7 @@ mod tests {
         }
         let (blocks, records) = rs.summary();
         println!("total blocks: {}, total rows: {}", blocks, records);
+        assert_eq!(records, 10000);
         Ok(())
     }
 }
