@@ -43,6 +43,7 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGINT, dmStopDnode);
   taosSetSignal(SIGABRT, dmStopDnode);
   taosSetSignal(SIGBREAK, dmStopDnode);
+  
 #ifndef WINDOWS
   taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
