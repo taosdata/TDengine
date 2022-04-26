@@ -1,12 +1,17 @@
 ---
-title: 安装、卸载、启动和停止
+title: 安装和卸载
+description: 安装、卸载、启动、停止和升级
 ---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 
 TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包。
 
-## deb 包的安装和卸载
+## 安装
 
-### 安装 deb
+<Tabs>
+<TabItem label="Deb 安装" value="debinst">
 
 1、从官网下载获得 deb 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.deb；
 2、进入到 TDengine-server-2.4.0.7-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
@@ -36,24 +41,9 @@ To access TDengine    : taos -h ubuntu-1804 to login into TDengine server
 TDengine is installed successfully!
 ```
 
-注：当安装第一个节点时，出现 Enter FQDN：提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
+</TabItem>
 
-后续两种安装包也是同样的操作。
-
-### 卸载 deb
-
-卸载命令如下:
-
-```
-$ sudo dpkg -r tdengine
-(Reading database ... 137504 files and directories currently installed.)
-Removing tdengine (2.4.0.7) ...
-TDengine is removed successfully!
-```
-
-## rpm 包的安装和卸载
-
-### 安装 rpm
+<TabItem label="RPM 安装" value="rpminst">
 
 1、从官网下载获得 rpm 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.rpm；
 2、进入到 TDengine-server-2.4.0.7-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
@@ -82,18 +72,9 @@ To access TDengine    : taos -h centos7 to login into TDengine server
 TDengine is installed successfully!
 ```
 
-### 卸载 rpm
+</TabItem>
 
-卸载命令如下:
-
-```
-$ sudo rpm -e tdengine
-TDengine is removed successfully!
-```
-
-## tar.gz 格式安装包的安装和卸载
-
-### 安装 tar.gz 安装包
+<TabItem label="tar.gz 安装" value="tarinst">
 
 1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.tar.gz；
 2、进入到 TDengine-server-2.4.0.7-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
@@ -142,9 +123,48 @@ Install taoskeeper as a standalone service
 taoskeeper is installed, enable it by `systemctl enable taoskeeper`
 ```
 
-说明：install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+:::info
+install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 
-### tar.gz 安装后的卸载
+:::
+
+</TabItem>
+</Tabs>
+
+:::note
+当安装第一个节点时，出现 Enter FQDN：提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
+
+:::
+
+## 卸载
+
+<Tabs>
+<TabItem label="Deb 卸载" value="debuninst">
+
+卸载命令如下:
+
+```
+$ sudo dpkg -r tdengine
+(Reading database ... 137504 files and directories currently installed.)
+Removing tdengine (2.4.0.7) ...
+TDengine is removed successfully!
+
+```
+
+</TabItem>
+
+<TabItem label="RPM 卸载" value="rpmuninst">
+
+卸载命令如下:
+
+```
+$ sudo rpm -e tdengine
+TDengine is removed successfully!
+```
+
+</TabItem>
+
+<TabItem label="tar.gz 卸载" value="taruninst">
 
 卸载命令如下:
 
@@ -155,6 +175,30 @@ TDengine is removed successfully!
 
 taosKeeper is removed successfully!
 ```
+
+</TabItem>
+</Tabs>
+
+:::info
+- TDengine 提供了多种安装包，但最好不要在一个系统上同时使用 tar.gz 安装包和 deb 或 rpm 安装包。否则会相互影响，导致在使用时出现问题。
+
+- 对于 deb 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
+
+   ```
+   $ sudo rm -f /var/lib/dpkg/info/tdengine*
+   ```
+
+然后再重新进行安装就可以了。
+
+- 对于 rpm 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
+
+   ```
+   $ sudo rpm -e --noscripts tdengine
+   ```
+
+然后再重新进行安装就可以了。
+
+:::
 
 ## 安装目录说明
 
@@ -190,27 +234,6 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 
 如果是更新安装，当缺省配置文件（ /etc/taos/taos.cfg ）存在时，仍然使用已有的配置文件，安装包中携带的配置文件修改为 taos.cfg.orig 保存在 /usr/local/taos/cfg/ 目录，可以作为设置配置参数的参考样例；如果不存在配置文件，就使用安装包中自带的配置文件。
 
-:::note
-- TDengine 提供了多种安装包，但最好不要在一个系统上同时使用 tar.gz 安装包和 deb 或 rpm 安装包。否则会相互影响，导致在使用时出现问题。
-
-- 对于 deb 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
-
-```
-$ sudo rm -f /var/lib/dpkg/info/tdengine*
-```
-
-然后再重新进行安装就可以了。
-
-- 对于 rpm 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
-
-```
-$ sudo rpm -e --noscripts tdengine
-```
-
-然后再重新进行安装就可以了。
-
-:::
-
 ## 启动和停止
 
 TDengine 使用 Linux 系统的 systemd/systemctl/service 来管理系统的启动和、停止、重启操作。TDengine 的服务进程是 taosd，默认情况下 TDengine 在系统启动后将自动启动。DBA 可以通过 systemd/systemctl/service 手动操作停止、启动、重新启动服务。
@@ -229,23 +252,15 @@ TDengine 使用 Linux 系统的 systemd/systemctl/service 来管理系统的启�
 
 如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
 
-```
-......
-
-Active: active (running)
-
-......
-```
+   ```
+   Active: active (running)
+   ```
 
 如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
 
-```
-......
-
-Active: inactive (dead)
-
-......
-```
+   ```
+   Active: inactive (dead)
+   ```
 
 ## 升级
 升级分为两个层面：升级安装包 和 升级运行中的实例。
