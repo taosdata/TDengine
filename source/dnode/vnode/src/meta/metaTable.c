@@ -34,10 +34,16 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t     szBuf = 0;
   void       *p = NULL;
   SCoder      coder = {0};
+  SMetaReader mr = {0};
 
-  {
-    // TODO: validate request (uid and name unique)
+  // validate req
+  metaReaderInit(&mr, pMeta->pVnode, 0);
+  if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    metaReaderClear(&mr);
+    return -1;
   }
+  metaReaderClear(&mr);
 
   // set structs
   me.version = version;
@@ -65,7 +71,8 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
 }
 
 int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
-  SMetaEntry me = {0};
+  SMetaEntry  me = {0};
+  SMetaReader mr = {0};
 
   // validate message
   if (pReq->type != TSDB_CHILD_TABLE && pReq->type != TSDB_NORMAL_TABLE) {
@@ -77,10 +84,14 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   pReq->uid = tGenIdPI64();
   pReq->ctime = taosGetTimestampSec();
 
-  {
-    // TODO: validate request (uid and name unique)
-    // for child table, also check if super table exists
+  // validate req
+  metaReaderInit(&mr, pMeta->pVnode, 0);
+  if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    metaReaderClear(&mr);
+    return -1;
   }
+  metaReaderClear(&mr);
 
   // build SMetaEntry
   me.version = version;
