@@ -85,7 +85,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   tsem_init(&(pVnode->canCommit), 0, 1);
 
   // open buffer pool
-  if (vnodeOpenBufPool(pVnode) < 0) {
+  if (vnodeOpenBufPool(pVnode, pVnode->config.isHeap ? 0 : pVnode->config.szBuf / 3) < 0) {
     vError("vgId: %d failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -97,9 +97,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open tsdb
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TSDB_DIR);
-  pVnode->pTsdb = tsdbOpen(tdir, pVnode, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode));
-  if (pVnode->pTsdb == NULL) {
+  if (tsdbOpen(pVnode, &pVnode->pTsdb) < 0) {
     vError("vgId: %d failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -126,17 +124,17 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
-  // sync integration
-  // open sync
-  if (vnodeSyncOpen(pVnode, dir)) {
+  // vnode begin
+  if (vnodeBegin(pVnode) < 0) {
+    vError("vgId: %d failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
-#if 0
-  if (vnodeBegin() < 0) {
+  // open sync
+  if (vnodeSyncOpen(pVnode, dir)) {
+    vError("vgId: %d failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
-#endif
 
   return pVnode;
 
@@ -153,14 +151,9 @@ _err:
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    // commit (TODO: use option to control)
-    vnodeSyncCommit(pVnode);
-    // close vnode
-    vnodeQueryClose(pVnode);
-
-    // sync integration
+    vnodeCommit(pVnode);
     vnodeSyncClose(pVnode);
-
+    vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
     tsdbClose(pVnode->pTsdb);

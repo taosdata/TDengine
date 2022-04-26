@@ -255,7 +255,6 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateDbReq(dbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    taosMsleep(1000);  // Wait for the vnode to become the leader
   }
 
   {

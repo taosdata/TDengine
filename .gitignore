@@ -40,6 +40,7 @@ taosdalipu/
 Target/
 *.failed
 *.sql
+sim
 sim/
 psim/
 pysim/
@@ -107,3 +108,4 @@ TAGS
 contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
+sql

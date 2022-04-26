@@ -41,29 +41,31 @@ static const SPerfsTableSchema queriesSchema[] = {
 
 static const SPerfsTableSchema topicSchema[] = {
     {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    /*{.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},*/
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    /*{.name = "row_len", .bytes = 4, .type = TSDB_DATA_TYPE_INT},*/
+    // TODO config
 };
 
 static const SPerfsTableSchema consumerSchema[] = {
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "app_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "status", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    // ep
-    // up time
-    // topics
+    {.name = "topics", .bytes = TSDB_SHOW_LIST_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "up_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
-static const SPerfsTableSchema subscribeSchema[] = {
+static const SPerfsTableSchema subscriptionSchema[] = {
     {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "offset", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "committed_offset", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "current_offset", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "skip_log_cnt", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
 };
 
 static const SPerfsTableMeta perfsMeta[] = {
@@ -71,7 +73,7 @@ static const SPerfsTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_QUERIES, queriesSchema, tListLen(queriesSchema)},
     {TSDB_PERFS_TABLE_TOPICS, topicSchema, tListLen(topicSchema)},
     {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
-    {TSDB_PERFS_TABLE_SUBSCRIBES, subscribeSchema, tListLen(subscribeSchema)},
+    {TSDB_PERFS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema)},
 };
 
 // connection/application/

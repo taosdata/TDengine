@@ -76,7 +76,6 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime, TOPIC_ENCODE_OVER);
   SDB_SET_INT64(pRaw, dataPos, pTopic->uid, TOPIC_ENCODE_OVER);
   SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid, TOPIC_ENCODE_OVER);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->subDbUid, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->version, TOPIC_ENCODE_OVER);
   SDB_SET_INT8(pRaw, dataPos, pTopic->subType, TOPIC_ENCODE_OVER);
   SDB_SET_INT8(pRaw, dataPos, pTopic->withTbName, TOPIC_ENCODE_OVER);
@@ -139,7 +138,6 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pTopic->updateTime, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->uid, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->dbUid, TOPIC_DECODE_OVER);
-  SDB_GET_INT64(pRaw, dataPos, &pTopic->subDbUid, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
   SDB_GET_INT8(pRaw, dataPos, &pTopic->subType, TOPIC_DECODE_OVER);
   SDB_GET_INT8(pRaw, dataPos, &pTopic->withTbName, TOPIC_DECODE_OVER);
@@ -520,28 +518,32 @@ static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pShow->pIter = sdbFetch(pSdb, SDB_TOPIC, pShow->pIter, (void **)&pTopic);
     if (pShow->pIter == NULL) break;
 
-    int32_t cols = 0;
+    SColumnInfoData *pColInfo;
+    SName            n;
+    int32_t          cols = 0;
 
     char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-
-    SName n;
-    tNameFromString(&n, pTopic->name, T_NAME_ACCT|T_NAME_DB);
+    tNameFromString(&n, pTopic->name, T_NAME_ACCT | T_NAME_DB);
     tNameGetDbName(&n, varDataVal(topicName));
     varDataSetLen(topicName, strlen(varDataVal(topicName)));
-
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
+
+    char dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(dbName));
+    varDataSetLen(dbName, strlen(varDataVal(dbName)));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)dbName, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     tstrncpy(&sql[VARSTR_HEADER_SIZE], pTopic->sql, TSDB_SHOW_SQL_LEN);
     varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
-
-//    taosMemoryFree(sql);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);
