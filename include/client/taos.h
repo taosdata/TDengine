@@ -88,7 +88,11 @@ typedef struct taosField {
   int32_t bytes;
 } TAOS_FIELD;
 
-#define DLL_EXPORT
+#ifdef WINDOWS
+  #define DLL_EXPORT    __declspec(dllexport)
+#else
+  #define DLL_EXPORT 
+#endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
 
