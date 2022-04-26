@@ -887,18 +887,30 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STransConnCtx* pCtx = pMsg->ctx;
   SEpSet*        pEpSet = &pCtx->epSet;
-  if (pTransInst->retry != NULL && pTransInst->retry(pResp->code) && pCtx->retryCount <= TRANS_RETRY_COUNT_LIMIT) {
+
+  tmsg_t msgType = pCtx->msgType;
+  if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
+      ((pResp->code != 0) && msgType == TDMT_MND_CONNECT)) {
     pCtx->retryCount += 1;
-    if (pResp->contLen == 0) {
-      pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
-    } else {
-      SMEpSet emsg = {0};
-      tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
-      pCtx->epSet = emsg.epSet;
+    pMsg->st = taosGetTimestampUs();
+    if (msgType == TDMT_MND_CONNECT) {
+      if (pCtx->retryCount < pEpSet->numOfEps) {
+        pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+        cliHandleReq(pMsg, pThrd);
+        return -1;
+      }
+    } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
+      if (pResp->contLen == 0) {
+        pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
+      } else {
+        SMEpSet emsg = {0};
+        tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
+        pCtx->epSet = emsg.epSet;
+      }
+      // release pConn
+      cliHandleReq(pMsg, pThrd);
+      return -1;
     }
-    // release pConn
-    cliHandleReq(pMsg, pThrd);
-    return -1;
   }
 
   if (pCtx->pSem != NULL) {
