@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 #include "tchecksum.h"
+#include "wal.h"
 
 #define SDB_TABLE_SIZE 24
 #define SDB_RESERVE_SIZE 512
@@ -137,7 +138,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   int32_t readLen = 0;
   int64_t ret = 0;
 
-  SSdbRaw *pRaw = taosMemoryMalloc(SDB_MAX_SIZE);
+  SSdbRaw *pRaw = taosMemoryMalloc(WAL_MAX_SIZE + 100);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed read file since %s", terrstr());
