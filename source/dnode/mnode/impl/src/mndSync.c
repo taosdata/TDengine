@@ -22,13 +22,15 @@ static int32_t mndInitWal(SMnode *pMnode) {
 
   char path[PATH_MAX] = {0};
   snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
-  SWalCfg cfg = {.vgId = 1,
-                 .fsyncPeriod = 0,
-                 .rollPeriod = -1,
-                 .segSize = -1,
-                 .retentionPeriod = -1,
-                 .retentionSize = -1,
-                 .level = TAOS_WAL_FSYNC};
+  SWalCfg cfg = {
+      .vgId = 1,
+      .fsyncPeriod = 0,
+      .rollPeriod = -1,
+      .segSize = -1,
+      .retentionPeriod = -1,
+      .retentionSize = -1,
+      .level = TAOS_WAL_FSYNC,
+  };
   pMgmt->pWal = walOpen(path, &cfg);
   if (pMgmt->pWal == NULL) return -1;
 
@@ -54,62 +56,62 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 
   int64_t first = walGetFirstVer(pWal);
   int64_t last = walGetLastVer(pWal);
-  mDebug("start to restore sdb wal, sdb ver:%" PRId64 ", wal first:%" PRId64 " last:%" PRId64, lastSdbVer, first, last);
+  mDebug("start to restore wal, sdbver:%" PRId64 ", first:%" PRId64 " last:%" PRId64, lastSdbVer, first, last);
 
   first = TMAX(lastSdbVer + 1, first);
   for (int64_t ver = first; ver >= 0 && ver <= last; ++ver) {
     if (walReadWithHandle(pHandle, ver) < 0) {
-      mError("failed to read by wal handle since %s, ver:%" PRId64, terrstr(), ver);
-      goto WAL_RESTORE_OVER;
+      mError("ver:%" PRId64 ", failed to read from wal since %s", ver, terrstr());
+      goto _OVER;
     }
 
     SWalHead *pHead = pHandle->pHead;
     int64_t   sdbVer = sdbUpdateVer(pSdb, 0);
     if (sdbVer + 1 != ver) {
       terrno = TSDB_CODE_SDB_INVALID_WAl_VER;
-      mError("failed to read wal from sdb, sdbVer:%" PRId64 " inconsistent with ver:%" PRId64, sdbVer, ver);
-      goto WAL_RESTORE_OVER;
+      mError("ver:%" PRId64 ", failed to write to sdb, since inconsistent with sdbver:%" PRId64, ver, sdbVer);
+      goto _OVER;
     }
 
-    mTrace("wal:%" PRId64 ", will be restored, content:%p", ver, pHead->head.body);
+    mTrace("ver:%" PRId64 ", will be restored, content:%p", ver, pHead->head.body);
     if (sdbWriteWithoutFree(pSdb, (void *)pHead->head.body) < 0) {
-      mError("failed to read wal from sdb since %s, ver:%" PRId64, terrstr(), ver);
-      goto WAL_RESTORE_OVER;
+      mError("ver:%" PRId64 ", failed to write to sdb since %s", ver, terrstr());
+      goto _OVER;
     }
 
     sdbUpdateVer(pSdb, 1);
-    mDebug("wal:%" PRId64 ", is restored", ver);
+    mDebug("ver:%" PRId64 ", is restored", ver);
   }
 
   int64_t sdbVer = sdbUpdateVer(pSdb, 0);
-  mDebug("restore sdb wal finished, sdb ver:%" PRId64, sdbVer);
+  mDebug("restore wal finished, sdbver:%" PRId64, sdbVer);
 
   mndTransPullup(pMnode);
   sdbVer = sdbUpdateVer(pSdb, 0);
-  mDebug("pullup trans finished, sdb ver:%" PRId64, sdbVer);
+  mDebug("pullup trans finished, sdbver:%" PRId64, sdbVer);
 
   if (sdbVer != lastSdbVer) {
     mInfo("sdb restored from %" PRId64 " to %" PRId64 ", write file", lastSdbVer, sdbVer);
     if (sdbWriteFile(pSdb) != 0) {
-      goto WAL_RESTORE_OVER;
+      goto _OVER;
     }
 
     if (walCommit(pWal, sdbVer) != 0) {
-      goto WAL_RESTORE_OVER;
+      goto _OVER;
     }
 
     if (walBeginSnapshot(pWal, sdbVer) < 0) {
-      goto WAL_RESTORE_OVER;
+      goto _OVER;
     }
 
     if (walEndSnapshot(pWal) < 0) {
-      goto WAL_RESTORE_OVER;
+      goto _OVER;
     }
   }
 
   code = 0;
 
-WAL_RESTORE_OVER:
+_OVER:
   walCloseReadHandle(pHandle);
   return code;
 }

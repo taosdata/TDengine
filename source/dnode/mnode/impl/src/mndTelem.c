@@ -146,7 +146,6 @@ int32_t mndInitTelem(SMnode* pMnode) {
   taosGetEmail(pMgmt->email, sizeof(pMgmt->email));
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
-  mDebug("mnode telemetry is initialized");
   return 0;
 }
 
