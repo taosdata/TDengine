@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "querynodes.h"
 #include "builtinsimpl.h"
+#include "functionMgt.h"
 
 //TODO: network error processing.
 //TODO: add unit test
@@ -1225,10 +1226,10 @@ typedef struct SUdfAggRes {
 } SUdfAggRes;
 
 bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  if (pFunc->udfFuncType == TSDB_FUNC_TYPE_SCALAR) {
+  if (fmIsScalarFunc(pFunc->funcId)) {
     return false;
   }
-  pEnv->calcMemSize = sizeof(SUdfAggRes) + pFunc->node.resType.bytes + pFunc->bufSize;
+  pEnv->calcMemSize = sizeof(SUdfAggRes) + pFunc->node.resType.bytes + pFunc->udfBufSize;
   return true;
 }
 
@@ -1332,7 +1333,6 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
     GET_RES_INFO(pCtx)->numOfRes = 1;
   }
   functionFinalize(pCtx, pBlock);
-
-
+  
   return 0;
 }
