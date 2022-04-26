@@ -5,9 +5,7 @@ target_sources(
     PRIVATE
     # vnode
     "src/vnd/vnodeOpen.c"
-    "src/vnd/vnodeArenaMAImpl.c"
-    "src/vnd/vnodeBufferPool.c"
-    # "src/vnd/vnodeBufferPool2.c"
+    "src/vnd/vnodeBufPool.c"
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeInt.c"
@@ -21,18 +19,19 @@ target_sources(
     "src/meta/metaOpen.c"
     "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
-    "src/meta/metaTDBImpl.c"
-    # "src/meta/metaBDBImpl.c"
+    "src/meta/metaQuery.c"
+    "src/meta/metaCommit.c"
+    "src/meta/metaEntry.c"
 
     # tsdb
     "src/tsdb/tsdbTDBImpl.c"
     "src/tsdb/tsdbCommit.c"
+    "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbCompact.c"
     "src/tsdb/tsdbFile.c"
     "src/tsdb/tsdbFS.c"
     "src/tsdb/tsdbMain.c"
     "src/tsdb/tsdbMemTable.c"
-    "src/tsdb/tsdbOptions.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbScan.c"
@@ -71,6 +70,7 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
 )
+target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
 if(${BUILD_TEST})
     add_subdirectory(test)

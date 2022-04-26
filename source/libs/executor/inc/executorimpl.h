@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+// clang-format off
 #ifndef TDENGINE_EXECUTORIMPL_H
 #define TDENGINE_EXECUTORIMPL_H
 
@@ -37,6 +38,8 @@ extern "C" {
 #include "tlockfree.h"
 #include "tmsg.h"
 #include "tpagedbuf.h"
+
+#include "vnode.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -319,27 +322,32 @@ typedef struct SColMatchInfo {
   bool    output;
 } SColMatchInfo;
 
+typedef struct SScanInfo {
+  int32_t numOfAsc;
+  int32_t numOfDesc;
+} SScanInfo;
+
 typedef struct STableScanInfo {
   void*           dataReader;
+
   int32_t         numOfBlocks;  // extract basic running information.
   int32_t         numOfSkipped;
   int32_t         numOfBlockStatis;
   int64_t         numOfRows;
-  int32_t         order;  // scan order
-  int32_t         times;  // repeat counts
+  int64_t         elapsedTime;
+  int32_t         prevGroupId;  // previous table group id
+  SScanInfo       scanInfo;
   int32_t         current;
-  int32_t         reverseTimes;  // 0 by default
-  SNode*          pFilterNode;   // filter operator info
-  SqlFunctionCtx* pCtx;          // next operator query context
+  SNode*          pFilterNode;  // filter operator info
+  SqlFunctionCtx* pCtx;         // next operator query context
   SResultRowInfo* pResultRowInfo;
   int32_t*        rowCellInfoOffset;
   SExprInfo*      pExpr;
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
   int32_t         numOfOutput;
-  int64_t         elapsedTime;
-  int32_t         prevGroupId;  // previous table group id
 
+  SQueryTableDataCond cond;
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t         dataBlockLoadFlag;
   double          sampleRatio;  // data block sample ratio, 1 by default
@@ -380,7 +388,7 @@ typedef struct SSysTableScanInfo {
   int32_t             accountId;
   bool                showRewrite;
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
-  void*               pCur;        // cursor for iterate the local table meta store.
+  SMTbCursor*         pCur;        // cursor for iterate the local table meta store.
   SArray*             scanCols;    // SArray<int16_t> scan column id list
   SName               name;
   SSDataBlock*        pRes;
@@ -620,6 +628,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
 void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
+int32_t getTableScanOrder(SOperatorInfo* pOperator);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
@@ -627,9 +636,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTableScanOperatorInfo(void* pReaderHandle, int32_t order, int32_t numOfCols, int32_t dataLoadFlag, int32_t repeatTime,
-                                           int32_t reverseTime, SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition,
-                                           SInterval* pInterval, double ratio, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, SQueryTableDataCond* pCond, int32_t numOfOutput, int32_t dataLoadFlag, const uint8_t* scanInfo,
+                                           SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 

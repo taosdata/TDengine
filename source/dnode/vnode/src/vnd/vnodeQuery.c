@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "vnd.h"
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), NULL, (void **)&pVnode->pQuery, &pVnode->msgCb);
@@ -22,94 +22,76 @@ int vnodeQueryOpen(SVnode *pVnode) {
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
-  STbCfg *        pTbCfg = NULL;
-  STbCfg *        pStbCfg = NULL;
-  tb_uid_t        uid;
-  int32_t         nCols;
-  int32_t         nTagCols;
-  SSchemaWrapper *pSW = NULL;
-  STableMetaRsp * pTbMetaMsg = NULL;
-  STableMetaRsp   metaRsp = {0};
-  SSchema *       pTagSchema;
-  SRpcMsg         rpcMsg;
-  int             msgLen = 0;
-  int32_t         code = 0;
-  char            tableFName[TSDB_TABLE_FNAME_LEN];
-  int32_t         rspLen = 0;
-  void *          pRsp = NULL;
+  STableInfoReq  infoReq = {0};
+  STableMetaRsp  metaRsp = {0};
+  SMetaReader    mer1 = {0};
+  SMetaReader    mer2 = {0};
+  char           tableFName[TSDB_TABLE_FNAME_LEN];
+  SRpcMsg        rpcMsg;
+  int32_t        code = 0;
+  int32_t        rspLen = 0;
+  void          *pRsp = NULL;
+  SSchemaWrapper schema = {0};
+  SSchemaWrapper schemaTag = {0};
 
-  STableInfoReq infoReq = {0};
+  // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
   metaRsp.dbId = pVnode->config.dbId;
-  memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
   strcpy(metaRsp.tbName, infoReq.tbName);
+  memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
-  code = vnodeValidateTableHash(&pVnode->config, tableFName);
+  code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
   }
 
-  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, infoReq.tbName, &uid);
-  if (pTbCfg == NULL) {
-    code = TSDB_CODE_VND_TB_NOT_EXIST;
+  // query meta
+  metaReaderInit(&mer1, pVnode->pMeta, 0);
+
+  if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     goto _exit;
   }
 
-  if (pTbCfg->type == META_CHILD_TABLE) {
-    pStbCfg = metaGetTbInfoByUid(pVnode->pMeta, pTbCfg->ctbCfg.suid);
-    if (pStbCfg == NULL) {
-      code = TSDB_CODE_VND_TB_NOT_EXIST;
-      goto _exit;
-    }
-
-    pSW = metaGetTableSchema(pVnode->pMeta, pTbCfg->ctbCfg.suid, 0, true);
-  } else {
-    pSW = metaGetTableSchema(pVnode->pMeta, uid, 0, true);
-  }
-
-  nCols = pSW->nCols;
-  if (pTbCfg->type == META_SUPER_TABLE) {
-    nTagCols = pTbCfg->stbCfg.nTagCols;
-    pTagSchema = pTbCfg->stbCfg.pTagSchema;
-  } else if (pTbCfg->type == META_CHILD_TABLE) {
-    nTagCols = pStbCfg->stbCfg.nTagCols;
-    pTagSchema = pStbCfg->stbCfg.pTagSchema;
-  } else {
-    nTagCols = 0;
-    pTagSchema = NULL;
-  }
-
-  metaRsp.pSchemas = taosMemoryCalloc(nCols + nTagCols, sizeof(SSchema));
-  if (metaRsp.pSchemas == NULL) {
-    code = TSDB_CODE_VND_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  if (pTbCfg->type == META_CHILD_TABLE) {
-    strcpy(metaRsp.stbName, pStbCfg->name);
-    metaRsp.suid = pTbCfg->ctbCfg.suid;
-  } else if (pTbCfg->type == META_SUPER_TABLE) {
-    strcpy(metaRsp.stbName, pTbCfg->name);
-    metaRsp.suid = uid;
-  }
-  metaRsp.numOfTags = nTagCols;
-  metaRsp.numOfColumns = nCols;
-  metaRsp.tableType = pTbCfg->type;
-  metaRsp.tuid = uid;
+  metaRsp.tableType = mer1.me.type;
   metaRsp.vgId = TD_VID(pVnode);
+  metaRsp.tuid = mer1.me.uid;
 
-  memcpy(metaRsp.pSchemas, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
-  if (nTagCols) {
-    memcpy(POINTER_SHIFT(metaRsp.pSchemas, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
+  if (mer1.me.type == TSDB_SUPER_TABLE) {
+    strcpy(metaRsp.stbName, mer1.me.name);
+    schema = mer1.me.stbEntry.schema;
+    schemaTag = mer1.me.stbEntry.schemaTag;
+    metaRsp.suid = mer1.me.uid;
+  } else if (mer1.me.type == TSDB_CHILD_TABLE) {
+    metaReaderInit(&mer2, pVnode->pMeta, 0);
+    if (metaGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
+
+    strcpy(metaRsp.stbName, mer2.me.name);
+    metaRsp.suid = mer2.me.uid;
+    schema = mer2.me.stbEntry.schema;
+    schemaTag = mer2.me.stbEntry.schemaTag;
+  } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
+    schema = mer1.me.ntbEntry.schema;
+  } else {
+    ASSERT(0);
   }
 
-_exit:
+  metaRsp.numOfTags = schemaTag.nCols;
+  metaRsp.numOfColumns = schema.nCols;
+  metaRsp.precision = pVnode->config.tsdbCfg.precision;
+  metaRsp.sversion = schema.sver;
+  metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
 
+  memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
+  if (schemaTag.nCols) {
+    memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  }
+
+  // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   if (rspLen < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -123,23 +105,6 @@ _exit:
   }
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
-  tFreeSTableMetaRsp(&metaRsp);
-  if (pSW != NULL) {
-    taosMemoryFreeClear(pSW->pSchema);
-    taosMemoryFreeClear(pSW);
-  }
-
-  if (pTbCfg) {
-    taosMemoryFreeClear(pTbCfg->name);
-    if (pTbCfg->type == META_SUPER_TABLE) {
-      taosMemoryFree(pTbCfg->stbCfg.pTagSchema);
-    } else if (pTbCfg->type == META_SUPER_TABLE) {
-      kvRowFree(pTbCfg->ctbCfg.pTag);
-    }
-
-    taosMemoryFreeClear(pTbCfg);
-  }
-
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.refId = pMsg->refId;
@@ -148,12 +113,18 @@ _exit:
   rpcMsg.code = code;
 
   tmsgSendRsp(&rpcMsg);
-  return TSDB_CODE_SUCCESS;
+
+_exit:
+  taosMemoryFree(metaRsp.pSchemas);
+  metaReaderClear(&mer2);
+  metaReaderClear(&mer1);
+  return code;
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
-  pLoad->syncState = TAOS_SYNC_STATE_LEADER;
+  //pLoad->syncState = TAOS_SYNC_STATE_LEADER;
+  pLoad->syncState = syncGetMyRole(pVnode->sync); // sync integration
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = 400;
   pLoad->totalStorage = 300;

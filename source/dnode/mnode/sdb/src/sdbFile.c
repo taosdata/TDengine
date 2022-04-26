@@ -28,7 +28,7 @@ static int32_t sdbRunDeployFp(SSdb *pSdb) {
     if (fp == NULL) continue;
 
     if ((*fp)(pSdb->pMnode) != 0) {
-      mError("failed to deploy sdb:%d since %s", i, terrstr());
+      mError("failed to deploy sdb:%s since %s", sdbTableName(i), terrstr());
       return -1;
     }
   }
@@ -202,7 +202,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
       break;
     }
 
-    code = sdbWriteNotFree(pSdb, pRaw);
+    code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
       goto PARSE_SDB_DATA_ERROR;
@@ -263,7 +263,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
         continue;
       }
 
-      sdbPrintOper(pSdb, pRow, "writeFile");
+      sdbPrintOper(pSdb, pRow, "write");
 
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {

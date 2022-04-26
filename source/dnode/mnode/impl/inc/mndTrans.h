@@ -44,6 +44,7 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
+void    mndTransSetCb(STrans *pTrans, TransCbFp fp, void *param);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);

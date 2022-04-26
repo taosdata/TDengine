@@ -1369,7 +1369,8 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1383,7 +1384,8 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;  // TODO set null or ignore
       }
 
@@ -1404,8 +1406,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   } else if (pRight->numOfRows == 1) {
     ASSERT(pLeft->pHashFilter == NULL);
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull_s(pLeft->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, 0)) {
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1424,8 +1427,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
     }
   } else if (pLeft->numOfRows == 1) {
     for (; i >= 0 && i < pRight->numOfRows; i += step) {
-      if (colDataIsNull_s(pRight->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+      if (colDataIsNull_s(pRight->columnData, i) || colDataIsNull_s(pLeft->columnData, 0)) {
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
