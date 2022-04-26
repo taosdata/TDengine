@@ -8628,7 +8628,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
 
 
 int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
-  const char* msg1 = "TWA/Diff/Derivative/Irate/elapsed are not allowed to apply to super table without group by tbname";
+  const char* msg1 = "TWA/Diff/Derivative/Irate/elapsed/csum are not allowed to apply to super table without group by tbname";
   const char* msg2 = "group by not supported in nested interp query";
   const char* msg3 = "order by not supported in nested interp query";
   const char* msg4 = "first column should be timestamp for interp query";
@@ -8641,8 +8641,14 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
   
     int32_t f = pExpr->base.functionId;
-    if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ELAPSED ||
-        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
+    if (f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_TWA ||
+        f == TSDB_FUNC_IRATE ||
+        f == TSDB_FUNC_DIFF ||
+        f == TSDB_FUNC_ELAPSED ||
+        f == TSDB_FUNC_CSUM ||
+        f == TSDB_FUNC_STATE_COUNT ||
+        f == TSDB_FUNC_STATE_DURATION) {
       for (int32_t j = 0; j < upNum; ++j) {
         SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
         STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);
