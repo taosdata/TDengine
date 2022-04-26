@@ -66,13 +66,13 @@ typedef struct SDataBlockInfo {
   int32_t     rows;
   int32_t     rowSize;
   union {
-    int64_t uid;        // from which table of uid, comes from this data block
+    int64_t uid;  // from which table of uid, comes from this data block
     int64_t blockId;
   };
-  uint64_t    groupId;  // no need to serialize
-  int16_t     numOfCols;
-  int16_t     hasVarCol;
-  int16_t     capacity;
+  uint64_t groupId;  // no need to serialize
+  int16_t  numOfCols;
+  int16_t  hasVarCol;
+  int16_t  capacity;
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -122,59 +122,6 @@ static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
 
 static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) { blockDestroyInner(pBlock); }
 
-static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp) {
-  int32_t tlen = 0;
-  int32_t sz = 0;
-  // tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
-  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
-  tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
-  tlen += taosEncodeFixedI32(buf, pRsp->numOfTopics);
-  if (pRsp->numOfTopics == 0) return tlen;
-  tlen += taosEncodeSSchemaWrapper(buf, pRsp->schema);
-  if (pRsp->pBlockData) {
-    sz = taosArrayGetSize(pRsp->pBlockData);
-  }
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
-    tlen += tEncodeDataBlock(buf, pBlock);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
-  int32_t sz;
-  // buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
-  buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
-  buf = taosDecodeFixedI32(buf, &pRsp->numOfTopics);
-  if (pRsp->numOfTopics == 0) return buf;
-  pRsp->schema = (SSchemaWrapper*)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
-  if (pRsp->schema == NULL) return NULL;
-  buf = taosDecodeSSchemaWrapper(buf, pRsp->schema);
-  buf = taosDecodeFixedI32(buf, &sz);
-  pRsp->pBlockData = taosArrayInit(sz, sizeof(SSDataBlock));
-  for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock block = {0};
-    tDecodeDataBlock(buf, &block);
-    taosArrayPush(pRsp->pBlockData, &block);
-  }
-  return buf;
-}
-
-static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
-  if (pRsp->schema) {
-    if (pRsp->schema->nCols) {
-      taosMemoryFreeClear(pRsp->schema->pSchema);
-    }
-    taosMemoryFree(pRsp->schema);
-  }
-  taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))blockDestroyInner);
-  pRsp->pBlockData = NULL;
-}
-
 //======================================================================================================================
 // the following structure shared by parser and executor
 typedef struct SColumn {
@@ -195,22 +142,22 @@ typedef struct SColumn {
 } SColumn;
 
 typedef struct STableBlockDistInfo {
-  uint16_t  rowSize;
-  uint16_t  numOfFiles;
-  uint32_t  numOfTables;
-  uint64_t  totalSize;
-  uint64_t  totalRows;
-  int32_t   maxRows;
-  int32_t   minRows;
-  int32_t   firstSeekTimeUs;
-  uint32_t  numOfRowsInMemTable;
-  uint32_t  numOfSmallBlocks;
-  SArray   *dataBlockInfos;
+  uint16_t rowSize;
+  uint16_t numOfFiles;
+  uint32_t numOfTables;
+  uint64_t totalSize;
+  uint64_t totalRows;
+  int32_t  maxRows;
+  int32_t  minRows;
+  int32_t  firstSeekTimeUs;
+  uint32_t numOfRowsInMemTable;
+  uint32_t numOfSmallBlocks;
+  SArray*  dataBlockInfos;
 } STableBlockDistInfo;
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
-  FUNC_PARAM_TYPE_COLUMN= 0x2,
+  FUNC_PARAM_TYPE_COLUMN = 0x2,
 };
 
 typedef struct SFunctParam {
@@ -241,7 +188,7 @@ typedef struct SExprInfo {
   struct tExprNode*     pExpr;
 } SExprInfo;
 
-#define QUERY_ASC_FORWARD_STEP 1
+#define QUERY_ASC_FORWARD_STEP  1
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)

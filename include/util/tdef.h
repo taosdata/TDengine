@@ -125,12 +125,12 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_QUERIES                "queries"
 #define TSDB_INS_TABLE_VNODES                 "vnodes"
 
-#define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
-#define TSDB_PERFS_TABLE_CONNECTIONS "connections"
-#define TSDB_PERFS_TABLE_QUERIES     "queries"
-#define TSDB_PERFS_TABLE_TOPICS      "topics"
-#define TSDB_PERFS_TABLE_CONSUMERS   "consumers"
-#define TSDB_PERFS_TABLE_SUBSCRIBES  "subscribes"
+#define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
+#define TSDB_PERFS_TABLE_CONNECTIONS   "connections"
+#define TSDB_PERFS_TABLE_QUERIES       "queries"
+#define TSDB_PERFS_TABLE_TOPICS        "topics"
+#define TSDB_PERFS_TABLE_CONSUMERS     "consumers"
+#define TSDB_PERFS_TABLE_SUBSCRIPTIONS "subscriptions"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
@@ -270,7 +270,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAGS           128
 #define TSDB_MAX_TAG_CONDITIONS 1024
 
-#define TSDB_MAX_JSON_TAG_LEN   16384
+#define TSDB_MAX_JSON_TAG_LEN 16384
 
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
@@ -284,8 +284,9 @@ typedef enum ELogicConditionType {
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
 #define TSDB_SHOW_SQL_LEN       512
-#define TSDB_SHOW_SUBQUERY_LEN  1000
 #define TSDB_SLOW_QUERY_SQL_LEN 512
+#define TSDB_SHOW_SUBQUERY_LEN  1000
+#define TSDB_SHOW_LIST_LEN      1000
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -372,7 +373,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STREAM_MODE_OFF       0
 #define TSDB_DB_STREAM_MODE_ON        1
 #define TSDB_DEFAULT_DB_STREAM_MODE   0
-#define TSDB_DB_SINGLE_STABLE_ON     0
+#define TSDB_DB_SINGLE_STABLE_ON      0
 #define TSDB_DB_SINGLE_STABLE_OFF     1
 #define TSDB_DEFAULT_DB_SINGLE_STABLE 0
 
