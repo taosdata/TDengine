@@ -104,7 +104,6 @@ impl Params {
 #[derive(Default, Debug)]
 struct Attr {
     rt: Option<String>,
-    use_crate: bool,
     databases: Option<usize>,
     naming: Option<Literal>,
     precision: Option<Literal>,
@@ -197,7 +196,6 @@ impl Attr {
                         _ => unreachable!("expect {EXPECT}"),
                     }
                 }
-                TokenTree::Ident(ident) if ident.to_string() == "crate" => attr.use_crate = true,
                 _ => (),
             }
         }
@@ -225,7 +223,9 @@ impl Attr {
     }
 
     fn crate_token_stream(&self) -> TokenStream {
-        if self.use_crate {
+        let crate_name = std::env::var("CARGO_PKG_NAME").unwrap();
+
+        if crate_name == "taos" {
             quote!(crate)
         } else {
             quote!(taos)
@@ -430,6 +430,9 @@ mod tests {
             #[tokio::test]
             async fn async_simple() -> anyhow::Result<()> {
                 async fn async_simple() { }
+                taos::helpers::tests::Common::default()
+                    .log_level(())
+                    .init()?;
                 async_simple().await;
                 Ok(())
             }
@@ -498,7 +501,6 @@ mod tests {
             attr,
             Attr {
                 databases: Some(10),
-                use_crate: false,
                 rt: Some("\"tokio\"".to_string()),
                 naming: Some(Literal::string("random")),
                 precision: None,
