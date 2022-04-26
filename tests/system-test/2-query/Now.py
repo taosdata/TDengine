@@ -1,8 +1,5 @@
-from tarfile import SYMTYPE
-from time import sleep
-from tkinter import E
-import taos
-import sys
+
+
 from util.dnodes import *
 from util.log import *
 from util.sql import *

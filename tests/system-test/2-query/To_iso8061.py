@@ -1,10 +1,10 @@
 from time import sleep
-import taos
+
 from util.log import *
 from util.sql import *
 from util.cases import *
 
-import os
+
 
 
 class TDTestCase:

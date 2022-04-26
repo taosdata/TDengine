@@ -1,5 +1,4 @@
-from pytz import timezone
-import taos
+
 from util.log import *
 from util.sql import *
 from util.cases import *
