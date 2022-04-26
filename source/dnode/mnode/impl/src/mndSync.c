@@ -160,11 +160,11 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   int64_t ver = sdbUpdateVer(pSdb, 1);
   if (walWrite(pWal, ver, 1, pRaw, sdbGetRawTotalSize(pRaw)) < 0) {
     sdbUpdateVer(pSdb, -1);
-    mError("failed to write raw:%p since %s, ver:%" PRId64, pRaw, terrstr(), ver);
+    mError("ver:%" PRId64 ", failed to write raw:%p to wal since %s", ver, pRaw, terrstr());
     return -1;
   }
 
-  mTrace("raw:%p, write to wal, ver:%" PRId64, pRaw, ver);
+  mTrace("ver:%" PRId64 ", write to wal, raw:%p", ver, pRaw);
   walCommit(pWal, ver);
   walFsync(pWal, true);
 
