@@ -133,19 +133,37 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install_client.sh
 
-# Copy example code
-mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/examples"
-cp -r ${examples_dir}/c ${install_dir}/examples
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp -r ${examples_dir}/JDBC ${install_dir}/examples
-  cp -r ${examples_dir}/matlab ${install_dir}/examples
-  cp -r ${examples_dir}/python ${install_dir}/examples
-  cp -r ${examples_dir}/R ${install_dir}/examples
-  cp -r ${examples_dir}/go ${install_dir}/examples
-  cp -r ${examples_dir}/nodejs ${install_dir}/examples
-  cp -r ${examples_dir}/C# ${install_dir}/examples
-  mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../src/kit/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+if [[ $productName == "TDengine" ]]; then
+  # Copy example code
+  mkdir -p ${install_dir}/examples
+  examples_dir="${top_dir}/examples"
+  cp -r ${examples_dir}/c ${install_dir}/examples
+  if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+    cp -r ${examples_dir}/JDBC ${install_dir}/examples
+    cp -r ${examples_dir}/matlab ${install_dir}/examples
+    cp -r ${examples_dir}/python ${install_dir}/examples
+    cp -r ${examples_dir}/R ${install_dir}/examples
+    cp -r ${examples_dir}/go ${install_dir}/examples
+    cp -r ${examples_dir}/nodejs ${install_dir}/examples
+    cp -r ${examples_dir}/C# ${install_dir}/examples
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../src/kit/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+  fi
+
+#  # Copy connector
+#  connector_dir="${code_dir}/connector"
+#  mkdir -p ${install_dir}/connector
+#  if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+#    if [ "$osType" != "Darwin" ]; then
+#      cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+#    fi
+#    if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+#      cp -r ${connector_dir}/go ${install_dir}/connector
+#    else
+#      echo "WARNING: go connector not found, please check if want to use it!"
+#    fi
+#    cp -r ${connector_dir}/python ${install_dir}/connector
+#    cp -r ${connector_dir}/nodejs ${install_dir}/connector
+#  fi
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver

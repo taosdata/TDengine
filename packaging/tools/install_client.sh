@@ -78,13 +78,14 @@ function kill_client() {
 }
 
 function install_main_path() {
-    #create install main dir and all sub dir
-    ${csudo}rm -rf ${install_main_dir}    || :
-    ${csudo}mkdir -p ${install_main_dir}
-    ${csudo}mkdir -p ${install_main_dir}/cfg
-    ${csudo}mkdir -p ${install_main_dir}/bin
-    ${csudo}mkdir -p ${install_main_dir}/connector
-    ${csudo}mkdir -p ${install_main_dir}/driver
+  #create install main dir and all sub dir
+  ${csudo}rm -rf ${install_main_dir} || :
+  ${csudo}mkdir -p ${install_main_dir}
+  ${csudo}mkdir -p ${install_main_dir}/cfg
+  ${csudo}mkdir -p ${install_main_dir}/bin
+  ${csudo}mkdir -p ${install_main_dir}/driver
+  if [ $productName == "TDengine" ]; then
+#    ${csudo}mkdir -p ${install_main_dir}/connector
     ${csudo}mkdir -p ${install_main_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include
 }
