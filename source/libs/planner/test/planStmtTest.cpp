@@ -19,7 +19,7 @@
 using namespace std;
 
 class PlanStmtTest : public PlannerTestBase {
-public:
+ public:
   void prepare(const string& sql) {
     run(sql);
     // todo calloc pBindParams_

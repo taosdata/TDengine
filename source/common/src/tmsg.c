@@ -93,7 +93,7 @@ STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
     return row;
   }
 }
-#if 0
+
 // TODO: KEEP one suite of iterator API finally.
 // 1) use tInitSubmitMsgIterEx firstly as not decrease the merge conflicts
 // 2) replace tInitSubmitMsgIterEx with tInitSubmitMsgIter later
@@ -173,7 +173,7 @@ STSRow *tGetSubmitBlkNextEx(SSubmitBlkIter *pIter) {
     return row;
   }
 }
-#endif
+
 int32_t tEncodeSEpSet(SCoder *pEncoder, const SEpSet *pEp) {
   if (tEncodeI8(pEncoder, pEp->inUse) < 0) return -1;
   if (tEncodeI8(pEncoder, pEp->numOfEps) < 0) return -1;
@@ -522,10 +522,6 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
         SRSmaParam *param = pReq->stbCfg.pRSmaParam;
         tlen += taosEncodeBinary(buf, (const void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
         tlen += taosEncodeFixedI32(buf, param->delay);
-        tlen += taosEncodeFixedI8(buf, param->nFuncIds);
-        for (int8_t i = 0; i < param->nFuncIds; ++i) {
-          tlen += taosEncodeFixedI32(buf, param->pFuncIds[i]);
-        }
         tlen += taosEncodeFixedI32(buf, param->qmsg1Len);
         if (param->qmsg1Len > 0) {
           tlen += taosEncodeString(buf, param->qmsg1);
@@ -555,10 +551,6 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
         SRSmaParam *param = pReq->ntbCfg.pRSmaParam;
         tlen += taosEncodeBinary(buf, (const void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
         tlen += taosEncodeFixedI32(buf, param->delay);
-        tlen += taosEncodeFixedI8(buf, param->nFuncIds);
-        for (int8_t i = 0; i < param->nFuncIds; ++i) {
-          tlen += taosEncodeFixedI32(buf, param->pFuncIds[i]);
-        }
       }
       break;
     default:
@@ -601,13 +593,6 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
         SRSmaParam *param = pReq->stbCfg.pRSmaParam;
         buf = taosDecodeBinaryTo(buf, (void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
         buf = taosDecodeFixedI32(buf, &param->delay);
-        buf = taosDecodeFixedI8(buf, &param->nFuncIds);
-        if (param->nFuncIds > 0) {
-          param->pFuncIds = (func_id_t *)taosMemoryCalloc(param->nFuncIds, sizeof(func_id_t));
-          for (int8_t i = 0; i < param->nFuncIds; ++i) {
-            buf = taosDecodeFixedI32(buf, param->pFuncIds + i);
-          }
-        }
         buf = taosDecodeFixedI32(buf, &param->qmsg1Len);
         if (param->qmsg1Len > 0) {
           buf = taosDecodeString(buf, &param->qmsg1);
@@ -641,15 +626,6 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
         SRSmaParam *param = pReq->ntbCfg.pRSmaParam;
         buf = taosDecodeBinaryTo(buf, (void *)&param->xFilesFactor, sizeof(param->xFilesFactor));
         buf = taosDecodeFixedI32(buf, &param->delay);
-        buf = taosDecodeFixedI8(buf, &param->nFuncIds);
-        if (param->nFuncIds > 0) {
-          param->pFuncIds = (func_id_t *)taosMemoryMalloc(param->nFuncIds * sizeof(func_id_t));
-          for (int8_t i = 0; i < param->nFuncIds; ++i) {
-            buf = taosDecodeFixedI32(buf, param->pFuncIds + i);
-          }
-        } else {
-          param->pFuncIds = NULL;
-        }
       } else {
         pReq->ntbCfg.pRSmaParam = NULL;
       }
@@ -712,7 +688,6 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeFloat(&encoder, pReq->xFilesFactor) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->aggregationMethod) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->delay) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->ttl) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfColumns) < 0) return -1;
@@ -767,7 +742,6 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeFloat(&decoder, &pReq->xFilesFactor) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->aggregationMethod) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->delay) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfColumns) < 0) return -1;

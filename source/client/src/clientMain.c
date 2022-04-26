@@ -120,7 +120,7 @@ const char *taos_errstr(TAOS_RES *res) {
     return (const char *)tstrerror(terrno);
   }
 
-  if (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) {
+  if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     return pRequest->msgBuf;
   } else {
     return (const char *)tstrerror(pRequest->code);

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "parser.h"
+#include "os.h"
 
 #include "parInt.h"
 #include "parToken.h"
@@ -23,11 +23,11 @@ bool isInsertSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;
   }
-  
+
   int32_t index = 0;
 
   do {
-    SToken t0 = tStrGetToken((char*) pStr, &index, false);
+    SToken t0 = tStrGetToken((char*)pStr, &index, false);
     if (t0.type != TK_NK_LP) {
       return t0.type == TK_INSERT || t0.type == TK_IMPORT;
     }
