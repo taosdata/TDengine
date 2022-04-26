@@ -16,9 +16,7 @@
 #ifndef _TD_VNODE_TSDB_SMA_H_
 #define _TD_VNODE_TSDB_SMA_H_
 
-#include "os.h"
-#include "thash.h"
-#include "tmsg.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,12 +29,6 @@ struct STbDdlH {
   void         *result;
   __tb_ddl_fn_t fp;
 };
-
-typedef struct {
-  tb_uid_t  suid;
-  SArray   *tbUids;
-  SHashObj *uidHash;
-} STbUidStore;
 
 static FORCE_INLINE int32_t tsdbUidStoreInit(STbUidStore **pStore) {
   ASSERT(*pStore == NULL);

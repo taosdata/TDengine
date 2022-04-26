@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "meta.h"
 
-void metaReaderInit(SMetaReader *pReader, SVnode *pVnode, int32_t flags) {
+void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
-  pReader->pMeta = pVnode->pMeta;
+  pReader->pMeta = pMeta;
 }
 
 void metaReaderClear(SMetaReader *pReader) {
@@ -91,7 +91,7 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
     return NULL;
   }
 
-  metaReaderInit(&pTbCur->mr, pMeta->pVnode, 0);
+  metaReaderInit(&pTbCur->mr, pMeta, 0);
 
   tdbDbcOpen(pMeta->pUidIdx, &pTbCur->pDbc);
 
@@ -122,7 +122,7 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
     }
 
     metaGetTableEntryByVersion(&pTbCur->mr, *(int64_t *)pTbCur->pVal, *(tb_uid_t *)pTbCur->pKey);
-    if (pTbCur->mr.me.type == META_SUPER_TABLE) {
+    if (pTbCur->mr.me.type == TSDB_SUPER_TABLE) {
       continue;
     }
 
@@ -234,7 +234,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   STSchemaBuilder sb = {0};
   SSchema        *pSchema;
 
-  metaReaderInit(&mr, pMeta->pVnode, 0);
+  metaReaderInit(&mr, pMeta, 0);
   metaGetTableEntryByUid(&mr, uid);
 
   if (mr.me.type == TSDB_CHILD_TABLE) {

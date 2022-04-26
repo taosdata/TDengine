@@ -16,13 +16,14 @@
 #ifndef _TD_VNODE_META_H_
 #define _TD_VNODE_META_H_
 
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SMetaIdx    SMetaIdx;
 typedef struct SMetaDB     SMetaDB;
-typedef struct SMCtbCursor SMCtbCursor;
 typedef struct SMSmaCursor SMSmaCursor;
 
 // metaDebug ==================
@@ -36,22 +37,16 @@ typedef struct SMSmaCursor SMSmaCursor;
 // clang-format on
 
 // metaOpen ==================
-int metaOpen(SVnode* pVnode, SMeta** ppMeta);
-int metaClose(SMeta* pMeta);
 
 // metaEntry ==================
 int metaEncodeEntry(SCoder* pCoder, const SMetaEntry* pME);
 int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
 
 // metaTable ==================
-int metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
-int metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 
 // metaQuery ==================
 int metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);
-int metaGetTableEntryByUid(SMetaReader* pReader, tb_uid_t uid);
-int metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 
 // metaIdx ==================
 int  metaOpenIdx(SMeta* pMeta);
@@ -60,8 +55,6 @@ int  metaSaveTableToIdx(SMeta* pMeta, const STbCfg* pTbOptions);
 int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 
 // metaCommit ==================
-int metaBegin(SMeta* pMeta);
-
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
 struct SMeta {
@@ -106,27 +99,12 @@ typedef struct {
 } STtlIdxKey;
 
 #if 1
-#define META_SUPER_TABLE  TD_SUPER_TABLE
-#define META_CHILD_TABLE  TD_CHILD_TABLE
-#define META_NORMAL_TABLE TD_NORMAL_TABLE
 
 // int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
-int             metaDropTable(SMeta* pMeta, tb_uid_t uid);
-int             metaCommit(SMeta* pMeta);
-int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
-int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
-STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
-void*           metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid, bool isDecode);
-STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid);
-SArray*         metaGetSmaTbUids(SMeta* pMeta, bool isDup);
-int             metaGetTbNum(SMeta* pMeta);
-SMSmaCursor*    metaOpenSmaCursor(SMeta* pMeta, tb_uid_t uid);
-void            metaCloseSmaCursor(SMSmaCursor* pSmaCur);
-int64_t         metaSmaCursorNext(SMSmaCursor* pSmaCur);
-SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
-void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
-tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
+int          metaDropTable(SMeta* pMeta, tb_uid_t uid);
+SMSmaCursor* metaOpenSmaCursor(SMeta* pMeta, tb_uid_t uid);
+void         metaCloseSmaCursor(SMSmaCursor* pSmaCur);
+int64_t      metaSmaCursorNext(SMSmaCursor* pSmaCur);
 
 #ifndef META_REFACT
 // SMetaDB
