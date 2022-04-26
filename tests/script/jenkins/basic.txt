@@ -34,6 +34,7 @@
 ./test.sh -f tsim/query/charScalarFunction.sim
 ./test.sh -f tsim/query/explain.sim
 ./test.sh -f tsim/query/session.sim
+./test.sh -f tsim/query/scalarNull.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim

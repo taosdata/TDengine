@@ -3587,6 +3587,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
+    if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL) {
+      stat->scalarMode = true;
+      return DEAL_RES_CONTINUE;
+    }
+
     if (NULL == node->pRight) {
       if (scalarGetOperatorParamNum(node->opType) > 1) {
         fltError("invalid operator, pRight:%p, nodeType:%d, opType:%d", node->pRight, nodeType(node), node->opType);
