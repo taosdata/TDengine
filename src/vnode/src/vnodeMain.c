@@ -574,7 +574,7 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   pVnode->waitThreads = tdListFree(pVnode->waitThreads);
-  tsem_destroy(pVnode->semWait);  
+  tsem_destroy(&pVnode->semWait);  
   tsem_destroy(&pVnode->sem);
   pthread_mutex_destroy(&pVnode->statusMutex);
   free(pVnode);
