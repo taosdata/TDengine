@@ -15,39 +15,39 @@
 
 #include "planInt.h"
 
-#define SPLIT_FLAG_MASK(n)    (1 << n)
+#define SPLIT_FLAG_MASK(n) (1 << n)
 
 #define SPLIT_FLAG_STS SPLIT_FLAG_MASK(0)
 #define SPLIT_FLAG_CTJ SPLIT_FLAG_MASK(1)
 
-#define SPLIT_FLAG_SET_MASK(val, mask) (val) |= (mask)
+#define SPLIT_FLAG_SET_MASK(val, mask)  (val) |= (mask)
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SSplitContext {
   int32_t groupId;
-  bool split;
+  bool    split;
 } SSplitContext;
 
 typedef int32_t (*FSplit)(SSplitContext* pCxt, SLogicSubplan* pSubplan);
 
 typedef struct SSplitRule {
-  char* pName;
+  char*  pName;
   FSplit splitFunc;
 } SSplitRule;
 
 typedef struct SStsInfo {
   SScanLogicNode* pScan;
-  SLogicSubplan* pSubplan;
+  SLogicSubplan*  pSubplan;
 } SStsInfo;
 
 typedef struct SCtjInfo {
   SScanLogicNode* pScan;
-  SLogicSubplan* pSubplan;
+  SLogicSubplan*  pSubplan;
 } SCtjInfo;
 
 typedef struct SUaInfo {
   SProjectLogicNode* pProject;
-  SLogicSubplan* pSubplan;
+  SLogicSubplan*     pSubplan;
 } SUaInfo;
 
 typedef struct SUnInfo {
@@ -70,7 +70,8 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* 
   return pSubplan;
 }
 
-static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan, ESubplanType subplanType) {
+static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan,
+                                     ESubplanType subplanType) {
   SExchangeLogicNode* pExchange = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE);
   if (NULL == pExchange) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -117,8 +118,8 @@ static bool splMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan, int32_t flag,
 }
 
 static SLogicNode* stsMatchByNode(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
-      NULL != ((SScanLogicNode*)pNode)->pVgroupList && ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > 1) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != ((SScanLogicNode*)pNode)->pVgroupList &&
+      ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > 1) {
     return pNode;
   }
   SNode* pChild;
@@ -145,7 +146,8 @@ static int32_t stsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (!splMatch(pCxt, pSubplan, SPLIT_FLAG_STS, (FSplFindSplitNode)stsFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_STS));
+  int32_t code =
+      nodesListMakeStrictAppend(&info.pSubplan->pChildren, splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_STS));
   if (TSDB_CODE_SUCCESS == code) {
     code = splCreateExchangeNode(pCxt, info.pSubplan, info.pScan, SUBPLAN_TYPE_MERGE);
   }
@@ -163,7 +165,8 @@ static SLogicNode* ctjMatchByNode(SLogicNode* pNode) {
     SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
     SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) && ctjIsSingleTable(((SScanLogicNode*)pLeft)->pMeta->tableType) &&
-        QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) && ctjIsSingleTable(((SScanLogicNode*)pRight)->pMeta->tableType)) {
+        QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) &&
+        ctjIsSingleTable(((SScanLogicNode*)pRight)->pMeta->tableType)) {
       return pRight;
     }
   }
@@ -191,7 +194,8 @@ static int32_t ctjSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (!splMatch(pCxt, pSubplan, SPLIT_FLAG_CTJ, (FSplFindSplitNode)ctjFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_CTJ));
+  int32_t code =
+      nodesListMakeStrictAppend(&info.pSubplan->pChildren, splCreateScanSubplan(pCxt, info.pScan, SPLIT_FLAG_CTJ));
   if (TSDB_CODE_SUCCESS == code) {
     code = splCreateExchangeNode(pCxt, info.pSubplan, info.pScan, info.pSubplan->subplanType);
   }
@@ -360,17 +364,15 @@ static int32_t unSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   return code;
 }
 
-static const SSplitRule splitRuleSet[] = {
-  { .pName = "SuperTableScan", .splitFunc = stsSplit },
-  { .pName = "ChildTableJoin", .splitFunc = ctjSplit },
-  { .pName = "UnionAll",       .splitFunc = uaSplit  },
-  { .pName = "Union",          .splitFunc = unSplit  }
-};
+static const SSplitRule splitRuleSet[] = {{.pName = "SuperTableScan", .splitFunc = stsSplit},
+                                          {.pName = "ChildTableJoin", .splitFunc = ctjSplit},
+                                          {.pName = "UnionAll", .splitFunc = uaSplit},
+                                          {.pName = "Union", .splitFunc = unSplit}};
 
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
 static int32_t applySplitRule(SLogicSubplan* pSubplan) {
-  SSplitContext cxt = { .groupId = pSubplan->id.groupId + 1, .split = false };
+  SSplitContext cxt = {.groupId = pSubplan->id.groupId + 1, .split = false};
   do {
     cxt.split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {
@@ -386,14 +388,10 @@ static int32_t applySplitRule(SLogicSubplan* pSubplan) {
 static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
   pNode->pParent = pParent;
   SNode* pChild;
-  FOREACH(pChild, pNode->pChildren) {
-    doSetLogicNodeParent((SLogicNode*)pChild, pNode);
-  }
+  FOREACH(pChild, pNode->pChildren) { doSetLogicNodeParent((SLogicNode*)pChild, pNode); }
 }
 
-static void setLogicNodeParent(SLogicNode* pNode) {
-  doSetLogicNodeParent(pNode, NULL);
-}
+static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
 
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan) {
   SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
@@ -408,7 +406,8 @@ int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan
   }
   if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIF == nodeType(pLogicNode)) {
     pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    TSWAP(((SVnodeModifLogicNode*)pLogicNode)->pDataBlocks, ((SVnodeModifLogicNode*)pSubplan->pNode)->pDataBlocks, SArray*);
+    TSWAP(((SVnodeModifLogicNode*)pLogicNode)->pDataBlocks, ((SVnodeModifLogicNode*)pSubplan->pNode)->pDataBlocks,
+          SArray*);
   } else {
     pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   }
