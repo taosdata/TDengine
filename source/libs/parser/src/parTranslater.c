@@ -548,8 +548,8 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
     }
     if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
-        (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && IS_VAR_DATA_TYPE(rdt.type)) ||
-        (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && IS_VAR_DATA_TYPE(ldt.type))) {
+        (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
+        (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
     }
 
