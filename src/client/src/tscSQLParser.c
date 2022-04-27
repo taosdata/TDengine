@@ -3362,13 +3362,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         if(functionId == TSDB_FUNC_UNIQUE){   // consider of memory size
-          if(pSchema->bytes < 10){
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 100;
-          }else if(pSchema->bytes < 100){
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 10;
-          }else{
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
-          }
+          GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
         }
 
         int64_t numRowsSelected = GET_INT64_VAL(val);
