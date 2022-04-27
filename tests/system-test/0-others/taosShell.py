@@ -11,7 +11,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 
-def taos_command (key, value, expectString, cfgDir, dbName, key1='', value1=''):
+def taos_command (key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
 
@@ -37,30 +37,52 @@ def taos_command (key, value, expectString, cfgDir, dbName, key1='', value1=''):
     child = pexpect.spawn(taosCmd, timeout=3)
     #output = child.readline()
     #print (output.decode())
-    i = child.expect([expectString, pexpect.TIMEOUT, pexpect.EOF], timeout=1)
+    if len(expectString) != 0:
+        i = child.expect([expectString, pexpect.TIMEOUT, pexpect.EOF], timeout=6)
+    else:
+        i = child.expect([pexpect.TIMEOUT, pexpect.EOF], timeout=6)
+
     retResult = child.before.decode()
     print(retResult)
     #print(child.after.decode())
     if i == 0:
         print ('taos login success! Here can run sql, taos> ')
-        if len(dbName) != 0:
-            child.sendline ('create database %s;'%(dbName))
+        if len(sqlString) != 0:
+            child.sendline (sqlString)
             w = child.expect(["Query OK", pexpect.TIMEOUT, pexpect.EOF], timeout=1)
             if w == 0:
                 return "TAOS_OK"
             else:
                 return "TAOS_FAIL"
         else:
-            return  "TAOS_OK"
+            if key == 'A' or key1 == 'A' or key == 'C' or key1 == 'C':
+                return "TAOS_OK", retResult
+            else:
+                return  "TAOS_OK"
     else:
-        if key == 'A' or key1 == 'A':
+        if key == 'A' or key1 == 'A' or key == 'C' or key1 == 'C':
             return "TAOS_OK", retResult
         else:
             return "TAOS_FAIL"
 
 class TDTestCase:
+    #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
+    #                 'serverPort': 7080, 'firstEp': 'trd02:7080'}
+    hostname = socket.gethostname()
+    serverPort = '7080'
+    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':''}
+    clientCfgDict["serverPort"] = serverPort
+    clientCfgDict["firstEp"]    = hostname + ':' + serverPort
+    clientCfgDict["secondEp"]   = hostname + ':' + serverPort
 
-    #updatecfgDict = {'serverPort': 7080, 'firstEp': 'localhost:7080'}
+
+    updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':''}
+    updatecfgDict["clientCfg"]  = clientCfgDict
+    updatecfgDict["serverPort"] = serverPort
+    updatecfgDict["firstEp"]    = hostname + ':' + serverPort
+    updatecfgDict["secondEp"]   = hostname + ':' + serverPort
+
+    print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -109,7 +131,8 @@ class TDTestCase:
 
         tdLog.printNoPrefix("================================ parameter: -h")
         newDbName="dbh"
-        retCode = taos_command("h", keyDict['h'], "taos>", keyDict['c'], newDbName)
+        sqlString = 'create database ' + newDbName + ';'
+        retCode = taos_command("h", keyDict['h'], "taos>", keyDict['c'], sqlString)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -h %s fail"%keyDict['h'])
         else:
@@ -131,7 +154,8 @@ class TDTestCase:
         #sleep(3)
         #keyDict['P'] = 6030
         newDbName = "dbpp"
-        retCode = taos_command("P", keyDict['P'], "taos>", keyDict['c'], newDbName)
+        sqlString = 'create database ' + newDbName + ';'
+        retCode = taos_command("P", keyDict['P'], "taos>", keyDict['c'], sqlString)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -P %s fail"%keyDict['P'])
         else:
@@ -146,7 +170,8 @@ class TDTestCase:
 
         tdLog.printNoPrefix("================================ parameter: -u")
         newDbName="dbu"
-        retCode = taos_command("u", keyDict['u'], "taos>", keyDict['c'], newDbName, "p", keyDict['p'])
+        sqlString = 'create database ' + newDbName + ';'
+        retCode = taos_command("u", keyDict['u'], "taos>", keyDict['c'], sqlString, "p", keyDict['p'])
         if retCode != "TAOS_OK":
             tdLog.exit("taos -u %s -p%s fail"%(keyDict['u'], keyDict['p']))
         else:
@@ -164,8 +189,9 @@ class TDTestCase:
         retCode, retVal = taos_command("p", keyDict['p'], "taos>", keyDict['c'], '', "A", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -A fail")
-        
-        retCode = taos_command("u", keyDict['u'], "taos>", keyDict['c'], newDbName, 'a', retVal)
+                
+        sqlString = 'create database ' + newDbName + ';'
+        retCode = taos_command("u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'a', retVal)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -u %s -a %s"%(keyDict['u'], retVal))
 
@@ -220,9 +246,74 @@ class TDTestCase:
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(1, 0, '2021-04-01 08:00:01.000')
         tdSql.checkData(1, 1, 21)
+        
+        keyDict['s'] = "\"select * from " + newDbName + ".ctb0\""
+        retCode = taos_command("s", keyDict['s'], "2021-04-01 08:00:01.000", keyDict['c'], '', '', '')
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -r show fail")
+        
+        tdLog.printNoPrefix("================================ parameter: -r")
+        keyDict['s'] = "\"select * from " + newDbName + ".ctb0\""
+        retCode = taos_command("s", keyDict['s'], "1617235200000", keyDict['c'], '', 'r', '')
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -r show fail")
 
-        #tdSql.query('drop database %s'%newDbName)
+        keyDict['s'] = "\"select * from " + newDbName + ".ctb1\""
+        retCode = taos_command("s", keyDict['s'], "1617235201000", keyDict['c'], '', 'r', '')
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -r show fail")
+        
+        tdSql.query('drop database %s'%newDbName)
+ 
+        tdLog.printNoPrefix("================================ parameter: -f")
+        pwd=os.getcwd()
+        newDbName="dbf"
+        sqlFile = pwd + "/0-others/sql.txt"
+        sql1 = "echo 'create database " + newDbName + "' > " + sqlFile
+        sql2 = "echo 'use " + newDbName + "' >> " + sqlFile
+        sql3 = "echo 'create table ntbf (ts timestamp, c binary(40))' >> " + sqlFile
+        sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile 
+        sql5 = "echo 'show databases' >> " + sqlFile       
+        os.system(sql1)       
+        os.system(sql2)       
+        os.system(sql3)       
+        os.system(sql4)      
+        os.system(sql5)
 
+        keyDict['f'] = pwd + "/0-others/sql.txt"
+        retCode = taos_command("f", keyDict['f'], 'performance_schema', keyDict['c'], '', '', '')
+        print("============ ret code: ", retCode)
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -s fail")
+
+        print ("========== check new db ==========")
+        tdSql.query("show databases")        
+        for i in range(tdSql.queryRows):
+            #print ("dbseq: %d, dbname: %s"%(i, tdSql.getData(i, 0)))
+            if tdSql.getData(i, 0) == newDbName:
+                break
+        else:
+            tdLog.exit("create db fail after taos -f fail")
+
+        sqlString = "select * from " + newDbName + ".ntbf"    
+        tdSql.query(sqlString)
+        tdSql.checkData(0, 0, '2021-04-01 08:00:00.000')
+        tdSql.checkData(0, 1, 'test taos -f1')
+        tdSql.checkData(1, 0, '2021-04-01 08:00:01.000')
+        tdSql.checkData(1, 1, 'test taos -f2')
+        
+        shellCmd = "rm -f " + sqlFile
+        os.system(shellCmd)
+        tdSql.query('drop database %s'%newDbName)
+
+        tdLog.printNoPrefix("================================ parameter: -C")
+        newDbName="dbcc"
+        retCode, retVal = taos_command("C", keyDict['C'], "buildinfo", keyDict['c'], '', '', '')
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -C fail")
+
+        print ("-C return content:\n ", retVal)
+                
 
 
     def stop(self):
