@@ -45,8 +45,8 @@ int32_t mndInitVgroup(SMnode *pMnode) {
                      .encodeFp = (SdbEncodeFp)mndVgroupActionEncode,
                      .decodeFp = (SdbDecodeFp)mndVgroupActionDecode,
                      .insertFp = (SdbInsertFp)mndVgroupActionInsert,
-                     .updateFp = (SdbUpdateFp)mndVgroupActionDelete,
-                     .deleteFp = (SdbDeleteFp)mndVgroupActionUpdate};
+                     .updateFp = (SdbUpdateFp)mndVgroupActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndVgroupActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndProcessCreateVnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);

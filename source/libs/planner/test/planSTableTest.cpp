@@ -19,7 +19,7 @@ using namespace std;
 
 class PlanSuperTableTest : public PlannerTestBase {};
 
-TEST_F(PlanSuperTableTest, unionAll) {
+TEST_F(PlanSuperTableTest, tbname) {
   useDb("root", "test");
 
   run("select tbname from st1");

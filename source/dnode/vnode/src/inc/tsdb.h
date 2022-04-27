@@ -16,6 +16,8 @@
 #ifndef _TD_VNODE_TSDB_H_
 #define _TD_VNODE_TSDB_H_
 
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,13 +45,45 @@ int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKe
                            TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
 // tsdbCommit ================
-int tsdbBegin(STsdb *pTsdb);
 
-#if 1
+// tsdbFS ================
+typedef struct STsdbFS STsdbFS;
 
-typedef struct SSmaStat SSmaStat;
+// tsdbSma ================
 typedef struct SSmaEnv  SSmaEnv;
 typedef struct SSmaEnvs SSmaEnvs;
+
+// structs
+typedef struct {
+  int   minFid;
+  int   midFid;
+  int   maxFid;
+  TSKEY minKey;
+} SRtn;
+
+struct SSmaEnvs {
+  int16_t  nTSma;
+  int16_t  nRSma;
+  SSmaEnv *pTSmaEnv;
+  SSmaEnv *pRSmaEnv;
+};
+
+struct STsdb {
+  char          *path;
+  SVnode        *pVnode;
+  bool           repoLocked;
+  TdThreadMutex  mutex;
+  STsdbCfg       config;
+  STsdbMemTable *mem;
+  STsdbMemTable *imem;
+  SRtn           rtn;
+  STsdbFS       *fs;
+  SSmaEnvs       smaEnvs;
+};
+
+#if 1  // ======================================
+
+typedef struct SSmaStat SSmaStat;
 
 struct STable {
   uint64_t  tid;
@@ -60,16 +94,9 @@ struct STable {
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-int     tsdbOpen(SVnode *pVnode, STsdb **ppTsdb);
-int     tsdbClose(STsdb *pTsdb);
-int     tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int     tsdbPrepareCommit(STsdb *pTsdb);
-int     tsdbCommit(STsdb *pTsdb);
 int32_t tsdbInitSma(STsdb *pTsdb);
-int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg);
 int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
-int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
-int32_t tsdbInsertTSmaData(STsdb *pTsdb, int64_t indexUid, const char *msg);
 int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
 void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
@@ -103,13 +130,6 @@ typedef struct {
   uint8_t   state;
 } SDFile;
 
-struct SSmaEnvs {
-  int16_t  nTSma;
-  int16_t  nRSma;
-  SSmaEnv *pTSmaEnv;
-  SSmaEnv *pRSmaEnv;
-};
-
 typedef struct {
   int      fid;
   int8_t   state;  // -128~127
@@ -117,13 +137,6 @@ typedef struct {
   uint16_t reserve;
   SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
-
-typedef struct {
-  int   minFid;
-  int   midFid;
-  int   maxFid;
-  TSKEY minKey;
-} SRtn;
 
 struct STbData {
   tb_uid_t   uid;
@@ -161,7 +174,7 @@ typedef struct {
   SArray     *sf;    // sma data file array    v2f1900.index_name_1
 } SFSStatus;
 
-typedef struct {
+struct STsdbFS {
   TdThreadRwlock lock;
 
   SFSStatus *cstatus;        // current status
@@ -169,23 +182,9 @@ typedef struct {
   SHashObj  *metaCacheComp;  // meta cache for compact
   bool       intxn;
   SFSStatus *nstatus;  // new status
-} STsdbFS;
-
-struct STsdb {
-  char          *path;
-  SVnode        *pVnode;
-  int32_t        vgId;
-  bool           repoLocked;
-  TdThreadMutex  mutex;
-  STsdbCfg       config;
-  STsdbMemTable *mem;
-  STsdbMemTable *imem;
-  SRtn           rtn;
-  STsdbFS       *fs;
-  SSmaEnvs       smaEnvs;
 };
 
-#define REPO_ID(r)        ((r)->vgId)
+#define REPO_ID(r)        TD_VID((r)->pVnode)
 #define REPO_CFG(r)       (&(r)->config)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
@@ -236,12 +235,6 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
 
   return TD_ROW_KEY(row);
 }
-
-// tsdbOptions
-extern const STsdbCfg defautlTsdbOptions;
-
-int  tsdbValidateOptions(const STsdbCfg *);
-void tsdbOptionsCopy(STsdbCfg *pDest, const STsdbCfg *pSrc);
 
 // tsdbReadImpl
 typedef struct SReadH SReadH;
@@ -518,12 +511,6 @@ static FORCE_INLINE void *taosTZfree(void *ptr) {
 }
 
 // tsdbCommit
-
-typedef struct {
-  uint64_t uid;
-  int64_t  offset;
-  int64_t  size;
-} SKVRecord;
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 
@@ -902,66 +889,6 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
-
-// tsdbSma
-// #define TSDB_SMA_TEST // remove after test finished
-
-// struct SSmaEnv {
-//   TdThreadRwlock lock;
-//   SDiskID        did;
-//   TDBEnv         dbEnv;  // TODO: If it's better to put it in smaIndex level?
-//   char          *path;   // relative path
-//   SSmaStat      *pStat;
-// };
-
-// #define SMA_ENV_LOCK(env)       ((env)->lock)
-// #define SMA_ENV_DID(env)        ((env)->did)
-// #define SMA_ENV_ENV(env)        ((env)->dbEnv)
-// #define SMA_ENV_PATH(env)       ((env)->path)
-// #define SMA_ENV_STAT(env)       ((env)->pStat)
-// #define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
-
-// void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
-// void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
-// #if 0
-// int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
-// int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
-// #endif
-
-// // internal func
-// static FORCE_INLINE int32_t tsdbEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void **pData) {
-//   int32_t len = 0;
-//   len += taosEncodeFixedI64(pData, tsKey);
-//   len += taosEncodeFixedI64(pData, groupId);
-//   return len;
-// }
-
-// static FORCE_INLINE int32_t tsdbRLockSma(SSmaEnv *pEnv) {
-//   int code = taosThreadRwlockRdlock(&(pEnv->lock));
-//   if (code != 0) {
-//     terrno = TAOS_SYSTEM_ERROR(code);
-//     return -1;
-//   }
-//   return 0;
-// }
-
-// static FORCE_INLINE int32_t tsdbWLockSma(SSmaEnv *pEnv) {
-//   int code = taosThreadRwlockWrlock(&(pEnv->lock));
-//   if (code != 0) {
-//     terrno = TAOS_SYSTEM_ERROR(code);
-//     return -1;
-//   }
-//   return 0;
-// }
-
-// static FORCE_INLINE int32_t tsdbUnLockSma(SSmaEnv *pEnv) {
-//   int code = taosThreadRwlockUnlock(&(pEnv->lock));
-//   if (code != 0) {
-//     terrno = TAOS_SYSTEM_ERROR(code);
-//     return -1;
-//   }
-//   return 0;
-// }
 
 typedef struct SSmaKey SSmaKey;
 

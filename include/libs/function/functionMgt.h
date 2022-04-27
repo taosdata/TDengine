@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
 #include "function.h"
+#include "querynodes.h"
 
 typedef enum EFunctionType {
   // aggregate function
@@ -123,10 +123,10 @@ struct SCatalog;
 
 typedef struct SFmGetFuncInfoParam {
   struct SCatalog* pCtg;
-  void *pRpc;
-  const SEpSet* pMgmtEps;
-  char* pErrBuf;
-  int32_t errBufLen;
+  void*            pRpc;
+  const SEpSet*    pMgmtEps;
+  char*            pErrBuf;
+  int32_t          errBufLen;
 } SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
@@ -143,6 +143,7 @@ bool fmIsDatetimeFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
+bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);

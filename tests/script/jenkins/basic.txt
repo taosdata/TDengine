@@ -6,13 +6,14 @@
 
 # ---- db
 ./test.sh -f tsim/db/create_all_options.sim
-#./test.sh -f tsim/db/alter_option.sim
+./test.sh -f tsim/db/alter_option.sim
 ./test.sh -f tsim/db/basic1.sim
 ./test.sh -f tsim/db/basic2.sim
 ./test.sh -f tsim/db/basic3.sim
 ./test.sh -f tsim/db/basic6.sim
 ./test.sh -f tsim/db/basic7.sim
 ./test.sh -f tsim/db/error1.sim
+./test.sh -f tsim/db/taosdlog.sim
 
 # ---- dnode
 ./test.sh -f tsim/dnode/basic1.sim
@@ -86,6 +87,6 @@
 # ./test.sh -f tsim/sma/tsmaCreateInsertData.sim
 
 # --- valgrind
-#./test.sh -f tsim/valgrind/checkError.sim -v
+./test.sh -f tsim/valgrind/checkError.sim -v
 
 #======================b1-end===============
