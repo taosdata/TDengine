@@ -224,63 +224,27 @@ int32_t shellRunCommand(TAOS *con, char *command) {
     }
   }
 
-  bool esc = false;
-  char quote = 0, *cmd = command, *p = command;
+  char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
-    if (esc) {
-      switch (c) {
-        case 'n':
-          c = '\n';
-          break;
-        case 'r':
-          c = '\r';
-          break;
-        case 't':
-          c = '\t';
-          break;
-        case 'G':
-          *p++ = '\\';
-          break;
-        case '\'':
-        case '"':
-          if (quote) {
-            *p++ = '\\';
-          }
-          break;
-      }
-      *p++ = c;
-      esc = false;
+    if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
+      command ++;
       continue;
-    }
-
-    if (c == '\\') {
-      if (quote != 0 && (*command == '_' || *command == '\\')) {
-        // DO nothing
-      } else {
-        esc = true;
-        continue;
-      }
     }
 
     if (quote == c) {
       quote = 0;
-    } else if (quote == 0 && (c == '\'' || c == '"')) {
+    } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
       quote = c;
-    }
-
-    *p++ = c;
-    if (c == ';' && quote == 0) {
-      c = *p;
-      *p = 0;
+    } else if (c == ';' && quote == 0) {
+      c = *command;
+      *command = 0;
       if (shellRunSingleCommand(con, cmd) < 0) {
         return -1;
       }
-      *p = c;
-      p = cmd;
+      *command = c;
+      cmd = command;
     }
   }
-
-  *p = 0;
   return shellRunSingleCommand(con, cmd);
 }
 

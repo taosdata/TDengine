@@ -41,7 +41,6 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr);
 
-STableMeta* tableMetaDup(const STableMeta* pTableMeta);
 SSchema *getTableColumnSchema(const STableMeta *pTableMeta);
 SSchema *getTableTagSchema(const STableMeta* pTableMeta);
 int32_t  getNumOfColumns(const STableMeta* pTableMeta);

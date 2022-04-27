@@ -241,6 +241,15 @@ typedef struct SExprInfo {
   struct tExprNode*     pExpr;
 } SExprInfo;
 
+typedef struct {
+  const char* key;
+  int32_t keyLen;
+  uint8_t type;
+  int16_t length;
+  const char* value;
+  int32_t valueLen;
+} SSmlKv;
+
 #define QUERY_ASC_FORWARD_STEP 1
 #define QUERY_DESC_FORWARD_STEP -1
 

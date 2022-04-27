@@ -166,26 +166,6 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
 }
 
-static uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-
-  int32_t totalCols = 0;
-  if (pTableMeta->tableInfo.numOfColumns >= 0) {
-    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
-  }
-
-  return sizeof(STableMeta) + totalCols * sizeof(SSchema);
-}
-
-STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  size_t size = getTableMetaSize(pTableMeta);
-
-  STableMeta* p = taosMemoryMalloc(size);
-  memcpy(p, pTableMeta, size);
-  return p;
-}
-
 SSchema *getTableColumnSchema(const STableMeta *pTableMeta) {
   assert(pTableMeta != NULL);
   return (SSchema*) pTableMeta->schema;

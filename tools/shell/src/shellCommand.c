@@ -51,8 +51,8 @@ void getPrevCharSize(const char *str, int pos, int *size, int *width) {
     if (str[pos] > 0 || countPrefixOnes((unsigned char)str[pos]) > 1) break;
   }
 
-  int rc = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
-  assert(rc == *size);
+  taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
+  // assert(rc == *size); // it will be core, if str is encode by utf8 and taos charset is gbk
 
   *width = taosWcharWidth(wc);
 }

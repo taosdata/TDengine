@@ -116,7 +116,7 @@ void destroyBoundColumnInfo(void* pBoundInfo) {
 }
 
 static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset,
-                           const STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
+                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -137,8 +137,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
-  //Here we keep the tableMeta to avoid it to be remove by other threads.
-  dataBuf->pTableMeta = tableMetaDup(pTableMeta);
+  dataBuf->pTableMeta = pTableMeta;
 
   SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
   SSchema* pSchema = getTableColumnSchema(dataBuf->pTableMeta);
@@ -176,8 +175,7 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq) {
+int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
@@ -227,9 +225,9 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
   taosMemoryFreeClear(pDataBlock->pData);
   if (!pDataBlock->cloned) {
     // free the refcount for metermeta
-    if (pDataBlock->pTableMeta != NULL) {
-      taosMemoryFreeClear(pDataBlock->pTableMeta);
-    }
+//    if (pDataBlock->pTableMeta != NULL) {
+//      taosMemoryFreeClear(pDataBlock->pTableMeta);
+//    }
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
   }
