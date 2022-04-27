@@ -482,3 +482,22 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
   taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
 }
 // TODO(yihaoDeng) add order array<type>
+//
+
+char* taosShowStrArray(const SArray* pArray) {
+  int32_t sz = pArray->size;
+  int32_t tlen = 0;
+  for (int32_t i = 0; i < sz; i++) {
+    tlen += strlen(taosArrayGetP(pArray, i)) + 1;
+  }
+  char* res = taosMemoryCalloc(1, tlen);
+  char* buf = res;
+  for (int32_t i = 0; i < sz; i++) {
+    char*   str = taosArrayGetP(pArray, i);
+    int32_t len = strlen(str);
+    memcpy(buf, str, len);
+    buf += len;
+    if (i != sz - 1) *buf = ',';
+  }
+  return res;
+}

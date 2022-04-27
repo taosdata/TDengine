@@ -49,13 +49,15 @@ static const SPerfsTableSchema topicSchema[] = {
 
 static const SPerfsTableSchema consumerSchema[] = {
     {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "app_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "status", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "app_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "topics", .bytes = TSDB_SHOW_LIST_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "up_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "subscribe_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "rebalance_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
 static const SPerfsTableSchema subscriptionSchema[] = {
@@ -63,6 +65,12 @@ static const SPerfsTableSchema subscriptionSchema[] = {
     {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+};
+
+static const SPerfsTableSchema offsetSchema[] = {
+    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "committed_offset", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "current_offset", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "skip_log_cnt", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
@@ -74,6 +82,7 @@ static const SPerfsTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_TOPICS, topicSchema, tListLen(topicSchema)},
     {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
     {TSDB_PERFS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema)},
+    {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
 };
 
 // connection/application/
