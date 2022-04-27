@@ -89,6 +89,7 @@ typedef enum {
   TRN_TYPE_DROP_STREAM = 1020,
   TRN_TYPE_ALTER_STREAM = 1021,
   TRN_TYPE_CONSUMER_LOST = 1022,
+  TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -126,8 +127,6 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
-typedef void (*TransCbFp)(SMnode* pMnode, void* param);
-
 typedef struct {
   int32_t    id;
   ETrnStage  stage;
@@ -150,8 +149,10 @@ typedef struct {
   int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
-  TransCbFp  transCbFp;
-  void*      transCbParam;
+  int32_t    startFunc;
+  int32_t    stopFunc;
+  int32_t    paramLen;
+  void*      param;
 } STrans;
 
 typedef struct {
@@ -463,12 +464,14 @@ enum {
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
+  CONSUMER_UPDATE__RECOVER,
   CONSUMER_UPDATE__MODIFY,
 };
 
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
+  char    appId[TSDB_CGROUP_LEN];
   int8_t  updateType;  // used only for update
   int32_t epoch;
   int32_t status;
@@ -479,6 +482,17 @@ typedef struct {
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
+
+  // subscribed by user
+  SArray* assignedTopics;  // SArray<char*>
+
+  // data for display
+  int32_t pid;
+  SEpSet  ep;
+  int64_t upTime;
+  int64_t subscribeTime;
+  int64_t rebalanceTime;
+
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);

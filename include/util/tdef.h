@@ -131,6 +131,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_PERFS_TABLE_TOPICS        "topics"
 #define TSDB_PERFS_TABLE_CONSUMERS     "consumers"
 #define TSDB_PERFS_TABLE_SUBSCRIPTIONS "subscriptions"
+#define TSDB_PERFS_TABLE_OFFSETS       "offsets"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"

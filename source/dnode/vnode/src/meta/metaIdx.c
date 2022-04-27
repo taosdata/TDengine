@@ -16,7 +16,7 @@
 #ifdef USE_INVERTED_INDEX
 #include "index.h"
 #endif
-#include "vnodeInt.h"
+#include "meta.h"
 
 struct SMetaIdx {
 #ifdef USE_INVERTED_INDEX

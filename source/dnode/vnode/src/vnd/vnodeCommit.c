@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "vnd.h"
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
@@ -175,7 +175,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   vnodeWaitCommit(pVnode);
 
   // vnodeBufPoolSwitch(pVnode);
-  tsdbPrepareCommit(pVnode->pTsdb);
+  // tsdbPrepareCommit(pVnode->pTsdb);
 
   vnodeScheduleTask(vnodeCommitImpl, pVnode);
 

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tsdb.h"
 
 #define EXTRA_BYTES                2
 #define ASCENDING_TRAVERSE(o)      (o == TSDB_ORDER_ASC)
@@ -3618,7 +3618,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
                                  SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId) {
   SMetaReader mr = {0};
 
-  metaReaderInit(&mr, ((SMeta*)pMeta)->pVnode, 0);
+  metaReaderInit(&mr, (SMeta*)pMeta, 0);
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
     tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
@@ -3628,7 +3628,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
     tsdbDebug("%p succeed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
   }
 
-  if (mr.me.type != META_SUPER_TABLE) {
+  if (mr.me.type != TSDB_SUPER_TABLE) {
     tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId,
               reqId);
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;  // basically, this error is caused by invalid sql issued by client
@@ -3687,10 +3687,9 @@ int32_t tsdbQueryTableList(void* pMeta, SArray* pRes, void* filterInfo) {
   return TSDB_CODE_SUCCESS;
 }
 int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo* pGroupInfo) {
-  SMeta*      metaP = (SMeta*)pMeta;
   SMetaReader mr = {0};
 
-  metaReaderInit(&mr, metaP->pVnode, 0);
+  metaReaderInit(&mr, (SMeta*)pMeta, 0);
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;

@@ -16,6 +16,10 @@
 #ifndef _TD_VND_H_
 #define _TD_VND_H_
 
+#include "sync.h"
+#include "syncTools.h"
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,11 +62,9 @@ struct SVBufPool {
   SVBufPoolNode  node;
 };
 
-int   vnodeOpenBufPool(SVnode* pVnode, int64_t size);
-int   vnodeCloseBufPool(SVnode* pVnode);
-void  vnodeBufPoolReset(SVBufPool* pPool);
-void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
-void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+int  vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int  vnodeCloseBufPool(SVnode* pVnode);
+void vnodeBufPoolReset(SVBufPool* pPool);
 
 // vnodeQuery ====================
 int  vnodeQueryOpen(SVnode* pVnode);
@@ -78,6 +80,20 @@ int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int vnodeSyncCommit(SVnode* pVnode);
 int vnodeAsyncCommit(SVnode* pVnode);
+
+// vnodeCommit ====================
+int32_t   vnodeSyncOpen(SVnode* pVnode, char* path);
+int32_t   vnodeSyncStart(SVnode* pVnode);
+void      vnodeSyncClose(SVnode* pVnode);
+void      vnodeSyncSetQ(SVnode* pVnode, void* qHandle);
+void      vnodeSyncSetRpc(SVnode* pVnode, void* rpcHandle);
+int32_t   vnodeSyncEqMsg(void* qHandle, SRpcMsg* pMsg);
+int32_t   vnodeSendMsg(void* rpcHandle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+void      vnodeSyncCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+void      vnodeSyncPreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+void      vnodeSyncRollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+int32_t   vnodeSyncGetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+SSyncFSM* syncVnodeMakeFsm();
 
 #ifdef __cplusplus
 }
