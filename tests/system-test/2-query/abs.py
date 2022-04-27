@@ -10,7 +10,7 @@ from util.cases import *
 
 
 class TDTestCase:
-
+    updatecfgDict = {'debugFlag': 143}
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
