@@ -101,8 +101,8 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
-static int32_t setValueByBindParam(SValueNode* pVal, TAOS_BIND_v2* pParam) {
-  if (1 == *(pParam->is_null)) {
+static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
+  if (pParam->is_null && 1 == *(pParam->is_null)) {
     pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
     pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return TSDB_CODE_SUCCESS;
@@ -168,10 +168,18 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_BIND_v2* pParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_BIND_v2* pParams) {
-  int32_t index = 0;
-  SNode*  pNode = NULL;
-  FOREACH(pNode, pPlan->pPlaceholderValues) { setValueByBindParam((SValueNode*)pNode, pParams + index); }
+int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+  if (colIdx < 0) {
+    int32_t index = 0;
+    SNode* pNode = NULL;
+
+    FOREACH(pNode, pPlan->pPlaceholderValues) {
+      setValueByBindParam((SValueNode*)pNode, pParams + index);
+      ++index;
+    }
+  } else {
+    setValueByBindParam((SValueNode*)nodesListGetNode(pPlan->pPlaceholderValues, colIdx), pParams);
+  }
   return TSDB_CODE_SUCCESS;
 }
 

@@ -43,15 +43,14 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   u8    *ptr;
   int    size;
 
+  ASSERT(xMalloc);
+
   ASSERT(TDB_IS_PGSIZE_VLD(pageSize));
 
   *ppPage = NULL;
   size = pageSize + sizeof(*pPage);
-  if (xMalloc == NULL) {
-    xMalloc = tdbDefaultMalloc;
-  }
 
-  ptr = (u8 *)((*xMalloc)(arg, size));
+  ptr = (u8 *)(xMalloc(arg, size));
   if (ptr == NULL) {
     return -1;
   }
@@ -75,12 +74,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
-  if (!xFree) {
-    xFree = tdbDefaultFree;
-  }
+  ASSERT(xFree);
 
   ptr = pPage->pData;
-  (*xFree)(arg, ptr);
+  xFree(arg, ptr);
 
   return 0;
 }
@@ -436,7 +433,7 @@ static int tdbPageDefragment(SPage *pPage) {
 
 /* ---------------------------------------------------------------------------------------------------------- */
 
-#pragma pack(push,1)
+#pragma pack(push, 1)
 typedef struct {
   u16 cellNum;
   u16 cellBody;
@@ -520,7 +517,7 @@ SPageMethods pageMethods = {
     setPageFreeCellInfo   // setFreeCellInfo
 };
 
-#pragma pack(push,1)
+#pragma pack(push, 1)
 typedef struct {
   u8 cellNum[3];
   u8 cellBody[3];

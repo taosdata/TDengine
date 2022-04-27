@@ -44,7 +44,7 @@ function gitPullBranchInfo () {
 ##  git submodule update --init --recursive 
   git pull origin $branch_name ||:
   echo "==== git pull $branch_name end ===="
-  git pull --recurse-submodules
+#  git pull --recurse-submodules
 }
 
 function compileTDengineVersion() {
