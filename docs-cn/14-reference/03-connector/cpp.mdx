@@ -4,20 +4,21 @@ sidebar_label: C/C++
 title: C/C++ Connector
 ---
 
-C/C++ 开发人员可以使用 TDengine 的客户端驱动，即C/C++连接器 （以下都用 TDengine 客户端驱动表示），开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
+C/C++ 开发人员可以使用 TDengine 的客户端驱动，即 C/C++连接器 （以下都用 TDengine 客户端驱动表示），开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
 
 ```c
 #include <taos.h>
 ```
 
-TDengine 服务端或客户端安装后，taos.h 位于：
+TDengine 服务端或客户端安装后，`taos.h` 位于：
 
 - Linux：`/usr/local/taos/include`
 - Windows：`C:\TDengine\include`
 
 TDengine 客户端驱动的动态库位于：
-- Linux: /usr/local/taos/driver/libtaos.so
-- Windows: C:\TDengine\taos.dll
+
+- Linux: `/usr/local/taos/driver/libtaos.so`
+- Windows: `C:\TDengine\taos.dll`
 
 ## 支持的平台
 
@@ -29,7 +30,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 
 ## 安装步骤
 
-TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install)
+TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#安装步骤)
 
 ## 建立连接
 
@@ -37,13 +38,13 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
 
-```c++
+```c
   TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
     exit(1);
   }
-  
+
   /* 此处省略查询和写入 */
 
   taos_close(taos);
@@ -52,7 +53,8 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 在上面的示例代码中， `taos_connect` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close`关闭当前连接，`taos_cleanup`清除客户端驱动所申请和使用的资源。
 
-:::note 
+:::note
+
 - 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
 - 所有的错误码以及对应的原因描述在 taoserror.h 文件中。
 
@@ -63,10 +65,11 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 本节展示了使用客户端驱动访问 TDengine 集群的常见访问方式的示例代码。
 
 ### 同步查询示例
+
 <details>
 <summary>同步查询</summary>
 
-```c++
+```c
 {{#include examples/c/demo.c}}
 ```
 
@@ -77,7 +80,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>异步查询</summary>
 
-```c++
+```c
 {{#include examples/c/asyncdemo.c}}
 ```
 
@@ -88,7 +91,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>参数绑定</summary>
 
-```c++
+```c
 {{#include examples/c/prepare.c}}
 ```
 
@@ -99,7 +102,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>无模式写入</summary>
 
-```c++
+```c
 {{#include examples/c/schemaless.c}}
 ```
 
@@ -110,12 +113,11 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>订阅和消费</summary>
 
-```c++
+```c
 {{#include examples/c/subscribe.c}}
 ```
 
 </details>
-
 
 :::info
 更多示例代码及下载请见 [github](https://github.com/taosdata/TDengine/tree/develop/examples/c)
@@ -367,40 +369,42 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
   **功能说明**
-   该接口将行协议的文本数据写入到 TDengine 中。
+  该接口将行协议的文本数据写入到 TDengine 中。
 
   **参数说明**
-   taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
-   lines：文本数据。满足解析格式要求的无模式文本字符串。
-   numLines:文本数据的行数，不能为 0 。
-   protocol: 行协议类型，用于标识文本数据格式。
-   precision：文本数据中的时间戳精度字符串。
+  taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
+  lines：文本数据。满足解析格式要求的无模式文本字符串。
+  numLines:文本数据的行数，不能为 0 。
+  protocol: 行协议类型，用于标识文本数据格式。
+  precision：文本数据中的时间戳精度字符串。
 
   **返回值**
-   TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
-   在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-   返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+  TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
+  在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
+  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
-   协议类型是枚举类型，包含以下三种格式：
-   - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
-   - TSDB_SML_TELNET_PROTOCOL: OpenTSDB Telnet 文本行协议
-   - TSDB_SML_JSON_PROTOCOL: OpenTSDB Json 协议格式
+  协议类型是枚举类型，包含以下三种格式：
+
+  - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
+  - TSDB_SML_TELNET_PROTOCOL: OpenTSDB Telnet 文本行协议
+  - TSDB_SML_JSON_PROTOCOL: OpenTSDB Json 协议格式
 
   时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：
-   - TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
-   - TSDB_SML_TIMESTAMP_HOURS,
-   - TSDB_SML_TIMESTAMP_MINUTES,
-   - TSDB_SML_TIMESTAMP_SECONDS,
-   - TSDB_SML_TIMESTAMP_MILLI_SECONDS,
-   - TSDB_SML_TIMESTAMP_MICRO_SECONDS,
-   - TSDB_SML_TIMESTAMP_NANO_SECONDS
+
+  - TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+  - TSDB_SML_TIMESTAMP_HOURS,
+  - TSDB_SML_TIMESTAMP_MINUTES,
+  - TSDB_SML_TIMESTAMP_SECONDS,
+  - TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+  - TSDB_SML_TIMESTAMP_MICRO_SECONDS,
+  - TSDB_SML_TIMESTAMP_NANO_SECONDS
 
   需要注意的是，时间戳分辨率参数只在协议类型为 `SML_LINE_PROTOCOL` 的时候生效。
-   对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+  对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
 
   **支持版本**
-   该功能接口从 2.3.0.0 版本开始支持。
+  该功能接口从 2.3.0.0 版本开始支持。
 
 ### 订阅和消费 API
 
