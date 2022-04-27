@@ -1519,8 +1519,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     } else if (isRow1DataRow) {
       colIdOfRow1 = pSchema1->columns[j].colId;
     } else {
-      SKvRowIdx* pColIdx = tdKvRowColIdxAt(row1, j);
-      colIdOfRow1 = pColIdx->colId;
+      colIdOfRow1 = tdKvRowColIdAt(row1, j);
     }
 
     int32_t colIdOfRow2;
@@ -1529,8 +1528,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     } else if (isRow2DataRow) {
       colIdOfRow2 = pSchema2->columns[k].colId;
     } else {
-      SKvRowIdx* pColIdx = tdKvRowColIdxAt(row2, k);
-      colIdOfRow2 = pColIdx->colId;
+      colIdOfRow2 = tdKvRowColIdAt(row2, j);
     }
 
     if (colIdOfRow1 == colIdOfRow2) {

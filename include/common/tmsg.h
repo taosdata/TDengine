@@ -1520,8 +1520,8 @@ typedef struct {
   char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
 } SRSmaParam;
 
-int tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
-int tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
+int32_t tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
+int32_t tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
 
 typedef struct SVCreateStbReq {
   const char*    name;
