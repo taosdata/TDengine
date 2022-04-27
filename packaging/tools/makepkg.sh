@@ -72,14 +72,15 @@ else
       ${build_dir}/bin/${benchmarkName} \
       ${build_dir}/bin/TDinsight.sh "
 
+#!!! do not change taosadapter here
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
-      ${build_dir}/bin/${adapterName} \
+      ${build_dir}/bin/taosadapter \
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
-      ${script_dir}/run_${serverName}_and_${adapterName}.sh \
+      ${script_dir}/run_taosd_and_taosadapter.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
