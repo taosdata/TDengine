@@ -26,22 +26,22 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __upper_condition(self):
-        upper_condition = []
+    def __length_condition(self):
+        length_condition = []
         for char_col in CHAR_COL:
-            upper_condition.extend(
+            length_condition.extend(
                 (
                     char_col,
-                    f"lower( {char_col} )",
+                    f"upper( {char_col} )",
                 )
             )
-            upper_condition.extend(f"cast( {un_char_col} as binary(16) ) " for un_char_col in UN_CHAR_COL)
-            upper_condition.extend( f"cast( {char_col} + {char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            upper_condition.extend( f"cast( {char_col} + {un_char_col} as binary(32) ) " for un_char_col in UN_CHAR_COL )
+            length_condition.extend( f"cast( {un_char_col} as binary(16) ) " for un_char_col in UN_CHAR_COL)
+            length_condition.extend( f"cast( {char_col} + {char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
+            length_condition.extend( f"cast( {char_col} + {un_char_col} as binary(32) ) " for un_char_col in UN_CHAR_COL )
 
-        upper_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
+        length_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
 
-        return upper_condition
+        return length_condition
 
     def __where_condition(self, col):
         # return f" where count({col}) > 0 "
@@ -50,9 +50,9 @@ class TDTestCase:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __upper_current_check(self, tbname):
-        upper_condition = self.__upper_condition()
-        for condition in upper_condition:
+    def __length_current_check(self, tbname):
+        length_condition = self.__length_condition()
+        for condition in length_condition:
             where_condition = self.__where_condition(condition)
             group_having = self.__group_condition(condition, having=f"{condition} is not null " )
             group_no_having= self.__group_condition(condition )
@@ -61,38 +61,39 @@ class TDTestCase:
             for group_condition in groups:
                 tdSql.query(f"select {condition} from {tbname} {where_condition}  {group_condition} ")
                 datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
-                upper_data = [ str(data).upper()  if data else None for data in datas ]
-                tdSql.query(f"select upper( {condition} ) from {tbname} {where_condition}  {group_condition}")
-                for i in range(len(upper_data)):
-                    tdSql.checkData(i, 0, upper_data[i] ) if upper_data[i] else tdSql.checkData(i, 0, None)
+                length_data = [ len(str(data))  if data else None for data in datas ]
+                tdSql.query(f"select length( {condition} ) from {tbname} {where_condition}  {group_condition}")
+                for i in range(len(length_data)):
+                    tdSql.checkData(i, 0, length_data[i] ) if length_data[i] else tdSql.checkData(i, 0, None)
 
-    def __upper_err_check(self,tbname):
+    def __length_err_check(self,tbname):
         sqls = []
 
         for un_char_col in UN_CHAR_COL:
             sqls.extend(
                 (
-                    f"select upper( {un_char_col} ) from {tbname} ",
-                    f"select upper(ceil( {un_char_col} )) from {tbname} ",
-                    f"select {un_char_col} from {tbname} group by upper( {un_char_col} ) ",
+                    f"select length( {un_char_col} ) from {tbname} ",
+                    f"select length(ceil( {un_char_col} )) from {tbname} ",
+                    f"select {un_char_col} from {tbname} group by length( {un_char_col} ) ",
                 )
             )
 
-            sqls.extend( f"select upper( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in UN_CHAR_COL )
-            sqls.extend( f"select upper( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in UN_CHAR_COL )
+            sqls.extend( f"select length( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
 
-        sqls.extend( f"select {char_col} from {tbname} group by upper( {char_col} ) " for char_col in CHAR_COL)
-        sqls.extend( f"select upper( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select upper( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select upper( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select {char_col} from {tbname} group by length( {char_col} ) " for char_col in CHAR_COL)
+        sqls.extend( f"select length( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
         sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
         sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
-                f"select upper() from {tbname} ",
-                f"select upper(*) from {tbname} ",
-                f"select upper(ccccccc) from {tbname} ",
-                f"select upper(111) from {tbname} ",
+                f"select length() from {tbname} ",
+                f"select length(*) from {tbname} ",
+                f"select length(ccccccc) from {tbname} ",
+                f"select length(111) from {tbname} ",
+                f"select length(c8, 11) from {tbname} ",
             )
         )
 
@@ -102,7 +103,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = ["ct1", "ct2", "ct4", "t1"]
         for tb in tbname:
-            self.__upper_current_check(tb)
+            self.__length_current_check(tb)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
@@ -110,7 +111,7 @@ class TDTestCase:
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
         for tb in tbname:
-            for errsql in self.__upper_err_check(tb):
+            for errsql in self.__length_err_check(tb):
                 tdSql.error(sql=errsql)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
