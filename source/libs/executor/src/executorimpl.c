@@ -4997,10 +4997,17 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   // check for the limitation in each group
   if (pProjectInfo->limit.limit > 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
     pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+
+    if (pProjectInfo->slimit.limit == -1 || pProjectInfo->slimit.limit <= pProjectInfo->curGroupOutput) {
+      pOperator->status = OP_EXEC_DONE;
+    }
+
     return PROJECT_RETRIEVE_DONE;
   }
 
-  if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+  // If there are slimit/soffset value exists, multi-round result can not be packed into one group, since the
+  // they may not belong to the same group the limit/offset value is not valid in this case.
+  if (pRes->info.rows >= pOperator->resultInfo.threshold || pProjectInfo->slimit.offset != -1 || pProjectInfo->slimit.limit != -1) {
     return PROJECT_RETRIEVE_DONE;
   } else { // not full enough, continue to accumulate the output data in the buffer.
     return PROJECT_RETRIEVE_CONTINUE;
