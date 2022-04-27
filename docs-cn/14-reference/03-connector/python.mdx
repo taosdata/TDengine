@@ -101,7 +101,7 @@ import taosrest
 </Tabs>
 
 :::tip
-如果系统上有多个版本的 Python，则可能有多个 `pip` 命令。要确保使用的 `pip` 命令路径是正确的。上面我们用 `pip3` 命令安装，排除了使用 Python 2.x 版本对应的 `pip` 的可能性。但是如果系统上有多个 Python 3.x 版本，仍需检查安装路径是否正确。最简单的验证方式是，在命令再次输入 `pip3 install taospy`, 就会打印出 `taospy` 的具体安装位置，比如在 Widnows 上：
+如果系统上有多个版本的 Python，则可能有多个 `pip` 命令。要确保使用的 `pip` 命令路径是正确的。上面我们用 `pip3` 命令安装，排除了使用 Python 2.x 版本对应的 `pip` 的可能性。但是如果系统上有多个 Python 3.x 版本，仍需检查安装路径是否正确。最简单的验证方式是，在命令再次输入 `pip3 install taospy`, 就会打印出 `taospy` 的具体安装位置，比如在 Windows 上：
 
 ```
 C:\> pip3 install taospy
@@ -115,7 +115,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 
 ### 连通性测试
 
-在用连接器建立连接之前，建议先测试本地 TDengine CLI 到 TDengine 集群的连。
+在用连接器建立连接之前，建议先测试本地 TDengine CLI 到 TDengine 集群的连通性。
 
 <Tabs>
 <TabItem value="native" label="原生连接">
@@ -217,7 +217,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 <Tabs default="native" groupId="connect">
 <TabItem value="native" label="原生连接">
 
-#### TaosConnection 类的使用
+##### TaosConnection 类的使用
 
 `TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
 
@@ -233,14 +233,14 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 查询结果只能获取一次。比如上面的示例中 `featch_all` 和 `fetch_all_into_dict` 只能用一个。重复获取得到的结果为空列表。
 :::
 
-#### TaosResult 类的使用
+##### TaosResult 类的使用
 
 上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `featch_all` 和 `fetch_all_into_dict`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
 
 ```python title="blocks_iter 方法"
 {{#include docs-examples/python/result_set_examples.py}}
 ```
-#### TaosCursor 类的使用
+##### TaosCursor 类的使用
 
 `TaosConnection` 类和 `TaosResult` 类已经实现了原生接口的所有功能。如果你对 PEP249 规范中的接口比较熟悉也可以使用 `TaosCursor` 类提供的方法。
 
@@ -256,9 +256,28 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 </TabItem>
 <TabItem value="rest" label="REST 连接">
 
-```python
+#####  TaosRestCursor 类的使用
+
+`TaosRestCursor` 类是对 PEP249 Cursor 接口的实现。
+
+```python title="TaosRestCursor 的使用"
 {{#include docs-examples/python/connect_rest_examples.py:basic}}
 ```
+- `cursor.execute` ： 用来执行任意 SQL 语句。
+- `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
+- `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
+
+##### RestClient 类的使用
+
+`RestClient` 类是对于 [REST API](/reference/rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
+
+```python title="RestClient 的使用"
+{{#include docs-examples/python/rest_client_example.py}}
+```
+
+对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
+
+
 
 </TabItem>
 </Tabs>
@@ -293,7 +312,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 | [subscribe-async.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-async.py) | 异步订阅                |
 | [subscribe-sync.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-sync.py)   | 同步订阅                |
 
-## 其它说明
+## 其它说明 
 
 ### 异常处理
 
@@ -305,7 +324,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ### 关于纳秒 (nanosecond)
 
-由于目前 Python 对 nanosecond 支持的不完善(参见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
+由于目前 Python 对 nanosecond 支持的不完善(见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
@@ -317,14 +336,14 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ## 重要更新
 
-| 连接器版本 | 主要更新 | 发布日期 |
-| ---------- | -------- | -------- |
-| 2.3.0      |          |          |
-| 2.2.5      |          |          |
-| 2.2.4      |          |          |
-| 2.2.3      |          |          |
+| 连接器版本 | 重要更新                                                                          | 发布日期   |
+| ---------- | --------------------------------------------------------------------------------- | ---------- |
+| 2.3.0      | 1. support TDengine REST API <br/> 2. remove support for Python version below 3.6 | 2022-04-27 |
+| 2.2.5      | support timezone option when connect                                              | 2022-04-13 |
+| 2.2.2      | support sqlalchemy dialect plugin                                                 | 2022-03-28 |
 
-要了解更多，请参考：[Release Notes](https://github.com/taosdata/taos-connector-python/releases)
+
+[**Release Notes**](https://github.com/taosdata/taos-connector-python/releases)
 
 ## API 参考
 
