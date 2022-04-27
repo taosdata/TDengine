@@ -298,7 +298,9 @@ impl<'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
             UBigInt(v) => visitor.visit_u64(v),
             Float(v) => visitor.visit_f32(v),
             Double(v) => visitor.visit_f64(v),
-            Binary(v) => v.into_deserializer().deserialize_any(visitor),
+            Binary(v) => unsafe { std::str::from_utf8_unchecked(v) }
+                .into_deserializer()
+                .deserialize_any(visitor),
             NChar(v) => visitor.visit_str(v),
             Json(v) => serde_json::Deserializer::from_slice(v)
                 .deserialize_any(visitor)
@@ -314,7 +316,7 @@ impl<'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     where
         V: serde::de::Visitor<'de>,
     {
-        log::trace!(stringify!("call_deserialize_i64"));
+        log::trace!("call_deserialize_i64");
         use BorrowedValue::*;
         match self {
             Null => visitor.visit_none(),

@@ -3,12 +3,8 @@ use chrono_tz::Tz;
 use clap::Args;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use taos::{
-    block::{Column, ColumnsIter, RowsIter},
-    helpers::ColumnMeta,
-    Value,
-};
-use taos_sys::TaosDataType;
+use taos::{block::*, helpers::ColumnMeta, Value, BlockExt};
+
 use url::Url;
 
 #[derive(Debug, Args)]
@@ -65,39 +61,25 @@ pub struct TaosDescribe {
     pub describe: Vec<TaosColumnMeta>,
 }
 
+pub type TaosColumnMeta = ColumnMeta;
 impl TaosDescribe {
-    pub fn new(name: String, source: Vec<ColumnMeta>) -> Self {
-        let mut describe = vec![];
-        for s in source {
-            match s {
-                ColumnMeta::Column(d) => describe.push(TaosColumnMeta::Column(TaosDescribed {
-                    field: d.field,
-                    r#type: d.r#type,
-                    length: d.length,
-                })),
-                ColumnMeta::Tag(d) => describe.push(TaosColumnMeta::Tag(TaosDescribed {
-                    field: d.field,
-                    r#type: d.r#type,
-                    length: d.length,
-                })),
-            }
-        }
+    pub fn new(name: String, describe: Vec<ColumnMeta>) -> Self {
         Self { name, describe }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum TaosColumnMeta {
-    Column(TaosDescribed),
-    Tag(TaosDescribed),
-}
+// #[derive(Debug, Deserialize, Serialize, Clone)]
+// pub enum TaosColumnMeta {
+//     Column(TaosDescribed),
+//     Tag(TaosDescribed),
+// }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct TaosDescribed {
-    pub field: String,
-    pub r#type: TaosDataType,
-    pub length: usize,
-}
+// #[derive(Debug, Deserialize, Serialize, Clone)]
+// pub struct TaosDescribed {
+//     pub field: String,
+//     pub r#type: TaosDataType,
+//     pub length: usize,
+// }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TaosTag {
@@ -106,12 +88,12 @@ pub struct TaosTag {
 }
 
 impl TaosTag {
-    pub fn new(name: String, iter: RowsIter) -> Self {
+    pub fn new<'b, T: BlockExt>(name: String, iter: taos::query::RowsIter<'b, T>) -> Self {
         let mut values = vec![];
         for row in iter {
             let mut tmp = vec![];
             for bv in row {
-                tmp.push(bv.into_value());
+                tmp.push(bv.1.into_value());
             }
             values.push(tmp);
         }
@@ -126,7 +108,7 @@ pub struct TaosBlock {
 }
 
 impl TaosBlock {
-    pub fn new(name: String, iter: ColumnsIter) -> Self {
+    pub fn new<'b>(name: String, iter: impl Iterator<Item = BorrowedColumn<'b>>) -> Self {
         let mut data = vec![];
         for col in iter {
             data.push(TaosColumn::new(col.into_owned()));

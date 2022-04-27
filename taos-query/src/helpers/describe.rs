@@ -1,15 +1,27 @@
-#[derive(Debug, Deserialize)]
+use std::{fmt, str::FromStr};
+
+use serde::{
+    de::{self, MapAccess, SeqAccess, Visitor},
+    Deserialize, Deserializer, Serialize,
+};
+
+use crate::common::Ty;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Described {
-    pub field: String,
-    pub r#type: TaosDataType,
-    pub length: usize,
+    field: String,
+    #[serde(rename = "type")]
+    ty: Ty,
+    length: usize,
 }
-#[derive(Debug)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(tag = "note")]
 pub enum ColumnMeta {
     Column(Described),
     Tag(Described),
 }
 
+unsafe impl Send for ColumnMeta {}
 impl<'de> Deserialize<'de> for ColumnMeta {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -70,21 +82,17 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                 let field = dbg!(seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?);
-                let r#type = seq
+                let ty = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))
-                    .and_then(|s| TaosDataType::from_str(s).map_err(de::Error::custom))?;
+                    .and_then(|s| Ty::from_str(s).map_err(de::Error::custom))?;
                 let length = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
                 let note: String = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
-                let desc = Described {
-                    field,
-                    r#type,
-                    length,
-                };
+                let desc = Described { field, ty, length };
                 if note.is_empty() {
                     Ok(ColumnMeta::Column(desc))
                 } else {
@@ -97,7 +105,7 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                 V: MapAccess<'de>,
             {
                 let mut field = None;
-                let mut r#type = None;
+                let mut ty = None;
                 let mut length = None;
                 let mut note = None;
                 while let Some(key) = map.next_key()? {
@@ -109,12 +117,11 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                             field = Some(map.next_value()?);
                         }
                         Meta::Type => {
-                            if r#type.is_some() {
+                            if ty.is_some() {
                                 return Err(de::Error::duplicate_field("type"));
                             }
-                            let s: String = map.next_value()?;
-                            let t = TaosDataType::from_str(&s).map_err(de::Error::custom)?;
-                            r#type = Some(t);
+                            let t: Ty = map.next_value()?;
+                            ty = Some(t);
                         }
                         Meta::Length => {
                             if length.is_some() {
@@ -127,18 +134,14 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                                 return Err(de::Error::duplicate_field("note"));
                             }
                             let t: String = map.next_value()?;
-                            note = Some(t.is_empty())
+                            note = Some(t.is_empty() || t == "Column")
                         }
                     }
                 }
                 let field = field.ok_or_else(|| de::Error::missing_field("field"))?;
-                let r#type = r#type.ok_or_else(|| de::Error::missing_field("type"))?;
+                let ty = ty.ok_or_else(|| de::Error::missing_field("type"))?;
                 let length = length.ok_or_else(|| de::Error::missing_field("length"))?;
-                let desc = Described {
-                    field,
-                    r#type,
-                    length,
-                };
+                let desc = Described { field, ty, length };
                 let note = note.ok_or_else(|| de::Error::missing_field("note"))?;
                 if note {
                     Ok(ColumnMeta::Column(desc))
@@ -158,9 +161,9 @@ impl ColumnMeta {
             ColumnMeta::Column(desc) | ColumnMeta::Tag(desc) => desc.field.as_str(),
         }
     }
-    pub fn r#type(&self) -> TaosDataType {
+    pub fn ty(&self) -> Ty {
         match self {
-            ColumnMeta::Column(desc) | ColumnMeta::Tag(desc) => desc.r#type,
+            ColumnMeta::Column(desc) | ColumnMeta::Tag(desc) => desc.ty,
         }
     }
     pub fn length(&self) -> usize {
@@ -178,10 +181,25 @@ impl ColumnMeta {
         matches!(self, ColumnMeta::Tag(_))
     }
 }
+
+#[test]
+fn serde_meta() {
+    let meta = ColumnMeta::Column(Described {
+        field: "name".to_string(),
+        ty: Ty::BigInt,
+        length: 8,
+    });
+
+    let a = serde_json::to_string(&meta).unwrap();
+
+    let d: ColumnMeta = serde_json::from_str(&a).unwrap();
+
+    assert_eq!(meta, d);
+} 
 //erive(Debug, Clone, Deserialize)]
 // pub struct ColumnMeta {
 //     pub name: String,
-//     pub type_: TaosDataType,
+//     pub type_: Ty,
 //     pub bytes: i16,
 // }
 // #[derive(Debug)]
@@ -212,24 +230,24 @@ impl ColumnMeta {
 //         self.tags.iter().map(|t| &t.name).collect_vec()
 //     }
 // }
-// impl FromStr for TaosDataType {
+// impl FromStr for Ty {
 //     type Err = &'static str;
 //     fn from_str(s: &str) -> Result<Self, Self::Err> {
 //         match s.to_lowercase().as_str() {
-//             "timestamp" => Ok(TaosDataType::Timestamp),
-//             "bool" => Ok(TaosDataType::Bool),
-//             "tinyint" => Ok(TaosDataType::TinyInt),
-//             "smallint" => Ok(TaosDataType::SmallInt),
-//             "int" => Ok(TaosDataType::Int),
-//             "bigint" => Ok(TaosDataType::BigInt),
-//             "tinyint unsigned" => Ok(TaosDataType::UTinyInt),
-//             "smallint unsigned" => Ok(TaosDataType::USmallInt),
-//             "int unsigned" => Ok(TaosDataType::UInt),
-//             "bigint unsigned" => Ok(TaosDataType::UBigInt),
-//             "float" => Ok(TaosDataType::Float),
-//             "double" => Ok(TaosDataType::Double),
-//             "binary" => Ok(TaosDataType::Binary),
-//             "nchar" => Ok(TaosDataType::NChar),
+//             "timestamp" => Ok(Ty::Timestamp),
+//             "bool" => Ok(Ty::Bool),
+//             "tinyint" => Ok(Ty::TinyInt),
+//             "smallint" => Ok(Ty::SmallInt),
+//             "int" => Ok(Ty::Int),
+//             "bigint" => Ok(Ty::BigInt),
+//             "tinyint unsigned" => Ok(Ty::UTinyInt),
+//             "smallint unsigned" => Ok(Ty::USmallInt),
+//             "int unsigned" => Ok(Ty::UInt),
+//             "bigint unsigned" => Ok(Ty::UBigInt),
+//             "float" => Ok(Ty::Float),
+//             "double" => Ok(Ty::Double),
+//             "binary" => Ok(Ty::Binary),
+//             "nchar" => Ok(Ty::NChar),
 //             _ => Err("not a valid data type string"),
 //         }
 //     }
@@ -245,7 +263,7 @@ impl ColumnMeta {
 //                 .into_iter()
 //                 .map(|row| ColumnMeta {
 //                     name: row[0].to_string(),
-//                     type_: TaosDataType::from_str(&row[1].to_string()).expect("from describe"),
+//                     type_: Ty::from_str(&row[1].to_string()).expect("from describe"),
 //                     bytes: *row[2].as_int().unwrap() as _,
 //                 })
 //                 .collect_vec(),
@@ -253,7 +271,7 @@ impl ColumnMeta {
 //                 .into_iter()
 //                 .map(|row| ColumnMeta {
 //                     name: row[0].to_string(),
-//                     type_: TaosDataType::from_str(&row[1].to_string()).expect("from describe"),
+//                     type_: Ty::from_str(&row[1].to_string()).expect("from describe"),
 //                     bytes: *row[2].as_int().unwrap() as _,
 //                 })
 //                 .collect_vec(),
@@ -418,24 +436,24 @@ impl ColumnMeta {
 //         }
 //     }
 
-//     pub fn data_type(&self) -> TaosDataType {
+//     pub fn data_type(&self) -> Ty {
 //         match self {
-//             Field::Null => TaosDataType::Null,
-//             Field::Bool(_v) => TaosDataType::Bool,
-//             Field::TinyInt(_v) => TaosDataType::TinyInt,
-//             Field::SmallInt(_v) => TaosDataType::SmallInt,
-//             Field::Int(_v) => TaosDataType::Int,
-//             Field::BigInt(_v) => TaosDataType::BigInt,
-//             Field::Float(_v) => TaosDataType::Float,
-//             Field::Double(_v) => TaosDataType::Double,
-//             Field::Binary(_v) => TaosDataType::Binary,
-//             Field::NChar(_v) => TaosDataType::NChar,
-//             Field::Timestamp(_v) => TaosDataType::Timestamp,
-//             Field::UTinyInt(_v) => TaosDataType::UTinyInt,
-//             Field::USmallInt(_v) => TaosDataType::USmallInt,
-//             Field::UInt(_v) => TaosDataType::UInt,
-//             Field::UBigInt(_v) => TaosDataType::UBigInt,
-//             Field::Json(_v) => TaosDataType::Json,
+//             Field::Null => Ty::Null,
+//             Field::Bool(_v) => Ty::Bool,
+//             Field::TinyInt(_v) => Ty::TinyInt,
+//             Field::SmallInt(_v) => Ty::SmallInt,
+//             Field::Int(_v) => Ty::Int,
+//             Field::BigInt(_v) => Ty::BigInt,
+//             Field::Float(_v) => Ty::Float,
+//             Field::Double(_v) => Ty::Double,
+//             Field::Binary(_v) => Ty::Binary,
+//             Field::NChar(_v) => Ty::NChar,
+//             Field::Timestamp(_v) => Ty::Timestamp,
+//             Field::UTinyInt(_v) => Ty::UTinyInt,
+//             Field::USmallInt(_v) => Ty::USmallInt,
+//             Field::UInt(_v) => Ty::UInt,
+//             Field::UBigInt(_v) => Ty::UBigInt,
+//             Field::Json(_v) => Ty::Json,
 //         }
 //     }
 // }
@@ -507,11 +525,3 @@ impl ColumnMeta {
 //         Ok(())
 //     }
 // }
-
-use std::{fmt, str::FromStr};
-
-use serde::{
-    de::{self, MapAccess, SeqAccess, Visitor},
-    Deserialize, Deserializer,
-};
-use taos_sys::TaosDataType;

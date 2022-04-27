@@ -1,282 +1,550 @@
 #![allow(non_camel_case_types)]
-use std::{ffi::CStr, os::raw::*};
+#![allow(dead_code)]
+#![allow(unused_variables)]
 
-pub type TAOS = c_void;
-pub type TAOS_STMT = c_void;
-pub type TAOS_RES = c_void;
-pub type TAOS_STREAM = c_void;
-pub type TAOS_SUB = c_void;
-pub type TAOS_ROW = *mut *mut c_void;
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    ffi::CStr,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    os::raw::*,
+    sync::Arc,
+};
 
-pub type taos_subscribe_cb =
-    unsafe extern "C" fn(sub: *mut TAOS_SUB, res: *mut TAOS_RES, param: *mut c_void, code: c_int);
+use once_cell::sync::OnceCell;
+use taos_error::{Code, Error};
+use taos_query::common::{Field, Ty};
 
-pub type taos_stream_cb =
-    unsafe extern "C" fn(param: *mut c_void, res: *mut TAOS_RES, row: TAOS_ROW);
-
-pub type taos_stream_close_cb = unsafe extern "C" fn(param: *mut c_void);
-
-mod common;
-pub use common::*;
+pub(crate) mod types;
+pub use types::*;
+pub mod ffi;
+use ffi::*;
 
 mod set_config;
 pub use set_config::*;
 
-mod time;
-pub use time::*;
-
-mod basic;
-pub use basic::*;
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct TAOS_FIELD {
-    pub name: [u8; 65usize],
-    pub type_: u8,
-    pub bytes: i16,
-}
-
-impl TAOS_FIELD {
-    pub fn name(&self) -> &CStr {
-        unsafe { CStr::from_ptr(self.name.as_ptr() as _) }
-        // CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
-    }
-    pub fn type_(&self) -> TaosDataType {
-        self.type_.into()
-    }
-
-    pub fn bytes(&self) -> i16 {
-        self.bytes
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de, 'a> serde::de::Deserializer<'de> for &'a TAOS_FIELD {
-    type Error = taos_error::Error;
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        self.name()
-            .to_str()
-            .map_err(|err| taos_error::Error::from_string(format!("{}", err)))
-            .and_then(|s| visitor.visit_str(s))
-    }
-
-    serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit option
-        seq bytes byte_buf map unit_struct newtype_struct
-        tuple_struct struct tuple enum identifier ignored_any
-    }
-}
-#[cfg(feature = "serde")]
-impl<'de, 'a> serde::de::IntoDeserializer<'de, taos_error::Error> for &'a TAOS_FIELD {
-    type Deserializer = &'a TAOS_FIELD;
-
-    fn into_deserializer(self) -> Self::Deserializer {
-        self
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct TAOS_BIND {
-    pub buffer_type: c_int,
-    pub buffer: *mut c_void,
-    pub buffer_length: usize,
-    pub length: *mut usize,
-    pub is_null: *mut c_int,
-    pub is_unsigned: c_int,
-    pub error: *mut c_int,
-    pub u: taos_bind_field_anonym_union,
-    pub allocated: c_uint,
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union taos_bind_field_anonym_union {
-    pub ts: i64,
-    pub b: i8,
-    pub v1: i8,
-    pub v2: i16,
-    pub v4: i32,
-    pub v8: i64,
-    pub f4: f32,
-    pub f8: f64,
-    pub bin: *mut c_uchar,
-    pub nchar: *mut c_char,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct TAOS_MULTI_BIND {
-    pub buffer_type: c_int,
-    pub buffer: *const c_void,
-    pub buffer_length: usize,
-    pub length: *const i32,
-    pub is_null: *const c_char,
-    pub num: c_int,
-}
-
-extern "C" {
-    pub fn taos_connect(
-        ip: *const c_char,
-        user: *const c_char,
-        pass: *const c_char,
-        db: *const c_char,
-        port: u16,
-    ) -> *mut TAOS;
-
-    pub fn taos_connect_auth(
-        ip: *const c_char,
-        user: *const c_char,
-        auth: *const c_char,
-        db: *const c_char,
-        port: u16,
-    ) -> *mut TAOS;
-
-    pub fn taos_close(taos: *mut TAOS);
-
-}
-
-extern "C" {
-    pub fn taos_load_table_info(taos: *mut TAOS, tableNameList: *const c_char) -> c_int;
-
-    pub fn taos_stmt_init(taos: *mut TAOS) -> *mut TAOS_STMT;
-
-    pub fn taos_stmt_prepare(stmt: *mut TAOS_STMT, sql: *const c_char, length: c_ulong) -> c_int;
-
-    pub fn taos_stmt_set_tbname_tags(
-        stmt: *mut TAOS_STMT,
-        name: *const c_char,
-        tags: *mut TAOS_BIND,
-    ) -> c_int;
-
-    pub fn taos_stmt_set_tbname(stmt: *mut TAOS_STMT, name: *const c_char) -> c_int;
-
-    pub fn taos_stmt_set_sub_tbname(stmt: *mut TAOS_STMT, name: *const c_char) -> c_int;
-
-    pub fn taos_stmt_is_insert(stmt: *mut TAOS_STMT, insert: *mut c_int) -> c_int;
-
-    pub fn taos_stmt_num_params(stmt: *mut TAOS_STMT, nums: *mut c_int) -> c_int;
-
-    pub fn taos_stmt_get_param(
-        stmt: *mut TAOS_STMT,
-        idx: c_int,
-        type_: *mut c_int,
-        bytes: *mut c_int,
-    ) -> c_int;
-
-    pub fn taos_stmt_bind_param(stmt: *mut TAOS_STMT, bind: *mut TAOS_BIND) -> c_int;
-
-    pub fn taos_stmt_bind_param_batch(stmt: *mut TAOS_STMT, bind: *mut TAOS_MULTI_BIND) -> c_int;
-
-    pub fn taos_stmt_bind_single_param_batch(
-        stmt: *mut TAOS_STMT,
-        bind: *mut TAOS_MULTI_BIND,
-        colIdx: c_int,
-    ) -> c_int;
-
-    pub fn taos_stmt_add_batch(stmt: *mut TAOS_STMT) -> c_int;
-
-    pub fn taos_stmt_execute(stmt: *mut TAOS_STMT) -> c_int;
-
-    pub fn taos_stmt_affected_rows(stmt: *mut TAOS_STMT) -> c_int;
-
-    pub fn taos_stmt_use_result(stmt: *mut TAOS_STMT) -> *mut TAOS_RES;
-
-    pub fn taos_stmt_close(stmt: *mut TAOS_STMT) -> c_int;
-
-    pub fn taos_stmt_errstr(stmt: *mut TAOS_STMT) -> *const c_char;
-
-    pub fn taos_query(taos: *mut TAOS, sql: *const c_char) -> *mut TAOS_RES;
-
-    pub fn taos_fetch_row(res: *mut TAOS_RES) -> TAOS_ROW;
-
-    pub fn taos_result_precision(res: *mut TAOS_RES) -> c_int;
-
-    pub fn taos_free_result(res: *mut TAOS_RES);
-
-    pub fn taos_field_count(res: *mut TAOS_RES) -> c_int;
-
-    pub fn taos_num_fields(res: *mut TAOS_RES) -> c_int;
-
-    pub fn taos_affected_rows(res: *mut TAOS_RES) -> c_int;
-
-    pub fn taos_fetch_fields(res: *mut TAOS_RES) -> *mut TAOS_FIELD;
-
-    pub fn taos_select_db(taos: *mut TAOS, db: *const c_char) -> c_int;
-
-    pub fn taos_print_row(
-        str_: *mut c_char,
-        row: TAOS_ROW,
-        fields: *mut TAOS_FIELD,
-        num_fields: c_int,
-    ) -> c_int;
-
-    pub fn taos_stop_query(res: *mut TAOS_RES);
-
-    pub fn taos_is_null(res: *mut TAOS_RES, row: i32, col: i32) -> bool;
-
-    pub fn taos_is_update_query(res: *mut TAOS_RES) -> bool;
-
-    pub fn taos_fetch_block(res: *mut TAOS_RES, rows: *mut TAOS_ROW) -> c_int;
-
-    pub fn taos_fetch_lengths(res: *mut TAOS_RES) -> *mut c_int;
-
-    #[cfg(taos_result_block)]
-    pub fn taos_result_block(res: *mut TAOS_RES) -> *mut TAOS_ROW;
-
-    pub fn taos_validate_sql(taos: *mut TAOS, sql: *const c_char) -> c_int;
-
-    pub fn taos_reset_current_db(taos: *mut TAOS);
-
-    pub fn taos_get_server_info(taos: *mut TAOS) -> *mut c_char;
-
-    pub fn taos_errstr(tres: *mut TAOS_RES) -> *mut c_char;
-
-    pub fn taos_errno(tres: *mut TAOS_RES) -> c_int;
-
-}
-
-#[cfg(not(taos_result_block))]
-pub extern "C" fn taos_result_block(res: *mut TAOS_RES) -> *mut TAOS_ROW {
-    todo!()
-}
-
-pub mod query_a;
-pub use query_a::*;
-
-extern "C" {
-    pub fn taos_subscribe(
-        taos: *mut TAOS,
-        restart: c_int,
-        topic: *const c_char,
-        sql: *const c_char,
-        fp: Option<taos_subscribe_cb>,
-        param: *mut c_void,
-        interval: c_int,
-    ) -> *mut TAOS_SUB;
-
-    pub fn taos_consume(tsub: *mut TAOS_SUB) -> *mut TAOS_RES;
-
-    pub fn taos_unsubscribe(tsub: *mut TAOS_SUB, keep_progress: c_int);
-}
-
-extern "C" {
-    pub fn taos_open_stream(
-        taos: *mut TAOS,
-        sql: *const c_char,
-        fp: Option<taos_stream_cb>,
-        stime: i64,
-        param: *mut c_void,
-        callback: Option<taos_stream_close_cb>,
-    ) -> *mut TAOS_STREAM;
-
-    pub fn taos_close_stream(stream: *mut TAOS_STREAM);
-}
+pub use ffi::taos_options;
 
 mod schemaless;
 pub use schemaless::*;
 
 mod tmq;
 pub use tmq::*;
+
+macro_rules! err_or {
+    ($res:ident, $code:expr, $ret:expr) => {
+        unsafe {
+            let code: Code = { $code }.into();
+            if code.success() {
+                Ok($ret)
+            } else {
+                Err(Error::new(code, $res.err_as_str()))
+            }
+        }
+    };
+
+    ($res:ident, $code:expr) => {{
+        err_or!($res, $code, ())
+    }};
+    ($code:expr, $ret:expr) => {
+        unsafe {
+            let code: Code = { $code }.into();
+            if code.success() {
+                Ok($ret)
+            } else {
+                Err(Error::from_code(code))
+            }
+        }
+    };
+
+    ($code:expr) => {
+        err_or!($code, ())
+    };
+}
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct RawTaos(*mut TAOS);
+
+impl Drop for RawTaos {
+    fn drop(&mut self) {
+        self.close()
+    }
+}
+
+impl RawTaos {
+    /// Client version.
+    pub fn version() -> &'static CStr {
+        unsafe { CStr::from_ptr(taos_get_client_info()) }
+    }
+
+    #[inline]
+    pub fn connect(
+        host: *const c_char,
+        user: *const c_char,
+        pass: *const c_char,
+        db: *const c_char,
+        port: u16,
+    ) -> Option<Self> {
+        let ptr = unsafe { taos_connect(host, user, pass, db, port) };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(RawTaos(ptr))
+        }
+    }
+    #[inline]
+    pub fn connect_auth(
+        host: *const c_char,
+        user: *const c_char,
+        auth: *const c_char,
+        db: *const c_char,
+        port: u16,
+    ) -> Option<Self> {
+        let ptr = unsafe { taos_connect_auth(host, user, auth, db, port) };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(RawTaos(ptr))
+        }
+    }
+
+    #[inline]
+    pub fn as_ptr(&self) -> *mut TAOS {
+        self.0
+    }
+
+    #[inline]
+    pub fn query(&self, sql: *const i8) -> Result<DroppableRawRes, Error> {
+        RawRes::from_ptr(unsafe { taos_query(self.as_ptr(), sql) }).map(DroppableRawRes::new)
+    }
+
+    #[inline]
+    pub fn query_a(&self, sql: *const i8, fp: taos_async_query_cb, param: *mut c_void) {
+        unsafe { taos_query_a(self.as_ptr(), sql, fp, param) }
+    }
+
+    #[inline]
+    pub fn validate_sql(self, sql: *const c_char) -> Result<(), Error> {
+        let code: Code = unsafe { taos_validate_sql(self.as_ptr(), sql) }.into();
+        if code.success() {
+            return Ok(());
+        } else {
+            let err = unsafe { taos_errstr(std::ptr::null_mut()) };
+            let err = unsafe { std::str::from_utf8_unchecked(CStr::from_ptr(err).to_bytes()) };
+            return Err(Error::new(code, err));
+        }
+    }
+
+    #[inline]
+    pub fn reset_current_db(&self) {
+        unsafe { taos_reset_current_db(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn server_version(&self) -> &CStr {
+        unsafe { CStr::from_ptr(taos_get_server_info(self.as_ptr())) }
+    }
+
+    #[inline]
+    pub fn load_table_info(&self, list: *const c_char) -> Result<(), Error> {
+        err_or!(taos_load_table_info(self.as_ptr(), list))
+    }
+
+    #[inline]
+    pub fn close(&mut self) {
+        unsafe { taos_close(self.as_ptr()) }
+    }
+}
+
+#[derive(Debug)]
+pub struct RawRes {
+    ptr: *mut TAOS_RES,
+    fields: OnceCell<Vec<Field>>,
+}
+
+unsafe impl Send for RawRes {}
+unsafe impl Sync for RawRes {}
+
+#[derive(Debug)]
+pub struct DroppableRawRes<'q> {
+    raw: Arc<RawRes>,
+    _marker: PhantomData<&'q u8>,
+}
+
+impl<'q> Deref for DroppableRawRes<'q> {
+    type Target = RawRes;
+
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
+impl<'q> DroppableRawRes<'q> {
+    pub fn new(raw: RawRes) -> Self {
+        Self {
+            raw: Arc::new(raw),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<Self, Error> {
+        RawRes::from_ptr_with_code(ptr, code).map(Self::new)
+    }
+
+    pub fn raw(&self) -> Arc<RawRes> {
+        self.raw.clone()
+    }
+}
+
+impl<'q> Drop for DroppableRawRes<'q> {
+    fn drop(&mut self) {
+        if let Some(raw) = Arc::get_mut(&mut self.raw) {
+            raw.free_result();
+        } else {
+            log::error!("there's other result pointer in-use, please check");
+            panic!("there's other result pointer in-use, please check");
+        }
+    }
+}
+
+impl RawRes {
+    #[inline]
+    pub fn as_ptr(&self) -> *mut TAOS_RES {
+        self.ptr
+    }
+
+    #[inline]
+    pub fn errno(&self) -> Code {
+        unsafe { taos_errno(self.as_ptr()) & 0xffff }.into()
+    }
+    #[inline]
+    pub fn errstr(&self) -> &CStr {
+        unsafe { CStr::from_ptr(taos_errstr(self.as_ptr())) }
+    }
+    #[inline]
+    pub fn err_as_str(&self) -> &'static str {
+        unsafe {
+            std::str::from_utf8_unchecked(CStr::from_ptr(taos_errstr(self.as_ptr())).to_bytes())
+        }
+    }
+
+    #[inline]
+    pub fn from_ptr(ptr: *mut TAOS_RES) -> Result<RawRes, Error> {
+        let raw = unsafe { Self::from_ptr_unchecked(ptr) };
+        let code = raw.errno();
+        raw.with_code(code)
+    }
+
+    #[inline]
+    pub const unsafe fn from_ptr_unchecked(ptr: *mut TAOS_RES) -> RawRes {
+        RawRes {
+            ptr,
+            fields: OnceCell::new(),
+        }
+    }
+
+    #[inline]
+    pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<RawRes, Error> {
+        unsafe { RawRes::from_ptr_unchecked(ptr) }.with_code(code)
+    }
+
+    #[inline]
+    fn with_code(self, code: Code) -> Result<Self, Error> {
+        if code.success() {
+            Ok(self)
+        } else {
+            Err(Error::new(code, self.err_as_str()))
+        }
+    }
+
+    #[inline]
+    pub fn num_fields(&self) -> usize {
+        self.fields().len()
+    }
+    #[inline]
+    pub fn fields<'any>(&self) -> &[Field] {
+        let fields = self.fields.get_or_init(|| {
+            let len = unsafe { taos_num_fields(self.as_ptr()) };
+            from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
+        });
+        &fields
+    }
+
+    #[inline]
+    pub fn fetch_lengths<'t>(&self) -> &'t [i32] {
+        unsafe {
+            std::slice::from_raw_parts(taos_fetch_lengths(self.as_ptr()), self.field_count() as _)
+        }
+    }
+    #[inline]
+    unsafe fn fetch_lengths_raw(&self) -> *const i32 {
+        taos_fetch_lengths(self.as_ptr())
+    }
+
+    #[inline]
+    pub fn fetch_block(&self) -> Result<Option<(TAOS_ROW, i32, *const i32)>, Error> {
+        let block = Box::into_raw(Box::new(std::ptr::null_mut()));
+        let mut num = 0;
+        err_or!(
+            self,
+            taos_fetch_block_s(self.as_ptr(), &mut num, block),
+            if num > 0 {
+                Some((*block, num, self.fetch_lengths_raw()))
+            } else {
+                None
+            }
+        )
+    }
+
+    #[inline]
+    pub fn fetch_raw_block(&self) -> Result<(*mut c_void, i32), Error> {
+        let block = Box::into_raw(Box::new(std::ptr::null_mut()));
+        let mut num = 0;
+        err_or!(
+            self,
+            taos_fetch_raw_block(self.as_ptr(), &mut num as _, block),
+            (*block, num as _)
+        )
+    }
+
+    #[inline]
+    pub fn is_update_query(&self) -> bool {
+        unsafe { taos_is_update_query(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn is_null(&self, row: i32, col: i32) -> bool {
+        unsafe { taos_is_null(self.as_ptr(), row, col) }
+    }
+
+    #[inline]
+    pub fn stop_query(&self) {
+        unsafe { taos_stop_query(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn select_db(&self, db: *const i8) -> Result<(), Error> {
+        err_or!(self, taos_select_db(self.as_ptr(), db))
+    }
+
+    #[inline]
+    pub fn affected_rows(&self) -> i32 {
+        unsafe { taos_affected_rows(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn field_count(&self) -> i32 {
+        unsafe { taos_field_count(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn free_result(&mut self) {
+        unsafe { taos_free_result(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn precision(&self) -> Precision {
+        unsafe { taos_result_precision(self.as_ptr()) }.into()
+    }
+
+    #[inline]
+    pub fn fetch_row(&self) -> TAOS_ROW {
+        unsafe { taos_fetch_row(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn fetch_rows_a(&self, fp: taos_async_fetch_cb, param: *mut c_void) {
+        unsafe { taos_fetch_rows_a(self.as_ptr(), fp, param) }
+    }
+
+    #[inline]
+    pub fn block(&self) -> *mut *mut c_void {
+        unsafe { taos_result_block(self.as_ptr()).read() }
+    }
+}
+
+#[derive(Debug)]
+pub struct RawStmt(*mut TAOS_STMT);
+
+impl Drop for RawStmt {
+    fn drop(&mut self) {
+        let _ = self.close();
+    }
+}
+impl RawStmt {
+    #[inline]
+    pub unsafe fn as_ptr(&self) -> *mut TAOS_STMT {
+        self.0
+    }
+    #[inline]
+    pub fn errstr(&self) -> &CStr {
+        unsafe { CStr::from_ptr(taos_errstr(self.as_ptr())) }
+    }
+
+    #[inline]
+    pub fn err_as_str(&self) -> &'static str {
+        unsafe {
+            std::str::from_utf8_unchecked(CStr::from_ptr(taos_errstr(self.as_ptr())).to_bytes())
+        }
+    }
+
+    #[inline]
+    pub fn from_raw_taos(taos: &RawTaos) -> RawStmt {
+        RawStmt(unsafe { taos_stmt_init(taos.as_ptr()) })
+    }
+    #[inline]
+    pub fn close(&mut self) -> Result<(), Error> {
+        err_or!(self, taos_stmt_close(self.as_ptr()))
+    }
+
+    #[inline]
+    pub fn prepare(&mut self, sql: *const c_char, length: c_ulong) -> Result<(), Error> {
+        err_or!(self, taos_stmt_prepare(self.as_ptr(), sql, length))
+    }
+
+    #[inline]
+    pub fn set_tbname_tags(
+        &mut self,
+        name: *const c_char,
+        tags: *mut TAOS_BIND,
+    ) -> Result<(), Error> {
+        err_or!(self, taos_stmt_set_tbname_tags(self.as_ptr(), name, tags))
+    }
+
+    #[inline]
+    pub fn set_tbname(&mut self, name: *const c_char) -> Result<(), Error> {
+        err_or!(self, taos_stmt_set_tbname(self.as_ptr(), name))
+    }
+
+    #[inline]
+    pub fn set_sub_tbname(&mut self, name: *const c_char) -> Result<(), Error> {
+        err_or!(self, taos_stmt_set_sub_tbname(self.as_ptr(), name))
+    }
+
+    #[inline]
+    pub fn use_result(&mut self) -> RawRes {
+        unsafe { RawRes::from_ptr_unchecked(taos_stmt_use_result(self.as_ptr())) }
+    }
+
+    #[inline]
+    pub fn affected_rows(&self) -> i32 {
+        unsafe { taos_stmt_affected_rows(self.as_ptr()) }
+    }
+
+    #[inline]
+    pub fn execute(&self) -> Result<(), Error> {
+        err_or!(self, taos_stmt_execute(self.as_ptr()))
+    }
+
+    #[inline]
+    pub fn add_batch(&self) -> Result<(), Error> {
+        err_or!(self, taos_stmt_add_batch(self.as_ptr()))
+    }
+
+    #[inline]
+    pub fn is_insert(&self) -> Result<bool, Error> {
+        let mut is_insert = 0;
+        err_or!(
+            self,
+            taos_stmt_is_insert(self.as_ptr(), &mut is_insert as _),
+            is_insert != 0
+        )
+    }
+
+    #[inline]
+    pub fn num_params(&self) -> Result<i32, Error> {
+        let mut num = 0;
+        err_or!(
+            self,
+            taos_stmt_num_params(self.as_ptr(), &mut num as _),
+            num
+        )
+    }
+
+    #[inline]
+    pub fn get_param(&mut self, idx: i32) -> Result<(Ty, i32), Error> {
+        let (mut type_, mut bytes) = (0, 0);
+        err_or!(
+            self,
+            taos_stmt_get_param(self.as_ptr(), idx, &mut type_ as _, &mut bytes as _),
+            ((type_ as u8).into(), bytes)
+        )
+    }
+    #[inline]
+    pub fn bind_param(&mut self, bind: *mut TAOS_BIND) -> Result<(), Error> {
+        err_or!(self, taos_stmt_bind_param(self.as_ptr(), bind))
+    }
+
+    #[inline]
+    pub fn bind_param_batch(&mut self, bind: *mut TAOS_MULTI_BIND) -> Result<(), Error> {
+        err_or!(self, taos_stmt_bind_param_batch(self.as_ptr(), bind))
+    }
+
+    #[inline]
+    pub fn bind_single_param_batch(
+        &self,
+        bind: *mut TAOS_MULTI_BIND,
+        col: i32,
+    ) -> Result<(), Error> {
+        err_or!(
+            self,
+            taos_stmt_bind_single_param_batch(self.as_ptr(), bind, col)
+        )
+    }
+}
+
+// #[derive(Debug, Clone, Copy)]
+// #[repr(C)]
+// enum BlockVer {
+//     V2 = 0,
+//     V3,
+// }
+// #[derive(Debug, Clone, Copy)]
+// #[repr(C)]
+
+// enum BlockCodec {
+//     Bytes,
+// }
+
+// #[derive(Debug)]
+// enum BlockType<'a> {
+//     V2(*mut *mut c_void),
+//     Bytes(Cow<'a, [u8]>),
+// }
+
+// struct RawCodec<'a> {
+//     version: BlockVer,
+//     method: BlockCodec,
+//     precision: Precision,
+//     fields: Cow<'a, [Field]>,
+// }
+
+// #[derive(Debug)]
+// pub struct RawBlock<'a> {
+//     version: BlockVer,
+//     codec: BlockCodec,
+//     precision: Precision,
+//     fields: Cow<'a, [Field]>,
+//     num_of_rows: usize,
+//     data: BlockType<'a>,
+// }
+
+// impl<'a> RawBlock<'a> {
+//     fn precision(&self) -> Precision {
+//         self.precision
+//     }
+
+//     fn to_bytes(&self) -> Cow<[u8]> {
+//         todo!()
+//     }
+
+//     fn write<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
+//         wtr.write(&self.to_bytes())
+//     }
+
+//     fn write_all<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
+//         wtr.write(&self.to_bytes())
+//     }
+// }

@@ -17,15 +17,16 @@ impl TmqList {
     }
 }
 
-impl Drop for TmqList {
-    fn drop(&mut self) {
-        unsafe {
-            dbg!("list destroy");
-            // tmq_list_destroy(self.0);
-            dbg!("list destroyed");
-        }
-    }
-}
+// todo: tmq_list_destroy cause double free error.
+// impl Drop for TmqList {
+//     fn drop(&mut self) {
+//         // unsafe {
+//         //     dbg!("list destroy");
+//         //     // tmq_list_destroy(self.0);
+//         //     dbg!("list destroyed");
+//         // }
+//     }
+// }
 
 impl Taos {
     pub fn create_topic(&self, name: impl AsRef<str>, sql: impl AsRef<str>) -> Result<()> {
@@ -37,7 +38,8 @@ impl Taos {
     }
 
     pub fn consumer(&self, conf: &TmqConf) -> Result<Consumer> {
-        let cons = unsafe { tmq_consumer_new(self.0, conf.as_ptr(), std::ptr::null_mut(), 0) };
+        let cons =
+            unsafe { tmq_consumer_new(self.0.as_ptr(), conf.as_ptr(), std::ptr::null_mut(), 0) };
         Ok(Consumer::new(cons))
     }
 }
@@ -163,7 +165,12 @@ mod test {
 
     #[test]
     fn tmq_consume() -> Result<()> {
-        println!("version: {}", crate::client_info());
+        let version = crate::client_info();
+        println!("version: {}", version);
+        if !version.starts_with("3") {
+            return Ok(());
+        }
+
         TaosOptions::new().config_dir("/home/huolinhe/Projects/taosdata/taosx/TDengine/demo");
         let taos = Taos::new((), "root", "taosdata", (), 0).unwrap();
         println!("connected");

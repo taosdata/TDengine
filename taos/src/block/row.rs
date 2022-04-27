@@ -1,20 +1,18 @@
 use std::{
     any::type_name,
+    cell::Cell,
     collections::BTreeMap,
     ops::{Deref, DerefMut},
     rc::Rc,
-    slice,
-    sync::Arc,
 };
 
 use bitvec_simd::BitVec;
 
-use serde::de::{self, Visitor};
-use taos_sys::TAOS_FIELD;
-
 use crate::{Error, Result};
+use serde::de::{self, IntoDeserializer, Visitor};
+use taos_query::common::Field;
 
-use super::{value::BorrowedValue, Block};
+use super::{BorrowedValue, Block};
 
 #[derive(Debug)]
 pub struct Row<'block> {
@@ -39,20 +37,30 @@ impl<'block> Row<'block> {
         Deserializer::new(self)
     }
 
-    fn get(&self, col: usize) -> Option<BorrowedValue> {
-        self.block.get_value(self.index, col)
-    }
+    // fn get(&self, col: usize) -> Option<BorrowedValue> {
+    //     self.block.get_value(self.index, col)
+    // }
 
     fn value_iter(&self) -> ValueIter {
         ValueIter::new(self)
     }
 
-    fn entry_iter(&self) -> EntryIter {
-        EntryIter::new(self)
-    }
+    // fn entry_iter(&self) -> EntryIter {
+    //     EntryIter::new(self)
+    // }
 
     // fn into_value_iter(self) -> IntoValueIter {}
 }
+
+// impl IntoIter
+
+// impl<'block, 'de> IntoDeserializer<'de, Error> for Row<'block> {
+//     type Deserializer = Deserializer<'block>;
+
+//     fn into_deserializer(self) -> Self::Deserializer {
+//         todo!()
+//     }
+// }
 struct EntryIter<'block>(ValueIter<'block>);
 
 impl<'block> EntryIter<'block> {
@@ -67,27 +75,39 @@ impl<'block> From<ValueIter<'block>> for EntryIter<'block> {
     }
 }
 
-impl<'block> Iterator for EntryIter<'block> {
-    type Item = (&'block TAOS_FIELD, BorrowedValue<'block>);
+// impl<'block> Iterator for EntryIter<'block> {
+//     type Item = (&'block Field, BorrowedValue<'block>);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        log::trace!("next entry");
-        self.0
-            .next()
-            .map(|value| (unsafe { self.0.row.get_field_unchecked(self.0.col) }, value))
-    }
-}
+//     fn next(&mut self) -> Option<Self::Item> {
+//         log::trace!("next entry");
+//         self.0
+//             .next()
+//             .map(|value| (unsafe { self.0.block.get_field_unchecked(self.0.col) }, value))
+//     }
+// }
+
+// impl<'block> IntoIterator for Row<'block> {
+//     type Item = (&'block Field, BorrowedValue<'block>);
+
+//     type IntoIter = EntryIter<'block>;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         EntryIter(ValueIter::new(&self))
+//     }
+// }
 
 pub(crate) struct ValueIter<'block> {
-    row: &'block Row<'block>,
+    block: Rc<Block<'block>>,
+    row: usize,
     col: usize,
     hint: usize,
 }
 
 impl<'block> ValueIter<'block> {
-    fn new(row: &'block Row<'block>) -> Self {
+    fn new(row: &Row<'block>) -> Self {
         Self {
-            row,
+            block: row.block.clone(),
+            row: row.index,
             col: 0,
             hint: row.num_of_fields(),
         }
@@ -95,11 +115,11 @@ impl<'block> ValueIter<'block> {
 }
 
 impl<'a> Deref for ValueIter<'a> {
-    type Target = Row<'a>;
+    type Target = Block<'a>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        self.row
+        &self.block
     }
 }
 
@@ -107,12 +127,12 @@ impl<'block> Iterator for ValueIter<'block> {
     type Item = BorrowedValue<'block>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (row, col) = (self.row.index, self.col);
+        let (row, col) = (self.row, self.col);
         log::trace!("get: ({row}, {col})");
         if col < self.num_of_fields() {
             self.col += 1;
             self.hint -= 1;
-            self.row.get_value(row, col)
+            self.block.get_value(row, col)
         } else {
             None
         }
@@ -128,7 +148,7 @@ impl<'block> Iterator for ValueIter<'block> {
     }
 
     fn count(self) -> usize {
-        self.row.num_of_fields() - self.col
+        self.block.num_of_fields() - self.col
     }
 
     fn last(mut self) -> Option<Self::Item> {
@@ -190,16 +210,17 @@ struct MapReader<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
     banned: BitVec,
     fields: BTreeMap<String, usize>,
-    acc: slice::Iter<'a, TAOS_FIELD>,
+    acc: std::vec::IntoIter<String>,
     value: Option<BorrowedValue<'de>>,
 }
 
 impl<'a, 'de> MapReader<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
         let n = de.num_of_fields();
-        let acc = unsafe { de.get_fields_unchecked() }.iter();
-        let fields = de.get_field_names_to_string_vec().into_iter();
-        let fields = fields
+        // let acc = unsafe { de.get_fields_unchecked() }.iter();
+        let acc = de.get_field_names_to_string_vec().into_iter();
+        let fields = acc
+            .clone()
             .enumerate()
             .map(|(index, field)| (field, index))
             .collect();
@@ -212,34 +233,34 @@ impl<'a, 'de> MapReader<'a, 'de> {
         }
     }
 
-    fn access_field(&mut self, field: &str) -> Option<BorrowedValue> {
-        self.fields
-            .get(field)
-            .copied()
-            .and_then(|n| self.access_nth(n))
-    }
+    // fn access_field(&mut self, field: &str) -> Option<BorrowedValue> {
+    //     self.fields
+    //         .get(field)
+    //         .copied()
+    //         .and_then(|n| self.access_nth(n))
+    // }
 
-    fn access_nth(&mut self, n: usize) -> Option<BorrowedValue> {
-        self.banned.get(n).and_then(|banned| {
-            if banned {
-                None
-            } else {
-                self.banned.set(n, true);
-                self.de.get(n)
-            }
-        })
-    }
-    fn access_next(&mut self) -> Option<BorrowedValue> {
-        self.banned.get(self.de.col).and_then(|banned| {
-            if banned {
-                None
-            } else {
-                self.banned.set(self.de.col, true);
-                self.de.next()
-            }
-        })
-    }
-    fn next_entry(&mut self) -> Option<(&'a TAOS_FIELD, BorrowedValue<'de>)> {
+    // fn access_nth(&mut self, n: usize) -> Option<BorrowedValue> {
+    //     self.banned.get(n).and_then(|banned| {
+    //         if banned {
+    //             None
+    //         } else {
+    //             self.banned.set(n, true);
+    //             self.de.get(n)
+    //         }
+    //     })
+    // }
+    // fn access_next(&mut self) -> Option<BorrowedValue> {
+    //     self.banned.get(self.de.col).and_then(|banned| {
+    //         if banned {
+    //             None
+    //         } else {
+    //             self.banned.set(self.de.col, true);
+    //             self.de.next()
+    //         }
+    //     })
+    // }
+    fn next_entry(&mut self) -> Option<(String, BorrowedValue<'de>)> {
         self.acc.next().zip(self.de.next())
     }
 }
@@ -276,7 +297,7 @@ impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
         match self.next_entry() {
             Some((name, value)) => {
                 self.value = Some(value);
-                seed.deserialize(name).map(Some)
+                seed.deserialize(name.into_deserializer()).map(Some)
             }
             _ => Ok(None),
         }
@@ -287,7 +308,10 @@ impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
         V: de::DeserializeSeed<'de>,
     {
         let value = self.value.take().unwrap(); // always be here, so it's safe to unwrap
+        log::debug!("deserialize value: {:?}", value);
+        log::trace!("target value: {:?}", type_name::<V::Value>());
         seed.deserialize(value)
+            .map_err(<Self::Error as de::Error>::custom)
     }
 }
 
@@ -308,7 +332,10 @@ impl<'de, 'a> de::SeqAccess<'de> for SeqReader<'a, 'de> {
         T: de::DeserializeSeed<'de>,
     {
         match self.de.next() {
-            Some(v) => seed.deserialize(dbg!(v)).map(Some),
+            Some(v) => seed
+                .deserialize(dbg!(v))
+                .map(Some)
+                .map_err(<Self::Error as de::Error>::custom),
             None => Ok(None),
         }
     }
@@ -326,7 +353,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         println!("call deserialize any");
         dbg!(type_name::<V>());
         match self.iter.next() {
-            Some(v) => v.deserialize_any(visitor),
+            Some(v) => v
+                .deserialize_any(visitor)
+                .map_err(<Self::Error as de::Error>::custom),
             None => Err(Error::from_string("expect value, not none")),
         }
     }
@@ -343,7 +372,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // todo: get_str should be replaced by BorrowedValue::deserialize
-        let s = unsafe { self.get_str(self.row.index, self.col) }?;
+        let s = unsafe { self.get_str(self.row, self.col) }?;
         if let Some(s) = s {
             visitor.visit_str(s)
         } else {
@@ -370,7 +399,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 if v.is_null() {
                     visitor.visit_none()
                 } else {
-                    visitor.visit_some(v)
+                    visitor
+                        .visit_some(v)
+                        .map_err(<Self::Error as de::Error>::custom)
                 }
             }
             _ => Err(<Self::Error as de::Error>::custom("expect next value")),
@@ -403,7 +434,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        dbg!(println!("deserialize_newtype_struct: {_name}"));
+        log::debug!("deserialize_newtype_struct: {_name}");
         visitor.visit_newtype_struct(self)
     }
 
@@ -414,7 +445,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        dbg!("deserialize_seq");
         visitor.visit_seq(SeqReader::new(self))
     }
 
@@ -449,7 +479,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         // let value = visitor.visit_map(self);
         // unimplemented!();
-        // log::info!("visit map");
+        log::info!("visit map");
+        dbg!(type_name::<V::Value>());
         visitor.visit_map(MapReader::new(self))
     }
 
@@ -468,7 +499,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        // println!("name: {_name}, fields: {_fields:?}");
+        log::debug!("name: {_name}, fields: {_fields:?}");
         self.deserialize_map(visitor)
     }
 }

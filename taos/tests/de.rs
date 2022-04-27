@@ -1,13 +1,12 @@
 #![allow(dead_code)]
-use std::{ffi::CString, io::Write, ops::Deref, sync::Once};
+use std::ffi::CString;
 
 use chrono::NaiveDateTime;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use log::Level;
-use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 
-use taos::{block::Value, helpers::Precision, *};
+use taos::helpers::ShowDatabase;
+use taos::*;
 
 #[derive(serde::Deserialize, Debug)]
 struct JsonTag {
@@ -62,84 +61,9 @@ struct RecordOptionWithJsonTag {
     str: Option<String>,
     json_tag: Option<JsonTag>,
 }
-struct TaosWrapper {
-    taos: Taos,
-    db: String,
-}
-impl Deref for TaosWrapper {
-    type Target = Taos;
 
-    fn deref(&self) -> &Self::Target {
-        &self.taos
-    }
-}
-
-impl Drop for TaosWrapper {
-    fn drop(&mut self) {
-        self.clean().unwrap();
-    }
-}
-
-impl TaosWrapper {
-    fn new() -> Result<Self> {
-        static LOGGER_INIT: Once = Once::new();
-        LOGGER_INIT.call_once(|| {
-            pretty_env_logger::formatted_timed_builder()
-                .format_module_path(true)
-                .filter_level(log::LevelFilter::Trace)
-                .format(|buf, record| -> std::result::Result<(), std::io::Error> {
-                    fn colored_level<'a>(
-                        style: &'a mut pretty_env_logger::env_logger::fmt::Style,
-                        level: Level,
-                    ) -> StyledValue<'a, &'static str> {
-                        match level {
-                            Level::Trace => style.set_color(Color::Magenta).value("TRACE"),
-                            Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
-                            Level::Info => style.set_color(Color::Green).value("INFO "),
-                            Level::Warn => style.set_color(Color::Yellow).value("WARN "),
-                            Level::Error => style.set_color(Color::Red).value("ERROR"),
-                        }
-                    }
-                    let mut style = buf.style();
-                    writeln!(
-                        buf,
-                        "[{}:{}] {} {} - {}",
-                        record.file().unwrap_or("unknown"),
-                        record.line().unwrap_or(0),
-                        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-                        colored_level(&mut style, record.level()),
-                        record.args()
-                    )
-                })
-                .is_test(true)
-                .init();
-        });
-        let taos = TaosOptions::new().build()?;
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-
-        use faker_rand::lorem::Word;
-        let db = String::from_iter([rng.gen::<Word>().to_string(), rng.gen::<Word>().to_string()]);
-        taos.exec_sync(format!("drop database if exists {db}",))?;
-        taos.exec_sync(format!("create database if not exists {db} precision 'ns'",))?;
-        taos.exec_sync(format!("use {db}"))?;
-
-        log::debug!("test in database: {db}");
-        Ok(Self { taos, db })
-    }
-
-    fn clean(&self) -> Result<()> {
-        let db = &self.db;
-        log::debug!("drop database: {db}");
-        self.taos
-            .exec_sync(format!("drop database if exists {}", db))?;
-        log::debug!("dropped database: {db}");
-        Ok(())
-    }
-}
-#[tokio::test]
-async fn de_seq_value() -> Result<()> {
-    let taos = &TaosWrapper::new()?;
+#[taos::prelude::test]
+async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -184,9 +108,48 @@ async fn de_seq_value() -> Result<()> {
     taos.clean()?;
     Ok(())
 }
-#[tokio::test]
-async fn de_all() -> Result<()> {
-    let taos = &TaosWrapper::new()?;
+
+#[taos::prelude::test]
+async fn de_seq_value2(taos: &Taos, _database: &str) -> anyhow::Result<()> {
+    log::info!("create table");
+    taos.exec_sync(
+        "create table if not exists stb1(ts timestamp,
+            i8 tinyint, i16 smallint, i32 int, i64 bigint,
+            u8 tinyint unsigned, u16 smallint unsigned, u32 int unsigned, u64 bigint unsigned,
+            raw_ts timestamp, c_str binary(100), str nchar(100)) tags (groupid int, location nchar(16))",
+    )?;
+    log::info!("insert data");
+    taos.exec_sync(concat!(
+        r#"insert into tb1 using stb1 tags(1, 'beijing') "#,
+        r#"values (now,1,2,3,4,5,6,7,8, now, "abc", "世界")"#
+    ))?;
+    taos.exec_sync(concat!(
+        r#"insert into tb2 using stb1 tags(2, 'shanghai') "#,
+        r#"values (now,1,2,3,4,5,6,7,8, now, "abc", "世界")"#
+    ))?;
+
+    log::info!("select");
+    let res = taos
+        .query("select tbname,groupid,location from stb1")
+        .await?;
+    use futures::StreamExt;
+
+    // block.rows_iter()
+    // let mut stream = res.rows_de_stream();
+    use futures::future;
+    res.rows_de_stream::<Vec<Value>>()
+        .enumerate()
+        .for_each(|(_, v)| {
+            let value = v.unwrap();
+            log::debug!("{:?}", value);
+            future::ready(())
+        })
+        .await;
+    Ok(())
+}
+
+#[taos::prelude::test]
+async fn de_all(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -207,12 +170,11 @@ async fn de_all() -> Result<()> {
     // block.rows_iter()
     let record: Record = res.rows_de_stream().next().await.unwrap()?;
     log::debug!("fetched record {:?}", record);
-    taos.clean()?;
     Ok(())
 }
-#[tokio::test]
-async fn de_all_option() -> Result<()> {
-    let taos = &TaosWrapper::new()?;
+
+#[taos::prelude::test]
+async fn de_all_option(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -234,12 +196,11 @@ async fn de_all_option() -> Result<()> {
     // block.rows_iter()
     let record: Vec<RecordOption> = res.rows_de_stream().try_collect().await?;
     log::debug!("fetched record {:?}", record);
-    taos.clean()?;
     Ok(())
 }
-#[tokio::test]
-async fn de_all_option_with_json_tag_struct() -> Result<()> {
-    let taos = &TaosWrapper::new()?;
+
+#[taos::prelude::test]
+async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -261,13 +222,11 @@ async fn de_all_option_with_json_tag_struct() -> Result<()> {
     // block.rows_iter()
     let record: Vec<RecordOptionWithJsonTag> = res.rows_de_stream().try_collect().await?;
     log::debug!("fetched record {:?}", record);
-    taos.clean()?;
     Ok(())
 }
 
-#[tokio::test]
-async fn de_string() -> Result<()> {
-    let taos = &TaosWrapper::new()?;
+#[taos::prelude::test]
+async fn de_string(taos: &Taos) -> anyhow::Result<()> {
     let res = taos.query("select server_version() as version").await?;
     use futures::StreamExt;
 
@@ -276,9 +235,8 @@ async fn de_string() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn de_wrapper_struct() -> Result<()> {
-    let taos = TaosOptions::new().build()?;
+#[taos::prelude::test]
+async fn de_wrapper_struct(taos: &Taos) -> anyhow::Result<()> {
     let res = taos.query("select server_version() as version").await?;
     use futures::StreamExt;
 
@@ -289,10 +247,8 @@ async fn de_wrapper_struct() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn de_named_struct() -> Result<()> {
-    let taos = TaosOptions::new().build()?;
-
+#[taos::prelude::test]
+async fn de_named_struct(taos: &Taos) -> anyhow::Result<()> {
     macro_rules! de {
         ($taos:expr, $sql:expr) => {
             $taos
@@ -327,18 +283,23 @@ async fn de_named_struct() -> Result<()> {
     let _version: WrapperOptionVersion = dbg!(de!(taos, "select server_version() as version"));
     Ok(())
 }
-#[tokio::test]
-async fn de_vec() -> Result<()> {
-    let taos = TaosOptions::new().build()?;
+
+#[taos::prelude::test]
+async fn de_vec(taos: &Taos) -> anyhow::Result<()> {
+    // let taos = TaosOptions::new().build()?;
+    // std::env::set_var("RUST_LOG", "trace");
+    // pretty_env_logger::init();
 
     #[derive(::serde::Deserialize, Debug)]
     struct Database {
         name: String,
         created_time: NaiveDateTime,
         ntables: u64,
-        precision: Precision,
+        #[serde(flatten)]
+        props: helpers::DatabaseProperties,
+        status: String,
     }
-    let db: Vec<Database> = taos
+    let db: Vec<ShowDatabase> = taos
         .query(format!("show databases"))
         .await?
         .rows_de_stream()

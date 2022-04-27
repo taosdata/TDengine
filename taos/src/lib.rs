@@ -1,5 +1,5 @@
 use futures::TryStreamExt;
-use std::{future::Future, sync::Once};
+use std::{ffi::c_void, future::Future, os::raw::c_int, sync::Once};
 
 pub use taos_error::*;
 use taos_sys::*;
@@ -11,8 +11,11 @@ macro_rules! custom_error {
 }
 
 macro_rules! err {
-    (custom, $err:expr) => {
+    (custom $err:expr) => {
         <::taos_error::Error as ::serde::de::Error>::custom($err)
+    };
+    ('str $err:expr) => {
+        crate::Error::from_string($err)
     };
     ($err:expr) => {
         todo!()
@@ -35,6 +38,7 @@ pub mod future;
 pub mod async_query;
 
 pub mod helpers;
+
 use helpers::*;
 
 pub mod stream;
@@ -43,20 +47,17 @@ mod result;
 
 pub mod tmq;
 
+mod schemaless;
+
+mod impls;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub struct Taos(*mut TAOS);
+#[derive(Debug)]
+pub struct Taos(RawTaos);
 
 unsafe impl Send for Taos {}
 unsafe impl Sync for Taos {}
-
-impl Drop for Taos {
-    fn drop(&mut self) {
-        unsafe {
-            taos_close(self.0);
-        }
-    }
-}
 
 impl Taos {
     pub fn new<'a>(
@@ -66,25 +67,15 @@ impl Taos {
         db: impl Into<NullableCStr<'a>>,
         port: u16,
     ) -> Result<Self> {
-        unsafe {
-            taos_connect(
-                host.into().as_ptr(),
-                user.into().as_ptr(),
-                pass.into().as_ptr(),
-                db.into().as_ptr(),
-                port,
-            )
-            .as_mut()
-        }
-        .map(|ptr| Taos(ptr as _))
+        RawTaos::connect(
+            host.into().as_ptr(),
+            user.into().as_ptr(),
+            pass.into().as_ptr(),
+            db.into().as_ptr(),
+            port,
+        )
+        .map(Self)
         .ok_or_else(|| Error::from_string("invalid connection"))
-    }
-
-    pub fn query_with_callback<F>(&mut self, _callback: F)
-    where
-        F: FnOnce(Result<TaosResult>),
-    {
-        unimplemented!()
     }
 
     /// Asynchronously query with sql
@@ -116,24 +107,115 @@ impl Taos {
         &'query self,
         sql: impl IntoCStr<'query>,
     ) -> Result<TaosResult<'query>> {
-        TaosResult::try_from_ptr(unsafe { taos_query(self.0, sql.into_c_str().as_ptr()) })
+        futures::executor::block_on(self.query2(sql))
+    }
+    pub fn query_sync3<'query>(
+        &'query self,
+        sql: impl IntoCStr<'query>,
+    ) -> Result<TaosResult<'query>> {
+        futures::executor::block_on(self.query3(sql))
+    }
+    pub async fn query2<'a, 'q>(&'q self, sql: impl IntoCStr<'a>) -> Result<TaosResult<'q>> {
+        // use tokio::sync::oneshot;
+        use oneshot::channel;
+        use oneshot::Sender;
+        // use std::sync::mpsc::channel;
+        // use std::sync::mpsc::Sender;
+        let (sender, rx) = channel();
+
+        pub unsafe extern "C" fn async_query_callback(
+            param: *mut c_void,
+            res: *mut c_void,
+            code: c_int,
+        ) {
+            assert!(code == 0);
+            // let _ = RawRes::from_ptr(res);
+            let v = TaosResult::try_from_ptr(res);
+            // let param = param as *mut CallbackArg;
+            // let args = Box::from_raw(param);
+            // let CallbackArg { sender } = *args;
+            // sender.send(v).unwrap();
+            let sender = param as *mut Sender<_>;
+            let sender = Box::from_raw(sender);
+
+            sender.send(v).unwrap();
+        }
+        // let args = CallbackArg { sender };
+        // let args = Box::new(args);
+        // let ptr = Box::pin(tx);
+        self.0.query_a(
+            sql.into_c_str().as_ptr(),
+            async_query_callback as _,
+            Box::into_raw(Box::new(sender)) as *mut _,
+        );
+        rx.await.unwrap()
+        // rx.await.map_err(|e| Error::from_string(format!("{}", e)))
+    }
+    pub async fn query3<'a, 'q>(&'q self, sql: impl IntoCStr<'a>) -> Result<TaosResult<'q>> {
+        // use tokio::sync::oneshot;
+        use tokio::sync::oneshot::channel;
+        use tokio::sync::oneshot::Sender;
+        // use std::sync::mpsc::channel;
+        // use std::sync::mpsc::Sender;
+        let (sender, rx) = channel();
+
+        pub unsafe extern "C" fn async_query_callback(
+            param: *mut c_void,
+            res: *mut c_void,
+            code: c_int,
+        ) {
+            assert!(code == 0);
+            // let _ = RawRes::from_ptr(res);
+            let v = TaosResult::try_from_ptr(res);
+            // let param = param as *mut CallbackArg;
+            // let args = Box::from_raw(param);
+            // let CallbackArg { sender } = *args;
+            // sender.send(v).unwrap();
+            let sender = param as *mut Sender<_>;
+            let sender = Box::from_raw(sender);
+
+            sender.send(v).unwrap();
+        }
+        // let args = CallbackArg { sender };
+        // let args = Box::new(args);
+        // let ptr = Box::pin(tx);
+        self.0.query_a(
+            sql.into_c_str().as_ptr(),
+            async_query_callback as _,
+            Box::into_raw(Box::new(sender)) as *mut _,
+        );
+        rx.await.unwrap()
+        // rx.await.map_err(|e| Error::from_string(format!("{}", e)))
     }
 
-    pub(crate) fn as_raw(&self) -> *mut taos_sys::TAOS {
+    pub fn query_sync0<'query>(
+        &'query self,
+        sql: impl IntoCStr<'query>,
+    ) -> Result<TaosResult<'query>> {
         self.0
+            .query(sql.into_c_str().as_ptr())
+            .map(TaosResult::from_raw)
+    }
+
+    pub(crate) fn as_raw(&self) -> *mut taos_sys::ffi::TAOS {
+        self.0.as_ptr()
     }
 
     pub async fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>> {
+        use futures::stream::StreamExt;
         self.query(format!("describe {table}"))
             .await?
-            .rows_de_stream()
+            .rows_de_stream::<ColumnMeta>()
+            .map(|res| res.map_err(<Error as serde::de::Error>::custom))
             .try_collect()
             .await
     }
-    pub async fn databases(&self) -> Result<Vec<Database>> {
+    pub async fn databases(&self) -> Result<Vec<ShowDatabase>> {
+        use futures::stream::StreamExt;
         self.query(format!("show databases"))
             .await?
             .rows_de_stream()
+            .map(|res| res.map_err(<Error as serde::de::Error>::custom))
             .try_collect()
             .await
     }
@@ -143,77 +225,6 @@ impl Taos {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[tokio::test]
-    async fn test_describe() -> Result<()> {
-        let taos = TaosOptions::new().build()?;
-        let desc = taos.describe("test.meters").await?;
-        dbg!(desc);
-        Ok(())
-    }
-    #[tokio::test]
-    async fn databases() -> Result<()> {
-        simple_logger::init().unwrap();
-        let taos = TaosOptions::new().build()?;
-        let desc = taos.databases().await?;
-        println!("done");
-        dbg!(desc);
-        Ok(())
-    }
-}
-
-#[test]
-#[should_panic]
-fn async_query_callback_test() {
-    let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-    let callback = |res: Result<TaosResult>| {
-        let res = res.unwrap();
-        println!("ptr: {:p}", res.as_raw());
-        let rows = res.affected_rows();
-        println!("rows: {rows}");
-    };
-    taos.query_with_callback(callback);
-    println!("wait for 10 seconds");
-    std::thread::sleep(std::time::Duration::from_secs(10));
-    println!("wait finished");
-    println!("done");
-}
-
-#[test]
-fn query_async_await_future_test() {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
-            let res = taos
-                .query("select * from log.logs limit 10000")
-                .await
-                .unwrap();
-            let stream = res.fetch_block_stream();
-
-            use futures::stream::StreamExt;
-            let lengths = stream
-                .enumerate()
-                .map(|(bi, partial)| {
-                    partial
-                        .rows_iter()
-                        .enumerate()
-                        .map(|(ri, values)| {
-                            println!("block {bi}, row {ri}: {values:?}");
-                            return 1;
-                        })
-                        .sum::<usize>()
-                })
-                .fold(0, |acc, n| futures::future::ready(acc + n))
-                .await;
-            println!("lengths is {lengths}");
-        });
-}
 pub use result::*;
 
 pub mod block;
@@ -223,36 +234,97 @@ pub fn client_info() -> &'static str {
     static ONCE: Once = Once::new();
     static mut VERSION: &str = "";
     ONCE.call_once(|| unsafe {
-        VERSION = std::ffi::CStr::from_ptr(taos_get_client_info())
+        VERSION = RawTaos::version()
             .to_str()
             .expect("get client info should always be ok");
     });
     unsafe { VERSION }
 }
-
-#[test]
-fn test_client_info() {
-    let version = client_info();
-    dbg!(format!("{version}"));
-}
-
-#[test]
-fn test_err() {
-    fn err_with_res() -> Result<()> {
-        let taos = Taos::new(
-            "localhost",
-            std::ptr::null() as *const i8,
-            "taosdata",
-            std::ptr::null() as *const i8,
-            0,
-        )?;
-        taos.query_sync("select * from log.logs")?;
-        Ok(())
-    }
-    err_with_res().unwrap();
-}
-
 pub mod stmt;
 
 #[cfg(feature = "r2d2")]
 pub mod r2d2;
+#[cfg(feature = "r2d2")]
+pub use crate::r2d2::TaosPool;
+
+pub mod prelude {
+    #[cfg(feature = "test")]
+    pub use taos_macros::test;
+}
+
+pub mod query;
+
+pub use taos_query::BlockExt;
+#[cfg(test)]
+mod tests {
+    use super::{client_info, Result, Taos, TaosOptions};
+    use taos_macros::test;
+    use taos_query::BlockExt;
+    #[test]
+    async fn test_describe(taos: &Taos) -> Result<()> {
+        let desc = taos.describe("log.logs").await?;
+        dbg!(desc);
+        Ok(())
+    }
+    #[tokio::test]
+    async fn test_databases() -> Result<()> {
+        let taos = TaosOptions::new().build()?;
+        let desc = taos.databases().await?;
+        println!("done");
+        dbg!(desc);
+        Ok(())
+    }
+    #[test(crate)]
+    fn test_client_info() {
+        let version = client_info();
+        dbg!(format!("{version}"));
+    }
+
+    #[test(crate)]
+    fn test_err() {
+        fn err_with_res() -> Result<()> {
+            let taos = Taos::new(
+                "localhost",
+                std::ptr::null() as *const i8,
+                "taosdata",
+                std::ptr::null() as *const i8,
+                0,
+            )?;
+            taos.query_sync("select * from log.logs")?;
+            Ok(())
+        }
+        err_with_res().unwrap();
+    }
+    #[test(crate)]
+    fn query_async_await_future_test() {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
+                let res = taos
+                    .query("select * from log.logs limit 10000")
+                    .await
+                    .unwrap();
+                let stream = res.fetch_block_stream();
+
+                use futures::stream::StreamExt;
+                let lengths = stream
+                    .enumerate()
+                    .map(|(bi, partial)| {
+                        partial
+                            .iter_rows()
+                            .enumerate()
+                            .map(|(ri, values)| {
+                                println!("block {bi}, row {ri}: {values:?}");
+                                return 1;
+                            })
+                            .sum::<usize>()
+                    })
+                    .fold(0, |acc, n| futures::future::ready(acc + n))
+                    .await;
+                println!("lengths is {lengths}");
+            });
+    }
+}

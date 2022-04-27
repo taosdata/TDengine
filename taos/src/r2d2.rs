@@ -1,5 +1,6 @@
-use super::{Result, Taos, Error, TaosOptions};
+use super::{Error, Result, Taos, TaosOptions};
 
+/// Connection pool with r2d2.
 pub type TaosPool = r2d2::Pool<TaosOptions>;
 
 impl r2d2::ManageConnection for TaosOptions {
