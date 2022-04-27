@@ -220,7 +220,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     // The first row of a new block does not belongs to the previous existed group
-    if (!equal && j == 0) {
+    if (j == 0) {
       num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
       continue;

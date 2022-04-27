@@ -1031,18 +1031,29 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
+    out.columnData->info.bytes = tDataTypes[type].bytes;
     
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
-      code = doConvertDataType(valueNode, &out);
-      if (code) {
-//        fltError("convert from %d to %d failed", in.type, out.type);
-        FLT_ERR_RET(code);
-      }
-      
-      len = tDataTypes[type].bytes;
+      if (valueNode->node.resType.type != type) {
+        code = doConvertDataType(valueNode, &out);
+        if (code) {
+  //        fltError("convert from %d to %d failed", in.type, out.type);
+          FLT_ERR_RET(code);
+        }
+        
+        len = tDataTypes[type].bytes;
 
-      filterAddField(info, NULL, (void**) &out.columnData->pData, FLD_TYPE_VALUE, &right, len, true);
+        filterAddField(info, NULL, (void**) &out.columnData->pData, FLD_TYPE_VALUE, &right, len, true);
+        out.columnData->pData = NULL;
+      } else {
+        void *data = taosMemoryCalloc(1, tDataTypes[type].bytes);
+        if (NULL == data) {
+          FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+        }
+        memcpy(data, nodesGetValueFromNode(valueNode), tDataTypes[type].bytes);
+        filterAddField(info, NULL, (void**) &data, FLD_TYPE_VALUE, &right, len, true);        
+      }
       filterAddUnit(info, OP_TYPE_EQUAL, &left, &right, &uidx);
       
       SFilterGroup fgroup = {0};
@@ -3576,6 +3587,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
+    if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL) {
+      stat->scalarMode = true;
+      return DEAL_RES_CONTINUE;
+    }
+
     if (NULL == node->pRight) {
       if (scalarGetOperatorParamNum(node->opType) > 1) {
         fltError("invalid operator, pRight:%p, nodeType:%d, opType:%d", node->pRight, nodeType(node), node->opType);
@@ -3599,7 +3615,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
 
-      if ((QUERY_NODE_COLUMN != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
+      if ((QUERY_NODE_COLUMN != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight)) && (QUERY_NODE_NODE_LIST != nodeType(node->pRight))) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }      
@@ -3774,11 +3790,12 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
     output.columnData = createColumnInfoData(&type, pSrc->info.rows);
 
-    *p = (int8_t *)output.columnData->pData;
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
+    *p = (int8_t *)output.columnData->pData;
+
     taosArrayDestroy(pList);
     return false;
   }

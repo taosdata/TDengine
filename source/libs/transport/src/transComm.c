@@ -93,11 +93,6 @@ bool transDecompressMsg(char* msg, int32_t len, int32_t* flen) {
   return false;
 }
 
-void transConnCtxDestroy(STransConnCtx* ctx) {
-  taosMemoryFree(ctx->ip);
-  taosMemoryFree(ctx);
-}
-
 void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
@@ -363,10 +358,4 @@ void transQueueDestroy(STransQueue* queue) {
   transQueueClear(queue);
   taosArrayDestroy(queue->q);
 }
-// int32_t transGetExHandle() {
-//  static
-//}
-// void transThreadOnce() {
-// taosThreadOnce(&transModuleInit, );
-//}
 #endif

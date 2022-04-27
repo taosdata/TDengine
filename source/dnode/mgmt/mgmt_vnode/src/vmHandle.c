@@ -107,14 +107,13 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->vgId = pCreate->vgId;
   strcpy(pCfg->dbname, pCreate->db);
-  pCfg->wsize = pCreate->cacheBlockSize * 1024 * 1024;
-  pCfg->ssize = 1024;
-  pCfg->lsize = 1024 * 1024;
+  pCfg->szBuf = pCreate->cacheBlockSize * 1024 * 1024;
   pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
-  pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
-  pCfg->tsdbCfg.keep0 = pCreate->daysToKeep2;
-  pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
+  pCfg->tsdbCfg.days = 10;
+  pCfg->tsdbCfg.keep2 = 3650;  // pCreate->daysToKeep0;
+  pCfg->tsdbCfg.keep0 = 3650;  // pCreate->daysToKeep2;
+  pCfg->tsdbCfg.keep1 = 3650;  // pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
   pCfg->walCfg.vgId = pCreate->vgId;
@@ -211,7 +210,6 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     terrno = code;
     return code;
   }
-
 
   code = vmWriteVnodesToFile(pMgmt);
   if (code != 0) {

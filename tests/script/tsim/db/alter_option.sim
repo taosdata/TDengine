@@ -126,6 +126,49 @@ if $data16_db != ns then  # precision
   return -1
 endi
 
+sleep 3000
+sql show db.vgroups
+if $data[0][4] == LEADER then
+  if $data[0][6] != FOLLOWER then
+    return -1
+  endi
+  if $data[0][8] != FOLLOWER then
+    return -1
+  endi
+endi
+if $data[0][6] == LEADER then
+  if $data[0][4] != FOLLOWER then
+    return -1
+  endi
+  if $data[0][8] != FOLLOWER then
+    return -1
+  endi
+endi
+if $data[0][8] == LEADER then
+  if $data[0][4] != FOLLOWER then
+    return -1
+  endi
+  if $data[0][6] != FOLLOWER then
+    return -1
+  endi
+endi
+
+if $data[0][4] != LEADER then
+  if $data[0][4] != FOLLOWER then
+    return -1
+  endi
+endi
+if $data[0][6] != LEADER then
+  if $data[0][6] != FOLLOWER then
+    return -1
+  endi
+endi
+if $data[0][8] != LEADER then
+  if $data[0][8] != FOLLOWER then
+    return -1
+  endi
+endi
+
 print ============== not support modify options: name, create_time, vgroups, ntables
 sql_error alter database db name dba
 sql_error alter database db create_time "2022-03-03 15:08:13.329"

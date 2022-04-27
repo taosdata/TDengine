@@ -16,6 +16,10 @@
 #ifndef _TD_VND_H_
 #define _TD_VND_H_
 
+#include "sync.h"
+#include "syncTools.h"
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,11 +35,36 @@ extern "C" {
 // clang-format on
 
 // vnodeCfg ====================
+extern const SVnodeCfg vnodeCfgDefault;
+
+int vnodeCheckCfg(const SVnodeCfg*);
 int vnodeEncodeConfig(const void* pObj, SJson* pJson);
 int vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
 // vnodeModule ====================
 int vnodeScheduleTask(int (*execute)(void*), void* arg);
+
+// vnodeBufPool ====================
+typedef struct SVBufPoolNode SVBufPoolNode;
+struct SVBufPoolNode {
+  SVBufPoolNode*  prev;
+  SVBufPoolNode** pnext;
+  int64_t         size;
+  uint8_t         data[];
+};
+
+struct SVBufPool {
+  SVBufPool*     next;
+  int64_t        nRef;
+  int64_t        size;
+  uint8_t*       ptr;
+  SVBufPoolNode* pTail;
+  SVBufPoolNode  node;
+};
+
+int  vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int  vnodeCloseBufPool(SVnode* pVnode);
+void vnodeBufPoolReset(SVBufPool* pPool);
 
 // vnodeQuery ====================
 int  vnodeQueryOpen(SVnode* pVnode);
@@ -43,57 +72,28 @@ void vnodeQueryClose(SVnode* pVnode);
 int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit ====================
+int vnodeBegin(SVnode* pVnode);
+int vnodeShouldCommit(SVnode* pVnode);
+int vnodeCommit(SVnode* pVnode);
 int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
-int vnodeBegin(SVnode* pVnode, int option);
 int vnodeSyncCommit(SVnode* pVnode);
 int vnodeAsyncCommit(SVnode* pVnode);
 
-#define vnodeShouldCommit vnodeBufPoolIsFull
-
-#if 1
-// SVBufPool
-int   vnodeOpenBufPool(SVnode* pVnode);
-void  vnodeCloseBufPool(SVnode* pVnode);
-int   vnodeBufPoolSwitch(SVnode* pVnode);
-int   vnodeBufPoolRecycle(SVnode* pVnode);
-void* vnodeMalloc(SVnode* pVnode, uint64_t size);
-bool  vnodeBufPoolIsFull(SVnode* pVnode);
-
-SMemAllocatorFactory* vBufPoolGetMAF(SVnode* pVnode);
-
-// SVMemAllocator
-typedef struct SVArenaNode {
-  TD_SLIST_NODE(SVArenaNode);
-  uint64_t size;  // current node size
-  void*    ptr;
-  char     data[];
-} SVArenaNode;
-
-typedef struct SVMemAllocator {
-  T_REF_DECLARE()
-  TD_DLIST_NODE(SVMemAllocator);
-  uint64_t     capacity;
-  uint64_t     ssize;
-  uint64_t     lsize;
-  SVArenaNode* pNode;
-  TD_SLIST(SVArenaNode) nlist;
-} SVMemAllocator;
-
-SVMemAllocator* vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);
-void            vmaDestroy(SVMemAllocator* pVMA);
-void            vmaReset(SVMemAllocator* pVMA);
-void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
-void            vmaFree(SVMemAllocator* pVMA, void* ptr);
-bool            vmaIsFull(SVMemAllocator* pVMA);
-
-// vnodeCfg.h
-extern const SVnodeCfg vnodeCfgDefault;
-
-int vnodeCheckCfg(const SVnodeCfg*);
-
-#endif
+// vnodeCommit ====================
+int32_t   vnodeSyncOpen(SVnode* pVnode, char* path);
+int32_t   vnodeSyncStart(SVnode* pVnode);
+void      vnodeSyncClose(SVnode* pVnode);
+void      vnodeSyncSetQ(SVnode* pVnode, void* qHandle);
+void      vnodeSyncSetRpc(SVnode* pVnode, void* rpcHandle);
+int32_t   vnodeSyncEqMsg(void* qHandle, SRpcMsg* pMsg);
+int32_t   vnodeSendMsg(void* rpcHandle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+void      vnodeSyncCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+void      vnodeSyncPreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+void      vnodeSyncRollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+int32_t   vnodeSyncGetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+SSyncFSM* syncVnodeMakeFsm();
 
 #ifdef __cplusplus
 }

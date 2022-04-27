@@ -68,6 +68,7 @@ static void dmSetSignalHandle() {
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   int32_t cmdEnvIndex = 0;
+  if (argc < 2) return 0;
   global.envCmd = taosMemoryMalloc(argc-1);
   memset(global.envCmd, 0, argc-1);
   for (int32_t i = 1; i < argc; ++i) {
