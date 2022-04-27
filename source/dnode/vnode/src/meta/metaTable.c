@@ -88,7 +88,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
 
   // preprocess req
   pReq->uid = tGenIdPI64();
-  pReq->ctime = taosGetTimestampSec();
+  pReq->ctime = taosGetTimestampMs();
 
   // validate req
   metaReaderInit(&mr, pMeta->pVnode, 0);

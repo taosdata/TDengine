@@ -6497,7 +6497,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SArray* colList = extractScanColumnId(pScanNode->pScanCols);
 
       SOperatorInfo* pOperator = createSysTableScanOperatorInfo(
-          pHandle->meta, pResBlock, &pScanNode->tableName, pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet,
+          pHandle, pResBlock, &pScanNode->tableName, pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet,
           colList, pTaskInfo, pSysScanPhyNode->showRewrite, pSysScanPhyNode->accountId);
       return pOperator;
     } else {

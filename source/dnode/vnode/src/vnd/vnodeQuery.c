@@ -136,3 +136,13 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfBatchInsertSuccessReqs = 4;
   return 0;
 }
+
+void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
+  if (dbname) {
+    *dbname = pVnode->config.dbname;
+  }
+
+  if (vgId) {
+    *vgId = TD_VID(pVnode);
+  }
+}
