@@ -142,6 +142,7 @@ static const SInfosTableSchema userTblsSchema[] = {
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "table_comment", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "type", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableSchema userTblDistSchema[] = {

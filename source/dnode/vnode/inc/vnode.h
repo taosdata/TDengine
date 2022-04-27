@@ -68,6 +68,7 @@ void    vnodeStop(SVnode *pVnode);
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
+void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
