@@ -5,6 +5,9 @@ sidebar_label: Node.js
 title: Node.js Connector
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 import Preparition from "./_preparition.mdx"
 import NodeInsert from "../../04-develop/03-insert-data/_js_sql.mdx"
 import NodeInfluxLine from "../../04-develop/03-insert-data/_js_line.mdx"
@@ -129,7 +132,6 @@ node nodejsChecker.js host=localhost
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
-### 原生连接
 
 安装并引用 `td2.0-connector` 包。
 
@@ -145,7 +147,6 @@ conn.close();
 
 </TabItem>
 <TabItem value="rest" label="REST 连接">
-### REST 连接
 
 安装并引用 `td2.0-rest-connector` 包。
 

@@ -5,6 +5,9 @@ sidebar_label: Rust
 title: Rust Connector
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 import Preparition from "./_preparition.mdx"
 import RustInsert from "../../04-develop/03-insert-data/_rust_sql.mdx"
 import RustInfluxLine from "../../04-develop/03-insert-data/_rust_line.mdx"
@@ -45,7 +48,6 @@ Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容�
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
-### 原生连接
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]：
 
@@ -57,7 +59,6 @@ libtaos = "*"
 
 </TabItem>
 <TabItem value="rest" label="REST 连接">
-### REST 连接
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]，并启用 `rest` 特性。
 
