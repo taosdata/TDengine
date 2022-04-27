@@ -254,6 +254,17 @@ enum {
   OP_EXEC_DONE = 0x9,
 };
 
+typedef struct SOperatorFpSet {
+  __optr_open_fn_t        _openFn;          // DO NOT invoke this function directly
+  __optr_fn_t             getNextFn;
+  __optr_fn_t             getStreamResFn;  // execute the aggregate in the stream model, todo remove it
+  __optr_fn_t             cleanupFn;       // call this function to release the allocated resources ASAP
+  __optr_close_fn_t       closeFn;
+  __optr_encode_fn_t      encodeResultRow;
+  __optr_decode_fn_t      decodeResultRow;
+  __optr_get_explain_fn_t getExplainFn;
+} SOperatorFpSet;
+
 typedef struct SOperatorInfo {
   uint8_t                 operatorType;
   bool                    blockingOptr;  // block operator or not
@@ -267,15 +278,7 @@ typedef struct SOperatorInfo {
   SResultInfo             resultInfo;
   struct SOperatorInfo**  pDownstream;      // downstram pointer list
   int32_t                 numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  // todo extract struct
-  __optr_open_fn_t        _openFn;          // DO NOT invoke this function directly
-  __optr_fn_t             getNextFn;
-  __optr_fn_t             getStreamResFn;  // execute the aggregate in the stream model.
-  __optr_fn_t             cleanupFn;       // call this function to release the allocated resources ASAP
-  __optr_close_fn_t       closeFn;
-  __optr_encode_fn_t      encodeResultRow;
-  __optr_decode_fn_t      decodeResultRow;
-  __optr_get_explain_fn_t getExplainFn;
+  SOperatorFpSet          fpSet;
 } SOperatorInfo;
 
 typedef struct {
@@ -609,6 +612,10 @@ typedef struct SJoinOperatorInfo {
   SNode             *pOnCondition;
 } SJoinOperatorInfo;
 
+SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
+    __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_encode_fn_t encode,
+    __optr_decode_fn_t decode, __optr_get_explain_fn_t explain);
+
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void    operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
@@ -653,6 +660,9 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
+                                                SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
+                                                STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                             SSDataBlock* pResBlock, int64_t gap, STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
