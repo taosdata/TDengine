@@ -805,6 +805,11 @@ function updateProduct() {
   install_log
   install_header
   install_lib
+
+  if [ "$verMode" == "cluster" ]; then
+      install_connector
+  fi
+
   install_examples
   if [ -z $1 ]; then
     install_bin
@@ -885,9 +890,9 @@ function installProduct() {
   #install_avro lib
   #install_avro lib64
 
-  #  if [ "$pagMode" != "lite" ]; then
-  #    install_connector
-  #  fi
+  if [ "$verMode" == "cluster" ]; then
+      install_connector
+  fi
   install_examples
 
   if [ -z $1 ]; then # install service and client
