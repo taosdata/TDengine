@@ -213,7 +213,7 @@ enum {
 
 int32_t getUdfdPipeName(char* pipeName, int32_t size) {
   char    dnodeId[8] = {0};
-  size_t  dnodeIdSize;
+  size_t  dnodeIdSize = sizeof(dnodeId);
   int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
   if (err != 0) {
     dnodeId[0] = '1';
