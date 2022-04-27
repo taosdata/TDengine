@@ -35,18 +35,20 @@ import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
 ### 原生连接
 
-“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 集群建立连接。
+“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 集群建立连接。支持的功能特性有：
 
-* database/sql (cgo 模式)
+* 普通查询
+* 连续查询
 * 订阅
 * schemaless 接口
 * 参数绑定接口
 
 ### REST 连接
 
-REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。
+REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。支持的功能特性有：
 
-`develop` 分支使用 `http client` 实现了 `database/sql` 接口。
+* 普通查询
+* 连续查询
 
 ## 安装步骤
 
@@ -81,7 +83,7 @@ username:password@protocol(address)/dbname?param=value
 ```
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
+<TabItem value="native" label="建立原生连接">
 
 _taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
 
@@ -112,7 +114,7 @@ func main() {
 ```
 
 </TabItem>
-<TabItem value="rest" label="REST 连接">
+<TabItem value="rest" label="建立 REST 连接">
 
 _taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
 
