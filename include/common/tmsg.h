@@ -1538,6 +1538,10 @@ int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
 typedef struct SVDropStbReq {
   // data
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SVDropStbReq;
 
 typedef struct SVCreateStbRsp {
@@ -2117,7 +2121,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SCoder* pDecoder, SSchemaWrapp
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
 
-  pSW->pSchema = (SSchema*)TCODER_MALLOC(pDecoder, sizeof(SSchema) * pSW->nCols);
+  pSW->pSchema = (SSchema*)tCoderMalloc(pDecoder, sizeof(SSchema) * pSW->nCols);
   if (pSW->pSchema == NULL) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
     if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;

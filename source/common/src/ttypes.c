@@ -651,35 +651,35 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void *buf
   switch (type) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UINT: {
-      TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight), int32_t);
+      TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      TSWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight), int64_t);
+      TSWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight));
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      TSWAP(*(double *)(pLeft), *(double *)(pRight), double);
+      TSWAP(*(double *)(pLeft), *(double *)(pRight));
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_USMALLINT: {
-      TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight), int16_t);
+      TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      TSWAP(*(float *)(pLeft), *(float *)(pRight), float);
+      TSWAP(*(float *)(pLeft), *(float *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT: {
-      TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight), int8_t);
+      TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight));
       break;
     }
 

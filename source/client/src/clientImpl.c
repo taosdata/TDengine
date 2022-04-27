@@ -188,8 +188,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       setResPrecision(&pRequest->body.resInfo, (*pQuery)->precision);
     }
 
-    TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
-    TSWAP(pRequest->tableList, (*pQuery)->pTableList, SArray*);
+    TSWAP(pRequest->dbList, (*pQuery)->pDbList);
+    TSWAP(pRequest->tableList, (*pQuery)->pTableList);
   }
 
   return code;
