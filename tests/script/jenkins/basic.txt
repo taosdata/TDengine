@@ -87,6 +87,6 @@
 # ./test.sh -f tsim/sma/tsmaCreateInsertData.sim
 
 # --- valgrind
-#./test.sh -f tsim/valgrind/checkError.sim -v
+./test.sh -f tsim/valgrind/checkError.sim -v
 
 #======================b1-end===============
