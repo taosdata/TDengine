@@ -4994,13 +4994,12 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
     pProjectInfo->curOffset = 0;
   }
 
+  // check for the limitation in each group
+  if (pProjectInfo->limit.limit > 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
+    pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+  }
+
   if (pRes->info.rows >= pOperator->resultInfo.threshold) {
-
-    // check for the limitation in each group
-    if (pProjectInfo->limit.limit > 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
-      pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
-    }
-
     return PROJECT_RETRIEVE_DONE;
   } else { // not full enough, continue to accumulate the output data in the buffer.
     return PROJECT_RETRIEVE_CONTINUE;

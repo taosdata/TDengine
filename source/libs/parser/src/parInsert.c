@@ -1069,7 +1069,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && tbNum > 0) {
       return buildInvalidOperationMsg(&pCxt->msg, "single table allowed in one stmt");
-      ;
     }
 
     destroyInsertParseContextForTable(pCxt);
