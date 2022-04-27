@@ -46,11 +46,44 @@ int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKe
 
 // tsdbCommit ================
 
+// tsdbFS ================
+typedef struct STsdbFS STsdbFS;
+
+// tsdbSma ================
+typedef struct SSmaEnv  SSmaEnv;
+typedef struct SSmaEnvs SSmaEnvs;
+
+// structs
+typedef struct {
+  int   minFid;
+  int   midFid;
+  int   maxFid;
+  TSKEY minKey;
+} SRtn;
+
+struct SSmaEnvs {
+  int16_t  nTSma;
+  int16_t  nRSma;
+  SSmaEnv *pTSmaEnv;
+  SSmaEnv *pRSmaEnv;
+};
+
+struct STsdb {
+  char          *path;
+  SVnode        *pVnode;
+  bool           repoLocked;
+  TdThreadMutex  mutex;
+  STsdbCfg       config;
+  STsdbMemTable *mem;
+  STsdbMemTable *imem;
+  SRtn           rtn;
+  STsdbFS       *fs;
+  SSmaEnvs       smaEnvs;
+};
+
 #if 1  // ======================================
 
 typedef struct SSmaStat SSmaStat;
-typedef struct SSmaEnv  SSmaEnv;
-typedef struct SSmaEnvs SSmaEnvs;
 
 struct STable {
   uint64_t  tid;
@@ -97,13 +130,6 @@ typedef struct {
   uint8_t   state;
 } SDFile;
 
-struct SSmaEnvs {
-  int16_t  nTSma;
-  int16_t  nRSma;
-  SSmaEnv *pTSmaEnv;
-  SSmaEnv *pRSmaEnv;
-};
-
 typedef struct {
   int      fid;
   int8_t   state;  // -128~127
@@ -111,13 +137,6 @@ typedef struct {
   uint16_t reserve;
   SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
-
-typedef struct {
-  int   minFid;
-  int   midFid;
-  int   maxFid;
-  TSKEY minKey;
-} SRtn;
 
 struct STbData {
   tb_uid_t   uid;
@@ -155,7 +174,7 @@ typedef struct {
   SArray     *sf;    // sma data file array    v2f1900.index_name_1
 } SFSStatus;
 
-typedef struct {
+struct STsdbFS {
   TdThreadRwlock lock;
 
   SFSStatus *cstatus;        // current status
@@ -163,19 +182,6 @@ typedef struct {
   SHashObj  *metaCacheComp;  // meta cache for compact
   bool       intxn;
   SFSStatus *nstatus;  // new status
-} STsdbFS;
-
-struct STsdb {
-  char          *path;
-  SVnode        *pVnode;
-  bool           repoLocked;
-  TdThreadMutex  mutex;
-  STsdbCfg       config;
-  STsdbMemTable *mem;
-  STsdbMemTable *imem;
-  SRtn           rtn;
-  STsdbFS       *fs;
-  SSmaEnvs       smaEnvs;
 };
 
 #define REPO_ID(r)        TD_VID((r)->pVnode)
@@ -505,12 +511,6 @@ static FORCE_INLINE void *taosTZfree(void *ptr) {
 }
 
 // tsdbCommit
-
-typedef struct {
-  uint64_t uid;
-  int64_t  offset;
-  int64_t  size;
-} SKVRecord;
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 

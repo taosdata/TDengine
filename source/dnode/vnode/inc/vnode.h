@@ -76,6 +76,7 @@ typedef struct SMetaEntry  SMetaEntry;
 
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void metaReaderClear(SMetaReader *pReader);
+int  metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int  metaReadNext(SMetaReader *pReader);
 
 #if 1  // refact APIs below (TODO)
