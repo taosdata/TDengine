@@ -58,14 +58,16 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 - 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
 我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 集群进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
 
-### Linux
+<Tabs defaultValue="Linux">
+<TabItem value="Linux" label="Linux">
 
 - `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
 - `td2.0-connector` 2.0.6 支持 Node.js LTS v10.9.0 或更高版本, Node.js LTS v12.8.0 或更高版本；2.0.5 及更早版本支持 Node.js LTS v10.x 版本。其他版本可能存在包兼容性的问题
 - `make`
 - C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
 
-### Windows
+</TabItem>
+<TabItem value="Windows" label="Windows">
 
 #### 安装方法 1
 
@@ -82,8 +84,13 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 参考微软的 Node.js 用户手册[ Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
 
 如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
+</TabItem>
+</Tabs>
 
 ### 使用 npm 安装
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="安装客户端驱动连接器">
 
 - 安装客户端驱动连接器
 
@@ -91,11 +98,14 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 npm install td2.0-connector
 ```
 
-- 安装 REST 连接器
+</TabItem>
+<TabItem value="REST" label="安装 REST 连接器">
 
 ```bash
 npm i td2.0-rest-connector
 ```
+</TabItem>
+</Tabs>
 
 ### 安装验证
 
@@ -117,7 +127,9 @@ node nodejsChecker.js host=localhost
 
 ## 建立连接
 
-### 建立连接
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+### 原生连接
 
 安装并引用 `td2.0-connector` 包。
 
@@ -131,7 +143,9 @@ var cursor = conn.cursor(); // Initializing a new cursor
 conn.close();
 ```
 
-### 建立 REST 连接
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+### REST 连接
 
 安装并引用 `td2.0-rest-connector` 包。
 
@@ -147,6 +161,8 @@ let conn = connect(options);
 let cursor = conn.cursor();
 
 ```
+</TabItem>
+</Tabs>
 
 ## 使用示例
 
