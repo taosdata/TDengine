@@ -154,7 +154,22 @@ class TDTestCase:
         sql = "select last(*) from ( select sum(i1)  from st where ts>='2017-07-14 11:40:00' and ts<'2017-07-14 12:40:00'  interval(10m) order by ts desc );" # desc
         tdSql.waitedQuery(sql, 1, WAITS)
         tdSql.checkData(0, 1, 192419100)
- 
+
+        # add parent query order by
+        # first 
+        sql = "select first(*) from (select first(i1) from st interval(10m) order by ts asc) order by ts desc;"
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 1, 0)
+        sql = "select first(*) from (select first(i1) from st interval(10m) order by ts desc) order by ts asc;"
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 1, 0)
+        # last
+        sql = "select last(*) from (select first(i1) from st interval(10m) order by ts asc) order by ts desc;"
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 1, 229400)
+        sql = "select last(*) from (select first(i1) from st interval(10m) order by ts desc) order by ts asc;"
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 1, 229400)
 
 #
 # add case with filename

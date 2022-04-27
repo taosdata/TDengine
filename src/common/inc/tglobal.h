@@ -43,6 +43,8 @@ extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
 extern int64_t  tsDnodeStartTime;
 extern int8_t   tsDnodeNopLoop;
+extern int32_t  tsTcpConnTimeout;
+extern int32_t  tsSyncCheckInterval;
 
 // common
 extern int      tsRpcTimer;
@@ -64,6 +66,7 @@ extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
+extern int32_t  tsShortcutFlag;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -82,7 +85,7 @@ extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
-extern int32_t tsStreamCompStartDelay;
+extern int32_t tsFirstLaunchDelay;
 extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
@@ -139,15 +142,6 @@ extern int8_t   tsTelegrafUseFieldNum;
 extern int8_t   tsHttpDbNameMandatory;
 extern int32_t  tsHttpKeepAlive;
 
-// mqtt
-extern int8_t tsEnableMqttModule;
-extern char   tsMqttHostName[];
-extern char   tsMqttPort[];
-extern char   tsMqttUser[];
-extern char   tsMqttPass[];
-extern char   tsMqttClientId[];
-extern char   tsMqttTopic[];
-
 // monitor
 extern int8_t  tsEnableMonitorModule;
 extern int8_t  tsMonitorReplica;
@@ -192,6 +186,7 @@ extern float    tsReservedTmpDirectorySpace;
 extern float    tsMinimalDataDirGB;
 extern int32_t  tsTotalMemoryMB;
 extern uint32_t tsVersion;
+extern int32_t  tsKeepTimeOffset;
 
 // build info
 extern char version[];
@@ -212,7 +207,6 @@ extern int32_t  jniDebugFlag;
 extern int32_t  tmrDebugFlag;
 extern int32_t  sdbDebugFlag;
 extern int32_t  httpDebugFlag;
-extern int32_t  mqttDebugFlag;
 extern int32_t  monDebugFlag;
 extern int32_t  uDebugFlag;
 extern int32_t  rpcDebugFlag;

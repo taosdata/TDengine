@@ -23,6 +23,7 @@
 #include "tarray.h"
 #include "tbuffer.h"
 #include "tcompare.h"
+#include "tglobal.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "texpr.h"
@@ -33,7 +34,10 @@ static int32_t exprValidateMathNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatWsNode(tExprNode *pExpr);
 static int32_t exprValidateStringLengthNode(tExprNode *pExpr);
+static int32_t exprValidateStringLowerUpperTrimNode(char* msgBuf, tExprNode *pExpr);
+static int32_t exprValidateStringSubstrNode(char* msgBuf, tExprNode *pExpr);
 static int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr);
+static int32_t exprValidateTimeNode(char* msgbuf, tExprNode *pExpr);
 
 static int32_t exprInvalidOperationMsg(char *msgbuf, const char *msg) {
   const char* msgFormat = "invalid operation: %s";
@@ -47,7 +51,7 @@ static int32_t exprInvalidOperationMsg(char *msgbuf, const char *msg) {
 
 int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
-  //TODO: check childs for every function
+  //TODO: check children for every function
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_POW:
     case TSDB_FUNC_SCALAR_LOG:
@@ -77,6 +81,24 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_CONCAT_WS: {
       return exprValidateStringConcatWsNode(pExpr);
     }
+    case TSDB_FUNC_SCALAR_LOWER:
+    case TSDB_FUNC_SCALAR_UPPER:
+    case TSDB_FUNC_SCALAR_LTRIM:
+    case TSDB_FUNC_SCALAR_RTRIM: {
+      return exprValidateStringLowerUpperTrimNode(msgbuf, pExpr);
+    }
+    case TSDB_FUNC_SCALAR_SUBSTR: {
+      return exprValidateStringSubstrNode(msgbuf, pExpr);
+    }
+    case TSDB_FUNC_SCALAR_NOW:
+    case TSDB_FUNC_SCALAR_TODAY:
+    case TSDB_FUNC_SCALAR_TIMEZONE:
+    case TSDB_FUNC_SCALAR_TO_ISO8601:
+    case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP:
+    case TSDB_FUNC_SCALAR_TIMETRUNCATE:
+    case TSDB_FUNC_SCALAR_TIMEDIFF: {
+      return exprValidateTimeNode(msgbuf, pExpr);
+    }
 
     default:
       break;
@@ -85,16 +107,198 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
 }
 
 int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
+  int16_t leftType = pExpr->_node.pLeft->resultType;
+  int16_t rightType = pExpr->_node.pRight->resultType;
+  int16_t resultType = leftType;
+
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
-    int16_t leftType = pExpr->_node.pLeft->resultType;
-    int16_t rightType = pExpr->_node.pRight->resultType;
-    if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
+    if ((!IS_NUMERIC_TYPE(leftType) && !IS_TIMESTAMP_TYPE(leftType)) ||
+        (!IS_NUMERIC_TYPE(rightType) && !IS_TIMESTAMP_TYPE(rightType))) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
-    pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    if (IS_TIMESTAMP_TYPE(leftType) || IS_TIMESTAMP_TYPE(rightType)) {
+      if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_COL) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      //timestamp cannot be used in arithmetic
+      //operation with other data types
+      if (!IS_TIMESTAMP_TYPE(leftType) || !IS_TIMESTAMP_TYPE(rightType) ||
+          (pExpr->_node.optr != TSDB_BINARY_OP_ADD && pExpr->_node.optr != TSDB_BINARY_OP_SUBTRACT)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+    } else {
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+    if ((leftType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(leftType) && !IS_UNSIGNED_NUMERIC_TYPE(leftType)) ||
+        (rightType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(rightType) && !IS_UNSIGNED_NUMERIC_TYPE(rightType)))
+    {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    uint8_t schemaType;
+    // now leftType and rightType are both numeric
+    if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_COL) {
+      if (leftType != rightType) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    } else if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL) {
+      if (pExpr->_node.pRight->nodeType != TSQL_NODE_VALUE) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      } else {
+        schemaType = pExpr->_node.pLeft->pSchema->type;
+        int64_t sVal = pExpr->_node.pRight->pVal->i64;
+        uint64_t uVal = pExpr->_node.pRight->pVal->u64;
+
+        switch (schemaType) {
+        case TSDB_DATA_TYPE_BOOL:
+          if ((pExpr->_node.pRight->pVal->nType != TSDB_DATA_TYPE_BOOL) ||
+              (pExpr->_node.pRight->pVal->i64 != 0 &&
+               pExpr->_node.pRight->pVal->i64 != 1 &&
+               pExpr->_node.pRight->pVal->i64 != TSDB_DATA_BOOL_NULL))
+          {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          if (sVal < -128 || sVal > 127) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          if (sVal < -32768 || sVal > 32767) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_INT:
+          if (sVal < INT32_MIN || sVal > INT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          if (sVal < INT64_MIN || sVal > INT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          if (uVal > 255) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          if (uVal > 65535) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          if (uVal > UINT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          if (uVal > UINT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          break;
+        }
+
+        pExpr->_node.pRight->pSchema->type = schemaType;
+        pExpr->_node.pRight->pVal->nType = schemaType;
+
+        pExpr->_node.pRight->resultType = schemaType;
+        pExpr->_node.pRight->resultBytes = tDataTypes[schemaType].bytes;
+      }
+    } else {
+      if (pExpr->_node.pLeft->nodeType != TSQL_NODE_VALUE) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      } else {
+        schemaType = pExpr->_node.pRight->pSchema->type;
+        int64_t sVal = pExpr->_node.pLeft->pVal->i64;
+        uint64_t uVal = pExpr->_node.pLeft->pVal->u64;
+        switch (schemaType) {
+        case TSDB_DATA_TYPE_BOOL:
+          if ((pExpr->_node.pLeft->pVal->nType != TSDB_DATA_TYPE_BOOL) ||
+              (pExpr->_node.pLeft->pVal->i64 != 0 &&
+               pExpr->_node.pLeft->pVal->i64 != 1 &&
+               pExpr->_node.pLeft->pVal->i64 != TSDB_DATA_BOOL_NULL))
+          {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 1;
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          if (sVal < -128 || sVal > 127) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 1;
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          if (sVal < -32768 || sVal > 32767) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 2;
+          break;
+        case TSDB_DATA_TYPE_INT:
+          if (sVal < INT32_MIN || sVal > INT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 4;
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          if (sVal < INT64_MIN || sVal > INT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 8;
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          if (uVal > 255) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 1;
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          if (uVal > 65535) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 2;
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          if (uVal > UINT32_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 4;
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          if (uVal > UINT64_MAX) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          pExpr->_node.pLeft->pVal->nLen = 8;
+          break;
+        }
+
+        pExpr->_node.pLeft->pSchema->type = schemaType;
+        pExpr->_node.pLeft->pVal->nType = schemaType;
+
+        pExpr->_node.pLeft->resultType = schemaType;
+        pExpr->_node.pLeft->resultBytes = tDataTypes[schemaType].bytes;
+      }
+
+      resultType = schemaType;
+    }
+
+    if (resultType == TSDB_DATA_TYPE_BOOL) {
+      pExpr->resultType = TSDB_DATA_TYPE_BOOL;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    } else {
+      pExpr->resultType = resultType;
+      pExpr->resultBytes = tDataTypes[resultType].bytes;
+    }
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -108,6 +312,11 @@ int32_t exprTreeValidateTree(char* msgbuf, tExprNode *pExpr) {
   }
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
     pExpr->resultType = pExpr->pVal->nType;
+    if (pExpr->pVal->nType == TSDB_DATA_TYPE_TIMESTAMP) {
+      //convert timestamp value according to db precision
+      pExpr->pVal->i64 = convertTimePrecision(pExpr->pVal->i64, TSDB_TIME_PRECISION_NANO,
+                                              pExpr->precision);
+    }
     if (!IS_VAR_DATA_TYPE(pExpr->pVal->nType)) {
       pExpr->resultBytes = tDataTypes[pExpr->pVal->nType].bytes;
     } else {
@@ -199,7 +408,8 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       return;
     }
     case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
@@ -396,7 +606,7 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
       }
       pInputs[i].numOfRows = (int16_t)numOfRows;
     } else if (pChild->nodeType == TSQL_NODE_VALUE) {
-      pChildrenOutput[i] = malloc(pChild->resultBytes);
+      pChildrenOutput[i] = malloc((pChild->resultBytes+1)*TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
       tVariantDump(pChild->pVal, pChildrenOutput[i], pChild->resultType, true);
       pInputs[i].data = pChildrenOutput[i];
       pInputs[i].numOfRows = 1;
@@ -488,9 +698,17 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
   _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
   OperatorFn(leftIn, leftNum, leftType, rightIn, rightNum, rightType, output->data, fnOrder);
-  
+
   output->numOfRows = MAX(leftNum, rightNum);
-  output->type = TSDB_DATA_TYPE_DOUBLE;
+  if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
+    output->type = TSDB_DATA_TYPE_BIGINT;
+  } else {
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+      output->type = leftType; // rightType must be the same as leftType
+    } else {
+      output->type = TSDB_DATA_TYPE_DOUBLE;
+    }
+  }
   output->bytes = tDataTypes[output->type].bytes;
 
   tfree(ltmp);
@@ -909,7 +1127,7 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -981,7 +1199,7 @@ int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        char* payload = malloc((child->pVal->nLen+1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         tVariantDump(child->pVal, payload, resultType, true);
         int16_t resultBytes = varDataTLen(payload);
         free(payload);
@@ -1042,6 +1260,58 @@ int32_t exprValidateStringLengthNode(tExprNode *pExpr) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t exprValidateStringLowerUpperTrimNode(char* msgBuf, tExprNode *pExpr) {
+  if (pExpr->_func.numChildren != 1) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  tExprNode* child1 = pExpr->_func.pChildren[0];
+
+  if (child1->nodeType == TSQL_NODE_VALUE) {
+    child1->resultType = (int16_t)child1->pVal->nType;
+    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+  }
+
+  if (!IS_VAR_DATA_TYPE(child1->resultType)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  pExpr->resultType = child1->resultType;
+  pExpr->resultBytes = child1->resultBytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exprValidateStringSubstrNode(char* msgBuf, tExprNode *pExpr) {
+  if ((pExpr->_func.numChildren != 2) && (pExpr->_func.numChildren != 3)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  tExprNode* child1 = pExpr->_func.pChildren[0];
+
+  if (child1->nodeType == TSQL_NODE_VALUE) {
+    child1->resultType = (int16_t)child1->pVal->nType;
+    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+  }
+
+  if (!IS_VAR_DATA_TYPE(child1->resultType)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  tExprNode* pos = pExpr->_func.pChildren[1];
+  tExprNode* length = (pExpr->_func.numChildren == 3) ? pExpr->_func.pChildren[2] : NULL;
+
+  if (!IS_NUMERIC_TYPE(pos->resultType) ||
+      (length != NULL && !IS_NUMERIC_TYPE(length->resultType))) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  pExpr->resultType = child1->resultType;
+  pExpr->resultBytes = child1->resultBytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr) {
   const char* msg1 = "invalid param num for cast function";
   const char* msg2 = "the second param should be a valid type name for cast function";
@@ -1083,8 +1353,7 @@ int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr) {
 
 int32_t exprValidateMathNode(tExprNode *pExpr) {
   switch (pExpr->_func.functionId) {
-    case TSDB_FUNC_SCALAR_POW:
-    case TSDB_FUNC_SCALAR_LOG: {
+    case TSDB_FUNC_SCALAR_POW: {
       if (pExpr->_func.numChildren != 2) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -1092,6 +1361,27 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
       tExprNode *child2 = pExpr->_func.pChildren[1];
       if (!IS_NUMERIC_TYPE(child1->resultType) || !IS_NUMERIC_TYPE(child2->resultType)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case TSDB_FUNC_SCALAR_LOG: {
+      if (pExpr->_func.numChildren != 1 && pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (pExpr->_func.numChildren == 2) {
+        tExprNode *child2 = pExpr->_func.pChildren[1];
+        if (!IS_NUMERIC_TYPE(child2->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
 
       pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
@@ -1147,6 +1437,348 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
       }
       pExpr->resultType = child->resultType;
       pExpr->resultBytes = child->resultBytes;
+      break;
+    }
+    default: {
+      assert(false);
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
+  const char* msg1 = "invalid timestamp digits";
+  const char* msg2 = "param must be positive integer";
+
+  switch (pExpr->_func.functionId) {
+    case TSDB_FUNC_SCALAR_NOW:
+    case TSDB_FUNC_SCALAR_TODAY: {
+      if (pExpr->_func.numChildren != 0 || pExpr->_func.pChildren != NULL) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->_func.numChildren = 1;
+      pExpr->_func.pChildren = (tExprNode**)tcalloc(1, sizeof(tExprNode*));
+      if (!pExpr->_func.pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+
+      pExpr->_func.pChildren[0] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child = pExpr->_func.pChildren[0];
+      if (!child) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->nodeType    = TSQL_NODE_VALUE;
+      child->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
+      child->resultBytes = (int16_t)tDataTypes[child->resultType].bytes;
+
+      child->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->pVal->nType = TSDB_DATA_TYPE_TIMESTAMP;
+      int64_t timeVal;
+      if (pExpr->_func.functionId == TSDB_FUNC_SCALAR_NOW) {
+        switch(pExpr->precision) {
+          case TSDB_TIME_PRECISION_MILLI: {
+            timeVal = taosGetTimestampMs();
+            break;
+          }
+          case TSDB_TIME_PRECISION_MICRO: {
+            timeVal = taosGetTimestampUs();
+            break;
+          }
+          case TSDB_TIME_PRECISION_NANO: {
+            timeVal = taosGetTimestampNs();
+            break;
+          }
+          default: {
+            assert(false);
+            break;
+          }
+        }
+        child->pVal->i64 = timeVal;
+      } else {
+        timeVal = taosGetTimestampToday() * 1000;
+        child->pVal->i64 = convertTimePrecision(timeVal, TSDB_TIME_PRECISION_MILLI, pExpr->precision);
+      }
+      pExpr->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
+      break;
+    }
+    case TSDB_FUNC_SCALAR_TIMEZONE: {
+      if (pExpr->_func.numChildren != 0 || pExpr->_func.pChildren != NULL) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->_func.numChildren = 1;
+      pExpr->_func.pChildren = (tExprNode**)tcalloc(1, sizeof(tExprNode*));
+      if (!pExpr->_func.pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+
+      pExpr->_func.pChildren[0] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child = pExpr->_func.pChildren[0];
+      if (!child) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->nodeType    = TSQL_NODE_VALUE;
+      child->resultType  = TSDB_DATA_TYPE_BINARY;
+      child->resultBytes = TSDB_TIMEZONE_LEN;
+
+      child->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->pVal->nType = TSDB_DATA_TYPE_BINARY;
+      child->pVal->nLen  = TSDB_TIMEZONE_LEN;
+      child->pVal->pz    = tcalloc(TSDB_TIMEZONE_LEN, sizeof(char));
+      if (!child->pVal->pz) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      memcpy(child->pVal->pz, tsTimezone, TSDB_TIMEZONE_LEN);
+      pExpr->resultType  = TSDB_DATA_TYPE_BINARY;
+      pExpr->resultBytes = TSDB_TIMEZONE_LEN;
+      break;
+    }
+    case TSDB_FUNC_SCALAR_TO_ISO8601: {
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child = pExpr->_func.pChildren[0];
+      if (child->resultType != TSDB_DATA_TYPE_BIGINT &&
+          child->resultType != TSDB_DATA_TYPE_TIMESTAMP) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      if (child->nodeType == TSQL_NODE_VALUE) {
+        if (child->pVal->i64 < 0) {
+          return exprInvalidOperationMsg(msgbuf, msg2);
+        }
+        char fraction[32] = {0};
+        NUM_TO_STRING(child->resultType, &child->pVal->i64, sizeof(fraction), fraction);
+        int32_t tsDigits = (int32_t)strlen(fraction);
+        if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+            tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+            tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+            tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+          return exprInvalidOperationMsg(msgbuf, msg1);
+        }
+      } else if (child->nodeType == TSQL_NODE_COL) {
+        if (child->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_BINARY;
+      pExpr->resultBytes = 64;//2013-04-12T15:52:01.123000000+0800
+
+      break;
+    }
+    case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child0 = pExpr->_func.pChildren[0];
+      if (child0->resultType != TSDB_DATA_TYPE_BINARY &&
+          child0->resultType != TSDB_DATA_TYPE_NCHAR) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->_func.numChildren = 2;
+      tExprNode **pChildren = (tExprNode**)trealloc(pExpr->_func.pChildren, pExpr->_func.numChildren * sizeof(tExprNode*));
+      if (!pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      pExpr->_func.pChildren = pChildren;
+
+      pExpr->_func.pChildren[0] = child0;
+      pExpr->_func.pChildren[1] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child1 = pExpr->_func.pChildren[1];
+      if (!child1) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child1->nodeType    = TSQL_NODE_VALUE;
+      child1->resultType  = TSDB_DATA_TYPE_BIGINT;
+      child1->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+      child1->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child1->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child1->pVal->nType = TSDB_DATA_TYPE_BIGINT;
+      child1->pVal->nLen  = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      child1->pVal->i64   = (int64_t)pExpr->precision;
+
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      break;
+    }
+    case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
+      if (pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child0 = pExpr->_func.pChildren[0];
+      tExprNode *child1 = pExpr->_func.pChildren[1];
+
+      if (child0->resultType != TSDB_DATA_TYPE_BIGINT &&
+          child0->resultType != TSDB_DATA_TYPE_TIMESTAMP &&
+          child0->resultType != TSDB_DATA_TYPE_BINARY &&
+          child0->resultType != TSDB_DATA_TYPE_NCHAR) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      if (child0->nodeType == TSQL_NODE_VALUE) { /* datetime format or epoch */
+        if (child0->pVal->nType != TSDB_DATA_TYPE_BIGINT &&
+            child0->pVal->nType != TSDB_DATA_TYPE_BINARY &&
+            child0->pVal->nType != TSDB_DATA_TYPE_NCHAR) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+        if (child0->pVal->nType == TSDB_DATA_TYPE_BIGINT) {
+          char fraction[32] = {0};
+          NUM_TO_STRING(child0->resultType, &child0->pVal->i64, sizeof(fraction), fraction);
+          int32_t tsDigits = (int32_t)strlen(fraction);
+          if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+              tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+              tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+              tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+            return exprInvalidOperationMsg(msgbuf, msg1);
+          }
+        }
+      } else if (child0->nodeType == TSQL_NODE_COL) { /* ts column */
+        if (child0->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      } else {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      //time unit
+      if (child1->nodeType != TSQL_NODE_VALUE ||
+          child1->resultType != TSDB_DATA_TYPE_TIMESTAMP ||
+          child1->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      //db precision
+      pExpr->_func.numChildren = 3;
+      tExprNode **pChildren = (tExprNode**)trealloc(pExpr->_func.pChildren, pExpr->_func.numChildren * sizeof(tExprNode*));
+      if (!pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      pExpr->_func.pChildren = pChildren;
+
+      pExpr->_func.pChildren[0] = child0;
+      pExpr->_func.pChildren[1] = child1;
+      pExpr->_func.pChildren[2] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child2 = pExpr->_func.pChildren[2];
+      if (!child2) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child2->nodeType    = TSQL_NODE_VALUE;
+      child2->resultType  = TSDB_DATA_TYPE_BIGINT;
+      child2->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+      child2->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child2->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child2->pVal->nType = TSDB_DATA_TYPE_BIGINT;
+      child2->pVal->nLen  = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      child2->pVal->i64   = (int64_t)pExpr->precision;
+
+      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      break;
+    }
+    case TSDB_FUNC_SCALAR_TIMEDIFF: {
+      if (pExpr->_func.numChildren != 2 && pExpr->_func.numChildren != 3) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode **child = (tExprNode **)tcalloc(pExpr->_func.numChildren, sizeof(tExprNode *));
+      for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+        child[i] = pExpr->_func.pChildren[i];
+      }
+
+      //operands
+      for (int32_t i = 0; i < 2; ++i) {
+        if (child[i]->resultType != TSDB_DATA_TYPE_BIGINT &&
+            child[i]->resultType != TSDB_DATA_TYPE_TIMESTAMP &&
+            child[i]->resultType != TSDB_DATA_TYPE_BINARY &&
+            child[i]->resultType != TSDB_DATA_TYPE_NCHAR) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (child[i]->nodeType == TSQL_NODE_VALUE) { /* datetime format or epoch */
+          if (child[i]->pVal->nType != TSDB_DATA_TYPE_BIGINT &&
+              child[i]->pVal->nType != TSDB_DATA_TYPE_BINARY &&
+              child[i]->pVal->nType != TSDB_DATA_TYPE_NCHAR) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          if (child[i]->pVal->nType == TSDB_DATA_TYPE_BIGINT) {
+            char fraction[32] = {0};
+            NUM_TO_STRING(child[i]->resultType, &child[i]->pVal->i64, sizeof(fraction), fraction);
+            int32_t tsDigits = (int32_t)strlen(fraction);
+            if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+                tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+                tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+                tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+              return exprInvalidOperationMsg(msgbuf, msg1);
+            }
+          }
+        } else if (child[i]->nodeType == TSQL_NODE_COL) { /* ts column */
+          if (child[i]->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        } else {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+
+      //time unit
+      if (pExpr->_func.numChildren == 3) {
+        if (child[2]->nodeType != TSQL_NODE_VALUE ||
+            child[2]->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+
+      //db precision
+      pExpr->_func.numChildren++;
+      tExprNode **pChildren = (tExprNode**)trealloc(pExpr->_func.pChildren, pExpr->_func.numChildren * sizeof(tExprNode*));
+      if (!pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      pExpr->_func.pChildren = pChildren;
+      for (int32_t i = 0; i < pExpr->_func.numChildren - 1; ++i) {
+        pExpr->_func.pChildren[i] = child[i];
+      }
+      tExprNode* childPrec;
+      if (pExpr->_func.numChildren == 3) {
+        pExpr->_func.pChildren[2] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+        childPrec = pExpr->_func.pChildren[2];
+      } else {
+        pExpr->_func.pChildren[3] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+        childPrec = pExpr->_func.pChildren[3];
+      }
+      if (!childPrec) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      childPrec->nodeType    = TSQL_NODE_VALUE;
+      childPrec->resultType  = TSDB_DATA_TYPE_BIGINT;
+      childPrec->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+      childPrec->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!childPrec->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      childPrec->pVal->nType = TSDB_DATA_TYPE_BIGINT;
+      childPrec->pVal->nLen  = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      childPrec->pVal->i64   = (int64_t)pExpr->precision;
+
+      free(child);
+
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       break;
     }
     default: {
@@ -1409,6 +2041,168 @@ void vectorCharLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
   }
 }
 
+void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  assert(numInputs == 1);
+  assert(pInputs[0].numOfRows == 1 || pInputs[0].numOfRows == pOutput->numOfRows);
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+
+  int16_t inputType = pInputs[0].type;
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+    if (!hasNullInputs) {
+      switch (functionId) {
+        case TSDB_FUNC_SCALAR_LOWER:
+        case TSDB_FUNC_SCALAR_UPPER: {
+          assert(numInputs == 1);
+
+          int32_t len = varDataLen(inputData[0]);
+          varDataSetLen(outputData, len);
+
+          if (inputType == TSDB_DATA_TYPE_BINARY) {
+            char* pInputChar = varDataVal(inputData[0]);
+            char* pOutputChar = varDataVal(outputData);
+            for (int32_t k = 0; k < len; ++k) {
+              if (functionId == TSDB_FUNC_SCALAR_LOWER)
+                *(pOutputChar + k) = tolower(*(pInputChar + k));
+              else
+                *(pOutputChar + k) = toupper(*(pInputChar + k));
+            }
+          } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+            uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+            uint32_t* pOutputChar = (uint32_t*)varDataVal(outputData);
+            for (int32_t k = 0; k < len / TSDB_NCHAR_SIZE; ++k) {
+              if (functionId == TSDB_FUNC_SCALAR_LOWER)
+                *(pOutputChar + k) = towlower(*(pInputChar + k));
+              else
+                *(pOutputChar + k) = towupper((*(pInputChar + k)));
+            }
+          }
+          break;
+        }
+        case TSDB_FUNC_SCALAR_LTRIM: {
+          int32_t len = varDataLen(inputData[0]);
+          int32_t charLen = (inputType == TSDB_DATA_TYPE_BINARY) ? len : len / TSDB_NCHAR_SIZE;
+
+          int32_t k = 0;
+          for (; k < charLen; ++k) {
+            if (inputType == TSDB_DATA_TYPE_BINARY) {
+              char* pInputChar = (char*) varDataVal(inputData[0]);
+              if (!isspace(*(pInputChar + k))) {
+                break;
+              }
+            } else {
+              uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+              if (!iswspace(*(pInputChar + k))) {
+                break;
+              }
+            }
+          }
+
+          int32_t resultCharLen = charLen - k;
+          int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
+          int32_t beginByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? k : k * TSDB_NCHAR_SIZE;
+          varDataSetLen(outputData, resultByteLen);
+          memcpy((char*)varDataVal(outputData),(char*)varDataVal(inputData[0])+beginByteLen, resultByteLen);
+          break;
+        }
+
+        case TSDB_FUNC_SCALAR_RTRIM: {
+          int32_t len = varDataLen(inputData[0]);
+          int32_t charLen = (inputType == TSDB_DATA_TYPE_BINARY) ? len : len / TSDB_NCHAR_SIZE;
+
+          int32_t k = charLen-1;
+          for (; k >=0; --k) {
+            if (inputType == TSDB_DATA_TYPE_BINARY) {
+              char* pInputChar = (char*) varDataVal(inputData[0]);
+              if (!isspace(*(pInputChar + k))) {
+                break;
+              }
+            } else {
+              uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+              if (!iswspace(*(pInputChar + k))) {
+                break;
+              }
+            }
+          }
+
+          int32_t resultCharLen = k + 1;
+          int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
+          varDataSetLen(outputData, resultByteLen);
+          memcpy(varDataVal(outputData),varDataVal(inputData[0]), resultByteLen);
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+    }
+  }
+  free(inputData);
+}
+
+void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  int32_t subPosChar = 0;
+  GET_TYPED_DATA(subPosChar, int32_t, pInputs[1].type, pInputs[1].data);
+
+  int32_t subLenChar = INT16_MAX;
+  if (numInputs == 3) {
+    GET_TYPED_DATA(subLenChar, int32_t, pInputs[2].type, pInputs[2].data);
+  }
+
+  for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+    char* inputData = NULL;
+    if (pInputs[0].numOfRows == 1) {
+      inputData = pInputs[0].data;
+    } else {
+      inputData = pInputs[0].data + i * pInputs[0].bytes;
+    }
+    char* outputData = pOutput->data + i * pOutput->bytes;
+    if (isNull(inputData, pInputs[0].type)) {
+      setNull(outputData, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    int16_t strBytes = varDataLen(inputData);
+    int32_t resultStartBytes = 0;
+    if (subPosChar > 0) {
+      int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subPosChar-1 : (subPosChar-1) * TSDB_NCHAR_SIZE;
+      resultStartBytes = MIN(subPosBytes, strBytes);
+    } else {
+      int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? strBytes + subPosChar : (strBytes) + subPosChar * TSDB_NCHAR_SIZE;
+      resultStartBytes = MAX(subPosBytes, 0);
+    }
+    int32_t subLenBytes = 0;
+    if (subLenChar > 0) {
+      subLenBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subLenChar : subLenChar * TSDB_NCHAR_SIZE;
+    } else {
+      subLenBytes = 0;
+    }
+    int32_t resultLenBytes = MIN(subLenBytes, strBytes - resultStartBytes);
+
+    varDataSetLen(outputData, resultLenBytes);
+    if (resultLenBytes > 0) {
+      memcpy((char*)varDataVal(outputData), (char*)varDataVal(inputData) + resultStartBytes, resultLenBytes);
+    }
+  }
+}
+
 void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
   for (int i = 0; i < numInputs; ++i) {
     assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);
@@ -1438,13 +2232,19 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
     if (!hasNullInputs) {
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOG: {
-          assert(numInputs == 2);
-          double base = 0;
-          GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          double base = 2.7182818284590452354; //const M_E
+          if (numInputs == 2) {
+            GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          }
           double v1 = 0;
           GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
-          double result = log(v1) / log(base);
-          SET_TYPED_DATA(outputData, pOutput->type, result);
+          if (numInputs == 2) {
+            double result = log(v1) / log(base);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          } else {
+            double result = log(v1);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          }
           break;
         }
 
@@ -1626,10 +2426,434 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
   free(inputData);
 }
 
+void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
+  int32_t charLen = varDataLen(inputData);
+  char *newColData = calloc(1, charLen + 1);
+  if (type == TSDB_DATA_TYPE_BINARY) {
+    memcpy(newColData, varDataVal(inputData), charLen);
+    taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
+    tfree(newColData);
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    int len = taosUcs4ToMbs(varDataVal(inputData), charLen, newColData);
+    if (len < 0){
+      uError("convertStringToTimestamp taosUcs4ToMbs error");
+      tfree(newColData);
+      return;
+    }
+    newColData[len] = 0;
+    taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, 0);
+    tfree(newColData);
+  } else {
+    uError("input type should be binary/nchar string");
+    return;
+  }
+}
+
+void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
+  for (int i = 0; i < numInputs; ++i) {
+    assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);
+  }
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+
+    if (!hasNullInputs) {
+      switch (functionId) {
+        case TSDB_FUNC_SCALAR_NOW:
+        case TSDB_FUNC_SCALAR_TODAY: {
+          assert(numInputs == 1);
+
+          int64_t result;
+          GET_TYPED_DATA(result, int64_t, pInputs[0].type, inputData[0]);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_TIMEZONE: {
+          assert(numInputs == 1);
+
+          memcpy(((char*)varDataVal(outputData)), varDataVal(inputData[0]), varDataLen(inputData[0]));
+          varDataSetLen(outputData, varDataLen(inputData[0]));
+          break;
+        }
+        case TSDB_FUNC_SCALAR_TO_ISO8601: {
+          assert(numInputs == 1);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BIGINT || pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+
+          char fraction[20] = {0};
+          bool hasFraction = false;
+          NUM_TO_STRING(pInputs[0].type, inputData[0], sizeof(fraction), fraction);
+          int32_t tsDigits = (int32_t)strlen(fraction);
+
+          char buf[64] = {0};
+          int64_t timeVal;
+          GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+          if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
+            if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+              timeVal = timeVal / 1000;
+            } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+              timeVal = timeVal / (1000 * 1000);
+            } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+              timeVal = timeVal / (1000 * 1000 * 1000);
+            } else {
+              assert(0);
+            }
+            hasFraction = true;
+            memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
+          }
+
+          struct tm *tmInfo = localtime((const time_t *)&timeVal);
+          strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
+          int32_t len = (int32_t)strlen(buf);
+
+          if (hasFraction) {
+            int32_t fracLen = (int32_t)strlen(fraction) + 1;
+            char *tzInfo = strchr(buf, '+');
+            if (tzInfo) {
+              memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+            } else {
+              tzInfo = strchr(buf, '-');
+              memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+            }
+
+            char tmp[32];
+            sprintf(tmp, ".%s", fraction);
+            memcpy(tzInfo, tmp, fracLen);
+            len += fracLen;
+          }
+
+          memcpy(((char*)varDataVal(outputData)), buf, len);
+          varDataSetLen(outputData, len);
+
+          break;
+        }
+        case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
+          assert(numInputs == 2);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BINARY || pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
+          assert(pInputs[1].type == TSDB_DATA_TYPE_BIGINT);
+
+          int64_t timeVal = 0;
+          int64_t timePrec;
+          GET_TYPED_DATA(timePrec, int64_t, pInputs[1].type, inputData[1]);
+          convertStringToTimestamp(pInputs[0].type, inputData[0], timePrec, &timeVal);
+          SET_TYPED_DATA(outputData, pOutput->type, timeVal);
+
+          break;
+        }
+        case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
+          assert(numInputs == 3);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BIGINT ||
+                 pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP ||
+                 pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
+                 pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
+          assert(pInputs[1].type == TSDB_DATA_TYPE_TIMESTAMP);
+          assert(pInputs[2].type == TSDB_DATA_TYPE_BIGINT);
+
+          int64_t timeUnit, timePrec, timeVal = 0;
+          GET_TYPED_DATA(timeUnit, int64_t, pInputs[1].type, inputData[1]);
+          GET_TYPED_DATA(timePrec, int64_t, pInputs[2].type, inputData[2]);
+
+          int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                           (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+
+          if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
+              pInputs[0].type == TSDB_DATA_TYPE_NCHAR) { /* datetime format strings */
+            convertStringToTimestamp(pInputs[0].type, inputData[0], TSDB_TIME_PRECISION_NANO, &timeVal);
+            //If converted value is less than 10digits in second, use value in second instead
+            int64_t timeValSec = timeVal / 1000000000;
+            if (timeValSec < 1000000000) {
+              timeVal = timeValSec;
+            }
+          } else if (pInputs[0].type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
+            GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+          } else if (pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
+            GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+            int64_t timeValSec = timeVal / factor;
+            if (timeValSec < 1000000000) {
+              timeVal = timeValSec;
+            }
+          } else {
+            assert(0);
+          }
+
+          char buf[20] = {0};
+          NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
+          int32_t tsDigits = (int32_t)strlen(buf);
+          timeUnit = timeUnit * 1000 / factor;
+          switch (timeUnit) {
+            case 0: { /* 1u */
+              if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000 * 1000;
+              //} else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+              //  //timeVal = timeVal / 1000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor;
+              } else {
+                timeVal = timeVal * 1;
+              }
+              break;
+            }
+            case 1: { /* 1a */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal * 1;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000 * 1000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS){
+                timeVal = timeVal * factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
+            case 1000: { /* 1s */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal / 1000 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000000 * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000000 * 1000000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
+            case 60000: { /* 1m */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal / 1000 / 60 * 60 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000000 / 60 * 60 * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000000 / 60 * 60 * 1000000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor / factor / 60 * 60 * factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
+            case 3600000: { /* 1h */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal / 1000 / 3600 * 3600 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000000 / 3600 * 3600 * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000000 / 3600 * 3600 * 1000000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor / factor / 3600 * 3600 * factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
+            case 86400000: { /* 1d */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000000 / 86400 * 86400 * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000000 / 86400 * 86400 * 1000000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor / factor / 86400* 86400 * factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
+            case 604800000: { /* 1w */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor / factor / 604800 * 604800* factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
+            default: {
+              timeVal = timeVal * 1;
+              break;
+            }
+          }
+
+          //truncate the timestamp to db precision
+          switch (timePrec) {
+            case TSDB_TIME_PRECISION_MILLI: {
+              if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000;
+              }
+              break;
+            }
+            case TSDB_TIME_PRECISION_MICRO: {
+              if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal * 1000;
+              }
+              break;
+            }
+            case TSDB_TIME_PRECISION_NANO: {
+              if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal * 1000000;
+              }
+              break;
+            }
+          }
+          SET_TYPED_DATA(outputData, pOutput->type, timeVal);
+
+          break;
+        }
+        case TSDB_FUNC_SCALAR_TIMEDIFF: {
+          assert(numInputs == 3 || numInputs == 4);
+
+          int64_t timePrec, timeUnit = -1;
+          int64_t timeVal[2] = {0};
+          if (numInputs == 3) {
+            assert(pInputs[2].type == TSDB_DATA_TYPE_BIGINT);
+            GET_TYPED_DATA(timePrec, int64_t, pInputs[2].type, inputData[2]);
+          } else {
+            assert(pInputs[2].type == TSDB_DATA_TYPE_TIMESTAMP);
+            assert(pInputs[3].type == TSDB_DATA_TYPE_BIGINT);
+            GET_TYPED_DATA(timeUnit, int64_t, pInputs[2].type, inputData[2]);
+            GET_TYPED_DATA(timePrec, int64_t, pInputs[3].type, inputData[3]);
+          }
+
+          for (int32_t j = 0; j < 2; ++j) {
+            assert(pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
+                   pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP ||
+                   pInputs[j].type == TSDB_DATA_TYPE_BINARY ||
+                   pInputs[j].type == TSDB_DATA_TYPE_NCHAR);
+
+            if (pInputs[j].type == TSDB_DATA_TYPE_BINARY ||
+                pInputs[j].type == TSDB_DATA_TYPE_NCHAR) { /* datetime format strings */
+              convertStringToTimestamp(pInputs[j].type, inputData[j], TSDB_TIME_PRECISION_NANO, &timeVal[j]);
+            } else if (pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
+                       pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
+              GET_TYPED_DATA(timeVal[j], int64_t, pInputs[j].type, inputData[j]);
+              if (pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) {
+                int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                                 (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+                int64_t timeValSec = timeVal[j] / factor;
+                if (timeValSec < 1000000000) {
+                  timeVal[j] = timeValSec;
+                }
+              }
+              char buf[20] = {0};
+              NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[j], sizeof(buf), buf);
+              int32_t tsDigits = (int32_t)strlen(buf);
+              if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal[j] = timeVal[j] * 1000000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal[j] = timeVal[j] * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal[j] = timeVal[j] * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal[j] = timeVal[j];
+              }
+            }
+          }
+          int64_t result = (timeVal[0] >= timeVal[1]) ? (timeVal[0] - timeVal[1]) :
+                                                        (timeVal[1] - timeVal[0]);
+
+          if (timeUnit < 0) { // if no time unit given use db precision
+            switch(timePrec) {
+              case TSDB_TIME_PRECISION_MILLI: {
+                result = result / 1000000;
+                break;
+              }
+              case TSDB_TIME_PRECISION_MICRO: {
+                result = result / 1000;
+                break;
+              }
+              case TSDB_TIME_PRECISION_NANO: {
+                result = result / 1;
+                break;
+              }
+            }
+          } else {
+            int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                             (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+            timeUnit = timeUnit * 1000 / factor;
+            switch(timeUnit) {
+              case 0: { /* 1u */
+                result = result / 1000;
+                break;
+              }
+              case 1: { /* 1a */
+                result = result / 1000000;
+                break;
+              }
+              case 1000: { /* 1s */
+                result = result / 1000000000;
+                break;
+              }
+              case 60000: { /* 1m */
+                result = result / 1000000000 / 60;
+                break;
+              }
+              case 3600000: { /* 1h */
+                result = result / 1000000000 / 3600;
+                break;
+              }
+              case 86400000: { /* 1d */
+                result = result / 1000000000 / 86400;
+                break;
+              }
+              case 604800000: { /* 1w */
+                result = result / 1000000000 / 604800;
+                break;
+              }
+              default: {
+                break;
+              }
+            }
+          }
+
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        default: {
+          assert(false);
+          break;
+        }
+      } // end switch function(id)
+    } // end can produce value, all child has value
+  } // end for each row
+  free(inputData);
+}
+
 _expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
   assert(TSDB_FUNC_IS_SCALAR(funcId));
   int16_t scalaIdx = TSDB_FUNC_SCALAR_INDEX(funcId);
-  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_MAX_NUM);
+  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_NUM_FUNCTIONS);
   return aScalarFunctions[scalaIdx].scalarFunc;
 }
 
@@ -1724,4 +2948,65 @@ tScalarFunctionInfo aScalarFunctions[] = {
         "cast",
         vectorMathFunc
     },
+    {
+        TSDB_FUNC_SCALAR_LOWER,
+        "lower",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_UPPER,
+        "upper",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_LTRIM,
+        "ltrim",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_RTRIM,
+        "rtrim",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_SUBSTR,
+        "substr",
+        vectorSubstrFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_NOW,
+        "now",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TODAY,
+        "today",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TIMEZONE,
+        "timezone",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TO_ISO8601,
+        "to_iso8601",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP,
+        "to_unixtimestamp",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TIMETRUNCATE,
+        "timetruncate",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TIMEDIFF,
+        "timediff",
+        vectorTimeFunc
+    },
+
 };

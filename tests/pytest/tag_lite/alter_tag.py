@@ -59,6 +59,13 @@ class TDTestCase:
         tdSql.checkData(0, 1, 'test2')
         tdSql.checkData(0, 2, 'test3')
 
+        #Test case for TS-1285
+        tdSql.execute("create table stb2(ts timestamp, c1 int) tags(t1 timestamp)")
+        tdSql.execute("insert into tb3 using stb2 tags('2022-01-01 18:26:50.224') values(now, 1)")        
+        tdSql.execute("alter table tb3 set tag t1='2022-03-03 18:26:50.224'")
+        tdSql.query("select * from stb2")
+        tdSql.checkData(0, 2, "2022-03-03 18:26:50.224")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

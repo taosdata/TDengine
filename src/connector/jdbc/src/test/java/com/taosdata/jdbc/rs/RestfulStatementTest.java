@@ -37,6 +37,12 @@ public class RestfulStatementTest {
         Assert.assertEquals(0, affectRows);
         affectRows = stmt.executeUpdate("create table " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
         Assert.assertEquals(0, affectRows);
+
+        try (ResultSet resultSet = stmt.executeQuery("desc " + dbName + ".weather")){
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            Assert.assertEquals(4, metaData.getColumnCount());
+        }
+
         affectRows = stmt.executeUpdate("insert into " + dbName + ".t1 using " + dbName + ".weather tags('北京') values(now, 22.33)");
         Assert.assertEquals(1, affectRows);
         affectRows = stmt.executeUpdate("drop database " + dbName);

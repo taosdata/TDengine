@@ -24,7 +24,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -32,26 +32,29 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        return paths[0]
 
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath()
+        if (binPath == "taosBenchmark"):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
-        # insert: create one  or mutiple tables per sql and insert multiple rows per sql
-        
+        # insert: create one  or mutiple tables per sql and insert multiple
+        # rows per sql
+
         # check the params of taosdemo about time_step is nano
-        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertNanoDB.json -y " % binPath)
+        os.system(
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertNanoDB.json -y " %
+            binPath)
         tdSql.execute("use testdb1")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
@@ -63,12 +66,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10000)
         tdSql.query("describe stb0")
         tdSql.getData(9, 1)
-        tdSql.checkDataType(9, 1,"TIMESTAMP")
+        tdSql.checkDataType(9, 1, "TIMESTAMP")
         tdSql.query("select last(ts) from stb0")
-        tdSql.checkData(0, 0,"2021-07-01 00:00:00.000099000") 
+        tdSql.checkData(0, 0, "2021-07-01 00:00:00.000099000")
 
         # check the params of taosdemo about time_step is us
-        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertUSDB.json -y " % binPath)
+        os.system(
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertUSDB.json -y " %
+            binPath)
         tdSql.execute("use testdb2")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
@@ -80,12 +85,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10000)
         tdSql.query("describe stb0")
         tdSql.getData(9, 1)
-        tdSql.checkDataType(9, 1,"TIMESTAMP")
+        tdSql.checkDataType(9, 1, "TIMESTAMP")
         tdSql.query("select last(ts) from stb0")
-        tdSql.checkData(0, 0,"2021-07-01 00:00:00.099000") 
+        tdSql.checkData(0, 0, "2021-07-01 00:00:00.099000")
 
         # check the params of taosdemo about time_step is ms
-        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertMSDB.json -y " % binPath)
+        os.system(
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertMSDB.json -y " %
+            binPath)
         tdSql.execute("use testdb3")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
@@ -96,15 +103,12 @@ class TDTestCase:
         tdSql.query("select count(*) from stb0")
         tdSql.checkData(0, 0, 10000)
         tdSql.query("describe stb0")
-        tdSql.checkDataType(9, 1,"TIMESTAMP")
+        tdSql.checkDataType(9, 1, "TIMESTAMP")
         tdSql.query("select last(ts) from stb0")
-        tdSql.checkData(0, 0,"2021-07-01 00:01:39.000") 
+        tdSql.checkData(0, 0, "2021-07-01 00:01:39.000")
 
-      
         os.system("rm -rf ./res.txt")
         os.system("rm -rf ./*.py.sql")
-      
-       
 
     def stop(self):
         tdSql.close()

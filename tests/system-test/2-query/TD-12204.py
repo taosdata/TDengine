@@ -369,7 +369,7 @@ class TDTestCase:
         
         print(conn1)
 
-        for i in range(20):
+        for i in range(2):
             try:
                 taos_cmd1 = "taos -f 2-query/TD-12204.py.sql"
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
@@ -377,7 +377,7 @@ class TDTestCase:
                 print(i)
                 print(conn1)
 
-                for i in range(10):
+                for i in range(5):
                     cur1.execute('use db ;')
                     sql = 'select * from stable_1 where t_smallint between 0 and 32767 and  t_float between 0 and 3.4E38 and  t_nchar is not null and  q_smallint between 0 and 32767 and  q_nchar is not null and  t_binary is not null and  q_tinyint is not null and  ts < now +1s order by ts ;;;'
                     

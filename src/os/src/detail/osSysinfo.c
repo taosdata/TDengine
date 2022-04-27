@@ -605,33 +605,6 @@ void taosKillSystem() {
   kill(tsProcId, 2);
 }
 
-int taosSystem(const char *cmd) {
-  FILE *fp;
-  int   res;
-  char  buf[1024];
-  if (cmd == NULL) {
-    uError("taosSystem cmd is NULL!");
-    return -1;
-  }
-
-  if ((fp = popen(cmd, "r")) == NULL) {
-    uError("popen cmd:%s error: %s", cmd, strerror(errno));
-    return -1;
-  } else {
-    while (fgets(buf, sizeof(buf), fp)) {
-      uDebug("popen result:%s", buf);
-    }
-
-    if ((res = pclose(fp)) == -1) {
-      uError("close popen file pointer fp error!");
-    } else {
-      uDebug("popen res is :%d", res);
-    }
-
-    return res;
-  }
-}
-
 void taosSetCoreDump() {
   if (0 == tsEnableCoreFile) {
     return;

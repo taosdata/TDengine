@@ -120,7 +120,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         bool exceedMax = false, exceedMin = false;
         point1 = (SPoint){.key = *(TSKEY*)(prev), .val = prev + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->index * bytes};
-        if (isNull(point2.val, type)) {
+        if (isNull(point1.val, type) || isNull(point2.val, type)) {
           setNull(val1, pCol->col.type, bytes);
           continue;
         }
@@ -354,6 +354,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   }
 
   SFillInfo* pFillInfo = calloc(1, sizeof(SFillInfo));
+  if (pFillInfo == NULL) {
+    return NULL;
+  }
+
   taosResetFillInfo(pFillInfo, skey);
 
   pFillInfo->order     = order;
@@ -371,6 +375,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   pFillInfo->interval.slidingUnit  = slidingUnit;
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
+  if (pFillInfo->pData == NULL) {
+    tfree(pFillInfo);
+    return NULL;
+  }
 
 //  if (numOfTags > 0) {
     pFillInfo->pTags = calloc(numOfCols, sizeof(SFillTagColInfo));

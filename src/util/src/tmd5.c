@@ -2,9 +2,9 @@
  ***********************************************************************
  **  Message-digest routines:                                         **
  **  To form the message digest for a message M                       **
- **    (1) Initialize a context buffer mdContext using MD5Init        **
- **    (2) Call MD5Update on mdContext and M                          **
- **    (3) Call MD5Final on mdContext                                 **
+ **    (1) Initialize a context buffer mdContext using tMD5Init        **
+ **    (2) Call tMD5Update on mdContext and M                          **
+ **    (3) Call tMD5Final on mdContext                                 **
  **  The message digest is now in mdContext->digest[0...15]           **
  ***********************************************************************
  */
@@ -82,11 +82,11 @@ static uint8_t PADDING[64] = {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x
     (a) += (b);                                     \
   }
 
-/* The routine MD5Init initializes the message-digest context
+/* The routine tMD5Init initializes the message-digest context
    mdContext. All fields are set to zero.
  */
-void MD5Init(MD5_CTX *mdContext) {
-  memset(mdContext, 0, sizeof(MD5_CTX));
+void tMD5Init(T_MD5_CTX *mdContext) {
+  memset(mdContext, 0, sizeof(T_MD5_CTX));
 
   /* Load magic initialization constants. */
   mdContext->buf[0] = (uint32_t)0x67452301;
@@ -95,11 +95,11 @@ void MD5Init(MD5_CTX *mdContext) {
   mdContext->buf[3] = (uint32_t)0x10325476;
 }
 
-/* The routine MD5Update updates the message-digest context to
+/* The routine tMD5Update updates the message-digest context to
 account for the presence of each of the characters inBuf[0..inLen-1]
 in the message whose digest is being computed.
 */
-void MD5Update(MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
+void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
   uint32_t     in[16];
   int          mdi;
   unsigned int i, ii;
@@ -127,10 +127,10 @@ void MD5Update(MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
   }
 }
 
-/* The routine MD5Final terminates the message-digest computation and
+/* The routine tMD5Final terminates the message-digest computation and
 ends with the desired message digest in mdContext->digest[0...15].
 */
-void MD5Final(MD5_CTX *mdContext) {
+void tMD5Final(T_MD5_CTX *mdContext) {
   uint32_t     in[16];
   int          mdi;
   unsigned int i, ii;
@@ -145,7 +145,7 @@ void MD5Final(MD5_CTX *mdContext) {
 
   /* pad out to 56 mod 64 */
   padLen = (mdi < 56) ? (56 - mdi) : (120 - mdi);
-  MD5Update(mdContext, PADDING, padLen);
+  tMD5Update(mdContext, PADDING, padLen);
 
   /* append length in bits and transform */
   for (i = 0, ii = 0; i < 14; i++, ii += 4)

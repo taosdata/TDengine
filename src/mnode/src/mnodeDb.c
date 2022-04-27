@@ -339,8 +339,8 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->replications > mnodeGetDnodesNum()) {
-    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetDnodesNum());
+  if (pCfg->replications > mnodeGetVnodeDnodesNum()) {
+    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetVnodeDnodesNum());
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
@@ -1057,7 +1057,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
       terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
 
-    if (replications > mnodeGetDnodesNum()) {
+    if (replications > mnodeGetVnodeDnodesNum()) {
       mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     }

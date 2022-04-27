@@ -19,7 +19,6 @@ import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -53,7 +52,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         return rowData;
     }
 
-    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer) throws SQLException {
+    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer, int timestampPrecision) throws SQLException {
         this.statement = statement;
         this.jniConnector = connector;
         this.resultSetPointer = resultSetPointer;
@@ -69,7 +68,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
         }
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
-        this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size());
+        this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size(), timestampPrecision);
+        this.timestampPrecision = timestampPrecision;
     }
 
     public boolean next() throws SQLException {
@@ -268,7 +268,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
         if (this.getBatchFetch())
-            return this.blockData.getString(columnIndex).getBytes();
+            return this.blockData.getBytes(columnIndex -1);
 
         Object value = this.rowData.getObject(columnIndex);
         this.lastWasNull = value == null;
@@ -343,7 +343,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         if (this.getBatchFetch())
-            return new BigDecimal(this.blockData.getLong(columnIndex - 1));
+            return BigDecimal.valueOf(this.blockData.getDouble(columnIndex - 1));
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (lastWasNull)

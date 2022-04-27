@@ -30,43 +30,11 @@
 #include <regex.h>
 
 /**************** Global variables ****************/
-#ifdef _TD_POWER_
-char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "power> ";
-char      CONTINUE_PROMPT[] = "    -> ";
-int       prompt_size = 7;
-#elif (_TD_TQ_ == true)
-char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "tq> ";
-char      CONTINUE_PROMPT[] = " -> ";
-int       prompt_size = 4;
-#elif (_TD_PRO_ == true)
-char      CLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "ProDB> ";
-char      CONTINUE_PROMPT[] = "    -> ";
-int       prompt_size = 7;
-#elif (_TD_KH_ == true)
-char      CLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by Hanatech, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "kh> ";
-char      CONTINUE_PROMPT[] = " -> ";
-int       prompt_size = 4;
-#elif (_TD_JH_ == true)
-char      CLIENT_VERSION[] = "Welcome to the jh_iot shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by jinheng, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "jh_taos> ";
-char      CONTINUE_PROMPT[] = "      -> ";
-int       prompt_size = 9;
-#else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
-#endif
 
 int64_t result = 0;
 SShellHistory   history;
@@ -81,9 +49,9 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
 TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
   if (!_args->is_use_passwd) {
-#ifdef TD_WINDOWS
+#ifdef WINDOWS
     strcpy(tsOsName, "Windows");
-#elif defined(TD_DARWIN)
+#elif defined(DARWIN)
     strcpy(tsOsName, "Darwin");
 #endif
     printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
@@ -239,64 +207,27 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
   }
 
-  bool esc = false;
-  char quote = 0, *cmd = command, *p = command;
+  char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
-    if (esc) {
-      switch (c) {
-        case 'n':
-          c = '\n';
-          break;
-        case 'r':
-          c = '\r';
-          break;
-        case 't':
-          c = '\t';
-          break;
-        case 'G':
-          *p++ = '\\';
-          break;
-        case '\'':
-        case '"':
-        case '`':
-          if (quote) {
-            *p++ = '\\';
-          }
-          break;
-      }
-      *p++ = c;
-      esc = false;
+    if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
+      command ++;
       continue;
-    }
-
-    if (c == '\\') {
-      if (quote != 0 && (*command == '_' || *command == '%' || *command == '\\')) {
-        //DO nothing 
-      } else {
-        esc = true;
-        continue;
-      }
     }
 
     if (quote == c) {
       quote = 0;
     } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
       quote = c;
-    }
-
-    *p++ = c;
-    if (c == ';' && quote == 0) {
-      c = *p;
-      *p = 0;
+    } else if (c == ';' && quote == 0) {
+      c = *command;
+      *command = 0;
       if (shellRunSingleCommand(con, cmd) < 0) {
         return -1;
       }
-      *p = c;
-      p = cmd;
+      *command = c;
+      cmd = command;
     }
   }
-
-  *p = 0;
   return shellRunSingleCommand(con, cmd);
 }
 
@@ -411,7 +342,14 @@ int regex_match(const char *s, const char *reg, int cflags) {
   } else if (reti == REG_NOMATCH) {
     regfree(&regex);
     return 0;
-  } else {
+  }
+#ifdef DARWIN
+  else if (reti == REG_ILLSEQ){
+    regfree(&regex);
+    return 0;
+  }
+#endif
+  else {
     regerror(reti, &regex, msgbuf, sizeof(msgbuf));
     fprintf(stderr, "Regex match failed: %s\n", msgbuf);
     regfree(&regex);
@@ -454,14 +392,14 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     FILETIME b; // unit is 100ns
     ULARGE_INTEGER c;
     SystemTimeToFileTime(&a,&b);
-    c.LowPart = b.dwLowDateTime;  
-    c.HighPart = b.dwHighDateTime;  
+    c.LowPart = b.dwLowDateTime;
+    c.HighPart = b.dwHighDateTime;
     c.QuadPart+=tt*10000000;
-    b.dwLowDateTime=c.LowPart;  
-    b.dwHighDateTime=c.HighPart;  
+    b.dwLowDateTime=c.LowPart;
+    b.dwHighDateTime=c.HighPart;
     FileTimeToLocalFileTime(&b,&b);
     FileTimeToSystemTime(&b,&a);
-    int pos = sprintf(buf,"%02d-%02d-%02d %02d:%02d:%02d", a.wYear, a.wMonth,a.wDay, a.wHour, a.wMinute, a.wSecond);   
+    int pos = sprintf(buf,"%02d-%02d-%02d %02d:%02d:%02d", a.wYear, a.wMonth,a.wDay, a.wHour, a.wMinute, a.wSecond);
     if (precision == TSDB_TIME_PRECISION_NANO) {
       sprintf(buf + pos, ".%09d", ms);
     } else if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -504,6 +442,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -512,20 +451,37 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
     case TSDB_DATA_TYPE_TINYINT:
       fprintf(fp, "%d", *((int8_t *)val));
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      fprintf(fp, "%u", *((uint8_t *)val));
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
       fprintf(fp, "%d", *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      fprintf(fp, "%u", *((uint16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
       fprintf(fp, "%d", *((int32_t *)val));
       break;
+    case TSDB_DATA_TYPE_UINT:
+      fprintf(fp, "%u", *((uint32_t *)val));
+      break;
     case TSDB_DATA_TYPE_BIGINT:
       fprintf(fp, "%" PRId64, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      fprintf(fp, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, length)) {
+        fprintf(fp, "%*.15e", length, GET_DOUBLE_VAL(val));
+      } else {
+        fprintf(fp, "%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -609,16 +565,20 @@ static void shellPrintNChar(const char *str, int length, int width) {
     if (bytes <= 0) {
       break;
     }
-    pos += bytes;
-    if (pos > length) {
+    if (pos + bytes > length) {
       break;
     }
-
+    int w = 0;
 #ifdef WINDOWS
-    int w = bytes;
+    w = bytes;
 #else
-    int w = wcwidth(wc);
+    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+      w = bytes;
+    }else{
+      w = wcwidth(wc);
+    }
 #endif
+    pos += bytes;
     if (w <= 0) {
       continue;
     }
@@ -676,6 +636,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -709,7 +670,12 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       printf("%*.5f", width, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      printf("%*.9f", width, GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, width)) {
+        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      } else {
+        printf("%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -779,8 +745,13 @@ static int verticalPrintResult(TAOS_RES* tres) {
         putchar('\n');
       }
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 
@@ -911,8 +882,13 @@ static int horizontalPrintResult(TAOS_RES* tres) {
       }
       putchar('\n');
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 

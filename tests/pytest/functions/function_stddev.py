@@ -135,9 +135,9 @@ class TDTestCase:
         tdSql.execute("insert into std3 values(now + 5s, 4);")
         tdSql.execute("insert into std3 values(now + 6s, 8);")
         tdSql.query("select stddev(col1) from stdtable group by loc;")
-        tdSql.checkData(0, 0, 2.0)
+        tdSql.checkData(2, 0, 2.0)
         tdSql.checkData(1, 0, 0.5)
-        tdSql.checkData(2, 0, 0.5)
+        tdSql.checkData(0, 0, 0.5)
 
         tdSql.execute("create table stdtableint(ts timestamp, col1 int) tags(num int)")
         tdSql.execute("create table stdint1 using stdtableint tags(1)")

@@ -25,11 +25,6 @@ apps:
       - network
       - system-observe
 
-  taosdemo:
-    command: usr/bin/taosdemo
-    plugs:
-      - network
-
 parts:
   script:
     plugin: dump
@@ -74,8 +69,7 @@ parts:
       - etc/taos/taos.cfg
       - usr/bin/taosd
       - usr/bin/taos
-      - usr/bin/taosdemo
-      - usr/lib/libtaos.so.2.3.0.0
+      - usr/lib/libtaos.so.2.4.0.0
       - usr/lib/libtaos.so.1
       - usr/lib/libtaos.so
 

@@ -6,56 +6,80 @@
 #include "taos.h"
 #include "tutil.h"
 
-TEST(testCase, str_rmquote_test) {
-  char    t1[] = "\"\".dd";
-  int32_t len = strRmquote(t1, strlen(t1));
+TEST(testCase, str_escape_test) {
+  char    t1[] = "\"\\\".dd";
+  int32_t len = strDealWithEscape(t1, strlen(t1));
   printf("t1:%s, len:%d\n", t1, len);
-  EXPECT_EQ(3, len);
-  EXPECT_STRCASEEQ(t1, ".dd");
+  EXPECT_EQ(5, len);
+  EXPECT_STRCASEEQ(t1, "\"\".dd");
 
-  char    t2[] = "\"fsd\\\"fs\".dd";
-  len = strRmquote(t2, strlen(t2));
+  char    t2[] = "'\\\'.dd";
+   len = strDealWithEscape(t2, strlen(t2));
   printf("t2:%s, len:%d\n", t2, len);
-  EXPECT_EQ(9, len);
-  EXPECT_STRCASEEQ(t2, "fsd\"fs.dd");
+  EXPECT_EQ(5, len);
+  EXPECT_STRCASEEQ(t2, "''.dd");
 
-  char    t3[] = "fs\\_d\\%.d\\d";
-  len = strRmquote(t3, strlen(t3));
+  char    t3[] = "\\\\.dd";
+   len = strDealWithEscape(t3, strlen(t3));
   printf("t3:%s, len:%d\n", t3, len);
-  EXPECT_EQ(10, len);
-  EXPECT_STRCASEEQ(t3, "fs\\_d\\%.dd");
+  EXPECT_EQ(4, len);
+  EXPECT_STRCASEEQ(t3, "\\.dd");
 
-  char    t4[] = "\"fs\\_d\\%\".dd";
-  len = strRmquote(t4, strlen(t4));
+  char    t4[] = "'\\n.dd";
+   len = strDealWithEscape(t4, strlen(t4));
   printf("t4:%s, len:%d\n", t4, len);
-  EXPECT_EQ(10, len);
-  EXPECT_STRCASEEQ(t4, "fs\\_d\\%.dd");
+  EXPECT_EQ(4, len);
+  EXPECT_STRCASEEQ(t4, "\n.dd");
 
-  char    t5[] = "\"fs\\_d\\%\"";
-  len = strRmquote(t5, strlen(t5));
-  printf("t5:%s, len:%d\n", t5, len);
-  EXPECT_EQ(7, len);
-  EXPECT_STRCASEEQ(t5, "fs\\_d\\%");
-
-  char    t6[] = "'fs\\_d\\%'";
-  len = strRmquote(t6, strlen(t6));
-  printf("t6:%s, len:%d\n", t6, len);
-  EXPECT_EQ(7, len);
-  EXPECT_STRCASEEQ(t6, "fs\\_d\\%");
+//  char    t2[] = "\"fsd\\\"fs\".dd";
+//  len = strDealWithEscape(t2, strlen(t2));
+//  printf("t2:%s, len:%d\n", t2, len);
+//  EXPECT_EQ(11, len);
+//  EXPECT_STRCASEEQ(t2, "\"fsd\"fs\".dd");
+//
+//  char    t3[] = "fs\\_d\\%.d\\d";
+//  len = strRmquote(t3, strlen(t3));
+//  printf("t3:%s, len:%d\n", t3, len);
+//  EXPECT_EQ(10, len);
+//  EXPECT_STRCASEEQ(t3, "fs\\_d\\%.dd");
+//
+//  char    t4[] = "\"fs\\_d\\%\".dd";
+//  len = strRmquote(t4, strlen(t4));
+//  printf("t4:%s, len:%d\n", t4, len);
+//  EXPECT_EQ(10, len);
+//  EXPECT_STRCASEEQ(t4, "fs\\_d\\%.dd");
+//
+//  char    t5[] = "\"fs\\_d\\%\"";
+//  len = strRmquote(t5, strlen(t5));
+//  printf("t5:%s, len:%d\n", t5, len);
+//  EXPECT_EQ(7, len);
+//  EXPECT_STRCASEEQ(t5, "fs\\_d\\%");
+//
+//  char    t6[] = "'fs\\_d\\%'";
+//  len = strRmquote(t6, strlen(t6));
+//  printf("t6:%s, len:%d\n", t6, len);
+//  EXPECT_EQ(7, len);
+//  EXPECT_STRCASEEQ(t6, "fs\\_d\\%");
 }
 
 TEST(testCase, string_dequote_test) {
-  char    t1[] = "'abc'";
-  int32_t len = strdequote(t1);
+  char    t1[] = "'ab''c'";
+  int32_t len = stringProcess(t1, strlen(t1));
+
+  EXPECT_EQ(4, len);
+  EXPECT_STRCASEEQ(t1, "ab'c");
+
+  char t2[] = "\"ab\"\"c\"";
+  len = stringProcess(t2, strlen(t2));
+
+  EXPECT_EQ(4, len);
+  EXPECT_STRCASEEQ(t1, "ab\"c");
+
+  char t3[] = "`ab``c`";
+  len = stringProcess(t3, strlen(t3));
 
   EXPECT_EQ(3, len);
-  EXPECT_STRCASEEQ(t1, "abc");
-
-  char t2[] = "\"abc\"";
-  len = strdequote(t2);
-
-  EXPECT_EQ(3, len);
-  EXPECT_STRCASEEQ(t1, "abc");
+  EXPECT_STRCASEEQ(t1, "ab`c");
 
   char t21[] = " abc ";
   int32_t lx = strtrim(t21);

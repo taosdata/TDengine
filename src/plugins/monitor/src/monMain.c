@@ -1092,27 +1092,15 @@ static void monSaveDnodesInfo() {
 
 static int32_t checkCreateVgroupTable(int32_t vgId) {
   char subsql[256];
-  bool create_table = false;
   int32_t code = TSDB_CODE_SUCCESS;
 
   memset(subsql, 0, sizeof(subsql));
-  snprintf(subsql, 255, "describe %s.vgroup_%d", tsMonitorDbName, vgId);
+  snprintf(subsql, sizeof(subsql), "create table if not exists %s.vgroup_%d using %s.vgroups_info tags(%d)",
+            tsMonitorDbName, vgId, tsMonitorDbName, vgId);
 
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   code = taos_errno(result);
-  if (code != 0) {
-    create_table = true;
-    snprintf(subsql, sizeof(subsql), "create table if not exists %s.vgroup_%d using %s.vgroups_info tags(%d)",
-               tsMonitorDbName, vgId, tsMonitorDbName, vgId);
-    monError("table vgroup_%d not exist, create table vgroup_%d", vgId, vgId);
-  }
   taos_free_result(result);
-
-  if (create_table == true) {
-    result = taos_query(tsMonitor.conn, subsql);
-    code = taos_errno(result);
-    taos_free_result(result);
-  }
 
   return code;
 }
@@ -1157,7 +1145,9 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
           monError("failed to save vgroup_%d info, reason: invalid row %s len, sql:%s", vgId, (char *)row[i], tsMonitor.sql);
           goto DONE;
         }
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
+        char tmpBuf[10] = {0};
+        memcpy(tmpBuf, row[i], charLen);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, tmpBuf);
       } else if (strcmp(fields[i].name, "onlines") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
       } else if (v_dnode_str && strcmp(v_dnode_str, "_dnode") == 0) {

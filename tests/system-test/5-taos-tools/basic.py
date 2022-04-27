@@ -23,33 +23,34 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<pxiao>: [TD-11977] start taosdump without taosd   
+        case1<pxiao>: [TD-11977] start taosdump without taosd
         case1<pxiao>: [TD-11977] start taosBenchmark without taosd
         case1<pxiao>: [TD-11977] start taosAdaptor without taosd
-        ''' 
+        '''
         return
-    
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        tdSql.prepare()        
-        
-        tools = ["taosdump", "taosBenchmark", "taosAdaptor"]                
+        tdSql.prepare()
+
+        tools = ["taosdump", "taosBenchmark", "taosadapter"]
         tdDnodes.stop(1)
 
-        for tool in tools:            
-            path = tdDnodes.dnodes[1].getBuildPath(tool)
+        for tool in tools:
+            path = tdDnodes.dnodes[1].getPath(tool)
 
             try:
-                path += "/build/bin/" 
                 print(f"{path}{tool}")
                 if tool == "taosBenchmark":
-                    os.system(f"{path}{tool} -y")            
+                    os.system(f"{path}{tool} -y")
+                elif tool == "taosadapter":
+                    os.system(f"pkill -9 {tool}")
                 else:
                     os.system(f"{path}{tool}")
-            except:
+            except BaseException:
                 pass
 
     def stop(self):

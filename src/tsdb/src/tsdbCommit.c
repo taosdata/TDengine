@@ -44,6 +44,14 @@ typedef struct {
   SDataCols *  pDataCols;
 } SCommitH;
 
+/*
+ * millisecond by default
+ * for TSDB_TIME_PRECISION_MILLI: 3600000L
+ *     TSDB_TIME_PRECISION_MICRO: 3600000000L
+ *     TSDB_TIME_PRECISION_NANO:  3600000000000L
+ */
+static int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
+
 #define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
 #define TSDB_COMMIT_REPO_ID(ch) REPO_ID(TSDB_READ_REPO(&(ch->readh)))
 #define TSDB_COMMIT_WRITE_FSET(ch) (&((ch)->wSet))
@@ -98,6 +106,11 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
   }
   tsdbStartCommit(pRepo);
 
+  if (tsShortcutFlag & TSDB_SHORTCUT_RB_TSDB_COMMIT) {
+    tsdbEndCommit(pRepo, terrno);
+    return NULL;
+  }
+
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
     tsdbError("vgId:%d error occurs while committing META data since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -123,7 +136,7 @@ _err:
 
 int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
   SDiskID   did;
-  SDFileSet nSet;
+  SDFileSet nSet = {0};
   STsdbFS * pfs = REPO_FS(pRepo);
   int       level;
 
@@ -392,7 +405,7 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
   STsdbCfg *pCfg = REPO_CFG(pRepo);
   TSKEY     minKey, midKey, maxKey, now;
 
-  now = taosGetTimestamp(pCfg->precision);
+  now = taosGetTimestamp(pCfg->precision) - tsKeepTimeOffset * tsTickPerHour[pCfg->precision];
   minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
   midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
   maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];

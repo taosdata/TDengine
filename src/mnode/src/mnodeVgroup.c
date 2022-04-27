@@ -903,6 +903,8 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
   if (pDb == NULL) return NULL;
 
+  if (pVgroup->idPool == NULL) return NULL;
+
   SCreateVnodeMsg *pVnode = rpcMallocCont(sizeof(SCreateVnodeMsg));
   if (pVnode == NULL) return NULL;
 
@@ -1057,6 +1059,11 @@ void mnodeSendCompactVgroupMsg(SVgObj *pVgroup) {
 }
 static void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, void *ahandle) {
   SCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
+  if (pCreate == NULL) {
+    mError("vgId: %d, can not create vnode msg for send create vnode", pVgroup->vgId);
+    return;
+  }
+
   SRpcMsg rpcMsg = {
     .ahandle = ahandle,
     .pCont   = pCreate,

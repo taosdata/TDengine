@@ -229,6 +229,8 @@ typedef struct {
   uint32_t  numOfTables;
   SArray   *pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
+  int32_t sVersion;
+  int32_t tVersion;
 } STableGroupInfo;
 
 #define TSDB_BLOCK_DIST_STEP_ROWS 16
@@ -429,6 +431,16 @@ int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
 void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* out, int16_t bytes);
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
 char* parseTagDatatoJson(void *p);
+
+//
+// scan callback 
+//
+
+// type define
+#define READ_TABLE    1
+#define READ_QUERY    2
+typedef bool (*readover_callback)(void* param, int8_t type, int32_t tid);
+void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callback, void* param);
 
 #ifdef __cplusplus
 }

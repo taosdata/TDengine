@@ -322,8 +322,8 @@ class ElapsedCase:
         if (self.restart):
             tdSql.execute("drop table elapsed_t")
             tdSql.execute("drop table elapsed_st")
-        tdSql.execute("create table elapsed_t as select elapsed(ts) from t1 interval(1m) sliding(30s)")
-        tdSql.execute("create table elapsed_st as select elapsed(ts) from st1 interval(1m) sliding(30s) group by tbname")
+        tdSql.error("create table elapsed_t as select elapsed(ts) from t1 interval(1m) sliding(30s)")
+        tdSql.error("create table elapsed_st as select elapsed(ts) from st1 interval(1m) sliding(30s) group by tbname")
 
     def selectIllegalTest(self):
         tdSql.execute("use wxy_db")
@@ -345,7 +345,9 @@ class ElapsedCase:
         tdSql.error("select elapsed(*) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed(ts, '1s') from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed(ts, i) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
-        #tdSql.error("select elapsed(ts, now) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
+        tdSql.error("select elapsed(ts, now) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
+        tdSql.error("select elapsed(ts, now-7d+2h-3m+2s) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
+        tdSql.error("select elapsed(ts, 7d+2h+now+3m+2s) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed(ts, ts) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed(ts + 1) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed(ts, 1b) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")

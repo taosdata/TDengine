@@ -143,7 +143,7 @@ python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
-python3 ./test.py -f stream/sys.py
+#python3 ./test.py -f stream/sys.py
 python3 ./test.py -f stream/table_1.py
 python3 ./test.py -f stream/table_n.py
 python3 ./test.py -f stream/showStreamExecTimeisNull.py

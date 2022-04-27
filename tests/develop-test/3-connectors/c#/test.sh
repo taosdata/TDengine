@@ -19,12 +19,19 @@ cd ../../
 WKC=`pwd`
 cd ${WKC}/src/connector/C#
 dotnet test
-dotnet run --project src/test/Cases/Cases.csproj
+# run example under Driver
+cd ${WKC}/src/connector/C#/examples 
+dotnet run
 
+#dotnet run --project src/test/Cases/Cases.csproj
+
+# run example with neuget package
 cd ${WKC}/tests/examples/C#
 dotnet run --project C#checker/C#checker.csproj
 dotnet run --project TDengineTest/TDengineTest.csproj
 dotnet run --project schemaless/schemaless.csproj
+dotnet run --project jsonTag/jsonTag.csproj
+dotnet run --project stmt/stmt.csproj
 
 cd ${WKC}/tests/examples/C#/taosdemo
 dotnet build -c Release

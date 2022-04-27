@@ -1,6 +1,6 @@
 {
     "name": "node-red-contrib-tdengine",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "",
     "main": "tdengine.js",
     "repository": {
@@ -10,8 +10,7 @@
     "author": "kevinpan45@163.com",
     "license": "ISC",
     "dependencies": {
-        "axios": "^0.24.0",
-        "mocha": "^9.1.3"
+        "axios": "^0.24.0"
     },
     "node-red": {
         "nodes": {
@@ -23,7 +22,6 @@
         "tdengine"
     ],
     "devDependencies": {
-        "node-red": "^2.1.4",
-        "node-red-node-test-helper": "^0.2.7"
+        "node-red": "^2.1.4"
     }
 }

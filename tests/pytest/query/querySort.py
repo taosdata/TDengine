@@ -18,6 +18,8 @@ from util.cases import *
 from util.sql import *
 import numpy as np
 
+# constant define
+WAITS = 5 # wait seconds
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -67,9 +69,7 @@ class TDTestCase:
                 "%s failed: sql:%s, the order provided for col:%d is not correct" %
                 (callerFilename, tdSql.sql, col))
 
-    def run(self):
-        tdSql.prepare()
-
+    def test_base(self):
         print("======= step 1: create table and insert data =========")
         tdLog.debug(
             ''' create table st(ts timestamp, tbcol1 tinyint, tbcol2 smallint, tbcol3 int, tbcol4 bigint, tbcol5 float, tbcol6 double,
@@ -183,6 +183,44 @@ class TDTestCase:
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
+    def create_insert_data(self):
+        sql = "create table sb(ts timestamp, i1 int) tags(t_b1 binary(32), t_n1 nchar(64));"
+        tdSql.execute(sql)
+        for i in range(20):
+            value = "%s%s%s" % (chr(64+i),chr(64+i),chr(65+i))
+            if i%10 == 5:
+              value +=  "_%s" % (chr(66+i))
+            if i%10 == 0:
+              value +=  "_%s" % (chr(67+i))
+            sql = "insert into b%d using sb tags('A%s', 'B%s') values(now, %d);"%(i, value, value, i+1000)
+            tdSql.execute(sql)
+
+    def test_groupby_order(self):
+        # create and insert data
+        print("======= group order step 1: create table and insert data =========")
+        self.create_insert_data()
+
+        # do query
+        print("======= group order step 2: do query =========")
+        # ASC
+        sql = "select count(*) from sb group by t_b1 order by t_b1 asc;"
+        tdSql.execute(sql)
+        tdSql.waitedQuery(sql, 20, WAITS)
+        tdSql.checkData(0,  1, "A@@A_C")
+        tdSql.checkData(5,  1, "AEEF_G")
+        tdSql.checkData(19, 1, "ASST")
+        #DESC
+        sql = "select count(*) from sb group by t_b1 order by t_b1 desc;"
+        tdSql.execute(sql)
+        tdSql.waitedQuery(sql, 20, WAITS)
+        tdSql.checkData(19,  1, "A@@A_C")
+        tdSql.checkData(4, 1, "AOOP_Q")
+        tdSql.checkData(0, 1, "ASST")
+
+    def run(self):
+        tdSql.prepare()
+        self.test_base()
+        self.test_groupby_order()
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

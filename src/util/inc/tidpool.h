@@ -36,6 +36,9 @@ int taosIdPoolNumOfUsed(void *handle);
 
 bool taosIdPoolMarkStatus(void *handle, int id);
 
+// get free count from pool , if bLock is true, locked pool than get free count, accuracy but slowly 
+int taosIdPoolNumOfFree(void *handle, bool bLock);
+
 #ifdef __cplusplus
 }
 #endif

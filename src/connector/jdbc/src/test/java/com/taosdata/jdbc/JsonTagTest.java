@@ -8,6 +8,10 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(CatalogRunner.class)
@@ -197,6 +201,8 @@ public class JsonTagTest {
     @Description("select json tag from stable")
     public void case04_select03() throws SQLException {
         ResultSet resultSet = statement.executeQuery("select jtag from jsons1");
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        metaData.getColumnTypeName(1);
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -1125,14 +1131,14 @@ public class JsonTagTest {
         ResultSet resultSet = statement.executeQuery("select stddev(dataint) from jsons1 group by jtag->'tag1'");
         String s = "";
         int count = 0;
+        Set<String> set = new HashSet<>();
         while (resultSet.next()) {
             count++;
-            s = resultSet.getString(2);
-
+            set.add(resultSet.getString(2));
         }
         Assert.assertEquals(8, count);
-        Assert.assertEquals("\"femail\"", s);
-        close(resultSet);
+        Assert.assertTrue(set.contains("\"femail\""));
+        Assert.assertTrue(set.contains("\"收到货\""));
     }
 
     @Test
@@ -1174,6 +1180,110 @@ public class JsonTagTest {
         }
         Assert.assertEquals(11, count);
         close(resultSet);
+    }
+
+    @Test
+    @Description("query metadata for json")
+    public void case19_selectMetadata01() throws SQLException {
+        ResultSet resultSet = statement.executeQuery("select jtag from jsons1");
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        int columnType = metaData.getColumnType(1);
+        String columnTypeName = metaData.getColumnTypeName(1);
+        Assert.assertEquals(Types.OTHER, columnType);
+        Assert.assertEquals("JSON", columnTypeName);
+        close(resultSet);
+    }
+
+    @Test
+    @Description("query metadata for json")
+    public void case19_selectMetadata02() throws SQLException {
+        ResultSet resultSet = statement.executeQuery("select *,jtag from jsons1");
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        int columnType = metaData.getColumnType(6);
+        String columnTypeName = metaData.getColumnTypeName(6);
+        Assert.assertEquals(Types.OTHER, columnType);
+        Assert.assertEquals("JSON", columnTypeName);
+        close(resultSet);
+    }
+
+    @Test
+    @Description("query metadata for one json result")
+    public void case19_selectMetadata03() throws SQLException {
+        ResultSet resultSet = statement.executeQuery("select jtag->'tag1' from jsons1_6");
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        int columnType = metaData.getColumnType(1);
+        String columnTypeName = metaData.getColumnTypeName(1);
+        Assert.assertEquals(Types.OTHER, columnType);
+        Assert.assertEquals("JSON", columnTypeName);
+        resultSet.next();
+        String string = resultSet.getString(1);
+        Assert.assertEquals("11", string);
+        close(resultSet);
+    }
+
+    @Test
+    @Description("stmt batch insert with json tag")
+    public void case20_batchInsert() throws SQLException {
+        String jsonTag = "{\"tag1\":\"fff\",\"tag2\":5,\"tag3\":true}";
+        statement.execute("drop table if exists jsons5");
+        statement.execute("CREATE STABLE IF NOT EXISTS jsons5 (ts timestamp, dataInt int, dataStr nchar(20)) TAGS(jtag json)");
+
+        String sql = "INSERT INTO ? USING jsons5 TAGS (?) VALUES ( ?,?,? )";
+
+        try (PreparedStatement pst = connection.prepareStatement(sql)) {
+            TSDBPreparedStatement ps = pst.unwrap(TSDBPreparedStatement.class);
+            // 设定数据表名：
+            ps.setTableName("batch_test");
+            // 设定 TAGS 取值 setTagNString or setTagJson：
+//            ps.setTagNString(0, jsonTag);
+            ps.setTagJson(0, jsonTag);
+
+            // VALUES 部分以逐列的方式进行设置：
+            int numOfRows = 4;
+            ArrayList<Long> ts = new ArrayList<>();
+            for (int i = 0; i < numOfRows; i++) {
+                ts.add(System.currentTimeMillis() + i);
+            }
+            ps.setTimestamp(0, ts);
+
+            Random r = new Random();
+            int random = 10 + r.nextInt(5);
+            ArrayList<Integer> c1 = new ArrayList<>();
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
+                    c1.add(null);
+                } else {
+                    c1.add(r.nextInt());
+                }
+            }
+            ps.setInt(1, c1);
+
+            ArrayList<String> c2 = new ArrayList<>();
+            for (int i = 0; i < numOfRows; i++) {
+                c2.add("分支" + i % 4);
+            }
+            ps.setNString(2, c2, 10);
+
+            // AddBatch 之后，缓存并未清空。为避免混乱，并不推荐在 ExecuteBatch 之前再次绑定新一批的数据：
+            ps.columnDataAddBatch();
+            // 执行绑定数据后的语句：
+            ps.columnDataExecuteBatch();
+        }
+
+        ResultSet resultSet = statement.executeQuery("select jtag from batch_test");
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        String columnName = metaData.getColumnName(1);
+        Assert.assertEquals("jtag", columnName);
+        Assert.assertEquals("JSON", metaData.getColumnTypeName(1));
+        resultSet.next();
+        String string = resultSet.getString(1);
+        Assert.assertEquals(jsonTag, string);
+        resultSet.close();
+        resultSet = statement.executeQuery("select jtag->'tag2' from batch_test");
+        resultSet.next();
+        long l = resultSet.getLong(1);
+        Assert.assertEquals(5, l);
+        resultSet.close();
     }
 
     private void close(ResultSet resultSet) {

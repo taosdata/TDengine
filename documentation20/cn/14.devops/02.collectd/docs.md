@@ -1,9 +1,11 @@
 # 使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统
 
 ## 背景介绍
+
 TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维等设计和优化的大数据平台。自从 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。
 
 IT 运维监测数据通常都是对时间特性比较敏感的数据，例如：
+
 - 系统资源指标：CPU、内存、IO、带宽等。
 - 软件系统指标：存活状态、连接数目、请求数目、超时数目、错误数目、响应时间、服务类型及其他与业务有关的指标。
 
@@ -14,21 +16,27 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ![IT-DevOps-Solutions-Collectd-StatsD.png](../../images/IT-DevOps-Solutions-Collectd-StatsD.png)
 
 ## 安装步骤
+
 安装 collectd， StatsD， Grafana 和 TDengine 请参考相关官方文档。
 
 ### 安装 collectd
+
 请参考[官方文档](https://collectd.org/documentation.shtml)。
 
 ### 安装 StatsD
+
 请参考[官方文档](https://github.com/statsd/statsd)。
 
 ### 安装 Grafana
+
 请参考[官方文档](https://grafana.com/grafana/download)。
 
 ### 安装 TDengine
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/）页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
+
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
 
 ## 数据链路设置
+
 ### 复制 TDengine 插件到 grafana 插件目录
 
 ```bash
@@ -40,7 +48,9 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ```
 
 ### 配置 collectd
+
 在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+
 ```
 LoadPlugin network
 <Plugin network>
@@ -51,7 +61,9 @@ sudo systemctl start collectd
 ```
 
 ### 配置 StatsD
+
 在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+
 ```
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
@@ -74,6 +86,7 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 ![IT-DevOps-Solutions-statsd-dashboard.png](../../images/IT-DevOps-Solutions-statsd-dashboard.png)
 
 ## 总结
+
 TDengine 作为新兴的时序大数据平台，具备极强的高性能、高可靠、易管理、易维护的优势。得力于 TDengine 2.3.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统或者适配一个已存在的系统。
 
 TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品成功落地案例。

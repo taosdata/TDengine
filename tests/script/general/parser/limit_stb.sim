@@ -168,9 +168,9 @@ sql select * from $stb limit 2 offset $offset
 if $rows != 2 then
   return -1
 endi
-if $data00 != @18-09-17 10:30:00.002@ then
-  return -1
-endi
+#if $data00 != @18-09-17 10:30:00.002@ then
+#  return -1
+#endi
 if $data01 != 9 then
   return -1
 endi

@@ -27,7 +27,7 @@ class TDTestCase:
         self.numberOfTables = 10000
         self.numberOfRecords = 100
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -35,24 +35,30 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def run(self):
         tdSql.prepare()
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
-        os.system("%staosBenchmark -f tools/insert-tblimit-tboffset-createdb.json" % binPath)
-        os.system("%staosBenchmark -f tools/insert-tblimit-tboffset-insertrec.json" % binPath)
+            tdLog.info("taosd found in %s" % binPath)
+        os.system(
+            "%s -f tools/insert-tblimit-tboffset-createdb.json" %
+            binPath)
+        os.system(
+            "%s -f tools/insert-tblimit-tboffset-insertrec.json" %
+            binPath)
 
         tdSql.execute("use db")
         tdSql.query("select count(tbname) from db.stb")
@@ -60,8 +66,10 @@ class TDTestCase:
         tdSql.query("select count(*) from db.stb")
         tdSql.checkData(0, 0, 33000)
 
-        os.system("%staosBenchmark -f tools/insert-tblimit-tboffset-createdb.json" % binPath)
-        os.system("%staosBenchmark -f tools/insert-tblimit-tboffset0.json" % binPath)
+        os.system(
+            "%s -f tools/insert-tblimit-tboffset-createdb.json" %
+            binPath)
+        os.system("%s -f tools/insert-tblimit-tboffset0.json" % binPath)
 
         tdSql.execute("reset query cache")
         tdSql.execute("use db")
@@ -70,8 +78,10 @@ class TDTestCase:
         tdSql.query("select count(*) from db.stb")
         tdSql.checkData(0, 0, 20000)
 
-        os.system("%staosBenchmark -f tools/insert-tblimit-tboffset-createdb.json" % binPath)
-        os.system("%staosBenchmark -f tools/insert-tblimit1-tboffset.json" % binPath)
+        os.system(
+            "%s -f tools/insert-tblimit-tboffset-createdb.json" %
+            binPath)
+        os.system("%s -f tools/insert-tblimit1-tboffset.json" % binPath)
 
         tdSql.execute("reset query cache")
         tdSql.execute("use db")

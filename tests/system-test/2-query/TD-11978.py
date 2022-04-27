@@ -30,7 +30,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <authors>: wenzhouwww[TD-11978] : 
+        case1 <wenzhouwww>: [TD-11978] : 
             this test case is an test case for unexpected coredump about taoshell  ;
             root cause : The function does not determine whether the input is empty
         ''' 

@@ -92,6 +92,16 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_BATCH_ERROR_IGNORE = "batchErrorIgnore";
 
+    /**
+     * message receive from server timeout. ms
+     */
+    public static final String PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT = "messageWaitTimeout";
+
+    /**
+     * max message number send to server concurrently
+     */
+    public static final String PROPERTY_KEY_MAX_CONCURRENT_REQUEST = "maxConcurrentRequest";
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {

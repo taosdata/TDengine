@@ -13,7 +13,7 @@
 
 from posixpath import split
 import sys
-import os 
+import os
 
 from util.log import *
 from util.cases import *
@@ -24,7 +24,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
         self.ts = 1420041600000 # 2015-01-01 00:00:00  this is begin time for first record
         self.num = 10
 
@@ -49,8 +49,8 @@ class TDTestCase:
 
         '''
         case1 <shenglian zhou>: [TD-12344] : fix session window for super table two stage query
-        ''' 
-        return 
+        '''
+        return
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -75,13 +75,13 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
-        
+
         cfgPath = projPath + "/sim/dnode1/cfg  "
         return cfgPath
 
-        
 
-   
+
+
     def run(self):
         tdSql.prepare()
         tdSql.execute("create database if not exists testdb keep 36500;")
@@ -95,9 +95,9 @@ class TDTestCase:
         cfg_path = self.getcfgPath()
         print(cfg_path)
         tdSql.query('select elapsed(ts,10s) from st   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" session(ts,1d) group by tbname;')  # session not support super table
-        tdSql.checkRows(10) 
-         
-    
+        tdSql.checkRows(10)
+
+
 
     def stop(self):
         tdSql.close()
