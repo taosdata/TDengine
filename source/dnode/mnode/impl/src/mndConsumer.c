@@ -597,7 +597,6 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   if (pNewConsumer->updateType == CONSUMER_UPDATE__MODIFY) {
     ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
     ASSERT(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
-    ASSERT(taosArrayGetSize(pNewConsumer->assignedTopics) != 0);
     SArray *tmp = pOldConsumer->rebNewTopics;
     pOldConsumer->rebNewTopics = pNewConsumer->rebNewTopics;
     pNewConsumer->rebNewTopics = tmp;
@@ -630,7 +629,6 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__RECOVER) {
     ASSERT(taosArrayGetSize(pOldConsumer->currentTopics) == 0);
     ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
-    ASSERT(taosArrayGetSize(pOldConsumer->assignedTopics) != 0);
 
     int32_t sz = taosArrayGetSize(pOldConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
