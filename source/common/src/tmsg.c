@@ -1302,6 +1302,11 @@ int32_t tDeserializeSGetUserAuthRsp(void *buf, int32_t bufLen, SGetUserAuthRsp *
   return 0;
 }
 
+void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
+  taosHashCleanup(pRsp->readDbs);
+  taosHashCleanup(pRsp->writeDbs);
+}
+
 int32_t tSerializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
