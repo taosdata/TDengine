@@ -391,7 +391,6 @@ class TDTestCase:
         tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
 
         self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select floor(c1+1) ,floor(c2) , floor(c3*1) , floor(c4/2), floor(c5)/2, floor(c6) from sub1_bound ")
-        
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
