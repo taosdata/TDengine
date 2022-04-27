@@ -16,7 +16,6 @@ use crate::Taos;
 #[derive(Debug)]
 pub struct AsyncRs<'q> {
     raw: DroppableRawRes<'q>,
-    precision: Precision,
     records: Arc<RwLock<Vec<i32>>>,
 }
 
@@ -24,18 +23,16 @@ impl<'q> From<SyncResultSet<'q>> for AsyncRs<'q> {
     fn from(rs: SyncResultSet<'q>) -> Self {
         Self {
             raw: rs.raw,
-            precision: rs.precision,
             records: Arc::new(RwLock::new(Vec::new())),
         }
     }
 }
 
 impl<'q> AsyncRs<'q> {
+    #[inline]
     fn new(raw: DroppableRawRes<'q>) -> Self {
-        let precision = raw.precision();
         Self {
             raw,
-            precision,
             records: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -44,14 +41,22 @@ impl<'q> AsyncRs<'q> {
 impl<'q> AsyncResultSet for AsyncRs<'q> {
     type BlockStream = crate::block::BlockStream<'q>;
 
+    #[inline]
+    fn affected_rows(&self) -> i32 {
+        self.raw.affected_rows()
+    }
+
+    #[inline]
+    fn precision(&self) -> Precision {
+        self.raw.precision()
+    }
+
+    #[inline]
     fn fields(&self) -> &[Field] {
         &self.raw.fields()
     }
 
-    fn precision(&self) -> Precision {
-        self.precision
-    }
-
+    #[inline]
     fn summary(&self) -> (usize, usize) {
         let records = self.records.read().unwrap();
         (
@@ -65,10 +70,6 @@ impl<'q> AsyncResultSet for AsyncRs<'q> {
 
     fn block_stream(&self) -> Self::BlockStream {
         crate::block::BlockStream::from_raw(self.raw.raw(), self.records.clone())
-    }
-
-    fn affected_rows(&self) -> i32 {
-        self.raw.affected_rows()
     }
 }
 

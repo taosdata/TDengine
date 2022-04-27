@@ -1,12 +1,7 @@
+use std::{ffi::c_void, slice, sync::Arc};
+
 use bitvec_simd::BitVec;
 use itertools::Itertools;
-use std::{
-    borrow::{Borrow, Cow},
-    ffi::c_void,
-    marker::PhantomData,
-    slice,
-    sync::Arc,
-};
 use thiserror::Error;
 
 use taos_query::{common::*, BlockExt, Queryable, ResultSet};
@@ -29,7 +24,6 @@ pub enum Error {
 #[derive(Debug)]
 pub struct SyncResultSet<'q> {
     raw: DroppableRawRes<'q>,
-    precision: Precision,
     records: Arc<Vec<i32>>,
 }
 
@@ -205,7 +199,7 @@ impl<'q> ResultSet for SyncResultSet<'q> {
     }
 
     fn precision(&self) -> Precision {
-        self.precision
+        self.raw.precision()
     }
 
     fn summary(&self) -> (usize, usize) {
@@ -288,14 +282,30 @@ impl<'q> Queryable<'q> for Taos {
 
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<SyncResultSet<'q>, Self::Error> {
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
-        // let n = raw.num_fields();
-        let precision = raw.precision();
         Ok(SyncResultSet {
             raw,
-            precision,
             records: Default::default(),
         })
     }
+}
+
+#[taos_macros::test(crate, log_level = "trace")]
+fn show_databases(taos: &Taos) -> Result<(), Error> {
+    let mut rs = <Taos as Queryable>::query(taos, "show databases")?;
+
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Record {
+        name: String,
+        ntables: u64,
+    }
+
+    for record in rs.deserialize() {
+        let _: Record = record?;
+    }
+
+    assert_eq!(rs.summary(), (0, 0));
+    Ok(())
 }
 
 #[taos_macros::test(crate, log_level = "info")]
@@ -321,6 +331,7 @@ fn sync_query_on_non_queryable_sql(taos: &Taos, _database: &str) -> Result<(), E
     assert_eq!(rs.summary(), (0, 0));
     Ok(())
 }
+
 #[taos_macros::test(crate, log_level = "info")]
 fn sync_query_de(taos: &Taos, _database: &str) -> Result<(), Error> {
     let affected_rows = <Taos as Queryable>::exec(taos, "use log")?;
