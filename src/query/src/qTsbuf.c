@@ -125,6 +125,13 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   ret = fseek(pTSBuf->f, 0, SEEK_END);
   UNUSED(ret);
+
+  // file meta data may be cached, close and reopen the file for accurate file size.
+  fclose(pTSBuf->f);
+  pTSBuf->f = fopen(pTSBuf->path, "rb+");
+  if (pTSBuf->f == NULL) {
+    return pTSBuf;
+  }
   
   struct stat fileStat;
   if (fstat(fileno(pTSBuf->f), &fileStat) != 0) {
