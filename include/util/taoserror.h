@@ -62,6 +62,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_APP_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x0014)
 #define TSDB_CODE_RPC_FQDN_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0015)
 #define TSDB_CODE_RPC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0016)
+#define TSDB_CODE_RPC_PORT_EADDRINUSE           TAOS_DEF_ERROR_CODE(0, 0x0017)
 
 //common & util
 #define TSDB_CODE_OUT_OF_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0100)
