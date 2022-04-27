@@ -28,7 +28,7 @@ pub fn cli<'help>() -> clap::Command<'help> {
 
 fn main() {
     SimpleLogger::new()
-        .with_level(LevelFilter::Info)
+        .env()
         .init()
         .unwrap();
     let cli = Cli::parse();
