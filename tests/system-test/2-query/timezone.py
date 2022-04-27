@@ -75,6 +75,8 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("select timezone()+1.5 from ntb")
 
+        # tdSql.query("select timezone()")
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
