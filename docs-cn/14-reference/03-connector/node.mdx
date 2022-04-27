@@ -72,11 +72,11 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 </TabItem>
 <TabItem value="Windows" label="Windows 系统安装依赖工具">
 
-#### 安装方法 1
+- 安装方法 1
 
 使用微软的[ windows-build-tools ](https://github.com/felixrieseberg/windows-build-tools)在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具。
 
-#### 安装方法 2
+- 安装方法 2
 
 手动安装以下工具：
 
@@ -114,7 +114,7 @@ npm i td2.0-rest-connector
 
 验证方法：
 
-- 新建安装验证目录，例如：`~/tdengine-test`，拷贝 github 上 [nodejsChecker.js 源程序](https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js)。
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js)到本地。
 
 - 在命令行中执行以下命令。
 
@@ -124,7 +124,7 @@ npm install td2.0-connector
 node nodejsChecker.js host=localhost
 ```
 
-- 执行以上步骤后，在命令行会输出 nodejs 连接 TDengine 实例，并执行简单插入和查询的结果。
+- 执行以上步骤后，在命令行会输出 nodejsChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
 ## 建立连接
 
