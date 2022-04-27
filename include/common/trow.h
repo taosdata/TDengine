@@ -676,7 +676,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     case TD_ROW_KV:
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols);
-      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBitmaps);
+      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBoundBitmaps);
 #endif
       len = TD_ROW_HEAD_LEN + TD_ROW_NCOLS_LEN + (pBuilder->nBoundCols - 1) * sizeof(SKvRowIdx) +
             pBuilder->nBoundBitmaps;  // add
@@ -1100,7 +1100,7 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
   STSRow    *pRow = pIter->pRow;
   SKvRowIdx *pKvIdx = NULL;
   bool       colFound = false;
-  col_id_t   kvNCols = tdRowGetNCols(pRow);
+  col_id_t   kvNCols = tdRowGetNCols(pRow) - 1;
   while (*nIdx < kvNCols) {
     pKvIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(pRow), *nIdx * sizeof(SKvRowIdx));
     if (pKvIdx->colId == colId) {
@@ -1116,7 +1116,14 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
     }
   }
 
-  if (!colFound) return false;
+  if (!colFound) {
+    if(colId <= pIter->maxColId) {
+      pVal->valType = TD_VTYPE_NONE;
+      return true;
+    } else {
+      return false;
+    }
+  }
 
 #ifdef TD_SUPPORT_BITMAP
   int16_t colIdx = -1;

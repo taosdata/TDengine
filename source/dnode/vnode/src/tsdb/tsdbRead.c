@@ -1528,7 +1528,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     } else if (isRow2DataRow) {
       colIdOfRow2 = pSchema2->columns[k].colId;
     } else {
-      colIdOfRow2 = tdKvRowColIdAt(row2, j);
+      colIdOfRow2 = tdKvRowColIdAt(row2, k);
     }
 
     if (colIdOfRow1 == colIdOfRow2) {
