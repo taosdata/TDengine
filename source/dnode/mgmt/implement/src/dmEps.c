@@ -156,11 +156,6 @@ PRASE_DNODE_OVER:
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
-  if (dmIsEpChanged(pDnode, pDnode->data.dnodeId, pDnode->data.localEp)) {
-    dError("localEp %s different with %s and need reconfigured", pDnode->data.localEp, file);
-    return -1;
-  }
-
   if (taosArrayGetSize(pDnode->data.dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
@@ -169,6 +164,11 @@ PRASE_DNODE_OVER:
   }
 
   dmResetEps(pDnode, pDnode->data.dnodeEps);
+
+  if (dmIsEpChanged(pDnode, pDnode->data.dnodeId, pDnode->data.localEp)) {
+    dError("localEp %s different with %s and need reconfigured", pDnode->data.localEp, file);
+    return -1;
+  }
 
   terrno = code;
   return code;
