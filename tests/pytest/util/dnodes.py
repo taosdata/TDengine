@@ -114,11 +114,14 @@ class TDSimClient:
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
         
-        if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
-            print(updatecfgDict[0][0])      
-            clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))            
-            for key, value in clientCfg.items():
-                self.cfg(key, value)
+        try:
+            if updatecfgDict and updatecfgDict[0] and updatecfgDict[0][0]:            
+                clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))           
+                if clientCfg is not None:                    
+                    for key, value in clientCfg.items():
+                        self.cfg(key, value)
+        except Exception as e:
+            pass
 
         tdLog.debug("psim is deployed and configured by %s" % (self.cfgPath))
 
