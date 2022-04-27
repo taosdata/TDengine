@@ -823,7 +823,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   }
   p++;
 
-  if (memcmp(url, "jsonFile", 8) == 0) {
+  if (strncmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
       uError("fial to load json file: %s", filepath);
@@ -893,8 +893,8 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     }
     tjsonDelete(pJson);
 
-  // } else if (memcmp(url, "jsonUrl", 7) == 0) {
-  // } else if (memcmp(url, "etcdUrl", 7) == 0) {
+  // } else if (strncmp(url, "jsonUrl", 7) == 0) {
+  // } else if (strncmp(url, "etcdUrl", 7) == 0) {
   } else {
     uError("Unsupported url: %s", url);
     return -1;
@@ -908,7 +908,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
   int32_t index = 0;
   if (envCmd == NULL) return 0;
   while (envCmd[index]!=NULL) {
-    if (memcmp(envCmd[index], "TAOS_APOLLO_URL", 14) == 0) {
+    if (strncmp(envCmd[index], "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(envCmd[index], '=');
       if (p != NULL) {
         p++;
@@ -934,7 +934,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         break;
       }
       if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-      if (memcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
+      if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;
@@ -975,7 +975,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         break;
       }
       if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
-      if (memcmp(line, "TAOS_APOLLO_URL", 14) == 0) {
+      if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;

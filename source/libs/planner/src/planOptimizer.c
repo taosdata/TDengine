@@ -246,7 +246,7 @@ static int32_t cpdMergeConds(SNode** pDst, SNodeList** pSrc) {
 
 static int32_t cpdCondAppend(SNode** pCond, SNode** pAdditionalCond) {
   if (NULL == *pCond) {
-    TSWAP(*pCond, *pAdditionalCond, SNode*);
+    TSWAP(*pCond, *pAdditionalCond);
     return TSDB_CODE_SUCCESS;
   }
 

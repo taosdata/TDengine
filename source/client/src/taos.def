@@ -1,6 +1,7 @@
 taos_cleanup
 taos_options
 taos_set_config
+taos_init
 taos_connect
 taos_connect_l
 taos_connect_auth

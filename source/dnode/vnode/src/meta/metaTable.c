@@ -88,7 +88,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
 
   // preprocess req
   pReq->uid = tGenIdPI64();
-  pReq->ctime = taosGetTimestampSec();
+  pReq->ctime = taosGetTimestampMs();
 
   // validate req
   metaReaderInit(&mr, pMeta, 0);
@@ -158,7 +158,9 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   pKey = &tbDbKey;
   kLen = sizeof(tbDbKey);
 
-  if (tEncodeSize(metaEncodeEntry, pME, vLen) < 0) {
+  int32_t ret = 0;
+  tEncodeSize(metaEncodeEntry, pME, vLen, ret);
+  if (ret < 0) {
     goto _err;
   }
 
@@ -250,7 +252,9 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   skmDbKey.sver = pSW->sver;
 
   // encode schema
-  if (tEncodeSize(tEncodeSSchemaWrapper, pSW, vLen) < 0) return -1;
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSSchemaWrapper, pSW, vLen, ret);
+  if (ret < 0) return -1;
   pVal = taosMemoryMalloc(vLen);
   if (pVal == NULL) {
     rcode = -1;

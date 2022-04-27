@@ -438,6 +438,7 @@ typedef struct {
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
+void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
 typedef struct {
   int16_t colId;     // column id
@@ -1332,7 +1333,7 @@ int32_t tDeserializeSCMCreateTopicRsp(void* buf, int32_t bufLen, SCMCreateTopicR
 
 typedef struct {
   int64_t consumerId;
-} SMqConsumerLostMsg;
+} SMqConsumerLostMsg, SMqConsumerRecoverMsg;
 
 typedef struct {
   int64_t consumerId;
@@ -1537,6 +1538,10 @@ int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
 typedef struct SVDropStbReq {
   // data
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SVDropStbReq;
 
 typedef struct SVCreateStbRsp {
@@ -2116,7 +2121,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SCoder* pDecoder, SSchemaWrapp
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
 
-  pSW->pSchema = (SSchema*)TCODER_MALLOC(pDecoder, sizeof(SSchema) * pSW->nCols);
+  pSW->pSchema = (SSchema*)tCoderMalloc(pDecoder, sizeof(SSchema) * pSW->nCols);
   if (pSW->pSchema == NULL) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
     if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;

@@ -63,7 +63,7 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-    def deploy(self):
+    def deploy(self, *updatecfgDict):
         self.logDir = "%s/sim/psim/log" % (self.path)
         self.cfgDir = "%s/sim/psim/cfg" % (self.path)
         self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
@@ -95,6 +95,14 @@ class TDSimClient:
 
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
+        
+        try:
+            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:                    
+                clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))
+                for key, value in clientCfg.items():
+                    self.cfg(key, value)
+        except Exception:
+            pass
 
         tdLog.debug("psim is deployed and configured by %s" % (self.cfgPath))
 
@@ -214,9 +222,11 @@ class TDDnode:
         # self.cfg("logDir",self.logDir)
         # print(updatecfgDict)
         isFirstDir = 1
-        if updatecfgDict[0] and updatecfgDict[0][0]:
+        if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
+                if key == "clientCfg":
+                    continue
                 if value == 'dataDir':
                     if isFirstDir:
                         self.cfgDict.pop('dataDir')
@@ -491,7 +501,7 @@ class TDDnodes:
         self.sim.setTestCluster(self.testCluster)
 
         if (self.simDeployed == False):
-            self.sim.deploy()
+            self.sim.deploy(updatecfgDict)
             self.simDeployed = True
 
         self.check(index)

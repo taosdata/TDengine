@@ -261,7 +261,7 @@ static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMq
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->subscribeDbName[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+    terrno = TSDB_CODE_MND_INVALID_TOPIC;
     return -1;
   }
 

@@ -23,8 +23,6 @@ const SVnodeCfg vnodeCfgDefault = {
     .szCache = 256,
     .szBuf = 96 * 1024 * 1024,
     .isHeap = false,
-    .ttl = 0,
-    .keep = 0,
     .streamMode = 0,
     .isWeak = 0,
     .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
@@ -58,8 +56,6 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "ttl", pCfg->ttl) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep", pCfg->keep) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
@@ -72,7 +68,6 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;
@@ -109,8 +104,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "ttl", pCfg->ttl) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep", pCfg->keep) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
@@ -123,7 +116,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;

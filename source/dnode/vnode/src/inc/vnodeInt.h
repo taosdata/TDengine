@@ -75,7 +75,6 @@ int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* 
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
-int             metaGetTableEntryByUid(SMetaReader* pReader, tb_uid_t uid);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);

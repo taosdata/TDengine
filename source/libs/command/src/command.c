@@ -27,9 +27,14 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
   }
 }
 
+// todo : to convert data according to SSDatablock
 static void buildRspData(const STableMeta* pMeta, char* pData) {
-  int32_t* pColSizes = (int32_t*)pData;
-  pData += DESCRIBE_RESULT_COLS * sizeof(int32_t);
+  int32_t* payloadLen = (int32_t*) pData;
+  uint64_t* groupId = (uint64_t*)(pData + sizeof(int32_t));
+
+  int32_t* pColSizes = (int32_t*)(pData + sizeof(int32_t) + sizeof(uint64_t));
+  pData = (char*) pColSizes + DESCRIBE_RESULT_COLS * sizeof(int32_t);
+
   int32_t numOfRows = TABLE_TOTAL_COL_NUM(pMeta);
 
   // Field
@@ -79,6 +84,9 @@ static void buildRspData(const STableMeta* pMeta, char* pData) {
   for (int32_t i = 0; i < DESCRIBE_RESULT_COLS; ++i) {
     pColSizes[i] = htonl(pColSizes[i]);
   }
+
+
+  *payloadLen = (int32_t)(pData - (char*)payloadLen);
 }
 
 static int32_t calcRspSize(const STableMeta* pMeta) {
@@ -87,7 +95,8 @@ static int32_t calcRspSize(const STableMeta* pMeta) {
       (numOfRows * sizeof(int32_t) + numOfRows * DESCRIBE_RESULT_FIELD_LEN) + 
       (numOfRows * sizeof(int32_t) + numOfRows * DESCRIBE_RESULT_TYPE_LEN) +
       (BitmapLen(numOfRows) + numOfRows * sizeof(int32_t)) + 
-      (numOfRows * sizeof(int32_t) + numOfRows * DESCRIBE_RESULT_NOTE_LEN);
+      (numOfRows * sizeof(int32_t) + numOfRows * DESCRIBE_RESULT_NOTE_LEN) +
+      sizeof(int32_t) + sizeof(uint64_t);
 }
 
 static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
