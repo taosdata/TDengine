@@ -103,6 +103,10 @@ static void      cliDestroyConn(SCliConn* pConn, bool clear /*clear tcp handle o
 static void      cliDestroy(uv_handle_t* handle);
 static void      cliSend(SCliConn* pConn);
 
+/*
+ * set TCP connection timeout per-socket level
+ */
+static int cliCreateSocket();
 // process data read from server, add decompress etc later
 static void cliHandleResp(SCliConn* conn);
 // handle except about conn
@@ -729,9 +733,15 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     if (ret) {
       tError("%s cli conn %p failed to set conn option, errmsg %s", pTransInst->label, conn, uv_err_name(ret));
     }
+    int fd = taosCreateSocketWithTimeOutOpt(TRANS_CONN_TIMEOUT);
+    if (fd == -1) {
+      tTrace("%s cli conn %p failed to create socket", pTransInst->label, conn);
+      cliHandleExcept(conn);
+      return;
+    }
+    uv_tcp_open((uv_tcp_t*)conn->stream, fd);
 
     struct sockaddr_in addr;
-
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = taosGetIpv4FromFqdn(conn->ip);
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
