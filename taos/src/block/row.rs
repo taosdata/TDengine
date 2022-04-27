@@ -17,7 +17,7 @@ use super::{BorrowedValue, Block};
 #[derive(Debug)]
 pub struct Row<'block> {
     // todo: Rc or Arc?
-    block: Rc<Block<'block>>,
+    block: Arc<Block<'block>>,
     index: usize,
 }
 
@@ -30,11 +30,8 @@ impl<'block> Deref for Row<'block> {
 }
 
 impl<'block> Row<'block> {
-    pub(crate) fn new(block: Rc<Block<'block>>, index: usize) -> Self {
-        Self {
-            block,
-            index: dbg!(index),
-        }
+    pub(crate) fn new(block: Arc<Block<'block>>, index: usize) -> Self {
+        Self { block, index }
     }
     pub(crate) fn deserializer(&self) -> Deserializer {
         Deserializer::new(self)

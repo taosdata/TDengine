@@ -69,21 +69,43 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
         "create table if not exists stb1(ts timestamp,
             i8 tinyint, i16 smallint, i32 int, i64 bigint,
             u8 tinyint unsigned, u16 smallint unsigned, u32 int unsigned, u64 bigint unsigned,
-            raw_ts timestamp, c_str binary(100), str nchar(100)) tags (json_tag json)",
+            raw_ts timestamp, c_str binary(100), str nchar(100)) tags (groupid int, location nchar(16))",
     )?;
     log::info!("insert data");
     taos.exec_sync(concat!(
-        r#"insert into tb1 using stb1 tags('{"name":"abc"}') "#,
+        r#"insert into tb1 using stb1 tags(1, 'beijing') "#,
+        r#"values (now,1,2,3,4,5,6,7,8, now, "abc", "世界")"#
+    ))?;
+    taos.exec_sync(concat!(
+        r#"insert into tb2 using stb1 tags(2, 'shanghai') "#,
         r#"values (now,1,2,3,4,5,6,7,8, now, "abc", "世界")"#
     ))?;
 
     log::info!("select");
-    let res = taos.query("select * from stb1").await?;
+    let res = taos
+        .query("select tbname,groupid,location from stb1")
+        .await?;
     use futures::StreamExt;
 
     // block.rows_iter()
-    let record: Vec<Value> = res.rows_de_stream().next().await.unwrap()?;
-    log::debug!("fetched record {:?}", record);
+    // let mut stream = res.rows_de_stream();
+    use futures::future;
+    res.rows_de_stream::<Vec<Value>>()
+        .enumerate()
+        .for_each(|(_, v)| {
+            let value = v.unwrap();
+            log::debug!("{:?}", value);
+            future::ready(())
+        })
+        .await;
+
+    // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
+    // log::debug!("fetched record {:?}", record);
+    // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
+    // log::debug!("fetched record {:?}", record);
+    // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
+    // log::debug!("fetched record {:?}", record);
+    // taos.clean()?;
     Ok(())
 }
 

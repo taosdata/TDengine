@@ -1,13 +1,12 @@
 use clap::Args;
+use futures::Future;
 use std::path::PathBuf;
-use taos::r2d2::TaosPool;
-use taos::TaosOptions;
-use taosx::TaosOpts;
+use taos::{query::common::*, TaosOptions, Value};
+use taosx::{TaosBlock, TaosDescribe, TaosOpts, TaosTag};
 use tokio::runtime::Builder;
-mod restore_parquet;
-mod restore_sql;
-use self::restore_parquet::{get_parquet_files, restore_parquet};
-use self::restore_sql::restore_sql;
+pub(crate) mod deserialize;
+
+use self::deserialize::{deserialize_database, Deserialize};
 #[derive(Debug, Args)]
 /// Restore from a backup output directory.
 
@@ -20,84 +19,204 @@ pub(crate) struct App {
     thread: Option<u32>,
 }
 
-pub enum SqlLevel {
-    Database,
-    Stable,
-    Table,
+fn allocate_task<Fut: 'static>(
+    db: String,
+    mut dir: PathBuf,
+    path: &str,
+    mut threads: u32,
+    f: impl Fn(Vec<String>, String) -> Fut,
+) where
+    Fut: Future<Output = ()> + std::marker::Send,
+{
+    dir.push(path);
+    let mut filelist = vec![];
+    for element in dir.read_dir().unwrap() {
+        let filename = element.unwrap().path();
+        if let Some(extension) = filename.extension() {
+            if extension == "parquet" {
+                filelist.push(filename.to_str().unwrap().to_string());
+            }
+        }
+    }
+    if threads > filelist.len() as _ {
+        threads = filelist.len() as _;
+    }
+    let file_per_threads = if filelist.len() as u32 % threads == 0 {
+        filelist.len() as u32 / threads
+    } else {
+        filelist.len() as u32 / threads + 1
+    };
+
+    let mut handles = Vec::with_capacity(threads as _);
+    let chunks: Vec<&[String]> = filelist.chunks(file_per_threads as _).collect();
+    threads = chunks.len() as _;
+
+    log::info!(
+        "{} threads each deal with at most {} files",
+        threads,
+        file_per_threads
+    );
+
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(threads as usize)
+        .enable_all()
+        .build()
+        .unwrap();
+    for chunk in chunks {
+        handles.push(runtime.spawn(f(chunk.to_owned(), db.clone())))
+    }
+    for handle in handles {
+        runtime.block_on(handle).unwrap();
+    }
 }
 
 impl App {
     pub fn run_with_taos_opts(&self, _opts: &TaosOpts) {
-        let database = self.database.as_deref().unwrap_or("");
-        let db = String::from(database);
         let threads = self.thread.unwrap_or(1);
-        let source = self.input.as_deref().unwrap_or("./");
-        log::info!(
-            "start restoring from {} to database {} with {} threads",
-            source,
-            db,
-            threads
+        let input = self.input.as_deref().unwrap_or("./");
+        let path = PathBuf::from(input);
+
+        let db = restore_database(path.clone());
+
+        allocate_task(
+            db.clone(),
+            path.clone(),
+            "table.info",
+            threads,
+            restore_table_info,
         );
-        let path = PathBuf::from(source);
-        let opts = TaosOptions::new();
-        let pool = TaosPool::builder().build(opts).unwrap();
-        log::info!("start read database create sql");
-        Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(restore_sql(pool.clone(), &path, SqlLevel::Database));
-        log::info!("finish create database");
-        Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(
-                pool.clone()
-                    .get()
-                    .unwrap()
-                    .query(format!("use {}", db.clone()).as_str()),
-            )
-            .unwrap();
-        log::info!("use database");
-        log::info!("start read stable create sql");
-        Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(restore_sql(pool.clone(), &path, SqlLevel::Stable));
-        log::info!("finish create stable(s)");
-        log::info!("start read table create sql");
-        Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(restore_sql(pool.clone(), &path, SqlLevel::Table));
-        log::info!("finish create table(s)");
-        let file_list = get_parquet_files(path.clone());
-        let opts = TaosOptions::new();
-        let pool = TaosPool::builder()
-            .max_size(file_list.len() as u32)
-            .build(opts)
-            .unwrap();
-        let runtime = Builder::new_multi_thread()
-            .worker_threads(threads as usize)
-            .enable_all()
-            .build()
-            .unwrap();
-        let mut handles = Vec::with_capacity(file_list.len());
-        log::info!("read {} parquet files", file_list.len());
-        for i in 0..file_list.len() {
-            handles.push(runtime.spawn(restore_parquet(
-                pool.clone(),
-                path.clone(),
-                file_list[i].clone(),
-                db.clone(),
-            )));
+
+        allocate_task(db.clone(), path.clone(), "tags", threads, restore_tags);
+
+        allocate_task(db, path, "chunk", threads, restore_data);
+    }
+}
+
+fn restore_database(mut path: PathBuf) -> String {
+    path.push("db.info");
+    let taos = TaosOptions::new().build().unwrap();
+    let database = deserialize_database(path);
+    Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            taos.query(format!("create database if not exists {}", database.name))
+                .await
+                .unwrap()
+        });
+
+    database.name
+}
+
+async fn restore_table_info(filelist: Vec<String>, db: String) {
+    let taos = TaosOptions::new().database(db).build().unwrap();
+    for file in filelist {
+        let mut deserialize = Deserialize::<TaosDescribe>::new(file);
+        deserialize.deserialize().await;
+        let describes = deserialize.output;
+        for describe in describes {
+            let mut col_buffer = String::from("");
+            let mut tag_buffer = String::from("");
+            for col in describe.describe {
+                match col {
+                    taosx::TaosColumnMeta::Column(des) => {
+                        if des.ty == Ty::VarChar || des.ty == Ty::NChar {
+                            col_buffer +=
+                                format!("{} {}({}),", des.field.as_str(), des.ty, des.length)
+                                    .as_str();
+                        } else {
+                            col_buffer += format!("{} {},", des.field.as_str(), des.ty,).as_str();
+                        }
+                    }
+                    taosx::TaosColumnMeta::Tag(des) => {
+                        if des.ty == Ty::VarChar || des.ty == Ty::NChar {
+                            tag_buffer +=
+                                format!("{} {}({}),", des.field.as_str(), des.ty, des.length)
+                                    .as_str();
+                        } else {
+                            tag_buffer += format!("{} {},", des.field.as_str(), des.ty,).as_str();
+                        }
+                    }
+                }
+            }
+            col_buffer.pop();
+            tag_buffer.pop();
+            let sql = format!(
+                "create table {} ({}) tags ({})",
+                describe.name, col_buffer, tag_buffer
+            );
+            taos.stmt(sql).unwrap().execute().unwrap();
         }
-        for handle in handles {
-            runtime.block_on(handle).unwrap();
+    }
+}
+
+async fn restore_tags(filelist: Vec<String>, db: String) {
+    let taos = TaosOptions::new().database(db).build().unwrap();
+    for file in filelist {
+        let mut deserialize = Deserialize::<TaosTag>::new(file);
+        deserialize.deserialize().await;
+        let taostags = deserialize.output;
+        for taostag in taostags {
+            let stbname = taostag.name;
+            for tag in taostag.tags {
+                let mut sql = String::new();
+                for (index, value) in tag.into_iter().enumerate() {
+                    if index == 0 {
+                        if let Value::VarChar(b) = value {
+                            sql = format!("create table {} using {} tags (", b, &stbname);
+                        }
+                    } else {
+                        match value {
+                            Value::Null => sql += "NULL,",
+                            Value::Bool(v) => sql += format!("{},", v).as_str(),
+                            Value::TinyInt(v) => sql += format!("{},", v).as_str(),
+                            Value::SmallInt(v) => sql += format!("{},", v).as_str(),
+                            Value::Int(v) => sql += format!("{},", v).as_str(),
+                            Value::BigInt(v) => sql += format!("{},", v).as_str(),
+                            Value::Float(v) => sql += format!("{},", v).as_str(),
+                            Value::Double(v) => sql += format!("{},", v).as_str(),
+                            Value::VarChar(v) => {
+                                sql += format!("\'{}\',", v).as_str();
+                            }
+                            Value::Timestamp(v) => sql += format!("{},", v.as_raw_i64()).as_str(),
+                            Value::NChar(v) => sql += format!("\'{}\',", v).as_str(),
+                            Value::UTinyInt(v) => sql += format!("{},", v).as_str(),
+                            Value::USmallInt(v) => sql += format!("{},", v).as_str(),
+                            Value::UInt(v) => sql += format!("{},", v).as_str(),
+                            Value::UBigInt(v) => sql += format!("{},", v).as_str(),
+                            Value::Json(v) => sql += format!("{},", v).as_str(),
+                            _ => todo!(),
+                        }
+                    }
+                }
+                sql.pop();
+                sql += ")";
+                taos.stmt(sql).unwrap().execute().unwrap();
+            }
         }
-        log::info!("finish restoring database {}", db);
+    }
+}
+
+async fn restore_data(filelist: Vec<String>, db: String) {
+    let taos = TaosOptions::new().database(db).build().unwrap();
+    for file in filelist {
+        let mut deserialize = Deserialize::<TaosBlock>::new(file);
+        deserialize.deserialize().await;
+        let taos_blocks = deserialize.output;
+        for taos_block in taos_blocks {
+            let col_num = taos_block.data.len();
+            let mut prepare = format!("insert into {} values (", taos_block.name);
+            for _ in 0..col_num {
+                prepare += "?,";
+            }
+            prepare.pop();
+            prepare += ")";
+            let mut stmt = taos.stmt(prepare).expect("prepare");
+            let col_vec = taos_block.to_column_vec();
+            let bind: Vec<_> = col_vec.iter().map(|v| v.into()).collect();
+            stmt.multi_bind(&bind).expect("bind erro");
+            stmt.execute().expect("execute error");
+        }
     }
 }

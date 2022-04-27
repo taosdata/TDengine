@@ -2,18 +2,20 @@ use std::{fmt, str::FromStr};
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
-    Deserialize, Deserializer,
+    Deserialize, Deserializer, Serialize,
 };
 
 use crate::common::Ty;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Described {
-    field: String,
-    ty: Ty,
-    length: usize,
+    pub field: String,
+    #[serde(rename = "type")]
+    pub ty: Ty,
+    pub length: usize,
 }
-#[derive(Debug)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[serde(tag = "note")]
 pub enum ColumnMeta {
     Column(Described),
     Tag(Described),
@@ -118,8 +120,7 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                             if ty.is_some() {
                                 return Err(de::Error::duplicate_field("type"));
                             }
-                            let s: String = map.next_value()?;
-                            let t = Ty::from_str(&s).map_err(de::Error::custom)?;
+                            let t: Ty = map.next_value()?;
                             ty = Some(t);
                         }
                         Meta::Length => {
@@ -133,7 +134,7 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                                 return Err(de::Error::duplicate_field("note"));
                             }
                             let t: String = map.next_value()?;
-                            note = Some(t.is_empty())
+                            note = Some(t.is_empty() || t == "Column")
                         }
                     }
                 }
@@ -180,6 +181,21 @@ impl ColumnMeta {
         matches!(self, ColumnMeta::Tag(_))
     }
 }
+
+#[test]
+fn serde_meta() {
+    let meta = ColumnMeta::Column(Described {
+        field: "name".to_string(),
+        ty: Ty::BigInt,
+        length: 8,
+    });
+
+    let a = serde_json::to_string(&meta).unwrap();
+
+    let d: ColumnMeta = serde_json::from_str(&a).unwrap();
+
+    assert_eq!(meta, d);
+} 
 //erive(Debug, Clone, Deserialize)]
 // pub struct ColumnMeta {
 //     pub name: String,

@@ -1,4 +1,9 @@
-use std::{fmt::Display, str::FromStr};
+use std::{
+    fmt::{self, Display},
+    str::FromStr,
+};
+
+use serde::de::Visitor;
 
 // todo: useful?
 // pub const TY_NULL: Ty = Ty::Null; // 1 bytes
@@ -51,9 +56,7 @@ use std::{fmt::Display, str::FromStr};
 /// Note:
 /// - VarChar sql name is BINARY in v2, and VARCHAR in v3.
 /// - Decimal/Blob/MediumBlob is not supported in 2.0/3.0 .
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde_repr::Serialize_repr, serde_repr::Deserialize_repr,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde_repr::Serialize_repr)]
 #[repr(u8)]
 pub enum Ty {
     /// 0: Null is only a value, not a *real* type, a nullable data type will be represented as [Option<T>] in Rust.
@@ -98,6 +101,75 @@ pub enum Ty {
     Blob, // 18
     /// 19, Not supported now.
     MediumBlob, // 19
+}
+
+impl<'de> serde::Deserialize<'de> for Ty {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct TyVisitor;
+
+        impl<'de> Visitor<'de> for TyVisitor {
+            type Value = Ty;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("invalid TDengine type")
+            }
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Ty::from_u8(v as u8))
+            }
+
+            fn visit_u8<E>(self, v: u8) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Ty::from_u8(v))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Ty::from_u8(v as u8))
+            }
+
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ty::from_str(v).map_err(<E as serde::de::Error>::custom)
+            }
+
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Ty::Null)
+            }
+
+            fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                deserializer.deserialize_any(self)
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Ty::Null)
+            }
+        }
+
+        deserializer.deserialize_any(TyVisitor)
+    }
 }
 
 // todo: decimal/blob
