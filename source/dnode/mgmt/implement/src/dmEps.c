@@ -291,13 +291,17 @@ static void dmPrintEps(SDnode *pDnode) {
 
 static bool dmIsEpChanged(SDnode *pDnode, int32_t dnodeId, const char *ep) {
   bool changed = false;
+  if (dnodeId == 0) return changed;
   taosRLockLatch(&pDnode->data.latch);
 
   SDnodeEp *pDnodeEp = taosHashGet(pDnode->data.dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
-    char epstr[TSDB_EP_LEN + 1];
+    char epstr[TSDB_EP_LEN + 1] = {0};
     snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
-    changed = strcmp(ep, epstr) != 0;
+    changed = (strcmp(ep, epstr) != 0);
+    if (changed) {
+      dError("localEp %s different from %s", ep, epstr);
+    }
   }
 
   taosRUnLockLatch(&pDnode->data.latch);
