@@ -21,9 +21,35 @@
 #include "taoserror.h"
 #include "thash.h"
 
-char *gOperatorStr[] = {NULL, "+", "-", "*", "/", "%", "-", "&", "|", ">", ">=", "<", "<=", "=", "<>", 
-                        "IN", "NOT IN", "LIKE", "NOT LIKE", "MATCH", "NMATCH", "IS NULL", "IS NOT NULL",
-                        "IS TRUE", "IS FALSE", "IS UNKNOWN", "IS NOT TRUE", "IS NOT FALSE", "IS NOT UNKNOWN"};
+char *gOperatorStr[] = {NULL,
+                        "+",
+                        "-",
+                        "*",
+                        "/",
+                        "%",
+                        "-",
+                        "&",
+                        "|",
+                        ">",
+                        ">=",
+                        "<",
+                        "<=",
+                        "=",
+                        "<>",
+                        "IN",
+                        "NOT IN",
+                        "LIKE",
+                        "NOT LIKE",
+                        "MATCH",
+                        "NMATCH",
+                        "IS NULL",
+                        "IS NOT NULL",
+                        "IS TRUE",
+                        "IS FALSE",
+                        "IS UNKNOWN",
+                        "IS NOT TRUE",
+                        "IS NOT FALSE",
+                        "IS NOT UNKNOWN"};
 char *gLogicConditionStr[] = {"AND", "OR", "NOT"};
 
 int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
@@ -33,36 +59,36 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       if (colNode->dbName[0]) {
         *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->dbName);
       }
-      
+
       if (colNode->tableAlias[0]) {
         *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableAlias);
       } else if (colNode->tableName[0]) {
         *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
       }
-      
+
       if (colNode->tableAlias[0]) {
         *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
       } else {
         *len += snprintf(buf + *len, bufSize - *len, "%s", colNode->colName);
       }
-      
+
       return TSDB_CODE_SUCCESS;
     }
-    case QUERY_NODE_VALUE:{
+    case QUERY_NODE_VALUE: {
       SValueNode *colNode = (SValueNode *)pNode;
-      char *t = nodesGetStrValueFromNode(colNode);
+      char       *t = nodesGetStrValueFromNode(colNode);
       if (NULL == t) {
         nodesError("fail to get str value from valueNode");
         NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
-      
+
       *len += snprintf(buf + *len, bufSize - *len, "%s", t);
       taosMemoryFree(t);
-      
+
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      SOperatorNode *pOpNode = (SOperatorNode *)pNode;
       *len += snprintf(buf + *len, bufSize - *len, "(");
       if (pOpNode->pLeft) {
         NODES_ERR_RET(nodesNodeToSQL(pOpNode->pLeft, buf, bufSize, len));
@@ -72,24 +98,24 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         nodesError("unknown operation type:%d", pOpNode->opType);
         NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
-      
+
       *len += snprintf(buf + *len, bufSize - *len, " %s ", gOperatorStr[pOpNode->opType]);
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQL(pOpNode->pRight, buf, bufSize, len));
-      }    
+      }
 
       *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
-    case QUERY_NODE_LOGIC_CONDITION:{
-      SLogicConditionNode* pLogicNode = (SLogicConditionNode*)pNode;
-      SNode* node = NULL;
-      bool first = true;
-      
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode *pLogicNode = (SLogicConditionNode *)pNode;
+      SNode               *node = NULL;
+      bool                 first = true;
+
       *len += snprintf(buf + *len, bufSize - *len, "(");
-      
+
       FOREACH(node, pLogicNode->pParameterList) {
         if (!first) {
           *len += snprintf(buf + *len, bufSize - *len, " %s ", gLogicConditionStr[pLogicNode->condType]);
@@ -102,13 +128,13 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
 
       return TSDB_CODE_SUCCESS;
     }
-    case QUERY_NODE_FUNCTION:{
-      SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
-      SNode* node = NULL;
-      bool first = true;
-      
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode *pFuncNode = (SFunctionNode *)pNode;
+      SNode         *node = NULL;
+      bool           first = true;
+
       *len += snprintf(buf + *len, bufSize - *len, "%s(", pFuncNode->functionName);
-      
+
       FOREACH(node, pFuncNode->pParameterList) {
         if (!first) {
           *len += snprintf(buf + *len, bufSize - *len, ", ");
@@ -121,13 +147,13 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
 
       return TSDB_CODE_SUCCESS;
     }
-    case QUERY_NODE_NODE_LIST:{
-      SNodeListNode* pListNode = (SNodeListNode *)pNode;
-      SNode* node = NULL;
-      bool first = true;
-      
+    case QUERY_NODE_NODE_LIST: {
+      SNodeListNode *pListNode = (SNodeListNode *)pNode;
+      SNode         *node = NULL;
+      bool           first = true;
+
       *len += snprintf(buf + *len, bufSize - *len, "(");
-      
+
       FOREACH(node, pListNode->pNodeList) {
         if (!first) {
           *len += snprintf(buf + *len, bufSize - *len, ", ");
@@ -135,7 +161,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;
       }
-      
+
       *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
@@ -143,7 +169,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
     default:
       break;
   }
-  
+
   nodesError("nodesNodeToSQL unknown node = %s", nodesNodeName(pNode->type));
   NODES_RET(TSDB_CODE_QRY_APP_ERROR);
 }

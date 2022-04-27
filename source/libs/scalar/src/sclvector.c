@@ -150,34 +150,36 @@ int64_t getVectorBigintValue_JSON(void *src, int32_t index){
 
 _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     _getBigintValue_fn_t p = NULL;
-    if(srcType==TSDB_DATA_TYPE_TINYINT) {
-        p = getVectorBigintValue_TINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
-        p = getVectorBigintValue_UTINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
-        p = getVectorBigintValue_SMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
-        p = getVectorBigintValue_USMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_INT) {
-        p = getVectorBigintValue_INT;
-    }else if(srcType==TSDB_DATA_TYPE_UINT) {
-        p = getVectorBigintValue_UINT;
-    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
-        p = getVectorBigintValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
-        p = getVectorBigintValue_UBIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
-        p = getVectorBigintValue_FLOAT;
-    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
-        p = getVectorBigintValue_DOUBLE;
-    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
-        p = getVectorBigintValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_BOOL) {
-        p = getVectorBigintValue_BOOL;
-    }else if(srcType==TSDB_DATA_TYPE_JSON) {
-        p = getVectorBigintValue_JSON;
-    }else {
-        assert(0);
+    if (srcType==TSDB_DATA_TYPE_TINYINT) {
+      p = getVectorBigintValue_TINYINT;
+    } else if (srcType==TSDB_DATA_TYPE_UTINYINT) {
+      p = getVectorBigintValue_UTINYINT;
+    } else if (srcType==TSDB_DATA_TYPE_SMALLINT) {
+      p = getVectorBigintValue_SMALLINT;
+    } else if (srcType==TSDB_DATA_TYPE_USMALLINT) {
+      p = getVectorBigintValue_USMALLINT;
+    } else if (srcType==TSDB_DATA_TYPE_INT) {
+      p = getVectorBigintValue_INT;
+    } else if (srcType==TSDB_DATA_TYPE_UINT) {
+      p = getVectorBigintValue_UINT;
+    } else if (srcType==TSDB_DATA_TYPE_BIGINT) {
+      p = getVectorBigintValue_BIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_UBIGINT) {
+      p = getVectorBigintValue_UBIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_FLOAT) {
+      p = getVectorBigintValue_FLOAT;
+    } else if (srcType==TSDB_DATA_TYPE_DOUBLE) {
+      p = getVectorBigintValue_DOUBLE;
+    } else if (srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+      p = getVectorBigintValue_BIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_BOOL) {
+      p = getVectorBigintValue_BOOL;
+    } else if (srcType==TSDB_DATA_TYPE_JSON) {
+      p = getVectorBigintValue_JSON;
+    } else if (srcType==TSDB_DATA_TYPE_NULL){
+      p = NULL;
+    } else {
+      ASSERT(0);
     }
     return p;
 }
@@ -1367,7 +1369,8 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1381,7 +1384,8 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;  // TODO set null or ignore
       }
 
@@ -1402,8 +1406,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   } else if (pRight->numOfRows == 1) {
     ASSERT(pLeft->pHashFilter == NULL);
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull_s(pLeft->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, 0)) {
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1422,8 +1427,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
     }
   } else if (pLeft->numOfRows == 1) {
     for (; i >= 0 && i < pRight->numOfRows; i += step) {
-      if (colDataIsNull_s(pRight->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+      if (colDataIsNull_s(pRight->columnData, i) || colDataIsNull_s(pLeft->columnData, 0)) {
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1594,7 +1600,7 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     case OP_TYPE_JSON_CONTAINS:
       return vectorJsonContains;
     default:
-      assert(0);
+      ASSERT(0);
       return NULL;
   }
 }

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tq.h"
 
 int32_t tqInit() {
   //
@@ -78,7 +78,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 
     SMqDataBlkRsp rsp = {0};
     rsp.reqOffset = pExec->pushHandle.reqOffset;
-    rsp.blockData = taosArrayInit(0, sizeof(int32_t));
+    rsp.blockData = taosArrayInit(0, sizeof(void*));
     rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
 
     if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
@@ -176,9 +176,9 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     atomic_store_ptr(&pExec->pushHandle.handle, NULL);
     taosWUnLockLatch(&pExec->pushHandle.lock);
 
-    vDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
-           TD_VID(pTq->pVnode), fetchOffset, pExec->pushHandle.consumerId, pExec->pushHandle.epoch, rsp.blockNum,
-           rsp.reqOffset, rsp.rspOffset);
+    tqDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
+            TD_VID(pTq->pVnode), fetchOffset, pExec->pushHandle.consumerId, pExec->pushHandle.epoch, rsp.blockNum,
+            rsp.reqOffset, rsp.rspOffset);
 
     // TODO destroy
     taosArrayDestroy(rsp.blockData);
@@ -197,10 +197,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   }
   memcpy(data, msg, msgLen);
 
-  if (msgType == TDMT_VND_SUBMIT) {
-    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
-      return -1;
-    }
+  // make sure msgType == TDMT_VND_SUBMIT
+  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+    return -1;
   }
 
   SRpcMsg req = {
@@ -211,35 +210,6 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
   tmsgPutToQueue(&pTq->pVnode->msgCb, FETCH_QUEUE, &req);
 
-#if 0
-  void* pIter = taosHashIterate(pTq->tqPushMgr->pHash, NULL);
-  while (pIter != NULL) {
-    STqPusher* pusher = *(STqPusher**)pIter;
-    if (pusher->type == TQ_PUSHER_TYPE__STREAM) {
-      STqStreamPusher* streamPusher = (STqStreamPusher*)pusher;
-      // repack
-      STqStreamToken* token = taosMemoryMalloc(sizeof(STqStreamToken));
-      if (token == NULL) {
-        taosHashCancelIterate(pTq->tqPushMgr->pHash, pIter);
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
-      }
-      token->type = TQ_STREAM_TOKEN__DATA;
-      token->data = msg;
-      // set input
-      // exec
-    }
-    // send msg to ep
-  }
-  // iterate hash
-  // process all msg
-  // if waiting
-  // memcpy and send msg to fetch thread
-  // TODO: add reference
-  // if handle waiting, launch query and response to consumer
-  //
-  // if no waiting handle, return
-#endif
   return 0;
 }
 
@@ -376,11 +346,11 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 }
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
-  SMqPollReqV2* pReq = pMsg->pCont;
-  int64_t       consumerId = pReq->consumerId;
-  int64_t       waitTime = pReq->blockingTime;
-  int32_t       reqEpoch = pReq->epoch;
-  int64_t       fetchOffset;
+  SMqPollReq* pReq = pMsg->pCont;
+  int64_t     consumerId = pReq->consumerId;
+  int64_t     waitTime = pReq->waitTime;
+  int32_t     reqEpoch = pReq->epoch;
+  int64_t     fetchOffset;
 
   // get offset to fetch message
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
@@ -391,8 +361,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
-         TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
+  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+          TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   STqExec* pExec = taosHashGet(pTq->execs, pReq->subKey, strlen(pReq->subKey));
   ASSERT(pExec);
@@ -419,16 +389,16 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
     if (consumerEpoch > reqEpoch) {
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
-             consumerId, pReq->epoch, TD_VID(pTq->pVnode), fetchOffset, consumerEpoch, reqEpoch);
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
+              consumerId, pReq->epoch, TD_VID(pTq->pVnode), fetchOffset, consumerEpoch, reqEpoch);
       break;
     }
 
     taosThreadMutexLock(&pExec->pWalReader->mutex);
 
     if (walFetchHead(pExec->pWalReader, fetchOffset, pHeadWithCkSum) < 0) {
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
-             TD_VID(pTq->pVnode), fetchOffset);
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+              TD_VID(pTq->pVnode), fetchOffset);
       taosThreadMutexUnlock(&pExec->pWalReader->mutex);
       break;
     }
@@ -449,7 +419,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       // TODO: no more log, set timer to wait blocking time
       // if data inserted during waiting, launch query and
       // response to user
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
              TD_VID(pTq->pVnode), fetchOffset);
 
 #if 0
@@ -477,8 +447,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   }
 #endif
 
-    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
-           TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
+    tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
+            TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
 
     if (pHead->msgType == TDMT_VND_SUBMIT) {
       SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
@@ -592,8 +562,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   pMsg->code = 0;
   tmsgSendRsp(pMsg);
 
-  vDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
-         TD_VID(pTq->pVnode), fetchOffset, consumerId, pReq->epoch, rsp.blockNum, rsp.reqOffset, rsp.rspOffset);
+  tqDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
+          TD_VID(pTq->pVnode), fetchOffset, consumerId, pReq->epoch, rsp.blockNum, rsp.reqOffset, rsp.rspOffset);
 
   // TODO destroy
   taosArrayDestroy(rsp.blockData);
@@ -619,7 +589,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
          TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   SMqPollRspV2 rspV2 = {0};
@@ -661,7 +631,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     return 0;
   }
 
-  vDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch,
+  tqDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch,
          TD_VID(pTq->pVnode));
 
   rspV2.reqOffset = pReq->currentOffset;
@@ -672,7 +642,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     // TODO
     consumerEpoch = atomic_load_32(&pConsumer->epoch);
     if (consumerEpoch > reqEpoch) {
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
              consumerId, pReq->epoch, TD_VID(pTq->pVnode), fetchOffset, consumerEpoch, reqEpoch);
       break;
     }
@@ -681,11 +651,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       // TODO: no more log, set timer to wait blocking time
       // if data inserted during waiting, launch query and
       // response to user
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
              TD_VID(pTq->pVnode), fetchOffset);
       break;
     }
-    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
+    tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
            TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
     /*int8_t pos = fetchOffset % TQ_BUFFER_SIZE;*/
     /*pHead = pTopic->pReadhandle->pHead;*/
@@ -710,7 +680,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       }
 
       if (taosArrayGetSize(pRes) == 0) {
-        vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId,
+        tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId,
                pReq->epoch, TD_VID(pTq->pVnode), fetchOffset);
         fetchOffset++;
         rspV2.skipLogNum++;
@@ -771,7 +741,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       pMsg->pCont = buf;
       pMsg->contLen = msgLen;
       pMsg->code = 0;
-      vDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", TD_VID(pTq->pVnode), fetchOffset,
+      tqDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", TD_VID(pTq->pVnode), fetchOffset,
              pHead->msgType, consumerId, pReq->epoch);
       tmsgSendRsp(pMsg);
       taosMemoryFree(pHead);
@@ -805,7 +775,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   pMsg->contLen = tlen;
   pMsg->code = 0;
   tmsgSendRsp(pMsg);
-  vDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", TD_VID(pTq->pVnode), fetchOffset, consumerId,
+  tqDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", TD_VID(pTq->pVnode), fetchOffset, consumerId,
          pReq->epoch);
   /*}*/
 

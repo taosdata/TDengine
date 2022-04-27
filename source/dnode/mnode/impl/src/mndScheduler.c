@@ -478,6 +478,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   SVgObj*     pVgroup = NULL;
   SQueryPlan* pPlan = NULL;
   SSubplan*   plan = NULL;
+
   if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
     pPlan = qStringToQueryPlan(pTopic->physicalPlan);
     if (pPlan == NULL) {
@@ -485,14 +486,10 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
       return -1;
     }
 
-    ASSERT(pSub->vgNum == -1);
-
-    pSub->vgNum = 0;
-
     int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
     if (levelNum != 1) {
       qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
       return -1;
     }
 
@@ -501,7 +498,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     int32_t opNum = LIST_LENGTH(inner->pNodeList);
     if (opNum != 1) {
       qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
       return -1;
     }
     plan = nodesListGetNode(inner->pNodeList, 0);
@@ -529,7 +526,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pVgEp->vgId = pVgroup->vgId;
     taosArrayPush(pEpInSub->vgs, &pVgEp);
 
-    mDebug("init subscribption %s, assign vg: %d", pSub->key, pVgEp->vgId);
+    mDebug("init subscription %s, assign vg: %d", pSub->key, pVgEp->vgId);
 
     if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
       int32_t msgLen;

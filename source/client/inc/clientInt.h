@@ -254,8 +254,6 @@ extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t 
 int           genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
-int taos_init();
-
 void*    createTscObj(const char* user, const char* auth, const char* db, SAppInstInfo* pAppInfo);
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
@@ -310,6 +308,9 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 void hbMgrInitMqHbRspHandle();
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery);
+int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
+
 
 #ifdef __cplusplus
 }

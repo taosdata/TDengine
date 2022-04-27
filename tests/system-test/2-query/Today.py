@@ -8,6 +8,7 @@ from util.cases import *
 
 class TDTestCase:
 
+    updatecfgDict = {'rpcDebugFlag': '143'}
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())

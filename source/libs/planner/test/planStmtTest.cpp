@@ -19,14 +19,14 @@
 using namespace std;
 
 class PlanStmtTest : public PlannerTestBase {
-public:
+ public:
   void prepare(const string& sql) {
     run(sql);
     // todo calloc pBindParams_
   }
 
   void bindParam(int32_t val) {
-    TAOS_BIND_v2* pBind = pBindParams_ + paramNo_++;
+    TAOS_MULTI_BIND* pBind = pBindParams_ + paramNo_++;
     pBind->buffer_type = TSDB_DATA_TYPE_INT;
     pBind->num = 1;
     pBind->buffer_length = sizeof(int32_t);
@@ -43,7 +43,7 @@ public:
   }
 
 private:
-  TAOS_BIND_v2* pBindParams_;
+  TAOS_MULTI_BIND* pBindParams_;
   int32_t paramNo_;
 };
 

@@ -603,7 +603,7 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   return stmtPrepare(stmt, sql, length);
 }
 
-int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_BIND_v2 *tags) {
+int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
   if (stmt == NULL || name == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -636,7 +636,7 @@ int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
   return taos_stmt_set_tbname(stmt, name);
 }
 
-int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -652,7 +652,7 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
   return stmtBindBatch(stmt, bind, -1);
 }
 
-int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
+int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -665,10 +665,18 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind) {
     return terrno;
   }
 
+  int32_t insert = 0;
+  stmtIsInsert(stmt, &insert);
+  if (0 == insert && bind->num > 1) {
+    tscError("only one row data allowed for query");
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
   return stmtBindBatch(stmt, bind, -1);
 }
 
-int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int colIdx) {
+int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -677,6 +685,14 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_BIND_v2 *bind, int c
 
   if (colIdx < 0) {
     tscError("invalid bind column idx %d", colIdx);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  int32_t insert = 0;
+  stmtIsInsert(stmt, &insert);
+  if (0 == insert && bind->num > 1) {
+    tscError("only one row data allowed for query");
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -746,6 +762,16 @@ int taos_stmt_affected_rows(TAOS_STMT *stmt) {
   }
 
   return stmtAffectedRows(stmt);
+}
+
+int taos_stmt_affected_rows_once(TAOS_STMT *stmt) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return 0;
+  }
+
+  return stmtAffectedRowsOnce(stmt);
 }
 
 int taos_stmt_close(TAOS_STMT *stmt) {

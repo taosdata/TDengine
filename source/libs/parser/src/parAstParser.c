@@ -23,14 +23,14 @@ typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
 
 extern void* ParseAlloc(FMalloc);
-extern void Parse(void*, int, SToken, void*);
-extern void ParseFree(void*, FFree);
-extern void ParseTrace(FILE*, char*);
+extern void  Parse(void*, int, SToken, void*);
+extern void  ParseFree(void*, FFree);
+extern void  ParseTrace(FILE*, char*);
 
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void *pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
@@ -38,8 +38,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
-    t0.n = tGetToken((char *)&cxt.pQueryCxt->pSql[i], &t0.type);
-    t0.z = (char *)(cxt.pQueryCxt->pSql + i);
+    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type);
+    t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
 
     switch (t0.type) {

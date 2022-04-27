@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "vnd.h"
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
@@ -22,8 +22,40 @@ static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
 static int  vnodeStartCommit(SVnode *pVnode);
 static int  vnodeEndCommit(SVnode *pVnode);
-static int  vnodeCommit(void *arg);
+static int  vnodeCommitImpl(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
+
+int vnodeBegin(SVnode *pVnode) {
+  // alloc buffer pool
+  /* pthread_mutex_lock(); */
+
+  while (pVnode->pPool == NULL) {
+    /* pthread_cond_wait(); */
+  }
+
+  pVnode->inUse = pVnode->pPool;
+  pVnode->pPool = pVnode->inUse->next;
+  pVnode->inUse->next = NULL;
+  /* ref pVnode->inUse buffer pool */
+
+  /* pthread_mutex_unlock(); */
+
+  // begin meta
+  if (metaBegin(pVnode->pMeta) < 0) {
+    vError("vgId: %d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
+
+  // begin tsdb
+  if (tsdbBegin(pVnode->pTsdb) < 0) {
+    vError("vgId: %d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
+
+  return 0;
+}
+
+int vnodeShouldCommit(SVnode *pVnode) { return pVnode->inUse->size > pVnode->config.szBuf / 3; }
 
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   char      fname[TSDB_FILENAME_LEN];
@@ -142,10 +174,10 @@ _err:
 int vnodeAsyncCommit(SVnode *pVnode) {
   vnodeWaitCommit(pVnode);
 
-  vnodeBufPoolSwitch(pVnode);
-  tsdbPrepareCommit(pVnode->pTsdb);
+  // vnodeBufPoolSwitch(pVnode);
+  // tsdbPrepareCommit(pVnode->pTsdb);
 
-  vnodeScheduleTask(vnodeCommit, pVnode);
+  vnodeScheduleTask(vnodeCommitImpl, pVnode);
 
   return 0;
 }
@@ -157,25 +189,64 @@ int vnodeSyncCommit(SVnode *pVnode) {
   return 0;
 }
 
-static int vnodeCommit(void *arg) {
-  SVnode    *pVnode = (SVnode *)arg;
+int vnodeCommit(SVnode *pVnode) {
+  SVnodeInfo info;
   char       dir[TSDB_FILENAME_LEN];
-  SVnodeInfo info = {0};
 
-  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  vInfo("vgId:%d start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);
+
+  pVnode->onCommit = pVnode->inUse;
+  pVnode->inUse = NULL;
+
+  // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;
-  info.state.applied = pVnode->state.applied;
+  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  if (vnodeSaveInfo(dir, &info) < 0) {
+    ASSERT(0);
+    return -1;
+  }
 
-  vnodeSaveInfo(dir, &info);
+  // commit each sub-system
+  if (metaCommit(pVnode->pMeta) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+  if (tsdbCommit(pVnode->pTsdb) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+  if (tqCommit(pVnode->pTq) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+  // walCommit (TODO)
+
+  // commit info
+  if (vnodeCommitInfo(dir, &info) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // apply the commit (TODO)
+  vnodeBufPoolReset(pVnode->onCommit);
+  pVnode->onCommit->next = pVnode->pPool;
+  pVnode->pPool = pVnode->onCommit;
+  pVnode->onCommit = NULL;
+
+  vInfo("vgId:%d commit over", TD_VID(pVnode));
+
+  return 0;
+}
+
+static int vnodeCommitImpl(void *arg) {
+  SVnode *pVnode = (SVnode *)arg;
 
   // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
   tsdbCommit(pVnode->pTsdb);
 
-  vnodeCommitInfo(dir, &info);
-
-  vnodeBufPoolRecycle(pVnode);
+  // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
   return 0;
 }

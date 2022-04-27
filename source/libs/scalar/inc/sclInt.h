@@ -34,6 +34,7 @@ typedef struct SScalarCtx {
 
 #define SCL_IS_CONST_NODE(_node) ((NULL == (_node)) || (QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
 #define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList)
+#define SCL_IS_NULL_VALUE_NODE(_node) ((QUERY_NODE_VALUE == nodeType(_node)) && (TSDB_DATA_TYPE_NULL == ((SValueNode *)_node)->node.resType.type))
 
 #define sclFatal(...)  qFatal(__VA_ARGS__)
 #define sclError(...)  qError(__VA_ARGS__)
