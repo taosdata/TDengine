@@ -5005,6 +5005,7 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
     return PROJECT_RETRIEVE_DONE;
   }
 
+  // todo optimize performance
   // If there are slimit/soffset value exists, multi-round result can not be packed into one group, since the
   // they may not belong to the same group the limit/offset value is not valid in this case.
   if (pRes->info.rows >= pOperator->resultInfo.threshold || pProjectInfo->slimit.offset != -1 || pProjectInfo->slimit.limit != -1) {
