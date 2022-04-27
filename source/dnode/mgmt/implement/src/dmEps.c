@@ -120,7 +120,7 @@ int32_t dmReadEps(SDnode *pDnode) {
       goto PRASE_DNODE_OVER;
     }
 
-    dnodeEp.id = dnodeId->valueint;
+    dnodeEp.id = did->valueint;
 
     cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
@@ -300,7 +300,7 @@ static bool dmIsEpChanged(SDnode *pDnode, int32_t dnodeId, const char *ep) {
     snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
     changed = (strcmp(ep, epstr) != 0);
     if (changed) {
-      dError("localEp %s different from %s", ep, epstr);
+      dError("dnode:%d, localEp %s different from %s", dnodeId, ep, epstr);
     }
   }
 
