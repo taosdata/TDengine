@@ -172,11 +172,11 @@ class TDTestCase:
             ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             (
                 { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
-                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nachar_limit-1", { now_time - 86400000}
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_limit-1", { now_time - 86400000}
                 )
             (
                 { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
-                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nachar_limit-2", { now_time - 172800000}
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_limit-2", { now_time - 172800000}
                 )
             '''
         )
@@ -188,11 +188,11 @@ class TDTestCase:
             ( { now_time + 777600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             (
                 { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
-                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nachar_limit-1", { now_time - 86400000 }
+                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_limit-1", { now_time - 86400000 }
                 )
             (
                 { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
-                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nachar_limit-2", { now_time - 172800000 }
+                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_limit-2", { now_time - 172800000 }
                 )
             '''
         )
@@ -210,12 +210,12 @@ class TDTestCase:
             ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
                 { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
-                "binary_limit-1", "nachar_limit-1", { now_time - 86400000 }
+                "binary_limit-1", "nchar_limit-1", { now_time - 86400000 }
                 )
             (
                 { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
                 { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
-                "binary_limit-2", "nachar_limit-2", { now_time - 172800000 }
+                "binary_limit-2", "nchar_limit-2", { now_time - 172800000 }
                 )
             '''
         )
