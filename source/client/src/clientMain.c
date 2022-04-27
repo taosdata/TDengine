@@ -110,16 +110,23 @@ int taos_errno(TAOS_RES *tres) {
     return terrno;
   }
 
+  if (TD_RES_TMQ(tres)) {
+    return 0;
+  }
+
   return ((SRequestObj *)tres)->code;
 }
 
 const char *taos_errstr(TAOS_RES *res) {
-  SRequestObj *pRequest = (SRequestObj *)res;
-
-  if (pRequest == NULL) {
+  if (res == NULL) {
     return (const char *)tstrerror(terrno);
   }
 
+  if (TD_RES_TMQ(res)) {
+    return "success";
+  }
+
+  SRequestObj *pRequest = (SRequestObj *)res;
   if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     return pRequest->msgBuf;
   } else {
@@ -131,7 +138,7 @@ void taos_free_result(TAOS_RES *res) {
   if (NULL == res) {
     return;
   }
-  
+
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     destroyRequest(pRequest);
@@ -632,9 +639,7 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   return stmtSetTbName(stmt, name);
 }
 
-int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
-  return taos_stmt_set_tbname(stmt, name);
-}
+int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) { return taos_stmt_set_tbname(stmt, name); }
 
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
@@ -648,7 +653,7 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  
+
   return stmtBindBatch(stmt, bind, -1);
 }
 
@@ -696,7 +701,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, in
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  
+
   return stmtBindBatch(stmt, bind, colIdx);
 }
 
@@ -750,9 +755,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   return stmtUseResult(stmt);
 }
 
-char *taos_stmt_errstr(TAOS_STMT *stmt) {
-  return (char *)stmtErrstr(stmt);
-}
+char *taos_stmt_errstr(TAOS_STMT *stmt) { return (char *)stmtErrstr(stmt); }
 
 int taos_stmt_affected_rows(TAOS_STMT *stmt) {
   if (stmt == NULL) {
