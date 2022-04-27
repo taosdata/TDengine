@@ -222,7 +222,7 @@ mod tests {
     use bitvec_simd::BitVec;
 
     use crate::Result;
-    use taos_query::common::Column;
+    use taos_query::{common::Column, ResultSet};
 
     #[test]
     fn test_stmt() {
@@ -268,7 +268,7 @@ mod tests {
         stmt.execute().unwrap();
         let result = stmt.result().unwrap();
         let rows = result.affected_rows();
-        assert_eq!(N, rows);
+        assert_eq!(N, rows as _);
         taos.stmt("drop database taos_test_multi_bind")
             .unwrap()
             .execute()
@@ -311,7 +311,7 @@ mod tests {
         stmt.execute().unwrap();
         let result = stmt.result().unwrap();
         let rows = result.affected_rows();
-        assert_eq!(N, rows);
+        assert_eq!(N, rows as _);
 
         let res = taos.query_sync("select * from tb").unwrap();
 

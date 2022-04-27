@@ -252,7 +252,7 @@ pub mod prelude {
     pub use taos_macros::test;
 }
 
-pub mod query;
+pub use taos_query as query;
 
 pub use taos_query::BlockExt;
 #[cfg(test)]

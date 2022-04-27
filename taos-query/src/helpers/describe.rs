@@ -7,14 +7,14 @@ use serde::{
 
 use crate::common::Ty;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Described {
     field: String,
     #[serde(rename = "type")]
     ty: Ty,
     length: usize,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 #[serde(tag = "note")]
 pub enum ColumnMeta {
     Column(Described),

@@ -105,7 +105,7 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     // log::debug!("fetched record {:?}", record);
     // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
     // log::debug!("fetched record {:?}", record);
-    taos.clean()?;
+    // taos.clean()?;
     Ok(())
 }
 
