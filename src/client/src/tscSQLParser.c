@@ -282,6 +282,8 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_BINARY_OP_DIVIDE;
     case TK_REM:
       return TSDB_BINARY_OP_REMAINDER;
+    case TK_BITAND:
+      return TSDB_BINARY_OP_BITAND;
     case TK_LIKE:
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
@@ -3958,8 +3960,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg4 = "join query does not support group by";
   const char* msg5 = "not allowed column type for group by";
   const char* msg6 = "tags not allowed for table query";
-  const char* msg7 = "not support group by expression";
-  const char* msg8 = "normal column can only locate at the end of group by clause";
+  //const char* msg7 = "not support group by primary key";
+  //const char* msg8 = "normal column can only locate at the end of group by clause";
   const char* msg9 = "json tag must be use ->'key'";
   const char* msg10 = "non json column can not use ->'key'";
   const char* msg11 = "group by json->'key' is too long";
@@ -4070,7 +4072,10 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
       if (pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
-      }
+      }/*
+      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+	}*/
 
       tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
 
@@ -4085,14 +4090,14 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
   // 1. only one normal column allowed in the group by clause
   // 2. the normal column in the group by clause can only located in the end position
-  if (numOfGroupCols > 1) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-  }
+  //if (numOfGroupCols > 1) {
+  //  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  //}
 
   for(int32_t i = 0; i < num; ++i) {
     SColIndex* pIndex = taosArrayGet(pGroupExpr->columnInfo, i);
-    if (TSDB_COL_IS_NORMAL_COL(pIndex->flag) && i != num - 1) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    if (!TSDB_COL_IS_NORMAL_COL(pIndex->flag)) {
+      //return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
   }
 
@@ -4358,7 +4363,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
     };
 
     if (pQueryInfo->colCond == NULL) {
-      pQueryInfo->colCond = taosArrayInit(2, sizeof(SCond));
+      pQueryInfo->colCond = taosArrayInit(2, sizeof(STblCond));
     }
     
     taosArrayPush(pQueryInfo->colCond, &cond);  
@@ -7867,6 +7872,25 @@ static void updateTagPrjFunction(SQueryInfo* pQueryInfo) {
 }
 
 /*
+ retrun false : expr is not in groupbu column.
+ return true : expr is in groupby column.
+*/
+static bool check_expr_in_groupby_colum(SGroupbyExpr* pGroupbyExpr, SExprInfo* pExpr){
+  SColIndex* pIndex = NULL;
+  assert( pExpr);
+  if (NULL == pGroupbyExpr)
+    return false;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols ; ++k) {
+    pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (!strcmp(pIndex->name,&pExpr->base.colInfo.name[1])){ // notes:first char is dot, skip one char.
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/*
  * check for selectivity function + tags column function both exist.
  * 1. tagprj functions are not compatible with aggregated function when missing "group by" clause
  * 2. if selectivity function and tagprj function both exist, there should be only
@@ -7882,12 +7906,15 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   int16_t numOfAggregation = 0;
 
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+  SGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
     if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ ||
         (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
-      tagTsColExists = true;  // selectivity + ts/tag column
-      break;
+      if (false == check_expr_in_groupby_colum(pGroupbyExpr,pExpr)){
+        tagTsColExists = true;  // selectivity + ts/tag column
+        break;
+      }
     }
   }
 
@@ -10248,6 +10275,23 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       }
     }
 
+    if (pSqlExpr->tokenId == TK_BITAND && pSqlExpr->pLeft != NULL && pSqlExpr->pRight != NULL) {
+      // for example: col type is "bool" but expr "col & 1" received
+      uint8_t colType = pLeft->pSchema->type;
+      SStrToken *exprToken = &pSqlExpr->pRight->exprToken;
+      if (pSqlExpr->pLeft->type == SQL_NODE_TABLE_COLUMN && pSqlExpr->pRight->type == SQL_NODE_VALUE) {
+        if (colType == TSDB_DATA_TYPE_BOOL) {
+          if ((exprToken->n != 4 || strncasecmp(exprToken->z, "true", 4)) && (exprToken->n != 5 || strncasecmp(exprToken->z, "false", 5))) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        } else if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+          if ((exprToken->n == 4 && strncasecmp(exprToken->z, "true", 4) == 0) || (exprToken->n == 5 || strncasecmp(exprToken->z, "false", 5) == 0)) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        }
+      }
+    }
+
     if (pSqlExpr->pRight != NULL) {
       int32_t ret = exprTreeFromSqlExpr(pCmd, &pRight, pSqlExpr->pRight, pQueryInfo, pCols, uid);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -10285,9 +10329,11 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         if (pLeft->_node.optr == TSDB_RELATION_ARROW){
           pLeft = pLeft->_node.pLeft;
         }
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL &&
-           (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL) {
+          if (((*pExpr)->_node.optr != TSDB_BINARY_OP_BITAND && pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) ||
+              pLeft->pSchema->type == TSDB_DATA_TYPE_JSON) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
         }
       }
     }
