@@ -1,8 +1,9 @@
-use crate::{util::IntoCStr, Code, Error, Result, Taos, TaosResult};
-use taos_sys::*;
+use crate::{impls::SyncResultSet, util::IntoCStr, Code, Error, Result, Taos};
+use taos_query::common::{BorrowedColumn, Column};
+use taos_sys::{ffi::*, *};
 
-use std::ffi::CStr;
 use std::os::raw::c_void;
+use std::{ffi::CStr, sync::Arc};
 
 mod bind;
 pub use bind::{BindParam, IntoBindParam};
@@ -54,9 +55,9 @@ impl<'stmt> Stmt<'stmt> {
         }
     }
 
-    pub fn result(&self) -> Result<TaosResult> {
-        let result = unsafe { taos_stmt_use_result(self.stmt) };
-        TaosResult::try_from_ptr(result)
+    pub fn result(&self) -> Result<SyncResultSet> {
+        let ptr = unsafe { taos_stmt_use_result(self.stmt) };
+        SyncResultSet::from_ptr(ptr)
     }
 
     /// To bind one row with params
@@ -150,6 +151,54 @@ impl<'stmt> Stmt<'stmt> {
     }
 }
 
+impl<'c> From<&'c Column> for MultiBind<'c> {
+    fn from(col: &'c Column) -> Self {
+        match col {
+            Column::Null(n) => MultiBind::nulls(*n),
+            Column::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
+            Column::Timestamp(nulls, values) => MultiBind::from_raw_timestamps(nulls, values),
+            Column::Binary(values) => MultiBind::from_binary_vec(values),
+            Column::NChar(values) => MultiBind::from_string_vec(values),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<'b, 'c> From<&'c BorrowedColumn<'b>> for MultiBind<'c> {
+    fn from(col: &'c BorrowedColumn<'b>) -> Self {
+        match col {
+            BorrowedColumn::Null(n) => MultiBind::nulls(*n),
+            BorrowedColumn::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
+            BorrowedColumn::Timestamp(nulls, values) => {
+                MultiBind::from_raw_timestamps(nulls, values)
+            }
+            BorrowedColumn::Binary(values) => MultiBind::from_binary_vec(values),
+            BorrowedColumn::NChar(values) => MultiBind::from_string_vec(values),
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl<'stmt> Drop for Stmt<'stmt> {
     fn drop(&mut self) {
         self.close();
@@ -172,8 +221,8 @@ impl Taos {
 mod tests {
     use bitvec_simd::BitVec;
 
-    use crate::block::Column;
     use crate::Result;
+    use taos_query::common::Column;
 
     #[test]
     fn test_stmt() {
@@ -212,7 +261,7 @@ mod tests {
         let ints = Column::Int(nulls.clone(), v);
         let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1_500_000_000_000).collect();
         let ts = Column::Timestamp(nulls, v);
-        let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
+        let binds = dbg!([(&ts).into(), (&ints).into()]);
         let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
         stmt.multi_bind(&binds).unwrap();
 
@@ -256,7 +305,7 @@ mod tests {
         let ints = Column::Binary(v);
         let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1500000000000).collect();
         let ts = Column::Timestamp(nulls, v);
-        let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
+        let binds = dbg!([(&ts).into(), (&ints).into()]);
         let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
         stmt.multi_bind(&binds).unwrap();
         stmt.execute().unwrap();

@@ -1,17 +1,16 @@
 //! This is the common query traits/types for TDengine connectors.
 //!
 
-use std::borrow::Cow;
-use std::fmt::Debug;
-use std::iter::FlatMap;
+use serde::de::value::Error as DeError;
+use std::{borrow::Cow, cell::Cell, fmt::Debug, marker::PhantomData, rc::Rc, sync::Arc};
 
 pub mod common;
 mod de;
 pub mod helpers;
 mod insert;
 
+use async_trait::async_trait;
 use common::*;
-use de::RecordDeserializer;
 use helpers::*;
 
 pub enum CodecOpts {
@@ -19,154 +18,432 @@ pub enum CodecOpts {
     Parquet,
 }
 
-/// A value will borrow data from a block, so there's a `'b` lifetime bound here.
-/// So the `'de` lifetime will goes along with the `'b` block lifetime.
-pub trait Valuable<'de, 'b: 'de>: Debug + serde::de::Deserializer<'de> {
-    /// Check if the value is null or not.
-    fn is_null(&self) -> bool;
-
-    /// Sql type of the value
-    fn ty(&self) -> Ty;
-
-    /// Borrowed value.
-    fn as_borrowed_value(&self) -> BorrowedValue<'b>;
-
-    /// Owned value.
-    fn into_owned_value(self) -> Value;
-}
-
-/// Define what a data block provides.
-pub trait BlockExt<'de, 'b: 'de>: Debug + Sized {
-    /// A block should container number of rows.
-    fn num_of_rows(&self) -> u32;
-
-    /// Fields can be queried from a block.
-    fn fields(&'b self) -> Cow<'b, [Field]>;
-
-    /// Number of fields.
-    fn filed_count(&'b self) -> usize {
-        self.fields().len()
-    }
-
-    type Col;
-    type ColIter: Iterator<Item = Self::Col>;
-    /// Query by columns.
-    fn iter_cols(&self) -> Self::ColIter;
-
-    type Value: Valuable<'de, 'b>;
-
-    type Row: 'b + IntoIterator<Item = (&'b Field, Self::Value)>;
-    type RowIter: Iterator<Item = Self::Row>;
-
-    /// Query by rows.
-    fn iter_rows(&self) -> Self::RowIter;
-
-    /// Deserialize a row to a record type(primitive type or a struct).
-    ///
-    /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
-    fn deserialize<T>(&self) -> II<'de, 'b, Self, T>
-    // std::iter::Map<Self::RowIter, fn(Self::Row) -> Result<T, serde::de::value::Error>>
-    where
-        T: serde::de::Deserialize<'de>,
-    {
-        self.iter_rows().map(|row| {
-            let de = RecordDeserializer::from(row);
-            T::deserialize(de)
-        })
-    }
-
-    fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
-
-    fn write_with(&self, _codec: CodecOpts);
-
-    fn write_all_with(&self, _codec: CodecOpts);
-}
-
 pub trait BlockCodec {
     fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
     fn decode(from: &[u8], _codec: CodecOpts) -> Self;
 }
-type II<'de, 'b, B, T> = std::iter::Map<
-    <B as BlockExt<'de, 'b>>::RowIter,
-    fn(<B as BlockExt<'de, 'b>>::Row) -> Result<T, serde::de::value::Error>,
->;
 
-/// A result gained from query lifetime(`'q`), and will produce a block iterator with
-/// sub lifetime called `'b`(means block).
-pub trait ResultSet<'q, 'de, 'b: 'de>: Sized {
-    type B: 'b + BlockExt<'de, 'b>;
-    type I: Iterator<Item = Self::B>;
+pub struct CellIter<'b, T: BlockExt> {
+    block: &'b T,
+    row: usize,
+    col: usize,
+}
 
-    fn fields(&'q self) -> &'q [Field];
+impl<'b, T: BlockExt> Iterator for CellIter<'b, T> {
+    type Item = (&'b Field, BorrowedValue<'b>);
 
-    fn num_of_fields(&'q self) -> usize {
-        self.fields().len()
-    }
-
-    fn next_block(&'q self) -> Option<Self::B>;
-
-    fn block_iter(&'q self) -> Self::I;
-
-    #[allow(clippy::type_complexity)]
-    fn deserialize<T>(
-        &'q self,
-    ) -> FlatMap<Self::I, II<'de, 'b, Self::B, T>, fn(Self::B) -> II<'de, 'b, Self::B, T>>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.block_iter()
-            .flat_map(|b| <Self::B as BlockExt<'de, 'b>>::deserialize(&b))
+    fn next(&mut self) -> Option<Self::Item> {
+        let col = self.col;
+        if col < self.block.field_count() {
+            self.col += 1;
+            Some(unsafe { self.block.cell_unchecked(self.row, col) })
+        } else {
+            None
+        }
     }
 }
 
-pub trait Queryable: Debug {
-    type Error: Debug + From<serde::de::value::Error>;
-    type ResultSet: for<'q, 'b> ResultSet<'q, 'b, 'b>;
+#[derive(Debug)]
+pub struct RowInBlock<'b, T: BlockExt> {
+    block: &'b T,
+    row: usize,
+}
 
-    fn query<T: AsRef<str>>(&self, sql: T) -> Result<Result<Self::ResultSet, usize>, Self::Error>;
+impl<'b, T> IntoIterator for RowInBlock<'b, T>
+where
+    T: BlockExt,
+{
+    type Item = (&'b Field, BorrowedValue<'b>);
 
-    fn exec<T: AsRef<str>>(&self, sql: T) -> Result<usize, Self::Error> {
-        self.query(sql).map(|res| match res {
-            Ok(_) => 0, // todo: if we should get the selected rows if not update query?
-            Err(affected) => affected,
+    type IntoIter = CellIter<'b, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CellIter {
+            block: self.block,
+            row: self.row,
+            col: 0,
+        }
+    }
+}
+
+pub struct RowsIter<'b, T: BlockExt> {
+    block: &'b T,
+    row: usize,
+}
+
+impl<'b, T> Iterator for RowsIter<'b, T>
+where
+    T: BlockExt,
+{
+    type Item = RowInBlock<'b, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.row;
+
+        if row < self.block.num_of_rows() {
+            self.row += 1;
+            Some(RowInBlock {
+                block: self.block,
+                row,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+pub struct IntoRowsIter<T: BlockExt> {
+    block: Rc<T>,
+    row: usize,
+}
+
+impl<T> IntoRowsIter<T>
+where
+    T: BlockExt,
+{
+    fn new(block: T) -> Self {
+        Self {
+            block: Rc::new(block),
+            row: 0,
+        }
+    }
+}
+
+pub struct QueryRowIter<T: BlockExt> {
+    block: Rc<T>,
+    row: usize,
+}
+
+impl<'b, T> IntoIterator for &'b QueryRowIter<T>
+where
+    T: BlockExt,
+{
+    type Item = (&'b Field, BorrowedValue<'b>);
+
+    type IntoIter = CellIter<'b, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CellIter {
+            block: &self.block,
+            row: self.row,
+            col: 0,
+        }
+    }
+}
+
+impl<T> Iterator for IntoRowsIter<T>
+where
+    T: BlockExt,
+{
+    type Item = QueryRowIter<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.row;
+
+        if row < self.block.num_of_rows() {
+            self.row += 1;
+            Some(QueryRowIter {
+                block: self.block.clone(),
+                row,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+pub struct ColsIter<'b, T: BlockExt> {
+    block: &'b T,
+    col: usize,
+}
+
+impl<'b, T> Iterator for ColsIter<'b, T>
+where
+    T: BlockExt,
+{
+    type Item = BorrowedColumn<'b>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.col >= self.block.field_count() {
+            return None;
+        }
+
+        let v = unsafe { self.block.get_col_unchecked(self.col) };
+        self.col += 1;
+        Some(v)
+    }
+}
+
+type DeserializeIter<'b, B, T> =
+    std::iter::Map<RowsIter<'b, B>, fn(RowInBlock<'b, B>) -> Result<T, DeError>>;
+
+/// Trait to define a data `Block` to fetch records bulky.
+///
+/// If query performance is not your main concern, you can just use the deserialize method from result set.
+pub trait BlockExt: Debug + Sized {
+    /// A block should container number of rows.
+    fn num_of_rows(&self) -> usize;
+
+    /// Fields can be queried from a block.
+    fn fields(&self) -> &[Field];
+
+    /// Number of fields.
+    fn field_count(&self) -> usize {
+        self.fields().len()
+    }
+
+    fn precision(&self) -> Precision;
+
+    fn is_null(&self, row: usize, col: usize) -> bool;
+
+    /// Get field without column index check.
+    ///
+    /// # Safety
+    ///
+    /// This should not be called manually, please use [get_field](#method.get_field).
+    unsafe fn get_field_unchecked(&self, col: usize) -> &Field {
+        self.fields().get_unchecked(col)
+    }
+
+    /// Get field of one column.
+    fn get_field(&self, col: usize) -> Option<&Field> {
+        self.fields().get(col)
+    }
+
+    /// # Safety
+    ///
+    /// **DO NOT** call it directly.
+    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue);
+
+    unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn;
+
+    /// Query by rows.
+    fn iter_rows(&self) -> RowsIter<'_, Self> {
+        RowsIter {
+            block: self,
+            row: 0,
+        }
+    }
+
+    /// Consume self into rows.
+    fn into_iter_rows(self) -> IntoRowsIter<Self> {
+        IntoRowsIter::new(self)
+    }
+
+    /// Columns iterator with borrowed data from block.
+    fn columns_iter(&self) -> ColsIter<'_, Self> {
+        ColsIter {
+            block: self,
+            col: 0,
+        }
+    }
+
+    /// Deserialize a row to a record type(primitive type or a struct).
+    ///
+    /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
+    fn deserialize<'b, T>(&'b self) -> DeserializeIter<'b, Self, T>
+    where
+        T: serde::de::Deserialize<'b>,
+    {
+        self.iter_rows().map(|row| {
+            let de = de::RecordDeserializer::from(row);
+            T::deserialize(de)
         })
     }
 
-    fn databases(&self) -> Result<Vec<ShowDatabase>, Self::Error> {
+    /// Deserialize a row to a record type(primitive type or a struct).
+    ///
+    /// Any record could borrow data from the block, so that &[u8], &[str] could be used as record element (if valid).
+    fn deserialize_into<T>(
+        self,
+    ) -> std::iter::Map<IntoRowsIter<Self>, fn(QueryRowIter<Self>) -> Result<T, DeError>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.into_iter_rows().map(|row| {
+            let de = de::RecordDeserializer::from(&row);
+            T::deserialize(de)
+        })
+    }
+
+    /// Shortcut version to `.deserialize_into.collect::<Vec<T>>()`
+    fn deserialize_into_vec<T>(self) -> Vec<Result<T, DeError>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.deserialize_into().collect()
+    }
+
+    /// Rows as [futures::stream::Stream].
+    fn rows_stream(&self) -> futures::stream::Iter<RowsIter<'_, Self>> {
+        futures::stream::iter(Self::iter_rows(&self))
+    }
+
+    /// Owned version to rows stream.
+    fn into_rows_stream(self) -> futures::stream::Iter<IntoRowsIter<Self>> {
+        futures::stream::iter(Self::into_iter_rows(self))
+    }
+
+    /// Rows stream to deserialized record.
+    fn deserialize_stream<'b, T>(&'b self) -> futures::stream::Iter<DeserializeIter<'b, Self, T>>
+    where
+        T: serde::de::Deserialize<'b>,
+    {
+        futures::stream::iter(Self::deserialize(&self))
+    }
+}
+
+pub trait ResultSet
+where
+    Self: Sized,
+    for<'r> &'r mut Self: Iterator,
+    for<'b, 'r> <&'r mut Self as Iterator>::Item: BlockExt,
+{
+    // type Block: for<'b> BlockExt;
+
+    fn affected_rows(&self) -> i32;
+
+    fn precision(&self) -> Precision;
+
+    fn fields(&self) -> &[Field];
+
+    fn num_of_fields(&self) -> usize {
+        self.fields().len()
+    }
+
+    fn summary(&self) -> (usize, usize);
+
+    fn blocks_iter(&mut self) -> &mut Self {
+        self
+    }
+
+    fn deserialize<T>(
+        &mut self,
+    ) -> std::iter::FlatMap<
+        &mut Self,
+        Vec<Result<T, DeError>>,
+        fn(<&mut Self as Iterator>::Item) -> Vec<Result<T, DeError>>,
+    >
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.flat_map(|block| block.deserialize_into_vec())
+    }
+}
+
+/// The synchronous query trait for TDengine connection.
+pub trait Queryable<'q>: Debug
+where
+    for<'r> &'r mut Self::ResultSet: Iterator,
+    for<'b, 'r> <&'r mut Self::ResultSet as Iterator>::Item: BlockExt,
+{
+    type Error: Debug + From<serde::de::value::Error>;
+    // type B: for<'b> BlockExt<'b, 'b>;
+    type ResultSet: ResultSet;
+
+    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
+
+    fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        self.query(sql).map(|res| res.affected_rows() as _)
+    }
+    fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use itertools::Itertools;
         self.query("show databases")?
-            .expect("`show databases` must be queryable")
             .deserialize()
             .try_collect()
             .map_err(Into::into)
     }
+}
 
-    fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
-        use itertools::Itertools;
-        self.query(format!("describe {}", table))?
-            .expect("`describe <table>` must be queryable")
-            .deserialize()
+pub trait AsyncResultSet: Send
+where
+    Self::BlockStream: futures::stream::Stream + Send,
+    for<'b> <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
+{
+    type BlockStream;
+    // type Block: for<'b> BlockExt;
+
+    fn affected_rows(&self) -> i32;
+
+    fn precision(&self) -> Precision;
+
+    fn fields(&self) -> &[Field];
+
+    fn num_of_fields(&self) -> usize {
+        self.fields().len()
+    }
+
+    fn summary(&self) -> (usize, usize);
+
+    fn block_stream(&self) -> Self::BlockStream;
+
+    fn deserialize_stream<'a, T>(
+        &'a mut self,
+    ) -> futures::stream::FlatMap<
+        <Self as AsyncResultSet>::BlockStream,
+        futures::stream::Iter<std::vec::IntoIter<Result<T, DeError>>>,
+        fn(
+            <Self::BlockStream as futures::stream::Stream>::Item,
+        ) -> futures::stream::Iter<std::vec::IntoIter<Result<T, DeError>>>,
+    >
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        // self.blocks_iter()
+        use futures::stream::StreamExt;
+        self.block_stream()
+            .flat_map(|block| futures::stream::iter(block.deserialize_into_vec::<T>()))
+    }
+}
+
+/// The synchronous query trait for TDengine connection.
+#[async_trait]
+pub trait AsyncQueryable<'q>: Send + Sync
+where
+    <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
+    for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
+        BlockExt + Send,
+{
+    type Error: Debug + From<serde::de::value::Error> + From<anyhow::Error> + Send;
+    // type B: for<'b> BlockExt<'b, 'b>;
+    type AsyncResultSet: AsyncResultSet;
+
+    async fn query<T: AsRef<str> + Send>(
+        &'q self,
+        sql: T,
+    ) -> Result<Self::AsyncResultSet, Self::Error>;
+
+    async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        self.query(sql).await.map(|res| res.affected_rows() as _)
+    }
+    async fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
+        use futures::stream::TryStreamExt;
+        Ok(self
+            .query("show databases")
+            .await?
+            .deserialize_stream()
             .try_collect()
-            .map_err(Into::into)
+            .await?)
+    }
+    async fn describe(&'q self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
+        use futures::stream::TryStreamExt;
+        Ok(self
+            .query(format!("describe {table}"))
+            .await?
+            .deserialize_stream()
+            .try_collect()
+            .await?)
     }
 
-    fn create_database<I: Into<DatabaseProperties>>(
-        &self,
-        name: &str,
-        opts: I,
-    ) -> Result<(), Self::Error> {
-        let sql = format!("create database {} if not exists {}", name, opts.into());
-        self.exec(&sql).map(|_| ())
+    fn exec_sync<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        futures::executor::block_on(self.exec(sql))
     }
 
-    fn use_database(&self, database: &str) -> Result<(), Self::Error> {
-        let sql = format!("use database {}", database);
-        self.exec(&sql).map(|_| ())
-    }
-
-    fn create_table(&self, name: &str) -> Result<(), Self::Error> {
-        let sql = format!("create table {}", name);
-        self.exec(&sql).map(|_| ())
+    fn query_sync<T: AsRef<str> + Send>(
+        &'q self,
+        sql: T,
+    ) -> Result<Self::AsyncResultSet, Self::Error> {
+        futures::executor::block_on(self.query(sql))
     }
 }
 
@@ -236,206 +513,105 @@ mod tests {
             visitor.visit_borrowed_bytes(v)
         }
     }
-    impl<'de, 'b: 'de> Valuable<'de, 'b> for Value<'b> {
-        fn as_borrowed_value(&self) -> BorrowedValue<'b> {
-            todo!()
+
+    #[derive(Debug)]
+    struct MyResultSet<'q>(PhantomData<(&'q u8)>);
+
+    #[derive(Debug)]
+    struct Block<'r, 'q>(PhantomData<(&'r u8, &'q u8)>);
+
+    impl<'b, 'r, 'q> BlockExt for Block<'r, 'q> {
+        fn num_of_rows(&self) -> usize {
+            1
         }
 
-        fn into_owned_value(self) -> crate::Value {
-            todo!()
+        fn fields(&self) -> &[Field] {
+            static mut FIELDS: Vec<Field> = Vec::new();
+            unsafe {
+                if FIELDS.len() == 0 {
+                    FIELDS.push(Field::new("ts", Ty::Timestamp, 8));
+                    FIELDS.push(Field::new("bin10", Ty::VarChar, 10));
+                    FIELDS.push(Field::new("int32", Ty::Int, 4));
+                }
+                &FIELDS
+            }
         }
 
-        fn is_null(&self) -> bool {
+        fn precision(&self) -> Precision {
+            Precision::Microsecond
+        }
+
+        fn is_null(&self, _row: usize, _col: usize) -> bool {
             false
         }
 
-        fn ty(&self) -> Ty {
-            Ty::VarChar
+        fn field_count(&self) -> usize {
+            3
         }
-    }
 
-    #[derive(Debug)]
-    struct ResultSet;
-
-    impl IntoIterator for ResultSet {
-        type Item = Block;
-
-        type IntoIter = BlocksIter;
-
-        fn into_iter(self) -> Self::IntoIter {
-            BlocksIter
-        }
-    }
-
-    #[derive(Debug)]
-    struct BlocksIter;
-    impl Iterator for BlocksIter {
-        type Item = Block;
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Block)
-            } else {
-                None
+        unsafe fn cell_unchecked(&self, _row: usize, col: usize) -> (&Field, BorrowedValue) {
+            match col {
+                0 => (
+                    self.get_field_unchecked(col) as _,
+                    BorrowedValue::Timestamp(crate::Timestamp::Milliseconds(0)),
+                ),
+                2 => (self.get_field_unchecked(col) as _, BorrowedValue::Int(32)),
+                1 => (
+                    self.get_field_unchecked(col) as _,
+                    BorrowedValue::VarChar("str"),
+                ),
+                _ => (self.get_field_unchecked(col) as _, BorrowedValue::Int(32)),
             }
         }
-    }
 
-    #[derive(Debug)]
-    struct Block;
-
-    impl<'de, 'b: 'de> BlockExt<'de, 'b> for Block {
-        type Value = Value<'b>;
-        fn num_of_rows(&self) -> u32 {
-            todo!()
-        }
-
-        fn fields(&self) -> Cow<[Field]> {
-            todo!()
-        }
-
-        type Col = Col<'b>;
-
-        type ColIter = ColsIter<'b>;
-
-        fn iter_cols(&self) -> Self::ColIter {
-            ColsIter(PhantomData)
-        }
-
-        type Row = Row<'b>;
-
-        type RowIter = RowIter<'b>;
-
-        fn iter_rows(&self) -> Self::RowIter {
-            RowIter(PhantomData)
-        }
-
-        fn write_with(&self, codec: CodecOpts) {
-            todo!()
-        }
-
-        fn write_all_with(&self, codec: CodecOpts) {
-            todo!()
-        }
-
-        fn encode(&self, codec: CodecOpts) -> Vec<u8> {
+        unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn {
             todo!()
         }
     }
 
-    #[derive(Debug)]
-    struct Row<'a>(PhantomData<&'a u8>);
-    impl<'a> Iterator for Row<'a> {
-        type Item = (&'a Field, Value<'a>);
-
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: usize = 0;
-            static mut FIELD: Option<Field> = None;
-            unsafe {
-                if FIELD.is_none() {
-                    FIELD = Some(Field::new("name", Ty::Int, 4));
-                }
-            }
-            if unsafe { AVAILABLE } < 3 {
-                unsafe { AVAILABLE += 1 };
-                Some((unsafe { FIELD.as_ref().unwrap() }, Value("s")))
-            } else {
-                None
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    struct RowIter<'a>(PhantomData<&'a u8>);
-    impl<'a> Iterator for RowIter<'a> {
-        type Item = Row<'a>;
+    impl<'r, 'q> Iterator for &'r mut MyResultSet<'q> {
+        type Item = Block<'r, 'q>;
 
         fn next(&mut self) -> Option<Self::Item> {
             static mut AVAILABLE: bool = true;
             if unsafe { AVAILABLE } {
                 unsafe { AVAILABLE = false };
-                Some(Row(PhantomData))
+
+                Some(Block(PhantomData))
             } else {
                 None
             }
         }
     }
 
-    #[derive(Debug)]
-    struct Col<'a>(PhantomData<&'a Block>);
-
-    struct IntoValues<'a>(PhantomData<&'a Block>);
-    impl<'a> Iterator for IntoValues<'a> {
-        type Item = Value<'a>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Value("s"))
-            } else {
-                None
-            }
-        }
-    }
-    impl<'a> IntoIterator for Col<'a> {
-        type Item = Value<'a>;
-
-        type IntoIter = IntoValues<'a>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            IntoValues(PhantomData)
-        }
-    }
-
-    #[derive(Debug)]
-    struct ColsIter<'a>(PhantomData<&'a Block>);
-    impl<'a> Iterator for ColsIter<'a> {
-        type Item = Col<'a>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            static mut AVAILABLE: bool = true;
-            if unsafe { AVAILABLE } {
-                unsafe { AVAILABLE = false };
-                Some(Col(PhantomData))
-            } else {
-                None
-            }
-        }
-    }
-
-    impl<'q, 'de, 'b: 'de> crate::ResultSet<'q, 'de, 'b> for ResultSet {
-        type B = Block;
-
-        type I = BlocksIter;
-
-        fn fields(&'q self) -> &[Field] {
+    impl<'r, 'q> crate::ResultSet for MyResultSet<'q> {
+        fn fields(&self) -> &[Field] {
             todo!()
         }
 
-        fn next_block(&'q self) -> Option<Self::B> {
+        fn precision(&self) -> Precision {
             todo!()
         }
 
-        fn block_iter(&self) -> Self::I {
-            BlocksIter
+        fn summary(&self) -> (usize, usize) {
+            todo!()
+        }
+
+        fn affected_rows(&self) -> i32 {
+            todo!()
         }
     }
 
     #[derive(Debug)]
     struct Error;
 
-    impl Queryable for Conn {
+    impl<'q> Queryable<'q> for Conn {
         type Error = anyhow::Error;
 
-        type ResultSet = ResultSet;
+        type ResultSet = MyResultSet<'q>;
 
-        fn query<T: AsRef<str>>(
-            &self,
-            _sql: T,
-        ) -> Result<Result<Self::ResultSet, usize>, Self::Error> {
-            Ok(Ok(ResultSet))
+        fn query<T: AsRef<str>>(&'q self, _sql: T) -> Result<MyResultSet, Self::Error> {
+            Ok(MyResultSet(PhantomData))
         }
 
         fn exec<T: AsRef<str>>(&self, _sql: T) -> Result<usize, Self::Error> {
@@ -449,19 +625,10 @@ mod tests {
         let aff = conn.exec("nothing").unwrap();
         assert_eq!(aff, 1);
 
-        let res = conn.query("abc").unwrap();
+        let mut rs = conn.query("abc").unwrap();
 
-        match res {
-            Ok(set) => {
-                use crate::ResultSet;
-                for record in set.deserialize::<(i32, String, u8)>() {
-                    dbg!(record.unwrap());
-                }
-            }
-            Err(n) => {
-                // A `exec` query is not queryable.
-                println!("affected rows: {}", n);
-            }
+        for record in rs.deserialize::<(i32, String, u8)>() {
+            dbg!(record.unwrap());
         }
     }
     #[test]
@@ -471,19 +638,10 @@ mod tests {
         let aff = conn.exec("nothing").unwrap();
         assert_eq!(aff, 1);
 
-        let res = conn.query("abc").unwrap();
-
-        match res {
-            Ok(set) => {
-                for block in set {
-                    for record in block.deserialize::<(i32, &str, u8)>() {
-                        dbg!(record.unwrap());
-                    }
-                }
-            }
-            Err(n) => {
-                // A `exec` query is not queryable.
-                println!("affected rows: {}", n);
+        let mut set = conn.query("abc").unwrap();
+        for block in &mut set {
+            for record in block.deserialize::<(i32, &str, u8)>() {
+                dbg!(record.unwrap());
             }
         }
     }
@@ -494,23 +652,35 @@ mod tests {
         let aff = conn.exec("nothing").unwrap();
         assert_eq!(aff, 1);
 
-        let res = conn.query("abc").unwrap();
+        let mut set = conn.query("abc").unwrap();
 
-        match res {
-            Ok(set) => {
-                for block in set {
-                    for record in block.deserialize::<(&[u8], &str, u8)>() {
-                        dbg!(record.unwrap());
-                    }
-                }
-            }
-            Err(n) => {
-                // A `exec` query is not queryable.
-                println!("affected rows: {}", n);
+        for block in &mut set {
+            for record in block.deserialize::<(String, &str, u8)>() {
+                dbg!(record.unwrap());
             }
         }
     }
+    #[tokio::test]
+    async fn block_deserialize_borrowed_bytes_stream() {
+        let conn = Conn;
 
+        let aff = conn.exec("nothing").unwrap();
+        assert_eq!(aff, 1);
+
+        let mut set = conn.query("abc").unwrap();
+
+        use futures::stream::*;
+
+        for block in &mut set {
+            for record in block
+                .deserialize_stream::<(String, &str, u8)>()
+                .next()
+                .await
+            {
+                dbg!(record.unwrap());
+            }
+        }
+    }
     #[test]
     fn with_iter() {
         let conn = Conn;
@@ -518,27 +688,14 @@ mod tests {
         let aff = conn.exec("nothing").unwrap();
         assert_eq!(aff, 1);
 
-        let res = conn.query("abc").unwrap();
+        let mut set = conn.query("abc").unwrap();
 
-        match res {
-            Ok(set) => {
-                for block in set {
-                    // todo
-                    for row in block.iter_rows() {
-                        for value in row {
-                            println!("{:?}", value);
-                        }
-                    }
-                    for row in block.iter_cols() {
-                        for value in row {
-                            println!("{:?}", value);
-                        }
-                    }
+        for block in &mut set {
+            // todo
+            for row in block.iter_rows() {
+                for value in row {
+                    println!("{:?}", value);
                 }
-            }
-            Err(n) => {
-                // A `exec` query is not queryable.
-                println!("affected rows: {}", n);
             }
         }
     }

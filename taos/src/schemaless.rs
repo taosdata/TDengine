@@ -1,7 +1,4 @@
 use crate::*;
-use crate::{Taos, TaosResult};
-use taos_sys::*;
-
 use itertools::Itertools;
 
 impl Taos {
@@ -60,9 +57,7 @@ impl Taos {
                 precision,
             );
 
-            let res = TaosResult::try_from_ptr(res)?;
-
-            Ok(res.affected_rows())
+            taos_sys::RawRes::from_ptr(res).map(|res| res.affected_rows())
         }
     }
 }

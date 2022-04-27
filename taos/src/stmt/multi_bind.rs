@@ -2,7 +2,8 @@ use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use bitvec_simd::BitVec;
 
-use taos_sys::{TaosDataType, TAOS_MULTI_BIND, TSDB_DATA_TYPE_BINARY};
+use taos_query::common::Ty;
+use taos_sys::TAOS_MULTI_BIND;
 
 #[derive(Debug)]
 pub struct MultiBind<'a>(TAOS_MULTI_BIND, PhantomData<&'a u8>);
@@ -11,15 +12,15 @@ unsafe impl<'a> Send for MultiBind<'a> {}
 unsafe impl<'a> Sync for MultiBind<'a> {}
 
 pub(crate) trait TaosTypeOf {
-    fn taos_type_of() -> TaosDataType;
+    fn taos_type_of() -> Ty;
 }
 
 macro_rules! impl_taos_type_of {
     ($f:ty, $t:ident) => {
         impl TaosTypeOf for $f {
             #[inline]
-            fn taos_type_of() -> TaosDataType {
-                TaosDataType::$t
+            fn taos_type_of() -> Ty {
+                Ty::$t
             }
         }
     };
@@ -41,7 +42,7 @@ impl<'a> MultiBind<'a> {
     pub(crate) fn nulls(n: usize) -> Self {
         Self(
             TAOS_MULTI_BIND {
-                buffer_type: TaosDataType::Null as _,
+                buffer_type: Ty::Null as _,
                 buffer: std::ptr::null_mut(),
                 buffer_length: 0,
                 length: n as _,
@@ -67,7 +68,7 @@ impl<'a> MultiBind<'a> {
     pub(crate) fn from_raw_timestamps(nulls: &BitVec, values: &[i64]) -> Self {
         Self(
             TAOS_MULTI_BIND {
-                buffer_type: TaosDataType::Timestamp as _,
+                buffer_type: Ty::Timestamp as _,
                 buffer: values.as_ptr() as _,
                 buffer_length: std::mem::size_of::<i64>(),
                 length: values.len() as _,
@@ -112,7 +113,7 @@ impl<'a> MultiBind<'a> {
         }
         Self(
             TAOS_MULTI_BIND {
-                buffer_type: TSDB_DATA_TYPE_BINARY as _,
+                buffer_type: Ty::VarChar as _,
                 buffer: buffer.as_ptr() as _,
                 buffer_length,
                 length: length.as_ptr() as _,
@@ -131,15 +132,15 @@ impl<'a> MultiBind<'a> {
             })
             .collect();
         let mut s = Self::from_binary_vec(&values);
-        s.0.buffer_type = TaosDataType::NChar as _;
+        s.0.buffer_type = Ty::NChar as _;
         s
     }
 }
 
 impl<'a> Drop for MultiBind<'a> {
     fn drop(&mut self) {
-        let ty = TaosDataType::from(self.0.buffer_type as u8);
-        if ty == TSDB_DATA_TYPE_BINARY || ty == TaosDataType::NChar {
+        let ty = Ty::from(self.0.buffer_type as u8);
+        if ty == Ty::VarChar || ty == Ty::NChar {
             let len = self.0.buffer_length * self.0.num as usize;
             unsafe { Vec::from_raw_parts(self.0.buffer as *mut u8, len, len as _) };
             unsafe {

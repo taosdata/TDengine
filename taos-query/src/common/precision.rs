@@ -3,7 +3,6 @@ use std::{
     str::FromStr,
 };
 
-use num_enum::TryFromPrimitive;
 use serde::Deserialize;
 
 #[derive(Debug, thiserror::Error)]
@@ -14,9 +13,8 @@ pub enum PrecisionError {
 
 /// The precision of a timestamp or a database.
 #[repr(i32)]
-#[derive(Debug, Copy, Clone, TryFromPrimitive, PartialEq, Eq, serde_repr::Serialize_repr)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde_repr::Serialize_repr)]
 pub enum Precision {
-    #[num_enum(default)]
     Millisecond = 0,
     Microsecond,
     Nanosecond,
@@ -48,6 +46,18 @@ impl Precision {
         }
     }
 }
+
+macro_rules! _impl_from {
+    ($($ty:ty) *) => {
+        $(impl From<$ty> for Precision {
+            fn from(v: $ty) -> Self {
+                Self::from_u8(v as _)
+            }
+        })*
+    }
+}
+
+_impl_from!(i8 i16 i32 i64 isize u8 u16 u32 u64 usize);
 
 impl Display for Precision {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -177,7 +187,7 @@ mod tests {
             value::{I32Deserializer, StrDeserializer, UnitDeserializer},
             IntoDeserializer,
         },
-        Deserialize, Serialize,
+        Deserialize,
     };
 
     use super::Precision;

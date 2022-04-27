@@ -179,7 +179,7 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String, da
             })
             .collect();
 
-        let bind: Vec<_> = blocks.iter().map(|b| b.to_multi_bind()).collect();
+        let bind: Vec<_> = blocks.iter().map(|b| b.into()).collect();
         let mut stmt = taos.stmt(&sql).unwrap();
         stmt.multi_bind(&bind).unwrap();
         stmt.execute().unwrap();

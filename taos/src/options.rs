@@ -51,9 +51,22 @@ macro_rules! _build_opt {
     };
 }
 
+#[test]
+fn test_options() {
+    let opts = TaosOptions::parse("taos+driver:///db");
+    dbg!(opts);
+}
 impl TaosOptions {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn parse(dsn: &str) -> Result<Self> {
+        if dsn.is_empty() {
+            return Ok(Self::new());
+        }
+        let dsn = url::Url::parse(dsn).unwrap();
+        dbg!(dsn);
+        Ok(Self::default())
     }
     _build_opt!(host);
     _build_opt!(username);

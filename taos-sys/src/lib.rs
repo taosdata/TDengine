@@ -2,9 +2,19 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{borrow::Cow, ffi::CStr, io::Write, os::raw::*};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    ffi::CStr,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    os::raw::*,
+    sync::Arc,
+};
 
+use once_cell::sync::OnceCell;
 use taos_error::{Code, Error};
+use taos_query::common::{Field, Ty};
 
 pub(crate) mod types;
 pub use types::*;
@@ -106,8 +116,8 @@ impl RawTaos {
     }
 
     #[inline]
-    pub fn query(&self, sql: *const i8) -> RawRes {
-        RawRes(unsafe { taos_query(self.as_ptr(), sql) })
+    pub fn query(&self, sql: *const i8) -> Result<DroppableRawRes, Error> {
+        RawRes::from_ptr(unsafe { taos_query(self.as_ptr(), sql) }).map(DroppableRawRes::new)
     }
 
     #[inline]
@@ -149,19 +159,60 @@ impl RawTaos {
 }
 
 #[derive(Debug)]
-#[repr(transparent)]
-pub struct RawRes(*mut TAOS_RES);
+pub struct RawRes {
+    ptr: *mut TAOS_RES,
+    fields: OnceCell<Vec<Field>>,
+}
 
-impl Drop for RawRes {
+unsafe impl Send for RawRes {}
+unsafe impl Sync for RawRes {}
+
+#[derive(Debug)]
+pub struct DroppableRawRes<'q> {
+    raw: Arc<RawRes>,
+    _marker: PhantomData<&'q u8>,
+}
+
+impl<'q> Deref for DroppableRawRes<'q> {
+    type Target = RawRes;
+
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
+impl<'q> DroppableRawRes<'q> {
+    pub fn new(raw: RawRes) -> Self {
+        Self {
+            raw: Arc::new(raw),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<Self, Error> {
+        RawRes::from_ptr_with_code(ptr, code).map(Self::new)
+    }
+
+    pub fn raw(&self) -> Arc<RawRes> {
+        self.raw.clone()
+    }
+}
+
+impl<'q> Drop for DroppableRawRes<'q> {
     fn drop(&mut self) {
-        self.free_result();
+        if let Some(raw) = Arc::get_mut(&mut self.raw) {
+            raw.free_result();
+        } else {
+            log::error!("there's other result pointer in-use, please check");
+            panic!("there's other result pointer in-use, please check");
+        }
     }
 }
 
 impl RawRes {
     #[inline]
     pub fn as_ptr(&self) -> *mut TAOS_RES {
-        self.0
+        self.ptr
     }
 
     #[inline]
@@ -179,32 +230,71 @@ impl RawRes {
         }
     }
 
-    pub fn from_ptr(res: *mut TAOS_RES) -> RawRes {
-        RawRes(res)
+    #[inline]
+    pub fn from_ptr(ptr: *mut TAOS_RES) -> Result<RawRes, Error> {
+        let raw = unsafe { Self::from_ptr_unchecked(ptr) };
+        let code = raw.errno();
+        raw.with_code(code)
     }
 
     #[inline]
-    pub fn num_fields(&self) -> i32 {
-        unsafe { taos_num_fields(self.as_ptr()) }
-    }
-    #[inline]
-    pub fn fetch_fields(&self) -> *mut TAOS_FIELD {
-        unsafe { taos_fetch_fields(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn fetch_lengths(&self) -> *mut i32 {
-        unsafe { taos_fetch_lengths(self.as_ptr()) }
+    pub const unsafe fn from_ptr_unchecked(ptr: *mut TAOS_RES) -> RawRes {
+        RawRes {
+            ptr,
+            fields: OnceCell::new(),
+        }
     }
 
     #[inline]
-    pub fn fetch_block(&self) -> Result<(TAOS_ROW, i32), Error> {
+    pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<RawRes, Error> {
+        unsafe { RawRes::from_ptr_unchecked(ptr) }.with_code(code)
+    }
+
+    #[inline]
+    fn with_code(self, code: Code) -> Result<Self, Error> {
+        if code.success() {
+            Ok(self)
+        } else {
+            Err(Error::new(code, self.err_as_str()))
+        }
+    }
+
+    #[inline]
+    pub fn num_fields(&self) -> usize {
+        self.fields().len()
+    }
+    #[inline]
+    pub fn fields<'any>(&self) -> &[Field] {
+        let fields = self.fields.get_or_init(|| {
+            let len = unsafe { taos_num_fields(self.as_ptr()) };
+            from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
+        });
+        &fields
+    }
+
+    #[inline]
+    pub fn fetch_lengths<'t>(&self) -> &'t [i32] {
+        unsafe {
+            std::slice::from_raw_parts(taos_fetch_lengths(self.as_ptr()), self.field_count() as _)
+        }
+    }
+    #[inline]
+    unsafe fn fetch_lengths_raw(&self) -> *const i32 {
+        taos_fetch_lengths(self.as_ptr())
+    }
+
+    #[inline]
+    pub fn fetch_block(&self) -> Result<Option<(TAOS_ROW, i32, *const i32)>, Error> {
         let block = Box::into_raw(Box::new(std::ptr::null_mut()));
         let mut num = 0;
         err_or!(
             self,
-            taos_fetch_block_s(self.as_ptr(), &mut num as _, block),
-            (*block, num)
+            taos_fetch_block_s(self.as_ptr(), &mut num, block),
+            if num > 0 {
+                Some((*block, num, self.fetch_lengths_raw()))
+            } else {
+                None
+            }
         )
     }
 
@@ -270,8 +360,8 @@ impl RawRes {
     }
 
     #[inline]
-    pub fn block(&self) -> *mut TAOS_ROW {
-        unsafe { taos_result_block(self.as_ptr()) }
+    pub fn block(&self) -> *mut *mut c_void {
+        unsafe { taos_result_block(self.as_ptr()).read() }
     }
 }
 
@@ -335,7 +425,7 @@ impl RawStmt {
 
     #[inline]
     pub fn use_result(&mut self) -> RawRes {
-        RawRes(unsafe { taos_stmt_use_result(self.as_ptr()) })
+        unsafe { RawRes::from_ptr_unchecked(taos_stmt_use_result(self.as_ptr())) }
     }
 
     #[inline]
@@ -374,7 +464,7 @@ impl RawStmt {
     }
 
     #[inline]
-    pub fn get_param(&mut self, idx: i32) -> Result<(TaosDataType, i32), Error> {
+    pub fn get_param(&mut self, idx: i32) -> Result<(Ty, i32), Error> {
         let (mut type_, mut bytes) = (0, 0);
         err_or!(
             self,
@@ -405,121 +495,56 @@ impl RawStmt {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, Clone)]
-pub struct Field {
-    name: [u8; 65],
-    ty: TaosDataType,
-    bytes: u32,
-}
+// #[derive(Debug, Clone, Copy)]
+// #[repr(C)]
+// enum BlockVer {
+//     V2 = 0,
+//     V3,
+// }
+// #[derive(Debug, Clone, Copy)]
+// #[repr(C)]
 
-#[test]
-fn field_size() {
-    assert_eq!(std::mem::size_of::<Field>(), 72);
-    #[cfg(taos_v2)]
-    assert_eq!(std::mem::size_of::<TAOS_FIELD>(), 68);
-    #[cfg(taos_v3)]
-    assert_eq!(std::mem::size_of::<TAOS_FIELD>(), 72);
-}
-impl Field {
-    pub fn new(name: &str, ty: TaosDataType, bytes: u32) -> Self {
-        let name_raw = name.as_bytes();
-        let mut name: [u8; 65] = [0; 65];
-        unsafe {
-            std::ptr::copy_nonoverlapping(name_raw.as_ptr(), name.as_mut_ptr(), name_raw.len())
-        };
-        Self { name, ty, bytes }
-    }
-    pub const fn name(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(&self.name) }
-    }
-    pub const fn data_type(&self) -> TaosDataType {
-        self.ty
-    }
-    pub const fn bytes(&self) -> u32 {
-        self.bytes
-    }
+// enum BlockCodec {
+//     Bytes,
+// }
 
-    fn from_v2<'a>(fields: &'a [TAOS_FIELD]) -> Cow<'a, [Field]> {
-        fields
-            .into_iter()
-            .map(|field| Field {
-                name: field.name.clone(),
-                ty: field.type_(),
-                bytes: field.bytes(),
-            })
-            .collect::<Vec<_>>()
-            .into()
-    }
+// #[derive(Debug)]
+// enum BlockType<'a> {
+//     V2(*mut *mut c_void),
+//     Bytes(Cow<'a, [u8]>),
+// }
 
-    fn from_v3<'a>(fields: &'a [TAOS_FIELD]) -> Cow<'a, [Field]> {
-        let f: &'a [Field] = unsafe { std::mem::transmute(fields) };
-        Cow::Borrowed(f)
-    }
+// struct RawCodec<'a> {
+//     version: BlockVer,
+//     method: BlockCodec,
+//     precision: Precision,
+//     fields: Cow<'a, [Field]>,
+// }
 
-    fn from_raw_fields(fields: &[TAOS_FIELD]) -> Cow<[Field]> {
-        cfg_if::cfg_if! {
-            if #[cfg(taos_v2)] {
-                Self::from_v2(fields)
-            } else if #[cfg(taos_v3)] {
-                Self::from_v3(fields)
-            } else {
-                compile_error!("can not parse fields")
-            }
-        }
-    }
-}
+// #[derive(Debug)]
+// pub struct RawBlock<'a> {
+//     version: BlockVer,
+//     codec: BlockCodec,
+//     precision: Precision,
+//     fields: Cow<'a, [Field]>,
+//     num_of_rows: usize,
+//     data: BlockType<'a>,
+// }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-enum BlockVer {
-    V2 = 0,
-    V3,
-}
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
+// impl<'a> RawBlock<'a> {
+//     fn precision(&self) -> Precision {
+//         self.precision
+//     }
 
-enum BlockCodec {
-    Bytes,
-}
+//     fn to_bytes(&self) -> Cow<[u8]> {
+//         todo!()
+//     }
 
-#[derive(Debug)]
-enum BlockType<'a> {
-    V2(*mut *mut c_void),
-    Bytes(Cow<'a, [u8]>),
-}
+//     fn write<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
+//         wtr.write(&self.to_bytes())
+//     }
 
-struct RawCodec<'a> {
-    version: BlockVer,
-    method: BlockCodec,
-    precision: Precision,
-    fields: Cow<'a, [Field]>,
-}
-
-#[derive(Debug)]
-pub struct RawBlock<'a> {
-    version: BlockVer,
-    codec: BlockCodec,
-    precision: Precision,
-    fields: Cow<'a, [Field]>,
-    num_of_rows: usize,
-    data: BlockType<'a>,
-}
-
-impl<'a> RawBlock<'a> {
-    fn precision(&self) -> Precision {
-        self.precision
-    }
-
-    fn to_bytes(&self) -> Cow<[u8]> {
-        todo!()
-    }
-
-    fn write<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
-        wtr.write(&self.to_bytes())
-    }
-
-    fn write_all<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
-        wtr.write(&self.to_bytes())
-    }
-}
+//     fn write_all<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
+//         wtr.write(&self.to_bytes())
+//     }
+// }

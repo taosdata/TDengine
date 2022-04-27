@@ -3,7 +3,9 @@ use std::{io::Write, ops::Deref, str::FromStr, sync::Once};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 
-use crate::{helpers::Precision, Result, Taos, TaosOptions};
+use crate::{Result, Taos, TaosOptions};
+
+use taos_query::common::Precision;
 
 /// Used in [test(naming = "uuid-v1")] macro to choose database naming strategy
 #[derive(Debug)]
@@ -58,7 +60,7 @@ impl NamingStrategy {
                     .chars()
                     .collect();
                 for _ in 0..uuid.len() {
-                    log::error!("uuid: {}", String::from_iter(uuid.clone()));
+                    log::trace!("uuid: {}", String::from_iter(uuid.clone()));
                     if uuid[0].is_alphabetic() {
                         break;
                     } else {
@@ -193,9 +195,9 @@ impl PrecisionStrategy {
             Cyclic => {
                 static mut ITER: u64 = 0;
                 let p = match unsafe { ITER % 3 } {
-                    0 => Precision::Milliseconds,
-                    1 => Precision::Microseconds,
-                    2 => Precision::Nanoseconds,
+                    0 => Precision::Millisecond,
+                    1 => Precision::Microsecond,
+                    2 => Precision::Nanosecond,
                     _ => unreachable!(),
                 };
                 unsafe { ITER += 1 };
@@ -221,7 +223,7 @@ impl From<()> for PrecisionStrategy {
 
 impl Default for PrecisionStrategy {
     fn default() -> Self {
-        PrecisionStrategy::Preset(Precision::Milliseconds)
+        PrecisionStrategy::Preset(Precision::Millisecond)
     }
 }
 
@@ -246,6 +248,127 @@ impl FromStr for PrecisionStrategy {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum LogLevel {
+    /// Default,
+    Default,
+    /// A level lower than all log levels.
+    Off,
+    /// Corresponds to the `Error` log level.
+    Error,
+    /// Corresponds to the `Warn` log level.
+    Warn,
+    /// Corresponds to the `Info` log level.
+    Info,
+    /// Corresponds to the `Debug` log level.
+    Debug,
+    /// Corresponds to the `Trace` log level.
+    Trace,
+}
+
+impl LogLevel {
+    fn to_log_level_filter(&self) -> Option<log::LevelFilter> {
+        use LogLevel::*;
+        match self {
+            Default => None,
+            Off => Some(log::LevelFilter::Off),
+            Error => Some(log::LevelFilter::Error),
+            Warn => Some(log::LevelFilter::Warn),
+            Info => Some(log::LevelFilter::Info),
+            Debug => Some(log::LevelFilter::Debug),
+            Trace => Some(log::LevelFilter::Trace),
+        }
+    }
+}
+impl Default for LogLevel {
+    fn default() -> Self {
+        LogLevel::Default
+    }
+}
+
+impl From<&str> for LogLevel {
+    fn from(s: &str) -> Self {
+        use LogLevel::*;
+        match s {
+            "off" => Off,
+            "error" => Error,
+            "warn" => Warn,
+            "info" => Info,
+            "debug" => Debug,
+            "trace" => Trace,
+            _ => Off,
+        }
+    }
+}
+
+impl From<()> for LogLevel {
+    fn from(_: ()) -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Common {
+    log_level: LogLevel,
+}
+
+impl Common {
+    pub fn log_level(mut self, level: impl Into<LogLevel>) -> Self {
+        self.log_level = level.into();
+        self
+    }
+
+    pub fn init(&self) -> Result<()> {
+        static LOGGER_INIT: Once = Once::new();
+        LOGGER_INIT.call_once(|| {
+            let mut builder = pretty_env_logger::formatted_timed_builder();
+            if let Some(lv) = self.log_level.to_log_level_filter() {
+                builder.filter_level(lv);
+            } else {
+                if let Ok(s) = ::std::env::var("RUST_LOG") {
+                    builder.parse_filters(&s);
+                }
+            }
+            builder
+                .format_module_path(true)
+                .format(|buf, record| -> std::result::Result<(), std::io::Error> {
+                    fn colored_level<'a>(
+                        style: &'a mut pretty_env_logger::env_logger::fmt::Style,
+                        level: Level,
+                    ) -> StyledValue<'a, &'static str> {
+                        match level {
+                            Level::Trace => style.set_color(Color::Magenta).value("TRACE"),
+                            Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
+                            Level::Info => style.set_color(Color::Green).value("INFO"),
+                            Level::Warn => style.set_color(Color::Yellow).value("WARN "),
+                            Level::Error => style.set_color(Color::Red).value("ERROR"),
+                        }
+                    }
+                    let mut style = buf.style();
+                    let level = colored_level(&mut style, record.level());
+                    let mut mod_path = buf.style();
+
+                    let mod_path = mod_path.set_bold(true).value(format!(
+                        "{}:{}",
+                        record.file().unwrap_or("unknown"),
+                        record.line().unwrap_or(0),
+                    ));
+                    writeln!(
+                        buf,
+                        "[{:29} {: <5}] {} > {}",
+                        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S.%f"),
+                        level,
+                        mod_path,
+                        record.args()
+                    )
+                })
+                // .is_test(true)
+                .init();
+        });
+        Ok(())
+    }
+}
 #[derive(Debug, Default)]
 
 pub struct Builder {
@@ -254,7 +377,6 @@ pub struct Builder {
     dropping: DroppingStrategy,
     databases: usize,
 }
-
 impl Builder {
     pub fn new(
         naming: impl Into<NamingStrategy>,
@@ -288,38 +410,6 @@ impl Builder {
     }
 
     pub fn build(self) -> Result<TaosWrapper> {
-        static LOGGER_INIT: Once = Once::new();
-        LOGGER_INIT.call_once(|| {
-            pretty_env_logger::formatted_timed_builder()
-                .format_module_path(true)
-                .filter_level(log::LevelFilter::Trace)
-                .format(|buf, record| -> std::result::Result<(), std::io::Error> {
-                    fn colored_level<'a>(
-                        style: &'a mut pretty_env_logger::env_logger::fmt::Style,
-                        level: Level,
-                    ) -> StyledValue<'a, &'static str> {
-                        match level {
-                            Level::Trace => style.set_color(Color::Cyan).value("TRACE"),
-                            Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
-                            Level::Info => style.set_color(Color::Green).value("INFO"),
-                            Level::Warn => style.set_color(Color::Yellow).value("WARN "),
-                            Level::Error => style.set_color(Color::Red).value("ERROR"),
-                        }
-                    }
-                    let mut style = buf.style();
-                    writeln!(
-                        buf,
-                        "[{}:{}] {} {} - {}",
-                        record.file().unwrap_or("unknown"),
-                        record.line().unwrap_or(0),
-                        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S.%f"),
-                        colored_level(&mut style, record.level()),
-                        record.args()
-                    )
-                })
-                .is_test(true)
-                .init();
-        });
         let taos = TaosOptions::new().build()?;
 
         let db: Vec<_> = self

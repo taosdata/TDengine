@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use taos_sys::TimestampPrecision;
+use taos_sys::Precision;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum TimestampValue {
@@ -9,11 +9,11 @@ pub enum TimestampValue {
 }
 
 impl TimestampValue {
-    pub fn new(raw: i64, precision: TimestampPrecision) -> Self {
+    pub fn new(raw: i64, precision: Precision) -> Self {
         match precision {
-            TimestampPrecision::Millisecond => TimestampValue::Milliseconds(raw),
-            TimestampPrecision::Microsecond => TimestampValue::Microseconds(raw),
-            TimestampPrecision::Nanosecond => TimestampValue::Nanoseconds(raw),
+            Precision::Millisecond => TimestampValue::Milliseconds(raw),
+            Precision::Microsecond => TimestampValue::Microseconds(raw),
+            Precision::Nanosecond => TimestampValue::Nanoseconds(raw),
         }
     }
     pub fn as_raw_i64(&self) -> &i64 {

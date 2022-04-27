@@ -1,32 +1,32 @@
 use bitvec_simd::BitVec;
 use itertools::Itertools;
 
-use crate::stmt::MultiBind;
+// use crate::stmt::MultiBind;
 
-use super::BorrowedValue;
+use super::value::BorrowedValue;
 
 #[derive(Debug, serde::Serialize)]
-pub enum BorrowedColumn<'block> {
+pub enum BorrowedColumn<'b> {
     Null(usize),
-    Bool(BitVec, &'block [bool]),  // 1
-    TinyInt(BitVec, &'block [i8]), // 2
-    SmallInt(BitVec, &'block [i16]),
-    Int(BitVec, &'block [i32]),
-    BigInt(BitVec, &'block [i64]),
-    Float(BitVec, &'block [f32]),
-    Double(BitVec, &'block [f64]),
-    Binary(Vec<Option<&'block [u8]>>),
-    Timestamp(BitVec, &'block [i64]),
-    NChar(Vec<Option<&'block str>>),
-    UTinyInt(BitVec, &'block [u8]),
-    USmallInt(BitVec, &'block [u16]),
-    UInt(BitVec, &'block [u32]),
-    UBigInt(BitVec, &'block [u64]), // 14
-    Json(BitVec, &'block [u8]),
-    VarChar(BitVec, Vec<&'block [u8]>),
-    VarBinary(BitVec, Vec<&'block [u8]>),
-    Decimal(BitVec, &'block [f64]),
-    Blob(BitVec, Vec<&'block [u8]>),
+    Bool(BitVec, &'b [bool]),  // 1
+    TinyInt(BitVec, &'b [i8]), // 2
+    SmallInt(BitVec, &'b [i16]),
+    Int(BitVec, &'b [i32]),
+    BigInt(BitVec, &'b [i64]),
+    Float(BitVec, &'b [f32]),
+    Double(BitVec, &'b [f64]),
+    Binary(Vec<Option<&'b [u8]>>),
+    Timestamp(BitVec, &'b [i64]),
+    NChar(Vec<Option<&'b str>>),
+    UTinyInt(BitVec, &'b [u8]),
+    USmallInt(BitVec, &'b [u16]),
+    UInt(BitVec, &'b [u32]),
+    UBigInt(BitVec, &'b [u64]), // 14
+    Json(BitVec, &'b [u8]),
+    VarChar(BitVec, Vec<&'b [u8]>),
+    VarBinary(BitVec, Vec<&'b [u8]>),
+    Decimal(BitVec, &'b [f64]),
+    Blob(BitVec, Vec<&'b [u8]>),
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -53,50 +53,50 @@ pub enum Column {
     Blob(BitVec, Vec<Vec<u8>>),
 }
 
-impl Column {
-    pub fn to_multi_bind(&self) -> MultiBind {
-        match self {
-            Self::Null(n) => MultiBind::nulls(*n),
-            Self::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Timestamp(nulls, values) => MultiBind::from_raw_timestamps(nulls, values),
-            Self::Binary(values) => MultiBind::from_binary_vec(values),
-            Self::NChar(values) => MultiBind::from_string_vec(values),
-            _ => unreachable!(),
-        }
-    }
-}
+// impl Column {
+//     pub fn to_multi_bind(&self) -> MultiBind {
+//         match self {
+//             Self::Null(n) => MultiBind::nulls(*n),
+//             Self::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
+//             Self::Timestamp(nulls, values) => MultiBind::from_raw_timestamps(nulls, values),
+//             Self::Binary(values) => MultiBind::from_binary_vec(values),
+//             Self::NChar(values) => MultiBind::from_string_vec(values),
+//             _ => unreachable!(),
+//         }
+//     }
+// }
 
 impl<'block> BorrowedColumn<'block> {
-    pub fn to_multi_bind(&self) -> MultiBind {
-        match self {
-            Self::Null(n) => MultiBind::nulls(*n),
-            Self::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
-            Self::Timestamp(nulls, values) => MultiBind::from_raw_timestamps(nulls, values),
-            Self::Binary(values) => MultiBind::from_binary_vec(values),
-            Self::NChar(values) => MultiBind::from_string_vec(values),
-            _ => unreachable!(),
-        }
-    }
+    // pub fn to_multi_bind(&self) -> MultiBind {
+    //     match self {
+    //         Self::Null(n) => MultiBind::nulls(*n),
+    //         Self::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
+    //         Self::Timestamp(nulls, values) => MultiBind::from_raw_timestamps(nulls, values),
+    //         Self::Binary(values) => MultiBind::from_binary_vec(values),
+    //         Self::NChar(values) => MultiBind::from_string_vec(values),
+    //         _ => unreachable!(),
+    //     }
+    // }
 
     pub fn get(&self, index: usize) -> BorrowedValue<'block> {
         macro_rules! get_primitive {

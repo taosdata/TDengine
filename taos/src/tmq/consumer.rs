@@ -1,6 +1,4 @@
-use std::ffi::CStr;
-
-use crate::{Code, Error, Result, Taos, TaosResult};
+use crate::{Error, Result};
 use taos_sys::*;
 
 use super::{Message, Offset, Offsets, TmqList};
@@ -60,12 +58,13 @@ impl Consumer {
     }
 
     pub fn poll(&self, blocking_time: i64) -> Option<Message> {
-        let message = unsafe { tmq_consumer_poll(self.0, blocking_time) };
-        if message.is_null() {
-            None
-        } else {
-            Some(Message::new(self, message))
-        }
+        todo!()
+        // let message = unsafe { tmq_consumer_poll(self.0, blocking_time) };
+        // if message.is_null() {
+        //     None
+        // } else {
+        //     Some(Message::new(self, message))
+        // }
     }
 }
 

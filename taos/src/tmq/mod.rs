@@ -38,7 +38,8 @@ impl Taos {
     }
 
     pub fn consumer(&self, conf: &TmqConf) -> Result<Consumer> {
-        let cons = unsafe { tmq_consumer_new(self.0, conf.as_ptr(), std::ptr::null_mut(), 0) };
+        let cons =
+            unsafe { tmq_consumer_new(self.0.as_ptr(), conf.as_ptr(), std::ptr::null_mut(), 0) };
         Ok(Consumer::new(cons))
     }
 }
@@ -169,7 +170,7 @@ mod test {
         if !version.starts_with("3") {
             return Ok(());
         }
-        
+
         TaosOptions::new().config_dir("/home/huolinhe/Projects/taosdata/taosx/TDengine/demo");
         let taos = Taos::new((), "root", "taosdata", (), 0).unwrap();
         println!("connected");

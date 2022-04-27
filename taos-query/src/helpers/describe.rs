@@ -19,6 +19,7 @@ pub enum ColumnMeta {
     Tag(Described),
 }
 
+unsafe impl Send for ColumnMeta {}
 impl<'de> Deserialize<'de> for ColumnMeta {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

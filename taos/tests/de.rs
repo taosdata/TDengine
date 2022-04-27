@@ -63,7 +63,7 @@ struct RecordOptionWithJsonTag {
 }
 
 #[taos::prelude::test]
-async fn de_seq_value(taos: &Taos, _database: &str) -> Result<()> {
+async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -88,7 +88,7 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_seq_value2(taos: &Taos, _database: &str) -> Result<()> {
+async fn de_seq_value2(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -127,7 +127,7 @@ async fn de_seq_value2(taos: &Taos, _database: &str) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_all(taos: &Taos, _database: &str) -> Result<()> {
+async fn de_all(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -152,7 +152,7 @@ async fn de_all(taos: &Taos, _database: &str) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_all_option(taos: &Taos, _database: &str) -> Result<()> {
+async fn de_all_option(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -178,7 +178,7 @@ async fn de_all_option(taos: &Taos, _database: &str) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> Result<()> {
+async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
@@ -204,7 +204,7 @@ async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> Res
 }
 
 #[taos::prelude::test]
-async fn de_string(taos: &Taos) -> Result<()> {
+async fn de_string(taos: &Taos) -> anyhow::Result<()> {
     let res = taos.query("select server_version() as version").await?;
     use futures::StreamExt;
 
@@ -214,7 +214,7 @@ async fn de_string(taos: &Taos) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_wrapper_struct(taos: &Taos) -> Result<()> {
+async fn de_wrapper_struct(taos: &Taos) -> anyhow::Result<()> {
     let res = taos.query("select server_version() as version").await?;
     use futures::StreamExt;
 
@@ -226,7 +226,7 @@ async fn de_wrapper_struct(taos: &Taos) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_named_struct(taos: &Taos) -> Result<()> {
+async fn de_named_struct(taos: &Taos) -> anyhow::Result<()> {
     macro_rules! de {
         ($taos:expr, $sql:expr) => {
             $taos
@@ -263,7 +263,7 @@ async fn de_named_struct(taos: &Taos) -> Result<()> {
 }
 
 #[taos::prelude::test]
-async fn de_vec(taos: &Taos) -> Result<()> {
+async fn de_vec(taos: &Taos) -> anyhow::Result<()> {
     // let taos = TaosOptions::new().build()?;
     // std::env::set_var("RUST_LOG", "trace");
     // pretty_env_logger::init();
