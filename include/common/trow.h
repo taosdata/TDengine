@@ -214,6 +214,14 @@ STSRow *tdRowDup(STSRow *row);
 static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
   return (SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx;
 }
+static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
+  ASSERT(idx >= 0);
+  if (idx == 0) {
+    return PRIMARYKEY_TIMESTAMP_COL_ID;
+  }
+
+  return ((SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx - 1)->colId;
+}
 static FORCE_INLINE void *tdKVRowColVal(STSRow *pRow, SKvRowIdx *pIdx) { return POINTER_SHIFT(pRow, pIdx->offset); }
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);  // During ParseInsert when without STSchema, how to get the offset for STpRow?
