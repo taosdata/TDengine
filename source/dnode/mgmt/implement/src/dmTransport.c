@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
-#define INTERNAL_USER   "_dnd"
-#define INTERNAL_CKEY   "_key"
+#define INTERNAL_USER "_dnd"
+#define INTERNAL_CKEY "_key"
 #define INTERNAL_SECRET "_pwd"
 
 static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
@@ -128,10 +128,10 @@ _OVER:
 }
 
 static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SDnodeTrans * pTrans = &pDnode->trans;
+  SDnodeTrans  *pTrans = &pDnode->trans;
   tmsg_t        msgType = pMsg->msgType;
   bool          isReq = msgType & 1u;
-  SMsgHandle *  pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
+  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
   SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
 
   if (msgType == TDMT_DND_SERVER_STATUS) {
@@ -309,6 +309,15 @@ static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   }
 }
 
+static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+  ASSERT(pRsp->code == TSDB_CODE_NODE_REDIRECT);
+  if (pWrapper->procType != DND_PROC_CHILD) {
+    rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
+  } else {
+    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+  }
+}
+
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != DND_PROC_CHILD) {
     rpcRegisterBrokenLinkArg(pMsg);
@@ -464,7 +473,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   SAuthReq authReq = {0};
   tstrncpy(authReq.user, user, TSDB_USER_LEN);
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void *  pReq = rpcMallocCont(contLen);
+  void   *pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
@@ -538,6 +547,7 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = {
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
+      .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
