@@ -103,6 +103,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
 
   if (port) {
     epSet.epSet.eps[0].port = port;
+    epSet.epSet.eps[1].port = port;
   }
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
