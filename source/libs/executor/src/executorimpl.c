@@ -2100,7 +2100,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 //
 //     pQueryAttr->order.order = TSDB_ORDER_ASC;
 //     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
-//       TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+//       TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 //     }
 //
 //     pQueryAttr->needReverseScan = false;
@@ -2110,7 +2110,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 //   if (pQueryAttr->groupbyColumn && pQueryAttr->order.order == TSDB_ORDER_DESC) {
 //     pQueryAttr->order.order = TSDB_ORDER_ASC;
 //     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
-//       TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+//       TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 //     }
 //
 //     pQueryAttr->needReverseScan = false;
@@ -2135,7 +2135,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 //         //qDebug(msg, pQInfo->qId, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
 ////               pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 //
-//        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+//        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 //        doUpdateLastKey(pQueryAttr);
 //      }
 //
@@ -2146,7 +2146,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 //        //qDebug(msg, pQInfo->qId, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
 ////               pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 //
-//        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+//        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 //        doUpdateLastKey(pQueryAttr);
 //      }
 //
@@ -2162,7 +2162,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 ////                 pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey,
 /// pQueryAttr->window.skey);
 //
-//          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+//          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 //          doUpdateLastKey(pQueryAttr);
 //        }
 //
@@ -2174,7 +2174,7 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 ////                 pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey,
 /// pQueryAttr->window.skey);
 //
-//          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+//          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 //          doUpdateLastKey(pQueryAttr);
 //        }
 //
@@ -2673,7 +2673,7 @@ static void updateTableQueryInfoForReverseScan(STableQueryInfo* pTableQueryInfo)
     return;
   }
 
-  //  TSWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
+  //  TSWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey);
   //  pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
 
   //  SWITCH_ORDER(pTableQueryInfo->cur.order);
@@ -6660,7 +6660,7 @@ static  int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableS
   //todo work around a problem, remove it later
   if ((pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey > pCond->twindow.ekey) ||
       (pCond->order == TSDB_ORDER_DESC && pCond->twindow.skey < pCond->twindow.ekey)) {
-    TSWAP(pCond->twindow.skey, pCond->twindow.ekey, int64_t);
+    TSWAP(pCond->twindow.skey, pCond->twindow.ekey);
   }
 #endif
 

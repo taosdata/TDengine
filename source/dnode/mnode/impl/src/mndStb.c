@@ -395,7 +395,9 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     }
   }
   // get length
-  if (tEncodeSize(tEncodeSVCreateStbReq, &req, contLen) < 0) {
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);
+  if (ret < 0) {
     return NULL;
   }
 

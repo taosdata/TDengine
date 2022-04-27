@@ -103,6 +103,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
 
   if (port) {
     epSet.epSet.eps[0].port = port;
+    epSet.epSet.eps[1].port = port;
   }
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
@@ -187,8 +188,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       setResPrecision(&pRequest->body.resInfo, (*pQuery)->precision);
     }
 
-    TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
-    TSWAP(pRequest->tableList, (*pQuery)->pTableList, SArray*);
+    TSWAP(pRequest->dbList, (*pQuery)->pDbList);
+    TSWAP(pRequest->tableList, (*pQuery)->pTableList);
   }
 
   return code;
@@ -245,7 +246,6 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   ASSERT(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
-  // TODO handle memory leak
   if (pResInfo->fields != NULL) {
     taosMemoryFree(pResInfo->fields);
   }
