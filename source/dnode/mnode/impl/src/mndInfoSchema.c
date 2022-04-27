@@ -199,23 +199,6 @@ static const SInfosTableSchema vgroupsSchema[] = {
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
-static const SInfosTableSchema consumerSchema[] = {
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "status", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    // ep
-    // up time
-    // topics
-};
-
-static const SInfosTableSchema subscribeSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-};
-
 static const SInfosTableSchema smaSchema[] = {
     {.name = "sma_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
@@ -282,8 +265,6 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
-    {TSDB_INS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
-    {TSDB_INS_TABLE_SUBSCRIBES, subscribeSchema, tListLen(subscribeSchema)},
     {TSDB_INS_TABLE_TRANS, transSchema, tListLen(transSchema)},
     {TSDB_INS_TABLE_SMAS, smaSchema, tListLen(smaSchema)},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema)},

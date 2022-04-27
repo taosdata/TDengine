@@ -43,6 +43,8 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
     return NULL;
   }
 
+  pConsumer->upTime = taosGetTimestampMs();
+
   return pConsumer;
 }
 
@@ -66,6 +68,12 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI8(buf, pConsumer->updateType);
   tlen += taosEncodeFixedI32(buf, pConsumer->epoch);
   tlen += taosEncodeFixedI32(buf, pConsumer->status);
+
+  tlen += taosEncodeFixedI32(buf, pConsumer->pid);
+  tlen += taosEncodeSEpSet(buf, &pConsumer->ep);
+  tlen += taosEncodeFixedI64(buf, pConsumer->upTime);
+  tlen += taosEncodeFixedI64(buf, pConsumer->subscribeTime);
+  tlen += taosEncodeFixedI64(buf, pConsumer->rebalanceTime);
 
   // current topics
   if (pConsumer->currentTopics) {
@@ -113,6 +121,12 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer) {
   buf = taosDecodeFixedI8(buf, &pConsumer->updateType);
   buf = taosDecodeFixedI32(buf, &pConsumer->epoch);
   buf = taosDecodeFixedI32(buf, &pConsumer->status);
+
+  buf = taosDecodeFixedI32(buf, &pConsumer->pid);
+  buf = taosDecodeSEpSet(buf, &pConsumer->ep);
+  buf = taosDecodeFixedI64(buf, &pConsumer->upTime);
+  buf = taosDecodeFixedI64(buf, &pConsumer->subscribeTime);
+  buf = taosDecodeFixedI64(buf, &pConsumer->rebalanceTime);
 
   // current topics
   buf = taosDecodeFixedI32(buf, &sz);
@@ -329,6 +343,7 @@ int32_t tEncodeSMqSubActionLogEntry(void **buf, const SMqSubActionLogEntry *pEnt
   tlen += taosEncodeArray(buf, pEntry->consumers, (FEncode)tEncodeSMqSubActionLogEntry);
   return tlen;
 }
+
 void *tDecodeSMqSubActionLogEntry(const void *buf, SMqSubActionLogEntry *pEntry) {
   buf = taosDecodeFixedI32(buf, &pEntry->epoch);
   buf = taosDecodeArray(buf, &pEntry->consumers, (FDecode)tDecodeSMqSubActionLogEntry, sizeof(SMqSubActionLogEntry));

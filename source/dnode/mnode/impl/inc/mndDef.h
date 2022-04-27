@@ -469,6 +469,7 @@ enum {
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
+  char    appId[TSDB_CGROUP_LEN];
   int8_t  updateType;  // used only for update
   int32_t epoch;
   int32_t status;
@@ -479,6 +480,14 @@ typedef struct {
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
+
+  // data for display
+  int32_t pid;
+  SEpSet  ep;
+  int64_t upTime;
+  int64_t subscribeTime;
+  int64_t rebalanceTime;
+
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
