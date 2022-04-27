@@ -89,6 +89,7 @@ typedef enum {
   TRN_TYPE_DROP_STREAM = 1020,
   TRN_TYPE_ALTER_STREAM = 1021,
   TRN_TYPE_CONSUMER_LOST = 1022,
+  TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -463,6 +464,7 @@ enum {
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
+  CONSUMER_UPDATE__RECOVER,
   CONSUMER_UPDATE__MODIFY,
 };
 
@@ -480,6 +482,9 @@ typedef struct {
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
+
+  // subscribed by user
+  SArray* assignedTopics;  // SArray<char*>
 
   // data for display
   int32_t pid;

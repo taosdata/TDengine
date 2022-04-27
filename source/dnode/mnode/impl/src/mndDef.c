@@ -34,11 +34,14 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
   pConsumer->currentTopics = taosArrayInit(0, sizeof(void *));
   pConsumer->rebNewTopics = taosArrayInit(0, sizeof(void *));
   pConsumer->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
+  pConsumer->assignedTopics = taosArrayInit(0, sizeof(void *));
 
-  if (pConsumer->currentTopics == NULL || pConsumer->rebNewTopics == NULL || pConsumer->rebRemovedTopics == NULL) {
+  if (pConsumer->currentTopics == NULL || pConsumer->rebNewTopics == NULL || pConsumer->rebRemovedTopics == NULL ||
+      pConsumer->assignedTopics == NULL) {
     taosArrayDestroy(pConsumer->currentTopics);
     taosArrayDestroy(pConsumer->rebNewTopics);
     taosArrayDestroy(pConsumer->rebRemovedTopics);
+    taosArrayDestroy(pConsumer->assignedTopics);
     taosMemoryFree(pConsumer);
     return NULL;
   }
@@ -57,6 +60,9 @@ void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer) {
   }
   if (pConsumer->rebRemovedTopics) {
     taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
+  }
+  if (pConsumer->assignedTopics) {
+    taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
   }
 }
 
@@ -111,6 +117,18 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
     tlen += taosEncodeFixedI32(buf, 0);
   }
 
+  // lost topics
+  if (pConsumer->assignedTopics) {
+    sz = taosArrayGetSize(pConsumer->assignedTopics);
+    tlen += taosEncodeFixedI32(buf, sz);
+    for (int32_t i = 0; i < sz; i++) {
+      char *topic = taosArrayGetP(pConsumer->assignedTopics, i);
+      tlen += taosEncodeString(buf, topic);
+    }
+  } else {
+    tlen += taosEncodeFixedI32(buf, 0);
+  }
+
   return tlen;
 }
 
@@ -153,6 +171,15 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer) {
     char *topic;
     buf = taosDecodeString(buf, &topic);
     taosArrayPush(pConsumer->rebRemovedTopics, &topic);
+  }
+
+  // reb removed topics
+  buf = taosDecodeFixedI32(buf, &sz);
+  pConsumer->assignedTopics = taosArrayInit(sz, sizeof(void *));
+  for (int32_t i = 0; i < sz; i++) {
+    char *topic;
+    buf = taosDecodeString(buf, &topic);
+    taosArrayPush(pConsumer->assignedTopics, &topic);
   }
 
   return (void *)buf;

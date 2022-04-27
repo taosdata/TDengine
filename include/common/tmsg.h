@@ -1332,7 +1332,7 @@ int32_t tDeserializeSCMCreateTopicRsp(void* buf, int32_t bufLen, SCMCreateTopicR
 
 typedef struct {
   int64_t consumerId;
-} SMqConsumerLostMsg;
+} SMqConsumerLostMsg, SMqConsumerRecoverMsg;
 
 typedef struct {
   int64_t consumerId;
