@@ -61,10 +61,10 @@ pip3 uninstall taos taospy
 pip3 install taospy
 ```
 
-也可用指定某个特定版本安装。
+也可以指定某个特定版本安装。
 
 ```
-pip3 install taospy==2.2.5
+pip3 install taospy==2.3.0
 ```
 
 </TabItem>
@@ -82,7 +82,7 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 <Tabs groupId="connect" default="native">
 <TabItem value="native" label="原生连接">
 
-对于本地连接，需要验证客户端驱动和 Python 连接器本身是否正确安装。如果导入 `taos` 模块成功，在说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
+对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
 
 ```python
 import taos
@@ -91,7 +91,7 @@ import taos
 </TabItem>
 <TabItem  value="rest" label="REST 连接">
 
-对于 REST 连接，只需验证 `taosrest` 模块是否能成功导入。可在 Python 交互式 Shell 中输入：
+对于 REST 连接，只需验证是否能成功导入 `taosrest` 模块。可在 Python 交互式 Shell 中输入：
 
 ```python
 import taosrest
@@ -101,12 +101,12 @@ import taosrest
 </Tabs>
 
 :::tip
-如果系统上有多个版本的 Python，则可能有多个 `pip` 命令。要确保使用的 `pip` 命令路径是正确的。上面我们用 `pip3` 命令安装，排除了使用 Python 2.x 版本对应的 `pip` 的可能性。但是如果系统上有多个 Python 3.x 版本，仍需注意验证。最简单的验证方式是， 查看 `taospy` 最终的安装位置是否正确。在命令再次输入 `pip3 isntall taospy`, 就会打印出 `taospy` 的具体安装位置，比如在 Widnows 上：
+如果系统上有多个版本的 Python，则可能有多个 `pip` 命令。要确保使用的 `pip` 命令路径是正确的。上面我们用 `pip3` 命令安装，排除了使用 Python 2.x 版本对应的 `pip` 的可能性。但是如果系统上有多个 Python 3.x 版本，仍需检查安装路径是否正确。最简单的验证方式是，在命令再次输入 `pip3 install taospy`, 就会打印出 `taospy` 的具体安装位置，比如在 Widnows 上：
 
 ```
 C:\> pip3 install taospy
 Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
-Requirement already satisfied: taospy in c:\users\username\appdata\local\programs\python\python310\lib\site-packages (2.2.5)
+Requirement already satisfied: taospy in c:\users\username\appdata\local\programs\python\python310\lib\site-packages (2.3.0)
 ```
 
 :::
@@ -115,7 +115,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 
 ### 连通性测试
 
-在用连接器建立连接之前，建议先做本地到 TDengine 集群的连通性测试。
+在用连接器建立连接之前，建议先测试本地 TDengine CLI 到 TDengine 集群的连。
 
 <Tabs>
 <TabItem value="native" label="原生连接">
@@ -170,20 +170,17 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 {{#include docs-examples/python/connect_native_reference.py}}
 ```
 
-`connect` 函数的所有参数都是可选参数。下表是连接参数的具体说明：
+`connect` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
 
-| 参数     | 含义                                                                                               | 默认值                                                     | 作用范围 |
-| -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------- |
-| host     | 要连接的节点的 FQDN <br/> 如果不同提供此参数，则会连接客户端配置文件中的 firstEP                   | 无                                                         | 本次连接 |
-| user     | 用户名                                                                                             | root                                                       | 本次连接 |
-| passowrd | 密码                                                                                               | taosdata                                                   | 本次连接 |
-| database | 默认使用的数据库，<br/> 如果有值那么这个数据库必须存在                                             | 无                                                         | 本次连接 |
-| port     | 要连接的数据节点的起始端口，即 serverPort 配置。<br/> 只有在提供了 host 参数的时候，这个参数才生效 | 6030                                                       | 本次连接 |
-| config   | 客户端配置文件路径                                                                                 | 1. Windows: `C:\TDengine\cfg` <br/> 2. Linux: `/etc/taos/` | 本进程   |
-| timezone | 客户端时区                                                                                         | 客户端配置文件中 timezone                                  | 本进程   |
+- `host` ： 要连接的节点的 FQDN。 没有默认值。如果不同提供此参数，则会连接客户端配置文件中的 firstEP。
+- `user` ：TDengine 用户名。 默认值是 root。
+- `password` ： TDengine 用户密码。 默认值是 taosdata。
+- `port` ： 要连接的数据节点的起始端口，即 serverPort 配置。默认值是 6030。只有在提供了 host 参数的时候，这个参数才生效。
+- `config` ： 客户端配置文件路径。 在 Windows 系统上默认是 `C:\TDengine\cfg`。 在 Linux 系统上默认是 `/etc/taos/`。
+- `timezone` ： 查询结果中 TIMESTAMP 类型的数据，转换为 python 的 datetime 对象时使用的时区。默认为本地时区。
 
 :::warning
-当参数的作为范围是进程级别时，只有建立第一个连接时提供的参数生效。也就是说： 同一个进程的两个连接，必须使用相同的客户端配置。但这并不妨碍同一进程连接两个不同的集群，因为 host 参数是连接级别的。
+`config` 和 `timezone` 都是进程级别的配置。建议一个进程建立的所有连接都使用相同的参数值。否则可能产生无法预知的错误。
 :::
 
 :::tip
@@ -194,14 +191,96 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 </TabItem>
 <TabItem value="rest" label="REST 连接">
 
+```python
+{{#include docs-examples/python/connect_rest_examples.py:connect}}
+```
+
+`connect` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
+
+- `host`： 要连接的主机。默认是 localhost。
+- `user`： TDenigne 用户名。默认是 root。
+- `password`： TDeingine 用户密码。默认是 taosdata。
+- `port`: taosAdapter REST 服务监听端口。默认是 6041.
+- `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
+
+:::note
+
+:::
+
 </TabItem>
 </Tabs>
 
-## 开发指南
+## 示例程序
 
 ### 基本使用
 
+<Tabs default="native" groupId="connect">
+<TabItem value="native" label="原生连接">
+
+#### TaosConnection 类的使用
+
+`TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
+
+```python title="execute 方法"
+{{#include docs-examples/python/connection_usage_native_reference.py:insert}}
+```
+
+```python title="query 方法"
+{{#include docs-examples/python/connection_usage_native_reference.py:query}}
+```
+
+:::tip
+查询结果只能获取一次。比如上面的示例中 `featch_all` 和 `fetch_all_into_dict` 只能用一个。重复获取得到的结果为空列表。
+:::
+
+#### TaosResult 类的使用
+
+上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `featch_all` 和 `fetch_all_into_dict`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
+
+```python title="blocks_iter 方法"
+{{#include docs-examples/python/result_set_examples.py}}
+```
+#### TaosCursor 类的使用
+
+`TaosConnection` 类和 `TaosResult` 类已经实现了原生接口的所有功能。如果你对 PEP249 规范中的接口比较熟悉也可以使用 `TaosCursor` 类提供的方法。
+
+```python title="TaosCursor 的使用"
+{{#include docs-examples/python/cursor_usage_native_reference.py}}
+```
+
+:::note
+TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
+
+:::
+
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+
+```python
+{{#include docs-examples/python/connect_rest_examples.py:basic}}
+```
+
+</TabItem>
+</Tabs>
+
 ### 与 pandas 一起使用
+
+<Tabs default="native" groupId="connect">
+<TabItem value="native" label="原生连接">
+
+```python
+{{#include docs-examples/python/conn_native_pandas.py}}
+```
+
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+
+```python
+{{#include docs-examples/python/conn_rest_pandas.py}}
+```
+
+</TabItem>
+</Tabs>
 
 ### 其它示例程序
 
@@ -216,22 +295,25 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 ## 其它说明
 
-### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
+### 异常处理
 
-由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
+所有数据库操作如果出现异常，都会直接抛出来。由应用程序负责异常处理。比如：
+
+```python
+{{#include docs-examples/python/handle_exception.py}}
+```
+
+### 关于纳秒 (nanosecond)
+
+由于目前 Python 对 nanosecond 支持的不完善(参见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
 
-### 关于 TaosCursor 类的说明
-
-这个类对应原生连接进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
 
 ## 常见问题
 
-
 欢迎[提问或报告问题](https://github.com/taosdata/taos-connector-python/issues)。
-
 
 ## 重要更新
 
