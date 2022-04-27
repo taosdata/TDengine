@@ -1,6 +1,4 @@
 
-
-import traceback
 from util.dnodes import *
 from util.log import *
 from util.sql import *
@@ -156,14 +154,24 @@ class TDTestCase:
         tdSql.error("select now()+abc from db.ntb")
         tdSql.error("select now()+! from ntb")
         tdSql.error("select now()+! from db.ntb")
-        # tdSql.error("select now()+null from ntb")
-        # tdSql.error("select now()+null from db.ntb")
-        # tdSql.error("select now()-null from ntb")
-        # tdSql.error("select now()-null from db.ntb")
-        # tdSql.error("select now()*null from ntb")
-        # tdSql.error("select now()*null from db.ntb")
-        # tdSql.error("select now()/null from ntb")
-        # tdSql.error("select now()/null from db.ntb")
+
+        tdSql.query("select now()+null from ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()+null from db.ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()-null from ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()-null from db.ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()*null from ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()*null from db.ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()/null from ntb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()/null from db.ntb")
+        tdSql.checkData(0,0,None)
+
         tdSql.error("select now() +today() from ntb")
         tdSql.error("select now() +today() from db.ntb")
         
@@ -265,6 +273,25 @@ class TDTestCase:
         tdSql.error("select now() + ! from db.stb")
         tdSql.error("select now() + today() from stb")
         tdSql.error("select now() + today() from db.stb")
+        tdSql.error("select now() -today() from stb")
+        tdSql.error("select now() - today() from db.stb")
+
+        tdSql.query("select now()+null from stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()+null from db.stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()-null from stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()-null from db.stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()*null from stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()*null from db.stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()/null from stb")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()/null from db.stb")
+        tdSql.checkData(0,0,None)
 
         # table
         tdSql.query("select now() from stb_1")
@@ -382,7 +409,25 @@ class TDTestCase:
         tdSql.error("select now() + ! from db.stb_1")
         tdSql.error("select now() + today() from stb_1")
         tdSql.error("select now() + today() from db.stb_1")
+        tdSql.error("select now() - today() from stb_1")
+        tdSql.error("select now()-today() from db.stb_1")
 
+        tdSql.query("select now()+null from stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()+null from db.stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()-null from stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()-null from db.stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()*null from stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()*null from db.stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()/null from stb_1")
+        tdSql.checkData(0,0,None)
+        tdSql.query("select now()/null from db.stb_1")
+        tdSql.checkData(0,0,None)
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
