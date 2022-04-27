@@ -4997,6 +4997,7 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   // check for the limitation in each group
   if (pProjectInfo->limit.limit > 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
     pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+    return PROJECT_RETRIEVE_DONE;
   }
 
   if (pRes->info.rows >= pOperator->resultInfo.threshold) {
