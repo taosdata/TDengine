@@ -199,9 +199,9 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
-    pOperator->getNextFn = getDummyBlock;
+    pOperator->fpSet.getNextFn = getDummyBlock;
   } else {
-    pOperator->getNextFn = get2ColsDummyBlock;
+    pOperator->fpSet.getNextFn = get2ColsDummyBlock;
   }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) taosMemoryCalloc(1, sizeof(SDummyInputInfo));
