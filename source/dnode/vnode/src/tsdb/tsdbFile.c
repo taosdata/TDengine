@@ -310,7 +310,7 @@ void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t 
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
   pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
-  tsdbGetFilename(pRepo->vgId, fid, ver, ftype, fname);
+  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, fname);
   tfsInitFile(REPO_TFS(pRepo), &(pDFile->f), did, fname);
 }
 

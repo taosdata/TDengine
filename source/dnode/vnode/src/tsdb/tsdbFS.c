@@ -644,7 +644,7 @@ static int tsdbComparFidFSet(const void *arg1, const void *arg2) {
 }
 
 static void tsdbGetTxnFname(STsdb *pRepo, TSDB_TXN_FILE_T ftype, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(REPO_TFS(pRepo)), pRepo->vgId,
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(REPO_TFS(pRepo)), REPO_ID(pRepo),
            tsdbTxnFname[ftype]);
 }
 

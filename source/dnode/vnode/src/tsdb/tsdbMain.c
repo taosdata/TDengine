@@ -33,7 +33,6 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb) {
   sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
           VNODE_TSDB_DIR);
   pTsdb->pVnode = pVnode;
-  pTsdb->vgId = TD_VID(pVnode);
   pTsdb->repoLocked = false;
   tdbMutexInit(&pTsdb->mutex, NULL);
   pTsdb->config = pVnode->config.tsdbCfg;

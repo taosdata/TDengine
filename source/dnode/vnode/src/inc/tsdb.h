@@ -46,7 +46,7 @@ int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKe
 
 // tsdbCommit ================
 
-#if 1
+#if 1  // ======================================
 
 typedef struct SSmaStat SSmaStat;
 typedef struct SSmaEnv  SSmaEnv;
@@ -168,7 +168,6 @@ typedef struct {
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
-  int32_t        vgId;
   bool           repoLocked;
   TdThreadMutex  mutex;
   STsdbCfg       config;
@@ -179,7 +178,7 @@ struct STsdb {
   SSmaEnvs       smaEnvs;
 };
 
-#define REPO_ID(r)        ((r)->vgId)
+#define REPO_ID(r)        TD_VID((r)->pVnode)
 #define REPO_CFG(r)       (&(r)->config)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
@@ -890,66 +889,6 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
-
-// tsdbSma
-// #define TSDB_SMA_TEST // remove after test finished
-
-// struct SSmaEnv {
-//   TdThreadRwlock lock;
-//   SDiskID        did;
-//   TDBEnv         dbEnv;  // TODO: If it's better to put it in smaIndex level?
-//   char          *path;   // relative path
-//   SSmaStat      *pStat;
-// };
-
-// #define SMA_ENV_LOCK(env)       ((env)->lock)
-// #define SMA_ENV_DID(env)        ((env)->did)
-// #define SMA_ENV_ENV(env)        ((env)->dbEnv)
-// #define SMA_ENV_PATH(env)       ((env)->path)
-// #define SMA_ENV_STAT(env)       ((env)->pStat)
-// #define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
-
-// void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
-// void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
-// #if 0
-// int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
-// int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
-// #endif
-
-// // internal func
-// static FORCE_INLINE int32_t tsdbEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void **pData) {
-//   int32_t len = 0;
-//   len += taosEncodeFixedI64(pData, tsKey);
-//   len += taosEncodeFixedI64(pData, groupId);
-//   return len;
-// }
-
-// static FORCE_INLINE int32_t tsdbRLockSma(SSmaEnv *pEnv) {
-//   int code = taosThreadRwlockRdlock(&(pEnv->lock));
-//   if (code != 0) {
-//     terrno = TAOS_SYSTEM_ERROR(code);
-//     return -1;
-//   }
-//   return 0;
-// }
-
-// static FORCE_INLINE int32_t tsdbWLockSma(SSmaEnv *pEnv) {
-//   int code = taosThreadRwlockWrlock(&(pEnv->lock));
-//   if (code != 0) {
-//     terrno = TAOS_SYSTEM_ERROR(code);
-//     return -1;
-//   }
-//   return 0;
-// }
-
-// static FORCE_INLINE int32_t tsdbUnLockSma(SSmaEnv *pEnv) {
-//   int code = taosThreadRwlockUnlock(&(pEnv->lock));
-//   if (code != 0) {
-//     terrno = TAOS_SYSTEM_ERROR(code);
-//     return -1;
-//   }
-//   return 0;
-// }
 
 typedef struct SSmaKey SSmaKey;
 

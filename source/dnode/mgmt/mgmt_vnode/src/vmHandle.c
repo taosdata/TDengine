@@ -114,7 +114,6 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep2 = 3650;  // pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep0 = 3650;  // pCreate->daysToKeep2;
   pCfg->tsdbCfg.keep1 = 3650;  // pCreate->daysToKeep0;
-  pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
