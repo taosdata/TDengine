@@ -146,7 +146,7 @@ class TDTestCase:
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
     def __insert_data(self, rows):
-        now_time = datetime.datetime.timestamp(datetime.datetime.now()) * 1000
+        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
             tdSql.execute(
                 f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
