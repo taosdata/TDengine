@@ -66,7 +66,7 @@ class TDTestCase:
                 for data in datas :
                     if not datas:
                         length_data.append(None)
-                    elif "nchar" in length_condition or NCHAR_COL in length_condition:
+                    elif "nchar" in condition or NCHAR_COL in condition:
                         length_data.append(len(str(data)) * 4)
                     else:
                         length_data.append(len(str(data)))
