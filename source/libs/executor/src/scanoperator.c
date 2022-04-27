@@ -852,13 +852,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
       pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 8);
       colDataAppendNULL(pColInfoData, numOfRows);
 
-      char typestr[256] = {0};
+      char str[256] = {0};
       if (tableType == TSDB_CHILD_TABLE) {
         SMetaReader mr = {0};
-
         metaReaderInit(&mr, pInfo->readHandle.meta, 0);
-//        metaGetTableEntryByUid(&mr, pInfo->pCur->mr.me.ctbEntry.suid);
-        metaReaderClear(&mr);
+        metaGetTableEntryByUid(&mr, pInfo->pCur->mr.me.ctbEntry.suid);
 
         pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 3);
         colDataAppend(pColInfoData, numOfRows,  (char*) &mr.me.stbEntry.schema.nCols, false);
@@ -868,6 +866,12 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
         pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 2);
         colDataAppend(pColInfoData, numOfRows, (char*) &ts, false);
 
+        // super table name
+        STR_TO_VARSTR(str, mr.me.name);
+        pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 4);
+        colDataAppend(pColInfoData, numOfRows, str, false);
+        metaReaderClear(&mr);
+
         // uid
         pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 5);
         colDataAppend(pColInfoData, numOfRows, (char*) &pInfo->pCur->mr.me.uid, false);
@@ -876,7 +880,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
         pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 7);
         colDataAppend(pColInfoData, numOfRows, (char*) &pInfo->pCur->mr.me.ctbEntry.ttlDays, false);
 
-        STR_TO_VARSTR(typestr, "CHILD_TABLE");
+        STR_TO_VARSTR(str, "CHILD_TABLE");
       } else if (tableType == TSDB_NORMAL_TABLE) {
         // create time
         pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 2);
@@ -898,11 +902,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
         pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 7);
         colDataAppend(pColInfoData, numOfRows, (char*) &pInfo->pCur->mr.me.ntbEntry.ttlDays, false);
 
-        STR_TO_VARSTR(typestr, "NORMAL_TABLE");
+        STR_TO_VARSTR(str, "NORMAL_TABLE");
       }
 
       pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, 9);
-      colDataAppend(pColInfoData, numOfRows, typestr, false);
+      colDataAppend(pColInfoData, numOfRows, str, false);
 
       if (++numOfRows >= pInfo->capacity) {
         break;
