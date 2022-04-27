@@ -315,7 +315,7 @@ class TDTestCase:
             tdLog.exit("taos -C fail")
 
 
-        print ("-C return content:\n ", retVal)
+        #print ("-C return content:\n ", retVal)
         totalCfgItem = {"firstEp":['', '', ''], }
         for line in retVal.splitlines():
             strList = line.split() 
