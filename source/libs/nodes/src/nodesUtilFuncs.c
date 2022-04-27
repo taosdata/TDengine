@@ -389,21 +389,25 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_COLUMN_DEF:         // no pointer field
     case QUERY_NODE_DOWNSTREAM_SOURCE:  // no pointer field
       break;
-    case QUERY_NODE_DATABASE_OPTIONS:
-      nodesDestroyList(((SDatabaseOptions*)pNode)->pRetentions);
+    case QUERY_NODE_DATABASE_OPTIONS: {
+      SDatabaseOptions* pOptions = (SDatabaseOptions*)pNode;
+      nodesDestroyNode(pOptions->pDaysPerFile);
+      nodesDestroyList(pOptions->pKeep);
+      nodesDestroyList(pOptions->pRetentions);
       break;
+    }
     case QUERY_NODE_TABLE_OPTIONS: {
-      STableOptions* pStmt = (STableOptions*)pNode;
-      nodesDestroyList(pStmt->pSma);
-      nodesDestroyList(pStmt->pFuncs);
+      STableOptions* pOptions = (STableOptions*)pNode;
+      nodesDestroyList(pOptions->pSma);
+      nodesDestroyList(pOptions->pRollupFuncs);
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
-      SIndexOptions* pStmt = (SIndexOptions*)pNode;
-      nodesDestroyList(pStmt->pFuncs);
-      nodesDestroyNode(pStmt->pInterval);
-      nodesDestroyNode(pStmt->pOffset);
-      nodesDestroyNode(pStmt->pSliding);
+      SIndexOptions* pOptions = (SIndexOptions*)pNode;
+      nodesDestroyList(pOptions->pFuncs);
+      nodesDestroyNode(pOptions->pInterval);
+      nodesDestroyNode(pOptions->pOffset);
+      nodesDestroyNode(pOptions->pSliding);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {

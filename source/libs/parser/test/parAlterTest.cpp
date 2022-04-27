@@ -13,9 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PARSER_TEST_UTIL_H
-#define PARSER_TEST_UTIL_H
+#include "parTestUtil.h"
 
-extern bool g_isDump;
+using namespace std;
 
-#endif  // PARSER_TEST_UTIL_H
+class ParserAlterTest : public ParserTestBase {};
+
+TEST_F(ParserAlterTest, stmt) {
+  useDb("root", "test");
+
+  run("create database db1");
+}
