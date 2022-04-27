@@ -4,10 +4,7 @@ sidebar_label: C/C++
 title: C/C++ Connector
 ---
 
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-
-C/C++ 开发人员可以使用 TDengine 的客户端端驱动，即C/C++连接器 （以下都用 TDengine 客户端驱动表示），开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
+C/C++ 开发人员可以使用 TDengine 的客户端驱动，即C/C++连接器 （以下都用 TDengine 客户端驱动表示），开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
 
 ```c
 #include <taos.h>
@@ -18,19 +15,13 @@ TDengine 服务端或客户端安装后，taos.h 位于：
 - Linux：`/usr/local/taos/include`
 - Windows：`C:\TDengine\include`
 
-C/C++ 连接器的动态库位于
+TDengine 客户端驱动的动态库位于：
 - Linux: /usr/local/taos/driver/libtaos.so
 - Windows: C:\TDengine\taos.dll
 
 ## 支持的平台
 
 请参考[支持的平台列表](/reference/connector#支持的平台)
-
-:::note 
-- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
-- 所有的错误码以及对应的原因描述在 taoserror.h 文件中。
-
-:::
 
 ## 支持的版本
 
@@ -61,16 +52,19 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 在上面的示例代码中， `taos_connect` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close`关闭当前连接，`taos_cleanup`清除客户端驱动所申请和使用的资源。
 
+:::note 
+- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
+- 所有的错误码以及对应的原因描述在 taoserror.h 文件中。
+
+:::
 
 ## 示例程序
 
 本节展示了使用客户端驱动访问 TDengine 集群的常见访问方式的示例代码。
 
-<Tabs>
-<TabItem label="同步访问" value="sync">
-
+### 同步查询示例
 <details>
-<summary>demo.c</summary>
+<summary>同步查询</summary>
 
 ```c++
 {{#include examples/c/demo.c}}
@@ -78,12 +72,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 </details>
 
-</TabItem>
-
-<TabItem label="异步访问" value="async">
+### 异步查询示例
 
 <details>
-<summary>asyncdemo.c</summary>
+<summary>异步查询</summary>
 
 ```c++
 {{#include examples/c/asyncdemo.c}}
@@ -91,12 +83,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 </details>
 
-</TabItem>
-
-<TabItem label="参数绑定" value="stmt">
+### 参数绑定示例
 
 <details>
-<summary>prepare.c</summary>
+<summary>参数绑定</summary>
 
 ```c++
 {{#include examples/c/prepare.c}}
@@ -104,12 +94,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 </details>
 
-</TabItem>
-
-<TabItem label="订阅" value="sub">
+### 订阅和消费示例
 
 <details>
-<summary>subscribe.c</summary>
+<summary>订阅和消费</summary>
 
 ```c++
 {{#include examples/c/subscribe.c}}
@@ -117,22 +105,17 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 </details>
 
-</TabItem>
 
-<TabItem label="无模式写入" value="schemaless">
+### 无模式写入示例
 
 <details>
-<summary>schemaless.c</summary>
+<summary>无模式写入</summary>
 
 ```c++
 {{#include examples/c/schemaless.c}}
 ```
 
 </details>
-
-</TabItem>
-</Tabs>
-
 
 :::info
 更多示例代码及下载请见 [github](https://github.com/taosdata/TDengine/tree/develop/examples/c)
@@ -142,6 +125,8 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 :::
 
 ## API 参考
+
+以下分别介绍 TDengine 客户端驱动的基础 API、同步 API、异步 API、订阅 API 和无模式写入 API。
 
 ### 基础 API
 
@@ -375,7 +360,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   （2.1.3.0 版本新增）
   用于在其他 STMT API 返回错误（返回错误码或空指针）时获取错误信息。
 
-### Schemaless 方式写入接口
+### 无模式写入 API
 
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](/reference/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
 
@@ -450,7 +435,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   }
   ```
 
-### 数据订阅接口
+### 订阅和消费 API
 
 订阅 API 目前支持订阅一张或多张表，并通过定期轮询的方式不断获取写入表中的最新数据。
 
