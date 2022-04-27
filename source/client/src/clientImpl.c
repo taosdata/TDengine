@@ -358,8 +358,15 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   SQuery*      pQuery = NULL;
 
   int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = parseSql(pRequest, false, &pQuery, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return NULL;
+  }
+
+  code = parseSql(pRequest, false, &pQuery, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    return pRequest;
   }
 
   return launchQueryImpl(pRequest, pQuery, code, false);
@@ -410,7 +417,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
 
   while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
     pRequest = launchQuery(pTscObj, sql, sqlLen);
-    if (TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
+    if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
 
