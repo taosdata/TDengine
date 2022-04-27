@@ -459,17 +459,16 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->replicaNum == 1) {
     syncNodeBecomeLeader(pSyncNode);
-    
+
     syncNodeLog2("==state change become leader immediately==", pSyncNode);
-    
+
     // Raft 3.6.2 Committing entries from previous terms
-    
+
     // use this now
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
     return;
   }
-
 
   syncNodeBecomeFollower(pSyncNode);
 
