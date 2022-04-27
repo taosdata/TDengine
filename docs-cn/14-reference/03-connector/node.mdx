@@ -18,7 +18,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx";
 
 `td2.0-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
 
-`td2.0-connector` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
+`td2.0-connector` 支持两种形式的连接器。一种是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接器**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 的运行实例。REST 连接器可以在任何平台运行，但性能略为下降，接口实现的功能特性集合和原生接口有少量不同。
 
 `td2.0-connector` 的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node)。
 
@@ -32,11 +32,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx";
 
 ## 支持的功能特性
 
-### 原生连接
-
-“原生连接”指连接器通过客户端驱动程序 taosc 直接与 TDengine 集群建立连接
-
-原生连接支持的功能特性如下：
+### 原生连接器
 
 1. 连接管理
 2. 普通查询
@@ -45,7 +41,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx";
 5. 订阅功能
 6. Schemaless
 
-### REST 连接
+### REST 连接器
 
 1. 连接管理
 2. 普通查询
@@ -56,10 +52,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx";
 ### 安装前准备
 
 - 安装 Node.js 开发环境
-  <Preparition />
-
-* 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-  我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 集群进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
+- 如果使用 REST 连接器，跳过此步。但如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)。我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 实例进行交互，还需要根据具体操作系统来安装下文提到的一些依赖工具。
 
 <Tabs defaultValue="Linux">
 <TabItem value="Linux" label="Linux 系统安装依赖工具">
