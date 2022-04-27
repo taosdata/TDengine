@@ -36,11 +36,11 @@ void *sdbGetRowObj(SSdbRow *pRow) {
   return pRow->pObj;
 }
 
-void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow) {
+void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
   // remove attached object such as trans
   SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
   if (deleteFp != NULL) {
-    (*deleteFp)(pSdb, pRow->pObj);
+    (*deleteFp)(pSdb, pRow->pObj, callFunc);
   }
 
   sdbPrintOper(pSdb, pRow, "free");

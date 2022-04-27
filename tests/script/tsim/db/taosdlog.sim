@@ -1,0 +1,31 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+
+system rm -rf ../../sim/dnode1/log
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database d1 vgroups 2
+sql show databases
+if $rows != 3 then
+  return -1
+endi
+
+print =============== restart
+
+system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+sleep 2000
+system rm -rf ../../sim/dnode1/log
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+
+print =============== show databases
+sql create database d2 vgroups 6
+sql show databases
+if $rows != 4 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -21,8 +21,8 @@
 #include "mndTrans.h"
 #include "tbase64.h"
 
-#define TSDB_USER_VER_NUMBER   1
-#define TSDB_USER_RESERVE_SIZE 64
+#define USER_VER_NUMBER   1
+#define USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser);
@@ -35,7 +35,7 @@ static int32_t  mndProcessCreateUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessDropUserReq(SNodeMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
 int32_t mndInitUser(SMnode *pMnode) {
@@ -93,39 +93,39 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
   int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
-  int32_t size = sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN;
+  int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER_NUMBER, size);
-  if (pRaw == NULL) goto USER_ENCODE_OVER;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
+  if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, USER_ENCODE_OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, USER_ENCODE_OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, USER_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, USER_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, USER_ENCODE_OVER)
-  SDB_SET_INT8(pRaw, dataPos, pUser->superUser, USER_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, USER_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, USER_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, _OVER)
 
   char *db = taosHashIterate(pUser->readDbs, NULL);
   while (db != NULL) {
-    SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, USER_ENCODE_OVER);
+    SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER);
     db = taosHashIterate(pUser->readDbs, db);
   }
 
   db = taosHashIterate(pUser->writeDbs, NULL);
   while (db != NULL) {
-    SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, USER_ENCODE_OVER);
+    SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER);
     db = taosHashIterate(pUser->writeDbs, db);
   }
 
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE, USER_ENCODE_OVER)
-  SDB_SET_DATALEN(pRaw, dataPos, USER_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
 
-USER_ENCODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("user:%s, failed to encode to raw:%p since %s", pUser->user, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -140,55 +140,54 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto USER_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != TSDB_USER_VER_NUMBER) {
+  if (sver != USER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto USER_DECODE_OVER;
+    goto _OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SUserObj));
-  if (pRow == NULL) goto USER_DECODE_OVER;
+  if (pRow == NULL) goto _OVER;
 
   SUserObj *pUser = sdbGetRowObj(pRow);
-  if (pUser == NULL) goto USER_DECODE_OVER;
-
-  pUser->readDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
-  pUser->writeDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
-  if (pUser->readDbs == NULL || pUser->writeDbs == NULL) goto USER_DECODE_OVER;
+  if (pUser == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, USER_DECODE_OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, USER_DECODE_OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, USER_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, USER_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, USER_DECODE_OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, USER_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
 
   int32_t numOfReadDbs = 0;
   int32_t numOfWriteDbs = 0;
-  SDB_GET_INT32(pRaw, dataPos, &numOfReadDbs, USER_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &numOfWriteDbs, USER_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &numOfReadDbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &numOfWriteDbs, _OVER)
+  pUser->readDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
+  pUser->writeDbs = taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
+  if (pUser->readDbs == NULL || pUser->writeDbs == NULL) goto _OVER;
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
-    SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, USER_DECODE_OVER)
+    SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
     taosHashPut(pUser->readDbs, db, len, db, TSDB_DB_FNAME_LEN);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
-    SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, USER_DECODE_OVER)
+    SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
     taosHashPut(pUser->writeDbs, db, len, db, TSDB_DB_FNAME_LEN);
   }
 
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE, USER_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-USER_DECODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("user:%s, failed to decode from raw:%p since %s", pUser->user, pRaw, terrstr());
     taosHashCleanup(pUser->readDbs);
@@ -220,6 +219,8 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
   mTrace("user:%s, perform delete action, row:%p", pUser->user, pUser);
   taosHashCleanup(pUser->readDbs);
   taosHashCleanup(pUser->writeDbs);
+  pUser->readDbs = NULL;
+  pUser->writeDbs = NULL;
   return 0;
 }
 
@@ -228,13 +229,8 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   pOld->updateTime = pNew->updateTime;
 
-  void *tmp1 = pOld->readDbs;
-  pOld->readDbs = pNew->readDbs;
-  pNew->readDbs = tmp1;
-
-  void *tmp2 = pOld->writeDbs;
-  pOld->writeDbs = pNew->writeDbs;
-  pNew->writeDbs = tmp2;
+  TSWAP(pOld->readDbs, pNew->readDbs, (void *));
+  TSWAP(pOld->writeDbs, pNew->writeDbs, (void *));
 
   return 0;
 }
@@ -277,6 +273,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
 
+  char *param = strdup("====> test code to be deleted later <=====");
+  mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
+
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -296,41 +295,41 @@ static int32_t mndProcessCreateUserReq(SNodeMsg *pReq) {
 
   if (tDeserializeSCreateUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto CREATE_USER_OVER;
+    goto _OVER;
   }
 
   mDebug("user:%s, start to create", createReq.user);
 
   if (createReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    goto CREATE_USER_OVER;
+    goto _OVER;
   }
 
   if (createReq.pass[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    goto CREATE_USER_OVER;
+    goto _OVER;
   }
 
   pUser = mndAcquireUser(pMnode, createReq.user);
   if (pUser != NULL) {
     terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
-    goto CREATE_USER_OVER;
+    goto _OVER;
   }
 
   pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto CREATE_USER_OVER;
+    goto _OVER;
   }
 
   if (mndCheckCreateUserAuth(pOperUser) != 0) {
-    goto CREATE_USER_OVER;
+    goto _OVER;
   }
 
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
-CREATE_USER_OVER:
+_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create since %s", createReq.user, terrstr());
   }
@@ -399,38 +398,38 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
 
   if (tDeserializeSAlterUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   mDebug("user:%s, start to alter", alterReq.user);
 
   if (alterReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   if (alterReq.pass[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   pUser = mndAcquireUser(pMnode, alterReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   memcpy(&newUser, pUser, sizeof(SUserObj));
   newUser.readDbs = mndDupDbHash(pUser->readDbs);
   newUser.writeDbs = mndDupDbHash(pUser->writeDbs);
   if (newUser.readDbs == NULL || newUser.writeDbs == NULL) {
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   int32_t len = strlen(alterReq.dbname) + 1;
@@ -446,50 +445,50 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB) {
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto ALTER_USER_OVER;
+      goto _OVER;
     }
     if (taosHashPut(newUser.readDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto ALTER_USER_OVER;
+      goto _OVER;
     }
   } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_DB) {
     if (taosHashRemove(newUser.readDbs, alterReq.dbname, len) != 0) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto ALTER_USER_OVER;
+      goto _OVER;
     }
   } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
     taosHashClear(newUser.readDbs);
   } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB) {
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto ALTER_USER_OVER;
+      goto _OVER;
     }
     if (taosHashPut(newUser.writeDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto ALTER_USER_OVER;
+      goto _OVER;
     }
   } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
     if (taosHashRemove(newUser.writeDbs, alterReq.dbname, len) != 0) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto ALTER_USER_OVER;
+      goto _OVER;
     }
   } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB) {
     taosHashClear(newUser.writeDbs);
   } else {
     terrno = TSDB_CODE_MND_INVALID_ALTER_OPER;
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   newUser.updateTime = taosGetTimestampMs();
 
   if (mndCheckAlterUserAuth(pOperUser, pUser, pDb, &alterReq) != 0) {
-    goto ALTER_USER_OVER;
+    goto _OVER;
   }
 
   code = mndUpdateUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
-ALTER_USER_OVER:
+_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter since %s", alterReq.user, terrstr());
   }
@@ -537,36 +536,36 @@ static int32_t mndProcessDropUserReq(SNodeMsg *pReq) {
 
   if (tDeserializeSDropUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto DROP_USER_OVER;
+    goto _OVER;
   }
 
   mDebug("user:%s, start to drop", dropReq.user);
 
   if (dropReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    goto DROP_USER_OVER;
+    goto _OVER;
   }
 
   pUser = mndAcquireUser(pMnode, dropReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    goto DROP_USER_OVER;
+    goto _OVER;
   }
 
   pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto DROP_USER_OVER;
+    goto _OVER;
   }
 
   if (mndCheckDropUserAuth(pOperUser) != 0) {
-    goto DROP_USER_OVER;
+    goto _OVER;
   }
 
   code = mndDropUser(pMnode, pReq, pUser);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
-DROP_USER_OVER:
+_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to drop since %s", dropReq.user, terrstr());
   }
@@ -586,7 +585,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
 
   if (tDeserializeSGetUserAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto GET_AUTH_OVER;
+    goto _OVER;
   }
 
   mTrace("user:%s, start to get auth", authReq.user);
@@ -594,7 +593,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
   pUser = mndAcquireUser(pMnode, authReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    goto GET_AUTH_OVER;
+    goto _OVER;
   }
 
   memcpy(authRsp.user, pUser->user, TSDB_USER_LEN);
@@ -622,7 +621,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto GET_AUTH_OVER;
+    goto _OVER;
   }
 
   tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
@@ -631,7 +630,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
   pReq->rspLen = contLen;
   code = 0;
 
-GET_AUTH_OVER:
+_OVER:
   mndReleaseUser(pMnode, pUser);
   taosHashCleanup(authRsp.readDbs);
   taosHashCleanup(authRsp.writeDbs);
@@ -639,7 +638,7 @@ GET_AUTH_OVER:
   return code;
 }
 
-static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->pNode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
@@ -652,29 +651,29 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pB
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
     char name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->bytes[cols]);
 
-    colDataAppend(pColInfo, numOfRows, (const char*) name, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
-    const char* src = pUser->superUser? "super":"normal";
-    char b[10+VARSTR_HEADER_SIZE] = {0};
+    const char *src = pUser->superUser ? "super" : "normal";
+    char        b[10 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, (const char*) b, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)b, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pUser->createdTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pUser->createdTime, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->acct, pShow->bytes[cols]);
-    colDataAppend(pColInfo, numOfRows, (const char*) name, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
     numOfRows++;
     sdbRelease(pSdb, pUser);
