@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "meta.h"
 
 int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;

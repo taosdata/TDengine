@@ -74,7 +74,7 @@ typedef struct SMeta       SMeta;  // todo: remove
 typedef struct SMetaReader SMetaReader;
 typedef struct SMetaEntry  SMetaEntry;
 
-void metaReaderInit(SMetaReader *pReader, SVnode *pVnode, int32_t flags);
+void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void metaReaderClear(SMetaReader *pReader);
 int  metaReadNext(SMetaReader *pReader);
 
@@ -90,8 +90,8 @@ int         metaTbCursorNext(SMTbCursor *pTbCur);
 #endif
 
 // tsdb
-typedef struct STsdb          STsdb;
-typedef void                 *tsdbReaderT;
+typedef struct STsdb STsdb;
+typedef void        *tsdbReaderT;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
@@ -111,7 +111,7 @@ bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
 int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
-void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond);
+void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 int32_t      tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);

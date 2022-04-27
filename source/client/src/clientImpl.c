@@ -246,6 +246,12 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 
   pResInfo->numOfCols = numOfCols;
   // TODO handle memory leak
+  if (pResInfo->fields != NULL) {
+    taosMemoryFree(pResInfo->fields);
+  }
+  if (pResInfo->userFields != NULL) {
+    taosMemoryFree(pResInfo->userFields);
+  }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
 

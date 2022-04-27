@@ -16,6 +16,8 @@
 #ifndef _TD_VNODE_TSDB_H_
 #define _TD_VNODE_TSDB_H_
 
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,7 +45,6 @@ int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKe
                            TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
 // tsdbCommit ================
-int tsdbBegin(STsdb *pTsdb);
 
 #if 1
 
@@ -60,16 +61,9 @@ struct STable {
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-int     tsdbOpen(SVnode *pVnode, STsdb **ppTsdb);
-int     tsdbClose(STsdb *pTsdb);
-int     tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int     tsdbPrepareCommit(STsdb *pTsdb);
-int     tsdbCommit(STsdb *pTsdb);
 int32_t tsdbInitSma(STsdb *pTsdb);
-int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg);
 int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
-int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, SSubmitReq *pMsg, int64_t version);
-int32_t tsdbInsertTSmaData(STsdb *pTsdb, int64_t indexUid, const char *msg);
 int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
 void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
@@ -236,12 +230,6 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
 
   return TD_ROW_KEY(row);
 }
-
-// tsdbOptions
-extern const STsdbCfg defautlTsdbOptions;
-
-int  tsdbValidateOptions(const STsdbCfg *);
-void tsdbOptionsCopy(STsdbCfg *pDest, const STsdbCfg *pSrc);
 
 // tsdbReadImpl
 typedef struct SReadH SReadH;

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "meta.h"
 
 static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
@@ -37,7 +37,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaReader mr = {0};
 
   // validate req
-  metaReaderInit(&mr, pMeta->pVnode, 0);
+  metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
 // TODO: just for pass case
 #if 0
@@ -91,7 +91,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   pReq->ctime = taosGetTimestampSec();
 
   // validate req
-  metaReaderInit(&mr, pMeta->pVnode, 0);
+  metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
     terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
     metaReaderClear(&mr);
