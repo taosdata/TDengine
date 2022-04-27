@@ -10,14 +10,14 @@ C/C++ 开发人员可以使用 TDengine 的客户端驱动，即C/C++连接器 �
 #include <taos.h>
 ```
 
-TDengine 服务端或客户端安装后，taos.h 位于：
+TDengine 服务端或客户端安装后，`taos.h` 位于：
 
 - Linux：`/usr/local/taos/include`
 - Windows：`C:\TDengine\include`
 
 TDengine 客户端驱动的动态库位于：
-- Linux: /usr/local/taos/driver/libtaos.so
-- Windows: C:\TDengine\taos.dll
+- Linux: `/usr/local/taos/driver/libtaos.so`
+- Windows: `C:\TDengine\taos.dll`
 
 ## 支持的平台
 
@@ -29,7 +29,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 
 ## 安装步骤
 
-TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install)
+TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#安装步骤)
 
 ## 建立连接
 
@@ -37,7 +37,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 
 下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
 
-```c++
+```c
   TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
@@ -66,7 +66,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>同步查询</summary>
 
-```c++
+```c
 {{#include examples/c/demo.c}}
 ```
 
@@ -77,7 +77,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>异步查询</summary>
 
-```c++
+```c
 {{#include examples/c/asyncdemo.c}}
 ```
 
@@ -88,7 +88,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>参数绑定</summary>
 
-```c++
+```c
 {{#include examples/c/prepare.c}}
 ```
 
@@ -99,7 +99,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>无模式写入</summary>
 
-```c++
+```c
 {{#include examples/c/schemaless.c}}
 ```
 
@@ -110,7 +110,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](/operation/pkg-install
 <details>
 <summary>订阅和消费</summary>
 
-```c++
+```c
 {{#include examples/c/subscribe.c}}
 ```
 
