@@ -1,11 +1,6 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 $i = 0
@@ -24,7 +19,7 @@ sql create user PASS '123' -x step1
 step1:
 
 sql show users
-if $rows != 3 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -33,13 +28,13 @@ sql drop user a -x step2
 step2:
 sql create user a PASS '123'
 sql show users
-if $rows != 4 then 
+if $rows != 2 then 
   return -1
 endi
 
 sql drop user a
 sql show users
-if $rows != 3 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -49,13 +44,13 @@ step3:
 
 sql create user abc01234567890123456789 PASS '123'
 sql show users
-if $rows != 4 then 
+if $rows != 2 then 
   return -1
 endi
 
 sql drop user abc01234567890123456789
 sql show users
-if $rows != 3 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -64,7 +59,7 @@ sql create user abcd0123456789012345678901234567890111 PASS '123' -x step4
 	return -1
 step4:
 sql show users
-if $rows != 3 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -77,13 +72,13 @@ step61:
 
 sql create user a123 PASS '123'
 sql show users
-if $rows != 4 then 
+if $rows != 2 then 
   return -1
 endi
 
 sql drop user a123
 sql show users
-if $rows != 3 then 
+if $rows != 1 then 
   return -1
 endi
 

@@ -1,7 +1,5 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -50,15 +48,16 @@ step3:
 
 sql create user $user PASS 'abc0123456789'
 sql show users
-if $rows != 3 then 
+if $rows != 4 then 
   return -1
 endi
 
 print =============== step4
 $i = 3
 $user = $userPrefix . $i
-sql create user $user PASS 'abcd012345678901234567891234567890' -x step4
+sql create user $user PASS 'abcd012345678901234567891234567890abcd012345678901234567891234567890abcd012345678901234567891234567890abcd012345678901234567891234567890123' -x step4
 	return -1
+
 step4:
 sql show users
 if $rows != 4 then 

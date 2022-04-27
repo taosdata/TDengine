@@ -441,7 +441,7 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char pass[TSDB_PASSWORD_LEN + 1] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
-    memcpy(pUser->pass, pass, TSDB_PASSWORD_LEN);
+    memcpy(newUser.pass, pass, TSDB_PASSWORD_LEN);
   } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) {
     newUser.superUser = alterReq.superUser;
   } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB) {
