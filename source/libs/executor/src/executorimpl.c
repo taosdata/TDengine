@@ -1034,7 +1034,7 @@ void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlo
   }
 }
 
-static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunctParam* pFuncParam, int32_t type,
+static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunctParam* pFuncParam,
                                              int32_t paramIndex, int32_t numOfRows) {
   SColumnInfoData* pColInfo = NULL;
   if (pInput->pData[paramIndex] == NULL) {
@@ -1044,17 +1044,17 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     }
 
     // Set the correct column info (data type and bytes)
-    pColInfo->info.type = type;
-    pColInfo->info.bytes = tDataTypes[type].bytes;
+    pColInfo->info.type = pFuncParam->param.nType;
+    pColInfo->info.bytes = pFuncParam->param.nLen;
 
     pInput->pData[paramIndex] = pColInfo;
   } else {
     pColInfo = pInput->pData[paramIndex];
   }
 
-  ASSERT(!IS_VAR_DATA_TYPE(type));
   colInfoDataEnsureCapacity(pColInfo, 0, numOfRows);
 
+  int8_t type = pFuncParam->param.nType;
   if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT) {
     int64_t v = pFuncParam->param.i;
     for (int32_t i = 0; i < numOfRows; ++i) {
@@ -1064,6 +1064,12 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     double v = pFuncParam->param.d;
     for (int32_t i = 0; i < numOfRows; ++i) {
       colDataAppendDouble(pColInfo, i, &v);
+    }
+  } else if (type == TSDB_DATA_TYPE_VARCHAR) {
+    char *tmp = taosMemoryMalloc(pFuncParam->param.nLen + VARSTR_HEADER_SIZE);
+    STR_WITH_SIZE_TO_VARSTR(tmp, pFuncParam->param.pz, pFuncParam->param.nLen);
+    for(int32_t i = 0; i < numOfRows; ++i) {
+      colDataAppend(pColInfo, i, tmp, false);
     }
   }
 
@@ -1104,7 +1110,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
           pInput->numOfRows = pBlock->info.rows;
           pInput->startRowIndex = 0;
 
-          code = doCreateConstantValColumnInfo(pInput, pFuncParam, pFuncParam->param.nType, j, pBlock->info.rows);
+          code = doCreateConstantValColumnInfo(pInput, pFuncParam, j, pBlock->info.rows);
           if (code != TSDB_CODE_SUCCESS) {
             return code;
           }
@@ -6684,18 +6690,32 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-    // todo extract method
-    SColumn c = {0};
-    c.slotId = pColNode->slotId;
-    c.colId = pColNode->colId;
-    c.type = pColNode->node.resType.type;
-    c.bytes = pColNode->node.resType.bytes;
-    c.precision = pColNode->node.resType.precision;
-    c.scale = pColNode->node.resType.scale;
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-    taosArrayPush(pList, &c);
+      // todo extract method
+      SColumn c = {0};
+      c.slotId  = pColNode->slotId;
+      c.colId   = pColNode->colId;
+      c.type    = pColNode->node.resType.type;
+      c.bytes   = pColNode->node.resType.bytes;
+      c.scale   = pColNode->node.resType.scale;
+      c.precision = pColNode->node.resType.precision;
+
+      taosArrayPush(pList, &c);
+    } else if (nodeType(pNode->pExpr) == QUERY_NODE_VALUE) {
+      SValueNode* pValNode = (SValueNode*) pNode->pExpr;
+      SColumn c = {0};
+      c.slotId = pNode->slotId;
+      c.colId  = pNode->slotId;
+      c.type   = pValNode->node.type;
+      c.bytes  = pValNode->node.resType.bytes;
+      c.scale  = pValNode->node.resType.scale;
+      c.precision = pValNode->node.resType.precision;
+
+      taosArrayPush(pList, &c);
+    }
   }
 
   return pList;
