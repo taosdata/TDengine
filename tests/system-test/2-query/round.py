@@ -1,4 +1,3 @@
-from math import ceil
 import taos
 import sys
 import datetime
@@ -64,9 +63,9 @@ class TDTestCase:
             '''
         )
     
-    def check_result_auto(self ,origin_query , ceil_query):
+    def check_result_auto(self ,origin_query , round_query):
         pass
-        ceil_result = tdSql.getResult(ceil_query)
+        round_result = tdSql.getResult(round_query)
         origin_result = tdSql.getResult(origin_query)
 
         auto_result =[]
@@ -77,83 +76,83 @@ class TDTestCase:
                 if elem == None:
                     elem = None
                 else:
-                    elem = ceil(elem)
+                    elem = round(elem)
                 row_check.append(elem)
             auto_result.append(row_check)
 
         check_status = True
-        for row_index , row in enumerate(ceil_result):
+        for row_index , row in enumerate(round_result):
             for col_index , elem in enumerate(row):
                 if auto_result[row_index][col_index] != elem:
                     check_status = False 
         if not check_status:
-            tdLog.notice("ceil function value has not as expected , sql is \"%s\" "%ceil_query )
+            tdLog.notice("round function value has not as expected , sql is \"%s\" "%round_query )
             sys.exit(1)
         else:
-            tdLog.info("ceil value check pass , it work as expected ,sql is \"%s\"   "%ceil_query )
+            tdLog.info("round value check pass , it work as expected ,sql is \"%s\"   "%round_query )
         
     def test_errors(self):
         error_sql_lists = [
-            "select ceil from t1",
-            # "select ceil(-+--+c1) from t1",
-            # "select +-ceil(c1) from t1",
-            # "select ++-ceil(c1) from t1",
-            # "select ++--ceil(c1) from t1",
-            # "select - -ceil(c1)*0 from t1",
-            # "select ceil(tbname+1) from t1 ",
-            "select ceil(123--123)==1 from t1",
-            "select ceil(c1) as 'd1' from t1",
-            "select ceil(c1 ,c2 ) from t1",
-            "select ceil(c1 ,NULL) from t1",
-            "select ceil(,) from t1;",
-            "select ceil(ceil(c1) ab from t1)",
-            "select ceil(c1) as int from t1",
-            "select ceil from stb1",
-            # "select ceil(-+--+c1) from stb1",
-            # "select +-ceil(c1) from stb1",
-            # "select ++-ceil(c1) from stb1",
-            # "select ++--ceil(c1) from stb1",
-            # "select - -ceil(c1)*0 from stb1",
-            # "select ceil(tbname+1) from stb1 ",
-            "select ceil(123--123)==1 from stb1",
-            "select ceil(c1) as 'd1' from stb1",
-            "select ceil(c1 ,c2 ) from stb1",
-            "select ceil(c1 ,NULL) from stb1",
-            "select ceil(,) from stb1;",
-            "select ceil(ceil(c1) ab from stb1)",
-            "select ceil(c1) as int from stb1"
+            "select round from t1",
+            # "select round(-+--+c1) from t1",
+            # "select +-round(c1) from t1",
+            # "select ++-round(c1) from t1",
+            # "select ++--round(c1) from t1",
+            # "select - -round(c1)*0 from t1",
+            # "select round(tbname+1) from t1 ",
+            "select round(123--123)==1 from t1",
+            "select round(c1) as 'd1' from t1",
+            "select round(c1 ,c2 ) from t1",
+            "select round(c1 ,NULL) from t1",
+            "select round(,) from t1;",
+            "select round(round(c1) ab from t1)",
+            "select round(c1) as int from t1",
+            "select round from stb1",
+            # "select round(-+--+c1) from stb1",
+            # "select +-round(c1) from stb1",
+            # "select ++-round(c1) from stb1",
+            # "select ++--round(c1) from stb1",
+            # "select - -round(c1)*0 from stb1",
+            # "select round(tbname+1) from stb1 ",
+            "select round(123--123)==1 from stb1",
+            "select round(c1) as 'd1' from stb1",
+            "select round(c1 ,c2 ) from stb1",
+            "select round(c1 ,NULL) from stb1",
+            "select round(,) from stb1;",
+            "select round(round(c1) ab from stb1)",
+            "select round(c1) as int from stb1"
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
     
     def support_types(self):
         type_error_sql_lists = [
-            "select ceil(ts) from t1" , 
-            "select ceil(c7) from t1",
-            "select ceil(c8) from t1",
-            "select ceil(c9) from t1",
-            "select ceil(ts) from ct1" , 
-            "select ceil(c7) from ct1",
-            "select ceil(c8) from ct1",
-            "select ceil(c9) from ct1",
-            "select ceil(ts) from ct3" , 
-            "select ceil(c7) from ct3",
-            "select ceil(c8) from ct3",
-            "select ceil(c9) from ct3",
-            "select ceil(ts) from ct4" , 
-            "select ceil(c7) from ct4",
-            "select ceil(c8) from ct4",
-            "select ceil(c9) from ct4",
-            "select ceil(ts) from stb1" , 
-            "select ceil(c7) from stb1",
-            "select ceil(c8) from stb1",
-            "select ceil(c9) from stb1" ,
+            "select round(ts) from t1" , 
+            "select round(c7) from t1",
+            "select round(c8) from t1",
+            "select round(c9) from t1",
+            "select round(ts) from ct1" , 
+            "select round(c7) from ct1",
+            "select round(c8) from ct1",
+            "select round(c9) from ct1",
+            "select round(ts) from ct3" , 
+            "select round(c7) from ct3",
+            "select round(c8) from ct3",
+            "select round(c9) from ct3",
+            "select round(ts) from ct4" , 
+            "select round(c7) from ct4",
+            "select round(c8) from ct4",
+            "select round(c9) from ct4",
+            "select round(ts) from stb1" , 
+            "select round(c7) from stb1",
+            "select round(c8) from stb1",
+            "select round(c9) from stb1" ,
 
-            "select ceil(ts) from stbbb1" , 
-            "select ceil(c7) from stbbb1",
+            "select round(ts) from stbbb1" , 
+            "select round(c7) from stbbb1",
 
-            "select ceil(ts) from tbname",
-            "select ceil(c9) from tbname"
+            "select round(ts) from tbname",
+            "select round(c9) from tbname"
 
         ]
         
@@ -162,42 +161,42 @@ class TDTestCase:
         
         
         type_sql_lists = [
-            "select ceil(c1) from t1",
-            "select ceil(c2) from t1",
-            "select ceil(c3) from t1",
-            "select ceil(c4) from t1",
-            "select ceil(c5) from t1",
-            "select ceil(c6) from t1",
+            "select round(c1) from t1",
+            "select round(c2) from t1",
+            "select round(c3) from t1",
+            "select round(c4) from t1",
+            "select round(c5) from t1",
+            "select round(c6) from t1",
 
-            "select ceil(c1) from ct1",
-            "select ceil(c2) from ct1",
-            "select ceil(c3) from ct1",
-            "select ceil(c4) from ct1",
-            "select ceil(c5) from ct1",
-            "select ceil(c6) from ct1",
+            "select round(c1) from ct1",
+            "select round(c2) from ct1",
+            "select round(c3) from ct1",
+            "select round(c4) from ct1",
+            "select round(c5) from ct1",
+            "select round(c6) from ct1",
 
-            "select ceil(c1) from ct3",
-            "select ceil(c2) from ct3",
-            "select ceil(c3) from ct3",
-            "select ceil(c4) from ct3",
-            "select ceil(c5) from ct3",
-            "select ceil(c6) from ct3",
+            "select round(c1) from ct3",
+            "select round(c2) from ct3",
+            "select round(c3) from ct3",
+            "select round(c4) from ct3",
+            "select round(c5) from ct3",
+            "select round(c6) from ct3",
 
-            "select ceil(c1) from stb1",
-            "select ceil(c2) from stb1",
-            "select ceil(c3) from stb1",
-            "select ceil(c4) from stb1",
-            "select ceil(c5) from stb1",
-            "select ceil(c6) from stb1",
+            "select round(c1) from stb1",
+            "select round(c2) from stb1",
+            "select round(c3) from stb1",
+            "select round(c4) from stb1",
+            "select round(c5) from stb1",
+            "select round(c6) from stb1",
 
-            "select ceil(c6) as alisb from stb1", 
-            "select ceil(c6) alisb from stb1", 
+            "select round(c6) as alisb from stb1", 
+            "select round(c6) alisb from stb1", 
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
     
-    def basic_ceil_function(self):
+    def basic_round_function(self):
 
         # basic query 
         tdSql.query("select c1 from ct3")
@@ -208,20 +207,20 @@ class TDTestCase:
         tdSql.checkRows(25)
 
         # used for empty table  , ct3 is empty
-        tdSql.query("select ceil(c1) from ct3")
+        tdSql.query("select round(c1) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select ceil(c2) from ct3")
+        tdSql.query("select round(c2) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select ceil(c3) from ct3")
+        tdSql.query("select round(c3) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select ceil(c4) from ct3")
+        tdSql.query("select round(c4) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select ceil(c5) from ct3")
+        tdSql.query("select round(c5) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select ceil(c6) from ct3")
+        tdSql.query("select round(c6) from ct3")
         
         # used for regular table
-        tdSql.query("select ceil(c1) from t1")
+        tdSql.query("select round(c1) from t1")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1 , 0, 1)
         tdSql.checkData(3 , 0, 3)
@@ -236,53 +235,53 @@ class TDTestCase:
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
 
-        self.check_result_auto( "select c1, c2, c3 , c4, c5 from t1", "select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from t1")
+        self.check_result_auto( "select c1, c2, c3 , c4, c5 from t1", "select (c1), round(c2) ,round(c3), round(c4), round(c5) from t1")
         
         # used for sub table
-        tdSql.query("select ceil(c1) from ct1")
+        tdSql.query("select round(c1) from ct1")
         tdSql.checkData(0, 0, 8)
         tdSql.checkData(1 , 0, 7)
         tdSql.checkData(3 , 0, 5)
         tdSql.checkData(5 , 0, 4)
 
-        tdSql.query("select ceil(c1) from ct1")
-        self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct1", "select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from ct1")
-        self.check_result_auto("select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from ct1;","select c1 from ct1" )
+        tdSql.query("select round(c1) from ct1")
+        self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct1", "select (c1), round(c2) ,round(c3), round(c4), round(c5) from ct1")
+        self.check_result_auto("select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from ct1;","select c1 from ct1" )
 
         # used for stable table 
         
-        tdSql.query("select ceil(c1) from stb1")
+        tdSql.query("select round(c1) from stb1")
         tdSql.checkRows(25)
-        self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct4 ", "select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from ct4")
-        self.check_result_auto("select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from ct4;" , "select c1 from ct4" )
+        self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct4 ", "select (c1), round(c2) ,round(c3), round(c4), round(c5) from ct4")
+        self.check_result_auto("select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from ct4;" , "select c1 from ct4" )
         
 
         # used for not exists table
-        tdSql.error("select ceil(c1) from stbbb1")
-        tdSql.error("select ceil(c1) from tbname")
-        tdSql.error("select ceil(c1) from ct5")
+        tdSql.error("select round(c1) from stbbb1")
+        tdSql.error("select round(c1) from tbname")
+        tdSql.error("select round(c1) from ct5")
 
         # mix with common col 
-        tdSql.query("select c1, ceil(c1) from ct1")
+        tdSql.query("select c1, round(c1) from ct1")
         tdSql.checkData(0 , 0 ,8)
         tdSql.checkData(0 , 1 ,8)
         tdSql.checkData(4 , 0 ,0)
         tdSql.checkData(4 , 1 ,0)
-        tdSql.query("select c1, ceil(c1) from ct4")
+        tdSql.query("select c1, round(c1) from ct4")
         tdSql.checkData(0 , 0 , None)
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(4 , 0 ,5)
         tdSql.checkData(4 , 1 ,5)
         tdSql.checkData(5 , 0 ,None)
         tdSql.checkData(5 , 1 ,None)
-        tdSql.query("select c1, ceil(c1) from ct4 ")
+        tdSql.query("select c1, round(c1) from ct4 ")
         tdSql.checkData(0 , 0 ,None)
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(4 , 0 ,5)
         tdSql.checkData(4 , 1 ,5)
 
         # mix with common functions
-        tdSql.query("select c1, ceil(c1),c5, ceil(c5) from ct4 ")
+        tdSql.query("select c1, round(c1),c5, round(c5) from ct4 ")
         tdSql.checkData(0 , 0 ,None)
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(0 , 2 ,None)
@@ -293,13 +292,18 @@ class TDTestCase:
         tdSql.checkData(3 , 2 ,6.66000)
         tdSql.checkData(3 , 3 ,7.00000)
 
-        tdSql.query("select c1, ceil(c1),c5, floor(c5) from stb1 ")
+        tdSql.checkData(6 , 0 , 4)
+        tdSql.checkData(6 , 1 , 4)
+        tdSql.checkData(6 , 2 ,4.44000)
+        tdSql.checkData(6 , 3 ,4.00000)
+
+        tdSql.query("select c1, round(c1),c5, round(c5) from stb1 ")
 
         # mix with agg functions , not support
-        tdSql.error("select c1, ceil(c1),c5, count(c5) from stb1 ")
-        tdSql.error("select c1, ceil(c1),c5, count(c5) from ct1 ")
-        tdSql.error("select ceil(c1), count(c5) from stb1 ")
-        tdSql.error("select ceil(c1), count(c5) from ct1 ")
+        tdSql.error("select c1, round(c1),c5, count(c5) from stb1 ")
+        tdSql.error("select c1, round(c1),c5, count(c5) from ct1 ")
+        tdSql.error("select round(c1), count(c5) from stb1 ")
+        tdSql.error("select round(c1), count(c5) from ct1 ")
         tdSql.error("select c1, count(c5) from ct1 ")
         tdSql.error("select c1, count(c5) from stb1 ")
 
@@ -320,7 +324,7 @@ class TDTestCase:
         tdSql.checkData(0,0,25)
 
         # bug fix for compute 
-        tdSql.query("select c1, abs(c1) -0 ,ceil(c1)-0 from ct4 ")
+        tdSql.query("select c1, abs(c1) -0 ,round(c1)-0 from ct4 ")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
@@ -328,7 +332,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 8.000000000)
         tdSql.checkData(1, 2, 8.000000000)
 
-        tdSql.query(" select c1, abs(c1) -0 ,ceil(c1-0.1)-0.1 from ct4")
+        tdSql.query(" select c1, abs(c1) -0 ,round(c1-0.1)-0.1 from ct4")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
@@ -336,10 +340,10 @@ class TDTestCase:
         tdSql.checkData(1, 1, 8.000000000)
         tdSql.checkData(1, 2, 7.900000000)
 
-    def ceil_func_filter(self):
+    def round_func_filter(self):
         pass
         
-    def ceil_Arithmetic(self):
+    def round_Arithmetic(self):
         pass
     
     def check_boundary_values(self):
@@ -374,24 +378,23 @@ class TDTestCase:
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto( "select c1, c2, c3 , c4, c5 ,c6 from sub1_bound ", "select ceil(c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) ,ceil(c6) from sub1_bound")
-        self.check_result_auto( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select ceil(c1), ceil(c2) ,ceil(c3), ceil(c3), ceil(c2) ,ceil(c1) from sub1_bound")
-        self.check_result_auto("select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from sub1_bound;" , "select ceil(c1) from sub1_bound" )
+        self.check_result_auto( "select c1, c2, c3 , c4, c5 ,c6 from sub1_bound ", "select round(c1), round(c2) ,round(c3), round(c4), round(c5) ,round(c6) from sub1_bound")
+        self.check_result_auto( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select round(c1), round(c2) ,round(c3), round(c3), round(c2) ,round(c1) from sub1_bound")
+        self.check_result_auto("select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from sub1_bound;" , "select round(c1) from sub1_bound" )
         
         # check basic elem for table per row
-        tdSql.query("select ceil(c1+0.2) ,ceil(c2) , ceil(c3+0.3) , ceil(c4-0.3), ceil(c5/2), ceil(c6/2) from sub1_bound ")
-        tdSql.checkData(0, 0, 2147483648.000000000)
-        tdSql.checkData(0, 2, 32768.000000000)
+        tdSql.query("select round(c1+0.2) ,round(c2) , round(c3+0.3) , round(c4-0.3), round(c5/2), round(c6/2) from sub1_bound ")
+        tdSql.checkData(0, 0, 2147483647.000000000)
+        tdSql.checkData(0, 2, 32767.000000000)
         tdSql.checkData(0, 3, 127.000000000)
         tdSql.checkData(0, 4, 169999997607218212453866206899682148352.000000000)
 
-        tdSql.checkData(4, 0, -2147483642.000000000)
-        tdSql.checkData(4, 2, -32762.000000000)
+        tdSql.checkData(4, 0, -2147483643.000000000)
+        tdSql.checkData(4, 2, -32763.000000000)
         tdSql.checkData(4, 3, -123.000000000)
         tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
 
-        self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select ceil(c1+1) ,ceil(c2) , ceil(c3*1) , ceil(c4/2), ceil(c5)/2, ceil(c6) from sub1_bound ")
-        
+        self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select round(c1+1) ,round(c2) , round(c3*1) , round(c4/2), round(c5)/2, round(c6) from sub1_bound ")
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -408,11 +411,11 @@ class TDTestCase:
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: ceil basic query ============") 
+        tdLog.printNoPrefix("==========step4: round basic query ============") 
 
-        self.basic_ceil_function()
+        self.basic_round_function()
 
-        tdLog.printNoPrefix("==========step5: ceil boundary query ============") 
+        tdLog.printNoPrefix("==========step5: round boundary query ============") 
 
         self.check_boundary_values()
 

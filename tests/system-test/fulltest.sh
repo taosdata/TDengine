@@ -14,4 +14,5 @@ python3 ./test.py -f 2-query/Today.py
 
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/ceil.py
-
+python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f 2-query/round.py
