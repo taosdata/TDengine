@@ -49,7 +49,8 @@ import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
 
 ### 使用 dotnet CLI 安装
 
-#### 使用 dotnet CLI 获取 C# 驱动
+<Tabs defaultValue="CLI">
+<TabItem value="CLI" label="使用 dotnet CLI 获取 C# 驱动">
 
 可以在当前 .NET 项目的路径下，通过 dotnet 命令引用 Nuget 中发布的 `TDengine.Connector` 到当前项目。
 
@@ -57,7 +58,8 @@ import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
 dotnet add package TDengine.Connector
 ```
 
-#### 使用源码获取 C# 驱动
+</TabItem>
+<TabItem value="source" label="使用源码获取 C# 驱动">
 
 可以下载 TDengine 的源码，直接引用最新版本的 TDengine.Connector 库
 
@@ -69,6 +71,8 @@ cp -r TDengineDriver/ myProject
 cd myProject
 dotnet add TDengineDriver/TDengineDriver.csproj
 ```
+</TabItem>
+</Tabs>
 
 ## 建立连接
 

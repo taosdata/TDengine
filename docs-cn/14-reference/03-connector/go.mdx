@@ -77,7 +77,9 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 username:password@protocol(address)/dbname?param=value
 ```
 
-### 建立原生连接
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+### 原生连接
 
 _taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
 
@@ -107,7 +109,9 @@ func main() {
 }
 ```
 
-### 建立 REST 连接
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+### REST 连接
 
 _taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
 
@@ -137,6 +141,8 @@ func main() {
     }
 }
 ```
+</TabItem>
+</Tabs>
 
 ## 使用示例
 

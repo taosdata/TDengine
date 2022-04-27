@@ -43,7 +43,9 @@ Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容�
 
 之后可以按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
 
-### 使用客户端驱动
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+### 原生连接
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]：
 
@@ -53,7 +55,9 @@ Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容�
 libtaos = "*"
 ```
 
-### 使用 REST 接口
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+### REST 连接
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]，并启用 `rest` 特性。
 
@@ -63,6 +67,8 @@ libtaos = "*"
 libtaos = { version = "*", features = ["rest"]}
 ```
 
+</TabItem>
+<TabItem value="rest" label="使用连接池">
 ### 使用连接池
 
 选择使用客户端驱动或 REST 接口，并在 `Cargo.toml` 中启用 `r2d2` 特性。
@@ -74,6 +80,8 @@ libtaos = { version = "*", features = ["r2d2"] }
 # or rest
 libtaos = { version = "*", features = ["rest", "r2d2"] }
 ```
+</TabItem>
+</Tabs>
 
 ## 建立连接
 
