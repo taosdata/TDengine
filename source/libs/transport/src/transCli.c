@@ -902,7 +902,6 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         cliDestroy((uv_handle_t*)pConn->stream);
         return -1;
       }
-
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
         pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
