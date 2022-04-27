@@ -1564,7 +1564,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
 
 static int32_t checkRangeOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t minVal,
                                 int32_t maxVal) {
-  if (val < minVal || val > maxVal) {
+  if (val >= 0 && (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_RANGE_OPTION, pName, val, minVal, maxVal);
   }
   return TSDB_CODE_SUCCESS;
@@ -1649,7 +1649,7 @@ static int32_t checkDbPrecisionOption(STranslateContext* pCxt, SDatabaseOptions*
 }
 
 static int32_t checkDbEnumOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t v1, int32_t v2) {
-  if (val != v1 && val != v2) {
+  if (val >= 0 && val != v1 && val != v2) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENUM_OPTION, pName, val, v1, v2);
   }
   return TSDB_CODE_SUCCESS;
@@ -1688,7 +1688,7 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
       return code;
     }
     daysPerFile = (-1 == daysPerFile ? dbCfg.daysPerFile : daysPerFile);
-    daysToKeep0 = (-1 == daysPerFile ? dbCfg.daysToKeep0 : daysToKeep0);
+    daysToKeep0 = (-1 == daysToKeep0 ? dbCfg.daysToKeep0 : daysToKeep0);
   }
   if (daysPerFile > daysToKeep0) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DAYS_VALUE);
