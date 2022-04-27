@@ -153,6 +153,24 @@ SyncTerm syncGetMyTerm(int64_t rid) {
   return term;
 }
 
+void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+    return;
+  }
+  assert(rid == pSyncNode->rid);
+  pEpSet->numOfEps = 0;
+  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+    snprintf(pEpSet->eps->fqdn, sizeof(pEpSet->eps->fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
+    pEpSet->eps->port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
+    (pEpSet->numOfEps)++;
+  }
+  pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
 int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {

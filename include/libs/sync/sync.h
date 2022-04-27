@@ -149,6 +149,7 @@ int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
+void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 
 typedef enum {
   TAOS_SYNC_PROPOSE_SUCCESS = 0,

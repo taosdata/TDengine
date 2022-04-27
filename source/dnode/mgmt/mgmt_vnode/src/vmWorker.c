@@ -149,9 +149,13 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     int32_t ret = syncPropose(vnodeGetSyncHandle(pVnode->pImpl), pRpc, false);
     if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
-      rsp.code = TSDB_CODE_SYN_NOT_LEADER;
-      tmsgSendRsp(&rsp);
-      // SEpSet epSet; TODO
+      // rsp.code = TSDB_CODE_SYN_NOT_LEADER;
+      // tmsgSendRsp(&rsp);
+
+      rsp.code = TSDB_CODE_RPC_REDIRECT;
+      SEpSet newEpSet;
+      syncGetEpSet(vnodeGetSyncHandle(pVnode->pImpl), &newEpSet);
+      tmsgSendRedirectRsp(&rsp, &newEpSet);
 
     } else if (ret == TAOS_SYNC_PROPOSE_OTHER_ERROR) {
       rsp.code = TSDB_CODE_SYN_INTERNAL_ERROR;
