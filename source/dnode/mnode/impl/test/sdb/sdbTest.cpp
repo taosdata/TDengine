@@ -9,75 +9,111 @@
  *
  */
 
-#include "sut.h"
+#include <gtest/gtest.h>
 
-class MndTestShow : public ::testing::Test {
+#include "sdb.h"
+
+class MndTestSdb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_show", 9021); }
-  static void TearDownTestSuite() { test.Cleanup(); }
-
-  static Testbase test;
+  static void SetUpTestSuite() {}
+  static void TearDownTestSuite() {}
 
  public:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-Testbase MndTestShow::test;
+typedef struct SStrObj {
+  char    key[24];
+  int8_t  v8;
+  int16_t v16;
+  int32_t v32;
+  int64_t v64;
+  char    vstr[32];
+  char    unused[48];
+} SStrObj;
 
-TEST_F(MndTestShow, 01_ShowMsg_InvalidMsgMax) {
-  SShowReq showReq = {0};
-  showReq.type = TSDB_MGMT_TABLE_MAX;
+typedef struct SI32Obj {
+  int32_t key;
+  int8_t  v8;
+  int16_t v16;
+  int32_t v32;
+  int64_t v64;
+  char    vstr[32];
+  char    unused[48];
+} SI32Obj;
 
-  int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
-  void*   pReq = rpcMallocCont(contLen);
-  tSerializeSShowReq(pReq, contLen, &showReq);
-  tFreeSShowReq(&showReq);
+typedef struct SI64Obj {
+  int64_t key;
+  int8_t  v8;
+  int16_t v16;
+  int32_t v32;
+  int64_t v64;
+  char    vstr[32];
+  char    unused[48];
+} SI64Obj;
 
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SYSTABLE_RETRIEVE, pReq, contLen);
-  ASSERT_NE(pRsp, nullptr);
-  ASSERT_NE(pRsp->code, 0);
+SSdbRaw *strEncode(SStrObj *pObj) {
+  int32_t  dataPos = 0;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, 1, sizeof(SStrObj));
+
+  sdbSetRawBinary(pRaw, dataPos, pObj->key, sizeof(pObj->key));
+  dataPos += sizeof(pObj->key);
+  sdbSetRawInt8(pRaw, dataPos, pObj->v8);
+  dataPos += sizeof(pObj->v8);
+  sdbSetRawInt16(pRaw, dataPos, pObj->v16);
+  dataPos += sizeof(pObj->v16);
+  sdbSetRawInt32(pRaw, dataPos, pObj->v32);
+  dataPos += sizeof(pObj->v32);
+  sdbSetRawInt64(pRaw, dataPos, pObj->v64);
+  dataPos += sizeof(pObj->v64);
+  sdbSetRawBinary(pRaw, dataPos, pObj->key, sizeof(pObj->vstr));
+  dataPos += sizeof(pObj->key);
+  sdbSetRawDataLen(pRaw, dataPos);
+
+  return pRaw;
 }
 
-TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
-  SShowReq showReq = {0};
-  showReq.type = TSDB_MGMT_TABLE_START;
+SSdbRaw *strDecode(SStrObj *pObj) {
+  int32_t  dataPos = 0;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, 1, sizeof(SStrObj));
 
-  int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
-  void*   pReq = rpcMallocCont(contLen);
-  tSerializeSShowReq(pReq, contLen, &showReq);
-  tFreeSShowReq(&showReq);
+  sdbSetRawBinary(pRaw, dataPos, pObj->key, sizeof(pObj->key));
+  dataPos += sizeof(pObj->key);
+  sdbSetRawInt8(pRaw, dataPos, pObj->v8);
+  dataPos += sizeof(pObj->v8);
+  sdbSetRawInt16(pRaw, dataPos, pObj->v16);
+  dataPos += sizeof(pObj->v16);
+  sdbSetRawInt32(pRaw, dataPos, pObj->v32);
+  dataPos += sizeof(pObj->v32);
+  sdbSetRawInt64(pRaw, dataPos, pObj->v64);
+  dataPos += sizeof(pObj->v64);
+  sdbSetRawBinary(pRaw, dataPos, pObj->key, sizeof(pObj->vstr));
+  dataPos += sizeof(pObj->key);
+  sdbSetRawDataLen(pRaw, dataPos);
 
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SYSTABLE_RETRIEVE, pReq, contLen);
-  ASSERT_NE(pRsp, nullptr);
-  ASSERT_NE(pRsp->code, 0);
+  return pRaw;
 }
 
-TEST_F(MndTestShow, 03_ShowMsg_Conn) {
-  char passwd[] = "taosdata";
-  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
-  taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
+TEST_F(MndTestSdb, 01_Basic) {
+  SSdbOpt opt = {0};
+  opt.path = "/tmp/mnode_test_sdb";
 
-  SConnectReq connectReq = {0};
-  connectReq.pid = 1234;
-  strcpy(connectReq.app, "mnode_test_show");
-  strcpy(connectReq.db, "");
-  strcpy(connectReq.user, "root");
-  strcpy(connectReq.passwd, secretEncrypt);
+  SSdb *pSdb = sdbInit(&opt);
+  EXPECT_NE(pSdb, nullptr);
 
-  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
-  void*   pReq = rpcMallocCont(contLen);
-  tSerializeSConnectReq(pReq, contLen, &connectReq);
+  SSdbTable strTable = {
+      .sdbType = SDB_USER,
+      .keyType = SDB_KEY_BINARY,
+      .deployFp = (SdbDeployFp)strEncode,
+      .encodeFp = (SdbEncodeFp)strDecode,
+      .decodeFp = (SdbDecodeFp)NULL,
+      .insertFp = (SdbInsertFp)NULL,
+      .updateFp = (SdbUpdateFp)NULL,
+      .deleteFp = (SdbDeleteFp)NULL,
+  };
 
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
-  ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, 0);
+  sdbSetTable(pSdb, strTable);
 
-  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "connections", "");
-  // EXPECT_EQ(test.GetShowRows(), 1);
-}
-
-TEST_F(MndTestShow, 04_ShowMsg_Cluster) {
-  test.SendShowReq(TSDB_MGMT_TABLE_CLUSTER, "cluster", "");
-  EXPECT_EQ(test.GetShowRows(), 1);
+  sdbCleanup(pSdb);
 }

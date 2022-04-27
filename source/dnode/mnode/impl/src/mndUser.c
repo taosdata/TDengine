@@ -39,14 +39,16 @@ static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
 int32_t mndInitUser(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_USER,
-                     .keyType = SDB_KEY_BINARY,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
-                     .encodeFp = (SdbEncodeFp)mndUserActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndUserActionDecode,
-                     .insertFp = (SdbInsertFp)mndUserActionInsert,
-                     .updateFp = (SdbUpdateFp)mndUserActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndUserActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_USER,
+      .keyType = SDB_KEY_BINARY,
+      .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
+      .encodeFp = (SdbEncodeFp)mndUserActionEncode,
+      .decodeFp = (SdbDecodeFp)mndUserActionDecode,
+      .insertFp = (SdbInsertFp)mndUserActionInsert,
+      .updateFp = (SdbUpdateFp)mndUserActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndUserActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserReq);
