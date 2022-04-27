@@ -454,7 +454,7 @@ void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond) {
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
     if (pCond->order != pTsdbReadHandle->order) {
       pTsdbReadHandle->order = pCond->order;
-      TSWAP(pTsdbReadHandle->window.skey, pTsdbReadHandle->window.ekey, int64_t);
+      TSWAP(pTsdbReadHandle->window.skey, pTsdbReadHandle->window.ekey);
     }
 
     return;
@@ -924,7 +924,7 @@ static bool hasMoreDataInCache(STsdbReadHandle* pHandle) {
   pHandle->cur.mixBlock = true;
 
   if (!ASCENDING_TRAVERSE(pHandle->order)) {
-    TSWAP(win->skey, win->ekey, TSKEY);
+    TSWAP(win->skey, win->ekey);
   }
 
   return true;
@@ -1203,7 +1203,7 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
       // update the last key value
       pCheckInfo->lastKey = cur->win.ekey + step;
       if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-        TSWAP(cur->win.skey, cur->win.ekey, TSKEY);
+        TSWAP(cur->win.skey, cur->win.ekey);
       }
 
       cur->mixBlock = true;
@@ -1701,7 +1701,7 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
   int32_t end = endPos;
 
   if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-    TSWAP(start, end, int32_t);
+    TSWAP(start, end);
   }
 
   assert(pTsdbReadHandle->outputCapacity >= (end - start + 1));
@@ -1932,7 +1932,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
        ((pos < endPos || cur->lastKey < pTsdbReadHandle->window.ekey) && !ASCENDING_TRAVERSE(pTsdbReadHandle->order)));
 
   if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-    TSWAP(cur->win.skey, cur->win.ekey, TSKEY);
+    TSWAP(cur->win.skey, cur->win.ekey);
   }
 
   moveDataToFront(pTsdbReadHandle, numOfRows, numOfCols);

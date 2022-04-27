@@ -107,7 +107,9 @@ int32_t sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_
     return -1;
   }
 
-  memcpy(pRaw->pData + dataPos, pVal, valLen);
+  if (pVal != NULL) {
+    memcpy(pRaw->pData + dataPos, pVal, valLen);
+  }
   return 0;
 }
 

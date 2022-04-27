@@ -117,22 +117,23 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = varDataTLen(pData);
-    if(type == TSDB_DATA_TYPE_JSON) {
-      if(*pData == TSDB_DATA_TYPE_NULL) {
+    if (type == TSDB_DATA_TYPE_JSON) {
+      if (*pData == TSDB_DATA_TYPE_NULL) {
         dataLen = 0;
-      }else if(*pData == TSDB_DATA_TYPE_NCHAR) {
-        dataLen = varDataTLen(pData+CHAR_BYTES);
-      }else if(*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
+      } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
+        dataLen = varDataTLen(pData + CHAR_BYTES);
+      } else if (*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
         dataLen = LONG_BYTES;
-      }else if(*pData == TSDB_DATA_TYPE_BOOL) {
+      } else if (*pData == TSDB_DATA_TYPE_BOOL) {
         dataLen = CHAR_BYTES;
       }
       dataLen += CHAR_BYTES;
     }
+
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;
     if (pAttr->allocLen < pAttr->length + dataLen) {
       uint32_t newSize = pAttr->allocLen;
-      if (newSize == 0) {
+      if (newSize <= 1) {
         newSize = 8;
       }
 
@@ -224,12 +225,16 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     // Handle the bitmap
     char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
     if (p == NULL) {
-      // TODO
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     pColumnInfoData->varmeta.offset = (int32_t*)p;
     for (int32_t i = 0; i < numOfRow2; ++i) {
-      pColumnInfoData->varmeta.offset[i + numOfRow1] = pSource->varmeta.offset[i] + pColumnInfoData->varmeta.length;
+      if (pSource->varmeta.offset[i] == -1) {
+        pColumnInfoData->varmeta.offset[i + numOfRow1] = -1;
+      } else {
+        pColumnInfoData->varmeta.offset[i + numOfRow1] = pSource->varmeta.offset[i] + pColumnInfoData->varmeta.length;
+      }
     }
 
     // copy data
@@ -238,7 +243,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     if (pColumnInfoData->varmeta.allocLen < len + oldLen) {
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, len + oldLen);
       if (tmp == NULL) {
-        return TSDB_CODE_VND_OUT_OF_MEMORY;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pColumnInfoData->pData = tmp;
