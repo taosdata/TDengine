@@ -2,25 +2,23 @@
 toc_max_heading_level: 4
 sidebar_position: 2
 sidebar_label: Java
-title: Java Connector
-description: 此连接器基于标准 JDBC API 实现。
+title: TDengine Java Connector
+description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原生连接与 REST连接两种连接器。
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import Preparition from './_preparition.mdx';
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器。Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
-
-`taos-jdbcdriver`（2.0.18 及更高版本）也支持使用 REST 连接 TDengine 集群。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.0.18 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](tdengine-jdbc-connector.png)
 
-上图显示了三种 Java 应用使用连接器访问 TDengine 的方式：
+上图显示了两种 Java 应用使用连接器访问 TDengine 的两种方式：
 
-- JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 JDBC 原生连接的 API ，直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
-- RESTful：应用将 SQL 发送给位于物理节点 2（pnode2）上的 REST 连接器，再调用客户端驱动 API。
-- JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 连接器。
+- JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 TSDBDriver 直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
+- JDBC REST 连接：Java 应用通过 RestfulDriver 将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 服务器（taosAdapter），通过 REST 服务器请求 taosd 并返回结果。
+
+使用 REST 连接器，不依赖 TDengine 客户端驱动，可以跨平台，更加方便灵活，但性能比原生连接器低约 30%。
 
 :::info
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
@@ -65,8 +63,9 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 使用 Java Connector 连接数据库前，需要具备以下条件：
 
 - 已安装 Java 1.8 或以上版本运行时环境和 Maven 3.6 或以上版本
+- 已安装 TDengine 客户端驱动（使用原生连接必须安装，使用 REST 连接无需安装），具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
 
-<Preparition />
+### 安装连接器
 
 <Tabs defaultValue="maven">
 <TabItem value="maven" label="使用 Maven 安装">
@@ -108,8 +107,10 @@ mvn clean install -Dmaven.test.skip=true
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
+对于建立连接，原生连接器与 REST 连接器有细微不同。
+
 <Tabs defaultValue="native">
-<TabItem value="native" label="建立原生连接">
+<TabItem value="native" label="原生连接器">
 
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -117,9 +118,9 @@ String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-以上示例，使用了 JDBC 原生连接的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
+以上示例，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC 原生连接的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应本地的客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
 url 中的配置参数如下：
 
@@ -134,9 +135,9 @@ url 中的配置参数如下：
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
-#### 使用客户端配置文件建立连接
+**使用 TDengine 客户端驱动配置文件建立连接 **
 
-当使用 JDBC 原生连接连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp 参数。如下所示：
+当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。如下所示：
 
 1. 在 Java 应用中不指定 hostname 和 port
 
@@ -176,7 +177,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 </TabItem>
-<TabItem value="rest" label="建立 REST 连接">
+<TabItem value="rest" label="REST 连接器">
 
 ```java
 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
@@ -184,35 +185,39 @@ String jdbcUrl = "jdbc:TAOS-RS://taosdemo.com:6041/test?user=root&password=taosd
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-以上示例，使用 JDBC-RESTful 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
+以上示例，使用了 JDBC REST 连接的 RestfulDriver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-使用 JDBC-RESTful 接口，不需要依赖本地函数库。与 JDBC 原生连接相比，仅需要：
+使用 JDBC REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
 3. 使用 6041 作为连接端口。
 
+url 中的配置参数如下：
+
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，JDBC-RESTful 的 driver 增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC-RESTful 支持大数据量查询，并提升查询性能。
+- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，JDBC REST 连接增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 **注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
 
 :::note
 
-- 与原生连接方式不同，RESTful 接口是无状态的。在使用 JDBC-RESTful 时，需要在 SQL 中指定表、超级表的数据库名称。例如：
+- 与原生连接方式不同，REST 接口是无状态的。在使用 JDBC REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。例如：
 
 ```sql
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
 ```
 
-- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC-RESTful 会默认使用/rest/sql/dbname 作为 resful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperatrue) tags('beijing') values(now, 24.6);
+- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 resful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperatrue) tags('beijing') values(now, 24.6);
 
 :::
 
 </TabItem>
-<TabItem value="properties" label="指定 URL 和 Properties 获取连接">
+</Tabs>
+
+### 指定 URL 和 Properties 获取连接
 
 除了通过指定的 URL 获取连接，还可以使用 Properties 指定建立连接时的参数。
 
@@ -257,23 +262,17 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_CHARSET：仅在使用 JDBC 原生连接时生效。 客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。
-- 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。详见 [config](/reference/config#为客户端指定配置文件) 中对客户端适用的参数。
+- 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
 
-</TabItem>
-<TabItem value="priority" label="配置参数的优先级">
+### 配置参数的优先级
 
 通过前面三种方式获取连接，如果配置参数在 url、Properties、客户端配置文件中有重复，则参数的`优先级由高到低`分别如下：
 
 1. JDBC URL 参数，如上所述，可以在 JDBC URL 的参数中指定。
 2. Properties connProps
-3. 客户端配置文件 taos.cfg
+3. 使用原生连接时，TDengine 客户端驱动的配置文件 taos.cfg
 
 例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
-
-> 更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)
-
-</TabItem>
-</Tabs>
 
 ## 使用示例
 
@@ -357,12 +356,10 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 **注意**：
 
-- JDBC-RESTful 实现并不提供参数绑定这种使用方式
+- JDBC REST 连接目前不支持参数绑定
 - 以下示例代码基于 taos-jdbcdriver-2.0.36
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
 - setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
-
-示例代码：
 
 ```java
 public class ParameterBindingDemo {
@@ -627,10 +624,8 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 **注意**：
 
-- JDBC-RESTful 实现并不提供无模式写入这种使用方式
+- JDBC REST 连接目前不支持无模式写入
 - 以下示例代码基于 taos-jdbcdriver-2.0.36
-
-示例代码：
 
 ```java
 public class SchemalessInsertTest {
@@ -661,7 +656,11 @@ public class SchemalessInsertTest {
 }
 ```
 
-### 创建订阅
+### 订阅
+
+TDengine Java 连接器支持订阅功能，应用 API 如下：
+
+#### 创建订阅
 
 ```java
 TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
@@ -675,7 +674,7 @@ TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from met
 
 如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic` 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
 
-### 订阅消费数据
+#### 订阅消费数据
 
 ```java
 int total = 0;
@@ -693,7 +692,7 @@ while(true) {
 
 `consume` 方法返回一个结果集，其中包含从上次 `consume` 到目前为止的所有新数据。请务必按需选择合理的调用 `consume` 的频率（如例子中的 `Thread.sleep(1000)`），否则会给服务端造成不必要的压力。
 
-### 关闭订阅
+#### 关闭订阅
 
 ```java
 sub.close(true);
@@ -701,7 +700,7 @@ sub.close(true);
 
 `close` 方法关闭一个订阅。如果其参数为 `true` 表示保留订阅进度信息，后续可以创建同名订阅继续消费数据；如为 `false` 则不保留订阅进度。
 
-## 关闭资源
+### 关闭资源
 
 ```java
 resultSet.close();
@@ -711,9 +710,9 @@ conn.close();
 
 > `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
 
-## 与连接池使用
+### 与连接池使用
 
-### HikariCP
+#### HikariCP
 
 使用示例如下：
 
@@ -747,7 +746,7 @@ conn.close();
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
 > 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)。
 
-### Druid
+#### Druid
 
 使用示例如下：
 
@@ -792,24 +791,25 @@ server_status()|
 Query OK, 1 row(s) in set (0.000141s)
 ```
 
-## 示例程序
+### 更多示例程序
 
 示例程序源码位于 `TDengine/examples/JDBC` 下:
 
-- JDBCDemo：JDBC 示例源程序
-- JDBCConnectorChecker：JDBC 安装校验源程序及 jar 包
-- Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/SpringJdbcTemplate)
-- Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/springbootdemo)
+- JDBCDemo：JDBC 示例源程序。
+- JDBCConnectorChecker：JDBC 安装校验源程序及 jar 包。
+- connectionPools：HikariCP, Druid, dbcp, c3p0 等连接池中使用 taos-jdbcdriver。
+- SpringJdbcTemplate：Spring JdbcTemplate 中使用 taos-jdbcdriver。
+- mybatisplus-demo：Springboot + Mybatis 中使用 taos-jdbcdriver。
 
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
 ## 重要更新记录
 
-| taos-jdbcdriver 版本 |           主要变化            |
-| :------------------: | :---------------------------: |
-|        2.0.36        |  增加对 schemaless 写入支持   |
-|        2.0.37        |     增加对 json tag 支持      |
-|        2.0.38        | 增加对 RESTful 中批量拉取功能 |
+| taos-jdbcdriver 版本 |            主要变化            |
+| :------------------: | :----------------------------: |
+|        2.0.36        |   增加对 schemaless 写入支持   |
+|        2.0.37        |      增加对 json tag 支持      |
+|        2.0.38        | JDBC REST 连接增加批量拉取功能 |
 
 ## 常见问题
 

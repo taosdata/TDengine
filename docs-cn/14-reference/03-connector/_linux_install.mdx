@@ -12,7 +12,6 @@
    - _ install_client.sh_：安装脚本，用于应用驱动程序
    - _ taos.tar.gz_：应用驱动安装包
    - _ driver_：TDengine 应用驱动 driver
-   - _connector_: 各种编程语言连接器（go/nodejs/python/JDBC）
    - _examples_: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
    运行 install_client.sh 进行安装。
 4. 配置 taos.cfg
@@ -22,6 +21,6 @@
 :::tip
 
 1. 如本机没有部署 TDengine 服务，仅安装了应用驱动，则 taos.cfg 中仅需配置 firstEP，无需在本机配置 FQDN。
-2. 为防止与服务器端连接时出现“unable to resolve FQDN”错误，建议确认本机的 hosts 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
+2. 为防止与服务器端连接时出现“Unable to resolve FQDN”错误，建议确认本机的 hosts 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
 
 :::

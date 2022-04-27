@@ -5,6 +5,9 @@ sidebar_label: Go
 title: Go Connector
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 import Preparition from "./_preparition.mdx"
 import GoInsert from "../../04-develop/03-insert-data/_go_sql.mdx"
 import GoInfluxLine from "../../04-develop/03-insert-data/_go_line.mdx"
@@ -12,11 +15,13 @@ import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.md
 import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
+`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
 
-本文介绍如何在 Windows 或 Linux 环境中安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
+`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
 
-Go 连接器的源码托管在 GitHub。项目名称：driver-go。欢迎 [贡献源码](https://github.com/taosdata/driver-go) 或 [报告问题](https://github.com/taosdata/driver-go/issues)。
+本文介绍如何安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
+
+`driver-go` 的源码托管在 [GitHub](https://github.com/taosdata/driver-go)。
 
 ## 支持的平台
 
@@ -30,18 +35,20 @@ Go 连接器的源码托管在 GitHub。项目名称：driver-go。欢迎 [贡�
 
 ### 原生连接
 
-“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 集群建立连接。
+“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 集群建立连接。支持的功能特性有：
 
-* database/sql (cgo 模式)
+* 普通查询
+* 连续查询
 * 订阅
 * schemaless 接口
 * 参数绑定接口
 
 ### REST 连接
 
-REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。
+REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。支持的功能特性有：
 
-`develop` 分支使用 `http client` 实现了 `database/sql` 接口。
+* 普通查询
+* 连续查询
 
 ## 安装步骤
 
@@ -61,7 +68,7 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 
 ## 建立连接
 
-### DSN
+### 数据源名称（DSN）
 
 数据源名称具有通用格式，例如 [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php)，但没有类型前缀（方括号表示可选）：
 
@@ -75,9 +82,10 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 username:password@protocol(address)/dbname?param=value
 ```
 
-### 建立原生连接
+<Tabs defaultValue="native">
+<TabItem value="native" label="建立原生连接">
 
-_taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
+_taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
 
 使用 `taosSql` 作为 `driverName` 并且使用一个正确的 [DSN](#DSN) 作为 `dataSourceName`，DSN 支持的参数：
 
@@ -105,7 +113,8 @@ func main() {
 }
 ```
 
-### 建立 REST 连接
+</TabItem>
+<TabItem value="rest" label="建立 REST 连接">
 
 _taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
 
@@ -135,6 +144,8 @@ func main() {
     }
 }
 ```
+</TabItem>
+</Tabs>
 
 ## 使用示例
 
@@ -257,7 +268,7 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 ## 常用 API
 
-### `database/sql`
+### database/sql API
 
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
@@ -273,7 +284,7 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 `sql.Open` 内置的方法，用来执行查询语句。
 
-### 高级功能
+### 高级功能 API
 
 af 包封装了订阅、stmt 等 TDengine 高级功能。
 

@@ -5,6 +5,9 @@ sidebar_label: Node.js
 title: Node.js Connector
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 import Preparition from "./_preparition.mdx"
 import NodeInsert from "../../04-develop/03-insert-data/_js_sql.mdx"
 import NodeInfluxLine from "../../04-develop/03-insert-data/_js_line.mdx"
@@ -14,6 +17,10 @@ import NodeQuery from "../../04-develop/04-query-data/_js.mdx"
 import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 
 `td2.0-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
+
+`td2.0-connector` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
+
+`td2.0-connector` 的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node)。
 
 ## 支持的平台
 
@@ -52,22 +59,24 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 <Preparition />
 
 - 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 集群进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
+我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 集群进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
 
-### Linux
+<Tabs defaultValue="Linux">
+<TabItem value="Linux" label="Linux 系统安装依赖工具">
 
 - `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
 - `td2.0-connector` 2.0.6 支持 Node.js LTS v10.9.0 或更高版本, Node.js LTS v12.8.0 或更高版本；2.0.5 及更早版本支持 Node.js LTS v10.x 版本。其他版本可能存在包兼容性的问题
 - `make`
 - C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
 
-### Windows
+</TabItem>
+<TabItem value="Windows" label="Windows 系统安装依赖工具">
 
-#### 安装方法 1
+- 安装方法 1
 
 使用微软的[ windows-build-tools ](https://github.com/felixrieseberg/windows-build-tools)在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具。
 
-#### 安装方法 2
+- 安装方法 2
 
 手动安装以下工具：
 
@@ -78,20 +87,26 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 参考微软的 Node.js 用户手册[ Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
 
 如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
+</TabItem>
+</Tabs>
 
 ### 使用 npm 安装
 
-- 安装客户端驱动连接器
+<Tabs defaultValue="install_native">
+<TabItem value="install_native" label="安装原生连接器">
 
 ``` bash
 npm install td2.0-connector
 ```
 
-- 安装 REST 连接器
+</TabItem>
+<TabItem value="install_rest" label="安装 REST 连接器">
 
 ```bash
 npm i td2.0-rest-connector
 ```
+</TabItem>
+</Tabs>
 
 ### 安装验证
 
@@ -99,7 +114,7 @@ npm i td2.0-rest-connector
 
 验证方法：
 
-- 新建安装验证目录，例如：`~/tdengine-test`，拷贝 github 上 [nodejsChecker.js 源程序](https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js)。
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js)到本地。
 
 - 在命令行中执行以下命令。
 
@@ -109,11 +124,12 @@ npm install td2.0-connector
 node nodejsChecker.js host=localhost
 ```
 
-- 执行以上步骤后，在命令行会输出 nodejs 连接 TDengine 实例，并执行简单插入和查询的结果。
+- 执行以上步骤后，在命令行会输出 nodejsChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
 ## 建立连接
 
-### 建立连接
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
 
 安装并引用 `td2.0-connector` 包。
 
@@ -127,7 +143,8 @@ var cursor = conn.cursor(); // Initializing a new cursor
 conn.close();
 ```
 
-### 建立 REST 连接
+</TabItem>
+<TabItem value="rest" label="REST 连接">
 
 安装并引用 `td2.0-rest-connector` 包。
 
@@ -143,6 +160,8 @@ let conn = connect(options);
 let cursor = conn.cursor();
 
 ```
+</TabItem>
+</Tabs>
 
 ## 使用示例
 
