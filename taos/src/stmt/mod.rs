@@ -1,9 +1,9 @@
 use crate::{impls::SyncResultSet, util::IntoCStr, Code, Error, Result, Taos};
 use taos_query::common::{BorrowedColumn, Column};
-use taos_sys::{ffi::*, *};
+use taos_sys::{ffi::*};
 
 use std::os::raw::c_void;
-use std::{ffi::CStr, sync::Arc};
+use std::{ffi::CStr};
 
 mod bind;
 pub use bind::{BindParam, IntoBindParam};
@@ -222,7 +222,9 @@ mod tests {
     use bitvec_simd::BitVec;
 
     use crate::Result;
-    use taos_query::{common::Column, ResultSet};
+    use crate::prelude::sync::*;
+    use crate::prelude::common::*;
+    use crate::test;
 
     #[test]
     fn test_stmt() {
@@ -268,33 +270,18 @@ mod tests {
         stmt.execute().unwrap();
         let result = stmt.result().unwrap();
         let rows = result.affected_rows();
-        assert_eq!(N, rows as _);
+        assert_eq!(N, rows as usize);
         taos.stmt("drop database taos_test_multi_bind")
             .unwrap()
             .execute()
             .unwrap();
     }
-    #[tokio::test]
-    async fn test_multi_bind_str() {
-        let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-        taos.stmt("drop database if exists taos_test_multi_bind2")
-            .unwrap()
-            .execute()
-            .unwrap();
-        taos.stmt("create database if not exists taos_test_multi_bind2 keep 3650")
-            .unwrap()
-            .execute()
-            .unwrap();
-        taos.stmt("use taos_test_multi_bind2")
-            .unwrap()
-            .execute()
-            .unwrap();
+    #[crate::test]
+    fn test_multi_bind_str(taos: &Taos, _database: &str) -> Result<()> {
         taos.stmt("create table if not exists tb (ts timestamp, v binary(100)) ")
             .unwrap()
             .execute()
             .unwrap();
-        let taos =
-            crate::Taos::new("localhost", "root", "taosdata", "taos_test_multi_bind2", 0).unwrap();
         const N: usize = 5;
         let nulls = BitVec::zeros(N);
         let v: Vec<Option<String>> = (0..N).map(|_| Some("hello".to_string())).collect();
@@ -311,24 +298,18 @@ mod tests {
         stmt.execute().unwrap();
         let result = stmt.result().unwrap();
         let rows = result.affected_rows();
-        assert_eq!(N, rows as _);
+        assert_eq!(N, rows as usize);
 
-        let res = taos.query_sync("select * from tb").unwrap();
+        let mut res = taos.query("select * from tb").unwrap();
 
-        use futures::StreamExt;
         let data: (i64, Option<String>) = res
-            .rows_de_stream()
+            .deserialize()
             .next()
-            .await
             .expect("there's no database")
             .expect("");
         println!("ts: {}, v: {:?}", data.0, data.1);
         assert_eq!(data.1, Some("hello".to_string()));
-
-        taos.stmt("drop database taos_test_multi_bind2")
-            .unwrap()
-            .execute()
-            .unwrap();
+        Ok(())
     }
 }
 

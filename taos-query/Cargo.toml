@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "*"
-chrono = { version = "*", features = ["serde"] }
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
 itertools = "0.10.3"
-log = "*"
+log = "0.4"
 num_enum = "0.5.7"
 thiserror = "1.0"
 
@@ -24,7 +24,7 @@ async-trait = "0.1.53"
 futures = "0.3.21"
 
 # column
-bitvec_simd = "0.20.5"
+bitvec_simd = { version = "0.20.5", features = ["use_serde"] }
 
 [dev-dependencies]
 pretty_env_logger = "*"

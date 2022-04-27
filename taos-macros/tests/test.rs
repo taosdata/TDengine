@@ -1,4 +1,5 @@
-use taos::{Result, Taos};
+use taos::prelude::*;
+use anyhow::Result;
 use taos_macros::test;
 
 #[test()]

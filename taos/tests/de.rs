@@ -1,13 +1,15 @@
 #![allow(dead_code)]
-use std::ffi::CString;
-
 use chrono::NaiveDateTime;
 use futures::StreamExt;
 use futures::TryStreamExt;
+use std::ffi::CString;
+use taos::Value;
 
 use taos::helpers::ShowDatabase;
-use taos::*;
 
+use taos::prelude::*;
+
+pub use taos::helpers;
 #[derive(serde::Deserialize, Debug)]
 struct JsonTag {
     name: String,
@@ -62,7 +64,8 @@ struct RecordOptionWithJsonTag {
     json_tag: Option<JsonTag>,
 }
 
-#[taos::prelude::test]
+#[cfg(any(feature = "test", test))]
+#[taos::test]
 async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
@@ -82,15 +85,15 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     ))?;
 
     log::info!("select");
-    let res = taos
+    let mut res = taos
         .query("select tbname,groupid,location from stb1")
         .await?;
     use futures::StreamExt;
 
     // block.rows_iter()
-    // let mut stream = res.rows_de_stream();
+    // let mut stream = res.deserialize_stream();
     use futures::future;
-    res.rows_de_stream::<Vec<Value>>()
+    res.deserialize_stream::<Vec<Value>>()
         .enumerate()
         .for_each(|(_, v)| {
             let value = v.unwrap();
@@ -109,7 +112,7 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_seq_value2(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
@@ -129,15 +132,15 @@ async fn de_seq_value2(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     ))?;
 
     log::info!("select");
-    let res = taos
+    let mut res = taos
         .query("select tbname,groupid,location from stb1")
         .await?;
     use futures::StreamExt;
 
     // block.rows_iter()
-    // let mut stream = res.rows_de_stream();
+    // let mut stream = res.deserialize_stream();
     use futures::future;
-    res.rows_de_stream::<Vec<Value>>()
+    res.deserialize_stream::<Vec<Value>>()
         .enumerate()
         .for_each(|(_, v)| {
             let value = v.unwrap();
@@ -148,7 +151,7 @@ async fn de_seq_value2(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_all(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
@@ -164,16 +167,16 @@ async fn de_all(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     ))?;
 
     log::info!("select");
-    let res = taos.query("select * from stb1").await?;
+    let mut res = taos.query("select * from stb1").await?;
     use futures::StreamExt;
 
     // block.rows_iter()
-    let record: Record = res.rows_de_stream().next().await.unwrap()?;
+    let record: Record = res.deserialize_stream().next().await.unwrap()?;
     log::debug!("fetched record {:?}", record);
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_all_option(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
@@ -192,14 +195,14 @@ async fn de_all_option(taos: &Taos, _database: &str) -> anyhow::Result<()> {
         r#"values (now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)"#
     ))?;
     log::info!("select");
-    let res = taos.query("select * from stb1").await?;
+    let mut res = taos.query("select * from stb1").await?;
     // block.rows_iter()
-    let record: Vec<RecordOption> = res.rows_de_stream().try_collect().await?;
+    let record: Vec<RecordOption> = res.deserialize_stream().try_collect().await?;
     log::debug!("fetched record {:?}", record);
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
@@ -218,43 +221,51 @@ async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> any
         r#"values (now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)"#
     ))?;
     log::info!("select");
-    let res = taos.query("select * from stb1").await?;
+    let mut res = taos.query("select * from stb1").await?;
     // block.rows_iter()
-    let record: Vec<RecordOptionWithJsonTag> = res.rows_de_stream().try_collect().await?;
+    let record: Vec<RecordOptionWithJsonTag> = res.deserialize_stream().try_collect().await?;
     log::debug!("fetched record {:?}", record);
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_string(taos: &Taos) -> anyhow::Result<()> {
-    let res = taos.query("select server_version() as version").await?;
+    let mut res = taos.query("select server_version() as version").await?;
     use futures::StreamExt;
 
-    let version: String = res.rows_de_stream().next().await.expect("select version")?;
+    let version: String = res
+        .deserialize_stream()
+        .next()
+        .await
+        .expect("select version")?;
     println!("version: {version}");
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_wrapper_struct(taos: &Taos) -> anyhow::Result<()> {
-    let res = taos.query("select server_version() as version").await?;
+    let mut res = taos.query("select server_version() as version").await?;
     use futures::StreamExt;
 
     #[derive(::serde::Deserialize, Debug)]
     struct Version(String);
-    let version: Version = res.rows_de_stream().next().await.expect("select version")?;
+    let version: Version = res
+        .deserialize_stream()
+        .next()
+        .await
+        .expect("select version")?;
     println!("version: {:?}", version);
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_named_struct(taos: &Taos) -> anyhow::Result<()> {
     macro_rules! de {
         ($taos:expr, $sql:expr) => {
             $taos
                 .query($sql)
                 .await?
-                .rows_de_stream()
+                .deserialize_stream()
                 .next()
                 .await
                 .unwrap()?
@@ -284,27 +295,13 @@ async fn de_named_struct(taos: &Taos) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[taos::prelude::test]
+#[taos::test]
 async fn de_vec(taos: &Taos) -> anyhow::Result<()> {
     // let taos = TaosOptions::new().build()?;
     // std::env::set_var("RUST_LOG", "trace");
     // pretty_env_logger::init();
 
-    #[derive(::serde::Deserialize, Debug)]
-    struct Database {
-        name: String,
-        created_time: NaiveDateTime,
-        ntables: u64,
-        #[serde(flatten)]
-        props: helpers::DatabaseProperties,
-        status: String,
-    }
-    let db: Vec<ShowDatabase> = taos
-        .query(format!("show databases"))
-        .await?
-        .rows_de_stream()
-        .try_collect()
-        .await?;
+    let db: Vec<ShowDatabase> = taos.databases().await?;
     println!("db: {:?}", db);
     Ok(())
 }

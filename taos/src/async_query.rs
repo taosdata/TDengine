@@ -9,7 +9,7 @@ use std::{
 };
 
 use std::sync::Mutex;
-use taos_sys::{ffi::TAOS_RES, RawRes};
+use taos_sys::ffi::TAOS_RES;
 
 use crate::{util::IntoCStr, Result, Taos, TaosResult};
 
@@ -84,13 +84,11 @@ impl<'query> QueryFuture<'query> {
             }
         }
 
-        unsafe {
-            taos.0.query_a(
-                sql.into_c_str().as_ptr(),
-                async_query_callback as _,
-                Box::into_raw(Box::new(shared_state.clone())) as *mut _,
-            );
-        }
+        taos.0.query_a(
+            sql.into_c_str().as_ptr(),
+            async_query_callback as _,
+            Box::into_raw(Box::new(shared_state.clone())) as *mut _,
+        );
 
         QueryFuture {
             shared_state,

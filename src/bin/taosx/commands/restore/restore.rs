@@ -2,6 +2,7 @@ use clap::Args;
 use futures::Future;
 use std::path::PathBuf;
 use taos::{query::common::*, TaosOptions, Value};
+use taos::prelude::*;
 use taosx::{TaosBlock, TaosDescribe, TaosOpts, TaosTag};
 use tokio::runtime::Builder;
 pub(crate) mod deserialize;

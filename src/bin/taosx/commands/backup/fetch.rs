@@ -1,5 +1,5 @@
 use futures::TryStreamExt;
-use taos::TaosOptions;
+use taos::prelude::*;
 use taosx::Database;
 use tokio::runtime::Builder;
 #[derive(::serde::Deserialize, Debug)]
@@ -21,7 +21,7 @@ pub fn fetch_table_list(database: String) -> (Vec<String>, Vec<String>, Vec<Stri
             taos.query("show tables")
                 .await
                 .unwrap()
-                .rows_de_stream()
+                .deserialize_stream()
                 .try_collect()
                 .await
                 .unwrap()
@@ -51,7 +51,7 @@ pub fn fetch_database_info(database: String) -> Database {
             taos.query("show databases")
                 .await
                 .unwrap()
-                .rows_de_stream()
+                .deserialize_stream()
                 .try_collect()
                 .await
                 .unwrap()

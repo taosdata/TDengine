@@ -1,12 +1,10 @@
 // use block::Row;
 use futures::Stream;
 use serde::de::DeserializeOwned;
-use std::{borrow::Cow, ffi::CStr};
-use taos_query::{common::Field, IntoRowsIter, RowInBlock};
 
 use taos_sys::{ffi::*, DroppableRawRes as RawRes, *};
 
-use crate::{impls::SyncBlock, *};
+use crate::*;
 
 #[derive(Debug)]
 pub enum TaosResult<'a> {
@@ -31,10 +29,6 @@ impl<'a> TaosResult<'a> {
         }
     }
 
-    pub(crate) fn try_from_ptr(result: *mut TAOS_RES) -> Result<Self> {
-        Self::new(result, unsafe { taos_errno(result) })
-    }
-
     pub(crate) fn new(result: *mut TAOS_RES, code: i32) -> Result<Self> {
         if code < 0 {
             let code: Code = (code & 0xffff).into();
@@ -44,26 +38,8 @@ impl<'a> TaosResult<'a> {
         }
     }
 
-    pub(crate) fn get_field_names_to_string_vec(&self) -> Vec<String> {
-        match self {
-            TaosResult::WithFields(raw) => {
-                raw.fields().iter().map(|f| f.name().to_string()).collect()
-            }
-            _ => unreachable!("do not fetch fields in a result without fields"),
-        }
-    }
-    pub(crate) unsafe fn get_field_unchecked(&self, index: usize) -> &Field {
-        match self {
-            TaosResult::WithFields(raw) => &raw.fields()[index],
-            _ => unreachable!("do not fetch fields in a result without fields"),
-        }
-    }
-
     pub fn num_of_fields(&self) -> usize {
-        match self {
-            TaosResult::WithFields(raw) => raw.fields().len(),
-            _ => 0,
-        }
+        self.as_raw().fields().len()
     }
 
     pub fn precision(&self) -> Precision {
@@ -74,18 +50,11 @@ impl<'a> TaosResult<'a> {
         self.as_raw().affected_rows() as _
     }
 
-    pub fn fetch_block_stream(&self) -> block::BlockStream {
-        block::BlockStream::new(self)
+    pub fn block_stream(&self) -> block::BlockStream {
+        block::BlockStream::from_raw(self.as_raw().raw(), Default::default())
     }
 
-    // pub fn rows_stream(&self) -> impl Stream<Item = RowInBlock<SyncBlock<'_>>> {
-    //     use futures::StreamExt;
-
-    //     use taos_query::{BlockExt, ResultSet};
-    //     block::BlockStream::new(self)
-    //         .flat_map(|block| futures::stream::iter(block.deserialize_into_vec()))
-    // }
-    pub fn rows_de_stream<'b, T: 'a + 'b>(
+    pub fn deserialize_stream<'b, T: 'a + 'b>(
         &self,
     ) -> impl Stream<Item = std::result::Result<T, serde::de::value::Error>> + '_
     where
@@ -93,7 +62,7 @@ impl<'a> TaosResult<'a> {
     {
         use futures::StreamExt;
         use taos_query::BlockExt;
-        block::BlockStream::new(self)
+        self.block_stream()
             .flat_map(|block| futures::stream::iter(block.deserialize_into_vec()))
     }
 }

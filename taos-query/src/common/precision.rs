@@ -20,6 +20,18 @@ pub enum Precision {
     Nanosecond,
 }
 
+impl PartialEq<str> for Precision {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for Precision {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
 impl Precision {
     pub const fn as_str(&self) -> &'static str {
         use Precision::*;

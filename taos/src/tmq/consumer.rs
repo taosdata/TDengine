@@ -57,7 +57,7 @@ impl Consumer {
         }
     }
 
-    pub fn poll(&self, blocking_time: i64) -> Option<Message> {
+    pub fn poll(&self, _blocking_time: i64) -> Option<Message> {
         todo!()
         // let message = unsafe { tmq_consumer_poll(self.0, blocking_time) };
         // if message.is_null() {

@@ -3,19 +3,13 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use taos::{Taos, TaosOptions};
 
 fn bench_query_sync0(taos: &Taos) {
-    let _ = taos.query_sync0("select * from log.logs");
-}
-
-fn bench_query_sync1(taos: &Taos) {
+    use taos::prelude::AsyncQueryable;
     let _ = taos.query_sync("select * from log.logs");
 }
 
-fn bench_query_sync2(taos: &Taos) {
-    let _ = taos.query_sync2("select * from log.logs");
-}
-
-fn bench_query_sync3(taos: &Taos) {
-    let _ = taos.query_sync3("select * from log.logs");
+fn bench_query_sync1(taos: &Taos) {
+    use taos::prelude::sync::Queryable;
+    let _ = taos.query("select * from log.logs");
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -29,17 +23,10 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let _rt = runtime::Runtime::new().unwrap();
 
-    group.bench_function("sync", |b| b.iter(|| bench_query_sync0(&taos)));
-    group.bench_function("async with custom future", |b| {
+    group.bench_function("async", |b| b.iter(|| bench_query_sync0(&taos)));
+    group.bench_function("sync", |b| {
         b.iter(|| bench_query_sync1(&taos))
     });
-    group.bench_function("async with oneshot", |b| {
-        b.iter(|| bench_query_sync2(&taos))
-    });
-    group.bench_function("async with tokio oneshot", |b| {
-        b.iter(|| bench_query_sync3(&taos))
-    });
-
     group.finish();
 }
 

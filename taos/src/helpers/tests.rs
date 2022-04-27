@@ -3,7 +3,9 @@ use std::{io::Write, ops::Deref, str::FromStr, sync::Once};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 
-use crate::{Result, Taos, TaosOptions};
+use crate::prelude::*;
+
+use anyhow::Result;
 
 use taos_query::common::Precision;
 
@@ -74,7 +76,6 @@ impl NamingStrategy {
                 }
             }
             Named(name) => name.clone(),
-            _ => unimplemented!(),
         }
     }
 }
@@ -236,7 +237,7 @@ impl From<&str> for PrecisionStrategy {
 impl FromStr for PrecisionStrategy {
     type Err = crate::Error;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> crate::Result<Self> {
         use PrecisionStrategy::*;
         match Precision::from_str(s) {
             Ok(p) => Ok(Preset(p)),

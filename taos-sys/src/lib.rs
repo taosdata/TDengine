@@ -2,15 +2,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    ffi::CStr,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    os::raw::*,
-    sync::Arc,
-};
+use std::{ffi::CStr, marker::PhantomData, ops::Deref, os::raw::*, sync::Arc};
 
 use once_cell::sync::OnceCell;
 use taos_error::{Code, Error};

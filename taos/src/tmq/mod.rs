@@ -33,7 +33,8 @@ impl Taos {
         let (name, sql) = (name.as_ref(), sql.as_ref());
         let query = format!("create topic if not exists {name} as {sql}");
 
-        self.query_sync2(&query)?;
+        use crate::prelude::sync::*;
+        self.query(&query).map_err(|e| Error::from_string(format!("{e}")))?;
         Ok(())
     }
 
@@ -64,15 +65,20 @@ mod test {
     use std::time::Duration;
 
     use crate::tmq::*;
-    use crate::Result;
     use crate::TaosOptions;
+    use crate::prelude::sync::*;
+
+    use crate::test;
+
+    use anyhow::Result;
+
     fn init_env(taos: &Taos) -> Result<()> {
-        taos.query_sync2("create database if not exists abc1 vgroups 1")?;
+        taos.query("create database if not exists abc1 vgroups 1")?;
         println!("ues abc1");
-        taos.query_sync2("use abc1")?;
-        taos.query_sync2("create stable if not exists st1 (ts timestamp, k int) tags(a int)")?;
-        taos.query_sync2("create table if not exists tu1 using st1 tags(1)")?;
-        taos.query_sync2("create table if not exists tu2 using st1 tags(2)")?;
+        taos.query("use abc1")?;
+        taos.query("create stable if not exists st1 (ts timestamp, k int) tags(a int)")?;
+        taos.query("create table if not exists tu1 using st1 tags(1)")?;
+        taos.query("create table if not exists tu2 using st1 tags(2)")?;
         Ok(())
     }
 
@@ -88,16 +94,16 @@ mod test {
         let mut conf = TmqConf::new();
         conf.set("group.id", "tg2")?;
         unsafe extern "C" fn tmq_commit_callback(
-            tmq: *mut tmq_t,
+            _tmq: *mut tmq_t,
             resp: tmq_resp_err_t,
-            topic: *mut tmq_topic_vgroup_list_t,
-            param: *mut c_void,
+            _topic: *mut tmq_topic_vgroup_list_t,
+            _param: *mut c_void,
         ) {
             println!("commit {resp:?}");
         }
         conf.set_offset_commit_cb(tmq_commit_callback);
         println!("build consumer");
-        taos.consumer(&conf)
+        Ok(taos.consumer(&conf)?)
     }
 
     fn build_topic_list() -> Result<TmqList> {
@@ -127,7 +133,8 @@ mod test {
             let taos = Taos::new((), "root", "taosdata", "abc1", 0)?;
             println!("start to insert 10 rows");
             for i in 0..10 {
-                taos.query_sync2(&format!("insert into tu1 values (now, {i})"))?;
+                use crate::prelude::sync::*;
+                taos.query(&format!("insert into tu1 values (now, {i})"))?;
                 println!("- {i} rows inserted");
                 thread::sleep(Duration::from_millis(1));
             }

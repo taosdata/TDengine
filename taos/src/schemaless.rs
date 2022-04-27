@@ -66,18 +66,13 @@ impl Taos {
 mod test {
     use crate::schemaless::*;
 
-    #[tokio::test]
+    use crate::prelude::*;
+
+    use anyhow::Result;
+
+    #[crate::test]
     /// Test schemaless insert with InfluxDB line protocol
-    async fn line_insert() -> Result<()> {
-        let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-
-        let db = "rs_test_line";
-        println!("test using {}", db);
-        taos.exec(format!("drop database if exists {}", db)).await?;
-        taos.exec(format!("create database if not exists {} keep 36500", db))
-            .await?;
-        taos.exec(format!("use {}", db)).await?;
-
+    async fn line_insert(taos: &Taos, _database: &str) -> Result<()> {
         let lines = ["st,t1=abc,t2=def,t3=anything c1=3i64,c3=L\"pass\",c2=false,c4=4f64 1626006833639000000"];
         let res = taos.schemaless_insert(
             &lines,
@@ -88,22 +83,12 @@ mod test {
 
         let res = taos.query("select * from st").await?;
         println!("{res:?}");
-
-        taos.exec(format!("drop database {}", db)).await?;
         Ok(())
     }
 
-    #[tokio::test]
+    #[crate::test]
     /// Test schemaless insert with OpenTSDB telnet protocol
-    async fn telnet_insert() -> Result<()> {
-        let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
-
-        let db = "rs_test_sml_telnet";
-        println!("test using {}", db);
-        taos.exec(format!("drop database if exists {}", db)).await?;
-        taos.exec(format!("create database if not exists {} keep 36500", db))
-            .await?;
-        taos.exec(format!("use {}", db)).await?;
+    async fn telnet_insert(taos: &Taos, _database: &str) -> Result<()> {
         let lines = [
             "sys.if.bytes.out 1479496100 1.3E3 host=web01 interface=eth0",
             "sys.if.bytes.out 1479496200 1.4E3 host=web02 interface=eth1",
@@ -117,22 +102,12 @@ mod test {
 
         let res = taos.query("select * from `sys.if.bytes.out`").await?;
         println!("{res:?}");
-
-        taos.exec(format!("drop database {}", db)).await?;
         Ok(())
     }
 
-    #[tokio::test]
+    #[crate::test]
     /// Test schemaless insert with OpenTSDB json protocol
-    async fn json_insert() -> Result<()> {
-        let taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-
-        let db = "rs_test_sml_json";
-        println!("test using {}", db);
-        taos.exec(format!("drop database if exists {}", db)).await?;
-        taos.exec(format!("create database if not exists {} keep 36500", db))
-            .await?;
-        taos.exec(format!("use {}", db)).await?;
+    async fn json_insert(taos: &Taos, _database: &str) -> Result<()> {
         let lines = [r#"
         {
             "metric":   "st",
@@ -154,7 +129,6 @@ mod test {
         let res = taos.query("select * from st").await?;
         println!("{res:?}");
 
-        let _ = taos.query(&format!("drop database {}", db)).await?;
         Ok(())
     }
 }

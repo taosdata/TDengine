@@ -3,7 +3,8 @@ use chrono_tz::Tz;
 use clap::Args;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use taos::{block::*, helpers::ColumnMeta, Value, BlockExt};
+use taos::prelude::*;
+use taos::{block::*, helpers::ColumnMeta};
 
 use url::Url;
 

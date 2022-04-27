@@ -1,8 +1,6 @@
-use std::ffi::{c_void, CStr};
+use std::ffi::{CStr};
 
 use taos_sys::*;
-
-use crate::{block::BorrowedValue, timestamp::TimestampValue, Value};
 
 use super::Consumer;
 
@@ -16,12 +14,6 @@ impl<'tmq> Message<'tmq> {
     pub fn new(tmq: &'tmq Consumer, ptr: *mut tmq_message_t) -> Self {
         Self { tmq, ptr }
     }
-    // pub fn rows_iter(&self) -> RowsIter {
-    //     RowsIter {
-    //         msg: self,
-    //         fields: self.fields(),
-    //     }
-    // }
 
     pub fn topic_name<'a>(&'a self) -> &'a CStr {
         unsafe { CStr::from_ptr(tmq_get_topic_name(self.ptr)) }
@@ -47,6 +39,7 @@ impl<'tmq> Message<'tmq> {
         unsafe { std::slice::from_raw_parts(ptr, len) }
     }
 
+    #[cfg(test)]
     pub(crate) fn show_raw(&self) {
         unsafe { tmqShowMsg(self.ptr) }
     }

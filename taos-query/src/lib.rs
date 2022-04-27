@@ -1,8 +1,8 @@
 //! This is the common query traits/types for TDengine connectors.
 //!
 
-use serde::de::value::Error as DeError;
-use std::{borrow::Cow, cell::Cell, fmt::Debug, marker::PhantomData, rc::Rc, sync::Arc};
+use serde::de::{value::Error as DeError, DeserializeOwned};
+use std::{fmt::Debug, rc::Rc};
 
 pub mod common;
 mod de;
@@ -317,6 +317,16 @@ where
         self
     }
 
+    fn rows_iter<'r>(
+        &'r mut self,
+    ) -> std::iter::FlatMap<
+        &'r mut Self,
+        IntoRowsIter<<&'r mut Self as Iterator>::Item>,
+        fn(<&'r mut Self as Iterator>::Item) -> IntoRowsIter<<&'r mut Self as Iterator>::Item>,
+    > {
+        self.flat_map(|block| block.into_iter_rows())
+    }
+
     fn deserialize<T>(
         &mut self,
     ) -> std::iter::FlatMap<
@@ -342,6 +352,17 @@ where
     type ResultSet: ResultSet;
 
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
+
+    fn query_one<T: AsRef<str>, O: DeserializeOwned>(
+        &'q self,
+        sql: T,
+    ) -> Result<Option<O>, Self::Error> {
+        self.query(sql)?
+            .deserialize::<O>()
+            .next()
+            .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
+    }
+
 
     fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
         self.query(sql).map(|res| res.affected_rows() as _)
@@ -416,6 +437,37 @@ where
     async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
         self.query(sql).await.map(|res| res.affected_rows() as _)
     }
+
+
+    /// To conveniently get first row of the result, useful for queries like
+    /// 
+    /// - `select count(*) from ...`
+    /// - `select last(*) from ...`
+    /// 
+    /// Type `T` could be `Vec<taos::query::common::Value>`, a tuple, or a struct with serde support.
+    /// 
+    /// ## Example
+    /// 
+    /// ```rust,ignore
+    /// let count: u32 = taos.query_one("select count(*) from table1")?.unwrap();
+    /// 
+    /// let one: (i32, String, Timestamp) =
+    ///    taos.query_one("select c1,c2,c3 from table1 limit 1")?.unwrap();
+    /// ```
+    async fn query_one<T: AsRef<str> + Send, O: DeserializeOwned + Send>(
+        &'q self,
+        sql: T,
+    ) -> Result<Option<O>, Self::Error> {
+        use futures::StreamExt;
+        self.query(sql).await?
+            .deserialize_stream::<O>()
+            .take(1)
+            .collect::<Vec<_>>().await
+            .into_iter()
+            .next()
+            .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
+    }
+
     async fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use futures::stream::TryStreamExt;
         Ok(self
@@ -515,7 +567,7 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct MyResultSet<'q>(PhantomData<(&'q u8)>);
+    struct MyResultSet<'q>(PhantomData<&'q u8>);
 
     #[derive(Debug)]
     struct Block<'r, 'q>(PhantomData<(&'r u8, &'q u8)>);
@@ -564,7 +616,7 @@ mod tests {
             }
         }
 
-        unsafe fn get_col_unchecked(&self, col: usize) -> BorrowedColumn {
+        unsafe fn get_col_unchecked(&self, _col: usize) -> BorrowedColumn {
             todo!()
         }
     }

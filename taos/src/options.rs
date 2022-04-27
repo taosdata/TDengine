@@ -149,6 +149,7 @@ fn test_options_builder() {
 
 #[test]
 fn test_options_builder_all() {
+    use crate::prelude::*;
     let opts = TaosOptions::new()
         .locale("en_US")
         .charset("UTF-8")

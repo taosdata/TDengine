@@ -9,6 +9,8 @@ use std::{
     sync::Arc,
 };
 use taos::TaosOptions;
+use taos::prelude::*;
+
 use taosx::{Database, TaosOpts};
 use thread_id;
 use tokio::runtime::Builder;
@@ -197,7 +199,7 @@ async fn backup_stable_tags(
             .query(format!("select tbname{} from {}", tag_buffer, tbname).as_str())
             .await
             .unwrap();
-        let stream = res.fetch_block_stream();
+        let stream = res.block_stream();
         serialize.serialize_tag(&tbname, stream).await;
     }
 }
@@ -218,7 +220,7 @@ async fn backup_data(
             .query(format!("select * from {}", tbname).as_str())
             .await
             .unwrap();
-        let stream = res.fetch_block_stream();
+        let stream = res.block_stream();
         serialize.serialize_data(&tbname, stream).await;
     }
 }
