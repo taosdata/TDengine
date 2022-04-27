@@ -19,7 +19,7 @@ import RustQuery from "../../04-develop/04-query-data/_rust.mdx"
 
 `libtaos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
 
-`libtaos` 使用不同的 “特性（即 Cargo 关键字 features）” 提供对通过客户端驱动程序（taosc）原生连接和使用 REST 连接 TDengine 集群。
+`libtaos` 提供两种形式的连接器。一种是原生连接器，通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。另外一种是 REST 连接器，它通过 taosAdapter 的 REST 接口连接 TDengine 运行实例。你通过不同的 “特性（即 Cargo 关键字 features）” 来指定使用哪种连接器。REST 连接器可以在任何平台运行，但原生连接器依赖 TDengine 客户端能运行的平台。
 
 `libtaos` 的源码托管在 [GitHub](https://github.com/taosdata/libtaos-rs)。
 
@@ -39,15 +39,18 @@ Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容�
 
 建议使用 2.4 版本以上的 TDengine，以避免已知问题。
 
-## 安装前准备
+## 安装
 
+### 安装前准备
 * 安装 Rust 开发工具链
-<Preparition />
+* 如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
 
-之后可以按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
+### 添加 libtaos 依赖
+
+根据选择的连接器，按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="建立原生连接">
+<TabItem value="native" label="原生连接器">
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]：
 
@@ -58,7 +61,7 @@ libtaos = "*"
 ```
 
 </TabItem>
-<TabItem value="rest" label="建立 REST 连接">
+<TabItem value="rest" label="REST 连接器">
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]，并启用 `rest` 特性。
 
@@ -69,7 +72,8 @@ libtaos = { version = "*", features = ["rest"]}
 ```
 
 </TabItem>
-<TabItem value="pool" label="使用连接池">
+</Tabs>
+   
 ### 使用连接池
 
 选择使用客户端驱动或 REST 接口，并在 `Cargo.toml` 中启用 `r2d2` 特性。
@@ -81,8 +85,6 @@ libtaos = { version = "*", features = ["r2d2"] }
 # or rest
 libtaos = { version = "*", features = ["rest", "r2d2"] }
 ```
-</TabItem>
-</Tabs>
 
 ## 建立连接
 
