@@ -21,6 +21,7 @@ extern "C" {
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
+#include "osSocket.h"
 #include "rpcCache.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
@@ -105,6 +106,7 @@ typedef void* queue[2];
 
 #define TRANS_RETRY_COUNT_LIMIT 10  // retry count limit
 #define TRANS_RETRY_INTERVAL    5   // ms retry interval
+#define TRANS_CONN_TIMEOUT      3   // connect timeout
 
 typedef struct {
   SRpcInfo* pRpc;     // associated SRpcInfo

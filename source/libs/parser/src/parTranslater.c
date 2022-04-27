@@ -2049,10 +2049,10 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
   }
   strcpy(pTable->table.dbName, pInfo->pDbName);
   strcpy(pTable->table.tableName, pInfo->pTableName);
-  TSWAP(pTable->pMeta, pInfo->pRollupTableMeta, STableMeta*);
+  TSWAP(pTable->pMeta, pInfo->pRollupTableMeta);
   pSelect->pFromTable = (SNode*)pTable;
 
-  TSWAP(pSelect->pProjectionList, pInfo->pFuncs, SNodeList*);
+  TSWAP(pSelect->pProjectionList, pInfo->pFuncs);
   SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pSelect->pProjectionList || NULL == pFunc) {
     nodesDestroyNode(pSelect);
@@ -2069,9 +2069,9 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pSelect->pWindow = (SNode*)pInterval;
-  TSWAP(pInterval->pInterval, pInfo->pInterval, SNode*);
-  TSWAP(pInterval->pOffset, pInfo->pOffset, SNode*);
-  TSWAP(pInterval->pSliding, pInfo->pSliding, SNode*);
+  TSWAP(pInterval->pInterval, pInfo->pInterval);
+  TSWAP(pInterval->pOffset, pInfo->pOffset);
+  TSWAP(pInterval->pSliding, pInfo->pSliding);
   pInterval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pInterval->pCol) {
     nodesDestroyNode(pSelect);
@@ -3282,7 +3282,8 @@ static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* 
   int    tlen;
   SCoder coder = {0};
 
-  tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen);
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen, ret);
   tlen += sizeof(SMsgHead);  //+ tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = taosMemoryMalloc(tlen);
   if (NULL == buf) {
@@ -3696,7 +3697,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     default:
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {
-        TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg, SCmdMsgInfo*);
+        TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg);
         pQuery->msgType = pQuery->pCmdMsg->msgType;
       }
       break;

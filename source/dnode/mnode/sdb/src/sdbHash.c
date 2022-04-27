@@ -137,7 +137,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pOldRow != NULL) {
     taosWUnLockLatch(pLock);
-    sdbFreeRow(pSdb, pRow);
+    sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
     return terrno;
   }
@@ -148,7 +148,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
     taosWUnLockLatch(pLock);
-    sdbFreeRow(pSdb, pRow);
+    sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
     return terrno;
   }
@@ -164,7 +164,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
       taosWLockLatch(pLock);
       taosHashRemove(hash, pRow->pObj, keySize);
       taosWUnLockLatch(pLock);
-      sdbFreeRow(pSdb, pRow);
+      sdbFreeRow(pSdb, pRow, false);
       terrno = code;
       return terrno;
     }
@@ -202,7 +202,7 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
-  sdbFreeRow(pSdb, pNewRow);
+  sdbFreeRow(pSdb, pNewRow, false);
 
   pSdb->tableVer[pOldRow->type]++;
   return code;
@@ -215,7 +215,7 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow **ppOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
     taosWUnLockLatch(pLock);
-    sdbFreeRow(pSdb, pRow);
+    sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
     return terrno;
   }
@@ -228,7 +228,7 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   taosWUnLockLatch(pLock);
 
   pSdb->tableVer[pOldRow->type]++;
-  sdbFreeRow(pSdb, pRow);
+  sdbFreeRow(pSdb, pRow, false);
 
   sdbCheck(pSdb, pOldRow);
   // sdbRelease(pSdb, pOldRow->pObj);
@@ -322,7 +322,7 @@ static void sdbCheck(SSdb *pSdb, SSdbRow *pRow) {
   int32_t ref = atomic_load_32(&pRow->refCount);
   sdbPrintOper(pSdb, pRow, "check");
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
-    sdbFreeRow(pSdb, pRow);
+    sdbFreeRow(pSdb, pRow, true);
   }
 
   taosRUnLockLatch(pLock);
@@ -340,7 +340,7 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "release");
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
-    sdbFreeRow(pSdb, pRow);
+    sdbFreeRow(pSdb, pRow, true);
   }
 
   taosRUnLockLatch(pLock);

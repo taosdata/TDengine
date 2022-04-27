@@ -1302,6 +1302,11 @@ int32_t tDeserializeSGetUserAuthRsp(void *buf, int32_t bufLen, SGetUserAuthRsp *
   return 0;
 }
 
+void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
+  taosHashCleanup(pRsp->readDbs);
+  taosHashCleanup(pRsp->writeDbs);
+}
+
 int32_t tSerializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -3226,7 +3231,7 @@ int32_t tEncodeSMqCMCommitOffsetReq(SCoder *encoder, const SMqCMCommitOffsetReq 
 int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq) {
   if (tStartDecode(decoder) < 0) return -1;
   if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
-  pReq->offsets = (SMqOffset *)TCODER_MALLOC(decoder, sizeof(SMqOffset) * pReq->num);
+  pReq->offsets = (SMqOffset *)tCoderMalloc(decoder, sizeof(SMqOffset) * pReq->num);
   if (pReq->offsets == NULL) return -1;
   for (int32_t i = 0; i < pReq->num; i++) {
     tDecodeSMqOffset(decoder, &pReq->offsets[i]);
@@ -3509,7 +3514,7 @@ int tDecodeSVCreateTbBatchRsp(SCoder *pCoder, SVCreateTbBatchRsp *pRsp) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32v(pCoder, &pRsp->nRsps) < 0) return -1;
-  pRsp->pRsps = (SVCreateTbRsp *)TCODER_MALLOC(pCoder, sizeof(*pRsp->pRsps) * pRsp->nRsps);
+  pRsp->pRsps = (SVCreateTbRsp *)tCoderMalloc(pCoder, sizeof(*pRsp->pRsps) * pRsp->nRsps);
   for (int32_t i = 0; i < pRsp->nRsps; i++) {
     if (tDecodeSVCreateTbRsp(pCoder, pRsp->pRsps + i) < 0) return -1;
   }
@@ -3738,7 +3743,7 @@ int tDecodeSVCreateTbBatchReq(SCoder *pCoder, SVCreateTbBatchReq *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32v(pCoder, &pReq->nReqs) < 0) return -1;
-  pReq->pReqs = (SVCreateTbReq *)TCODER_MALLOC(pCoder, sizeof(SVCreateTbReq) * pReq->nReqs);
+  pReq->pReqs = (SVCreateTbReq *)tCoderMalloc(pCoder, sizeof(SVCreateTbReq) * pReq->nReqs);
   if (pReq->pReqs == NULL) return -1;
   for (int iReq = 0; iReq < pReq->nReqs; iReq++) {
     if (tDecodeSVCreateTbReq(pCoder, pReq->pReqs + iReq) < 0) return -1;

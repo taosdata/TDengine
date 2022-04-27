@@ -380,7 +380,7 @@ typedef struct SStreamBlockScanInfo {
 typedef struct SSysTableScanInfo {
   union {
     void* pTransporter;
-    void* readHandle;
+    SReadHandle readHandle;
   };
 
   SRetrieveMetaTableRsp* pRsp;

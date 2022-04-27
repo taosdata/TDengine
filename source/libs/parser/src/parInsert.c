@@ -307,7 +307,7 @@ static int32_t buildOutput(SInsertParseContext* pCxt) {
     taosHashGetDup(pCxt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
-    TSWAP(dst->pData, src->pData, char*);
+    TSWAP(dst->pData, src->pData);
     buildMsgHeader(src, dst);
     taosArrayPush(pCxt->pOutput->pDataBlocks, &dst);
   }
@@ -1069,7 +1069,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && tbNum > 0) {
       return buildInvalidOperationMsg(&pCxt->msg, "single table allowed in one stmt");
-      ;
     }
 
     destroyInsertParseContextForTable(pCxt);

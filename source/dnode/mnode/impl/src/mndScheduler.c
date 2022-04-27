@@ -489,7 +489,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
     if (levelNum != 1) {
       qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
       return -1;
     }
 
@@ -498,7 +498,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     int32_t opNum = LIST_LENGTH(inner->pNodeList);
     if (opNum != 1) {
       qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
       return -1;
     }
     plan = nodesListGetNode(inner->pNodeList, 0);

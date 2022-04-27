@@ -666,7 +666,6 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   code = param.rspErr;
   if (code != 0) goto FAIL;
 
-  // TODO: add max retry cnt
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
     tscDebug("not ready, retry");
     taosMsleep(500);
@@ -683,7 +682,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   code = 0;
 FAIL:
   if (req.topicNames != NULL) taosArrayDestroyP(req.topicNames, taosMemoryFree);
-  if (code != 0) {
+  if (code != 0 && buf) {
     taosMemoryFree(buf);
   }
   return code;
@@ -1265,6 +1264,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
     return (TAOS_RES*)rspObj;
   }
 
+  // in no topic status also need process delayed task
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT) {
     return NULL;
   }
@@ -1285,6 +1285,9 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
         return NULL;
       }
       tsem_timewait(&tmq->rspSem, leftTime * 1000);
+    } else {
+      // use tsem_timewait instead of tsem_wait to avoid unexpected stuck
+      tsem_timewait(&tmq->rspSem, 500 * 1000);
     }
   }
 }

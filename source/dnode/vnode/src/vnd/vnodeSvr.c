@@ -142,7 +142,7 @@ _err:
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config};
+  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
@@ -369,7 +369,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   tCoderClear(&coder);
 
   // prepare rsp
-  tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen);
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   if (pRsp->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
