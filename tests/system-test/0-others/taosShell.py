@@ -70,11 +70,12 @@ class TDTestCase:
     #                 'serverPort': 7080, 'firstEp': 'trd02:7080'}
     hostname = socket.gethostname()
     serverPort = '7080'
-    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':''}
-    clientCfgDict["serverPort"] = serverPort
-    clientCfgDict["firstEp"]    = hostname + ':' + serverPort
-    clientCfgDict["secondEp"]   = hostname + ':' + serverPort
-
+    rpcDebugFlagVal = '143'
+    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135'}
+    clientCfgDict["serverPort"]    = serverPort
+    clientCfgDict["firstEp"]       = hostname + ':' + serverPort
+    clientCfgDict["secondEp"]      = hostname + ':' + serverPort
+    clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
 
     updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':''}
     updatecfgDict["clientCfg"]  = clientCfgDict
@@ -109,8 +110,8 @@ class TDTestCase:
         # time.sleep(2)
         tdSql.query("create user testpy pass 'testpy'")
 
-        hostname = socket.gethostname()
-        tdLog.info ("hostname: %s" % hostname)
+        #hostname = socket.gethostname()
+        #tdLog.info ("hostname: %s" % hostname)
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -126,8 +127,9 @@ class TDTestCase:
         keyDict = {'h':'', 'P':'6030', 'p':'testpy', 'u':'testpy', 'a':'', 'A':'', 'c':'', 'C':'', 's':'', 'r':'', 'f':'', \
                    'k':'', 't':'', 'n':'', 'l':'1024', 'N':'100', 'V':'', 'd':'db', 'w':'30', '-help':'', '-usage':'', '?':''}
 
-        keyDict['h'] = hostname
+        keyDict['h'] = self.hostname
         keyDict['c'] = cfgPath
+        keyDict['P'] = self.serverPort
 
         tdLog.printNoPrefix("================================ parameter: -h")
         newDbName="dbh"
@@ -312,9 +314,25 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -C fail")
 
-        print ("-C return content:\n ", retVal)
-                
 
+        print ("-C return content:\n ", retVal)
+        totalCfgItem = {"firstEp":['', '', ''], }
+        for line in retVal.splitlines():
+            strList = line.split() 
+            if (len(strList) > 2):
+                totalCfgItem[strList[1]] = strList 
+
+        #print ("dict content:\n ", totalCfgItem)
+        firstEp = keyDict["h"] + ':' + keyDict['P']
+        if (totalCfgItem["firstEp"][2] != firstEp) and (totalCfgItem["firstEp"][0] != 'cfg_file'):
+            tdLog.exit("taos -C return firstEp error!")
+
+        if (totalCfgItem["rpcDebugFlag"][2] != self.rpcDebugFlagVal) and (totalCfgItem["rpcDebugFlag"][0] != 'cfg_file'):
+            tdLog.exit("taos -C return rpcDebugFlag error!")
+                
+        count = os.cpu_count()        
+        if (totalCfgItem["numOfCores"][2] != count) and (totalCfgItem["numOfCores"][0] != 'default'):
+            tdLog.exit("taos -C return numOfCores error!")
 
     def stop(self):
         tdSql.close()
