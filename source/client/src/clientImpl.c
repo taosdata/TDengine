@@ -233,7 +233,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .showRewrite = pQuery->showRewrite,
                       .pTransporter = pRequest->pTscObj->pAppInfo->pTransporter,
                       .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
+                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                      .placeholderNum = pQuery->placeholderNum};
   int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (TSDB_CODE_SUCCESS == code) {
     code = qCreateQueryPlan(&cxt, pPlan, pNodeList);

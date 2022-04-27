@@ -44,7 +44,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->notSupport = false;
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
-  pCxt->placeholderNo = 1;
+  pCxt->placeholderNo = 0;
 }
 
 static void trimEscape(SToken* pName) {
@@ -309,7 +309,7 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   CHECK_OUT_OF_MEM(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
-  val->placeholderNo = pCxt->placeholderNo++;
+  val->placeholderNo = ++pCxt->placeholderNo;
   return (SNode*)val;
 }
 

@@ -505,6 +505,7 @@ EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opT
     }
     
     res->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     res->datum.b = false;
     
     nodesDestroyNode(*pNode);
@@ -520,14 +521,14 @@ EDealRes sclRewriteOperatorForNullValue(SNode** pNode, SScalarCtx *ctx) {
 
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
-    if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
+    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
     }
   }
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
     SValueNode *valueNode = (SValueNode *)node->pRight;
-    if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
+    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
     }
   }

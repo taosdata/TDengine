@@ -34,7 +34,7 @@ typedef struct SPlanContext {
   bool showRewrite;
   int8_t triggerType;
   int64_t watermark;
-  bool isStmtQuery;
+  int32_t placeholderNum;
   void* pTransporter;
   struct SCatalog* pCatalog;
   char* pMsg;

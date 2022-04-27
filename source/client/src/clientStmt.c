@@ -601,7 +601,7 @@ int stmtGetParamNum(TAOS_STMT *stmt, int *nums) {
       pStmt->exec.pRequest->body.pDag = NULL;
     }
 
-    *nums = (pStmt->sql.pQueryPlan->pPlaceholderValues) ? pStmt->sql.pQueryPlan->pPlaceholderValues->length : 0;
+    *nums = taosArrayGetSize(pStmt->sql.pQueryPlan->pPlaceholderValues);
   } else {
     STMT_ERR_RET(stmtFetchColFields(stmt, nums, NULL));
   }
