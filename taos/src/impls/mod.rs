@@ -27,6 +27,16 @@ pub struct SyncResultSet<'q> {
     records: Arc<Vec<i32>>,
 }
 
+impl<'q> SyncResultSet<'q> {
+    pub(crate) fn from_ptr(ptr: *mut c_void) -> Result<Self, taos_error::Error> {
+        let raw = RawRes::from_ptr(ptr).map(DroppableRawRes::new)?;
+        Ok(SyncResultSet {
+            raw,
+            records: Arc::new(Vec::new())
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct SyncBlock<'r> {
     raw: Arc<RawRes>,

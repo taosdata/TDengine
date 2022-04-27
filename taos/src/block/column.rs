@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::stmt::MultiBind;
 
-use super::value::BorrowedValue;
+use super::BorrowedValue;
 
 #[derive(Debug, serde::Serialize)]
 pub enum BorrowedColumn<'block> {

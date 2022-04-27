@@ -47,6 +47,8 @@ mod result;
 
 pub mod tmq;
 
+mod schemaless;
+
 mod impls;
 
 pub type Result<T> = std::result::Result<T, Error>;

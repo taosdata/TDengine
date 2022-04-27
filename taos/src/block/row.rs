@@ -12,7 +12,7 @@ use crate::{Error, Result};
 use serde::de::{self, IntoDeserializer, Visitor};
 use taos_query::common::Field;
 
-use super::{value::BorrowedValue, Block};
+use super::{BorrowedValue, Block};
 
 #[derive(Debug)]
 pub struct Row<'block> {

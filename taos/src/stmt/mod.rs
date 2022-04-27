@@ -1,9 +1,9 @@
-use crate::{util::IntoCStr, Code, Error, Result, Taos, TaosResult};
+use crate::{impls::SyncResultSet, util::IntoCStr, Code, Error, Result, Taos};
 use taos_query::common::{BorrowedColumn, Column};
 use taos_sys::{ffi::*, *};
 
-use std::ffi::CStr;
 use std::os::raw::c_void;
+use std::{ffi::CStr, sync::Arc};
 
 mod bind;
 pub use bind::{BindParam, IntoBindParam};
@@ -55,9 +55,9 @@ impl<'stmt> Stmt<'stmt> {
         }
     }
 
-    pub fn result(&self) -> Result<TaosResult> {
-        let result = unsafe { taos_stmt_use_result(self.stmt) };
-        TaosResult::try_from_ptr(result)
+    pub fn result(&self) -> Result<SyncResultSet> {
+        let ptr = unsafe { taos_stmt_use_result(self.stmt) };
+        SyncResultSet::from_ptr(ptr)
     }
 
     /// To bind one row with params

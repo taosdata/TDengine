@@ -1,4 +1,4 @@
-use block::Row;
+// use block::Row;
 use futures::Stream;
 use serde::de::DeserializeOwned;
 use std::{borrow::Cow, ffi::CStr};

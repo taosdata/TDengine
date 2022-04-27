@@ -1,6 +1,4 @@
-use std::ffi::CStr;
-
-use crate::{Code, Error, Result, Taos, TaosResult};
+use crate::{Error, Result};
 use taos_sys::*;
 
 use super::{Message, Offset, Offsets, TmqList};
