@@ -32,6 +32,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
 
   // query table.db
   if (tdbDbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _err;
   }
 
@@ -54,6 +55,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   // query uid.idx
   if (tdbDbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
@@ -67,6 +69,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
 
   // query name.idx
   if (tdbDbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 

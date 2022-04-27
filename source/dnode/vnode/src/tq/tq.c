@@ -78,7 +78,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 
     SMqDataBlkRsp rsp = {0};
     rsp.reqOffset = pExec->pushHandle.reqOffset;
-    rsp.blockData = taosArrayInit(0, sizeof(int32_t));
+    rsp.blockData = taosArrayInit(0, sizeof(void*));
     rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
 
     if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
@@ -210,35 +210,6 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
   tmsgPutToQueue(&pTq->pVnode->msgCb, FETCH_QUEUE, &req);
 
-#if 0
-  void* pIter = taosHashIterate(pTq->tqPushMgr->pHash, NULL);
-  while (pIter != NULL) {
-    STqPusher* pusher = *(STqPusher**)pIter;
-    if (pusher->type == TQ_PUSHER_TYPE__STREAM) {
-      STqStreamPusher* streamPusher = (STqStreamPusher*)pusher;
-      // repack
-      STqStreamToken* token = taosMemoryMalloc(sizeof(STqStreamToken));
-      if (token == NULL) {
-        taosHashCancelIterate(pTq->tqPushMgr->pHash, pIter);
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
-      }
-      token->type = TQ_STREAM_TOKEN__DATA;
-      token->data = msg;
-      // set input
-      // exec
-    }
-    // send msg to ep
-  }
-  // iterate hash
-  // process all msg
-  // if waiting
-  // memcpy and send msg to fetch thread
-  // TODO: add reference
-  // if handle waiting, launch query and response to consumer
-  //
-  // if no waiting handle, return
-#endif
   return 0;
 }
 
@@ -375,11 +346,11 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 }
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
-  SMqPollReqV2* pReq = pMsg->pCont;
-  int64_t       consumerId = pReq->consumerId;
-  int64_t       waitTime = pReq->blockingTime;
-  int32_t       reqEpoch = pReq->epoch;
-  int64_t       fetchOffset;
+  SMqPollReq* pReq = pMsg->pCont;
+  int64_t     consumerId = pReq->consumerId;
+  int64_t     waitTime = pReq->waitTime;
+  int32_t     reqEpoch = pReq->epoch;
+  int64_t     fetchOffset;
 
   // get offset to fetch message
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
