@@ -248,7 +248,8 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
 
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
-  int8_t update = pReadh->pRepo->config.update;
+  STsdbCfg *pCfg = REPO_CFG(pReadh->pRepo);
+  int8_t    update = pCfg->update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -279,7 +280,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
                           bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
-  int8_t update = pReadh->pRepo->config.update;
+  int8_t update = pReadh->pRepo->pVnode->config.tsdbCfg.update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {

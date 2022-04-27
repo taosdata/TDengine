@@ -311,7 +311,7 @@ static bool emptyQueryTimewindow(STsdbReadHandle* pTsdbReadHandle) {
 // Update the query time window according to the data time to live(TTL) information, in order to avoid to return
 // the expired data to client, even it is queried already.
 static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
-  STsdbCfg* pCfg = &pTsdb->config;
+  STsdbCfg* pCfg = REPO_CFG(pTsdb);
 
   int64_t now = taosGetTimestamp(pCfg->precision);
   return now - (tsTickPerDay[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
@@ -404,7 +404,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, SQueryTableDataCond* pC
     pReadHandle->defaultLoadColumn = getDefaultLoadColumns(pReadHandle, true);
   }
 
-  pReadHandle->pDataCols = tdNewDataCols(1000, pReadHandle->pTsdb->config.maxRows);
+  pReadHandle->pDataCols = tdNewDataCols(1000, pReadHandle->pTsdb->pVnode->config.tsdbCfg.maxRows);
   if (pReadHandle->pDataCols == NULL) {
     tsdbError("%p failed to malloc buf for pDataCols, %s", pReadHandle, pReadHandle->idStr);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -889,7 +889,7 @@ static bool moveToNextRowInMem(STableCheckInfo* pCheckInfo) {
 }
 
 static bool hasMoreDataInCache(STsdbReadHandle* pHandle) {
-  STsdbCfg* pCfg = &pHandle->pTsdb->config;
+  STsdbCfg* pCfg = REPO_CFG(pHandle->pTsdb);
   size_t    size = taosArrayGetSize(pHandle->pTableCheckInfo);
   assert(pHandle->activeIndex < size && pHandle->activeIndex >= 0 && size >= 1);
   pHandle->cur.fid = INT32_MIN;
@@ -1169,7 +1169,7 @@ static void    copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, 
 
 static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo) {
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
-  STsdbCfg*      pCfg = &pTsdbReadHandle->pTsdb->config;
+  STsdbCfg*      pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
   SDataBlockInfo binfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
   TSKEY          key;
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1754,7 +1754,7 @@ int32_t getEndPosInDataBlock(STsdbReadHandle* pTsdbReadHandle, SDataBlockInfo* p
 static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock) {
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
   SDataBlockInfo blockInfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
-  STsdbCfg*      pCfg = &pTsdbReadHandle->pTsdb->config;
+  STsdbCfg*      pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
 
   initTableMemIterator(pTsdbReadHandle, pCheckInfo);
 
@@ -2198,7 +2198,7 @@ static int32_t getFirstFileDataBlock(STsdbReadHandle* pTsdbReadHandle, bool* exi
   int32_t numOfBlocks = 0;
   int32_t numOfTables = (int32_t)taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo);
 
-  STsdbCfg*   pCfg = &pTsdbReadHandle->pTsdb->config;
+  STsdbCfg*   pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
   STimeWindow win = TSWINDOW_INITIALIZER;
 
   while (true) {
@@ -2304,7 +2304,7 @@ int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDistInfo*
 
   // find the start data block in file
   pTsdbReadHandle->locateStart = true;
-  STsdbCfg* pCfg = &pTsdbReadHandle->pTsdb->config;
+  STsdbCfg* pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
   int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
 
   tsdbRLockFS(pFileHandle);
@@ -2405,7 +2405,7 @@ static int32_t getDataBlocksInFiles(STsdbReadHandle* pTsdbReadHandle, bool* exis
   // find the start data block in file
   if (!pTsdbReadHandle->locateStart) {
     pTsdbReadHandle->locateStart = true;
-    STsdbCfg* pCfg = &pTsdbReadHandle->pTsdb->config;
+    STsdbCfg* pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
     int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
 
     tsdbRLockFS(pFileHandle);
@@ -2496,7 +2496,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
                                  STsdbReadHandle* pTsdbReadHandle) {
   int       numOfRows = 0;
   int32_t   numOfCols = (int32_t)taosArrayGetSize(pTsdbReadHandle->pColumns);
-  STsdbCfg* pCfg = &pTsdbReadHandle->pTsdb->config;
+  STsdbCfg* pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
   win->skey = TSKEY_INITIAL_VAL;
 
   int64_t   st = taosGetTimestampUs();

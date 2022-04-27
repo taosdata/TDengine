@@ -60,9 +60,10 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
   STSRow        *row = NULL;
-  TSKEY          now = taosGetTimestamp(pTsdb->config.precision);
-  TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep2;
-  TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.days;
+  STsdbCfg      *pCfg = REPO_CFG(pTsdb);
+  TSKEY          now = taosGetTimestamp(pCfg->precision);
+  TSKEY          minKey = now - tsTickPerDay[pCfg->precision] * pCfg->keep2;
+  TSKEY          maxKey = now + tsTickPerDay[pCfg->precision] * pCfg->days;
 
   terrno = TSDB_CODE_SUCCESS;
   pMsg->length = htonl(pMsg->length);
