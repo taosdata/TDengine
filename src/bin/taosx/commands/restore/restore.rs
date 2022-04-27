@@ -1,8 +1,7 @@
 use clap::Args;
 use futures::Future;
 use std::path::PathBuf;
-use taos::{TaosOptions, Value};
-use taos_sys::TaosDataType;
+use taos::{query::common::*, TaosOptions, Value};
 use taosx::{TaosBlock, TaosDescribe, TaosOpts, TaosTag};
 use tokio::runtime::Builder;
 pub(crate) mod deserialize;
@@ -122,33 +121,21 @@ async fn restore_table_info(filelist: Vec<String>, db: String) {
             for col in describe.describe {
                 match col {
                     taosx::TaosColumnMeta::Column(des) => {
-                        if des.r#type == TaosDataType::Binary || des.r#type == TaosDataType::NChar {
-                            col_buffer += format!(
-                                "{} {}({}),",
-                                des.field.as_str(),
-                                des.r#type.as_str(),
-                                des.length
-                            )
-                            .as_str();
-                        } else {
+                        if des.ty == Ty::VarChar || des.ty == Ty::NChar {
                             col_buffer +=
-                                format!("{} {},", des.field.as_str(), des.r#type.as_str(),)
+                                format!("{} {}({}),", des.field.as_str(), des.ty, des.length)
                                     .as_str();
+                        } else {
+                            col_buffer += format!("{} {},", des.field.as_str(), des.ty,).as_str();
                         }
                     }
                     taosx::TaosColumnMeta::Tag(des) => {
-                        if des.r#type == TaosDataType::Binary || des.r#type == TaosDataType::NChar {
-                            tag_buffer += format!(
-                                "{} {}({}),",
-                                des.field.as_str(),
-                                des.r#type.as_str(),
-                                des.length
-                            )
-                            .as_str();
-                        } else {
+                        if des.ty == Ty::VarChar || des.ty == Ty::NChar {
                             tag_buffer +=
-                                format!("{} {},", des.field.as_str(), des.r#type.as_str(),)
+                                format!("{} {}({}),", des.field.as_str(), des.ty, des.length)
                                     .as_str();
+                        } else {
+                            tag_buffer += format!("{} {},", des.field.as_str(), des.ty,).as_str();
                         }
                     }
                 }
@@ -176,12 +163,8 @@ async fn restore_tags(filelist: Vec<String>, db: String) {
                 let mut sql = String::new();
                 for (index, value) in tag.into_iter().enumerate() {
                     if index == 0 {
-                        if let Value::Binary(b) = value {
-                            sql = format!(
-                                "create table {} using {} tags (",
-                                std::str::from_utf8(&b).unwrap(),
-                                &stbname
-                            );
+                        if let Value::VarChar(b) = value {
+                            sql = format!("create table {} using {} tags (", b, &stbname);
                         }
                     } else {
                         match value {
@@ -193,9 +176,8 @@ async fn restore_tags(filelist: Vec<String>, db: String) {
                             Value::BigInt(v) => sql += format!("{},", v).as_str(),
                             Value::Float(v) => sql += format!("{},", v).as_str(),
                             Value::Double(v) => sql += format!("{},", v).as_str(),
-                            Value::Binary(v) => {
-                                sql +=
-                                    format!("\'{}\',", std::str::from_utf8(&v).unwrap()).as_str();
+                            Value::VarChar(v) => {
+                                sql += format!("\'{}\',", v).as_str();
                             }
                             Value::Timestamp(v) => sql += format!("{},", v.as_raw_i64()).as_str(),
                             Value::NChar(v) => sql += format!("\'{}\',", v).as_str(),
@@ -232,7 +214,7 @@ async fn restore_data(filelist: Vec<String>, db: String) {
             prepare += ")";
             let mut stmt = taos.stmt(prepare).expect("prepare");
             let col_vec = taos_block.to_column_vec();
-            let bind: Vec<_> = col_vec.iter().map(|v| v.to_multi_bind()).collect();
+            let bind: Vec<_> = col_vec.iter().map(|v| v.into()).collect();
             stmt.multi_bind(&bind).expect("bind erro");
             stmt.execute().expect("execute error");
         }

@@ -12,7 +12,7 @@ use parquet::{
     schema::types::Type,
 };
 
-use taos::{block::BlockStream, helpers::ColumnMeta};
+use taos::{block::BlockStream, helpers::ColumnMeta, BlockExt};
 use taosx::{TaosBlock, TaosDescribe, TaosTag};
 
 pub struct Serialize<W: ParquetWriter + 'static> {
@@ -55,7 +55,7 @@ impl<W: ParquetWriter + 'static> Serialize<W> {
         stream
             .enumerate()
             .for_each(|(_, block)| {
-                let taos_tags = TaosTag::new(name.to_string(), block.rows_iter());
+                let taos_tags = TaosTag::new(name.to_string(), block.iter_rows());
                 self.serialize(taos_tags);
                 future::ready(())
             })

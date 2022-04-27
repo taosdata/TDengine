@@ -42,7 +42,7 @@ pub struct Database {
     pub replica: i16,
     pub quorum: i16,
     pub days: i16,
-    pub keep: String,
+    pub keep: Option<String>,
     // pub cache: i32,
     pub blocks: i32,
     pub minrows: i32,

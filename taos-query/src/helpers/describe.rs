@@ -9,10 +9,10 @@ use crate::common::Ty;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Described {
-    field: String,
+    pub field: String,
     #[serde(rename = "type")]
-    ty: Ty,
-    length: usize,
+    pub ty: Ty,
+    pub length: usize,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 #[serde(tag = "note")]
