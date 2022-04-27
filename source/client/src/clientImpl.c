@@ -245,7 +245,6 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   ASSERT(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
-  // TODO handle memory leak
   if (pResInfo->fields != NULL) {
     taosMemoryFree(pResInfo->fields);
   }
