@@ -23,31 +23,31 @@ extern "C" {
 #include "os.h"
 #include "query.h"
 
-#define parserFatal(param, ...)  qFatal("PARSER: " param, __VA_ARGS__)
-#define parserError(param, ...)  qError("PARSER: " param, __VA_ARGS__)
-#define parserWarn(param, ...)   qWarn("PARSER: " param, __VA_ARGS__)
-#define parserInfo(param, ...)   qInfo("PARSER: " param, __VA_ARGS__)
-#define parserDebug(param, ...)  qDebug("PARSER: " param, __VA_ARGS__)
-#define parserTrace(param, ...)  qTrace("PARSER: " param, __VA_ARGS__)
+#define parserFatal(param, ...) qFatal("PARSER: " param, __VA_ARGS__)
+#define parserError(param, ...) qError("PARSER: " param, __VA_ARGS__)
+#define parserWarn(param, ...)  qWarn("PARSER: " param, __VA_ARGS__)
+#define parserInfo(param, ...)  qInfo("PARSER: " param, __VA_ARGS__)
+#define parserDebug(param, ...) qDebug("PARSER: " param, __VA_ARGS__)
+#define parserTrace(param, ...) qTrace("PARSER: " param, __VA_ARGS__)
 
 #define PK_TS_COL_INTERNAL_NAME "_rowts"
 
 typedef struct SMsgBuf {
   int32_t len;
-  char   *buf;
+  char*   buf;
 } SMsgBuf;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
-int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr);
+int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
-STableMeta* tableMetaDup(const STableMeta* pTableMeta);
-SSchema *getTableColumnSchema(const STableMeta *pTableMeta);
-SSchema *getTableTagSchema(const STableMeta* pTableMeta);
-int32_t  getNumOfColumns(const STableMeta* pTableMeta);
-int32_t  getNumOfTags(const STableMeta* pTableMeta);
+STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
+SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
+SSchema*      getTableTagSchema(const STableMeta* pTableMeta);
+int32_t       getNumOfColumns(const STableMeta* pTableMeta);
+int32_t       getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
-int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* errMsg, int16_t startColId);
+int           parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* errMsg, int16_t startColId);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 

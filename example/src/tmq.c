@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include "taos.h"
 
 static int  running = 1;
@@ -48,7 +47,6 @@ int32_t init_env() {
     return -1;
   }
   taos_free_result(pRes);
-  sleep(1);
 
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {

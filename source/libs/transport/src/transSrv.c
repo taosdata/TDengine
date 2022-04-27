@@ -802,7 +802,6 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   taosThreadOnce(&transModuleInit, uvInitExHandleMgt);
   transSrvInst++;
-  // uvOpenExHandleMgt(10000);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)taosMemoryCalloc(1, sizeof(SWorkThrdObj));
@@ -831,6 +830,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     } else {
       // TODO: clear all other resource later
       tError("failed to create worker-thread %d", i);
+      goto End;
     }
   }
   if (false == addHandleToAcceptloop(srv)) {
@@ -840,6 +840,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   if (err == 0) {
     tDebug("success to create accept-thread");
   } else {
+    tError("failed  to create accept-thread");
+    goto End;
     // clear all resource later
   }
 
@@ -979,7 +981,8 @@ void transCloseServer(void* arg) {
 
   transSrvInst--;
   if (transSrvInst == 0) {
-    transModuleInit = PTHREAD_ONCE_INIT;
+    TdThreadOnce tmpInit = PTHREAD_ONCE_INIT;
+    memcpy(&transModuleInit, &tmpInit, sizeof(TdThreadOnce));
     uvCloseExHandleMgt();
   }
 }
@@ -1077,6 +1080,7 @@ void transRegisterMsg(const STransMsg* msg) {
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   uvReleaseExHandle(refId);
   return;
+
 _return1:
   tTrace("server handle %p failed to send to register brokenlink", exh);
   rpcFreeCont(msg->pCont);

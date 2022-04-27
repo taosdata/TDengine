@@ -591,25 +591,27 @@ static EDealRes haveAggFunction(SNode* pNode, void* pContext) {
 }
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  SFmGetFuncInfoParam param = {
-    .pCtg = pCxt->pParseCxt->pCatalog,
-    .pRpc = pCxt->pParseCxt->pTransporter,
-    .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
-    .pErrBuf = pCxt->msgBuf.buf,
-    .errBufLen = pCxt->msgBuf.len
-  };
+  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
+                               .pRpc = pCxt->pParseCxt->pTransporter,
+                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
+                               .pErrBuf = pCxt->msgBuf.buf,
+                               .errBufLen = pCxt->msgBuf.len};
   pCxt->errCode = fmGetFuncInfo(&param, pFunc);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     return DEAL_RES_ERROR;
   }
-  if (fmIsAggFunc(pFunc->funcId) && beforeHaving(pCxt->currClause)) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  if (fmIsAggFunc(pFunc->funcId)) {
+    if (beforeHaving(pCxt->currClause)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+    }
+    bool haveAggFunc = false;
+    nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
+    if (haveAggFunc) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+    }
+    pCxt->pCurrStmt->hasAggFuncs = true;
   }
-  bool haveAggFunc = false;
-  nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
-  if (haveAggFunc) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
-  }
+
   return DEAL_RES_CONTINUE;
 }
 
@@ -771,7 +773,7 @@ static int32_t addMnodeToVgroupList(const SEpSet* pEpSet, SArray** pVgroupList) 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  SVgroupInfo vg = { .vgId = MNODE_HANDLE };
+  SVgroupInfo vg = {.vgId = MNODE_HANDLE};
   memcpy(&vg.epSet, pEpSet, sizeof(SEpSet));
   taosArrayPush(*pVgroupList, &vg);
   return TSDB_CODE_SUCCESS;
@@ -787,7 +789,7 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   if ('\0' != pRealTable->qualDbName[0]) {
     // todo release after mnode can be processed
     // if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
-      code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
+    code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
     // }
   } else {
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
@@ -1903,18 +1905,9 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
-    taosArrayPush(*pArray, &field);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
-  *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
-  SNode* pNode;
-  FOREACH(pNode, pList) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    SField       field = {.type = pCol->node.resType.type, .bytes = calcTypeBytes(pCol->node.resType)};
-    strcpy(field.name, pCol->colName);
+    if (pCol->sma) {
+      field.flags |= SCHEMA_SMA_ON;
+    }
     taosArrayPush(*pArray, &field);
   }
   return TSDB_CODE_SUCCESS;
@@ -2247,13 +2240,6 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
-  if (NULL == pStmt->pOptions->pSma) {
-    columnDefNodeToField(pStmt->pCols, &pReq->pSmas);
-    pReq->numOfSmas = pReq->numOfColumns;
-  } else {
-    columnNodeToField(pStmt->pOptions->pSma, &pReq->pSmas);
-    pReq->numOfSmas = LIST_LENGTH(pStmt->pOptions->pSma);
-  }
 
   SName tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
@@ -3232,7 +3218,7 @@ typedef struct SVgroupTablesBatch {
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ntbCfg.pSchema);
+  taosMemoryFreeClear(pReq->ntb.schema.pSchema);
 }
 
 static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
@@ -3240,12 +3226,14 @@ static int32_t buildSmaParam(STableOptions* pOptions, SVCreateTbReq* pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
+#if 0
   pReq->ntbCfg.pRSmaParam = taosMemoryCalloc(1, sizeof(SRSmaParam));
   if (NULL == pReq->ntbCfg.pRSmaParam) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pReq->ntbCfg.pRSmaParam->delay = GET_OPTION_VAL(pOptions->pDelay, TSDB_DEFAULT_DB_DELAY);
   pReq->ntbCfg.pRSmaParam->xFilesFactor = GET_OPTION_VAL(pOptions->pFilesFactor, TSDB_DEFAULT_DB_FILE_FACTOR);
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3260,16 +3248,17 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
-  req.ntbCfg.nCols = LIST_LENGTH(pStmt->pCols);
-  req.ntbCfg.pSchema = taosMemoryCalloc(req.ntbCfg.nCols, sizeof(SSchema));
-  if (NULL == req.name || NULL == req.ntbCfg.pSchema) {
+  req.ntb.schema.nCols = LIST_LENGTH(pStmt->pCols);
+  req.ntb.schema.sver = 0;
+  req.ntb.schema.pSchema = taosMemoryCalloc(req.ntb.schema.nCols, sizeof(SSchema));
+  if (NULL == req.name || NULL == req.ntb.schema.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SNode*   pCol;
   col_id_t index = 0;
   FOREACH(pCol, pStmt->pCols) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
+    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schema.pSchema + index);
     ++index;
   }
   if (TSDB_CODE_SUCCESS != buildSmaParam(pStmt->pOptions, &req)) {
@@ -3290,7 +3279,11 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 }
 
 static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
-  int   tlen = sizeof(SMsgHead) + tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
+  int    tlen;
+  SCoder coder = {0};
+
+  tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen);
+  tlen += sizeof(SMsgHead);  //+ tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = taosMemoryMalloc(tlen);
   if (NULL == buf) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -3298,7 +3291,10 @@ static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* 
   ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tSerializeSVCreateTbBatchReq(&pBuf, &(pTbBatch->req));
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncodeSVCreateTbBatchReq(&coder, &pTbBatch->req);
+  tCoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {
@@ -3320,9 +3316,9 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
     taosMemoryFreeClear(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
-      taosMemoryFreeClear(pTableReq->ntbCfg.pSchema);
+      taosMemoryFreeClear(pTableReq->ntb.schema.pSchema);
     } else if (pTableReq->type == TSDB_CHILD_TABLE) {
-      taosMemoryFreeClear(pTableReq->ctbCfg.pTag);
+      taosMemoryFreeClear(pTableReq->ctb.pTag);
     }
   }
 
@@ -3403,8 +3399,8 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, c
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
   req.name = strdup(pTableName);
-  req.ctbCfg.suid = suid;
-  req.ctbCfg.pTag = row;
+  req.ctb.suid = suid;
+  req.ctb.pTag = row;
 
   SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (pTableBatch == NULL) {
@@ -3481,7 +3477,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pCol->colName);
     }
     SValueNode* pVal = NULL;
-    int32_t code = translateTagVal(pCxt, pNode, &pVal);
+    int32_t     code = translateTagVal(pCxt, pNode, &pVal);
     if (TSDB_CODE_SUCCESS == code) {
       if (NULL == pVal) {
         pVal = (SValueNode*)pNode;
@@ -3511,7 +3507,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
   int32_t  index = 0;
   FOREACH(pNode, pStmt->pValsOfTags) {
     SValueNode* pVal = NULL;
-    int32_t code = translateTagVal(pCxt, pNode, &pVal);
+    int32_t     code = translateTagVal(pCxt, pNode, &pVal);
     if (TSDB_CODE_SUCCESS == code) {
       if (NULL == pVal) {
         pVal = (SValueNode*)pNode;

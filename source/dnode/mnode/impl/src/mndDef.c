@@ -215,7 +215,7 @@ SMqSubscribeObj *tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]) {
   if (pSubNew == NULL) return NULL;
   memcpy(pSubNew->key, key, TSDB_SUBSCRIBE_KEY_LEN);
   taosInitRWLatch(&pSubNew->lock);
-  pSubNew->vgNum = -1;
+  pSubNew->vgNum = 0;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   // TODO set free fp
   SMqConsumerEpInSub epInSub = {

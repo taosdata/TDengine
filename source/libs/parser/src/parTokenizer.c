@@ -15,8 +15,8 @@
 
 #include "os.h"
 #include "parToken.h"
-#include "thash.h"
 #include "taosdef.h"
+#include "thash.h"
 #include "ttokendef.h"
 
 // All the keywords of the SQL language are stored in a hash table
@@ -28,188 +28,188 @@ typedef struct SKeyword {
 
 // keywords in sql string
 static SKeyword keywordTable[] = {
-    {"ACCOUNT",       TK_ACCOUNT},
-    {"ACCOUNTS",      TK_ACCOUNTS},
-    {"ADD",           TK_ADD},
-    {"AGGREGATE",     TK_AGGREGATE},
-    {"ALL",           TK_ALL},
-    {"ALTER",         TK_ALTER},
-    {"ANALYZE",       TK_ANALYZE},
-    {"AND",           TK_AND},
-    {"APPS",          TK_APPS},
-    {"AS",            TK_AS},
-    {"ASC",           TK_ASC},
-    {"AT_ONCE",       TK_AT_ONCE},
-    {"BETWEEN",       TK_BETWEEN},
-    {"BINARY",        TK_BINARY},
-    {"BIGINT",        TK_BIGINT},
-    {"BLOCKS",        TK_BLOCKS},
-    {"BNODE",         TK_BNODE},
-    {"BNODES",        TK_BNODES},
-    {"BOOL",          TK_BOOL},
-    {"BUFSIZE",       TK_BUFSIZE},
-    {"BY",            TK_BY},
-    {"CACHE",         TK_CACHE},
-    {"CACHELAST",     TK_CACHELAST},
-    {"CAST",          TK_CAST},
-    {"CLUSTER",       TK_CLUSTER},
-    {"COLUMN",        TK_COLUMN},
-    {"COMMENT",       TK_COMMENT},
-    {"COMP",          TK_COMP},
-    {"COMPACT",       TK_COMPACT},
-    {"CONNS",         TK_CONNS},
-    {"CONNECTION",    TK_CONNECTION},
-    {"CONNECTIONS",   TK_CONNECTIONS},
-    {"COUNT",         TK_COUNT},
-    {"CREATE",        TK_CREATE},
-    {"DATABASE",      TK_DATABASE},
-    {"DATABASES",     TK_DATABASES},
-    {"DAYS",          TK_DAYS},
-    {"DBS",           TK_DBS},
-    {"DELAY",         TK_DELAY},
-    {"DESC",          TK_DESC},
-    {"DESCRIBE",      TK_DESCRIBE},
-    {"DISTINCT",      TK_DISTINCT},
-    {"DNODE",         TK_DNODE},
-    {"DNODES",        TK_DNODES},
-    {"DOUBLE",        TK_DOUBLE},
-    {"DROP",          TK_DROP},
-    {"EXISTS",        TK_EXISTS},
-    {"EXPLAIN",       TK_EXPLAIN},
-    {"FILE_FACTOR",   TK_FILE_FACTOR},
-    {"FILL",          TK_FILL},
-    {"FIRST",         TK_FIRST},
-    {"FLOAT",         TK_FLOAT},
-    {"FROM",          TK_FROM},
-    {"FSYNC",         TK_FSYNC},
-    {"FUNCTION",      TK_FUNCTION},
-    {"FUNCTIONS",     TK_FUNCTIONS},
-    {"GRANTS",        TK_GRANTS},
-    {"GROUP",         TK_GROUP},
-    {"HAVING",        TK_HAVING},
-    {"IF",            TK_IF},
-    {"IMPORT",        TK_IMPORT},
-    {"IN",            TK_IN},
-    {"INDEX",         TK_INDEX},
-    {"INDEXES",       TK_INDEXES},
-    {"INNER",         TK_INNER},
-    {"INT",           TK_INT},
-    {"INSERT",        TK_INSERT},
-    {"INTEGER",       TK_INTEGER},
-    {"INTERVAL",      TK_INTERVAL},
-    {"INTO",          TK_INTO},
-    {"IS",            TK_IS},
-    {"JOIN",          TK_JOIN},
-    {"JSON",          TK_JSON},
-    {"KEEP",          TK_KEEP},
-    {"KILL",          TK_KILL},
-    {"LAST",          TK_LAST},
-    {"LAST_ROW",      TK_LAST_ROW},
-    {"LICENCE",       TK_LICENCE},
-    {"LIKE",          TK_LIKE},
-    {"LIMIT",         TK_LIMIT},
-    {"LINEAR",        TK_LINEAR},
-    {"LOCAL",         TK_LOCAL},
-    {"MATCH",         TK_MATCH},
-    {"MAXROWS",       TK_MAXROWS},
-    {"MINROWS",       TK_MINROWS},
-    {"MINUS",         TK_MINUS},
-    {"MNODE",         TK_MNODE},
-    {"MNODES",        TK_MNODES},
-    {"MODIFY",        TK_MODIFY},
-    {"MODULES",       TK_MODULES},
-    {"NCHAR",         TK_NCHAR},
-    {"NMATCH",        TK_NMATCH},
-    {"NONE",          TK_NONE},
-    {"NOT",           TK_NOT},
-    {"NOW",           TK_NOW},
-    {"NULL",          TK_NULL},
-    {"NULLS",         TK_NULLS},
-    {"OFFSET",        TK_OFFSET},
-    {"ON",            TK_ON},
-    {"OR",            TK_OR},
-    {"ORDER",         TK_ORDER},
-    {"OUTPUTTYPE",    TK_OUTPUTTYPE},
-    {"PARTITION",     TK_PARTITION},
-    {"PASS",          TK_PASS},
-    {"PORT",          TK_PORT},
-    {"PPS",           TK_PPS},
-    {"PRECISION",     TK_PRECISION},
-    {"PRIVILEGE",     TK_PRIVILEGE},
-    {"PREV",          TK_PREV},
-    {"QNODE",         TK_QNODE},
-    {"QNODES",        TK_QNODES},
-    {"QTIME",         TK_QTIME},
-    {"QUERIES",       TK_QUERIES},
-    {"QUERY",         TK_QUERY},
-    {"QUORUM",        TK_QUORUM},
-    {"RATIO",         TK_RATIO},
-    {"REPLICA",       TK_REPLICA},
-    {"RESET",         TK_RESET},
-    {"RETENTIONS",    TK_RETENTIONS},
-    {"ROLLUP",        TK_ROLLUP},
-    {"SCHEMA",        TK_SCHEMA},
-    {"SCORES",        TK_SCORES},
-    {"SELECT",        TK_SELECT},
-    {"SESSION",       TK_SESSION},
-    {"SET",           TK_SET},
-    {"SHOW",          TK_SHOW},
+    {"ACCOUNT", TK_ACCOUNT},
+    {"ACCOUNTS", TK_ACCOUNTS},
+    {"ADD", TK_ADD},
+    {"AGGREGATE", TK_AGGREGATE},
+    {"ALL", TK_ALL},
+    {"ALTER", TK_ALTER},
+    {"ANALYZE", TK_ANALYZE},
+    {"AND", TK_AND},
+    {"APPS", TK_APPS},
+    {"AS", TK_AS},
+    {"ASC", TK_ASC},
+    {"AT_ONCE", TK_AT_ONCE},
+    {"BETWEEN", TK_BETWEEN},
+    {"BINARY", TK_BINARY},
+    {"BIGINT", TK_BIGINT},
+    {"BLOCKS", TK_BLOCKS},
+    {"BNODE", TK_BNODE},
+    {"BNODES", TK_BNODES},
+    {"BOOL", TK_BOOL},
+    {"BUFSIZE", TK_BUFSIZE},
+    {"BY", TK_BY},
+    {"CACHE", TK_CACHE},
+    {"CACHELAST", TK_CACHELAST},
+    {"CAST", TK_CAST},
+    {"CLUSTER", TK_CLUSTER},
+    {"COLUMN", TK_COLUMN},
+    {"COMMENT", TK_COMMENT},
+    {"COMP", TK_COMP},
+    {"COMPACT", TK_COMPACT},
+    {"CONNS", TK_CONNS},
+    {"CONNECTION", TK_CONNECTION},
+    {"CONNECTIONS", TK_CONNECTIONS},
+    {"COUNT", TK_COUNT},
+    {"CREATE", TK_CREATE},
+    {"DATABASE", TK_DATABASE},
+    {"DATABASES", TK_DATABASES},
+    {"DAYS", TK_DAYS},
+    {"DBS", TK_DBS},
+    {"DELAY", TK_DELAY},
+    {"DESC", TK_DESC},
+    {"DESCRIBE", TK_DESCRIBE},
+    {"DISTINCT", TK_DISTINCT},
+    {"DNODE", TK_DNODE},
+    {"DNODES", TK_DNODES},
+    {"DOUBLE", TK_DOUBLE},
+    {"DROP", TK_DROP},
+    {"EXISTS", TK_EXISTS},
+    {"EXPLAIN", TK_EXPLAIN},
+    {"FILE_FACTOR", TK_FILE_FACTOR},
+    {"FILL", TK_FILL},
+    {"FIRST", TK_FIRST},
+    {"FLOAT", TK_FLOAT},
+    {"FROM", TK_FROM},
+    {"FSYNC", TK_FSYNC},
+    {"FUNCTION", TK_FUNCTION},
+    {"FUNCTIONS", TK_FUNCTIONS},
+    {"GRANTS", TK_GRANTS},
+    {"GROUP", TK_GROUP},
+    {"HAVING", TK_HAVING},
+    {"IF", TK_IF},
+    {"IMPORT", TK_IMPORT},
+    {"IN", TK_IN},
+    {"INDEX", TK_INDEX},
+    {"INDEXES", TK_INDEXES},
+    {"INNER", TK_INNER},
+    {"INT", TK_INT},
+    {"INSERT", TK_INSERT},
+    {"INTEGER", TK_INTEGER},
+    {"INTERVAL", TK_INTERVAL},
+    {"INTO", TK_INTO},
+    {"IS", TK_IS},
+    {"JOIN", TK_JOIN},
+    {"JSON", TK_JSON},
+    {"KEEP", TK_KEEP},
+    {"KILL", TK_KILL},
+    {"LAST", TK_LAST},
+    {"LAST_ROW", TK_LAST_ROW},
+    {"LICENCE", TK_LICENCE},
+    {"LIKE", TK_LIKE},
+    {"LIMIT", TK_LIMIT},
+    {"LINEAR", TK_LINEAR},
+    {"LOCAL", TK_LOCAL},
+    {"MATCH", TK_MATCH},
+    {"MAXROWS", TK_MAXROWS},
+    {"MINROWS", TK_MINROWS},
+    {"MINUS", TK_MINUS},
+    {"MNODE", TK_MNODE},
+    {"MNODES", TK_MNODES},
+    {"MODIFY", TK_MODIFY},
+    {"MODULES", TK_MODULES},
+    {"NCHAR", TK_NCHAR},
+    {"NMATCH", TK_NMATCH},
+    {"NONE", TK_NONE},
+    {"NOT", TK_NOT},
+    {"NOW", TK_NOW},
+    {"NULL", TK_NULL},
+    {"NULLS", TK_NULLS},
+    {"OFFSET", TK_OFFSET},
+    {"ON", TK_ON},
+    {"OR", TK_OR},
+    {"ORDER", TK_ORDER},
+    {"OUTPUTTYPE", TK_OUTPUTTYPE},
+    {"PARTITION", TK_PARTITION},
+    {"PASS", TK_PASS},
+    {"PORT", TK_PORT},
+    {"PPS", TK_PPS},
+    {"PRECISION", TK_PRECISION},
+    {"PRIVILEGE", TK_PRIVILEGE},
+    {"PREV", TK_PREV},
+    {"QNODE", TK_QNODE},
+    {"QNODES", TK_QNODES},
+    {"QTIME", TK_QTIME},
+    {"QUERIES", TK_QUERIES},
+    {"QUERY", TK_QUERY},
+    {"QUORUM", TK_QUORUM},
+    {"RATIO", TK_RATIO},
+    {"REPLICA", TK_REPLICA},
+    {"RESET", TK_RESET},
+    {"RETENTIONS", TK_RETENTIONS},
+    {"ROLLUP", TK_ROLLUP},
+    {"SCHEMA", TK_SCHEMA},
+    {"SCORES", TK_SCORES},
+    {"SELECT", TK_SELECT},
+    {"SESSION", TK_SESSION},
+    {"SET", TK_SET},
+    {"SHOW", TK_SHOW},
     {"SINGLE_STABLE", TK_SINGLE_STABLE},
-    {"SLIDING",       TK_SLIDING},
-    {"SLIMIT",        TK_SLIMIT},
-    {"SMA",           TK_SMA},
-    {"SMALLINT",      TK_SMALLINT},
-    {"SNODE",         TK_SNODE},
-    {"SNODES",        TK_SNODES},
-    {"SOFFSET",       TK_SOFFSET},
-    {"STABLE",        TK_STABLE},
-    {"STABLES",       TK_STABLES},
-    {"STATE",         TK_STATE},
-    {"STATE_WINDOW",  TK_STATE_WINDOW},
-    {"STORAGE",       TK_STORAGE},
-    {"STREAM",        TK_STREAM},
-    {"STREAMS",       TK_STREAMS},
-    {"STREAM_MODE",   TK_STREAM_MODE},
-    {"STRICT",        TK_STRICT},
-    {"SYNCDB",        TK_SYNCDB},
-    {"TABLE",         TK_TABLE},
-    {"TABLES",        TK_TABLES},
-    {"TAG",           TK_TAG},
-    {"TAGS",          TK_TAGS},
-    {"TBNAME",        TK_TBNAME},
-    {"TIMESTAMP",     TK_TIMESTAMP},
-    {"TIMEZONE",      TK_TIMEZONE},
-    {"TINYINT",       TK_TINYINT},
-    {"TODAY",         TK_TODAY},
-    {"TOPIC",         TK_TOPIC},
-    {"TOPICS",        TK_TOPICS},
-    {"TRIGGER",       TK_TRIGGER},
-    {"TSERIES",       TK_TSERIES},
-    {"TTL",           TK_TTL},
-    {"UNION",         TK_UNION},
-    {"UNSIGNED",      TK_UNSIGNED},
-    {"USE",           TK_USE},
-    {"USER",          TK_USER},
-    {"USERS",         TK_USERS},
-    {"USING",         TK_USING},
-    {"VALUE",         TK_VALUE},
-    {"VALUES",        TK_VALUES},
-    {"VARCHAR",       TK_VARCHAR},
-    {"VARIABLES",     TK_VARIABLES},
-    {"VERBOSE",       TK_VERBOSE},
-    {"VGROUPS",       TK_VGROUPS},
-    {"VNODES",        TK_VNODES},
-    {"WAL",           TK_WAL},
-    {"WATERMARK",     TK_WATERMARK},
-    {"WHERE",         TK_WHERE},
-    {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
-    {"WITH",          TK_WITH},
-    {"_QENDTS",       TK_QENDTS},
-    {"_QSTARTTS",     TK_QSTARTTS},
-    {"_ROWTS",        TK_ROWTS},
-    {"_WDURATION",    TK_WDURATION},
-    {"_WENDTS",       TK_WENDTS},
-    {"_WSTARTTS",     TK_WSTARTTS},
+    {"SLIDING", TK_SLIDING},
+    {"SLIMIT", TK_SLIMIT},
+    {"SMA", TK_SMA},
+    {"SMALLINT", TK_SMALLINT},
+    {"SNODE", TK_SNODE},
+    {"SNODES", TK_SNODES},
+    {"SOFFSET", TK_SOFFSET},
+    {"STABLE", TK_STABLE},
+    {"STABLES", TK_STABLES},
+    {"STATE", TK_STATE},
+    {"STATE_WINDOW", TK_STATE_WINDOW},
+    {"STORAGE", TK_STORAGE},
+    {"STREAM", TK_STREAM},
+    {"STREAMS", TK_STREAMS},
+    {"STREAM_MODE", TK_STREAM_MODE},
+    {"STRICT", TK_STRICT},
+    {"SYNCDB", TK_SYNCDB},
+    {"TABLE", TK_TABLE},
+    {"TABLES", TK_TABLES},
+    {"TAG", TK_TAG},
+    {"TAGS", TK_TAGS},
+    {"TBNAME", TK_TBNAME},
+    {"TIMESTAMP", TK_TIMESTAMP},
+    {"TIMEZONE", TK_TIMEZONE},
+    {"TINYINT", TK_TINYINT},
+    {"TODAY", TK_TODAY},
+    {"TOPIC", TK_TOPIC},
+    {"TOPICS", TK_TOPICS},
+    {"TRIGGER", TK_TRIGGER},
+    {"TSERIES", TK_TSERIES},
+    {"TTL", TK_TTL},
+    {"UNION", TK_UNION},
+    {"UNSIGNED", TK_UNSIGNED},
+    {"USE", TK_USE},
+    {"USER", TK_USER},
+    {"USERS", TK_USERS},
+    {"USING", TK_USING},
+    {"VALUE", TK_VALUE},
+    {"VALUES", TK_VALUES},
+    {"VARCHAR", TK_VARCHAR},
+    {"VARIABLES", TK_VARIABLES},
+    {"VERBOSE", TK_VERBOSE},
+    {"VGROUPS", TK_VGROUPS},
+    {"VNODES", TK_VNODES},
+    {"WAL", TK_WAL},
+    {"WATERMARK", TK_WATERMARK},
+    {"WHERE", TK_WHERE},
+    {"WINDOW_CLOSE", TK_WINDOW_CLOSE},
+    {"WITH", TK_WITH},
+    {"_QENDTS", TK_QENDTS},
+    {"_QSTARTTS", TK_QSTARTTS},
+    {"_ROWTS", TK_ROWTS},
+    {"_WDURATION", TK_WDURATION},
+    {"_WENDTS", TK_WENDTS},
+    {"_WSTARTTS", TK_WSTARTTS},
     // {"ID",           TK_ID},
     // {"STRING",       TK_STRING},
     // {"EQ",           TK_EQ},
@@ -293,7 +293,7 @@ static void* keywordHashTable = NULL;
 
 static void doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
-  
+
   keywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
@@ -306,12 +306,12 @@ static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 static int32_t tKeywordCode(const char* z, int n) {
   taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
-  
+
   char key[512] = {0};
-  if (n > tListLen(key)) { // too long token, can not be any other token type
+  if (n > tListLen(key)) {  // too long token, can not be any other token type
     return TK_NK_ID;
   }
-  
+
   for (int32_t j = 0; j < n; ++j) {
     if (z[j] >= 'a' && z[j] <= 'z') {
       key[j] = (char)(z[j] & 0xDF);  // to uppercase and set the null-terminated
@@ -325,7 +325,7 @@ static int32_t tKeywordCode(const char* z, int n) {
   }
 
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
-  return (pKey != NULL)? (*pKey)->type:TK_NK_ID;
+  return (pKey != NULL) ? (*pKey)->type : TK_NK_ID;
 }
 
 /*
@@ -468,11 +468,11 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == '\\') {   // ignore the escaped character that follows this backslash
+        if (z[i] == '\\') {  // ignore the escaped character that follows this backslash
           i++;
           continue;
         }
-        
+
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
             i++;
@@ -482,11 +482,11 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
           }
         }
       }
-      
+
       if (z[i]) i++;
 
       if (strEnd) {
-        *tokenId = (delim == '`')? TK_NK_ID:TK_NK_STRING;
+        *tokenId = (delim == '`') ? TK_NK_ID : TK_NK_STRING;
         return i;
       }
 
@@ -521,7 +521,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     case '0': {
       char next = z[1];
 
-      if (next == 'b') { // bin number
+      if (next == 'b') {  // bin number
         *tokenId = TK_NK_BIN;
         for (i = 2; (z[i] == '0' || z[i] == '1'); ++i) {
         }
@@ -531,7 +531,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         }
 
         return i;
-      } else if (next == 'x') {  //hex number
+      } else if (next == 'x') {  // hex number
         *tokenId = TK_NK_HEX;
         for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
         }
@@ -557,10 +557,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
 
       /* here is the 1u/1a/2s/3m/9y */
-      if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
-           z[i] == 'y' || z[i] == 'w' ||
-           z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
-           z[i] == 'Y' || z[i] == 'W') &&
+      if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' ||
+           z[i] == 'n' || z[i] == 'y' || z[i] == 'w' || z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' ||
+           z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' || z[i] == 'Y' || z[i] == 'W') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenId = TK_NK_VARIABLE;
         i += 1;
@@ -602,7 +601,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     case 't':
     case 'F':
     case 'f': {
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t)z[i]]; i++) {
       }
 
       if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
@@ -611,10 +610,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
     }
     default: {
-      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t) *z]) {
+      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {
         break;
       }
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t)z[i]]; i++) {
       }
       *tokenId = tKeywordCode(z, i);
       return i;
@@ -625,12 +624,12 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
-  char *src = *str;
-  size_t nsize = strlen(newToken);
+SToken tscReplaceStrToken(char** str, SToken* token, const char* newToken) {
+  char*   src = *str;
+  size_t  nsize = strlen(newToken);
   int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SToken ntoken;
+  SToken  ntoken;
 
   *str = taosMemoryCalloc(1, size);
 
@@ -660,13 +659,13 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     *i += t0.n;
 
     int32_t numOfComma = 0;
-    char t = str[*i];
+    char    t = str[*i];
     while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
       }
-    
+
       t = str[++(*i)];
     }
 
@@ -722,15 +721,13 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     }
   }
 
-  t0.z = (char*) str + (*i);
+  t0.z = (char*)str + (*i);
   *i += t0.n;
 
   return t0;
 }
 
-bool taosIsKeyWordToken(const char* z, int32_t len) {
-  return (tKeywordCode((char*)z, len) != TK_NK_ID);
-}
+bool taosIsKeyWordToken(const char* z, int32_t len) { return (tKeywordCode((char*)z, len) != TK_NK_ID); }
 
 void taosCleanupKeywordsTable() {
   void* m = keywordHashTable;
@@ -741,7 +738,7 @@ void taosCleanupKeywordsTable() {
 
 SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
   assert(pToken != NULL && buf != NULL && len > pToken->n);
-  
+
   strncpy(buf, pToken->z, pToken->n);
   buf[pToken->n] = 0;
 

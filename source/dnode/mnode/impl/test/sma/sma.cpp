@@ -114,18 +114,15 @@ void* MndTestSma::BuildCreateBSmaStbReq(const char* stbname, int32_t* pContLen) 
   SMCreateStbReq createReq = {0};
   createReq.numOfColumns = 3;
   createReq.numOfTags = 1;
-  createReq.numOfSmas = 1;
   createReq.igExists = 0;
   createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
   createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-  createReq.pSmas = taosArrayInit(createReq.numOfSmas, sizeof(SField));
   strcpy(createReq.name, stbname);
 
   PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_TIMESTAMP, "ts");
   PushField(createReq.pColumns, 2, TSDB_DATA_TYPE_TINYINT, "col1");
   PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_BIGINT, "col2");
   PushField(createReq.pTags, 2, TSDB_DATA_TYPE_TINYINT, "tag1");
-  PushField(createReq.pSmas, 2, TSDB_DATA_TYPE_TINYINT, "col1");
 
   int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pHead = rpcMallocCont(tlen);
@@ -190,7 +187,7 @@ void* MndTestSma::BuildDropTSmaReq(const char* smaname, int8_t igNotExists, int3
 }
 
 TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
-  #if 0
+#if 0
   const char* dbname = "1.d1";
   const char* stbname = "1.d1.stb";
   const char* smaname = "1.d1.sma";
@@ -244,7 +241,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 0);
   }
-#endif  
+#endif
 }
 
 TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
@@ -258,14 +255,13 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateDbReq(dbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    taosMsleep(1000); // Wait for the vnode to become the leader
   }
 
   {
     pReq = BuildCreateBSmaStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables",dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -281,7 +277,7 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildDropStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables",dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
