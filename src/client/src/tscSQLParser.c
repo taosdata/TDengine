@@ -7089,6 +7089,10 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
+    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      return invalidOperationMsg(pMsgBuf, msg1);
+    }
+
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
