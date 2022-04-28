@@ -161,8 +161,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
         transUnrefCliHandle(conn);                                                       \
       }                                                                                  \
       if (T_REF_VAL_GET(conn) == 1) {                                                    \
-        SCliThrdObj* thrd = conn->hostThrd;                                              \
-        addConnToPool(thrd->pool, conn);                                                 \
+        transUnrefCliHandle(conn);                                                       \
       }                                                                                  \
       destroyCmsg(pMsg);                                                                 \
       return;                                                                            \
