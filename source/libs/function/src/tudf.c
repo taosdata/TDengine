@@ -1332,7 +1332,5 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   if (resultBuf.numOfResult == 1) {
     GET_RES_INFO(pCtx)->numOfRes = 1;
   }
-  functionFinalize(pCtx, pBlock);
-  
-  return 0;
+  return functionFinalizeWithResultBuf(pCtx, pBlock, udfRes->finalResBuf);
 }
