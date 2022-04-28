@@ -50,7 +50,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t maxId = -1;
+    int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -102,7 +102,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t maxId = -1;
+    int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
     }
@@ -113,7 +113,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t ver = -1;
+    int64_t ver = 0;
     if (i < SDB_MAX) {
       ver = pSdb->tableVer[i];
     }

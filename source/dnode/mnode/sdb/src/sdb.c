@@ -50,7 +50,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
     pSdb->maxId[i] = 0;
-    pSdb->tableVer[i] = -1;
+    pSdb->tableVer[i] = 0;
     pSdb->keyTypes[i] = SDB_KEY_INT32;
   }
 
