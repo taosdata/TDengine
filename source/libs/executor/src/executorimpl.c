@@ -1902,7 +1902,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         if (!isUdaf) {
           fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
         } else {
-          char *udfName = pExpr->pExpr->_function.pFunctNode->functionName;
+          char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
           strncpy(pCtx->udfName, udfName, strlen(udfName));
           fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
         }
@@ -6914,8 +6914,10 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
+#if 0
   return tsdbQueryTables(pHandle->reader, &cond, pTableGroupInfo, queryId, taskId);
+#endif
+  return tsdbQueryTables(pHandle->vnode, &cond, pTableGroupInfo, queryId, taskId);
 
 _error:
   terrno = code;
