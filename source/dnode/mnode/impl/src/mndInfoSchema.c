@@ -124,14 +124,6 @@ static const SInfosTableSchema userStbsSchema[] = {
     {.name = "table_comment", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
-static const SInfosTableSchema userStreamsSchema[] = {
-    {.name = "stream_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "user_name", .bytes = 23, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "dest_table", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_VARCHAR},
-};
-
 static const SInfosTableSchema userTblsSchema[] = {
     {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -259,7 +251,6 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
     {TSDB_INS_TABLE_USER_INDEXES, userIdxSchema, tListLen(userIdxSchema)},
     {TSDB_INS_TABLE_USER_STABLES, userStbsSchema, tListLen(userStbsSchema)},
-    {TSDB_INS_TABLE_USER_STREAMS, userStreamsSchema, tListLen(userStreamsSchema)},
     {TSDB_INS_TABLE_USER_TABLES, userTblsSchema, tListLen(userTblsSchema)},
     {TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},

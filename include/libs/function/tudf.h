@@ -42,8 +42,7 @@ enum {
   UDFC_CODE_INVALID_STATE = -5
 };
 
-
-
+typedef void *UdfcFuncHandle;
 
 /**
  * setup udf
@@ -95,6 +94,7 @@ typedef struct SUdfDataBlock {
 typedef struct SUdfInterBuf {
   int32_t bufLen;
   char* buf;
+  int8_t numOfResult; //zero or one
 } SUdfInterBuf;
 
 // output: interBuf
@@ -118,6 +118,10 @@ int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t nu
  */
 int32_t teardownUdf(UdfcFuncHandle handle);
 
+bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
+int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
+int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 // end API to taosd and qworker
 //=============================================================================================================================
 // begin API to UDF writer.
@@ -133,11 +137,11 @@ typedef int32_t (*TUdfTeardownFunc)();
 //typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
 
 typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
+typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock* block, SUdfColumn *resultCol);
 
-typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock block, SUdfColumn *resultCol);
-typedef int32_t (*TUdfAggInitFunc)(SUdfInterBuf *buf);
-typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock block, SUdfInterBuf *interBuf);
-typedef int32_t (*TUdfAggFinalizeFunc)(SUdfInterBuf buf, SUdfInterBuf *resultData);
+typedef int32_t (*TUdfAggStartFunc)(SUdfInterBuf *buf);
+typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock* block, SUdfInterBuf *interBuf);
+typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf* buf, SUdfInterBuf *resultData);
 
 
 // end API to UDF writer

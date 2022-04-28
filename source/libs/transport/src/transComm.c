@@ -369,7 +369,7 @@ static int32_t timeCompare(const HeapNode* a, const HeapNode* b) {
   }
 }
 
-static void transDelayQueueTimeout(uv_timer_t* timer) {
+static void transDQTimeout(uv_timer_t* timer) {
   SDelayQueue* queue = timer->data;
   tTrace("timer %p timeout", timer);
   uint64_t timeout = 0;
@@ -388,10 +388,10 @@ static void transDelayQueueTimeout(uv_timer_t* timer) {
     }
   } while (1);
   if (timeout != 0) {
-    uv_timer_start(queue->timer, transDelayQueueTimeout, timeout, 0);
+    uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
   }
 }
-int transCreateDelayQueue(uv_loop_t* loop, SDelayQueue** queue) {
+int transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
   uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
   uv_timer_init(loop, timer);
 
@@ -407,7 +407,7 @@ int transCreateDelayQueue(uv_loop_t* loop, SDelayQueue** queue) {
   return 0;
 }
 
-void transDestroyDelayQueue(SDelayQueue* queue) {
+void transDQDestroy(SDelayQueue* queue) {
   taosMemoryFree(queue->timer);
 
   while (heapSize(queue->heap) > 0) {
@@ -424,19 +424,15 @@ void transDestroyDelayQueue(SDelayQueue* queue) {
   taosMemoryFree(queue);
 }
 
-int transPutTaskToDelayQueue(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
+int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
   SDelayTask* task = taosMemoryCalloc(1, sizeof(SDelayTask));
-
   task->func = func;
   task->arg = arg;
   task->execTime = taosGetTimestampMs() + timeoutMs;
 
   tTrace("timer %p put task into queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
-  if (heapSize(queue->heap) == 1) {
-    uv_timer_start(queue->timer, transDelayQueueTimeout, timeoutMs, 0);
-  }
-
+  uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return 0;
 }
 #endif

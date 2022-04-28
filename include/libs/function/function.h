@@ -206,6 +206,8 @@ typedef struct SqlFunctionCtx {
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;
+
+  char*           udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
 enum {
@@ -333,8 +335,6 @@ int32_t udfcOpen();
  * @return error code
  */
 int32_t udfcClose();
-
-typedef void *UdfcFuncHandle;
 
 #ifdef __cplusplus
 }
