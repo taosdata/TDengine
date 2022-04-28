@@ -64,13 +64,12 @@ class TDTestCase:
                 # length_data = [ len(str(data))  if data else None for data in datas ]
                 length_data = []
                 for data in datas :
-                    if not datas:
+                    if not data:
                         length_data.append(None)
-                    elif "nchar" in condition or NCHAR_COL in condition:
+                    elif "as nchar" in condition or (NCHAR_COL in condition and "as binary" not in condition):
                         length_data.append(len(str(data)) * 4)
                     else:
                         length_data.append(len(str(data)))
-
 
                 tdSql.query(f"select length( {condition} ) from {tbname} {where_condition}  {group_condition}")
                 for i in range(len(length_data)):
@@ -111,14 +110,14 @@ class TDTestCase:
 
     def __test_current(self):
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tbname = ["ct1", "ct2", "ct4", "t1"]
+        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
             self.__length_current_check(tb)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        tbname = ["ct1", "ct2", "ct4", "t1"]
+        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
 
         for tb in tbname:
             for errsql in self.__length_err_check(tb):
