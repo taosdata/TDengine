@@ -137,7 +137,6 @@ def pre_test_win(){
         cd C:\\workspace\\TDengine
         git branch
         git pull || git pull
-        git clean -dfx
         git fetch origin +refs/pull/%CHANGE_ID%/merge
         git checkout -qf FETCH_HEAD
     '''
