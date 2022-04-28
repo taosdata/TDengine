@@ -184,8 +184,6 @@ pipeline {
                     }
                     steps {
                         script {
-                            abort_previous()
-                            abortPreviousBuilds()
                         }
                         timeout(time: 45, unit: 'MINUTES'){
                             pre_test()
