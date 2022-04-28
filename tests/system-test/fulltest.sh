@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x
 
 python3 ./test.py -f 0-others/taosShell.py
 

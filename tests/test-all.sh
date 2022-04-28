@@ -93,6 +93,7 @@ function runSimCaseOneByOnefq {
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
       #case=`echo $line | grep sim$ |awk '{print $NF}'`
       case=`echo $line | grep -o ".*\.sim" |awk '{print $NF}'`
+      echo "$line    running ..."
 
       start_time=`date +%s`
       date +%F\ %T | tee -a out.log
