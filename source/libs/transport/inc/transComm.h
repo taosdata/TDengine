@@ -348,14 +348,13 @@ typedef struct SDelayQueue {
   uv_timer_t* timer;
   Heap*       heap;
   uv_loop_t*  loop;
-  void (*free)(void* arg);
 } SDelayQueue;
 
-int transCreateDelayQueue(uv_loop_t* loop, SDelayQueue** queue);
+int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 
-void transDestroyDelayQueue(SDelayQueue* queue);
+void transDQDestroy(SDelayQueue* queue);
 
-int transPutTaskToDelayQueue(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
 /*
  * init global func
