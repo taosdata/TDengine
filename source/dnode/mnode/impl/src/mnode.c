@@ -43,7 +43,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define MQ_TIMER_MS    3000
+#define MQ_TIMER_MS    2000
 #define TRNAS_TIMER_MS 6000
 
 static void *mndBuildTimerMsg(int32_t *pContLen) {
@@ -368,7 +368,7 @@ int32_t mndProcessMsg(SNodeMsg *pMsg) {
   }
 
   if (isReq && (pRpc->contLen == 0 || pRpc->pCont == NULL)) {
-    terrno = TSDB_CODE_MND_INVALID_MSG_LEN;
+    terrno = TSDB_CODE_INVALID_MSG_LEN;
     mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     return -1;
   }
@@ -417,7 +417,6 @@ int64_t mndGenerateUid(char *name, int32_t len) {
     }
   } while (true);
 }
-
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {

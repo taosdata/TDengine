@@ -33,12 +33,19 @@ void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size,
   pCoder->data = data;
   pCoder->size = size;
   pCoder->pos = 0;
-  tFreeListInit(&(pCoder->fl));
+  pCoder->mList = NULL;
   TD_SLIST_INIT(&(pCoder->stack));
 }
 
 void tCoderClear(SCoder* pCoder) {
-  tFreeListClear(&(pCoder->fl));
+  SCoderMem* pMem;
+
+  // clear memory
+  for (pMem = pCoder->mList; pMem; pMem = pCoder->mList) {
+    pCoder->mList = pMem->next;
+    taosMemoryFree(pMem);
+  }
+
   struct SCoderNode* pNode;
   for (;;) {
     pNode = TD_SLIST_HEAD(&(pCoder->stack));

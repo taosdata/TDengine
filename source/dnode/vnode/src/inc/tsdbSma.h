@@ -16,27 +16,19 @@
 #ifndef _TD_VNODE_TSDB_SMA_H_
 #define _TD_VNODE_TSDB_SMA_H_
 
-#include "os.h"
-#include "thash.h"
-#include "tmsg.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int32_t (*__tb_ddl_fn_t)(void *ahandle, void **result, void *p1, void *p2);
+// typedef int32_t (*__tb_ddl_fn_t)(void *ahandle, void **result, void *p1, void *p2);
 
-struct STbDdlH {
-  void         *ahandle;
-  void         *result;
-  __tb_ddl_fn_t fp;
-};
-
-typedef struct {
-  tb_uid_t  suid;
-  SArray   *tbUids;
-  SHashObj *uidHash;
-} STbUidStore;
+// struct STbDdlH {
+//   void         *ahandle;
+//   void         *result;
+//   __tb_ddl_fn_t fp;
+// };
 
 static FORCE_INLINE int32_t tsdbUidStoreInit(STbUidStore **pStore) {
   ASSERT(*pStore == NULL);
@@ -48,14 +40,6 @@ static FORCE_INLINE int32_t tsdbUidStoreInit(STbUidStore **pStore) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
-void    tsdbUidStoreDestory(STbUidStore *pStore);
-void   *tsdbUidStoreFree(STbUidStore *pStore);
-
-int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq);
-int32_t tsdbFetchTbUidList(void *pTsdb, void **result, void *suid, void *uid);
-int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pUidStore);
-int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, void *pMsg, int32_t inputType);
 
 #ifdef __cplusplus
 }

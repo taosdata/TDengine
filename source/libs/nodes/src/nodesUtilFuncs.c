@@ -1041,10 +1041,11 @@ bool nodesIsTimeorderQuery(const SNode* pQuery) { return false; }
 bool nodesIsTimelineQuery(const SNode* pQuery) { return false; }
 
 typedef struct SCollectColumnsCxt {
-  int32_t     errCode;
-  const char* pTableAlias;
-  SNodeList*  pCols;
-  SHashObj*   pColHash;
+  int32_t         errCode;
+  const char*     pTableAlias;
+  ECollectColType collectType;
+  SNodeList*      pCols;
+  SHashObj*       pColHash;
 } SCollectColumnsCxt;
 
 static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pNode) {
@@ -1057,25 +1058,33 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
     pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-      pCxt->errCode = nodesListAppend(pCxt->pCols, pNode);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pCols, nodesCloneNode(pNode));
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;
 }
 
+static bool isCollectType(ECollectColType collectType, EColumnType colType) {
+  return COLLECT_COL_TYPE_ALL == collectType
+             ? true
+             : (COLLECT_COL_TYPE_TAG == collectType ? COLUMN_TYPE_TAG == colType : COLUMN_TYPE_TAG != colType);
+}
+
 static EDealRes collectColumns(SNode* pNode, void* pContext) {
   SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
+    if (isCollectType(pCxt->collectType, pCol->colType) &&
+        (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias))) {
       return doCollect(pCxt, pCol, pNode);
     }
   }
   return DEAL_RES_CONTINUE;
 }
 
-int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, SNodeList** pCols) {
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
+                            SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1083,6 +1092,7 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   SCollectColumnsCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .pTableAlias = pTableAlias,
+      .collectType = type,
       .pCols = nodesMakeList(),
       .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
@@ -1092,11 +1102,11 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesClearList(cxt.pCols);
+    nodesDestroyList(cxt.pCols);
     return cxt.errCode;
   }
   if (0 == LIST_LENGTH(cxt.pCols)) {
-    nodesClearList(cxt.pCols);
+    nodesDestroyList(cxt.pCols);
     cxt.pCols = NULL;
   }
   *pCols = cxt.pCols;
@@ -1123,10 +1133,12 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     return TSDB_CODE_SUCCESS;
   }
 
-  SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .classifier = classifier, .pFuncs = nodesMakeList()};
+  SCollectFuncsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS, .classifier = classifier, .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs)};
   if (NULL == cxt.pFuncs) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  *pFuncs = NULL;
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectFuncs, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pFuncs);
@@ -1136,7 +1148,6 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     *pFuncs = cxt.pFuncs;
   } else {
     nodesDestroyList(cxt.pFuncs);
-    *pFuncs = NULL;
   }
 
   return TSDB_CODE_SUCCESS;

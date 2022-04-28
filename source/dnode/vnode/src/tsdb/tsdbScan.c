@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #if 0
-#include "tsdbint.h"
+#include "tsdb.h"
 #ifndef _TSDB_PLUGINS
 
 int tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }

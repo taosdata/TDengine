@@ -42,6 +42,8 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+  taos_init();
+
   if (shell.args.is_dump_config) {
     shellDumpConfig();
     taos_cleanup();

@@ -27,7 +27,7 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
   pRaw->sver = sver;
   pRaw->dataLen = dataLen;
 
-  mTrace("raw:%p, is created, len:%d", pRaw, dataLen);
+  mTrace("raw:%p, is created, len:%d table:%s", pRaw, dataLen, sdbTableName(type));
   return pRaw;
 }
 
@@ -107,7 +107,9 @@ int32_t sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_
     return -1;
   }
 
-  memcpy(pRaw->pData + dataPos, pVal, valLen);
+  if (pVal != NULL) {
+    memcpy(pRaw->pData + dataPos, pVal, valLen);
+  }
   return 0;
 }
 

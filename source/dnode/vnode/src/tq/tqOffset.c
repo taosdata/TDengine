@@ -14,7 +14,7 @@
  */
 #define _DEFAULT_SOURCE
 
-#include "vnodeInt.h"
+#include "tq.h"
 
 enum ETqOffsetPersist {
   TQ_OFFSET_PERSIST__LAZY = 1,
