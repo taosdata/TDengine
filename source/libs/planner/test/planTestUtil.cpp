@@ -14,9 +14,9 @@
  */
 
 #include "planTestUtil.h"
-#include <array>
 
 #include <algorithm>
+#include <array>
 
 #include "cmdnodes.h"
 #include "parser.h"

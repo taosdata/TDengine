@@ -46,6 +46,12 @@ typedef struct SStmtTableCache {
   void*             boundTags;
 } SStmtTableCache;
 
+typedef struct SQueryFields {
+  TAOS_FIELD*    fields;
+  TAOS_FIELD*    userFields;
+  uint32_t       numOfCols;
+} SQueryFields;
+
 typedef struct SStmtBindInfo {
   bool         needParse;
   uint64_t     tbUid;
@@ -66,16 +72,17 @@ typedef struct SStmtExecInfo {
 } SStmtExecInfo;
 
 typedef struct SStmtSQLInfo {
-  STMT_TYPE    type;
-  STMT_STATUS  status;
-  bool         autoCreate;
-  uint64_t     runTimes;
-  SHashObj*    pTableCache;   //SHash<SStmtTableCache>
-  SQuery*      pQuery;
-  char*        sqlStr;
-  int32_t      sqlLen;
-  SArray*      nodeList;
-  SQueryPlan*  pQueryPlan;
+  STMT_TYPE     type;
+  STMT_STATUS   status;
+  bool          autoCreate;
+  uint64_t      runTimes;
+  SHashObj*     pTableCache;   //SHash<SStmtTableCache>
+  SQuery*       pQuery;
+  char*         sqlStr;
+  int32_t       sqlLen;
+  SArray*       nodeList;
+  SQueryPlan*   pQueryPlan;
+  SQueryFields  fields;
 } SStmtSQLInfo;
 
 typedef struct STscStmt {
