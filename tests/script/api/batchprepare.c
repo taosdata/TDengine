@@ -188,8 +188,6 @@ CaseCtrl gCaseCtrl = {
   .caseRunIdx = -1,
 //  .caseRunNum = -1,
 
-  .bindColTypeNum = tListLen(bindColTypeList),
-  .bindColTypeList = bindColTypeList,
   .caseIdx = 22,
   .caseNum = 1,
   .caseRunNum = 1,
@@ -318,7 +316,7 @@ void generateInsertSQL(BindData *data) {
           len += sprintf(data->sql + len, "ubigdata");
           break;
         default:
-          printf("invalid col type:%d", data->pBind[c].buffer_type);
+          printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
           exit(1);
       }
     }
@@ -336,7 +334,7 @@ void generateInsertSQL(BindData *data) {
   len += sprintf(data->sql + len, ")");
 
   if (gCaseCtrl.printStmtSql) {
-    printf("SQL: %s\n", data->sql);
+    printf("\tSQL: %s\n", data->sql);
   }  
 }
 
@@ -358,7 +356,7 @@ void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType) {
       }
       break;
     default:
-      printf("invalid paramNum:%d\n", pInfo->paramNum);
+      printf("!!!invalid paramNum:%d\n", pInfo->paramNum);
       exit(1);
   }
 }
@@ -414,7 +412,7 @@ void generateQuerySQL(BindData *data, int32_t tblIdx) {
           len += sprintf(data->sql + len, "ubigdata");
           break;
         default:
-          printf("invalid col type:%d", data->pBind[c].buffer_type);
+          printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
           exit(1);
       }
       
@@ -423,7 +421,7 @@ void generateQuerySQL(BindData *data, int32_t tblIdx) {
   }
 
   if (gCaseCtrl.printStmtSql) {
-    printf("SQL: %s\n", data->sql);
+    printf("\tSTMT SQL: %s\n", data->sql);
   }  
 }
 
@@ -551,7 +549,7 @@ int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t 
       data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     default:
-      printf("invalid col type:%d", dataType);
+      printf("!!!invalid col type:%d", dataType);
       exit(1);
   }
 
@@ -709,7 +707,7 @@ void bpFetchRows(TAOS_RES *result, bool printr, int32_t *rows) {
     if (printr) {
       memset(temp, 0, sizeof(temp));
       taos_print_row(temp, row, fields, num_fields);
-      printf("[%s]\n", temp);
+      printf("\t[%s]\n", temp);
     }
   }
 }
@@ -718,7 +716,7 @@ void bpExecQuery(TAOS    * taos, char* sql, bool printr, int32_t *rows) {
   TAOS_RES *result = taos_query(taos, sql);
   int code = taos_errno(result);
   if (code != 0) {
-    printf("failed to query table, reason:%s\n", taos_errstr(result));
+    printf("!!!failed to query table, reason:%s\n", taos_errstr(result));
     taos_free_result(result);
     exit(1);
   }
@@ -791,7 +789,7 @@ int32_t bpAppendValueString(char *buf, int type, void *value, int32_t valueLen, 
       break;
 
     default:
-      printf("invalid data type:%d\n", type);
+      printf("!!!invalid data type:%d\n", type);
       exit(1);
   }
 }
@@ -803,13 +801,13 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (gCurCase->bindRowNum > 1) {
     if (0 == (n++%2)) {
       if (taos_stmt_bind_param_batch(stmt, bind)) {
-        printf("taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     } else {
       for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
         if (taos_stmt_bind_single_param_batch(stmt, bind++, i)) {
-          printf("taos_stmt_bind_single_param_batch error:%s\n", taos_stmt_errstr(stmt));
+          printf("!!!taos_stmt_bind_single_param_batch error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
         }
       }
@@ -817,12 +815,12 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   } else {
     if (0 == (n++%2)) {
       if (taos_stmt_bind_param_batch(stmt, bind)) {
-        printf("taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     } else {
       if (taos_stmt_bind_param(stmt, bind)) {
-        printf("taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
@@ -834,12 +832,12 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
 void bpCheckIsInsert(TAOS_STMT *stmt, int32_t insert) {
   int32_t isInsert = 0;
   if (taos_stmt_is_insert(stmt, &isInsert)) {
-    printf("taos_stmt_is_insert error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!taos_stmt_is_insert error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
   if (insert != isInsert) {
-    printf("is insert failed\n");
+    printf("!!!is insert failed\n");
     exit(1);
   }
 }
@@ -847,12 +845,12 @@ void bpCheckIsInsert(TAOS_STMT *stmt, int32_t insert) {
 void bpCheckParamNum(TAOS_STMT *stmt) {
   int32_t num = 0;
   if (taos_stmt_num_params(stmt, &num)) {
-    printf("taos_stmt_num_params error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!taos_stmt_num_params error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
   if (gCurCase->bindColNum != num) {
-    printf("is insert failed\n");
+    printf("!!!is insert failed\n");
     exit(1);
   }
 }
@@ -861,7 +859,7 @@ void bpCheckAffectedRows(TAOS_STMT *stmt, int32_t times) {
   int32_t rows = taos_stmt_affected_rows(stmt);
   int32_t insertNum = gCurCase->rowNum * gCurCase->tblNum * times;
   if (insertNum != rows) {
-    printf("affected rows %d mis-match with insert num %d\n", rows, insertNum);
+    printf("!!!affected rows %d mis-match with insert num %d\n", rows, insertNum);
     exit(1);
   }
 }
@@ -869,7 +867,7 @@ void bpCheckAffectedRows(TAOS_STMT *stmt, int32_t times) {
 void bpCheckAffectedRowsOnce(TAOS_STMT *stmt, int32_t expectedNum) {
   int32_t rows = taos_stmt_affected_rows_once(stmt);
   if (expectedNum != rows) {
-    printf("affected rows %d mis-match with expected num %d\n", rows, expectedNum);
+    printf("!!!affected rows %d mis-match with expected num %d\n", rows, expectedNum);
     exit(1);
   }
 }
@@ -904,16 +902,16 @@ void bpCheckQueryResult(TAOS_STMT *stmt, TAOS *taos, char *stmtSql, TAOS_MULTI_B
   }
 
   if (gCaseCtrl.printQuerySql) {
-    printf("Query SQL: %s\n", sql);
+    printf("\tQuery SQL: %s\n", sql);
   }
 
   bpExecQuery(taos, sql, gCaseCtrl.printRes, &sqlResNum);
   if (sqlResNum != stmtResNum) {
-    printf("sql res num %d mis-match stmt res num %d\n", sqlResNum, stmtResNum);
+    printf("!!!sql res num %d mis-match stmt res num %d\n", sqlResNum, stmtResNum);
     exit(1);
   }
 
-  printf("sql res num match stmt res num %d\n", stmtResNum);
+  printf("***sql res num match stmt res num %d\n", stmtResNum);
 }
 
 /* prepare [settbname [bind add]] exec */
@@ -923,7 +921,7 @@ int insertMBSETest1(TAOS_STMT *stmt, TAOS *taos) {
 
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -936,7 +934,7 @@ int insertMBSETest1(TAOS_STMT *stmt, TAOS *taos) {
       sprintf(buf, "t%d", t);
       code = taos_stmt_set_tbname(stmt, buf);
       if (code != 0){
-        printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }  
     }
@@ -951,14 +949,14 @@ int insertMBSETest1(TAOS_STMT *stmt, TAOS *taos) {
       }
       
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
   }
 
   if (taos_stmt_execute(stmt) != 0) {
-    printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -978,7 +976,7 @@ int insertMBSETest2(TAOS_STMT *stmt, TAOS *taos) {
 
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -993,7 +991,7 @@ int insertMBSETest2(TAOS_STMT *stmt, TAOS *taos) {
         sprintf(buf, "t%d", t);
         code = taos_stmt_set_tbname(stmt, buf);
         if (code != 0){
-          printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+          printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
         }  
       }
@@ -1007,14 +1005,14 @@ int insertMBSETest2(TAOS_STMT *stmt, TAOS *taos) {
       }
     
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
   }
 
   if (taos_stmt_execute(stmt) != 0) {
-    printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -1033,7 +1031,7 @@ int insertMBMETest1(TAOS_STMT *stmt, TAOS *taos) {
   
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -1046,7 +1044,7 @@ int insertMBMETest1(TAOS_STMT *stmt, TAOS *taos) {
       sprintf(buf, "t%d", t);
       code = taos_stmt_set_tbname(stmt, buf);
       if (code != 0){
-        printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }  
     }
@@ -1061,13 +1059,13 @@ int insertMBMETest1(TAOS_STMT *stmt, TAOS *taos) {
       }
       
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
 
     if (taos_stmt_execute(stmt) != 0) {
-      printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+      printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
       exit(1);
     }
   }
@@ -1087,7 +1085,7 @@ int insertMBMETest2(TAOS_STMT *stmt, TAOS *taos) {
 
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -1100,7 +1098,7 @@ int insertMBMETest2(TAOS_STMT *stmt, TAOS *taos) {
       sprintf(buf, "t%d", t);
       code = taos_stmt_set_tbname(stmt, buf);
       if (code != 0){
-        printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }  
     }
@@ -1115,12 +1113,12 @@ int insertMBMETest2(TAOS_STMT *stmt, TAOS *taos) {
       }
     
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
 
       if (taos_stmt_execute(stmt) != 0) {
-        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
@@ -1141,7 +1139,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
 
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -1154,7 +1152,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
       sprintf(buf, "t%d", t);
       code = taos_stmt_set_tbname(stmt, buf);
       if (code != 0){
-        printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }  
     }
@@ -1169,7 +1167,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
         sprintf(buf, "t%d", t);
         code = taos_stmt_set_tbname(stmt, buf);
         if (code != 0){
-          printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+          printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
         }  
       }
@@ -1179,12 +1177,12 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
       }
       
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
 
       if (taos_stmt_execute(stmt) != 0) {
-        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
@@ -1206,7 +1204,7 @@ int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos) {
 
   int code = taos_stmt_prepare(stmt, data.sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
     exit(1);
   }
 
@@ -1221,7 +1219,7 @@ int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos) {
         sprintf(buf, "t%d", t);
         code = taos_stmt_set_tbname(stmt, buf);
         if (code != 0){
-          printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+          printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
         }  
       }
@@ -1235,12 +1233,12 @@ int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos) {
       }
     
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
 
       if (taos_stmt_execute(stmt) != 0) {
-        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
@@ -1264,7 +1262,7 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
 
     int code = taos_stmt_prepare(stmt, data.sql, 0);
     if (code != 0){
-      printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+      printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
       exit(1);
     }
 
@@ -1277,7 +1275,7 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
         sprintf(buf, "t%d", t);
         code = taos_stmt_set_tbname(stmt, buf);
         if (code != 0){
-          printf("taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+          printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
         }  
       }
@@ -1292,13 +1290,13 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
         }
         
         if (taos_stmt_add_batch(stmt)) {
-          printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
         }
       }
 
       if (taos_stmt_execute(stmt) != 0) {
-        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
     }
@@ -1328,7 +1326,7 @@ int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
 
     int code = taos_stmt_prepare(stmt, data.sql, 0);
     if (code != 0){
-      printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+      printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
       exit(1);
     }
 
@@ -1344,12 +1342,12 @@ int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
       }
       
       if (taos_stmt_add_batch(stmt)) {
-        printf("taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
 
       if (taos_stmt_execute(stmt) != 0) {
-        printf("taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
       }
 
@@ -4249,10 +4247,10 @@ void prepareCheckResultImpl(TAOS     * taos, char *tname, bool printr, int expec
   
   if (rows == expected) {
     if (!silent) {
-      printf("%d rows are fetched as expected from %s\n", rows, tname);
+      printf("***%d rows are fetched as expected from %s\n", rows, tname);
     }
   } else {
-    printf("!!!expect %d rows, but %d rows are fetched from %s\n", expected, rows, tname);
+    printf("!!!expect rows %d mis-match rows %d fetched from %s\n", expected, rows, tname);
     exit(1);
   }
 }
@@ -4302,7 +4300,7 @@ int sql_perf1(TAOS     *taos) {
       result = taos_query(taos, sql[i]);
       int code = taos_errno(result);
       if (code != 0) {
-        printf("failed to query table, reason:%s\n", taos_errstr(result));
+        printf("%d failed to query table, reason:%s\n", taos_errstr(result));
         taos_free_result(result);
         exit(1);
     }
@@ -4539,7 +4537,7 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
   blen += sprintf(buf + blen, ")");
 
   if (gCaseCtrl.printCreateTblSql) {
-    printf("Create Table SQL:%s\n", buf);
+    printf("\tCreate Table SQL:%s\n", buf);
   }
 }
 
@@ -4553,7 +4551,7 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
   result = taos_query(taos, "create database demo keep 36500");
   code = taos_errno(result);
   if (code != 0) {
-    printf("failed to create database, reason:%s\n", taos_errstr(result));
+    printf("!!!failed to create database, reason:%s\n", taos_errstr(result));
     taos_free_result(result);
     exit(1);
   }
@@ -4570,7 +4568,7 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
       result = taos_query(taos, buf);
       code = taos_errno(result);
       if (code != 0) {
-        printf("failed to create table, reason:%s\n", taos_errstr(result));
+        printf("!!!failed to create table, reason:%s\n", taos_errstr(result));
         taos_free_result(result);
         exit(1);
       }
@@ -4583,7 +4581,7 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
     result = taos_query(taos, buf);
     code = taos_errno(result);
     if (code != 0) {
-      printf("failed to create table, reason:%s\n", taos_errstr(result));
+      printf("!!!failed to create table, reason:%s\n", taos_errstr(result));
       taos_free_result(result);
       exit(1);
     }
@@ -4654,7 +4652,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
    
     stmt = taos_stmt_init(taos);
     if (NULL == stmt) {
-      printf("taos_stmt_init failed, error:%s\n", taos_stmt_errstr(stmt));
+      printf("!!!taos_stmt_init failed, error:%s\n", taos_stmt_errstr(stmt));
       exit(1);
     }
   

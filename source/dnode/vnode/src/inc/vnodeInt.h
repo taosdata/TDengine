@@ -52,7 +52,7 @@ typedef struct STsdb        STsdb;
 typedef struct STQ          STQ;
 typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorkerMgmt SQHandle;
+typedef struct SQWorker SQHandle;
 
 #define VNODE_META_DIR "meta"
 #define VNODE_TSDB_DIR "tsdb"

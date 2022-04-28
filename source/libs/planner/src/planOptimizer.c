@@ -206,6 +206,8 @@ static int32_t cpdMergeCond(SNode** pDst, SNode** pSrc) {
   if (NULL == pLogicCond) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   pLogicCond->condType = LOGIC_COND_TYPE_AND;
   int32_t code = nodesListMakeAppend(&pLogicCond->pParameterList, *pSrc);
   if (TSDB_CODE_SUCCESS == code) {

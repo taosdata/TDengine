@@ -23,6 +23,7 @@ extern "C" {
 #include "qworker.h"
 #include "tlockfree.h"
 #include "ttimer.h"
+#include "tref.h"
 
 #define QW_DEFAULT_SCHEDULER_NUMBER 10000
 #define QW_DEFAULT_TASK_NUMBER      10000
@@ -85,6 +86,11 @@ typedef struct SQWMsg {
   SQWConnInfo connInfo;
 } SQWMsg;
 
+typedef struct SQWHbParam {
+  int32_t qwrId;
+  int64_t refId;
+} SQWHbParam;
+
 typedef struct SQWHbInfo {
   SSchedulerHbRsp rsp;
   SQWConnInfo     connInfo;
@@ -137,7 +143,8 @@ typedef struct SQWSchStatus {
 } SQWSchStatus;
 
 // Qnode/Vnode level task management
-typedef struct SQWorkerMgmt {
+typedef struct SQWorker {
+  int64_t     refId;
   SQWorkerCfg cfg;
   int8_t      nodeType;
   int32_t     nodeId;
@@ -148,9 +155,15 @@ typedef struct SQWorkerMgmt {
   SHashObj *schHash;  // key: schedulerId,    value: SQWSchStatus
   SHashObj *ctxHash;  // key: queryId+taskId, value: SQWTaskCtx
   SMsgCb    msgCb;
+} SQWorker;
+
+typedef struct SQWorkerMgmt {
+  SRWLatch lock;
+  int32_t  qwRef;
+  int32_t  qwNum;
 } SQWorkerMgmt;
 
-#define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
+#define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
 #define QW_IDS()       sId, qId, tId, rId
 #define QW_FPARAMS()   mgmt, QW_IDS()
 
@@ -209,13 +222,13 @@ typedef struct SQWorkerMgmt {
     }                                \
   } while (0)
 
-#define QW_ELOG(param, ...) qError("QW:%p " param, mgmt, __VA_ARGS__)
-#define QW_DLOG(param, ...) qDebug("QW:%p " param, mgmt, __VA_ARGS__)
+#define QW_ELOG(_param, ...) qError("QW:%p " _param, mgmt, __VA_ARGS__)
+#define QW_DLOG(_param, ...) qDebug("QW:%p " _param, mgmt, __VA_ARGS__)
 
-#define QW_DUMP(param, ...)                      \
+#define QW_DUMP(_param, ...)                      \
   do {                                           \
     if (gQWDebug.dumpEnable) {                   \
-      qDebug("QW:%p " param, mgmt, __VA_ARGS__); \
+      qDebug("QW:%p " _param, mgmt, __VA_ARGS__); \
     }                                            \
   } while (0)
 
@@ -281,6 +294,14 @@ typedef struct SQWorkerMgmt {
       assert(atomic_load_32((_lock)) >= 0);                                                         \
     }                                                                                               \
   } while (0)
+
+
+extern SQWorkerMgmt gQwMgmt;
+
+FORCE_INLINE SQWorker *qwAcquire(int64_t refId) { return (SQWorker *)taosAcquireRef(atomic_load_32(&gQwMgmt.qwRef), refId); }
+
+FORCE_INLINE int32_t qwRelease(int64_t refId) { return taosReleaseRef(gQwMgmt.qwRef, refId); }
+
 
 #ifdef __cplusplus
 }
