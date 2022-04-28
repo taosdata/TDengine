@@ -183,8 +183,6 @@ pipeline {
                         changeRequest()
                     }
                     steps {
-                        script {
-                        }
                         timeout(time: 45, unit: 'MINUTES'){
                             pre_test()
                             sh '''
