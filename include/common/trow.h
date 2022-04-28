@@ -214,6 +214,14 @@ STSRow *tdRowDup(STSRow *row);
 static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
   return (SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx;
 }
+static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
+  ASSERT(idx >= 0);
+  if (idx == 0) {
+    return PRIMARYKEY_TIMESTAMP_COL_ID;
+  }
+
+  return ((SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx - 1)->colId;
+}
 static FORCE_INLINE void *tdKVRowColVal(STSRow *pRow, SKvRowIdx *pIdx) { return POINTER_SHIFT(pRow, pIdx->offset); }
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);  // During ParseInsert when without STSchema, how to get the offset for STpRow?
@@ -668,7 +676,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     case TD_ROW_KV:
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols);
-      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBitmaps);
+      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBoundBitmaps);
 #endif
       len = TD_ROW_HEAD_LEN + TD_ROW_NCOLS_LEN + (pBuilder->nBoundCols - 1) * sizeof(SKvRowIdx) +
             pBuilder->nBoundBitmaps;  // add
@@ -1092,7 +1100,7 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
   STSRow    *pRow = pIter->pRow;
   SKvRowIdx *pKvIdx = NULL;
   bool       colFound = false;
-  col_id_t   kvNCols = tdRowGetNCols(pRow);
+  col_id_t   kvNCols = tdRowGetNCols(pRow) - 1;
   while (*nIdx < kvNCols) {
     pKvIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(pRow), *nIdx * sizeof(SKvRowIdx));
     if (pKvIdx->colId == colId) {
@@ -1108,7 +1116,14 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
     }
   }
 
-  if (!colFound) return false;
+  if (!colFound) {
+    if(colId <= pIter->maxColId) {
+      pVal->valType = TD_VTYPE_NONE;
+      return true;
+    } else {
+      return false;
+    }
+  }
 
 #ifdef TD_SUPPORT_BITMAP
   int16_t colIdx = -1;

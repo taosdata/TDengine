@@ -230,8 +230,8 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   pOld->updateTime = pNew->updateTime;
 
-  TSWAP(pOld->readDbs, pNew->readDbs, (void *));
-  TSWAP(pOld->writeDbs, pNew->writeDbs, (void *));
+  TSWAP(pOld->readDbs, pNew->readDbs);
+  TSWAP(pOld->writeDbs, pNew->writeDbs);
 
   return 0;
 }

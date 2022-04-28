@@ -111,6 +111,5 @@ void shellTestNetWork();
 
 // shellMain.c
 extern SShellObj shell;
-extern void      taos_init();
 
 #endif /*_TD_SHELL_INT_H_*/

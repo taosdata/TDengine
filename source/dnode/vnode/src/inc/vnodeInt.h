@@ -107,6 +107,15 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 
+// sma
+
+int32_t tsdbRegisterRSma(STsdb* pTsdb, SMeta* pMeta, SVCreateStbReq* pReq);
+int32_t tsdbFetchTbUidList(STsdb* pTsdb, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
+int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
+void    tsdbUidStoreDestory(STbUidStore* pStore);
+void*   tsdbUidStoreFree(STbUidStore* pStore);
+int32_t tsdbTriggerRSma(STsdb* pTsdb, SMeta* pMeta, void* pMsg, int32_t inputType);
+
 typedef struct {
   int8_t  streamType;  // sma or other
   int8_t  dstType;
@@ -162,7 +171,7 @@ struct STbUidStore {
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
-typedef struct STbDdlH STbDdlH;
+// typedef struct STbDdlH STbDdlH;
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
