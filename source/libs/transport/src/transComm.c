@@ -363,7 +363,7 @@ static int32_t timeCompare(const HeapNode* a, const HeapNode* b) {
   SDelayTask* arg1 = container_of(a, SDelayTask, node);
   SDelayTask* arg2 = container_of(b, SDelayTask, node);
   if (arg1->execTime > arg2->execTime) {
-    return -1;
+    return 0;
   } else {
     return 1;
   }
@@ -371,23 +371,25 @@ static int32_t timeCompare(const HeapNode* a, const HeapNode* b) {
 
 static void transDelayQueueTimeout(uv_timer_t* timer) {
   SDelayQueue* queue = timer->data;
-  HeapNode*    node = heapMin(queue->heap);
-  if (node == NULL) {
-    // DO NOTHING
+  tTrace("timer %p timeout", timer);
+  uint64_t timeout = 0;
+  do {
+    HeapNode* minNode = heapMin(queue->heap);
+    if (minNode == NULL) break;
+    SDelayTask* task = container_of(minNode, SDelayTask, node);
+    if (task->execTime <= taosGetTimestampMs()) {
+      heapRemove(queue->heap, minNode);
+      task->func(task->arg);
+      taosMemoryFree(task);
+      timeout = 0;
+    } else {
+      timeout = task->execTime - taosGetTimestampMs();
+      break;
+    }
+  } while (1);
+  if (timeout != 0) {
+    uv_timer_start(queue->timer, transDelayQueueTimeout, timeout, 0);
   }
-  heapRemove(queue->heap, node);
-
-  SDelayTask* task = container_of(node, SDelayTask, node);
-  task->func(task->arg);
-  taosMemoryFree(task);
-
-  node = heapMin(queue->heap);
-  if (node == NULL) {
-    return;
-  }
-  task = container_of(node, SDelayTask, node);
-  uint64_t timeout = task->execTime > uv_now(queue->loop) ? task->execTime - uv_now(queue->loop) : 0;
-  uv_timer_start(queue->timer, transDelayQueueTimeout, timeout, 0);
 }
 int transCreateDelayQueue(uv_loop_t* loop, SDelayQueue** queue) {
   uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
@@ -406,8 +408,18 @@ int transCreateDelayQueue(uv_loop_t* loop, SDelayQueue** queue) {
 }
 
 void transDestroyDelayQueue(SDelayQueue* queue) {
-  uv_timer_stop(queue->timer);
   taosMemoryFree(queue->timer);
+
+  while (heapSize(queue->heap) > 0) {
+    HeapNode* minNode = heapMin(queue->heap);
+    if (minNode == NULL) {
+      return;
+    }
+    heapRemove(queue->heap, minNode);
+
+    SDelayTask* task = container_of(minNode, SDelayTask, node);
+    taosMemoryFree(task);
+  }
   heapDestroy(queue->heap);
   taosMemoryFree(queue);
 }
@@ -417,11 +429,11 @@ int transPutTaskToDelayQueue(SDelayQueue* queue, void (*func)(void* arg), void* 
 
   task->func = func;
   task->arg = arg;
-  task->execTime = uv_now(queue->loop) + timeoutMs;
+  task->execTime = taosGetTimestampMs() + timeoutMs;
 
-  int size = heapSize(queue->heap);
+  tTrace("timer %p put task into queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
-  if (size == 1) {
+  if (heapSize(queue->heap) == 1) {
     uv_timer_start(queue->timer, transDelayQueueTimeout, timeoutMs, 0);
   }
 

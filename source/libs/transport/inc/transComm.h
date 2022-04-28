@@ -329,6 +329,14 @@ void transQueueClear(STransQueue* queue);
  */
 void transQueueDestroy(STransQueue* queue);
 
+/*
+ * delay queue based on uv loop and uv timer, and only used in retry
+ */
+typedef struct STaskArg {
+  void* param1;
+  void* param2;
+} STaskArg;
+
 typedef struct SDelayTask {
   void (*func)(void* arg);
   void*    arg;
