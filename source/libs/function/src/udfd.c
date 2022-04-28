@@ -232,7 +232,7 @@ void udfdProcessRequest(uv_work_t *req) {
           SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize),
                                  .bufLen= udf->bufSize,
                                  .numOfResult = 0};
-          udf->aggProcFunc(&input, &outBuf);
+          udf->aggProcFunc(&input, &call->interBuf, &outBuf);
           subRsp->resultBuf = outBuf;
 
           break;

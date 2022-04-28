@@ -140,7 +140,7 @@ typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock* block, SUdfColumn *resultCol);
 
 typedef int32_t (*TUdfAggStartFunc)(SUdfInterBuf *buf);
-typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock* block, SUdfInterBuf *interBuf);
+typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf);
 typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf* buf, SUdfInterBuf *resultData);
 
 
