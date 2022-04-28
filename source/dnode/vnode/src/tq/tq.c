@@ -864,7 +864,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
 }
 
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
-  SStreamTask* pTask = taosMemoryMalloc(sizeof(SStreamTask));
+  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return -1;
   }

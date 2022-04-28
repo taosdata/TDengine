@@ -139,6 +139,20 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult) {
+  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0)? 1:0;
+  cleanupResultRowEntry(pResInfo);
+
+  char* in = finalResult;
+  colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
+
+  return pResInfo->numOfRes;
+}
+
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {

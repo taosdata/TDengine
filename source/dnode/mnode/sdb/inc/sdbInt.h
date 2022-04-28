@@ -52,6 +52,8 @@ typedef struct SSdbRow {
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 
+void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
+
 #ifdef __cplusplus
 }
 #endif

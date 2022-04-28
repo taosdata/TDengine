@@ -72,8 +72,8 @@ void taosRemoveDir(const char *dirname) {
   while ((de = taosReadDir(pDir)) != NULL) {
     if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
 
-    char filename[1024];
-    snprintf(filename, sizeof(filename), "%s/%s", dirname, taosGetDirEntryName(de));
+    char filename[1024] = {0};
+    snprintf(filename, sizeof(filename), "%s%s%s", dirname, TD_DIRSEP, taosGetDirEntryName(de));
     if (taosDirEntryIsDir(de)) {
       taosRemoveDir(filename);
     } else {

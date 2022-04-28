@@ -40,7 +40,7 @@ static int32_t  mndProcessMCreateSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessVCreateSmaRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVDropSmaRsp(SNodeMsg *pRsp);
-static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSma(SMnode *pMnode) {
@@ -406,7 +406,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
 
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(streamObj.db, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
@@ -686,9 +686,9 @@ _OVER:
   return code;
 }
 
-int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
-  int32_t      code = -1;
-  SSmaObj     *pSma = NULL;
+int32_t mndProcessGetSmaReq(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
+  int32_t  code = -1;
+  SSmaObj *pSma = NULL;
 
   pSma = mndAcquireSma(pMnode, indexReq->indexFName);
   if (pSma == NULL) {
@@ -701,13 +701,14 @@ int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserI
   strcpy(rsp->indexType, TSDB_INDEX_TYPE_SMA);
 
   SNodeList *pList = NULL;
-  int32_t extOffset = 0;
+  int32_t    extOffset = 0;
   code = nodesStringToList(pSma->expr, &pList);
   if (0 == code) {
     SNode *node = NULL;
     FOREACH(node, pList) {
       SFunctionNode *pFunc = (SFunctionNode *)node;
-      extOffset += snprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s", (extOffset ? ",":""), pFunc->functionName);
+      extOffset += snprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s",
+                            (extOffset ? "," : ""), pFunc->functionName);
     }
 
     *exist = true;
@@ -718,13 +719,12 @@ int32_t mndProcessGetSmaReq(SMnode      *pMnode, SUserIndexReq *indexReq, SUserI
   return code;
 }
 
-
 static int32_t mndProcessVDropSmaRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->pNode;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
@@ -758,8 +758,8 @@ static int32_t mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlo
     char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(n1, (char *)tNameGetTableName(&stbName));
 
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) n, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)n, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);

@@ -667,7 +667,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   if (code != 0) goto FAIL;
 
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
-    tscDebug("not ready, retry");
+    tscDebug("consumer not ready, retry");
     taosMsleep(500);
   }
 
@@ -693,6 +693,7 @@ void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) {
   conf->commitCb = cb;
 }
 
+#if 0
 TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbName, const char* sql) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
@@ -739,7 +740,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
       .sql = (char*)sql,
   };
   tNameExtractFullName(&name, req.name);
-  strcpy(req.outputSTbName, tbName);
+  strcpy(req.targetStbFullName, tbName);
 
   int   tlen = tSerializeSCMCreateStreamReq(NULL, 0, &req);
   void* buf = taosMemoryMalloc(tlen);
@@ -777,6 +778,7 @@ _return:
 
   return pRequest;
 }
+#endif
 
 #if 0
 int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {

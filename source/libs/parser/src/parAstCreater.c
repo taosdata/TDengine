@@ -44,7 +44,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->notSupport = false;
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
-  pCxt->placeholderNo = 1;
+  pCxt->placeholderNo = 0;
   pCxt->errCode = TSDB_CODE_SUCCESS;
 }
 
@@ -316,7 +316,7 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   CHECK_OUT_OF_MEM(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
-  val->placeholderNo = pCxt->placeholderNo++;
+  val->placeholderNo = ++pCxt->placeholderNo;
   return (SNode*)val;
 }
 
@@ -381,6 +381,11 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
+  if (TSDB_DATA_TYPE_BINARY == dt.type) {
+    func->node.resType.bytes += 2;
+  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + 2;
+  }
   nodesListMakeAppend(&func->pParameterList, pExpr);
   return (SNode*)func;
 }

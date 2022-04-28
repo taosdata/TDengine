@@ -80,6 +80,7 @@ abort_parse:
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     (*pQuery)->pRoot = cxt.pRootNode;
+    (*pQuery)->placeholderNum = cxt.placeholderNo;
   }
   return cxt.errCode;
 }
