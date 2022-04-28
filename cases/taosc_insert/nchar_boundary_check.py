@@ -20,6 +20,7 @@ class TestNcharBoundary(TDCase):
 
     def nchar_length_check(self):
         """
+        # ! 已变更为48K, 但目前有问题, 待修复后更新用例
         max length: 4093
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")

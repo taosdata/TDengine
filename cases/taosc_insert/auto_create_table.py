@@ -86,9 +86,9 @@ class TestAutoCreateTable(TDCase):
 
 
     def run(self) -> bool:
-        self.check_tag_value_for_auto_create_table()
+        # self.check_tag_value_for_auto_create_table()
         self.check_col_value_for_auto_create_table()
-        self.check_multi_cols_for_auto_create_table()
+        # self.check_multi_cols_for_auto_create_table()
 
     def cleanup(self):
         pass

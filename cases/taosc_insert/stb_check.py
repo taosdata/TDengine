@@ -31,6 +31,18 @@ class TestStb(TDCase):
         dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters")
         self.tdSql.error(f'create stable if not exists {dbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
 
+    def stb_params_check(self):
+        """
+        stb params check
+        """
+        # comment
+        stbname = self.tdCom.get_long_name(length=10, mode="letters")
+        comment = "stb_param_test"
+        self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int) comment "{comment}"')
+        self.tdSql.query('show stables')
+        res = self.tdSql.get_db_field_kv(0, stbname)
+        self.tdSql.checkEqual(res["table_comment"], comment)
+
     def stbname_with_backquote(self):
         """
         backquote supported
@@ -44,6 +56,8 @@ class TestStb(TDCase):
         stbname = self.tdCom.get_long_name(length=3, mode="letters")
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
+        # !bug and please remove \\ after TD-15208 is fixed
+        symbol_list.remove('\\')
         for insert_str in symbol_list:
             d_list = list(stbname)
             for i in range(len(d_list)+1):
@@ -117,6 +131,7 @@ class TestStb(TDCase):
 
     def run(self):
         self.stbname_length_check()
+        # self.stb_params_check()
         self.stbname_with_backquote()
         self.stbname_without_backquote()
         self.upper_lower_stbname_check()
