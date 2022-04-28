@@ -124,7 +124,10 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetUdafExecFuncs(SFuncExecFuncs* pFpSet) {
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (!fmIsUserDefinedFunc(funcId)) {
+    return TSDB_CODE_FAILED;
+  }
   pFpSet->getEnv = udfAggGetEnv;
   pFpSet->init = udfAggInit;
   pFpSet->process = udfAggProcess;
