@@ -24,7 +24,7 @@ int32_t udf2_start(SUdfInterBuf *buf) {
   return 0;
 }
 
-int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf) {
+int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
   int64_t sumSquares = *(int64_t*)interBuf->buf;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
     for (int32_t j = 0; j < block->numOfRows; ++i) {
@@ -35,10 +35,10 @@ int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf) {
     }
   }
 
-  *(int64_t*)interBuf = sumSquares;
-  interBuf->bufLen = sizeof(int64_t);
+  *(int64_t*)newInterBuf = sumSquares;
+  newInterBuf->bufLen = sizeof(int64_t);
   //TODO: if all null value, numOfResult = 0;
-  interBuf->numOfResult = 1;
+  newInterBuf->numOfResult = 1;
   return 0;
 }
 

@@ -382,7 +382,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
 
           pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;
-          SDbObj* pDb = mndAcquireDb(pMnode, pStream->db);
+          SDbObj* pDb = mndAcquireDb(pMnode, pStream->sourceDb);
           ASSERT(pDb);
           if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
             sdbRelease(pSdb, pDb);

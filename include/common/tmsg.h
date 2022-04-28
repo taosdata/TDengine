@@ -1280,8 +1280,9 @@ typedef struct {
 #define STREAM_TRIGGER_WINDOW_CLOSE 2
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    outputSTbName[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    sourceDB[TSDB_DB_FNAME_LEN];
+  char    targetStbFullName[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   char*   sql;
   char*   ast;
