@@ -227,7 +227,7 @@ class TDTestCase:
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self.__insert_data(100)
+        self.__insert_data(10)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
