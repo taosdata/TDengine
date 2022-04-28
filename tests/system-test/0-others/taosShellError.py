@@ -74,17 +74,19 @@ class TDTestCase:
     hostname = socket.gethostname()
     serverPort = '7080'
     rpcDebugFlagVal = '143'
-    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135'}
+    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     clientCfgDict["serverPort"]    = serverPort
     clientCfgDict["firstEp"]       = hostname + ':' + serverPort
     clientCfgDict["secondEp"]      = hostname + ':' + serverPort
     clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
+    clientCfgDict["fqdn"] = hostname
 
-    updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':''}
+    updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     updatecfgDict["clientCfg"]  = clientCfgDict
     updatecfgDict["serverPort"] = serverPort
     updatecfgDict["firstEp"]    = hostname + ':' + serverPort
     updatecfgDict["secondEp"]   = hostname + ':' + serverPort
+    clientCfgDict["fqdn"] = hostname
 
     print ("===================: ", updatecfgDict)
 

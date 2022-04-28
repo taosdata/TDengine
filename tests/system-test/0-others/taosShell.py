@@ -87,7 +87,6 @@ class TDTestCase:
     updatecfgDict["secondEp"]   = hostname + ':' + serverPort
     updatecfgDict["fqdn"] = hostname
 
-
     print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql):
