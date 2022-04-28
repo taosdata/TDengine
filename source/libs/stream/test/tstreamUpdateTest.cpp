@@ -90,11 +90,21 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
     }
   }
 
+  SUpdateInfo *pSU4 = updateInfoInit(-1, TSDB_TIME_PRECISION_MILLI, -1);
+  GTEST_ASSERT_EQ(pSU4->watermark, 120 * pSU4->interval);
+  GTEST_ASSERT_EQ(pSU4->interval, MILLISECOND_PER_MINUTE);
+
+  SUpdateInfo *pSU5 = updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
+  GTEST_ASSERT_EQ(pSU5->watermark, 120 * pSU4->interval);
+  GTEST_ASSERT_EQ(pSU5->interval, MILLISECOND_PER_MINUTE);
+
 
   updateInfoDestroy(pSU);
   updateInfoDestroy(pSU1);
   updateInfoDestroy(pSU2);
   updateInfoDestroy(pSU3);
+  updateInfoDestroy(pSU4);
+  updateInfoDestroy(pSU5);
 }
 
 int main(int argc, char* argv[]) {

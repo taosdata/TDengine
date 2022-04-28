@@ -48,7 +48,7 @@ void mndCleanupShow(SMnode *pMnode) {
   }
 }
 
-static int32_t convertToRetrieveType(char* name, int32_t len) {
+static int32_t convertToRetrieveType(char *name, int32_t len) {
   int32_t type = -1;
 
   if (strncasecmp(name, TSDB_INS_TABLE_DNODES, len) == 0) {
@@ -73,8 +73,6 @@ static int32_t convertToRetrieveType(char* name, int32_t len) {
     //    type = TSDB_MGMT_TABLE_INDEX;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_STB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STREAMS, len) == 0) {
-    type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_TABLE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, len) == 0) {
@@ -99,12 +97,14 @@ static int32_t convertToRetrieveType(char* name, int32_t len) {
     type = TSDB_MGMT_TABLE_CONNS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_QUERIES, len) == 0) {
     type = TSDB_MGMT_TABLE_QUERIES;
-  }  else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_VNODES;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_TOPICS, len) == 0) {
     type = TSDB_MGMT_TABLE_TOPICS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_STREAMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_STREAMS;
   } else {
-//    ASSERT(0);
+    //    ASSERT(0);
   }
 
   return type;
@@ -116,12 +116,12 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   int64_t showId = atomic_add_fetch_64(&pMgmt->showId, 1);
   if (showId == 0) atomic_add_fetch_64(&pMgmt->showId, 1);
 
-  int32_t  size = sizeof(SShowObj);
+  int32_t size = sizeof(SShowObj);
 
   SShowObj showObj = {0};
-  showObj.id     = showId;
+  showObj.id = showId;
   showObj.pMnode = pMnode;
-  showObj.type   = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
+  showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;

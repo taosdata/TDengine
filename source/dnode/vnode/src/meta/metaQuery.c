@@ -159,7 +159,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 
   // decode
   pBuf = pVal;
-  pSW = taosMemoryMalloc(sizeof(pSW));
+  pSW = taosMemoryMalloc(sizeof(SSchemaWrapper));
 
   tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_DECODER);
   tDecodeSSchemaWrapper(&coder, pSW);
