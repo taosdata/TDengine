@@ -85,7 +85,6 @@ typedef struct {
   TAOS*           conn;
   TdThread        pid;
   tsem_t          cancelSem;
-  int64_t         result;
 } SShellObj;
 
 // shellArguments.c
@@ -112,6 +111,5 @@ void shellTestNetWork();
 
 // shellMain.c
 extern SShellObj shell;
-extern void      taos_init();
 
 #endif /*_TD_SHELL_INT_H_*/

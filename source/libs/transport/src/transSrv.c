@@ -93,6 +93,8 @@ typedef struct SServerObj {
   uint32_t    ip;
   uint32_t    port;
   uv_async_t* pAcceptAsync;  // just to quit from from accept thread
+
+  bool inited;
 } SServerObj;
 
 // handle
@@ -143,7 +145,7 @@ static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleR
 
 static int32_t exHandlesMgt;
 
-void       uvInitExHandleMgt();
+void       uvInitEnv();
 void       uvOpenExHandleMgt(int size);
 void       uvCloseExHandleMgt();
 int64_t    uvAddExHandle(void* p);
@@ -716,6 +718,7 @@ static bool addHandleToAcceptloop(void* arg) {
   }
   if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
     tError("failed to listen: %s", uv_err_name(err));
+    terrno = TSDB_CODE_RPC_PORT_EADDRINUSE;
     return false;
   }
   return true;
@@ -800,9 +803,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->port = port;
   uv_loop_init(srv->loop);
 
-  taosThreadOnce(&transModuleInit, uvInitExHandleMgt);
+  taosThreadOnce(&transModuleInit, uvInitEnv);
   transSrvInst++;
-  // uvOpenExHandleMgt(10000);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)taosMemoryCalloc(1, sizeof(SWorkThrdObj));
@@ -831,6 +833,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     } else {
       // TODO: clear all other resource later
       tError("failed to create worker-thread %d", i);
+      goto End;
     }
   }
   if (false == addHandleToAcceptloop(srv)) {
@@ -840,17 +843,19 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   if (err == 0) {
     tDebug("success to create accept-thread");
   } else {
+    tError("failed  to create accept-thread");
+    goto End;
     // clear all resource later
   }
-
+  srv->inited = true;
   return srv;
 End:
   transCloseServer(srv);
   return NULL;
 }
 
-void uvInitExHandleMgt() {
-  // init exhandle mgt
+void uvInitEnv() {
+  uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
   uvOpenExHandleMgt(10000);
 }
 void uvOpenExHandleMgt(int size) {
@@ -956,9 +961,10 @@ void transCloseServer(void* arg) {
   SServerObj* srv = arg;
 
   tDebug("send quit msg to accept thread");
-  uv_async_send(srv->pAcceptAsync);
-  taosThreadJoin(srv->thread, NULL);
-
+  if (srv->inited) {
+    uv_async_send(srv->pAcceptAsync);
+    taosThreadJoin(srv->thread, NULL);
+  }
   SRV_RELEASE_UV(srv->loop);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
@@ -1078,6 +1084,7 @@ void transRegisterMsg(const STransMsg* msg) {
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   uvReleaseExHandle(refId);
   return;
+
 _return1:
   tTrace("server handle %p failed to send to register brokenlink", exh);
   rpcFreeCont(msg->pCont);

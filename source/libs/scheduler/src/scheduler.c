@@ -1076,17 +1076,17 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SVCreateTbBatchRsp batchRsp = {0};
       if (msg) {
         SCH_ERR_JRET(tDeserializeSVCreateTbBatchRsp(msg, msgSize, &batchRsp));
-        if (batchRsp.rspList) {
-          int32_t num = taosArrayGetSize(batchRsp.rspList);
+        if (batchRsp.pArray) {
+          int32_t num = taosArrayGetSize(batchRsp.pArray);
           for (int32_t i = 0; i < num; ++i) {
-            SVCreateTbRsp *rsp = taosArrayGet(batchRsp.rspList, i);
+            SVCreateTbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
             if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              taosArrayDestroy(batchRsp.rspList);
+              taosArrayDestroy(batchRsp.pArray);
               SCH_ERR_JRET(rsp->code);
             }
           }
 
-          taosArrayDestroy(batchRsp.rspList);
+          taosArrayDestroy(batchRsp.pArray);
         }
       }
 

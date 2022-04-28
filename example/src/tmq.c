@@ -18,7 +18,6 @@
 #include <string.h>
 #include <time.h>
 #include "taos.h"
-#include "osSleep.h"
 
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {

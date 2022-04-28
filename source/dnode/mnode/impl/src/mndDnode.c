@@ -363,7 +363,7 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
       mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
-      terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
+      terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       goto PROCESS_STATUS_MSG_OVER;
     }
 

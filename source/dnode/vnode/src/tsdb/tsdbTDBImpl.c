@@ -15,14 +15,14 @@
 
 #define ALLOW_FORBID_FUNC
 
-#include "vnodeInt.h"
+#include "tsdb.h"
 
 int32_t tsdbOpenDBEnv(TENV **ppEnv, const char *path) {
-  int   ret = 0;
+  int ret = 0;
 
   if (path == NULL) return -1;
 
-  ret = tdbEnvOpen(path, 4096, 256, ppEnv); // use as param
+  ret = tdbEnvOpen(path, 4096, 256, ppEnv);  // use as param
 
   if (ret != 0) {
     tsdbError("Failed to create tsdb db env, ret = %d", ret);

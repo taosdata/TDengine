@@ -22,6 +22,7 @@
 #include "ttime.h"
 #include "ttypes.h"
 
+// clang-format off
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
     int32_t index = 0;                          \
@@ -306,7 +307,7 @@ static int32_t buildOutput(SInsertParseContext* pCxt) {
     taosHashGetDup(pCxt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
-    TSWAP(dst->pData, src->pData, char*);
+    TSWAP(dst->pData, src->pData);
     buildMsgHeader(src, dst);
     taosArrayPush(pCxt->pOutput->pDataBlocks, &dst);
   }
@@ -767,8 +768,8 @@ static int32_t buildCreateTbReq(SVCreateTbReq* pTbReq, const SName* pName, SKVRo
   tNameGetFullDbName(pName, dbFName);
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(pName->tname);
-  pTbReq->ctbCfg.suid = suid;
-  pTbReq->ctbCfg.pTag = row;
+  pTbReq->ctb.suid = suid;
+  pTbReq->ctb.pTag = row;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -936,6 +937,11 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     }
 
     *gotRow = true;
+#ifdef TD_DEBUG_PRINT_ROW
+    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&schema, spd->numOfCols);
+    tdSRowPrint(row, pSTSchema, __func__);
+    taosMemoryFree(pSTSchema);
+#endif
   }
 
   // *len = pBuilder->extendedRowSize;
@@ -1007,7 +1013,7 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
 
 void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ctbCfg.pTag);
+  taosMemoryFreeClear(pReq->ctb.pTag);
 }
 
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
@@ -1358,7 +1364,6 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
         checkTimestamp(pDataBlock, (const char*)&tsKey);
       }
     }
-
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
@@ -1368,6 +1373,11 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
         }
       }
     }
+#ifdef TD_DEBUG_PRINT_ROW
+    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
+    tdSRowPrint(row, pSTSchema, __func__);
+    taosMemoryFree(pSTSchema);
+#endif
 
     pDataBlock->size += extendedRowSize;
   }
@@ -1446,6 +1456,14 @@ int32_t qBindStmtSingleColValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBu
         }
       }
     }
+
+#ifdef TD_DEBUG_PRINT_ROW
+    if(rowEnd) {
+      STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
+      tdSRowPrint(row, pSTSchema, __func__);
+      taosMemoryFree(pSTSchema);
+    }
+#endif
   }
 
   if (rowEnd) {

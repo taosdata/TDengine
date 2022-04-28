@@ -13,7 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tsdbSma.h"
+#include "tsdb.h"
 
 static const char *TSDB_SMA_DNAME[] = {
     "",      // TSDB_SMA_TYPE_BLOCK
@@ -172,6 +173,7 @@ static void    tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[])
 static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char *msg);
 static int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, const char *msg);
 
+static FORCE_INLINE int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid, SArray *tbUids);
 // mgmt interface
 static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid);
@@ -677,7 +679,6 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
-
 
   if (tsdbCheckAndInitSmaEnv(pTsdb, TSDB_SMA_TYPE_TIME_RANGE) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
@@ -1692,17 +1693,16 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
  * @param pReq
  * @return int32_t
  */
-int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
-  SRSmaParam *param = pReq->stbCfg.pRSmaParam;
-
-  if (!param) {
-    tsdbDebug("vgId:%d return directly since no rollup for stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name,
-              pReq->stbCfg.suid);
+int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
+  if (!pReq->rollup) {
+    tsdbDebug("vgId:%d return directly since no rollup for stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
+  SRSmaParam *param = &pReq->pRSmaParam;
+
   if ((param->qmsg1Len == 0) && (param->qmsg2Len == 0)) {
-    tsdbWarn("vgId:%d no qmsg1/qmsg2 for rollup stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->stbCfg.suid);
+    tsdbWarn("vgId:%d no qmsg1/qmsg2 for rollup stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1715,9 +1715,9 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaInfo *pRSmaInfo = NULL;
 
-  pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), &pReq->stbCfg.suid, sizeof(tb_uid_t));
+  pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), &pReq->suid, sizeof(tb_uid_t));
   if (pRSmaInfo) {
-    tsdbWarn("vgId:%d rsma info already exists for stb: %s, %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->stbCfg.suid);
+    tsdbWarn("vgId:%d rsma info already exists for stb: %s, %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1757,11 +1757,11 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
     }
   }
 
-  if (taosHashPut(SMA_STAT_INFO_HASH(pStat), &pReq->stbCfg.suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) !=
+  if (taosHashPut(SMA_STAT_INFO_HASH(pStat), &pReq->suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) !=
       TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   } else {
-   tsdbDebug("vgId:%d register rsma info succeed for suid:%" PRIi64, REPO_ID(pTsdb), pReq->stbCfg.suid);
+    tsdbDebug("vgId:%d register rsma info succeed for suid:%" PRIi64, REPO_ID(pTsdb), pReq->suid);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1775,7 +1775,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateTbReq *pReq) {
  * @param uid
  * @return int32_t
  */
-int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid) {
+static int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid) {
   // prefer to store suid/uids in array
   if ((suid == pStore->suid) || (pStore->suid == 0)) {
     if (pStore->suid == 0) {
@@ -1831,6 +1831,7 @@ void tsdbUidStoreDestory(STbUidStore *pStore) {
   if (pStore) {
     if (pStore->uidHash) {
       if (pStore->tbUids) {
+        // When pStore->tbUids not NULL, the pStore->uidHash has k/v; otherwise pStore->uidHash only has keys.
         void *pIter = taosHashIterate(pStore->uidHash, NULL);
         while (pIter) {
           SArray *arr = *(SArray **)pIter;
@@ -1845,8 +1846,10 @@ void tsdbUidStoreDestory(STbUidStore *pStore) {
 }
 
 void *tsdbUidStoreFree(STbUidStore *pStore) {
-  tsdbUidStoreDestory(pStore);
-  taosMemoryFree(pStore);
+  if (pStore) {
+    tsdbUidStoreDestory(pStore);
+    taosMemoryFree(pStore);
+  }
   return NULL;
 }
 
@@ -1859,7 +1862,7 @@ void *tsdbUidStoreFree(STbUidStore *pStore) {
  * @param uid
  * @return int32_t
  */
-int32_t tsdbFetchTbUidList(void *pTsdb, void **ppStore, void *suid, void *uid) {
+int32_t tsdbFetchTbUidList(STsdb *pTsdb, STbUidStore **ppStore, tb_uid_t suid, tb_uid_t uid) {
   SSmaEnv *pEnv = REPO_RSMA_ENV((STsdb *)pTsdb);
 
   // only applicable to rollup SMA ctables
@@ -1875,7 +1878,7 @@ int32_t tsdbFetchTbUidList(void *pTsdb, void **ppStore, void *suid, void *uid) {
   }
 
   // info cached when create rsma stable and return directly for non-rsma ctables
-  if (!taosHashGet(infoHash, suid, sizeof(tb_uid_t))) {
+  if (!taosHashGet(infoHash, &suid, sizeof(tb_uid_t))) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1885,7 +1888,7 @@ int32_t tsdbFetchTbUidList(void *pTsdb, void **ppStore, void *suid, void *uid) {
     }
   }
 
-  if (tsdbUidStorePut(*ppStore, *(tb_uid_t *)suid, (tb_uid_t *)uid) != 0) {
+  if (tsdbUidStorePut(*ppStore, suid, &uid) != 0) {
     *ppStore = tsdbUidStoreFree(*ppStore);
     return TSDB_CODE_FAILED;
   }
@@ -1933,12 +1936,10 @@ static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid
 int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   if (!pStore || (taosArrayGetSize(pStore->tbUids) == 0)) {
     tsdbDebug("vgId:%d no need to update tbUids since empty uidStore", REPO_ID(pTsdb));
-    tsdbUidStoreFree(pStore);
     return TSDB_CODE_SUCCESS;
   }
 
   if (tsdbUpdateTbUidListImpl(pTsdb, &pStore->suid, pStore->tbUids) != TSDB_CODE_SUCCESS) {
-    tsdbUidStoreFree(pStore);
     return TSDB_CODE_FAILED;
   }
 
@@ -1949,15 +1950,11 @@ int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
 
     if (tsdbUpdateTbUidListImpl(pTsdb, pTbSuid, pTbUids) != TSDB_CODE_SUCCESS) {
       taosHashCancelIterate(pStore->uidHash, pIter);
-      tsdbUidStoreFree(pStore);
       return TSDB_CODE_FAILED;
     }
 
     pIter = taosHashIterate(pStore->uidHash, pIter);
   }
-
-  tsdbUidStoreFree(pStore);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1969,8 +1966,6 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
   STSRow        *row = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
-  // pMsg->length = htonl(pMsg->length);
-  // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
   if (tInitSubmitMsgIterEx(pMsg, &msgIter) < 0) return -1;
   while (true) {

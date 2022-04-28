@@ -39,6 +39,8 @@ extern "C" {
 #define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
 
 typedef struct SSyncEnv {
+  uint8_t isStart;
+
   // tick timer
   tmr_h             pEnvTickTimer;
   int32_t           envTickTimerMS;

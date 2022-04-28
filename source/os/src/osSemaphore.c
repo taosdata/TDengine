@@ -67,6 +67,12 @@ int32_t tsem_wait(tsem_t* sem) {
   return ret;
 }
 
+int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
+  int ret = 0;
+
+  return ret;
+}
+
 #elif defined(_TD_DARWIN_64)
 
 /*

@@ -23,26 +23,20 @@ extern "C" {
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 
+#define TSWAP(a, b)             \
+  do {                          \
+    __typeof(a) __tmp = (a); \
+    (a) = (b);               \
+    (b) = __tmp;                \
+  } while (0)
+
 #ifdef WINDOWS
 
-  #define TSWAP(a, b, c) \
-    do {                \
-      c __tmp = (c)(a); \
-      (a) = (c)(b);     \
-      (b) = __tmp;      \
-    } while (0)
   #define TMAX(a, b) (((a) > (b)) ? (a) : (b))
   #define TMIN(a, b) (((a) < (b)) ? (a) : (b))
   #define TRANGE(aa, bb, cc) ((aa) = TMAX((aa), (bb)),(aa) = TMIN((aa), (cc)))
 
 #else
-
-  #define TSWAP(a, b, c)       \
-    do {                       \
-      __typeof(a) __tmp = (a); \
-      (a) = (b);               \
-      (b) = __tmp;             \
-    } while (0)
 
   #define TMAX(a, b)             \
     ({                           \
@@ -51,12 +45,12 @@ extern "C" {
       (__a > __b) ? __a : __b;   \
     })
 
-  #define TMIN(a, b)             \
-    ({                           \
-      __typeof(a) __a = (a);     \
-      __typeof(b) __b = (b);     \
-      (__a < __b) ? __a : __b;   \
-    })
+#define TMIN(a, b)             \
+  ({                           \
+    __typeof(a) __a = (a);     \
+    __typeof(b) __b = (b);     \
+    (__a < __b) ? __a : __b;   \
+  })
 
 #define TRANGE(a, b, c) \
   ({                    \
