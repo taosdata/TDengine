@@ -11,6 +11,9 @@ cd ../../docs-examples/c
 gcc connect_example.c -o connect_example -ltaos
 ./connect_example
 
+gcc -o async_query_example async_query_example.c -ltaos
+./async_query_example
+
 # 2
 taos -s "drop database if exists power"
 gcc -o insert_example insert_example.c -ltaos

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <taos.h>
 
 typedef int16_t VarDataLenT;
@@ -132,6 +133,7 @@ void *fetch_row_callback(void *param, TAOS_RES *res, int numOfRow) {
     }
     taos_fetch_rows_a(res, fetch_row_callback, _taos);
   } else {
+    printf("no more data, close the connection.\n");
     taos_free_result(res);
     taos_close(_taos);
     taos_cleanup();
@@ -173,7 +175,7 @@ int main() {
   // param four can be any pointer. It will be passed to your callback function as the first parameter. we use taos
   // here, because we want to close it after getting data.
   taos_query_a(taos, "SELECT * FROM meters", select_callback, taos);
-  getchar();
+  sleep(1);
 }
 
 // output:
@@ -189,4 +191,5 @@ int main() {
 // 1538548685000 10.800000 223 0.290000 beijing.haidian 3
 // 1538548686500 11.500000 221 0.350000 beijing.haidian 3
 // numOfRow = 0
+// no more data, close the connection.
 // ANCHOR_END: demo
