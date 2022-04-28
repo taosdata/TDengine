@@ -1178,7 +1178,7 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
-void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
+int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                            int32_t numOfOutput, SArray* pPseudoList) {
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   pResult->info.groupId = pSrcBlock->info.groupId;
@@ -1218,7 +1218,7 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
       taosArrayPush(pBlockList, &pSrcBlock);
 
       SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      SColumnInfoData  idata = {.info = pResColData->info};
+      SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
       scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
@@ -1255,10 +1255,14 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
         taosArrayPush(pBlockList, &pSrcBlock);
 
         SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-        SColumnInfoData  idata = {.info = pResColData->info};
+        SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        int32_t code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pBlockList);
+          return code;
+        }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
         colDataMergeCol(pResColData, startOffset, &idata, dest.numOfRows);
@@ -1274,6 +1278,8 @@ void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* 
   if (!createNewColModel) {
     pResult->info.rows += numOfRows;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SArray* pDataBlock, TSKEY prevTs,
@@ -3668,6 +3674,7 @@ int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) 
     SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
     pRsp->numOfRows = htonl(pRsp->numOfRows);
     pRsp->compLen = htonl(pRsp->compLen);
+    pRsp->numOfCols = htonl(pRsp->numOfCols);
     pRsp->useconds = htobe64(pRsp->useconds);
   } else {
     pSourceDataInfo->code = code;
@@ -3746,7 +3753,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
 }
 
 // NOTE: sources columns are more than the destination SSDatablock columns.
-static void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
+void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
   size_t numOfSrcCols = taosArrayGetSize(pCols);
   ASSERT(numOfSrcCols >= pBlock->info.numOfCols);
 
@@ -3951,7 +3958,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
       SRetrieveTableRsp* pTableRsp = pDataInfo->pRsp;
       code =
           setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
-                                    pTableRsp->compLen, pOperator->numOfOutput, startTs, &pDataInfo->totalRows, NULL);
+                                    pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
       if (code != 0) {
         goto _error;
       }
@@ -4086,7 +4093,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
     SRetrieveTableRsp* pTableRsp = pDataInfo->pRsp;
     int32_t            code =
         setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
-                                  pTableRsp->compLen, pOperator->numOfOutput, startTs, &pDataInfo->totalRows, NULL);
+                                  pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
 
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
@@ -4771,8 +4778,12 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->pScalarExprInfo != NULL) {
-      projectApplyFunctions(pAggInfo->pScalarExprInfo, pBlock, pBlock, pAggInfo->pScalarCtx, pAggInfo->numOfScalarExpr,
+      int32_t code = projectApplyFunctions(pAggInfo->pScalarExprInfo, pBlock, pBlock, pAggInfo->pScalarCtx, pAggInfo->numOfScalarExpr,
                             NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        longjmp(pTaskInfo->env, pTaskInfo->code);
+      }
     }
 
     // the pDataBlock are always the same one, no need to call this again

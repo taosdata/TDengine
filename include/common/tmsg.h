@@ -1038,6 +1038,7 @@ typedef struct {
   int8_t  compressed;
   int32_t compLen;
   int32_t numOfRows;
+  int32_t numOfCols;
   char    data[];
 } SRetrieveTableRsp;
 
