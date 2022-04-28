@@ -37,11 +37,15 @@
 #include <unistd.h>
 
 #if defined(DARWIN)
-  #include <dispatch/dispatch.h>
-  #include "osEok.h"
+#include <dispatch/dispatch.h>
+#include "osEok.h"
 #else
-  #include <sys/epoll.h>
+#include <sys/epoll.h>
 #endif
+#endif
+
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
 #endif
 
 typedef struct TdSocketServer {
@@ -50,18 +54,18 @@ typedef struct TdSocketServer {
 #endif
   int      refId;
   SocketFd fd;
-} *TdSocketServerPtr, TdSocketServer;
+} * TdSocketServerPtr, TdSocketServer;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
   TdThreadRwlock rwlock;
 #endif
-  int      refId;
-  EpollFd  fd;
-} *TdEpollPtr, TdEpoll;
+  int     refId;
+  EpollFd fd;
+} * TdEpollPtr, TdEpoll;
 
 int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, const struct sockaddr *dest_addr,
-                    int addrlen) {
+                   int addrlen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
@@ -94,7 +98,8 @@ int32_t taosReadSocket(TdSocketPtr pSocket, void *buf, int len) {
 #endif
 }
 
-int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t flags, struct sockaddr *destAddr, int *addrLen) {
+int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t flags, struct sockaddr *destAddr,
+                           int *addrLen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
@@ -318,7 +323,7 @@ int32_t taosWriteMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
     return -1;
   }
   int32_t nleft, nwritten;
-  char   *ptr = (char *)buf;
+  char *  ptr = (char *)buf;
 
   nleft = nbytes;
 
@@ -347,7 +352,7 @@ int32_t taosReadMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
     return -1;
   }
   int32_t nleft, nread;
-  char   *ptr = (char *)buf;
+  char *  ptr = (char *)buf;
 
   nleft = nbytes;
 
@@ -689,8 +694,7 @@ TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   return (TdSocketServerPtr)pSocket;
 }
 
-TdSocketPtr taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr,
-                                       int *addrLen) {
+TdSocketPtr taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr, int *addrLen) {
   if (pServerSocket == NULL || pServerSocket->fd < 0) {
     return NULL;
   }
@@ -771,7 +775,7 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
 
   int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
-    struct sockaddr    *sa = result->ai_addr;
+    struct sockaddr *   sa = result->ai_addr;
     struct sockaddr_in *si = (struct sockaddr_in *)sa;
     struct in_addr      ia = si->sin_addr;
     uint32_t            ip = ia.s_addr;
@@ -887,7 +891,6 @@ int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *a
   return getsockname(pSocket->fd, destAddr, addrLen);
 }
 
-
 TdEpollPtr taosCreateEpoll(int32_t size) {
   EpollFd fd = -1;
 #ifdef WINDOWS
@@ -938,4 +941,29 @@ int32_t taosCloseEpoll(TdEpollPtr *ppEpoll) {
   (*ppEpoll)->fd = -1;
   taosMemoryFree(*ppEpoll);
   return code;
+}
+/*
+ * Set TCP connection timeout per-socket level.
+ * ref [https://github.com/libuv/help/issues/54]
+ */
+int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec) {
+#if defined(WINDOWS)
+  SOCKET fd;
+#else
+  int      fd;
+#endif
+  if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+    return -1;
+  }
+#if defined(WINDOWS)
+  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&conn_timeout_sec, sizeof(conn_timeout_sec))) {
+    return -1;
+  }
+#else  // Linux like systems
+  uint32_t conn_timeout_ms = conn_timeout_sec * 1000;
+  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    return -1;
+  }
+#endif
+  return (int)fd;
 }

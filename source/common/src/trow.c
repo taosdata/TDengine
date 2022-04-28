@@ -220,7 +220,7 @@ static uint8_t tdGetMergedBitmapByte(uint8_t byte) {
 }
 
 /**
- * @brief Merge bitmap from 2 bits to 1 bits, and the memory buffer should be guaranteed by the invoker.
+ * @brief Merge bitmap from 2 bits to 1 bit, and the memory buffer should be guaranteed by the invoker.
  *
  * @param srcBitmap
  * @param nBits

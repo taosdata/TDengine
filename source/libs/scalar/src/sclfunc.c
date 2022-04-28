@@ -133,7 +133,12 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
       colDataAppendNULL(pOutputData, i);
       continue;
     }
-    out[i] = valFn(getValueFn(pInputData->pData, i));
+    double result = valFn(getValueFn(pInputData->pData, i));
+    if (isinf(result) || isnan(result)) {
+      colDataAppendNULL(pOutputData, i);
+    } else {
+      out[i] = result;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -162,7 +167,12 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       colDataAppendNULL(pOutputData, i);
       continue;
     }
-    out[i] = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
+    double result = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
+    if (isinf(result) || isnan(result)) {
+      colDataAppendNULL(pOutputData, i);
+    } else {
+      out[i] = result;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;

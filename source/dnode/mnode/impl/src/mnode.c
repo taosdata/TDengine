@@ -43,7 +43,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define MQ_TIMER_MS    3000
+#define MQ_TIMER_MS    2000
 #define TRNAS_TIMER_MS 6000
 
 static void *mndBuildTimerMsg(int32_t *pContLen) {
@@ -417,7 +417,6 @@ int64_t mndGenerateUid(char *name, int32_t len) {
     }
   } while (true);
 }
-
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {
