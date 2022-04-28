@@ -1524,6 +1524,7 @@ typedef struct {
 int32_t tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
 int32_t tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
 
+// TDMT_VND_CREATE_STB ==============
 typedef struct SVCreateStbReq {
   const char*    name;
   tb_uid_t       suid;
@@ -1536,17 +1537,14 @@ typedef struct SVCreateStbReq {
 int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
 int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
+// TDMT_VND_DROP_STB ==============
 typedef struct SVDropStbReq {
-  // data
-#ifdef WINDOWS
-  size_t avoidCompilationErrors;
-#endif
-
+  const char* name;
+  tb_uid_t    suid;
 } SVDropStbReq;
 
-typedef struct SVCreateStbRsp {
-  int code;
-} SVCreateStbRsp;
+int32_t tEncodeSVDropStbReq(SCoder* pCoder, const SVDropStbReq* pReq);
+int32_t tDecodeSVDropStbReq(SCoder* pCoder, SVDropStbReq* pReq);
 
 typedef struct SVCreateTbReq {
   tb_uid_t    uid;
@@ -1603,19 +1601,36 @@ int tDecodeSVCreateTbBatchRsp(SCoder* pCoder, SVCreateTbBatchRsp* pRsp);
 int32_t tSerializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 
+// TDMT_VND_DROP_TABLE =================
 typedef struct {
-  int64_t  ver;
-  char*    name;
-  uint8_t  type;
-  tb_uid_t suid;
+  const char* name;
 } SVDropTbReq;
 
 typedef struct {
-  int tmp;  // TODO: to avoid compile error
+  int32_t code;
 } SVDropTbRsp;
 
-int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
-void*   tDeserializeSVDropTbReq(void* buf, SVDropTbReq* pReq);
+typedef struct {
+  int32_t nReqs;
+  union {
+    SVDropTbReq* pReqs;
+    SArray*      pArray;
+  };
+} SVDropTbBatchReq;
+
+int32_t tEncodeSVDropTbBatchReq(SCoder* pCoder, const SVDropTbBatchReq* pReq);
+int32_t tDecodeSVDropTbBatchReq(SCoder* pCoder, SVDropTbBatchReq* pReq);
+
+typedef struct {
+  int32_t nRsps;
+  union {
+    SVDropTbRsp* pRsps;
+    SArray*      pArray;
+  };
+} SVDropTbBatchRsp;
+
+int32_t tEncodeSVDropTbBatchRsp(SCoder* pCoder, const SVDropTbBatchRsp* pRsp);
+int32_t tDecodeSVDropTbBatchRsp(SCoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 typedef struct {
   SMsgHead head;
