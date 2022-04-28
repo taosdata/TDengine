@@ -808,18 +808,18 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)taosMemoryCalloc(1, sizeof(SWorkThrdObj));
+    thrd->pTransInst = shandle;
     thrd->quit = false;
     srv->pThreadObj[i] = thrd;
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     int fds[2];
-    if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       goto End;
     }
     uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
     uv_pipe_open(&(srv->pipe[i][0]), fds[1]);  // init write
 
-    thrd->pTransInst = shandle;
     thrd->fd = fds[0];
     thrd->pipe = &(srv->pipe[i][1]);  // init read
 
