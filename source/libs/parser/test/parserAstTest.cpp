@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 
 #include "parInt.h"
-#include "parserTestUtil.h"
+#include "parTestUtil.h"
 
 using namespace std;
 using namespace testing;

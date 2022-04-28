@@ -340,7 +340,7 @@ typedef struct SQueryPlan {
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
-  SNodeList*   pPlaceholderValues;
+  SArray* pPlaceholderValues;
 } SQueryPlan;
 
 void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);

@@ -214,6 +214,7 @@ STSRow *tdRowDup(STSRow *row);
 static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
   return (SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx;
 }
+
 static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
   ASSERT(idx >= 0);
   if (idx == 0) {
@@ -222,6 +223,7 @@ static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
 
   return ((SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx - 1)->colId;
 }
+
 static FORCE_INLINE void *tdKVRowColVal(STSRow *pRow, SKvRowIdx *pIdx) { return POINTER_SHIFT(pRow, pIdx->offset); }
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);  // During ParseInsert when without STSchema, how to get the offset for STpRow?
@@ -1145,7 +1147,7 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
   }
 
   if (!colFound) {
-    if(colId <= pIter->maxColId) {
+    if (colId <= pIter->maxColId) {
       pVal->valType = TD_VTYPE_NONE;
       return true;
     } else {
@@ -1395,14 +1397,14 @@ static void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
   }
 }
 
-static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
+static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char* tag) {
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pSchema);
   tdSTSRowIterReset(&iter, row);
-  printf(">>>");
+  printf("%s >>>", tag);
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
-    SCellVal  sVal = { 255, NULL};
+    SCellVal  sVal = {.valType = 255, .val = NULL};
     if (!tdSTSRowIterNext(&iter, stCol->colId, stCol->type, &sVal)) {
       break;
     }

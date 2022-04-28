@@ -157,7 +157,6 @@ struct SVnodeCfg {
   int32_t  szCache;
   uint64_t szBuf;
   bool     isHeap;
-  int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;

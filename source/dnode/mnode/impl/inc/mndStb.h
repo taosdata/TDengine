@@ -29,6 +29,7 @@ void     mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
 SSdbRaw *mndStbActionEncode(SStbObj *pStb);
 int32_t  mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbs, int32_t numOfStbs, void **ppRsp,
                             int32_t *pRspLen);
+int32_t  mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs);
 
 #ifdef __cplusplus
 }
