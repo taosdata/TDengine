@@ -79,31 +79,52 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TCODER_MALLOC(PCODER, SIZE)                                         \
-  ({                                                                        \
-    void*      ptr = NULL;                                                  \
-    SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(*pMem) + (SIZE)); \
-    if (pMem) {                                                             \
-      pMem->next = (PCODER)->mList;                                         \
-      (PCODER)->mList = pMem;                                               \
-      ptr = (void*)&pMem[1];                                                \
-    }                                                                       \
-    ptr;                                                                    \
-  })
+// #define TCODER_MALLOC(PCODER, SIZE)                                         \
+//   ({                                                                        \
+//     void*      ptr = NULL;                                                  \
+//     SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(*pMem) + (SIZE)); \
+//     if (pMem) {                                                             \
+//       pMem->next = (PCODER)->mList;                                         \
+//       (PCODER)->mList = pMem;                                               \
+//       ptr = (void*)&pMem[1];                                                \
+//     }                                                                       \
+//     ptr;                                                                    \
+//   })
+static FORCE_INLINE void* tCoderMalloc(SCoder* pCoder, int32_t size) {
+  void*      ptr = NULL;
+  SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(SCoderMem*) + size);
+  if (pMem) {
+    pMem->next = pCoder->mList;
+    pCoder->mList = pMem;
+    ptr = (void*)&pMem[1];
+  }
+  return ptr;
+}
 
-#define tEncodeSize(E, S, SIZE)                                \
-  ({                                                           \
+#define tEncodeSize(E, S, SIZE, RET)                           \
+  do{                                                          \
     SCoder coder = {0};                                        \
-    int    ret = 0;                                            \
     tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER); \
     if ((E)(&coder, S) == 0) {                                 \
       SIZE = coder.pos;                                        \
     } else {                                                   \
-      ret = -1;                                                \
+      RET = -1;                                                \
     }                                                          \
     tCoderClear(&coder);                                       \
-    ret;                                                       \
-  })
+  }while(0)
+// #define tEncodeSize(E, S, SIZE)                                \
+//   ({                                                           \
+//     SCoder coder = {0};                                        \
+//     int    ret = 0;                                            \
+//     tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER); \
+//     if ((E)(&coder, S) == 0) {                                 \
+//       SIZE = coder.pos;                                        \
+//     } else {                                                   \
+//       ret = -1;                                                \
+//     }                                                          \
+//     tCoderClear(&coder);                                       \
+//     ret;                                                       \
+//   })
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);

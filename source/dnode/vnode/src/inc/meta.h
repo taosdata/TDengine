@@ -77,21 +77,25 @@ typedef struct {
   tb_uid_t uid;
 } STbDbKey;
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push, 1)
+typedef struct {
   tb_uid_t uid;
   int32_t  sver;
 } SSkmDbKey;
+#pragma pack(pop)
 
 typedef struct {
   tb_uid_t suid;
   tb_uid_t uid;
 } SCtbIdxKey;
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push, 1)
+typedef struct {
   tb_uid_t suid;
   int16_t  cid;
   char     data[];
 } STagIdxKey;
+#pragma pack(pop)
 
 typedef struct {
   int64_t  dtime;

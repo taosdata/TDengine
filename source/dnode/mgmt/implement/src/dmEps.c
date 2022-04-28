@@ -120,7 +120,7 @@ int32_t dmReadEps(SDnode *pDnode) {
       goto PRASE_DNODE_OVER;
     }
 
-    dnodeEp.id = dnodeId->valueint;
+    dnodeEp.id = did->valueint;
 
     cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
@@ -156,11 +156,6 @@ PRASE_DNODE_OVER:
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
-  if (dmIsEpChanged(pDnode, pDnode->data.dnodeId, pDnode->data.localEp)) {
-    dError("localEp %s different with %s and need reconfigured", pDnode->data.localEp, file);
-    return -1;
-  }
-
   if (taosArrayGetSize(pDnode->data.dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
@@ -169,6 +164,11 @@ PRASE_DNODE_OVER:
   }
 
   dmResetEps(pDnode, pDnode->data.dnodeEps);
+
+  if (dmIsEpChanged(pDnode, pDnode->data.dnodeId, pDnode->data.localEp)) {
+    dError("localEp %s different with %s and need reconfigured", pDnode->data.localEp, file);
+    return -1;
+  }
 
   terrno = code;
   return code;
@@ -291,13 +291,17 @@ static void dmPrintEps(SDnode *pDnode) {
 
 static bool dmIsEpChanged(SDnode *pDnode, int32_t dnodeId, const char *ep) {
   bool changed = false;
+  if (dnodeId == 0) return changed;
   taosRLockLatch(&pDnode->data.latch);
 
   SDnodeEp *pDnodeEp = taosHashGet(pDnode->data.dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
-    char epstr[TSDB_EP_LEN + 1];
+    char epstr[TSDB_EP_LEN + 1] = {0};
     snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
-    changed = strcmp(ep, epstr) != 0;
+    changed = (strcmp(ep, epstr) != 0);
+    if (changed) {
+      dError("dnode:%d, localEp %s different from %s", dnodeId, ep, epstr);
+    }
   }
 
   taosRUnLockLatch(&pDnode->data.latch);

@@ -159,9 +159,10 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
 int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
   SCoder coder = {0};
   char* pBuf;
-   int32_t len;
+  int32_t len;
 
-  tEncodeSize(tEncodeSVCreateTbReq, pCreateTbReq, len);
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVCreateTbReq, pCreateTbReq, len, ret);
   if (pBlocks->nAllocSize - pBlocks->size < len) {
     pBlocks->nAllocSize += len + pBlocks->rowSize;
     char* pTmp = taosMemoryRealloc(pBlocks->pData, pBlocks->nAllocSize);
