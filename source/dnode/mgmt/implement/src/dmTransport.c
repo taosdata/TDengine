@@ -310,7 +310,7 @@ static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
 }
 
 static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
-  ASSERT(pRsp->code == TSDB_CODE_NODE_REDIRECT);
+  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
   if (pWrapper->procType != DND_PROC_CHILD) {
     rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
   } else {
@@ -402,6 +402,14 @@ SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper) {
   return cfg;
 }
 
+bool rpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
@@ -416,6 +424,7 @@ static int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.ckey = INTERNAL_CKEY;
   rpcInit.spi = 1;
   rpcInit.parent = pDnode;
+  rpcInit.rfp = rpcRfp;
 
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);

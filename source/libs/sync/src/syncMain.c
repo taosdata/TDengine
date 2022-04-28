@@ -141,6 +141,18 @@ const char* syncGetMyRoleStr(int64_t rid) {
   return s;
 }
 
+int32_t syncGetVgId(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return TAOS_SYNC_STATE_ERROR;
+  }
+  assert(rid == pSyncNode->rid);
+  int32_t vgId = pSyncNode->vgId;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return vgId;
+}
+
 SyncTerm syncGetMyTerm(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -278,6 +290,8 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  sTrace("syncPropose msgType:%d ", pMsg->msgType);
+
   int32_t    ret = TAOS_SYNC_PROPOSE_SUCCESS;
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {

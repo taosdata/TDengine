@@ -151,7 +151,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
       // rsp.code = TSDB_CODE_SYN_NOT_LEADER;
       // tmsgSendRsp(&rsp);
-
+      dTrace("syncPropose not leader redirect, vgId:%d ", syncGetVgId(vnodeGetSyncHandle(pVnode->pImpl)));
       rsp.code = TSDB_CODE_RPC_REDIRECT;
       SEpSet newEpSet;
       syncGetEpSet(vnodeGetSyncHandle(pVnode->pImpl), &newEpSet);
