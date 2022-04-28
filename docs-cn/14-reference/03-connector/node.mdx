@@ -196,8 +196,8 @@ let cursor = conn.cursor();
 
 ## 更多示例程序
 
-| 示例程序                                                                                                                                      | 示例程序描述                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 示例程序                                                                                                                                   | 示例程序描述                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
 | [connection](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/cursorClose.js)                                  | 建立连接的示例。                       |
 | [stmtBindBatch](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindParamBatchSample.js)                  | 绑定多行参数插入的示例。               |
 | [stmtBind](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindParamSample.js)                            | 一行一行绑定参数插入的示例。           |
@@ -209,7 +209,7 @@ let cursor = conn.cursor();
 | [schemless insert](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testSchemalessInsert.js)                   | schemless 插入的示例。                 |
 | [subscribe](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testSubscribe.js)                                 | 订阅的使用示例。                       |
 | [asyncQuery](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/tset.js)                                         | 异步查询的使用示例。                   |
-| [REST](https://github.com/taosdata/taos-connector-node/blob/develop/typescript-rest/example/example.ts)                                               | 使用 REST 连接的 TypeScript 使用示例。 |
+| [REST](https://github.com/taosdata/taos-connector-node/blob/develop/typescript-rest/example/example.ts)                                    | 使用 REST 连接的 TypeScript 使用示例。 |
 
 ## 使用限制
 
@@ -235,16 +235,16 @@ Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/202
 
 ### 原生接口连接器
 
-| td2.0-connector 版本 | 说明                                                                 |
-| -------------------- | -------------------------------------------------------------------- |
+| td2.0-connector 版本 | 说明                                                             |
+| -------------------- | ---------------------------------------------------------------- |
+| 2.0.12               | 修复 cursor.close() 报错的 bug。                                 |
+| 2.0.11               | 支持绑定参数、json tag、schemaless 接口等功能。                  |
 | 2.0.10               | 支持连接管理，普通查询、连续查询、获取系统信息、订阅功能等功能。 |
-| 2.0.11               | 支持绑定参数、json tag、schemaless 接口等功能。                          |
-| 2.0.12               | 修复 cursor.close() 报错的bug。                                     |
 
 ### REST 接口连接器
 
-| td2.0-rest-connector 版本 | 说明                                                         |
-| ------------------------- | ------------------------------------------------------------ |
+| td2.0-rest-connector 版本 | 说明                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
 | 1.0.3                     | 支持连接管理、普通查询、获取系统信息、错误信息、连续查询等功能。 |
 
 ## API 参考
