@@ -320,7 +320,9 @@ func main() {
 
 ### 高级功能（af）API
 
-`af` 包封装了订阅、schemaless、参数绑定等 TDengine 高级功能。
+`af` 包封装了连接管理、订阅、schemaless、参数绑定等 TDengine 高级功能。
+
+#### 连接管理
 
 * `af.Open(host, user, pass, db string, port int) (*Connector, error)`
 
@@ -330,7 +332,7 @@ func main() {
 
   关闭与 taosd 的连接。
 
-订阅
+#### 订阅
 
 * `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
 
@@ -344,7 +346,7 @@ func main() {
 
   取消订阅数据。
 
-schemaless 写入
+#### schemaless
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
@@ -358,7 +360,7 @@ schemaless 写入
 
   写入 OpenTSDB JSON 协议数据。
 
-参数绑定
+#### 参数绑定
 
 * `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
 
