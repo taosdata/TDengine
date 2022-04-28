@@ -58,6 +58,29 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 
 `go get -u github.com/taosdata/driver-go/v2@develop`
 
+### 使用 go mod 管理
+
+`go mod` 初始化项目：
+
+```text
+go mod init taos-demo
+```
+
+引入taosSql：
+
+```go
+import (
+    "database/sql"
+    _ "github.com/taosdata/driver-go/v2/taosSql"
+)
+```
+
+使用`go mod`方式管理依赖包：
+
+```sh
+go mod tidy
+```
+
 ## 建立连接
 
 ### DSN
