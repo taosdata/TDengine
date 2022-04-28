@@ -288,7 +288,7 @@ class TDTestCase:
         retCode = taos_command(buildPath, "f", keyDict['f'], 'performance_schema', keyDict['c'], '', '', '')
         print("============ ret code: ", retCode)
         if retCode != "TAOS_OK":
-            tdLog.exit("taos -s fail")
+            tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
         tdSql.query("show databases")        
