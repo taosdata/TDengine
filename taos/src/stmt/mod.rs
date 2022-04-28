@@ -1,4 +1,4 @@
-use crate::{impls::SyncResultSet, util::IntoCStr, Code, Error, Result, Taos};
+use crate::{impls::ResultSet, util::IntoCStr, Code, Error, Result, Taos};
 use taos_query::common::{BorrowedColumn, Column};
 use taos_sys::ffi::*;
 
@@ -56,9 +56,9 @@ impl<'stmt> Stmt<'stmt> {
         }
     }
 
-    pub fn result(&self) -> Result<SyncResultSet> {
+    pub fn result(&self) -> Result<ResultSet> {
         let ptr = unsafe { taos_stmt_use_result(self.stmt) };
-        SyncResultSet::from_ptr(ptr)
+        ResultSet::from_ptr(ptr)
     }
 
     /// To bind one row with params

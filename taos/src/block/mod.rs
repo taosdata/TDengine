@@ -2,7 +2,7 @@ use std::{
     ffi::c_void,
     marker::PhantomData,
     os::raw::c_int,
-    sync::{Arc, Mutex, RwLock},
+    sync::{atomic::AtomicU64, Arc, Mutex, RwLock},
     task::{Poll, Waker},
 };
 
@@ -17,13 +17,13 @@ use crate::impls::SyncBlock;
 
 pub struct BlockStream<'a> {
     raw: Arc<RawRes>,
-    records: Arc<RwLock<Vec<i32>>>,
+    summary: Arc<(AtomicU64, AtomicU64)>,
     state: Arc<Mutex<BlockState>>,
     _marker: PhantomData<&'a u8>,
 }
 
 impl<'a> BlockStream<'a> {
-    pub(crate) fn from_raw(raw: Arc<RawRes>, records: Arc<RwLock<Vec<i32>>>) -> Self {
+    pub(crate) fn from_raw(raw: Arc<RawRes>, summary: Arc<(AtomicU64, AtomicU64)>) -> Self {
         let state = Arc::new(Mutex::new(BlockState {
             completed: false,
             result: std::ptr::null_mut(),
@@ -34,9 +34,14 @@ impl<'a> BlockStream<'a> {
         Self {
             raw,
             state,
-            records,
+            summary,
             _marker: PhantomData,
         }
+    }
+    pub(crate) fn append_num_of_rows(&self, num_of_rows: i32) {
+        use std::sync::atomic::Ordering::SeqCst;
+        self.summary.0.fetch_add(1, SeqCst);
+        self.summary.1.fetch_add(num_of_rows as _, SeqCst);
     }
 }
 
@@ -63,10 +68,8 @@ impl<'a> Stream for BlockStream<'a> {
         if crate::client_info().starts_with("3") {
             let block = if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
                 log::info!("fetch block: {num_of_rows}");
-                self.records.write().unwrap().push(num_of_rows);
 
-                // let num_of_fields = self.num_of_fields();
-                // let lengths = unsafe { std::slice::from_raw_parts(lengths, num_of_fields) };
+                self.append_num_of_rows(num_of_rows);
 
                 Some(SyncBlock {
                     raw: self.raw.clone(),
@@ -106,7 +109,7 @@ impl<'a> Stream for BlockStream<'a> {
             s.num_of_rows = 0;
             drop(s);
 
-            self.records.write().unwrap().push(num_of_rows);
+            self.append_num_of_rows(num_of_rows);
 
             // Wake up poll.
             Poll::Ready(Self::Item::from_async_query(

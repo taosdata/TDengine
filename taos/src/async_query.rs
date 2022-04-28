@@ -11,7 +11,8 @@ use std::{
 use std::sync::Mutex;
 use taos_sys::ffi::TAOS_RES;
 
-use crate::{util::IntoCStr, Result, Taos, TaosResult};
+use crate::{util::IntoCStr, Result, Taos};
+use crate::prelude::sync::ResultSet;
 
 pub struct QueryFuture<'query> {
     shared_state: Arc<Mutex<SharedState>>,
@@ -32,12 +33,12 @@ unsafe impl Sync for SharedState {}
 impl Unpin for SharedState {}
 impl<'query> Unpin for QueryFuture<'query> {}
 impl<'query> Future for QueryFuture<'query> {
-    type Output = Result<TaosResult<'query>>;
+    type Output = Result<ResultSet<'query>>;
     fn poll<'a>(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Look at the shared state to see if the timer has already completed.
         let mut shared_state = self.shared_state.lock().unwrap();
         if shared_state.completed {
-            Poll::Ready(TaosResult::new(shared_state.result, shared_state.code))
+            Poll::Ready(ResultSet::from_ptr_with_code(shared_state.result, shared_state.code))
         } else {
             // Set waker so that the thread can wake up the current task
             // when the timer has completed, ensuring that the future is polled

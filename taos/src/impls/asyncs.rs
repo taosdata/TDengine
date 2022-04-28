@@ -1,44 +1,17 @@
 use std::ffi::c_void;
 use std::os::raw::c_int;
-use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 
 use taos_query::common::*;
-use taos_query::{AsyncQueryable, AsyncResultSet};
+use taos_query::{AsyncQueryable, AsyncFetchable};
 use taos_sys::DroppableRawRes;
 
-use super::SyncResultSet;
+use super::ResultSet;
 use crate::util::IntoCStr;
 use crate::Taos;
-// A result should not be clone-able.
-// Result set live shorter than query lifetime.
-#[derive(Debug)]
-pub struct AsyncRs<'q> {
-    raw: DroppableRawRes<'q>,
-    records: Arc<RwLock<Vec<i32>>>,
-}
 
-impl<'q> From<SyncResultSet<'q>> for AsyncRs<'q> {
-    fn from(rs: SyncResultSet<'q>) -> Self {
-        Self {
-            raw: rs.raw,
-            records: Arc::new(RwLock::new(Vec::new())),
-        }
-    }
-}
-
-impl<'q> AsyncRs<'q> {
-    #[inline]
-    fn new(raw: DroppableRawRes<'q>) -> Self {
-        Self {
-            raw,
-            records: Arc::new(RwLock::new(Vec::new())),
-        }
-    }
-}
-
-impl<'q> AsyncResultSet for AsyncRs<'q> {
+impl<'q> AsyncFetchable for ResultSet<'q> {
     type BlockStream = crate::block::BlockStream<'q>;
 
     #[inline]
@@ -58,18 +31,16 @@ impl<'q> AsyncResultSet for AsyncRs<'q> {
 
     #[inline]
     fn summary(&self) -> (usize, usize) {
-        let records = self.records.read().unwrap();
+        use std::sync::atomic::Ordering::SeqCst;
         (
-            records.len(),
-            records.iter().fold(0, |mut acc, v| {
-                acc += *v as usize;
-                acc
-            }),
+            self.summary.0.load(SeqCst) as _,
+            self.summary.1.load(SeqCst) as _,
         )
     }
 
+    #[inline]
     fn block_stream(&self) -> Self::BlockStream {
-        crate::block::BlockStream::from_raw(self.raw.raw(), self.records.clone())
+        crate::block::BlockStream::from_raw(self.raw.raw(), self.summary.clone())
     }
 }
 
@@ -77,7 +48,7 @@ impl<'q> AsyncResultSet for AsyncRs<'q> {
 impl<'q> AsyncQueryable<'q> for Taos {
     type Error = super::Error;
 
-    type AsyncResultSet = AsyncRs<'q>;
+    type AsyncResultSet = ResultSet<'q>;
 
     /// Query use taosc query_a API.
     async fn query<T: AsRef<str> + Send>(
@@ -87,10 +58,7 @@ impl<'q> AsyncQueryable<'q> for Taos {
         // todo(3.0): remove these line to use taos_query_a in async/await impl.
         if crate::client_info().starts_with("3") {
             let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
-            return Ok(AsyncRs {
-                raw,
-                records: Default::default(),
-            });
+            return Ok(ResultSet::new(raw));
         }
         use tokio::sync::oneshot::{channel, Sender};
         let (sender, rx) = channel::<Result<Self::AsyncResultSet, taos_error::Error>>();
@@ -103,7 +71,7 @@ impl<'q> AsyncQueryable<'q> for Taos {
             let sender = param as *mut Sender<_>;
             let sender = Box::from_raw(sender);
             let code = if code > 0 { 0 } else { code };
-            let res = DroppableRawRes::from_ptr_with_code(ptr, code.into()).map(AsyncRs::new);
+            let res = DroppableRawRes::from_ptr_with_code(ptr, code.into()).map(ResultSet::new);
 
             log::trace!(
                 "in async query callback, got TAOS_RES: {res:?}, will be send to:{sender:?}"
@@ -127,17 +95,14 @@ mod tests {
     use anyhow::Result;
     use taos_macros::test;
 
-    #[test(crate)]
+    #[test(log_level = "info")]
     async fn async_query_de(taos: &Taos, _database: &str) -> Result<()> {
-        use taos_query::AsyncQueryable;
+        use taos_query::{AsyncQueryable, AsyncFetchable};
         taos.exec("create table tb1 (ts timestamp, level tinyint, content varchar(100), dnode_id int, dnode_ep varchar(100))")
             .await?;
         taos.exec("insert into tb1 values(now, 1, '', 1, 'abc')")
             .await?;
-        let rs: AsyncRs =
-            <Taos as AsyncQueryable>::query(taos, "select * from tb1")
-                .await?
-                .into();
+        let rs = <Taos as AsyncQueryable>::query(taos, "select * from tb1").await?;
 
         assert!(rs.fields().len() == 5);
         #[derive(Debug, serde::Deserialize)]
@@ -153,9 +118,9 @@ mod tests {
         use futures::prelude::stream::*;
         use taos_query::BlockExt;
         while let Some(block) = rs.block_stream().next().await {
-            // let _: Record = record?;
-            let des =
-                itertools::Itertools::collect_vec(block.deserialize::<(i64, i32, &str, i32, String)>().take(1));
+            let des = itertools::Itertools::collect_vec(
+                block.deserialize::<(i64, i32, &str, i32, String)>().take(1),
+            );
             log::info!("first row in block: {:?}", des);
         }
         let (blocks, records) = rs.summary();

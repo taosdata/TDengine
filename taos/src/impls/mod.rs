@@ -1,10 +1,16 @@
-use std::{ffi::c_void, marker::PhantomData, slice, sync::Arc};
+use std::{
+    ffi::c_void,
+    marker::PhantomData,
+    slice,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use bitvec_simd::BitVec;
 use itertools::Itertools;
+use taos_error::Code;
 use thiserror::Error;
 
-use taos_query::{common::*, BlockExt, Queryable, ResultSet};
+use taos_query::{common::*, BlockExt, Fetchable, Queryable};
 use taos_sys::{DroppableRawRes, RawRes};
 
 use crate::{util::IntoCStr, Taos};
@@ -22,18 +28,41 @@ pub enum Error {
 // A result should not be clone-able.
 // Result set live shorter than query lifetime.
 #[derive(Debug)]
-pub struct SyncResultSet<'q> {
+pub struct ResultSet<'q> {
     raw: DroppableRawRes<'q>,
-    records: Arc<Vec<i32>>,
+    summary: Arc<(AtomicU64, AtomicU64)>,
 }
 
-impl<'q> SyncResultSet<'q> {
+impl<'q> ResultSet<'q> {
     pub(crate) fn from_ptr(ptr: *mut c_void) -> Result<Self, taos_error::Error> {
         let raw = RawRes::from_ptr(ptr).map(DroppableRawRes::new)?;
-        Ok(SyncResultSet {
+        Ok(ResultSet {
             raw,
-            records: Arc::new(Vec::new()),
+            summary: Default::default(),
         })
+    }
+    pub(crate) fn from_ptr_with_code(
+        ptr: *mut c_void,
+        code: impl Into<Code>,
+    ) -> Result<Self, taos_error::Error> {
+        let raw = RawRes::from_ptr_with_code(ptr, code.into()).map(DroppableRawRes::new)?;
+        Ok(ResultSet {
+            raw,
+            summary: Default::default(),
+        })
+    }
+
+    pub(crate) fn new(raw: DroppableRawRes<'q>) -> Self {
+        Self {
+            raw,
+            summary: Default::default(),
+        }
+    }
+
+    pub(crate) fn append_num_of_rows(&self, num_of_rows: i32) {
+        use std::sync::atomic::Ordering::SeqCst;
+        self.summary.0.fetch_add(1, SeqCst);
+        self.summary.1.fetch_add(num_of_rows as _, SeqCst);
     }
 }
 
@@ -90,7 +119,6 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
         }
 
         let read_bytes_from_ptr = |inner: *mut *mut c_void, col: usize| {
-            dbg!(self.lengths.is_null());
             if crate::client_info().starts_with("3") {
                 let offsets = self.raw.get_column_data_offset(col);
                 let offset = offsets.add(row).read();
@@ -217,7 +245,7 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
     }
 }
 
-impl<'q> ResultSet for SyncResultSet<'q> {
+impl<'q> Fetchable for ResultSet<'q> {
     fn fields(&self) -> &[Field] {
         &self.raw.fields()
     }
@@ -227,12 +255,10 @@ impl<'q> ResultSet for SyncResultSet<'q> {
     }
 
     fn summary(&self) -> (usize, usize) {
+        use std::sync::atomic::Ordering::SeqCst;
         (
-            self.records.len(),
-            self.records.iter().fold(0, |mut acc, v| {
-                acc += *v as usize;
-                acc
-            }),
+            self.summary.0.load(SeqCst) as _,
+            self.summary.1.load(SeqCst) as _,
         )
     }
 
@@ -241,16 +267,13 @@ impl<'q> ResultSet for SyncResultSet<'q> {
     }
 }
 
-impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
+impl<'r, 'q> Iterator for &'r mut ResultSet<'q> {
     type Item = SyncBlock<'r>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
             log::info!("fetch block: {num_of_rows}");
-            Arc::<Vec<i32>>::get_mut(&mut self.records).map(|records| records.push(num_of_rows));
-
-            // let num_of_fields = self.num_of_fields();
-            // let lengths = unsafe { std::slice::from_raw_parts(lengths, num_of_fields) };
+            self.append_num_of_rows(num_of_rows);
 
             Some(SyncBlock {
                 raw: self.raw.raw(),
@@ -302,14 +325,11 @@ impl<'r, 'q> SyncBlock<'r> {
 impl<'q> Queryable<'q> for Taos {
     type Error = Error;
 
-    type ResultSet = SyncResultSet<'q>;
+    type ResultSet = ResultSet<'q>;
 
-    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<SyncResultSet<'q>, Self::Error> {
+    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<ResultSet<'q>, Self::Error> {
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
-        Ok(SyncResultSet {
-            raw,
-            records: Default::default(),
-        })
+        Ok(ResultSet::new(raw))
     }
 }
 
@@ -338,7 +358,6 @@ fn show_databases(taos: &Taos) -> Result<(), Error> {
         println!("{record:?}");
     }
 
-    assert_eq!(rs.summary(), (1, 2));
     Ok(())
 }
 
@@ -410,4 +429,4 @@ fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Error> {
     Ok(())
 }
 
-mod r#async;
+pub(crate) mod asyncs;

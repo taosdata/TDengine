@@ -272,8 +272,7 @@ impl RawRes {
     }
     #[inline]
     unsafe fn fetch_lengths_raw(&self) -> *const i32 {
-        dbg!("call fetch  lengths");
-        dbg!(taos_fetch_lengths(self.as_ptr()))
+        taos_fetch_lengths(self.as_ptr())
     }
 
     #[inline]

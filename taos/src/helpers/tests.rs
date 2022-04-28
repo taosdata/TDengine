@@ -414,7 +414,7 @@ impl Builder {
 
     pub fn build(self) -> Result<TaosWrapper> {
         let opts = TaosOptions::new();
-        log::info!("use options: {opts:#?}");
+        log::trace!("use options: {opts:#?}");
 
         let taos = opts.build()?;
         log::info!("connected");

@@ -3,7 +3,6 @@ use chrono::NaiveDateTime;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use std::ffi::CString;
-use taos::Value;
 
 use taos::helpers::ShowDatabase;
 
@@ -65,14 +64,14 @@ struct RecordOptionWithJsonTag {
 }
 
 #[cfg(any(feature = "test", test))]
-#[taos::test]
+#[taos::test(log_level = "trace")]
 async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
         "create table if not exists stb1(ts timestamp,
             i8 tinyint, i16 smallint, i32 int, i64 bigint,
             u8 tinyint unsigned, u16 smallint unsigned, u32 int unsigned, u64 bigint unsigned,
-            raw_ts timestamp, c_str binary(100), str nchar(100)) tags (groupid int, location nchar(16))",
+            raw_ts timestamp, c_str binary(100), str nchar(100)) tags (gid int, location nchar(16))",
     )?;
     log::info!("insert data");
     taos.exec_sync(concat!(
@@ -86,12 +85,10 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
 
     log::info!("select");
     let mut res = taos
-        .query("select tbname,groupid,location from stb1")
+        .query("select tbname,gid,location from stb1")
         .await?;
     use futures::StreamExt;
 
-    // block.rows_iter()
-    // let mut stream = res.deserialize_stream();
     use futures::future;
     res.deserialize_stream::<Vec<Value>>()
         .enumerate()
@@ -102,13 +99,6 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
         })
         .await;
 
-    // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
-    // log::debug!("fetched record {:?}", record);
-    // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
-    // log::debug!("fetched record {:?}", record);
-    // let record: Vec<Value> = stream.next().await.unwrap().unwrap();
-    // log::debug!("fetched record {:?}", record);
-    // taos.clean()?;
     Ok(())
 }
 

@@ -293,7 +293,7 @@ pub trait BlockExt: Debug + Sized {
     }
 }
 
-pub trait ResultSet
+pub trait Fetchable
 where
     Self: Sized,
     for<'r> &'r mut Self: Iterator,
@@ -349,7 +349,7 @@ where
 {
     type Error: Debug + From<serde::de::value::Error>;
     // type B: for<'b> BlockExt<'b, 'b>;
-    type ResultSet: ResultSet;
+    type ResultSet: Fetchable;
 
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
 
@@ -376,7 +376,7 @@ where
     }
 }
 
-pub trait AsyncResultSet: Send
+pub trait AsyncFetchable: Send
 where
     Self::BlockStream: futures::stream::Stream + Send,
     for<'b> <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
@@ -401,7 +401,7 @@ where
     fn deserialize_stream<'a, T>(
         &'a mut self,
     ) -> futures::stream::FlatMap<
-        <Self as AsyncResultSet>::BlockStream,
+        <Self as AsyncFetchable>::BlockStream,
         futures::stream::Iter<std::vec::IntoIter<Result<T, DeError>>>,
         fn(
             <Self::BlockStream as futures::stream::Stream>::Item,
@@ -421,13 +421,13 @@ where
 #[async_trait]
 pub trait AsyncQueryable<'q>: Send + Sync
 where
-    <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
-    for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
+    <Self::AsyncResultSet as AsyncFetchable>::BlockStream: 'q + futures::stream::Stream,
+    for<'b> <<Self::AsyncResultSet as AsyncFetchable>::BlockStream as futures::stream::Stream>::Item:
         BlockExt + Send,
 {
     type Error: Debug + From<serde::de::value::Error> + From<anyhow::Error> + Send;
     // type B: for<'b> BlockExt<'b, 'b>;
-    type AsyncResultSet: AsyncResultSet;
+    type AsyncResultSet: AsyncFetchable;
 
     async fn query<T: AsRef<str> + Send>(
         &'q self,
@@ -435,6 +435,8 @@ where
     ) -> Result<Self::AsyncResultSet, Self::Error>;
 
     async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        let sql = sql.as_ref();
+        log::trace!("exec sql: {sql}");
         self.query(sql).await.map(|res| res.affected_rows() as _)
     }
 
@@ -636,7 +638,7 @@ mod tests {
         }
     }
 
-    impl<'r, 'q> crate::ResultSet for MyResultSet<'q> {
+    impl<'r, 'q> crate::Fetchable for MyResultSet<'q> {
         fn fields(&self) -> &[Field] {
             todo!()
         }

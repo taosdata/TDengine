@@ -1,10 +1,10 @@
 use clap::Args;
 use futures::Future;
 use std::path::PathBuf;
-use taos::{query::common::*, TaosOptions, Value};
+use tokio::runtime::Builder;
+
 use taos::prelude::*;
 use taosx::{TaosBlock, TaosDescribe, TaosOpts, TaosTag};
-use tokio::runtime::Builder;
 pub(crate) mod deserialize;
 
 use self::deserialize::{deserialize_database, Deserialize};
