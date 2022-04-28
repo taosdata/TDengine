@@ -471,8 +471,13 @@ static int32_t mndRetrieveStream(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->trigger, false);
+
+    numOfRows++;
+    sdbRelease(pSdb, pStream);
   }
-  return 0;
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
 }
 
 static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {
