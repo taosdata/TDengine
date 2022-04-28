@@ -1898,7 +1898,14 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
 
       if (fmIsAggFunc(pCtx->functionId) || fmIsNonstandardSQLFunc(pCtx->functionId)) {
-        fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
+        bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
+        if (!isUdaf) {
+          fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
+        } else {
+          char *udfName = pExpr->pExpr->_function.pFunctNode->functionName;
+          strncpy(pCtx->udfName, udfName, strlen(udfName));
+          fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
+        }
         pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
       } else {
         fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);

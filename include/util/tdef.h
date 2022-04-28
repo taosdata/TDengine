@@ -324,72 +324,73 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
-#define TSDB_MIN_VNODES_PER_DB        1
-#define TSDB_MAX_VNODES_PER_DB        4096
-#define TSDB_DEFAULT_VN_PER_DB        2
-#define TSDB_MIN_CACHE_BLOCK_SIZE     1
-#define TSDB_MAX_CACHE_BLOCK_SIZE     128  // 128MB for each vnode
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16
-#define TSDB_MIN_TOTAL_BLOCKS         3
-#define TSDB_MAX_TOTAL_BLOCKS         10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS     6
-#define TSDB_MIN_DAYS_PER_FILE        60  // unit minute
-#define TSDB_MAX_DAYS_PER_FILE        (3650 * 1440)
-#define TSDB_DEFAULT_DAYS_PER_FILE    (10 * 1440)
-#define TSDB_MIN_KEEP                 (1 * 1440)       // data in db to be reserved. unit minute
-#define TSDB_MAX_KEEP                 (365000 * 1440)  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP             (3650 * 1440)    // ten years
-#define TSDB_MIN_MINROWS_FBLOCK       10
-#define TSDB_MAX_MINROWS_FBLOCK       1000
-#define TSDB_DEFAULT_MINROWS_FBLOCK   100
-#define TSDB_MIN_MAXROWS_FBLOCK       200
-#define TSDB_MAX_MAXROWS_FBLOCK       10000
-#define TSDB_DEFAULT_MAXROWS_FBLOCK   4096
-#define TSDB_MIN_COMMIT_TIME          30
-#define TSDB_MAX_COMMIT_TIME          40960
-#define TSDB_DEFAULT_COMMIT_TIME      3600
-#define TSDB_MIN_FSYNC_PERIOD         0
-#define TSDB_MAX_FSYNC_PERIOD         180000  // millisecond
-#define TSDB_DEFAULT_FSYNC_PERIOD     3000    // three second
-#define TSDB_MIN_DB_TTL               1
-#define TSDB_DEFAULT_DB_TTL           1
-#define TSDB_MIN_WAL_LEVEL            1
-#define TSDB_MAX_WAL_LEVEL            2
-#define TSDB_DEFAULT_WAL_LEVEL        1
-#define TSDB_MIN_PRECISION            TSDB_TIME_PRECISION_MILLI
-#define TSDB_MAX_PRECISION            TSDB_TIME_PRECISION_NANO
-#define TSDB_DEFAULT_PRECISION        TSDB_TIME_PRECISION_MILLI
-#define TSDB_MIN_COMP_LEVEL           0
-#define TSDB_MAX_COMP_LEVEL           2
-#define TSDB_DEFAULT_COMP_LEVEL       2
-#define TSDB_MIN_DB_REPLICA           1
-#define TSDB_MAX_DB_REPLICA           3
-#define TSDB_DEFAULT_DB_REPLICA       1
-#define TSDB_DB_STRICT_OFF            0
-#define TSDB_DB_STRICT_ON             1
-#define TSDB_DEFAULT_DB_STRICT        0
-#define TSDB_MIN_DB_UPDATE            0
-#define TSDB_MAX_DB_UPDATE            2
-#define TSDB_DEFAULT_DB_UPDATE        0
-#define TSDB_MIN_DB_CACHE_LAST_ROW    0
-#define TSDB_MAX_DB_CACHE_LAST_ROW    3
-#define TSDB_DEFAULT_CACHE_LAST_ROW   0
-#define TSDB_DB_STREAM_MODE_OFF       0
-#define TSDB_DB_STREAM_MODE_ON        1
-#define TSDB_DEFAULT_DB_STREAM_MODE   0
-#define TSDB_DB_SINGLE_STABLE_ON      0
-#define TSDB_DB_SINGLE_STABLE_OFF     1
-#define TSDB_DEFAULT_DB_SINGLE_STABLE 0
+#define TSDB_MIN_VNODES_PER_DB          1
+#define TSDB_MAX_VNODES_PER_DB          4096
+#define TSDB_DEFAULT_VN_PER_DB          2
+#define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
+#define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
+#define TSDB_DEFAULT_BUFFER_PER_VNODE   96
+#define TSDB_MIN_PAGES_PER_VNODE        64
+#define TSDB_MAX_PAGES_PER_VNODE        16384
+#define TSDB_DEFAULT_PAGES_PER_VNODE    256
+#define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
+#define TSDB_MAX_PAGESIZE_PER_VNODE     16384
+#define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4
+#define TSDB_MIN_DAYS_PER_FILE          60  // unit minute
+#define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
+#define TSDB_DEFAULT_DAYS_PER_FILE      (10 * 1440)
+#define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
+#define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
+#define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
+#define TSDB_MIN_KEEP                   (1 * 1440)       // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP                   (365000 * 1440)  // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
+#define TSDB_MIN_MINROWS_FBLOCK         10
+#define TSDB_MAX_MINROWS_FBLOCK         1000
+#define TSDB_DEFAULT_MINROWS_FBLOCK     100
+#define TSDB_MIN_MAXROWS_FBLOCK         200
+#define TSDB_MAX_MAXROWS_FBLOCK         10000
+#define TSDB_DEFAULT_MAXROWS_FBLOCK     4096
+#define TSDB_MIN_FSYNC_PERIOD           0
+#define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
+#define TSDB_DEFAULT_FSYNC_PERIOD       3000    // three second
+#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MAX_WAL_LEVEL              2
+#define TSDB_DEFAULT_WAL_LEVEL          1
+#define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
+#define TSDB_MAX_PRECISION              TSDB_TIME_PRECISION_NANO
+#define TSDB_DEFAULT_PRECISION          TSDB_TIME_PRECISION_MILLI
+#define TSDB_MIN_COMP_LEVEL             0
+#define TSDB_MAX_COMP_LEVEL             2
+#define TSDB_DEFAULT_COMP_LEVEL         2
+#define TSDB_MIN_DB_REPLICA             1
+#define TSDB_MAX_DB_REPLICA             3
+#define TSDB_DEFAULT_DB_REPLICA         1
+#define TSDB_DB_STRICT_OFF              0
+#define TSDB_DB_STRICT_ON               1
+#define TSDB_DEFAULT_DB_STRICT          0
+#define TSDB_MIN_DB_CACHE_LAST_ROW      0
+#define TSDB_MAX_DB_CACHE_LAST_ROW      3
+#define TSDB_DEFAULT_CACHE_LAST_ROW     0
+#define TSDB_DB_STREAM_MODE_OFF         0
+#define TSDB_DB_STREAM_MODE_ON          1
+#define TSDB_DEFAULT_DB_STREAM_MODE     0
+#define TSDB_DB_SINGLE_STABLE_ON        0
+#define TSDB_DB_SINGLE_STABLE_OFF       1
+#define TSDB_DEFAULT_DB_SINGLE_STABLE   0
 
-#define TSDB_MIN_DB_FILE_FACTOR     0
-#define TSDB_MAX_DB_FILE_FACTOR     1
-#define TSDB_DEFAULT_DB_FILE_FACTOR 0.1
-#define TSDB_MIN_DB_DELAY           1
-#define TSDB_MAX_DB_DELAY           10
-#define TSDB_DEFAULT_DB_DELAY       2
-#define TSDB_MIN_EXPLAIN_RATIO      0
-#define TSDB_MAX_EXPLAIN_RATIO      1
-#define TSDB_DEFAULT_EXPLAIN_RATIO  0.001
+#define TSDB_MIN_ROLLUP_FILE_FACTOR     0
+#define TSDB_MAX_ROLLUP_FILE_FACTOR     1
+#define TSDB_DEFAULT_ROLLUP_FILE_FACTOR 0.1
+#define TSDB_MIN_ROLLUP_DELAY           1
+#define TSDB_MAX_ROLLUP_DELAY           10
+#define TSDB_DEFAULT_ROLLUP_DELAY       2
+#define TSDB_MIN_TABLE_TTL              0
+#define TSDB_DEFAULT_TABLE_TTL          0
+
+#define TSDB_MIN_EXPLAIN_RATIO     0
+#define TSDB_MAX_EXPLAIN_RATIO     1
+#define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
 
 #define TSDB_MAX_JOIN_TABLE_NUM 10
 #define TSDB_MAX_UNION_CLAUSE   5
