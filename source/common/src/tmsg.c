@@ -3569,10 +3569,12 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->outputSTbName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->targetStbFullName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->watermark) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
 
@@ -3592,7 +3594,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->outputSTbName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->targetStbFullName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
@@ -3621,6 +3623,43 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->ast);
 }
 
+int32_t tEncodeSRSmaParam(SCoder *pCoder, const SRSmaParam *pRSmaParam) {
+  if (tEncodeFloat(pCoder, pRSmaParam->xFilesFactor) < 0) return -1;
+  if (tEncodeI32v(pCoder, pRSmaParam->delay) < 0) return -1;
+  if (tEncodeI32v(pCoder, pRSmaParam->qmsg1Len) < 0) return -1;
+  if (tEncodeI32v(pCoder, pRSmaParam->qmsg2Len) < 0) return -1;
+  if (pRSmaParam->qmsg1Len > 0) {
+    if (tEncodeBinary(pCoder, pRSmaParam->qmsg1, (uint64_t)pRSmaParam->qmsg1Len) < 0)  // qmsg1Len contains len of '\0'
+      return -1;
+  }
+  if (pRSmaParam->qmsg2Len > 0) {
+    if (tEncodeBinary(pCoder, pRSmaParam->qmsg2, (uint64_t)pRSmaParam->qmsg2Len) < 0)  // qmsg2Len contains len of '\0'
+      return -1;
+  }
+
+  return 0;
+}
+
+int32_t tDecodeSRSmaParam(SCoder *pCoder, SRSmaParam *pRSmaParam) {
+  if (tDecodeFloat(pCoder, &pRSmaParam->xFilesFactor) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pRSmaParam->delay) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg1Len) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg2Len) < 0) return -1;
+  if (pRSmaParam->qmsg1Len > 0) {
+    uint64_t len;
+    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg1, &len) < 0) return -1;  // qmsg1Len contains len of '\0'
+  } else {
+    pRSmaParam->qmsg1 = NULL;
+  }
+  if (pRSmaParam->qmsg2Len > 0) {
+    uint64_t len;
+    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg2, &len) < 0) return -1;  // qmsg2Len contains len of '\0'
+  } else {
+    pRSmaParam->qmsg2 = NULL;
+  }
+  return 0;
+}
+
 int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
@@ -3629,9 +3668,9 @@ int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeI8(pCoder, pReq->rollup) < 0) return -1;
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
-  // if (pReq->rollup) {
-  //   if (tEncodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
-  // }
+  if (pReq->rollup) {
+    if (tEncodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
+  }
 
   tEndEncode(pCoder);
   return 0;
@@ -3645,9 +3684,9 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
-  // if (pReq->rollup) {
-  //   if (tDecodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
-  // }
+  if (pReq->rollup) {
+    if (tDecodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
+  }
 
   tEndDecode(pCoder);
   return 0;

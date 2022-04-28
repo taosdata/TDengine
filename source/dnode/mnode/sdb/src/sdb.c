@@ -141,7 +141,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 }
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
-  if (taosMkDir(pSdb->currDir) != 0) {
+  if (taosMulMkDir(pSdb->currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
     return -1;

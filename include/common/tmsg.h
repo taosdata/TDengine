@@ -1281,8 +1281,9 @@ typedef struct {
 #define STREAM_TRIGGER_WINDOW_CLOSE 2
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    outputSTbName[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    sourceDB[TSDB_DB_FNAME_LEN];
+  char    targetStbFullName[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   char*   sql;
   char*   ast;
@@ -1521,8 +1522,8 @@ typedef struct {
   char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
 } SRSmaParam;
 
-int tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
-int tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
+int32_t tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
+int32_t tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
 
 typedef struct SVCreateStbReq {
   const char*    name;

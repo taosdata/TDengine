@@ -13,23 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
-#include <getopt.h>
 #include <gtest/gtest.h>
 
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
+
 #include "functionMgt.h"
 #include "mockCatalog.h"
 #include "os.h"
+#include "parTestUtil.h"
 #include "parToken.h"
-#include "parserTestUtil.h"
-
-bool g_isDump = false;
 
 class ParserEnv : public testing::Environment {
  public:

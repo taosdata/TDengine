@@ -1058,36 +1058,36 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
   _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
 
   double *output = (double *)pOutputCol->pData;
-  if (pLeft->numOfRows == pRight->numOfRows) {  // check for the 0 value
+  if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { //divide by 0 check
         colDataAppendNULL(pOutputCol, i);
-        continue;  // TODO set null or ignore
+        continue;
       }
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
-                 /getVectorDoubleValueFnRight(RIGHT_COL, i);
+                / getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
   } else if (pLeft->numOfRows == 1) {
     if (colDataIsNull_s(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_s(pRightCol, i)) {
+        if (colDataIsNull_s(pRightCol, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { // divide by 0 check
           colDataAppendNULL(pOutputCol, i);
-          continue;  // TODO set null or ignore
+          continue;
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, 0)
                   / getVectorDoubleValueFnRight(RIGHT_COL, i);
       }
     }
   } else if (pRight->numOfRows == 1) {
-    if (colDataIsNull_s(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
+    if (colDataIsNull_s(pRightCol, 0) || (getVectorDoubleValueFnRight(RIGHT_COL, 0) == 0)) {  // Set pLeft->numOfRows NULL value (divde by 0 check)
       colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
         if (colDataIsNull_s(pLeftCol, i)) {
           colDataAppendNULL(pOutputCol, i);
-          continue;  // TODO set null or ignore
+          continue;
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                   / getVectorDoubleValueFnRight(RIGHT_COL, 0);
@@ -1195,9 +1195,10 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
     if (colDataIsNull_s(pLeft->columnData, i)) {
       colDataAppendNULL(pOutputCol, i);
-      continue;  // TODO set null or ignore
+      continue;
     }
-    *output = - getVectorDoubleValueFnLeft(LEFT_COL, i);
+    double result = getVectorDoubleValueFnLeft(LEFT_COL, i);
+    *output = (result == 0) ? 0 : -result;
   }
 
   doReleaseVec(pLeftCol,  leftConvert);

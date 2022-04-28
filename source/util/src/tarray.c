@@ -318,6 +318,20 @@ void taosArrayClearEx(SArray* pArray, void (*fp)(void*)) {
   pArray->size = 0;
 }
 
+void taosArrayClearP(SArray* pArray, FDelete fp) {
+  if (pArray == NULL) return;
+  if (fp == NULL) {
+    pArray->size = 0;
+    return;
+  }
+
+  for (int32_t i = 0; i < pArray->size; ++i) {
+    fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+  }
+
+  pArray->size = 0;
+}
+
 void* taosArrayDestroy(SArray* pArray) {
   if (pArray) {
     taosMemoryFree(pArray->pData);

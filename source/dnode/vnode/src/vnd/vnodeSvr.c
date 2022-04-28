@@ -61,7 +61,6 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
 
-  // todo: change the interface here
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId: %d failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
@@ -300,12 +299,12 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
     goto _err;
   }
 
-  // tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &vCreateTbReq);
-
   if (metaCreateSTable(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
+
+  tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &req);
 
   tCoderClear(&coder);
   return 0;
@@ -323,6 +322,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   SVCreateTbBatchRsp rsp = {0};
   SVCreateTbRsp      cRsp = {0};
   char               tbName[TSDB_TABLE_FNAME_LEN];
+  STbUidStore       *pStore = NULL;
 
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -361,12 +361,16 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
       cRsp.code = terrno;
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
+      tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
   }
 
   tCoderClear(&coder);
+
+  tsdbUpdateTbUidList(pVnode->pTsdb, pStore);
+  tsdbUidStoreFree(pStore);
 
   // prepare rsp
   int32_t ret = 0;
@@ -426,7 +430,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   SSubmitRsp  rsp = {0};
 
   pRsp->code = 0;
-
+  tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
   // handle the request
   if (tsdbInsertData(pVnode->pTsdb, version, pSubmitReq, &rsp) < 0) {
     pRsp->code = terrno;
@@ -435,7 +439,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 
   // pRsp->msgType = TDMT_VND_SUBMIT_RSP;
   // vnodeProcessSubmitReq(pVnode, ptr, pRsp);
-  // tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, ptr, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  // tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
 
   // encode the response (TODO)
   pRsp->pCont = rpcMallocCont(sizeof(SSubmitRsp));

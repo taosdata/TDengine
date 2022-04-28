@@ -62,7 +62,7 @@ typedef struct {
   bool        is_check;
   bool        is_startup;
   bool        is_help;
-  uint16_t    port;
+  int32_t     port;
   int32_t     pktLen;
   int32_t     pktNum;
   int32_t     displayWidth;
