@@ -59,6 +59,7 @@ extern "C" {
 #include <winsock.h>
 #endif
 
+#define __typeof(a) auto
 
 #endif
 

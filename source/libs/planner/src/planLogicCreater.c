@@ -251,8 +251,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  TSWAP(pScan->pMeta, pRealTable->pMeta, STableMeta*);
-  TSWAP(pScan->pVgroupList, pRealTable->pVgroupList, SVgroupsInfo*);
+  TSWAP(pScan->pMeta, pRealTable->pMeta);
+  TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
   pScan->scanSeq[0] = 1;
   pScan->scanSeq[1] = 0;
   pScan->scanRange = TSWINDOW_INITIALIZER;
@@ -954,7 +954,7 @@ static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpS
   if (NULL == pModif) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  TSWAP(pModif->pDataBlocks, pStmt->pDataBlocks, SArray*);
+  TSWAP(pModif->pDataBlocks, pStmt->pDataBlocks);
   pModif->msgType = getMsgType(pStmt->sqlNodeType);
   *pLogicNode = (SLogicNode*)pModif;
   return TSDB_CODE_SUCCESS;

@@ -331,7 +331,6 @@ int32_t  sdbGetRawSoftVer(SSdbRaw *pRaw, int8_t *sver);
 int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);
 
 SSdbRow *sdbAllocRow(int32_t objSize);
-void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 void    *sdbGetRowObj(SSdbRow *pRow);
 
 typedef struct SSdb {

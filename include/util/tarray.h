@@ -205,7 +205,6 @@ SArray* taosArrayDup(const SArray* pSrc);
  */
 SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy);
 
-
 /**
  * clear the array (remove all element)
  * @param pArray
@@ -218,6 +217,13 @@ void taosArrayClear(SArray* pArray);
  * @param fp
  */
 void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
+
+/**
+ * clear the array (remove all element)
+ * @param pArray
+ * @param fp
+ */
+void taosArrayClearP(SArray* pArray, FDelete fp);
 
 void* taosArrayDestroy(SArray* pArray);
 void  taosArrayDestroyP(SArray* pArray, FDelete fp);
@@ -271,6 +277,8 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
 void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz);
+
+char* taosShowStrArray(const SArray* pArray);
 
 #ifdef __cplusplus
 }

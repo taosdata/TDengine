@@ -21,12 +21,14 @@ extern "C" {
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
+#include "osSocket.h"
 #include "rpcCache.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "theap.h"
 #include "tidpool.h"
 #include "tmd5.h"
 #include "tmempool.h"
@@ -105,6 +107,7 @@ typedef void* queue[2];
 
 #define TRANS_RETRY_COUNT_LIMIT 10  // retry count limit
 #define TRANS_RETRY_INTERVAL    5   // ms retry interval
+#define TRANS_CONN_TIMEOUT      3   // connect timeout
 
 typedef struct {
   SRpcInfo* pRpc;     // associated SRpcInfo
@@ -327,9 +330,37 @@ void transQueueClear(STransQueue* queue);
 void transQueueDestroy(STransQueue* queue);
 
 /*
+ * delay queue based on uv loop and uv timer, and only used in retry
+ */
+typedef struct STaskArg {
+  void* param1;
+  void* param2;
+} STaskArg;
+
+typedef struct SDelayTask {
+  void (*func)(void* arg);
+  void*    arg;
+  uint64_t execTime;
+  HeapNode node;
+} SDelayTask;
+
+typedef struct SDelayQueue {
+  uv_timer_t* timer;
+  Heap*       heap;
+  uv_loop_t*  loop;
+} SDelayQueue;
+
+int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
+
+void transDQDestroy(SDelayQueue* queue);
+
+int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+
+/*
  * init global func
  */
 void transThreadOnce();
+
 #ifdef __cplusplus
 }
 #endif

@@ -133,7 +133,12 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
       colDataAppendNULL(pOutputData, i);
       continue;
     }
-    out[i] = valFn(getValueFn(pInputData->pData, i));
+    double result = valFn(getValueFn(pInputData->pData, i));
+    if (isinf(result) || isnan(result)) {
+      colDataAppendNULL(pOutputData, i);
+    } else {
+      out[i] = result;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -162,7 +167,12 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       colDataAppendNULL(pOutputData, i);
       continue;
     }
-    out[i] = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
+    double result = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
+    if (isinf(result) || isnan(result)) {
+      colDataAppendNULL(pOutputData, i);
+    } else {
+      out[i] = result;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -647,11 +657,6 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
-
-  if (IS_VAR_DATA_TYPE(outputType)) {
-    int32_t factor = (TSDB_DATA_TYPE_NCHAR == outputType) ? TSDB_NCHAR_SIZE : 1;
-    outputLen = outputLen * factor + VARSTR_HEADER_SIZE;
-  }
 
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;

@@ -124,14 +124,6 @@ static const SInfosTableSchema userStbsSchema[] = {
     {.name = "table_comment", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
-static const SInfosTableSchema userStreamsSchema[] = {
-    {.name = "stream_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "user_name", .bytes = 23, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "dest_table", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "sql", .bytes = 1024, .type = TSDB_DATA_TYPE_VARCHAR},
-};
-
 static const SInfosTableSchema userTblsSchema[] = {
     {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -142,6 +134,7 @@ static const SInfosTableSchema userTblsSchema[] = {
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "table_comment", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "type", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableSchema userTblDistSchema[] = {
@@ -164,7 +157,6 @@ static const SInfosTableSchema userUsersSchema[] = {
     {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "account", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableSchema grantsSchema[] = {
@@ -197,23 +189,6 @@ static const SInfosTableSchema vgroupsSchema[] = {
     {.name = "status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "nfiles", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-};
-
-static const SInfosTableSchema consumerSchema[] = {
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "status", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    // ep
-    // up time
-    // topics
-};
-
-static const SInfosTableSchema subscribeSchema[] = {
-    {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "group_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SInfosTableSchema smaSchema[] = {
@@ -276,14 +251,11 @@ static const SInfosTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
     {TSDB_INS_TABLE_USER_INDEXES, userIdxSchema, tListLen(userIdxSchema)},
     {TSDB_INS_TABLE_USER_STABLES, userStbsSchema, tListLen(userStbsSchema)},
-    {TSDB_INS_TABLE_USER_STREAMS, userStreamsSchema, tListLen(userStreamsSchema)},
     {TSDB_INS_TABLE_USER_TABLES, userTblsSchema, tListLen(userTblsSchema)},
     {TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
-    {TSDB_INS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
-    {TSDB_INS_TABLE_SUBSCRIBES, subscribeSchema, tListLen(subscribeSchema)},
     {TSDB_INS_TABLE_TRANS, transSchema, tListLen(transSchema)},
     {TSDB_INS_TABLE_SMAS, smaSchema, tListLen(smaSchema)},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema)},

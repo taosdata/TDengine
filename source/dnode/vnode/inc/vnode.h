@@ -68,6 +68,7 @@ void    vnodeStop(SVnode *pVnode);
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
+void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -76,6 +77,7 @@ typedef struct SMetaEntry  SMetaEntry;
 
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void metaReaderClear(SMetaReader *pReader);
+int  metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int  metaReadNext(SMetaReader *pReader);
 
 #if 1  // refact APIs below (TODO)
@@ -133,23 +135,18 @@ int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *p
 // need to reposition
 
 // structs
-struct SMetaCfg {
-  uint64_t lruSize;
-};
-
 struct STsdbCfg {
-  int8_t   precision;
-  int8_t   update;
-  int8_t   compression;
-  int8_t   slLevel;
-  int32_t  days;
-  int32_t  minRows;
-  int32_t  maxRows;
-  int32_t  keep2;
-  int32_t  keep0;
-  int32_t  keep1;
-  uint64_t lruCacheSize;
-  SArray  *retentions;
+  int8_t  precision;
+  int8_t  update;
+  int8_t  compression;
+  int8_t  slLevel;
+  int32_t days;
+  int32_t minRows;
+  int32_t maxRows;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
+  SArray *retentions;
 };
 
 struct SVnodeCfg {
@@ -160,8 +157,6 @@ struct SVnodeCfg {
   int32_t  szCache;
   uint64_t szBuf;
   bool     isHeap;
-  uint32_t ttl;
-  uint32_t keep;
   int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;

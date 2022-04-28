@@ -23,10 +23,8 @@ extern "C" {
 #endif
 
 enum {
-  // MQ_CONSUMER_STATUS__INIT = 1,
   MQ_CONSUMER_STATUS__MODIFY = 1,
   MQ_CONSUMER_STATUS__MODIFY_IN_REB,
-  // MQ_CONSUMER_STATUS__IDLE,
   MQ_CONSUMER_STATUS__READY,
   MQ_CONSUMER_STATUS__LOST,
   MQ_CONSUMER_STATUS__LOST_IN_REB,
@@ -45,6 +43,11 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 
 int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
+
+bool mndRebTryStart();
+void mndRebEnd();
+void mndRebCntInc();
+void mndRebCntDec();
 
 #ifdef __cplusplus
 }

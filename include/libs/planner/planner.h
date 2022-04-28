@@ -34,7 +34,7 @@ typedef struct SPlanContext {
   bool showRewrite;
   int8_t triggerType;
   int64_t watermark;
-  bool isStmtQuery;
+  int32_t placeholderNum;
   void* pTransporter;
   struct SCatalog* pCatalog;
   char* pMsg;
@@ -50,7 +50,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @pSource one execution location of this group of datasource subplans 
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
-int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx);
+int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId);
 
 // Convert to subplan to string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
