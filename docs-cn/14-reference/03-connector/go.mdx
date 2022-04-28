@@ -69,26 +69,33 @@ REST 连接器支持所有能运行 Go 的平台。
 
 ### 使用 go mod 管理
 
-`go mod` 初始化项目：
+1. 使用 `go mod` 命令初始化项目：
 
-```text
-go mod init taos-demo
-```
+  ```text
+  go mod init taos-demo
+  ```
 
-引入taosSql：
+2. 引入 taosSql ：
 
-```go
-import (
+  ```go
+  import (
     "database/sql"
     _ "github.com/taosdata/driver-go/v2/taosSql"
-)
-```
+  )
+  ```
 
-使用`go mod`方式管理依赖包：
+3. 使用 `go mod tidy` 更新依赖包：
 
-```text
-go mod tidy
-```
+  ```text
+  go mod tidy
+  ```
+
+4. 使用 `go run taos-demo` 运行程序或使用 `go build` 命令编译出二进制文件。
+
+  ```text
+  go run taos-demo
+  go build
+  ```
 
 ## 建立连接
 
@@ -259,37 +266,37 @@ func main() {
 
 ## 常见问题
 
-* 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
+1. 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
 
-将 `go.mod` 中 require 块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
+  将 `go.mod` 中 require 块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
 
-* database/sql 中 stmt 相关接口崩溃
+2. database/sql 中 stmt（参数绑定）相关接口崩溃
 
-REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
+  REST 不支持参数绑定相关接口，建议使用`db.Exec`和`db.Query`。
 
-* 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
+3. 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
 
-在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+  在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
-* 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
+4. 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
 
-因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+  因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
-* 升级 `github.com/taosdata/driver-go/v2/taosRestful`
+5. 升级 `github.com/taosdata/driver-go/v2/taosRestful`
 
-将 `go.mod` 文件中对 `github.com/taosdata/driver-go/v2` 的引用改为 `github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
+  将 `go.mod` 文件中对 `github.com/taosdata/driver-go/v2` 的引用改为 `github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
 
-* `readBufferSize` 参数调大后无明显效果
+6. `readBufferSize` 参数调大后无明显效果
 
-`readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
+  `readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
 
-* `disableCompression` 参数设置为 `false` 时查询效率降低
+7. `disableCompression` 参数设置为 `false` 时查询效率降低
 
-当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
+  当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
 
-* `go get` 命令无法获取包，或者获取包超时
+8. `go get` 命令无法获取包，或者获取包超时
 
-设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
+  设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
 ## 常用 API
 
@@ -297,103 +304,105 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
-该 API 用来打开 DB，返回一个类型为 \*DB 的对象。
+  该 API 用来打开 DB，返回一个类型为 \*DB 的对象。
 
-**注意**： 该 API 成功创建的时候，并没有做权限等检查，只有在真正执行 Query 或者 Exec 的时候才能真正的去创建连接，并同时检查 user/password/host/port 是不是合法。
+:::info
+该 API 成功创建的时候，并没有做权限等检查，只有在真正执行 Query 或者 Exec 的时候才能真正的去创建连接，并同时检查 user/password/host/port 是不是合法。
+:::
 
 * `func (db *DB) Exec(query string, args ...interface{}) (Result, error)`
 
-`sql.Open` 内置的方法，用来执行非查询相关 SQL。
+  `sql.Open` 内置的方法，用来执行非查询相关 SQL。
 
 * `func (db *DB) Query(query string, args ...interface{}) (*Rows, error)`
 
-`sql.Open` 内置的方法，用来执行查询语句。
+  `sql.Open` 内置的方法，用来执行查询语句。
 
-### 高级功能 API
+### 高级功能（af）API
 
-af 包封装了订阅、stmt 等 TDengine 高级功能。
+`af` 包封装了订阅、schemaless、参数绑定等 TDengine 高级功能。
 
 * `af.Open(host, user, pass, db string, port int) (*Connector, error)`
 
-该 API 通过 cgo 创建与 taosd 的连接。
+  该 API 通过 cgo 创建与 taosd 的连接。
 
 * `func (conn *Connector) Close() error`
 
-关闭与 taosd 的连接。
-
-* `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
-
-stmt 单行插入。
-
-* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
-
-stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
+  关闭与 taosd 的连接。
 
 订阅
 
 * `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
 
-订阅数据。
+  订阅数据。
 
 * `func (s *taosSubscriber) Consume() (driver.Rows, error)`
 
-消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
+  消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (s *taosSubscriber) Unsubscribe(keepProgress bool)`
 
-取消订阅数据。
+  取消订阅数据。
 
 schemaless 写入
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
-写入 influxDB 行协议。
+  写入 influxDB 行协议。
 
 * `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
 
-写入 OpenTDSB telnet 协议。
+  写入 OpenTDSB telnet 协议数据。
 
 * `func (conn *Connector) OpenTSDBInsertJsonPayload(payload string) error`
 
-写入 OpenTSDB json 协议。
+  写入 OpenTSDB JSON 协议数据。
 
-批量 stmt 插入
+参数绑定
+
+* `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
+
+  参数绑定单行插入。
+
+* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
+
+  参数绑定查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
 
-初始化 stmt。
+  初始化参数。
 
 * `func (stmt *InsertStmt) Prepare(sql string) error`
 
-预处理 SQL 语句。
+  参数绑定预处理 SQL 语句。
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 
-设置表名。
+  参数绑定设置表名。
 
 * `func (stmt *InsertStmt) SetSubTableName(name string) error`
 
-设置子表名。
+  参数绑定设置子表名。
 
 * `func (stmt *InsertStmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
 
-绑定多行数据。
+  参数绑定多行数据。
 
 * `func (stmt *InsertStmt) AddBatch() error`
 
-添加到批处理。
+  添加到参数绑定批处理。
 
 * `func (stmt *InsertStmt) Execute() error`
 
-执行 stmt。
+  执行参数绑定。
 
 * `func (stmt *InsertStmt) GetAffectedRows() int`
 
-获取受影响行数。
+  获取参数绑定插入受影响行数。
 
 * `func (stmt *InsertStmt) Close() error`
 
-结束 stmt。
+  结束参数绑定。
 
 ## API 参考
 
