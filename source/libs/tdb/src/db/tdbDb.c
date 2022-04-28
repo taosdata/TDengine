@@ -87,7 +87,7 @@ int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, vo
   return tdbBtreePGet(pDb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
 }
 
-int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
+int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn) {
   int   ret;
   TDBC *pDbc = NULL;
 
@@ -97,7 +97,7 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
     return -1;
   }
 
-  tdbBtcOpen(&pDbc->btc, pDb->pBt, NULL);
+  tdbBtcOpen(&pDbc->btc, pDb->pBt, pTxn);
 
   // TODO: move to first now, we can move to any key-value
   // and in any direction, design new APIs.
@@ -111,7 +111,39 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
   return 0;
 }
 
-int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, tdb_cmpr_fn_t cmprFn, int flags) {
+  int tflags;
+
+  // set/check flags
+  if (flags == 0) {
+    flags |= TDB_FLG_CMP_EQ;
+  } else {
+    tflags = flags & (TDB_FLG_CMP_LT | TDB_FLG_CMP_EQ | TDB_FLG_CMP_GT);
+    if (tflags != TDB_FLG_CMP_LT && tflags != TDB_FLG_CMP_EQ && tflags != TDB_FLG_CMP_GT) return -1;
+  }
+
+  return tdbBtcMoveTo2(&pDbc->btc, pKey, kLen, cmprFn, flags);
+}
+
+int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int tdbDbcDrop(TDBC *pDbc) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);
 }
 
@@ -120,11 +152,5 @@ int tdbDbcClose(TDBC *pDbc) {
     tdbOsFree(pDbc);
   }
 
-  return 0;
-}
-
-int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  // TODO
-  ASSERT(0);
   return 0;
 }

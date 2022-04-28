@@ -199,11 +199,11 @@ TEST(tdb_test, simple_test) {
       int   vLen, kLen;
       int   count = 0;
 
-      ret = tdbDbcOpen(pDb, &pDBC);
+      ret = tdbDbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
       for (;;) {
-        ret = tdbDbNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+        ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
         // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
@@ -280,11 +280,11 @@ TEST(tdb_test, simple_test2) {
       int   vLen, kLen;
       int   count = 0;
 
-      ret = tdbDbcOpen(pDb, &pDBC);
+      ret = tdbDbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
       for (;;) {
-        ret = tdbDbNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+        ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
         std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";

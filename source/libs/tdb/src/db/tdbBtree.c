@@ -67,8 +67,8 @@ typedef struct {
   u8       *pBuf;
 } SCellDecoder;
 
-static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
+static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
@@ -1505,3 +1505,120 @@ void tdbBtPageInfo(SPage *pPage, int idx) {
 }
 #endif
 // TDB_BTREE_DEBUG
+
+int tdbBtcMoveTo2(SBTC *pBtc, const void *pKey, int kLen, tdb_cmpr_fn_t cmprFn, int flags) {
+  SBTree      *pBt = pBtc->pBt;
+  SPager      *pPager = pBt->pPager;
+  SPgno        root = pBt->root;
+  SCellDecoder cd = {0};
+  int          nCells = 0;
+  SCell       *pCell = NULL;
+  int          ret = 0;
+  int          c;
+  int          backward = flags & TDB_FLG_BACKWD;
+
+  if (cmprFn == NULL) {
+    cmprFn = pBt->kcmpr;
+  }
+
+  // move cursor to a level
+  if (pBtc->iPage < 0) {
+    // move from clear cursor
+    ret = tdbPagerFetchPage(pPager, &root, &(pBtc->pPage), tdbBtreeInitPage,
+                            &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
+    if (ret < 0) {
+      // TODO
+      ASSERT(0);
+      return -1;
+    }
+
+    pBtc->iPage = 0;
+    pBtc->idx = -1;
+    // for empty tree, just return with an invalid position
+    if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
+  } else {
+    // move from a position (TODO)
+  }
+
+  // search downward
+  for (;;) {
+    int    lidx, ridx, midx;
+    SPage *pPage;
+
+    pPage = pBtc->pPage;
+    nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+    lidx = 0;
+    ridx = nCells - 1;
+
+    ASSERT(nCells > 0);
+    ASSERT(pBtc->idx == -1);
+
+    // compare first cell
+    midx = lidx;
+    pCell = tdbPageGetCell(pPage, midx);
+    tdbBtreeDecodeCell(pPage, pCell, &cd);
+    c = cmprFn(pKey, kLen, cd.pKey, cd.kLen);
+    if (c <= 0) {
+      ridx = lidx - 1;
+    } else {
+      lidx = lidx + 1;
+    }
+
+    // compare last cell
+    if (lidx <= ridx) {
+      midx = ridx;
+      pCell = tdbPageGetCell(pPage, midx);
+      tdbBtreeDecodeCell(pPage, pCell, &cd);
+      c = cmprFn(pKey, kLen, cd.pKey, cd.kLen);
+      if (c >= 0) {
+        lidx = ridx + 1;
+      } else {
+        ridx = ridx - 1;
+      }
+    }
+
+    // binary search
+    for (;;) {
+      if (lidx > ridx) break;
+
+      midx = (lidx + ridx) >> 1;
+
+      pCell = tdbPageGetCell(pPage, midx);
+      ret = tdbBtreeDecodeCell(pPage, pCell, &cd);
+      if (ret < 0) {
+        // TODO: handle error
+        ASSERT(0);
+        return -1;
+      }
+
+      // Compare the key values
+      c = cmprFn(pKey, kLen, cd.pKey, cd.kLen);
+      if (c < 0) {
+        // pKey < cd.pKey
+        ridx = midx - 1;
+      } else if (c > 0) {
+        // pKey > cd.pKey
+        lidx = midx + 1;
+      } else {
+        // pKey == cd.pKey
+        break;
+      }
+    }
+
+    // keep search downward or break
+    if (TDB_BTREE_PAGE_IS_LEAF(pPage)) {
+      pBtc->idx = midx;
+      // *pCRst = c;
+      break;
+    } else {
+      if (c <= 0) {
+        pBtc->idx = midx;
+      } else {
+        pBtc->idx = midx + 1;
+      }
+      tdbBtcMoveDownward(pBtc);
+    }
+  }
+
+  return 0;
+}

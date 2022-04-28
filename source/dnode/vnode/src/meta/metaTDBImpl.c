@@ -438,7 +438,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
 
   while (true) {
     // TODO: lock during iterate?
-    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
+    if (tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
       pSmaIdxKey = pCur->pKey;
       ASSERT(pSmaIdxKey != NULL);
 
@@ -613,7 +613,7 @@ int64_t metaSmaCursorNext(SMSmaCursor *pCur) {
   void       *pBuf;
   SSmaIdxKey *smaIdxKey;
 
-  ret = tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, &pCur->pVal, &pCur->vLen);
+  ret = tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, &pCur->pVal, &pCur->vLen);
   if (ret < 0) {
     return 0;
   }

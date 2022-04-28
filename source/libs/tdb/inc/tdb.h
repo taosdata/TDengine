@@ -31,7 +31,7 @@ typedef struct STDBC TDBC;
 typedef struct STxn  TXN;
 
 // TENV
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv);
+int tdbEnvOpen(const char *rootDir, int szPage, int pages, TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
 int tdbBegin(TENV *pEnv, TXN *pTxn);
 int tdbCommit(TENV *pEnv, TXN *pTxn);
@@ -45,10 +45,18 @@ int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
 // TDBC
-int tdbDbcOpen(TDB *pDb, TDBC **ppDbc);
-int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+#define TDB_FLG_BACKWD 0x1  // backward search
+#define TDB_FLG_CMP_LT 0x2  // less than
+#define TDB_FLG_CMP_EQ 0x4  // equal
+#define TDB_FLG_CMP_GT 0x8  // greater than
+
+int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn);
+int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, tdb_cmpr_fn_t cmprFn, int flags);
+int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
+int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen);
+int tdbDbcDrop(TDBC *pDbc);
+int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbDbcClose(TDBC *pDbc);
-int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
 
 // TXN
 #define TDB_TXN_WRITE            0x1
@@ -68,6 +76,9 @@ struct STxn {
   void (*xFree)(void *, void *);
   void *xArg;
 };
+
+// error code
+enum { TDB_CODE_SUCCESS = 0, TDB_CODE_MAX };
 
 #ifdef __cplusplus
 }

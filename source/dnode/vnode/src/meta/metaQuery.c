@@ -96,7 +96,7 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 
   metaReaderInit(&pTbCur->mr, pMeta, 0);
 
-  tdbDbcOpen(pMeta->pUidIdx, &pTbCur->pDbc);
+  tdbDbcOpen(pMeta->pUidIdx, &pTbCur->pDbc, NULL);
 
   return pTbCur;
 }
@@ -119,7 +119,7 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
   STbCfg tbCfg;
 
   for (;;) {
-    ret = tdbDbNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    ret = tdbDbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }
@@ -193,7 +193,7 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   }
 
   pCtbCur->suid = uid;
-  ret = tdbDbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur);
+  ret = tdbDbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
   if (ret < 0) {
     taosMemoryFree(pCtbCur);
     return NULL;
@@ -219,7 +219,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   int         ret;
   SCtbIdxKey *pCtbIdxKey;
 
-  ret = tdbDbNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
+  ret = tdbDbcNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
   if (ret < 0) {
     return 0;
   }
@@ -283,7 +283,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
 
   while (true) {
     // TODO: lock during iterate?
-    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
+    if (tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
       pSmaIdxKey = pCur->pKey;
       ASSERT(pSmaIdxKey != NULL);
 
@@ -354,7 +354,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   tb_uid_t    uid = 0;
   while (true) {
     // TODO: lock during iterate?
-    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
+    if (tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
       ASSERT(pSmaIdxKey != NULL);
       pSmaIdxKey = pCur->pKey;
 

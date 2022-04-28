@@ -33,7 +33,6 @@ typedef uint64_t u64;
 
 // SPgno
 typedef u32 SPgno;
-#define TDB_IVLD_PGNO ((pgno_t)0)
 
 #include "tdbOs.h"
 #include "tdbUtil.h"
@@ -57,37 +56,11 @@ typedef struct {
   SPgno   pgno;
 } SPgid;
 
-#define TDB_IVLD_PGID (SPgid){0, TDB_IVLD_PGNO};
-
-static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
-  SPgid *pgid1 = (SPgid *)p1;
-  SPgid *pgid2 = (SPgid *)p2;
-  int    rcode;
-
-  rcode = memcmp(pgid1->fileid, pgid2->fileid, TDB_FILE_ID_LEN);
-  if (rcode) {
-    return rcode;
-  } else {
-    if (pgid1->pgno > pgid2->pgno) {
-      return 1;
-    } else if (pgid1->pgno < pgid2->pgno) {
-      return -1;
-    } else {
-      return 0;
-    }
-  }
-}
-
-#define TDB_IS_SAME_PAGE(pPgid1, pPgid2) (tdbCmprPgId(pPgid1, pPgid2) == 0)
-
 // pgsz_t
 #define TDB_MIN_PGSIZE       512       // 512B
 #define TDB_MAX_PGSIZE       16777216  // 16M
 #define TDB_DEFAULT_PGSIZE   4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
-
-// cache
-#define TDB_DEFAULT_CACHE_SIZE (256 * 4096)  // 1M
 
 // dbname
 #define TDB_MAX_DBNAME_LEN 24
@@ -97,8 +70,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 #define TDB_JOURNAL_NAME "tdb.journal"
 
 #define TDB_FILENAME_LEN 128
-
-#define TDB_DEFAULT_FANOUT 6
 
 #define BTREE_MAX_DEPTH 20
 
@@ -152,27 +123,13 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 
 // SBTC
 int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
+int tdbBtcMoveTo2(SBTC *pBtc, const void *pKey, int kLen, tdb_cmpr_fn_t cmprFn, int flags);
 int tdbBtcMoveToFirst(SBTC *pBtc);
 int tdbBtcMoveToLast(SBTC *pBtc);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbBtcClose(SBTC *pBtc);
 
 // tdbPager.c ====================================
-struct SPager {
-  char    *dbFileName;
-  char    *jFileName;
-  int      pageSize;
-  uint8_t  fid[TDB_FILE_ID_LEN];
-  tdb_fd_t fd;
-  tdb_fd_t jfd;
-  SPCache *pCache;
-  SPgno    dbFileSize;
-  SPgno    dbOrigSize;
-  SPage   *pDirty;
-  u8       inTran;
-  SPager  *pNext;      // used by TENV
-  SPager  *pHashNext;  // used by TENV
-};
 
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
 int  tdbPagerClose(SPager *pPager);
@@ -344,6 +301,22 @@ struct STEnv {
   int      nPager;
   int      nPgrHash;
   SPager **pgrHash;
+};
+
+struct SPager {
+  char    *dbFileName;
+  char    *jFileName;
+  int      pageSize;
+  uint8_t  fid[TDB_FILE_ID_LEN];
+  tdb_fd_t fd;
+  tdb_fd_t jfd;
+  SPCache *pCache;
+  SPgno    dbFileSize;
+  SPgno    dbOrigSize;
+  SPage   *pDirty;
+  u8       inTran;
+  SPager  *pNext;      // used by TENV
+  SPager  *pHashNext;  // used by TENV
 };
 
 #ifdef __cplusplus
