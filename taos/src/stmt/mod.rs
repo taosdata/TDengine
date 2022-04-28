@@ -23,6 +23,7 @@ impl<F: IntoBindParam, T: IntoIterator<Item = F>> IntoParams for T {
 }
 
 pub struct Stmt<'stmt> {
+    #[allow(dead_code)]
     taos: &'stmt Taos,
     stmt: *mut c_void,
 }
