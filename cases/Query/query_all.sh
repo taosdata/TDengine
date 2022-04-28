@@ -96,6 +96,17 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/numeric
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_table_only_stable_groupby.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep
 
+#table_fun_numeric_query
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interval.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_csum.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_diff.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_floor_ceil_round.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_mavg.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_state.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_stddev.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_table_only_stable_groupby.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/numeric/table_numeric_top_bottom.py --keep
+
 #stable_fun_alltype_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_unique.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_tail.py --keep
