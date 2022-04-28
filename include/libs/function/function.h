@@ -207,7 +207,7 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;
 
-  char*           udfName[TSDB_FUNC_NAME_LEN];
+  char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
 enum {
