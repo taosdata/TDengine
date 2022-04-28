@@ -409,7 +409,31 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpc
 }
 
 static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // TODO
+  SVDropStbReq req = {0};
+  int          rcode = TSDB_CODE_SUCCESS;
+  SCoder       coder = {0};
+
+  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  // decode request
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
+  if (tDecodeSVDropStbReq(&coder, &req) < 0) {
+    rcode = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  // process request
+  if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
+
+  // return rsp
+_exit:
+  pRsp->code = rcode;
+  tCoderClear(&coder);
   return 0;
 }
 
