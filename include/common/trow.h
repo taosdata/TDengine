@@ -596,6 +596,34 @@ static FORCE_INLINE int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, 
 }
 
 /**
+ * @brief
+ *
+ * @param pBuilder
+ * @param nCols
+ * @param nBoundCols use -1 if not available
+ * @param flen
+ * @return FORCE_INLINE
+ */
+static FORCE_INLINE int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen) {
+  pBuilder->flen = flen;
+  pBuilder->nCols = nCols;
+  if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
+    TASSERT(0);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+#ifdef TD_SUPPORT_BITMAP
+  // the primary TS key is stored separatedly
+  pBuilder->nBitmaps = (int16_t)TD_BITMAP_BYTES(pBuilder->nCols - 1);
+#else
+  pBuilder->nBitmaps = 0;
+  pBuilder->nBoundBitmaps = 0;
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+
+/**
  * @brief To judge row type: STpRow/SKvRow
  *
  * @param pBuilder
@@ -1385,7 +1413,6 @@ static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char* tag) {
   }
   printf("\n");
 }
-
 #ifdef TROW_ORIGIN_HZ
 typedef struct {
   uint32_t nRows;
