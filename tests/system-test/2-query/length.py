@@ -59,21 +59,30 @@ class TDTestCase:
             groups = ["", group_having, group_no_having]
 
             for group_condition in groups:
-                tdSql.query(f"select {condition} from {tbname} {where_condition}  {group_condition} ")
-                datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
-                # length_data = [ len(str(data))  if data else None for data in datas ]
-                length_data = []
-                for data in datas :
-                    if not data:
-                        length_data.append(None)
-                    elif "as nchar" in condition or (NCHAR_COL in condition and "as binary" not in condition):
-                        length_data.append(len(str(data)) * 4)
-                    else:
-                        length_data.append(len(str(data)))
+                # tdSql.query(f"select {condition} from {tbname} {where_condition}  {group_condition} ")
+                # datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+                # # length_data = [ len(str(data))  if data else None for data in datas ]
+                # length_data = []
+                # for data in datas :
+                #     if not data:
+                #         length_data.append(None)
+                #     elif "as nchar" in condition or (NCHAR_COL in condition and "as binary" not in condition):
+                #         length_data.append(len(str(data)) * 4)
+                #     else:
+                #         length_data.append(len(str(data)))
 
-                tdSql.query(f"select length( {condition} ) from {tbname} {where_condition}  {group_condition}")
-                for i in range(len(length_data)):
-                    tdSql.checkData(i, 0, length_data[i] ) if length_data[i] else tdSql.checkData(i, 0, None)
+                # tdSql.query(f"select length( {condition} ) from {tbname} {where_condition}  {group_condition}")
+                # for i in range(len(length_data)):
+                #     tdSql.checkData(i, 0, length_data[i] ) if length_data[i] else tdSql.checkData(i, 0, None)
+                tdSql.query(f"select {condition}, length( {condition} ) from {tbname} {where_condition}  {group_condition} ")
+                for i in range(tdSql.queryRows):
+                    if not tdSql.getData(i,1):
+                        tdSql.checkData(i, 1, None)
+                    elif "as nchar" in condition or (NCHAR_COL in condition and "as binary" not in condition):
+                        tdSql.checkData(i, 1, len(tdSql.getData(i,1)) * 4 )
+                    else:
+                        tdSql.checkData(i, 1, len(tdSql.getData(i,1)))
+
 
     def __length_err_check(self,tbname):
         sqls = []
