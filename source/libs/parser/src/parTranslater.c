@@ -2734,7 +2734,7 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
   if ('\0' != pStmt->targetTabName[0]) {
     strcpy(name.dbname, pStmt->targetDbName);
     strcpy(name.tname, pStmt->targetTabName);
-    tNameExtractFullName(&name, createReq.outputSTbName);
+    tNameExtractFullName(&name, createReq.targetStbFullName);
   }
 
   int32_t code = translateQuery(pCxt, pStmt->pQuery);
