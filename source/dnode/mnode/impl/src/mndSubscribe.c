@@ -309,9 +309,6 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       newConsumerEp.consumerId = consumerId;
       newConsumerEp.vgs = taosArrayInit(0, sizeof(void *));
       taosHashPut(pOutput->pSub->consumerHash, &consumerId, sizeof(int64_t), &newConsumerEp, sizeof(SMqConsumerEp));
-      /*SMqConsumer* pTestNew = taosHashGet(pOutput->pSub->consumerHash, &consumerId, sizeof(int64_t));*/
-      /*ASSERT(pTestNew->consumerId == consumerId);*/
-      /*ASSERT(pTestNew->vgs == newConsumerEp.vgs);*/
       taosArrayPush(pOutput->newConsumers, &consumerId);
     }
   }
@@ -369,7 +366,13 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     }
   }
 
-  // 8. generate logs
+  // 8. TODO generate logs
+  mInfo("rebalance calculation completed, rebalanced vg:");
+  for (int32_t i = 0; i < taosArrayGetSize(pOutput->rebVgs); i++) {
+    SMqRebOutputVg *pOutputRebVg = taosArrayGet(pOutput->rebVgs, i);
+    mInfo("vg: %d moved from consumer %ld to consumer %ld", pOutputRebVg->pVgEp->vgId, pOutputRebVg->oldConsumerId,
+          pOutputRebVg->newConsumerId);
+  }
 
   // 9. clear
   taosHashCleanup(pHash);
@@ -447,7 +450,9 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
       goto REB_FAIL;
     }
   }
-  // 4. commit log: modification log
+  // 4. TODO commit log: modification log
+
+  // 5. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) goto REB_FAIL;
 
   mndTransDrop(pTrans);

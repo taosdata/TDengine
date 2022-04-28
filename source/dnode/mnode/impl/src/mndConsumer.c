@@ -812,6 +812,7 @@ static int32_t mndRetrieveConsumer(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock 
     colDataAppend(pColInfo, numOfRows, (const char *)status, false);
 
     // subscribed topics
+    // TODO: split into multiple rows
     char  topics[TSDB_SHOW_LIST_LEN + VARSTR_HEADER_SIZE] = {0};
     char *showStr = taosShowStrArray(pConsumer->assignedTopics);
     tstrncpy(varDataVal(topics), showStr, TSDB_SHOW_LIST_LEN);
