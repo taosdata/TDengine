@@ -302,8 +302,8 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
       mndReleaseTopic(pMnode, pTopic);
 
       // 2.2 iterate all vg assigned to the consumer of that topic
-      SMqConsumerEpInSub *pEpInSub = taosHashGet(pSub->consumerHash, &consumerId, sizeof(int64_t));
-      int32_t             vgNum = taosArrayGetSize(pEpInSub->vgs);
+      SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &consumerId, sizeof(int64_t));
+      int32_t        vgNum = taosArrayGetSize(pConsumerEp->vgs);
 
       topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
       if (topicEp.vgs == NULL) {
@@ -313,7 +313,7 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
       }
 
       for (int32_t j = 0; j < vgNum; j++) {
-        SMqVgEp *pVgEp = taosArrayGetP(pEpInSub->vgs, j);
+        SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
         char     offsetKey[TSDB_PARTITION_KEY_LEN];
         mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
         // 2.2.1 build vg ep
