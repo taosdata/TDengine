@@ -79,9 +79,9 @@ class TDTestCase:
                     if not tdSql.getData(i,1):
                         tdSql.checkData(i, 1, None)
                     elif "as nchar" in condition or (NCHAR_COL in condition and "as binary" not in condition):
-                        tdSql.checkData(i, 1, len(tdSql.getData(i,1)) * 4 )
+                        tdSql.checkData(i, 1, len(str(tdSql.getData(i,1) ) ) * 4 )
                     else:
-                        tdSql.checkData(i, 1, len(tdSql.getData(i,1)))
+                        tdSql.checkData(i, 1, len(str(tdSql.getData(i,1) ) ) )
 
 
     def __length_err_check(self,tbname):
