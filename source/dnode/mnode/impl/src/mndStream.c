@@ -295,7 +295,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(streamObj.targetSTbName, pCreate->outputSTbName, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(streamObj.targetSTbName, pCreate->targetStbFullName, TSDB_TABLE_FNAME_LEN);
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
