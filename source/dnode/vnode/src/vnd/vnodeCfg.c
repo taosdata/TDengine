@@ -23,7 +23,6 @@ const SVnodeCfg vnodeCfgDefault = {
     .szCache = 256,
     .szBuf = 96 * 1024 * 1024,
     .isHeap = false,
-    .streamMode = 0,
     .isWeak = 0,
     .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
                 .update = 0,
@@ -56,7 +55,6 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
@@ -104,7 +102,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
