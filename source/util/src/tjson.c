@@ -65,7 +65,7 @@ int32_t tjsonAddBoolToObject(SJson* pJson, const char* pName, const bool boolean
 }
 
 int32_t tjsonAddStringToObject(SJson* pJson, const char* pName, const char* pVal) {
-  if (NULL == cJSON_AddStringToObject((cJSON*)pJson, pName, pVal)) {
+  if (NULL == cJSON_AddVarStringToObject((cJSON*)pJson, pName, pVal)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_FAILED;
   }

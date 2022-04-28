@@ -346,6 +346,12 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (para2Bytes <= 0 || para2Bytes > 1000) {  // cast dst var type length limits to 1000
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
+  //For destination type is var type, pFunc->node.resType.bytes actually stores character size
+  if (para2Type == TSDB_DATA_TYPE_NCHAR) {
+    para2Bytes *= TSDB_NCHAR_SIZE;
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = para2Bytes, .type = para2Type};
   return TSDB_CODE_SUCCESS;
 }
 

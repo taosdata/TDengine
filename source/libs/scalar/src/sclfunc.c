@@ -708,6 +708,12 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
+  if (IS_VAR_DATA_TYPE(outputType)) {
+    //int32_t factor = (TSDB_DATA_TYPE_NCHAR == outputType) ? TSDB_NCHAR_SIZE : 1;
+    //outputLen = outputLen * factor + VARSTR_HEADER_SIZE;
+    outputLen += VARSTR_HEADER_SIZE;
+  }
+
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;
 
