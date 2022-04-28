@@ -1490,6 +1490,10 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
   }
 
+#ifdef TD_DEBUG_PRINT_ROW
+  tdSRowPrint(row1, pSchema1, __func__);
+#endif
+
   if (isRow1DataRow) {
     numOfColsOfRow1 = schemaNCols(pSchema1);
   } else {

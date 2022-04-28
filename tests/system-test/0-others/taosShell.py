@@ -11,13 +11,15 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 
-def taos_command (key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
+def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
-
+    
+    taosCmd = buildPath + '/build/bin/taos '
     if len(cfgDir) != 0:
-        taosCmd = 'taos -c ' + cfgDir + ' -' + key
+        taosCmd = taosCmd + '-c ' + cfgDir
 
+    taosCmd = taosCmd + ' -' + key
     if len(value) != 0:
         if key == 'p':
             taosCmd = taosCmd + value
@@ -134,7 +136,7 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: -h")
         newDbName="dbh"
         sqlString = 'create database ' + newDbName + ';'
-        retCode = taos_command("h", keyDict['h'], "taos>", keyDict['c'], sqlString)
+        retCode = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], sqlString)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -h %s fail"%keyDict['h'])
         else:
@@ -157,7 +159,7 @@ class TDTestCase:
         #keyDict['P'] = 6030
         newDbName = "dbpp"
         sqlString = 'create database ' + newDbName + ';'
-        retCode = taos_command("P", keyDict['P'], "taos>", keyDict['c'], sqlString)
+        retCode = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], sqlString)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -P %s fail"%keyDict['P'])
         else:
@@ -173,7 +175,7 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: -u")
         newDbName="dbu"
         sqlString = 'create database ' + newDbName + ';'
-        retCode = taos_command("u", keyDict['u'], "taos>", keyDict['c'], sqlString, "p", keyDict['p'])
+        retCode = taos_command(buildPath, "u", keyDict['u'], "taos>", keyDict['c'], sqlString, "p", keyDict['p'])
         if retCode != "TAOS_OK":
             tdLog.exit("taos -u %s -p%s fail"%(keyDict['u'], keyDict['p']))
         else:
@@ -188,12 +190,12 @@ class TDTestCase:
 
         tdLog.printNoPrefix("================================ parameter: -A")
         newDbName="dbaa"
-        retCode, retVal = taos_command("p", keyDict['p'], "taos>", keyDict['c'], '', "A", '')
+        retCode, retVal = taos_command(buildPath, "p", keyDict['p'], "taos>", keyDict['c'], '', "A", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -A fail")
                 
         sqlString = 'create database ' + newDbName + ';'
-        retCode = taos_command("u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'a', retVal)
+        retCode = taos_command(buildPath, "u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'a', retVal)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -u %s -a %s"%(keyDict['u'], retVal))
 
@@ -209,7 +211,7 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: -s")
         newDbName="dbss"
         keyDict['s'] = "\"create database " + newDbName + "\""
-        retCode = taos_command("s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
@@ -222,17 +224,17 @@ class TDTestCase:
             tdLog.exit("create db fail after taos -s %s fail"%(keyDict['s']))
 
         keyDict['s'] = "\"create table " + newDbName + ".stb (ts timestamp, c int) tags (t int)\""
-        retCode = taos_command("s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s create table fail")
 
         keyDict['s'] = "\"create table " + newDbName + ".ctb0 using " + newDbName + ".stb tags (0) " + newDbName + ".ctb1 using " + newDbName + ".stb tags (1)\""
-        retCode = taos_command("s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s create table fail")
 
         keyDict['s'] = "\"insert into " + newDbName + ".ctb0 values('2021-04-01 08:00:00.000', 10)('2021-04-01 08:00:01.000', 20) " + newDbName + ".ctb1 values('2021-04-01 08:00:00.000', 11)('2021-04-01 08:00:01.000', 21)\""
-        retCode = taos_command("s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s insert data fail")
 
@@ -250,18 +252,18 @@ class TDTestCase:
         tdSql.checkData(1, 1, 21)
         
         keyDict['s'] = "\"select * from " + newDbName + ".ctb0\""
-        retCode = taos_command("s", keyDict['s'], "2021-04-01 08:00:01.000", keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "2021-04-01 08:00:01.000", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -r show fail")
         
         tdLog.printNoPrefix("================================ parameter: -r")
         keyDict['s'] = "\"select * from " + newDbName + ".ctb0\""
-        retCode = taos_command("s", keyDict['s'], "1617235200000", keyDict['c'], '', 'r', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "1617235200000", keyDict['c'], '', 'r', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -r show fail")
 
         keyDict['s'] = "\"select * from " + newDbName + ".ctb1\""
-        retCode = taos_command("s", keyDict['s'], "1617235201000", keyDict['c'], '', 'r', '')
+        retCode = taos_command(buildPath, "s", keyDict['s'], "1617235201000", keyDict['c'], '', 'r', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -r show fail")
         
@@ -283,7 +285,7 @@ class TDTestCase:
         os.system(sql5)
 
         keyDict['f'] = pwd + "/0-others/sql.txt"
-        retCode = taos_command("f", keyDict['f'], 'performance_schema', keyDict['c'], '', '', '')
+        retCode = taos_command(buildPath, "f", keyDict['f'], 'performance_schema', keyDict['c'], '', '', '')
         print("============ ret code: ", retCode)
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
@@ -310,7 +312,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("================================ parameter: -C")
         newDbName="dbcc"
-        retCode, retVal = taos_command("C", keyDict['C'], "buildinfo", keyDict['c'], '', '', '')
+        retCode, retVal = taos_command(buildPath, "C", keyDict['C'], "buildinfo", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -C fail")
 
