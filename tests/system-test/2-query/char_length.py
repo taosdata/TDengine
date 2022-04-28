@@ -59,7 +59,7 @@ class TDTestCase:
             groups = ["", group_having, group_no_having]
 
             for group_condition in groups:
-                tdSql.query(f"select {condition}, length( {condition} ) from {tbname} {where_condition}  {group_condition} ")
+                tdSql.query(f"select {condition}, char_length( {condition} ) from {tbname} {where_condition}  {group_condition} ")
                 for i in range(tdSql.queryRows):
                     if not tdSql.getData(i,1):
                         tdSql.checkData(i, 1, None)
