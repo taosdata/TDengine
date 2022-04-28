@@ -693,6 +693,7 @@ void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) {
   conf->commitCb = cb;
 }
 
+#if 0
 TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbName, const char* sql) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
@@ -777,6 +778,7 @@ _return:
 
   return pRequest;
 }
+#endif
 
 #if 0
 int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
