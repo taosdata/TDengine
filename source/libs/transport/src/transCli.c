@@ -931,7 +931,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
-        pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
+        pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
       } else {
         SMEpSet emsg = {0};
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
