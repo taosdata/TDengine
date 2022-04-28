@@ -23,6 +23,12 @@ class MndTestSdb : public ::testing::Test {
   void TearDown() override {}
 };
 
+typedef struct SMnode {
+  int32_t v100;
+  int32_t v200;
+  SSdb   *pSdb;
+} SMnode;
+
 typedef struct SStrObj {
   char    key[24];
   int8_t  v8;
@@ -95,8 +101,39 @@ SSdbRaw *strDecode(SStrObj *pObj) {
   return pRaw;
 }
 
+int32_t strInsert(SSdb *pSdb, SStrObj *pObj) { return 0; }
+
+int32_t strDelete(SSdb *pSdb, SStrObj *pObj, bool callFunc) { return 0; }
+
+int32_t strUpdate(SSdb *pSdb, SStrObj *pOld, SStrObj *pNew) {
+  pOld->v8 = pNew->v8;
+  pOld->v16 = pNew->v16;
+  pOld->v32 = pNew->v32;
+  pOld->v64 = pNew->v64;
+  return 0;
+}
+
+int32_t strDefault(SMnode *pMnode) {
+  SStrObj strObj = {0};
+  strcpy(strObj.key, "k1000");
+  strObj.v8 = 1;
+  strObj.v16 = 1;
+  strObj.v32 = 1000;
+  strObj.v64 = 1000;
+  strcpy(strObj.vstr, "v1000");
+
+  SSdbRaw *pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
 TEST_F(MndTestSdb, 01_Basic) {
+  SMnode mnode;
+  mnode.v100 = 100;
+  mnode.v200 = 200;
+
   SSdbOpt opt = {0};
+  opt.pMnode = &mnode;
   opt.path = "/tmp/mnode_test_sdb";
 
   SSdb *pSdb = sdbInit(&opt);
@@ -106,11 +143,11 @@ TEST_F(MndTestSdb, 01_Basic) {
       .sdbType = SDB_USER,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)strEncode,
-      .encodeFp = (SdbEncodeFp)strDecode,
-      .decodeFp = (SdbDecodeFp)NULL,
-      .insertFp = (SdbInsertFp)NULL,
-      .updateFp = (SdbUpdateFp)NULL,
-      .deleteFp = (SdbDeleteFp)NULL,
+      .encodeFp = (SdbEncodeFp)strEncode,
+      .decodeFp = (SdbDecodeFp)strDecode,
+      .insertFp = (SdbInsertFp)strInsert,
+      .updateFp = (SdbUpdateFp)strDelete,
+      .deleteFp = (SdbDeleteFp)strUpdate,
   };
 
   sdbSetTable(pSdb, strTable);
