@@ -1430,7 +1430,6 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *src = pDb->cfg.strict ? "strict" : "nostrict";
-    char        b[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)b, false);
@@ -1500,9 +1499,16 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)t, false);
 
+    //  single stable model
+    int8_t m = 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+    colDataAppend(pColInfo, rows, (const char *)&m, false);
 
+    // stream model
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&m, false);
+
+    STR_TO_VARSTR(b, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataAppend(pColInfo, rows, (const char *)b, false);
   }
