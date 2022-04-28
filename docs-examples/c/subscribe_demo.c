@@ -49,7 +49,7 @@ int main() {
   const char* topic = "topic-meter-current-bg-10";
   const char* sql = "select * from power.meters where current > 10";
   void*       param = NULL;     // additional parameter.
-  int         interval = 2000;  // iterval of consumption.
+  int         interval = 2000;  // consumption interval in microseconds.
   TAOS_SUB*   tsub = taos_subscribe(taos, restart, topic, sql, subscribe_callback, NULL, interval);
 
   getchar();  // press Enter to stop
