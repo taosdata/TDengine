@@ -107,15 +107,12 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->vgId = pCreate->vgId;
   strcpy(pCfg->dbname, pCreate->db);
-  pCfg->wsize = 16 * 1024 * 1024;
-  pCfg->ssize = 1024;
-  pCfg->lsize = 1024 * 1024;
   pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
-  pCfg->tsdbCfg.keep2 = pCreate->durationToKeep0;
-  pCfg->tsdbCfg.keep0 = pCreate->durationToKeep2;
-  pCfg->tsdbCfg.keep1 = pCreate->durationToKeep0;
-  pCfg->tsdbCfg.lruCacheSize = 16;
+  pCfg->tsdbCfg.days = 10;
+  pCfg->tsdbCfg.keep2 = 3650;
+  pCfg->tsdbCfg.keep0 = 3650;
+  pCfg->tsdbCfg.keep1 = 3650;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
@@ -196,6 +193,16 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   if (code != 0) {
     tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    vnodeClose(pImpl);
+    vnodeDestroy(path, pMgmt->pTfs);
+    terrno = code;
+    return code;
+  }
+
+  code = vnodeStart(pImpl);
+  if (code != 0) {
+    tFreeSCreateVnodeReq(&createReq);
+    dError("vgId:%d, failed to start sync since %s", createReq.vgId, terrstr());
     vnodeClose(pImpl);
     vnodeDestroy(path, pMgmt->pTfs);
     terrno = code;

@@ -21,12 +21,14 @@ extern "C" {
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
+#include "osSocket.h"
 #include "rpcCache.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "theap.h"
 #include "tidpool.h"
 #include "tmd5.h"
 #include "tmempool.h"
@@ -103,6 +105,10 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
+#define TRANS_RETRY_COUNT_LIMIT 10  // retry count limit
+#define TRANS_RETRY_INTERVAL    5   // ms retry interval
+#define TRANS_CONN_TIMEOUT      3   // connect timeout
+
 typedef struct {
   SRpcInfo* pRpc;     // associated SRpcInfo
   SEpSet    epSet;    // ip list provided by app
@@ -137,14 +143,12 @@ typedef struct {
   int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
+  int8_t     retryCount;
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
 
-  int      hThrdIdx;
-  char*    ip;
-  uint32_t port;
-  // SEpSet*          pSet;      // for synchronous API
+  int hThrdIdx;
 } STransConnCtx;
 
 #pragma pack(push, 1)
@@ -215,8 +219,6 @@ void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
 bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
 bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
-void transConnCtxDestroy(STransConnCtx* ctx);
-
 void transFreeMsg(void* msg);
 
 //
@@ -262,8 +264,8 @@ void transUnrefCliHandle(void* handle);
 void transReleaseCliHandle(void* handle);
 void transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
-void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
+void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
@@ -328,9 +330,37 @@ void transQueueClear(STransQueue* queue);
 void transQueueDestroy(STransQueue* queue);
 
 /*
+ * delay queue based on uv loop and uv timer, and only used in retry
+ */
+typedef struct STaskArg {
+  void* param1;
+  void* param2;
+} STaskArg;
+
+typedef struct SDelayTask {
+  void (*func)(void* arg);
+  void*    arg;
+  uint64_t execTime;
+  HeapNode node;
+} SDelayTask;
+
+typedef struct SDelayQueue {
+  uv_timer_t* timer;
+  Heap*       heap;
+  uv_loop_t*  loop;
+} SDelayQueue;
+
+int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
+
+void transDQDestroy(SDelayQueue* queue);
+
+int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+
+/*
  * init global func
  */
 void transThreadOnce();
+
 #ifdef __cplusplus
 }
 #endif

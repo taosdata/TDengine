@@ -230,6 +230,8 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   return 0;
 }
 
+static int32_t mndGetGlobalVgroupVersion(SMnode *pMnode) { return sdbGetTableVer(pMnode->pSdb, SDB_VGROUP); }
+
 SDbObj *mndAcquireDb(SMnode *pMnode, const char *db) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = sdbAcquire(pSdb, SDB_DB, db);
@@ -262,22 +264,22 @@ static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
 
 static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pCfg->numOfVgroups > TSDB_MAX_VNODES_PER_DB) return -1;
-  if (pCfg->numOfStables < TSDB_MIN_STBS_PER_DB || pCfg->numOfStables > TSDB_MAX_STBS_PER_DB) return -1;
-  if (pCfg->buffer < TSDB_MIN_BUFFER_SIZE || pCfg->buffer > TSDB_MAX_BUFFER_SIZE) return -1;
-  if (pCfg->pageSize < TSDB_MIN_PAGE_SIZE || pCfg->pageSize > TSDB_MAX_PAGE_SIZE) return -1;
-  if (pCfg->pages < TSDB_MIN_TOTAL_PAGES || pCfg->pages > TSDB_MAX_TOTAL_PAGES) return -1;
-  if (pCfg->durationPerFile < TSDB_MIN_DURATION_PER_FILE || pCfg->durationPerFile > TSDB_MAX_DURATION_PER_FILE)
-    return -1;
-  if (pCfg->durationToKeep0 < TSDB_MIN_KEEP || pCfg->durationToKeep0 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->durationToKeep1 < TSDB_MIN_KEEP || pCfg->durationToKeep1 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->durationToKeep2 < TSDB_MIN_KEEP || pCfg->durationToKeep2 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->durationToKeep0 < pCfg->durationPerFile) return -1;
-  if (pCfg->durationToKeep0 > pCfg->durationToKeep1) return -1;
-  if (pCfg->durationToKeep1 > pCfg->durationToKeep2) return -1;
+  /*
+  if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) return -1;
+  if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) return -1;
+  */
+  if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
+  if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
+  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
+  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
+  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
+  if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
+  if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
   if (pCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
   if (pCfg->minRows > pCfg->maxRows) return -1;
   if (pCfg->fsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->fsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
+  // if (pCfg->ttl < TSDB_MIN_TABLE_TTL) return -1;
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
@@ -304,6 +306,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->minRows < 0) pCfg->minRows = TSDB_DEFAULT_MINROWS_FBLOCK;
   if (pCfg->maxRows < 0) pCfg->maxRows = TSDB_DEFAULT_MAXROWS_FBLOCK;
   if (pCfg->fsyncPeriod < 0) pCfg->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+  if (pCfg->ttl < 0) pCfg->ttl = TSDB_DEFAULT_TABLE_TTL;
   if (pCfg->walLevel < 0) pCfg->walLevel = TSDB_DEFAULT_WAL_LEVEL;
   if (pCfg->precision < 0) pCfg->precision = TSDB_DEFAULT_PRECISION;
   if (pCfg->compression < 0) pCfg->compression = TSDB_DEFAULT_COMP_LEVEL;
@@ -624,7 +627,7 @@ static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOl
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }
@@ -1199,8 +1202,7 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
   char *p = strchr(usedbReq.db, '.');
   if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
     memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
-    // mndGetGlobalVgroupVersion(); TODO
-    static int32_t vgVersion = 1;
+    int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
       if (usedbRsp.pVgroupInfos == NULL) {

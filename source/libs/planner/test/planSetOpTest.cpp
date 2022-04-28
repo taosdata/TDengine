@@ -18,9 +18,7 @@
 
 using namespace std;
 
-class PlanSetOpTest : public PlannerTestBase {
-
-};
+class PlanSetOpTest : public PlannerTestBase {};
 
 TEST_F(PlanSetOpTest, unionAll) {
   useDb("root", "test");

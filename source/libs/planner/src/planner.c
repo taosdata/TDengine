@@ -18,39 +18,36 @@
 #include "planInt.h"
 
 typedef struct SCollectPlaceholderValuesCxt {
-  int32_t errCode;
-  SNodeList* pValues;
+  int32_t    errCode;
+  SArray* pValues;
 } SCollectPlaceholderValuesCxt;
 
 static EDealRes collectPlaceholderValuesImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) && ((SValueNode*)pNode)->placeholderNo > 0) {
     SCollectPlaceholderValuesCxt* pCxt = pContext;
-    pCxt->errCode = nodesListMakeAppend(&pCxt->pValues, pNode);
+    taosArrayInsert(pCxt->pValues, ((SValueNode*)pNode)->placeholderNo - 1, &pNode);
     return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
   }
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t collectPlaceholderValues(SPlanContext* pCxt, SQueryPlan* pPlan) {
-  SCollectPlaceholderValuesCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pValues = NULL };
+  pPlan->pPlaceholderValues = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+
+  SCollectPlaceholderValuesCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pValues = pPlan->pPlaceholderValues};
   nodesWalkPhysiPlan((SNode*)pPlan, collectPlaceholderValuesImpl, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode) {
-    pPlan->pPlaceholderValues = cxt.pValues;
-  } else {
-    nodesDestroyList(cxt.pValues);
-  }
   return cxt.errCode;
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
-  SLogicNode* pLogicNode = NULL;
-  SLogicSubplan* pLogicSubplan = NULL;
+  SLogicNode*      pLogicNode = NULL;
+  SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
   int32_t code = createLogicPlan(pCxt, &pLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = optimizeLogicPlan(pCxt, pLogicNode);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = splitLogicPlan(pCxt, pLogicNode, &pLogicSubplan);
   }
@@ -60,7 +57,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }
-  if (TSDB_CODE_SUCCESS == code && pCxt->isStmtQuery) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->placeholderNum > 0) {
     code = collectPlaceholderValues(pCxt, *pPlan);
   }
 
@@ -101,14 +98,14 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
-static int32_t setValueByBindParam(SValueNode* pVal, TAOS_BIND_v2* pParam) {
-  if (1 == *(pParam->is_null)) {
+static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
+  if (pParam->is_null && 1 == *(pParam->is_null)) {
     pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
     pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return TSDB_CODE_SUCCESS;
   }
   pVal->node.resType.type = pParam->buffer_type;
-  pVal->node.resType.bytes = *(pParam->length);
+  pVal->node.resType.bytes = NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes;
   switch (pParam->buffer_type) {
     case TSDB_DATA_TYPE_BOOL:
       pVal->datum.b = *((bool*)pParam->buffer);
@@ -133,6 +130,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_BIND_v2* pParam) {
       break;
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_NCHAR:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -155,7 +153,6 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_BIND_v2* pParam) {
     case TSDB_DATA_TYPE_UBIGINT:
       pVal->datum.u = *((uint64_t*)pParam->buffer);
       break;
-    case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
@@ -168,12 +165,35 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_BIND_v2* pParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_BIND_v2* pParams) {
-  int32_t index = 0;
-  SNode* pNode = NULL;
-  FOREACH(pNode, pPlan->pPlaceholderValues) {
-    setValueByBindParam((SValueNode*)pNode, pParams + index);
+static EDealRes updatePlanQueryId(SNode* pNode, void* pContext) {
+  int64_t queryId = *(uint64_t *)pContext;
+  
+  if (QUERY_NODE_PHYSICAL_PLAN == nodeType(pNode)) {
+    SQueryPlan* planNode = (SQueryPlan*)pNode;
+    planNode->queryId = queryId;
+  } else if (QUERY_NODE_PHYSICAL_SUBPLAN == nodeType(pNode)) {
+    SSubplan* subplanNode = (SSubplan*)pNode;
+    subplanNode->id.queryId = queryId;
   }
+
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId) {
+  int32_t size = taosArrayGetSize(pPlan->pPlaceholderValues);
+
+  if (colIdx < 0) {
+    for (int32_t i = 0; i < size; ++i) {
+      setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, i), pParams + i);
+    }
+  } else {
+    setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, colIdx), pParams);
+  }
+
+  if (colIdx < 0 || ((colIdx + 1) == size)) {
+    nodesWalkPhysiPlan((SNode*)pPlan, updatePlanQueryId, &queryId);
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -188,12 +208,10 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   return nodesNodeToString((const SNode*)pSubplan, false, pStr, pLen);
 }
 
-int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) {
-  return nodesStringToNode(pStr, (SNode**)pSubplan);
-}
+int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesStringToNode(pStr, (SNode**)pSubplan); }
 
 char* qQueryPlanToString(const SQueryPlan* pPlan) {
-  char* pStr = NULL;
+  char*   pStr = NULL;
   int32_t len = 0;
   if (TSDB_CODE_SUCCESS != nodesNodeToString(pPlan, false, &pStr, &len)) {
     return NULL;
@@ -209,6 +227,4 @@ SQueryPlan* qStringToQueryPlan(const char* pStr) {
   return pPlan;
 }
 
-void qDestroyQueryPlan(SQueryPlan* pPlan) {
-  nodesDestroyNode(pPlan);
-}
+void qDestroyQueryPlan(SQueryPlan* pPlan) { nodesDestroyNode(pPlan); }

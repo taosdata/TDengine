@@ -54,8 +54,8 @@ static void    shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 static void    shellShowOnScreen(SShellCmd *cmd);
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-static void shellPrintContinuePrompt() { printf("%s", shell.args.promptContinue); }
-static void shellPrintPrompt() { printf("%s", shell.args.promptHeader); }
+// static void shellPrintContinuePrompt() { printf("%s", shell.args.promptContinue); }
+// static void shellPrintPrompt() { printf("%s", shell.args.promptHeader); }
 
 void shellUpdateBuffer(SShellCmd *cmd) {
   if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
@@ -112,7 +112,7 @@ int32_t shellReadCommand(char command[]) {
           cmd.command = NULL;
           return 0;
         } else {
-          shellPrintContinuePrompt();
+          // shellPrintContinuePrompt();
           shellUpdateBuffer(&cmd);
         }
         break;

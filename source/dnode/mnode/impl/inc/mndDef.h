@@ -89,6 +89,7 @@ typedef enum {
   TRN_TYPE_DROP_STREAM = 1020,
   TRN_TYPE_ALTER_STREAM = 1021,
   TRN_TYPE_CONSUMER_LOST = 1022,
+  TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -148,6 +149,10 @@ typedef struct {
   int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
+  int32_t    startFunc;
+  int32_t    stopFunc;
+  int32_t    paramLen;
+  void*      param;
 } STrans;
 
 typedef struct {
@@ -348,18 +353,15 @@ typedef struct {
   int32_t  version;
   int32_t  nextColId;
   float    xFilesFactor;
-  int32_t  aggregationMethod;
   int32_t  delay;
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
-  int32_t  numOfSmas;
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
   SSchema* pColumns;
   SSchema* pTags;
-  SSchema* pSmas;
   char*    comment;
   char*    pAst1;
   char*    pAst2;
@@ -435,14 +437,12 @@ static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) 
 }
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
-  int64_t uid;
-  // TODO: use subDbUid
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
   int64_t        dbUid;
-  int64_t        subDbUid;
   int32_t        version;
   int8_t         subType;  // db or table
   int8_t         withTbName;
@@ -462,12 +462,14 @@ enum {
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
+  CONSUMER_UPDATE__RECOVER,
   CONSUMER_UPDATE__MODIFY,
 };
 
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
+  char    appId[TSDB_CGROUP_LEN];
   int8_t  updateType;  // used only for update
   int32_t epoch;
   int32_t status;
@@ -478,6 +480,17 @@ typedef struct {
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
+
+  // subscribed by user
+  SArray* assignedTopics;  // SArray<char*>
+
+  // data for display
+  int32_t pid;
+  SEpSet  ep;
+  int64_t upTime;
+  int64_t subscribeTime;
+  int64_t rebalanceTime;
+
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
@@ -499,12 +512,12 @@ void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp);
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
   SArray* vgs;         // SArray<SMqVgEp*>
-} SMqConsumerEpInSub;
+} SMqConsumerEp;
 
-SMqConsumerEpInSub* tCloneSMqConsumerEpInSub(const SMqConsumerEpInSub* pEpInSub);
-void                tDeleteSMqConsumerEpInSub(SMqConsumerEpInSub* pEpInSub);
-int32_t             tEncodeSMqConsumerEpInSub(void** buf, const SMqConsumerEpInSub* pEpInSub);
-void*               tDecodeSMqConsumerEpInSub(const void* buf, SMqConsumerEpInSub* pEpInSub);
+SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
+void           tDeleteSMqConsumerEp(SMqConsumerEp* pEp);
+int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
+void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -514,9 +527,8 @@ typedef struct {
   int8_t    withTbName;
   int8_t    withSchema;
   int8_t    withTag;
-  SHashObj* consumerHash;  // consumerId -> SMqConsumerEpInSub
-  // TODO put -1 into unassignVgs
-  // SArray*   unassignedVgs;
+  SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
+  SArray*   unassignedVgs;  // SArray<SMqVgEp*>
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
@@ -527,7 +539,7 @@ void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub);
 
 typedef struct {
   int32_t epoch;
-  SArray* consumers;  // SArray<SMqConsumerEpInSub*>
+  SArray* consumers;  // SArray<SMqConsumerEp*>
 } SMqSubActionLogEntry;
 
 SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);

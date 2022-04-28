@@ -13,9 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PARSER_TEST_UTIL_H
-#define PARSER_TEST_UTIL_H
+#include "planTestUtil.h"
 
-extern bool g_isDump;
+using namespace std;
 
-#endif  // PARSER_TEST_UTIL_H
+class PlanSuperTableTest : public PlannerTestBase {};
+
+TEST_F(PlanSuperTableTest, tbname) {
+  useDb("root", "test");
+
+  run("select tbname from st1");
+}

@@ -21,14 +21,14 @@
 class PlannerTestBaseImpl;
 
 class PlannerTestBase : public testing::Test {
-public:
+ public:
   PlannerTestBase();
   virtual ~PlannerTestBase();
 
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql);
 
-private:
+ private:
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 

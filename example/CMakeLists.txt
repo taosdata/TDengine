@@ -30,6 +30,7 @@ target_link_libraries(demoapi
 )
 
 target_include_directories(tmq
+    PUBLIC "${TD_SOURCE_DIR}/include/os"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

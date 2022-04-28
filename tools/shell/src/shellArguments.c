@@ -61,6 +61,35 @@ void shellPrintHelp() {
   printf("\n\nReport bugs to %s.\n", SHELL_EMAIL);
 }
 
+#ifdef LINUX
+#include <argp.h>
+#include <termio.h>
+
+const char *argp_program_version = version;
+const char *argp_program_bug_address = SHELL_EMAIL;
+
+static struct argp_option shellOptions[] = {
+    {"host", 'h', "HOST", 0, SHELL_HOST},
+    {"port", 'P', "PORT", 0, SHELL_PORT},
+    {"user", 'u', "USER", 0, SHELL_USER},
+    {0, 'p', 0, 0, SHELL_PASSWORD},
+    {"auth", 'a', "AUTH", 0, SHELL_AUTH},
+    {"generate-auth", 'A', 0, 0, SHELL_GEN_AUTH},
+    {"config-dir", 'c', "DIR", 0, SHELL_CFG_DIR},
+    {"dump-config", 'C', 0, 0, SHELL_DMP_CFG},
+    {"commands", 's', "COMMANDS", 0, SHELL_CMD},
+    {"raw-time", 'r', 0, 0, SHELL_RAW_TIME},
+    {"file", 'f', "FILE", 0, SHELL_FILE},
+    {"database", 'd', "DATABASE", 0, SHELL_DB},
+    {"check", 'k', 0, 0, SHELL_CHECK},
+    {"startup", 't', 0, 0, SHELL_STARTUP},
+    {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
+    {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
+    {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
+    {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
+    {0},
+};
+
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   SShellArgs *pArgs = &shell.args;
 
@@ -70,6 +99,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'P':
       pArgs->port = atoi(arg);
+      if (pArgs->port == 0) pArgs->port = -1;
       break;
     case 'u':
       pArgs->user = arg;
@@ -178,35 +208,6 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   return 0;
 }
 
-#ifdef LINUX
-#include <argp.h>
-#include <termio.h>
-
-const char *argp_program_version = version;
-const char *argp_program_bug_address = SHELL_EMAIL;
-
-static struct argp_option shellOptions[] = {
-    {"host", 'h', "HOST", 0, SHELL_HOST},
-    {"port", 'P', "PORT", 0, SHELL_PORT},
-    {"user", 'u', "USER", 0, SHELL_USER},
-    {0, 'p', 0, 0, SHELL_PASSWORD},
-    {"auth", 'a', "AUTH", 0, SHELL_AUTH},
-    {"generate-auth", 'A', 0, 0, SHELL_GEN_AUTH},
-    {"config-dir", 'c', "DIR", 0, SHELL_CFG_DIR},
-    {"dump-config", 'C', 0, 0, SHELL_DMP_CFG},
-    {"commands", 's', "COMMANDS", 0, SHELL_CMD},
-    {"raw-time", 'r', 0, 0, SHELL_RAW_TIME},
-    {"file", 'f', "FILE", 0, SHELL_FILE},
-    {"database", 'd', "DATABASE", 0, SHELL_DB},
-    {"check", 'k', 0, 0, SHELL_CHECK},
-    {"startup", 't', 0, 0, SHELL_STARTUP},
-    {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
-    {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
-    {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
-    {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
-    {0},
-};
-
 static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) { return shellParseSingleOpt(key, arg); }
 
 static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
@@ -304,6 +305,11 @@ static int32_t shellCheckArgs() {
     return -1;
   }
 
+  if (pArgs->port < 0 || pArgs->port > 65535) {
+    printf("Invalid port\n");
+    return -1;
+  }
+
   if (pArgs->pktLen < SHELL_MIN_PKG_LEN || pArgs->pktLen > SHELL_MAX_PKG_LEN) {
     printf("Invalid pktLen:%d, range:[%d, %d]\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
     return -1;
@@ -335,7 +341,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
-  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+  // if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);

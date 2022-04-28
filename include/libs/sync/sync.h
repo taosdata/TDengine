@@ -158,6 +158,8 @@ typedef enum {
 
 int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 
+bool syncEnvIsStart();
+
 extern int32_t sDebugFlag;
 
 //-----------------------------------------

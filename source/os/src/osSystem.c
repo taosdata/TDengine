@@ -39,11 +39,11 @@ void* taosLoadDll(const char* filename) {
 #else
   void* handle = dlopen(filename, RTLD_LAZY);
   if (!handle) {
-    //printf("load dll:%s failed, error:%s", filename, dlerror());
+    // printf("load dll:%s failed, error:%s", filename, dlerror());
     return NULL;
   }
 
-  //printf("dll %s loaded", filename);
+  // printf("dll %s loaded", filename);
 
   return handle;
 #endif
@@ -59,17 +59,17 @@ void* taosLoadSym(void* handle, char* name) {
   char* error = NULL;
 
   if ((error = dlerror()) != NULL) {
-    //printf("load sym:%s failed, error:%s", name, dlerror());
+    // printf("load sym:%s failed, error:%s", name, dlerror());
     return NULL;
   }
 
-  //printf("sym %s loaded", name);
+  // printf("sym %s loaded", name);
 
   return sym;
 #endif
 }
 
-void  taosCloseDll(void* handle) {
+void taosCloseDll(void* handle) {
 #if defined(WINDOWS)
   return;
 #elif defined(_TD_DARWIN_64)
@@ -100,7 +100,7 @@ int taosSetConsoleEcho(bool on) {
   struct termios term;
 
   if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    perror("Cannot get the attribution of the terminal");
+    /*perror("Cannot get the attribution of the terminal");*/
     return -1;
   }
 
@@ -111,7 +111,7 @@ int taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1 || err == EINTR) {
-    printf("Cannot set the attribution of the terminal");
+    /*printf("Cannot set the attribution of the terminal");*/
     return -1;
   }
 
@@ -154,7 +154,7 @@ void taosSetTerminalMode() {
 
 int32_t taosGetOldTerminalMode() {
 #if defined(WINDOWS)
-  
+
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
@@ -181,7 +181,7 @@ void taosResetTerminalMode() {
 #endif
 }
 
-TdCmdPtr taosOpenCmd(const char *cmd) {
+TdCmdPtr taosOpenCmd(const char* cmd) {
   if (cmd == NULL) return NULL;
 #ifdef WINDOWS
   return (TdCmdPtr)_popen(cmd, "r");
@@ -190,8 +190,8 @@ TdCmdPtr taosOpenCmd(const char *cmd) {
 #endif
 }
 
-int64_t taosGetLineCmd(TdCmdPtr pCmd, char ** __restrict ptrBuf) {
-  if (pCmd == NULL || ptrBuf == NULL ) {
+int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
+  if (pCmd == NULL || ptrBuf == NULL) {
     return -1;
   }
   if (*ptrBuf != NULL) {
@@ -219,7 +219,7 @@ int32_t taosEOFCmd(TdCmdPtr pCmd) {
   return feof((FILE*)pCmd);
 }
 
-int64_t taosCloseCmd(TdCmdPtr *ppCmd) {
+int64_t taosCloseCmd(TdCmdPtr* ppCmd) {
   if (ppCmd == NULL || *ppCmd == NULL) {
     return 0;
   }

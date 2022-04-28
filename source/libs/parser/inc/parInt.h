@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-#include "parser.h"
 #include "parToken.h"
 #include "parUtil.h"
+#include "parser.h"
 
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);

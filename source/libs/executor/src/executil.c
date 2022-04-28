@@ -221,7 +221,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, boo
 
     p->groupId = *(uint64_t*) key;
     p->pos = *(SResultRowPosition*) pData;
-    memcpy(p->key, key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
+    memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
