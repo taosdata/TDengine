@@ -261,10 +261,10 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
-  int32_t durationPerFile;
-  int32_t durationToKeep0;
-  int32_t durationToKeep1;
-  int32_t durationToKeep2;
+  int32_t daysPerFile;
+  int32_t daysToKeep0;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
   int32_t fsyncPeriod;
@@ -274,7 +274,6 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLastRow;
-  int8_t  streamMode;
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
@@ -314,7 +313,6 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
-  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 

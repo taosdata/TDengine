@@ -36,22 +36,19 @@ void* MndTestTopic::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.buffer = -1;
   createReq.pageSize = -1;
   createReq.pages = -1;
-  createReq.durationPerFile = 10 * 1440;
-  createReq.durationToKeep0 = 3650 * 1440;
-  createReq.durationToKeep1 = 3650 * 1440;
-  createReq.durationToKeep2 = 3650 * 1440;
+  createReq.daysPerFile = 10 * 1440;
+  createReq.daysToKeep0 = 3650 * 1440;
+  createReq.daysToKeep1 = 3650 * 1440;
+  createReq.daysToKeep2 = 3650 * 1440;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.commitTime = 3600;
   createReq.fsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.update = 0;
   createReq.cacheLastRow = 0;
-  createReq.ttl = 1;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);

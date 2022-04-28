@@ -194,10 +194,10 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.buffer = pDb->cfg.buffer;
   createReq.pageSize = pDb->cfg.pageSize;
   createReq.pages = pDb->cfg.pages;
-  createReq.durationPerFile = pDb->cfg.durationPerFile;
-  createReq.durationToKeep0 = pDb->cfg.durationToKeep0;
-  createReq.durationToKeep1 = pDb->cfg.durationToKeep1;
-  createReq.durationToKeep2 = pDb->cfg.durationToKeep2;
+  createReq.daysPerFile = pDb->cfg.daysPerFile;
+  createReq.daysToKeep0 = pDb->cfg.daysToKeep0;
+  createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
+  createReq.daysToKeep2 = pDb->cfg.daysToKeep2;
   createReq.minRows = pDb->cfg.minRows;
   createReq.maxRows = pDb->cfg.maxRows;
   createReq.fsyncPeriod = pDb->cfg.fsyncPeriod;
@@ -208,7 +208,6 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.cacheLastRow = pDb->cfg.cacheLastRow;
   createReq.replica = pVgroup->replica;
   createReq.selfIndex = -1;
-  createReq.streamMode = pVgroup->streamMode;
   createReq.hashBegin = pVgroup->hashBegin;
   createReq.hashEnd = pVgroup->hashEnd;
   createReq.hashMethod = pDb->cfg.hashMethod;
@@ -398,7 +397,6 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->createdTime = taosGetTimestampMs();
     pVgroup->updateTime = pVgroups->createdTime;
     pVgroup->version = 1;
-    pVgroup->streamMode = pDb->cfg.streamMode;
     pVgroup->hashBegin = hashMin + hashInterval * v;
     if (v == pDb->cfg.numOfVgroups - 1) {
       pVgroup->hashEnd = hashMax;

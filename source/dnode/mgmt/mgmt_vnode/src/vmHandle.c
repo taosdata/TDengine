@@ -107,7 +107,6 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->vgId = pCreate->vgId;
   strcpy(pCfg->dbname, pCreate->db);
-  pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.days = 10;
   pCfg->tsdbCfg.keep2 = 3650;

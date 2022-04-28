@@ -33,10 +33,10 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
     strcpy(createReq.db, "1.d1");
     createReq.dbUid = 9527;
     createReq.vgVersion = 1;
-    createReq.durationPerFile = 10;
-    createReq.durationToKeep0 = 3650;
-    createReq.durationToKeep1 = 3650;
-    createReq.durationToKeep2 = 3650;
+    createReq.daysPerFile = 10;
+    createReq.daysToKeep0 = 3650;
+    createReq.daysToKeep1 = 3650;
+    createReq.daysToKeep2 = 3650;
     createReq.minRows = 100;
     createReq.minRows = 4096;
     createReq.fsyncPeriod = 3000;
@@ -72,10 +72,10 @@ TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
     SAlterVnodeReq alterReq = {0};
     alterReq.vgVersion = 2;
-    alterReq.durationPerFile = 10;
-    alterReq.durationToKeep0 = 3650;
-    alterReq.durationToKeep1 = 3650;
-    alterReq.durationToKeep2 = 3650;
+    alterReq.daysPerFile = 10;
+    alterReq.daysToKeep0 = 3650;
+    alterReq.daysToKeep1 = 3650;
+    alterReq.daysToKeep2 = 3650;
     alterReq.fsyncPeriod = 3000;
     alterReq.walLevel = 1;
     alterReq.replica = 1;
