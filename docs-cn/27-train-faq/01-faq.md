@@ -14,7 +14,7 @@ title: 常见问题及反馈
 为了保证有足够的 debug 信息，如果问题能够重复，请修改/etc/taos/taos.cfg 文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启 taosd, 重复问题，然后再递交。也可以通过如下 SQL 语句，临时设置 taosd 的日志级别。
 
 ```
-    alter dnode <dnode_id> debugFlag 135;
+  alter dnode <dnode_id> debugFlag 135;
 ```
 
 但系统正常运行时，请一定将 debugFlag 设置为 131，否则会产生大量的日志信息，降低系统效率。
@@ -211,7 +211,7 @@ title: 常见问题及反馈
 **20. go 语言编写组件编译失败怎样解决？**
 
     新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 taosAdapter 独立组件，需要单独运行，取代之前 taosd 内置的 httpd ，提供包含原 httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD 等）的数据接入功能。
-使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 taosAdapter 仓库代码后再编译。
+    使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 taosAdapter 仓库代码后再编译。
 
     目前编译方式默认自动编译 taosAdapter。go 语言版本要求 1.14 以上，如果发生 go 编译错误，往往是国内访问 go mod 问题，可以通过设置 go 环境变量来解决：
 
