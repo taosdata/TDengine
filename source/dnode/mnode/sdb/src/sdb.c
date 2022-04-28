@@ -99,7 +99,7 @@ void sdbCleanup(SSdb *pSdb) {
     taosHashClear(hash);
     taosHashCleanup(hash);
     pSdb->hashObjs[i] = NULL;
-    mDebug("sdb table:%d is cleaned up", i);
+    mDebug("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
   taosMemoryFree(pSdb);

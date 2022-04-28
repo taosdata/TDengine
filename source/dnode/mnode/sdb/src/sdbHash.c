@@ -231,7 +231,6 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   sdbFreeRow(pSdb, pRow, false);
 
   sdbCheck(pSdb, pOldRow);
-  // sdbRelease(pSdb, pOldRow->pObj);
   return 0;
 }
 

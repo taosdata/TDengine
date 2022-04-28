@@ -15,8 +15,31 @@
 
 class MndTestSdb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() {}
-  static void TearDownTestSuite() {}
+  static void SetUpTestSuite() {
+    dDebugFlag = 143;
+    vDebugFlag = 0;
+    mDebugFlag = 143;
+    cDebugFlag = 0;
+    jniDebugFlag = 0;
+    tmrDebugFlag = 135;
+    uDebugFlag = 135;
+    rpcDebugFlag = 143;
+    qDebugFlag = 0;
+    wDebugFlag = 0;
+    sDebugFlag = 0;
+    tsdbDebugFlag = 0;
+    tsLogEmbedded = 1;
+    tsAsyncLog = 0;
+
+    const char *path = "/tmp/td";
+    taosRemoveDir(path);
+    taosMkDir(path);
+    tstrncpy(tsLogDir, path, PATH_MAX);
+    if (taosInitLog("taosdlog", 1) != 0) {
+      printf("failed to init log file\n");
+    }
+  }
+  static void TearDownTestSuite() { taosCloseLog(); }
 
  public:
   void SetUp() override {}
@@ -26,6 +49,8 @@ class MndTestSdb : public ::testing::Test {
 typedef struct SMnode {
   int32_t v100;
   int32_t v200;
+  int32_t insertTimes;
+  int32_t deleteTimes;
   SSdb   *pSdb;
 } SMnode;
 
@@ -108,9 +133,19 @@ SSdbRow *strDecode(SSdbRaw *pRaw) {
   return pRow;
 }
 
-int32_t strInsert(SSdb *pSdb, SStrObj *pObj) { return 0; }
+int32_t strInsert(SSdb *pSdb, SStrObj *pObj) {
+  SMnode *pMnode = pSdb->pMnode;
+  pMnode->insertTimes++;
+  return 0;
+}
 
-int32_t strDelete(SSdb *pSdb, SStrObj *pObj, bool callFunc) { return 0; }
+int32_t strDelete(SSdb *pSdb, SStrObj *pObj, bool callFunc) {
+  if (callFunc) {
+    SMnode *pMnode = pSdb->pMnode;
+    pMnode->deleteTimes++;
+  }
+  return 0;
+}
 
 int32_t strUpdate(SSdb *pSdb, SStrObj *pOld, SStrObj *pNew) {
   pOld->v8 = pNew->v8;
@@ -151,28 +186,30 @@ int32_t strDefault(SMnode *pMnode) {
 
 bool sdbTraverseSucc1(SMnode *pMnode, SStrObj *pObj, int32_t *p1, int32_t *p2, int32_t *p3) {
   if (pObj->v8 == 1) {
-    *p1 = *p2 + *p3 + pObj->v8;
+    *p1 += *p2 + *p3 + pObj->v8;
   }
   return true;
 }
 
 bool sdbTraverseSucc2(SMnode *pMnode, SStrObj *pObj, int32_t *p1, int32_t *p2, int32_t *p3) {
-  *p1 = *p2 + *p3 + pObj->v8;
+  *p1 += *p2 + *p3 + pObj->v8;
   return true;
 }
 
 bool sdbTraverseFail(SMnode *pMnode, SStrObj *pObj, int32_t *p1, int32_t *p2, int32_t *p3) {
-  *p1 = *p2 + *p3;
+  *p1 += *p2 + *p3;
   return false;
 }
 
 TEST_F(MndTestSdb, 01_Write) {
-  void    *pIter;
-  int32_t  num;
-  SStrObj *pObj;
-  SMnode   mnode;
-  SSdb    *pSdb;
+  void    *pIter = NULL;
+  int32_t  num = 0;
+  SStrObj *pObj = NULL;
+  SMnode   mnode = {0};
+  SSdb    *pSdb = NULL;
   SSdbOpt  opt = {0};
+  SStrObj  strObj = {0};
+  SSdbRaw *pRaw = NULL;
   int32_t  p1 = 0;
   int32_t  p2 = 111;
   int32_t  p3 = 222;
@@ -200,7 +237,7 @@ TEST_F(MndTestSdb, 01_Write) {
   ASSERT_NE(pSdb, nullptr);
   ASSERT_EQ(sdbSetTable(pSdb, strTable), 0);
   ASSERT_EQ(sdbDeploy(pSdb), 0);
-#if 0
+
   pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k1000");
   ASSERT_NE(pObj, nullptr);
   EXPECT_STREQ(pObj->key, "k1000");
@@ -248,7 +285,7 @@ TEST_F(MndTestSdb, 01_Write) {
   p1 = 0;
   p2 = 111;
   p3 = 222;
-  sdbTraverse(pSdb, SDB_USER, (sdbTraverseFp)sdbTraverseSucc2, &p1, &p2, &p3);
+  sdbTraverse(pSdb, SDB_USER, (sdbTraverseFp)sdbTraverseSucc1, &p1, &p2, &p3);
   EXPECT_EQ(p1, 334);
 
   p1 = 0;
@@ -265,34 +302,85 @@ TEST_F(MndTestSdb, 01_Write) {
 
   EXPECT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
   EXPECT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
-  EXPECT_EQ(sdbGetTableVer(pSdb, SDB_USER), 2);
-  EXPECT_EQ(sdbUpdateVer(pSdb, 0), 2);
-  EXPECT_EQ(sdbUpdateVer(pSdb, 1), 3);
-  EXPECT_EQ(sdbUpdateVer(pSdb, -1), 2);
+  EXPECT_EQ(sdbGetTableVer(pSdb, SDB_USER), 1);
+  EXPECT_EQ(sdbUpdateVer(pSdb, 0), -1);
+  EXPECT_EQ(sdbUpdateVer(pSdb, 1), 0);
+  EXPECT_EQ(sdbUpdateVer(pSdb, -1), -1);
+  EXPECT_EQ(mnode.insertTimes, 2);
+  EXPECT_EQ(mnode.deleteTimes, 0);
 
   // insert, call func
+  strSetDefault(&strObj, 3);
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWrite(pSdb, pRaw), 0);
+  pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k3000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k3000");
+  EXPECT_STREQ(pObj->vstr, "v3000");
+  EXPECT_EQ(pObj->v8, 3);
+  EXPECT_EQ(pObj->v16, 3);
+  EXPECT_EQ(pObj->v32, 3000);
+  EXPECT_EQ(pObj->v64, 3000);
+  sdbRelease(pSdb, pObj);
 
   // update, call func
+  strSetDefault(&strObj, 3);
+  strObj.v8 = 4;
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWrite(pSdb, pRaw), 0);
+  pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k3000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k3000");
+  EXPECT_STREQ(pObj->vstr, "v3000");
+  EXPECT_EQ(pObj->v8, 4);
+  EXPECT_EQ(pObj->v16, 3);
+  EXPECT_EQ(pObj->v32, 3000);
+  EXPECT_EQ(pObj->v64, 3000);
+  sdbRelease(pSdb, pObj);
+
+  EXPECT_EQ(sdbGetSize(pSdb, SDB_USER), 3);
+  EXPECT_EQ(sdbGetTableVer(pSdb, SDB_USER), 3);
+  EXPECT_EQ(sdbUpdateVer(pSdb, 0), -1);
+  EXPECT_EQ(sdbUpdateVer(pSdb, 1), 0);
+  EXPECT_EQ(sdbUpdateVer(pSdb, -1), -1);
+  EXPECT_EQ(mnode.insertTimes, 3);
+  EXPECT_EQ(mnode.deleteTimes, 0);
 
   // delete, call func 2
+  strSetDefault(&strObj, 3);
+  strObj.v16 = 4;
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  ASSERT_EQ(sdbWrite(pSdb, pRaw), 0);
+  pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k3000");
+  ASSERT_EQ(pObj, nullptr);
+  EXPECT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
+  EXPECT_EQ(sdbGetTableVer(pSdb, SDB_USER), 4);
+  EXPECT_EQ(mnode.insertTimes, 3);
+  EXPECT_EQ(mnode.deleteTimes, 1);
 
   // write version
-
-  // sdb Write ver
-
-  // sdbRead
-#endif
+  EXPECT_EQ(sdbUpdateVer(pSdb, 1), 0);
+  EXPECT_EQ(sdbUpdateVer(pSdb, 1), 1);
   ASSERT_EQ(sdbWriteFile(pSdb), 0);
+  ASSERT_EQ(sdbWriteFile(pSdb), 0);
+
   sdbCleanup(pSdb);
+  EXPECT_EQ(mnode.insertTimes, 3);
+  EXPECT_EQ(mnode.deleteTimes, 3);
 }
 
 TEST_F(MndTestSdb, 01_Read) {
-  void    *pIter;
-  int32_t  num;
-  SStrObj *pObj;
-  SMnode   mnode;
-  SSdb    *pSdb;
+  void    *pIter = NULL;
+  int32_t  num = 0;
+  SStrObj *pObj = NULL;
+  SMnode   mnode = {0};
+  SSdb    *pSdb = NULL;
   SSdbOpt  opt = {0};
+  SStrObj  strObj = {0};
+  SSdbRaw *pRaw = NULL;
   int32_t  p1 = 0;
   int32_t  p2 = 111;
   int32_t  p3 = 222;
@@ -301,7 +389,6 @@ TEST_F(MndTestSdb, 01_Read) {
   mnode.v200 = 200;
   opt.pMnode = &mnode;
   opt.path = "/tmp/mnode_test_sdb";
-  taosRemoveDir(opt.path);
 
   SSdbTable strTable = {
       .sdbType = SDB_USER,
@@ -310,13 +397,86 @@ TEST_F(MndTestSdb, 01_Read) {
       .encodeFp = (SdbEncodeFp)strEncode,
       .decodeFp = (SdbDecodeFp)strDecode,
       .insertFp = (SdbInsertFp)strInsert,
-      .updateFp = (SdbUpdateFp)strDelete,
-      .deleteFp = (SdbDeleteFp)strUpdate,
+      .updateFp = (SdbUpdateFp)strUpdate,
+      .deleteFp = (SdbDeleteFp)strDelete,
   };
 
   pSdb = sdbInit(&opt);
   mnode.pSdb = pSdb;
-
+  ASSERT_NE(pSdb, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb, strTable), 0);
   ASSERT_EQ(sdbReadFile(pSdb), 0);
+
+  EXPECT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
+  EXPECT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
+  EXPECT_EQ(sdbGetTableVer(pSdb, SDB_USER), 4);
+  EXPECT_EQ(sdbUpdateVer(pSdb, 0), 1);
+  EXPECT_EQ(mnode.insertTimes, 2);
+  EXPECT_EQ(mnode.deleteTimes, 0);
+
+  pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k1000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k1000");
+  EXPECT_STREQ(pObj->vstr, "v1000");
+  EXPECT_EQ(pObj->v8, 1);
+  EXPECT_EQ(pObj->v16, 1);
+  EXPECT_EQ(pObj->v32, 1000);
+  EXPECT_EQ(pObj->v64, 1000);
+  sdbRelease(pSdb, pObj);
+
+  pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k2000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k2000");
+  EXPECT_STREQ(pObj->vstr, "v2000");
+  EXPECT_EQ(pObj->v8, 2);
+  EXPECT_EQ(pObj->v16, 2);
+  EXPECT_EQ(pObj->v32, 2000);
+  EXPECT_EQ(pObj->v64, 2000);
+  sdbRelease(pSdb, pObj);
+
+  pObj = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k200");
+  ASSERT_EQ(pObj, nullptr);
+
+  pIter = NULL;
+  num = 0;
+  do {
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+    ASSERT_NE(pObj, nullptr);
+    num++;
+    sdbRelease(pSdb, pObj);
+  } while (1);
+  EXPECT_EQ(num, 2);
+
+  do {
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+    if (strcmp(pObj->key, "k1000") == 0) {
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
+  } while (1);
+  EXPECT_STREQ(pObj->key, "k1000");
+
+  p1 = 0;
+  p2 = 111;
+  p3 = 222;
+  sdbTraverse(pSdb, SDB_USER, (sdbTraverseFp)sdbTraverseSucc1, &p1, &p2, &p3);
+  EXPECT_EQ(p1, 334);
+
+  p1 = 0;
+  p2 = 111;
+  p3 = 222;
+  sdbTraverse(pSdb, SDB_USER, (sdbTraverseFp)sdbTraverseSucc2, &p1, &p2, &p3);
+  EXPECT_EQ(p1, 669);
+
+  p1 = 0;
+  p2 = 111;
+  p3 = 222;
+  sdbTraverse(pSdb, SDB_USER, (sdbTraverseFp)sdbTraverseFail, &p1, &p2, &p3);
+  EXPECT_EQ(p1, 333);
+
   sdbCleanup(pSdb);
+  EXPECT_EQ(mnode.insertTimes, 2);
+  EXPECT_EQ(mnode.deleteTimes, 2);
 }

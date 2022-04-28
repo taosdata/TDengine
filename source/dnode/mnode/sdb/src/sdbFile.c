@@ -18,7 +18,7 @@
 #include "tchecksum.h"
 #include "wal.h"
 
-#define SDB_TABLE_SIZE 24
+#define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
 
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
@@ -165,6 +165,9 @@ int32_t sdbReadFile(SSdb *pSdb) {
     return -1;
   }
 
+  int64_t tableVer[SDB_MAX] = {0};
+  memcpy(tableVer, pSdb->tableVer, sizeof(tableVer));
+
   while (1) {
     readLen = sizeof(SSdbRaw);
     ret = taosReadFile(pFile, pRaw, readLen);
@@ -212,6 +215,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
 
   code = 0;
   pSdb->lastCommitVer = pSdb->curVer;
+  memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
   mDebug("read file:%s successfully, ver:%" PRId64, file, pSdb->lastCommitVer);
 
 PARSE_SDB_DATA_ERROR:
