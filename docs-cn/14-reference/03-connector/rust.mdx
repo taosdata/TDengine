@@ -115,7 +115,7 @@ let conn2 = cfg.connect()?;
 
 ```rust
 let pool = r2d2::Pool::builder()
-    .max_size(10000) // 最大连接数
+    .max_size(10000) // max connections
     .build(cfg)?;
 
 // ...
@@ -221,10 +221,10 @@ let pool = r2d2::Pool::new(cfg)?;
 ```rust
     use std::time::Duration;
     let pool = r2d2::Pool::builder()
-        .max_size(5000) // 最大连接数
-        .max_lifetime(Some(Duration::from_minutes(100))) // 每个连接的最长存活时间
-        .min_idle(Some(1000)) // 最小空闲连接数
-        .connection_timeout(Duration::from_minutes(2)) // 连接超时时间
+        .max_size(5000) // max connections
+        .max_lifetime(Some(Duration::from_minutes(100))) // lifetime of each connection
+        .min_idle(Some(1000)) // minimal idle connections
+        .connection_timeout(Duration::from_minutes(2))
         .build(cfg);
 ```
 
