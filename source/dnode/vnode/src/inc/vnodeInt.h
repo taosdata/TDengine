@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tcompression.h"
 #include "tdatablock.h"
-#include "tdbInt.h"
+#include "tdb.h"
 #include "tencode.h"
 #include "tfs.h"
 #include "tglobal.h"

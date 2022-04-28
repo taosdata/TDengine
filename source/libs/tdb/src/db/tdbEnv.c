@@ -56,7 +56,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
 
   pEnv->nPgrHash = 8;
   tsize = sizeof(SPager *) * pEnv->nPgrHash;
-  pEnv->pgrHash = TDB_REALLOC(pEnv->pgrHash, tsize);
+  pEnv->pgrHash = tdbRealloc(pEnv->pgrHash, tsize);
   if (pEnv->pgrHash == NULL) {
     return -1;
   }
@@ -100,11 +100,6 @@ int tdbCommit(TENV *pEnv, TXN *pTxn) {
     }
   }
 
-  return 0;
-}
-
-int tdbRollback(TENV *pEnv, TXN *pTxn) {
-  ASSERT(0);
   return 0;
 }
 

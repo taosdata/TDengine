@@ -24,7 +24,7 @@ struct STDBC {
   SBTC btc;
 };
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TENV *pEnv, TDB **ppDb) {
+int tdbDbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TENV *pEnv, TDB **ppDb) {
   TDB    *pDb;
   SPager *pPager;
   int     ret;

@@ -19,17 +19,17 @@
 #define TDB_BTREE_LEAF 0x2
 
 struct SBTree {
-  SPgno          root;
-  int            keyLen;
-  int            valLen;
-  SPager        *pPager;
-  FKeyComparator kcmpr;
-  int            pageSize;
-  int            maxLocal;
-  int            minLocal;
-  int            maxLeaf;
-  int            minLeaf;
-  void          *pBuf;
+  SPgno         root;
+  int           keyLen;
+  int           valLen;
+  SPager       *pPager;
+  tdb_cmpr_fn_t kcmpr;
+  int           pageSize;
+  int           maxLocal;
+  int           minLocal;
+  int           maxLeaf;
+  int           minLeaf;
+  void         *pBuf;
 };
 
 #define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
@@ -80,7 +80,7 @@ static int tdbBtcMoveToNext(SBTC *pBtc);
 static int tdbBtcMoveDownward(SBTC *pBtc);
 static int tdbBtcMoveUpward(SBTC *pBtc);
 
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, tdb_cmpr_fn_t kcmpr, SBTree **ppBt) {
   SBTree *pBt;
   int     ret;
 
@@ -165,7 +165,7 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
 
   // make sure enough space to hold the cell
   szBuf = kLen + vLen + 14;
-  pBuf = TDB_REALLOC(pBt->pBuf, pBt->pageSize > szBuf ? szBuf : pBt->pageSize);
+  pBuf = tdbRealloc(pBt->pBuf, pBt->pageSize > szBuf ? szBuf : pBt->pageSize);
   if (pBuf == NULL) {
     tdbBtcClose(&btc);
     ASSERT(0);
@@ -243,7 +243,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   tdbBtreeDecodeCell(btc.pPage, pCell, &cd);
 
   if (ppKey) {
-    pTKey = TDB_REALLOC(*ppKey, cd.kLen);
+    pTKey = tdbRealloc(*ppKey, cd.kLen);
     if (pTKey == NULL) {
       tdbBtcClose(&btc);
       ASSERT(0);
@@ -255,7 +255,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   }
 
   if (ppVal) {
-    pTVal = TDB_REALLOC(*ppVal, cd.vLen);
+    pTVal = tdbRealloc(*ppVal, cd.vLen);
     if (pTVal == NULL) {
       tdbBtcClose(&btc);
       ASSERT(0);
@@ -1185,7 +1185,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd);
 
-  pKey = TDB_REALLOC(*ppKey, cd.kLen);
+  pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {
     return -1;
   }
@@ -1196,9 +1196,9 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   if (ppVal) {
     // TODO: vLen may be zero
-    pVal = TDB_REALLOC(*ppVal, cd.vLen);
+    pVal = tdbRealloc(*ppVal, cd.vLen);
     if (pVal == NULL) {
-      TDB_FREE(pKey);
+      tdbFree(pKey);
       return -1;
     }
 

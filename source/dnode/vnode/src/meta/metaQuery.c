@@ -23,7 +23,7 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
 
 void metaReaderClear(SMetaReader *pReader) {
   tCoderClear(&pReader->coder);
-  TDB_FREE(pReader->pBuf);
+  tdbFree(pReader->pBuf);
 }
 
 int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
@@ -103,8 +103,8 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 
 void metaCloseTbCursor(SMTbCursor *pTbCur) {
   if (pTbCur) {
-    TDB_FREE(pTbCur->pKey);
-    TDB_FREE(pTbCur->pVal);
+    tdbFree(pTbCur->pKey);
+    tdbFree(pTbCur->pVal);
     metaReaderClear(&pTbCur->mr);
     if (pTbCur->pDbc) {
       tdbDbcClose(pTbCur->pDbc);
@@ -169,7 +169,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 
   pSW->pSchema = pSchema;
 
-  TDB_FREE(pVal);
+  tdbFree(pVal);
 
   return pSW;
 }
@@ -207,8 +207,8 @@ void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
     if (pCtbCur->pCur) {
       tdbDbcClose(pCtbCur->pCur);
 
-      TDB_FREE(pCtbCur->pKey);
-      TDB_FREE(pCtbCur->pVal);
+      tdbFree(pCtbCur->pKey);
+      tdbFree(pCtbCur->pVal);
     }
 
     taosMemoryFree(pCtbCur);
@@ -297,7 +297,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       ++pSW->number;
       STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
@@ -306,13 +306,13 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       pSW->tSma = tptr;
       pBuf = pSmaVal;
       if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
       }
-      TDB_FREE(pSmaVal);
+      tdbFree(pSmaVal);
       continue;
     }
     break;
@@ -425,11 +425,11 @@ void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
   if (tDecodeTSma(pBuf, pCfg) == NULL) {
     tdDestroyTSma(pCfg);
     taosMemoryFree(pCfg);
-    TDB_FREE(pVal);
+    tdbFree(pVal);
     return NULL;
   }
 
-  TDB_FREE(pVal);
+  tdbFree(pVal);
   return pCfg;
 #endif
 #endif

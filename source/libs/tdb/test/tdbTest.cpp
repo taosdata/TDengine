@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "os.h"
-#include "tdbInt.h"
+#include "tdb.h"
 
 #include <string>
 
@@ -12,7 +12,7 @@ typedef struct SPoolMem {
 } SPoolMem;
 
 static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
+  SPoolMem *pPool = (SPoolMem *)taosMemoryMalloc(sizeof(*pPool));
 
   pPool->prev = pPool->next = pPool;
   pPool->size = 0;
@@ -32,7 +32,7 @@ static void clearPool(SPoolMem *pPool) {
     pMem->prev->next = pMem->next;
     pPool->size -= pMem->size;
 
-    tdbOsFree(pMem);
+    taosMemoryFree(pMem);
   } while (1);
 
   assert(pPool->size == 0);
@@ -40,7 +40,7 @@ static void clearPool(SPoolMem *pPool) {
 
 static void closePool(SPoolMem *pPool) {
   clearPool(pPool);
-  tdbOsFree(pPool);
+  taosMemoryFree(pPool);
 }
 
 static void *poolMalloc(void *arg, size_t size) {
@@ -48,7 +48,7 @@ static void *poolMalloc(void *arg, size_t size) {
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 
-  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
+  pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
     assert(0);
   }
@@ -75,7 +75,7 @@ static void poolFree(void *arg, void *ptr) {
   pMem->prev->next = pMem->next;
   pPool->size -= pMem->size;
 
-  tdbOsFree(pMem);
+  taosMemoryFree(pMem);
 }
 
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
@@ -116,12 +116,12 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
 }
 
 TEST(tdb_test, simple_test) {
-  int            ret;
-  TENV          *pEnv;
-  TDB           *pDb;
-  FKeyComparator compFunc;
-  int            nData = 10000000;
-  TXN            txn;
+  int           ret;
+  TENV         *pEnv;
+  TDB          *pDb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 10000000;
+  TXN           txn;
 
   taosRemoveDir("tdb");
 
@@ -131,7 +131,7 @@ TEST(tdb_test, simple_test) {
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, &pDb);
+  ret = tdbDbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -189,7 +189,7 @@ TEST(tdb_test, simple_test) {
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
 
-      TDB_FREE(pVal);
+      tdbFree(pVal);
     }
 
     {  // Iterate to query the DB data
@@ -217,8 +217,8 @@ TEST(tdb_test, simple_test) {
 
       tdbDbcClose(pDBC);
 
-      TDB_FREE(pKey);
-      TDB_FREE(pVal);
+      tdbFree(pKey);
+      tdbFree(pVal);
     }
   }
 
@@ -234,12 +234,12 @@ TEST(tdb_test, simple_test) {
 }
 
 TEST(tdb_test, simple_test2) {
-  int            ret;
-  TENV          *pEnv;
-  TDB           *pDb;
-  FKeyComparator compFunc;
-  int            nData = 1000000;
-  TXN            txn;
+  int           ret;
+  TENV         *pEnv;
+  TDB          *pDb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 1000000;
+  TXN           txn;
 
   taosRemoveDir("tdb");
 
@@ -249,7 +249,7 @@ TEST(tdb_test, simple_test2) {
 
   // Create a database
   compFunc = tDefaultKeyCmpr;
-  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, &pDb);
+  ret = tdbDbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -298,8 +298,8 @@ TEST(tdb_test, simple_test2) {
 
       tdbDbcClose(pDBC);
 
-      TDB_FREE(pKey);
-      TDB_FREE(pVal);
+      tdbFree(pKey);
+      tdbFree(pVal);
     }
   }
 

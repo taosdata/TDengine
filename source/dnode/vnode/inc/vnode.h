@@ -32,7 +32,7 @@
 #include "tmsg.h"
 #include "trow.h"
 
-#include "tdbInt.h"
+#include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {

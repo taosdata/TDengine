@@ -31,6 +31,13 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+// SPgno
+typedef u32 SPgno;
+#define TDB_IVLD_PGNO ((pgno_t)0)
+
+#include "tdbOs.h"
+#include "tdbUtil.h"
+
 // p must be u8 *
 #define TDB_GET_U24(p) ((p)[0] * 65536 + *(u16 *)((p) + 1))
 #define TDB_PUT_U24(p, v)       \
@@ -40,10 +47,6 @@ typedef uint64_t u64;
     (p)[1] = (tv >> 8) & 0xff;  \
     (p)[0] = (tv >> 16) & 0xff; \
   } while (0)
-
-// SPgno
-typedef u32 SPgno;
-#define TDB_IVLD_PGNO ((pgno_t)0)
 
 // fileid
 #define TDB_FILE_ID_LEN 24
@@ -91,8 +94,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 
 #define TDB_VARIANT_LEN ((int)-1)
 
-typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
-
 #define TDB_JOURNAL_NAME "tdb.journal"
 
 #define TDB_FILENAME_LEN 128
@@ -112,37 +113,238 @@ typedef struct SPCache SPCache;
 typedef struct SPage   SPage;
 
 // transaction
-#define TDB_TXN_WRITE            0x1
-#define TDB_TXN_READ_UNCOMMITTED 0x2
-typedef struct STxn {
-  int flags;
-  i64 txnId;
-  void *(*xMalloc)(void *, size_t);
-  void (*xFree)(void *, void *);
-  void *xArg;
-} TXN;
 
 #define TDB_TXN_IS_WRITE(PTXN)            ((PTXN)->flags & TDB_TXN_WRITE)
 #define TDB_TXN_IS_READ(PTXN)             (!TDB_TXN_IS_WRITE(PTXN))
 #define TDB_TXN_IS_READ_UNCOMMITTED(PTXN) ((PTXN)->flags & TDB_TXN_READ_UNCOMMITTED)
 
-#include "tdbOs.h"
+// tdbEnv.c ====================================
+void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
+void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
+SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
 
-#include "tdbUtil.h"
+// tdbBtree.c ====================================
+typedef struct SBTree SBTree;
+typedef struct SBTC   SBTC;
+typedef struct SBtInfo {
+  SPgno root;
+  int   nLevel;
+  int   nData;
+} SBtInfo;
 
-#include "tdbPCache.h"
+struct SBTC {
+  SBTree *pBt;
+  i8      iPage;
+  SPage  *pPage;
+  int     idx;
+  int     idxStack[BTREE_MAX_DEPTH + 1];
+  SPage  *pgStack[BTREE_MAX_DEPTH + 1];
+  TXN    *pTxn;
+  TXN     txn;
+};
 
-#include "tdbPager.h"
+// SBTree
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, tdb_cmpr_fn_t kcmpr, SBTree **ppBt);
+int tdbBtreeClose(SBTree *pBt);
+int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
+int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
-#include "tdbBtree.h"
+// SBTC
+int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
+int tdbBtcMoveToFirst(SBTC *pBtc);
+int tdbBtcMoveToLast(SBTC *pBtc);
+int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbBtcClose(SBTC *pBtc);
 
-#include "tdbEnv.h"
+// tdbPager.c ====================================
+struct SPager {
+  char    *dbFileName;
+  char    *jFileName;
+  int      pageSize;
+  uint8_t  fid[TDB_FILE_ID_LEN];
+  tdb_fd_t fd;
+  tdb_fd_t jfd;
+  SPCache *pCache;
+  SPgno    dbFileSize;
+  SPgno    dbOrigSize;
+  SPage   *pDirty;
+  u8       inTran;
+  SPager  *pNext;      // used by TENV
+  SPager  *pHashNext;  // used by TENV
+};
 
-#include "tdbDb.h"
+int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
+int  tdbPagerClose(SPager *pPager);
+int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
+int  tdbPagerWrite(SPager *pPager, SPage *pPage);
+int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
+int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
+                       TXN *pTxn);
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
+int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 
-#include "tdbPage.h"
+// tdbPCache.c ====================================
+#define TDB_PCACHE_PAGE \
+  u8      isAnchor;     \
+  u8      isLocal;      \
+  u8      isDirty;      \
+  i32     nRef;         \
+  SPage  *pCacheNext;   \
+  SPage  *pFreeNext;    \
+  SPage  *pHashNext;    \
+  SPage  *pLruNext;     \
+  SPage  *pLruPrev;     \
+  SPage  *pDirtyNext;   \
+  SPager *pPager;       \
+  SPgid   pgid;
 
-#include "tdbTxn.h"
+// For page ref
+#define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
+#define TDB_REF_PAGE(pPage)      atomic_add_fetch_32(&((pPage)->nRef), 1)
+#define TDB_UNREF_PAGE(pPage)    atomic_sub_fetch_32(&((pPage)->nRef), 1)
+#define TDB_GET_PAGE_REF(pPage)  atomic_load_32(&((pPage)->nRef))
+
+int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
+int    tdbPCacheClose(SPCache *pCache);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
+void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
+int    tdbPCacheGetPageSize(SPCache *pCache);
+
+// tdbPage.c ====================================
+typedef u8 SCell;
+
+// PAGE APIS implemented
+typedef struct {
+  int szOffset;
+  int szPageHdr;
+  int szFreeCell;
+  // cell number
+  int (*getCellNum)(SPage *);
+  void (*setCellNum)(SPage *, int);
+  // cell content offset
+  int (*getCellBody)(SPage *);
+  void (*setCellBody)(SPage *, int);
+  // first free cell offset (0 means no free cells)
+  int (*getCellFree)(SPage *);
+  void (*setCellFree)(SPage *, int);
+  // total free bytes
+  int (*getFreeBytes)(SPage *);
+  void (*setFreeBytes)(SPage *, int);
+  // cell offset at idx
+  int (*getCellOffset)(SPage *, int);
+  void (*setCellOffset)(SPage *, int, int);
+  // free cell info
+  void (*getFreeCellInfo)(SCell *pCell, int *szCell, int *nxOffset);
+  void (*setFreeCellInfo)(SCell *pCell, int szCell, int nxOffset);
+} SPageMethods;
+
+#pragma pack(push, 1)
+
+// Page footer
+typedef struct {
+  u8 cksm[4];
+} SPageFtr;
+#pragma pack(pop)
+
+struct SPage {
+  tdb_spinlock_t lock;
+  int            pageSize;
+  u8            *pData;
+  SPageMethods  *pPageMethods;
+  // Fields below used by pager and am
+  u8       *pPageHdr;
+  u8       *pCellIdx;
+  u8       *pFreeStart;
+  u8       *pFreeEnd;
+  SPageFtr *pPageFtr;
+  int       nOverflow;
+  SCell    *apOvfl[4];
+  int       aiOvfl[4];
+  int       kLen;  // key length of the page, -1 for unknown
+  int       vLen;  // value length of the page, -1 for unknown
+  int       maxLocal;
+  int       minLocal;
+  int (*xCellSize)(const SPage *, SCell *);
+  // Fields used by SPCache
+  TDB_PCACHE_PAGE
+};
+
+// For page lock
+#define P_LOCK_SUCC 0
+#define P_LOCK_BUSY 1
+#define P_LOCK_FAIL -1
+
+static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
+  int ret;
+  if (tdbSpinlockTrylock(pLock) == 0) {
+    ret = P_LOCK_SUCC;
+  } else if (errno == EBUSY) {
+    ret = P_LOCK_BUSY;
+  } else {
+    ret = P_LOCK_FAIL;
+  }
+  return ret;
+}
+
+#define TDB_INIT_PAGE_LOCK(pPage)    tdbSpinlockInit(&((pPage)->lock), 0)
+#define TDB_DESTROY_PAGE_LOCK(pPage) tdbSpinlockDestroy(&((pPage)->lock))
+#define TDB_LOCK_PAGE(pPage)         tdbSpinlockLock(&((pPage)->lock))
+#define TDB_UNLOCK_PAGE(pPage)       tdbSpinlockUnlock(&((pPage)->lock))
+#define TDB_TRY_LOCK_PAGE(pPage)     tdbTryLockPage(&((pPage)->lock))
+
+// APIs
+#define TDB_PAGE_TOTAL_CELLS(pPage)        ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
+#define TDB_PAGE_USABLE_SIZE(pPage)        ((u8 *)(pPage)->pPageFtr - (pPage)->pCellIdx)
+#define TDB_PAGE_FREE_SIZE(pPage)          (*(pPage)->pPageMethods->getFreeBytes)(pPage)
+#define TDB_PAGE_PGNO(pPage)               ((pPage)->pgid.pgno)
+#define TDB_BYTES_CELL_TAKEN(pPage, pCell) ((*(pPage)->xCellSize)(pPage, pCell) + (pPage)->pPageMethods->szOffset)
+#define TDB_PAGE_OFFSET_SIZE(pPage)        ((pPage)->pPageMethods->szOffset)
+
+int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
+int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
+int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
+int  tdbPageDropCell(SPage *pPage, int idx);
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage);
+int  tdbPageCapacity(int pageSize, int amHdrSize);
+
+static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
+  SCell *pCell;
+  int    iOvfl;
+  int    lidx;
+
+  ASSERT(idx >= 0 && idx < TDB_PAGE_TOTAL_CELLS(pPage));
+
+  iOvfl = 0;
+  for (; iOvfl < pPage->nOverflow; iOvfl++) {
+    if (pPage->aiOvfl[iOvfl] == idx) {
+      pCell = pPage->apOvfl[iOvfl];
+      return pCell;
+    } else if (pPage->aiOvfl[iOvfl] > idx) {
+      break;
+    }
+  }
+
+  lidx = idx - iOvfl;
+  ASSERT(lidx >= 0 && lidx < pPage->pPageMethods->getCellNum(pPage));
+  pCell = pPage->pData + pPage->pPageMethods->getCellOffset(pPage, lidx);
+
+  return pCell;
+}
+
+struct STEnv {
+  char    *rootDir;
+  char    *jfname;
+  int      jfd;
+  SPCache *pCache;
+  SPager  *pgrList;
+  int      nPager;
+  int      nPgrHash;
+  SPager **pgrHash;
+};
 
 #ifdef __cplusplus
 }
