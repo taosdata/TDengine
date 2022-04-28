@@ -28,6 +28,7 @@ extern "C" {
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "theap.h"
 #include "tidpool.h"
 #include "tmd5.h"
 #include "tmempool.h"
@@ -329,9 +330,38 @@ void transQueueClear(STransQueue* queue);
 void transQueueDestroy(STransQueue* queue);
 
 /*
+ * delay queue based on uv loop and uv timer, and only used in retry
+ */
+typedef struct STaskArg {
+  void* param1;
+  void* param2;
+} STaskArg;
+
+typedef struct SDelayTask {
+  void (*func)(void* arg);
+  void*    arg;
+  uint64_t execTime;
+  HeapNode node;
+} SDelayTask;
+
+typedef struct SDelayQueue {
+  uv_timer_t* timer;
+  Heap*       heap;
+  uv_loop_t*  loop;
+  void (*free)(void* arg);
+} SDelayQueue;
+
+int transCreateDelayQueue(uv_loop_t* loop, SDelayQueue** queue);
+
+void transDestroyDelayQueue(SDelayQueue* queue);
+
+int transPutTaskToDelayQueue(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+
+/*
  * init global func
  */
 void transThreadOnce();
+
 #ifdef __cplusplus
 }
 #endif
