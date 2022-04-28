@@ -95,6 +95,7 @@ static const SPerfsTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
     {TSDB_PERFS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema)},
     {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
+    {TSDB_PERFS_TABLE_STREAMS, streamSchema, tListLen(streamSchema)},
 };
 
 // connection/application/

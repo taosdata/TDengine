@@ -89,7 +89,7 @@ static const SInfosTableSchema userDBSchema[] = {
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    /*{.name = "stream_mode", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},*/
+    {.name = "stream_mode", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
 };

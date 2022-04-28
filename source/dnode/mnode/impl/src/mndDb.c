@@ -1501,8 +1501,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.singleSTable, false);
 
-    /*pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);*/
-    /*colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.streamMode, false);*/
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.streamMode, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataAppend(pColInfo, rows, (const char *)b, false);
