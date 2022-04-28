@@ -188,7 +188,6 @@ typedef struct SRequestSendRecvBody {
 
 typedef struct {
   int8_t         resType;
-  int32_t        code;
   char           topic[TSDB_TOPIC_FNAME_LEN];
   int32_t        vgId;
   SSchemaWrapper schema;
