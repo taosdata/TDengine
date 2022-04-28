@@ -217,9 +217,9 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 ```c
 typedef struct taosField {
-  char     name[65];  // 列名
-  uint8_t  type;      // 数据类型
-  int16_t  bytes;     // 长度，单位是字节
+  char     name[65];  // column name
+  uint8_t  type;      // data type
+  int16_t  bytes;     // length, in bytes
 } TAOS_FIELD;
 ```
 
@@ -307,11 +307,11 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   typedef struct TAOS_BIND {
     int            buffer_type;
     void *         buffer;
-    uintptr_t      buffer_length;  // 未实际使用
+    uintptr_t      buffer_length;  // not in use
     uintptr_t *    length;
     int *          is_null;
-    int            is_unsigned;    // 未实际使用
-    int *          error;          // 未实际使用
+    int            is_unsigned;    // not in use
+    int *          error;          // not in use
   } TAOS_BIND;
   ```
 
@@ -337,7 +337,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     uintptr_t    buffer_length;
     uintptr_t *  length;
     char *       is_null;
-    int          num;             // 列的个数，即 buffer 中的参数个数
+    int          num;             // the number of columns
   } TAOS_MULTI_BIND;
   ```
 
