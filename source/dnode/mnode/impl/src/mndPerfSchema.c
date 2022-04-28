@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndPerfSchema.h"
 #include "mndInt.h"
 #include "systable.h"
 

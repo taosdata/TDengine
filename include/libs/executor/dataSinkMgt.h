@@ -45,6 +45,7 @@ typedef struct SInputData {
 
 typedef struct SOutputData {
   int32_t numOfRows;
+  int32_t numOfCols;
   int8_t  compressed;
   char*   pData;
   bool    queryEnd;

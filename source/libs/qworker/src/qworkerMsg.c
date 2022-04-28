@@ -34,6 +34,7 @@ void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete)
   rsp->compressed = input->compressed;
   rsp->compLen = htonl(len);
   rsp->numOfRows = htonl(input->numOfRows);
+  rsp->numOfCols = htonl(input->numOfCols);
 }
 
 void qwFreeFetchRsp(void *msg) {

@@ -184,6 +184,8 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
+
+    pBlock->info.blockId = 0;
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
@@ -204,6 +206,7 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
         pBlock->pBlockAgg[pColMatchInfo->targetSlotId] = pColAgg[i];
       }
 
+      pBlock->info.blockId = 0;
       return TSDB_CODE_SUCCESS;
     } else {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
