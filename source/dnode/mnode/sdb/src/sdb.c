@@ -28,12 +28,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     return NULL;
   }
 
-  char path[PATH_MAX + 100];
-  snprintf(path, PATH_MAX + 100, "%s%sdata", pOption->path, TD_DIRSEP);
+  char path[PATH_MAX + 100] = {0};
+  snprintf(path, sizeof(path), "%s%sdata", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%ssync", pOption->path, TD_DIRSEP);
   pSdb->syncDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%stmp", pOption->path, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
   if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
     sdbCleanup(pSdb);

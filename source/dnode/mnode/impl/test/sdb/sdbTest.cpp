@@ -343,6 +343,8 @@ int32_t strDefault(SMnode *pMnode) {
   pRaw = strEncode(&strObj);
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   if (sdbWriteWithoutFree(pMnode->pSdb, pRaw) != 0) return -1;
+
+  EXPECT_EQ(sdbGetRawTotalSize(pRaw), 79);
   sdbFreeRaw(pRaw);
 
   return 0;
@@ -386,36 +388,36 @@ TEST_F(MndTestSdb, 01_Write_Str) {
   opt.path = "/tmp/mnode_test_sdb";
   taosRemoveDir(opt.path);
 
-  SSdbTable strTable1 = {
-      .sdbType = SDB_USER,
-      .keyType = SDB_KEY_BINARY,
-      .deployFp = (SdbDeployFp)strDefault,
-      .encodeFp = (SdbEncodeFp)strEncode,
-      .decodeFp = (SdbDecodeFp)strDecode,
-      .insertFp = (SdbInsertFp)strInsert,
-      .updateFp = (SdbUpdateFp)strUpdate,
-      .deleteFp = (SdbDeleteFp)strDelete,
-  };
+  SSdbTable strTable1;
+  memset(&strTable1, 0, sizeof(SSdbTable));
+  strTable1.sdbType = SDB_USER;
+  strTable1.keyType = SDB_KEY_BINARY;
+  strTable1.deployFp = (SdbDeployFp)strDefault;
+  strTable1.encodeFp = (SdbEncodeFp)strEncode;
+  strTable1.decodeFp = (SdbDecodeFp)strDecode;
+  strTable1.insertFp = (SdbInsertFp)strInsert;
+  strTable1.updateFp = (SdbUpdateFp)strUpdate;
+  strTable1.deleteFp = (SdbDeleteFp)strDelete;
 
-  SSdbTable strTable2 = {
-      .sdbType = SDB_VGROUP,
-      .keyType = SDB_KEY_INT32,
-      .encodeFp = (SdbEncodeFp)i32Encode,
-      .decodeFp = (SdbDecodeFp)i32Decode,
-      .insertFp = (SdbInsertFp)i32Insert,
-      .updateFp = (SdbUpdateFp)i32Update,
-      .deleteFp = (SdbDeleteFp)i32Delete,
-  };
+  SSdbTable strTable2;
+  memset(&strTable2, 0, sizeof(SSdbTable));
+  strTable2.sdbType = SDB_VGROUP;
+  strTable2.keyType = SDB_KEY_INT32;
+  strTable2.encodeFp = (SdbEncodeFp)i32Encode;
+  strTable2.decodeFp = (SdbDecodeFp)i32Decode;
+  strTable2.insertFp = (SdbInsertFp)i32Insert;
+  strTable2.updateFp = (SdbUpdateFp)i32Update;
+  strTable2.deleteFp = (SdbDeleteFp)i32Delete;
 
-  SSdbTable strTable3 = {
-      .sdbType = SDB_CONSUMER,
-      .keyType = SDB_KEY_INT64,
-      .encodeFp = (SdbEncodeFp)i64Encode,
-      .decodeFp = (SdbDecodeFp)i64Decode,
-      .insertFp = (SdbInsertFp)i64Insert,
-      .updateFp = (SdbUpdateFp)i64Update,
-      .deleteFp = (SdbDeleteFp)i64Delete,
-  };
+  SSdbTable strTable3;
+  memset(&strTable3, 0, sizeof(SSdbTable));
+  strTable3.sdbType = SDB_CONSUMER;
+  strTable3.keyType = SDB_KEY_INT64;
+  strTable3.encodeFp = (SdbEncodeFp)i64Encode;
+  strTable3.decodeFp = (SdbDecodeFp)i64Decode;
+  strTable3.insertFp = (SdbInsertFp)i64Insert;
+  strTable3.updateFp = (SdbUpdateFp)i64Update;
+  strTable3.deleteFp = (SdbDeleteFp)i64Delete;
 
   pSdb = sdbInit(&opt);
   mnode.pSdb = pSdb;
@@ -730,36 +732,36 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   opt.pMnode = &mnode;
   opt.path = "/tmp/mnode_test_sdb";
 
-  SSdbTable strTable1 = {
-      .sdbType = SDB_USER,
-      .keyType = SDB_KEY_BINARY,
-      .deployFp = (SdbDeployFp)strDefault,
-      .encodeFp = (SdbEncodeFp)strEncode,
-      .decodeFp = (SdbDecodeFp)strDecode,
-      .insertFp = (SdbInsertFp)strInsert,
-      .updateFp = (SdbUpdateFp)strUpdate,
-      .deleteFp = (SdbDeleteFp)strDelete,
-  };
+  SSdbTable strTable1;
+  memset(&strTable1, 0, sizeof(SSdbTable));
+  strTable1.sdbType = SDB_USER;
+  strTable1.keyType = SDB_KEY_BINARY;
+  strTable1.deployFp = (SdbDeployFp)strDefault;
+  strTable1.encodeFp = (SdbEncodeFp)strEncode;
+  strTable1.decodeFp = (SdbDecodeFp)strDecode;
+  strTable1.insertFp = (SdbInsertFp)strInsert;
+  strTable1.updateFp = (SdbUpdateFp)strUpdate;
+  strTable1.deleteFp = (SdbDeleteFp)strDelete;
 
-  SSdbTable strTable2 = {
-      .sdbType = SDB_VGROUP,
-      .keyType = SDB_KEY_INT32,
-      .encodeFp = (SdbEncodeFp)i32Encode,
-      .decodeFp = (SdbDecodeFp)i32Decode,
-      .insertFp = (SdbInsertFp)i32Insert,
-      .updateFp = (SdbUpdateFp)i32Update,
-      .deleteFp = (SdbDeleteFp)i32Delete,
-  };
+  SSdbTable strTable2;
+  memset(&strTable2, 0, sizeof(SSdbTable));
+  strTable2.sdbType = SDB_VGROUP;
+  strTable2.keyType = SDB_KEY_INT32;
+  strTable2.encodeFp = (SdbEncodeFp)i32Encode;
+  strTable2.decodeFp = (SdbDecodeFp)i32Decode;
+  strTable2.insertFp = (SdbInsertFp)i32Insert;
+  strTable2.updateFp = (SdbUpdateFp)i32Update;
+  strTable2.deleteFp = (SdbDeleteFp)i32Delete;
 
-  SSdbTable strTable3 = {
-      .sdbType = SDB_CONSUMER,
-      .keyType = SDB_KEY_INT64,
-      .encodeFp = (SdbEncodeFp)i64Encode,
-      .decodeFp = (SdbDecodeFp)i64Decode,
-      .insertFp = (SdbInsertFp)i64Insert,
-      .updateFp = (SdbUpdateFp)i64Update,
-      .deleteFp = (SdbDeleteFp)i64Delete,
-  };
+  SSdbTable strTable3;
+  memset(&strTable3, 0, sizeof(SSdbTable));
+  strTable3.sdbType = SDB_CONSUMER;
+  strTable3.keyType = SDB_KEY_INT64;
+  strTable3.encodeFp = (SdbEncodeFp)i64Encode;
+  strTable3.decodeFp = (SdbDecodeFp)i64Decode;
+  strTable3.insertFp = (SdbInsertFp)i64Insert;
+  strTable3.updateFp = (SdbUpdateFp)i64Update;
+  strTable3.deleteFp = (SdbDeleteFp)i64Delete;
 
   pSdb = sdbInit(&opt);
   mnode.pSdb = pSdb;

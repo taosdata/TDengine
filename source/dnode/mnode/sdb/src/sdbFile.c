@@ -66,7 +66,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t ver = -1;
+    int64_t ver = 0;
     ret = taosReadFile(pFile, &ver, sizeof(int64_t));
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -209,7 +209,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
     code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
-      goto PARSE_SDB_DATA_ERROR;
+      goto _OVER;
     }
   }
 
@@ -218,7 +218,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
   mDebug("read file:%s successfully, ver:%" PRId64, file, pSdb->lastCommitVer);
 
-PARSE_SDB_DATA_ERROR:
+_OVER:
   taosCloseFile(&pFile);
   sdbFreeRaw(pRaw);
 
