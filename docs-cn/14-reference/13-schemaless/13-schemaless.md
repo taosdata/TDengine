@@ -83,7 +83,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 
 :::tip
 无模式所有的处理逻辑，仍会遵循 TDengine 对数据结构的底层限制，例如每行数据的总长度不能超过
-16k 字节。这方面的具体限制约束请参见 [TAOS SQL 边界限制](/reference/taos-sql/limit)
+16k 字节。这方面的具体限制约束请参见 [TAOS SQL 边界限制](/taos-sql/limit)
 
 :::
 

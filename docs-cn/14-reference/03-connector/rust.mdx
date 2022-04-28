@@ -1,36 +1,51 @@
 ---
+toc_max_heading_level: 4
 sidebar_position: 5
 sidebar_label: Rust
-title: Rust Connector
+title: TDengine Rust Connector
 ---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Preparition from "./_preparition.mdx"
+import RustInsert from "../../04-develop/03-insert-data/_rust_sql.mdx"
+import RustInfluxLine from "../../04-develop/03-insert-data/_rust_line.mdx"
+import RustOpenTSDBTelnet from "../../04-develop/03-insert-data/_rust_opts_telnet.mdx"
+import RustOpenTSDBJson from "../../04-develop/03-insert-data/_rust_opts_json.mdx"
+import RustQuery from "../../04-develop/04-query-data/_rust.mdx"
 
 [![Crates.io](https://img.shields.io/crates/v/libtaos)](https://crates.io/crates/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos) [![docs.rs](https://img.shields.io/docsrs/libtaos)](https://docs.rs/libtaos)
 
-Rust 连接器 [libtaos][libtaos] 旨在为 Rust 开发者提供连接器官方支持。[libtaos][libtaos] 使用不同的 features 提供对 TDengine 客户端驱动和 REST 接口的支持。以下是可使用的特性列表：
+`libtaos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
 
-| 启用特性 | 支持平台              | 说明                                                              |
-| -------- | --------------------- | ----------------------------------------------------------------- |
-| default  | Windows, Linux        | 使用 TDengine 客户端驱动（taosc），支持 STMT 接口和行协议接口     |
-| rest     | Windows, Linux, macOS | 使用 HTTP REST API 接口（rest），适用于全平台                     |
-| (+)r2d2  | -                     | 使用 [r2d2] 提供的连接池接口，需要与 default 或 rest 特性配合使用 |
+`libtaos` 提供两种形式的连接器。一种是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。另外一种是 **REST 连接器**，它通过 taosAdapter 的 REST 接口连接 TDengine 运行实例。你可以通过不同的 “特性（即 Cargo 关键字 features）” 来指定使用哪种连接器。REST 连接器可以在任何平台运行，但原生连接器依赖 TDengine 客户端能运行的平台。
 
-*NOTE: Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容，请使用时注意版本及对应的文档。*
+`libtaos` 的源码托管在 [GitHub](https://github.com/taosdata/libtaos-rs)。
+
+## 支持的平台
+
+原生连接器支持的平台和 TDengine 客户端驱动支持的平台一致。
+REST 连接器支持所有能运行 Rust 的平台。
 
 ## 版本支持
 
-| 驱动  |  平台   |            最小支持版本            |
-| :---: | :-----: | :--------------------------------: |
-| taosc | Windows | 2.0.20.10 (行协议接口 >= 2.4.0.0)  |
-| taosc |  Linux  |  2.0.6.0 (行协议接口 >= 2.4.0.0)   |
-| rest  |   All   | 2.0.0.0 (不支持 STMT 和行协议接口) |
+请参考[版本支持列表](/reference/connector#版本支持)
 
-建议使用 2.4 版本以上的 TDengine，以避免已知问题。
+Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容。建议使用 2.4 版本以上的 TDengine，以避免已知问题。
 
 ## 安装
 
-如需使用 TDengine 客户端驱动（taosc），请参考 [该文档](/reference/connector/#安装客户端驱动) 进行安装。使用 REST 接口无需安装客户端。之后可以按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
+### 安装前准备
+* 安装 Rust 开发工具链
+* 如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
 
-### 使用客户端驱动
+### 添加 libtaos 依赖
+
+根据选择的连接器，按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接器">
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]：
 
@@ -40,7 +55,8 @@ Rust 连接器 [libtaos][libtaos] 旨在为 Rust 开发者提供连接器官方�
 libtaos = "*"
 ```
 
-### 使用 REST 接口
+</TabItem>
+<TabItem value="rest" label="REST 连接器">
 
 在 `Cargo.toml` 文件中添加 [libtaos][libtaos]，并启用 `rest` 特性。
 
@@ -50,9 +66,13 @@ libtaos = "*"
 libtaos = { version = "*", features = ["rest"]}
 ```
 
+</TabItem>
+</Tabs>
+
+
 ### 使用连接池
 
-选择使用客户端驱动或 REST 接口，并在 `Cargo.toml` 中启用 `r2d2` 特性。
+请在 `Cargo.toml` 中启用 `r2d2` 特性。
 
 ```toml
 [dependencies]
@@ -126,6 +146,30 @@ async fn demo() -> Result<(), Error> {
 ```
 
 ## 使用示例
+
+### 写入数据
+
+#### SQL 写入
+
+<RustInsert />
+
+#### InfluxDB 行协议写入
+
+<RustInfluxLine />
+
+#### OpenTSDB Telnet 行协议写入
+
+<RustOpenTSDBTelnet />
+
+#### OpenTSDB JSON 行协议写入
+
+<RustOpenTSDBJson />
+
+### 查询数据
+
+<RustQuery />
+
+### 更多示例程序
 
 | 程序路径       | 程序说明                                                                      |
 | -------------- | ----------------------------------------------------------------------------- |
@@ -247,11 +291,11 @@ let mut stmt: Stmt = taos.stmt("insert into ? values(?,?)")?;
 
 参数绑定对象提供了一组接口用于实现参数绑定：
 
-#### `.set_tbname(tbname: impl ToCString)`
+##### `.set_tbname(tbname: impl ToCString)`
 
 用于绑定表名。
 
-#### `.set_tbname_tags(tbname: impl ToCString, tags: impl IntoParams)`
+##### `.set_tbname_tags(tbname: impl ToCString, tags: impl IntoParams)`
 
 当 SQL 语句使用超级表时，用于绑定子表表名和标签值：
 
@@ -262,7 +306,7 @@ let v = Field::Json(serde_json::from_str("{\"tag1\":\"一二三四五六七八�
 stmt.set_tbname_tags("tb0", [&tag])?;
 ```
 
-#### `.bind(params: impl IntoParams)`
+##### `.bind(params: impl IntoParams)`
 
 用于绑定值类型。使用 [Field] 结构体构建需要的类型并绑定：
 
@@ -272,7 +316,7 @@ let value = Field::Float(0.0);
 stmt.bind(vec![ts, value].iter())?;
 ```
 
-#### `.execute()`
+##### `.execute()`
 
 执行 SQL。[Stmt] 对象可以复用，在执行后可以重新绑定并执行。
 

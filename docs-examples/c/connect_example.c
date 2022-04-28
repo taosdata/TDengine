@@ -13,7 +13,9 @@ int main() {
   uint16_t    port = 0;  // 0 means use the default port
   TAOS       *taos = taos_connect(host, user, passwd, db, port);
   if (taos == NULL) {
-    printf("failed to connect to server\n");
+    int   errono = taos_errno(NULL);
+    char *msg = taos_errstr(NULL);
+    printf("%d, %s\n", errono, msg);
   } else {
     printf("connected\n");
     taos_close(taos);

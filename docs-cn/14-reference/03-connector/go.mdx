@@ -1,53 +1,62 @@
 ---
+toc_max_heading_level: 4
 sidebar_position: 4
 sidebar_label: Go
-title: Go Connector
+title: TDengine Go Connector
 ---
 
-## 总体介绍
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-driver-go 实现 Go [database/sql](https://golang.org/pkg/database/sql/) 包的 TDengine 驱动程序，同时提供通过本地的客户端驱动程序直接与服务端程序 taosd 进行订阅、 schemaless 写入和 stmt 功能。
+import Preparition from "./_preparition.mdx"
+import GoInsert from "../../04-develop/03-insert-data/_go_sql.mdx"
+import GoInfluxLine from "../../04-develop/03-insert-data/_go_line.mdx"
+import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.mdx"
+import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
+import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
-Go 连接器的源码托管在 github。项目名称：driver-go。欢迎 [贡献源码](https://github.com/taosdata/driver-go) 或 [报告问题](https://github.com/taosdata/driver-go/issues)。
+`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+
+`driver-go` 提供两种形式的连接器。一种是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接器**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
+
+本文介绍如何安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
+
+`driver-go` 的源码托管在 [GitHub](https://github.com/taosdata/driver-go)。
 
 ## 支持的平台
 
-| **CPU 类型** | x64（64bit） |        |        | aarch64 | aarch32 |
-|------------|------------|--------|--------|---------|---------|
-| **OS 类型**  | Linux      | Win64  | Win32  | Linux   | Linux   |
-| **支持与否**   | **支持**     | **支持** | **支持** | **支持**  | **支持**  |
+原生连接器支持的平台和 TDengine 客户端驱动支持的平台一致。
+REST 连接器支持所有能运行 Go 的平台。
 
 ## 版本支持
 
-|   分支    |                      功能                       | 建议 taosd 版本 |
-|:-------:|:---------------------------------------------:|:-----------:|
-| master  |    database/sql（cgo）、订阅、schemaless写入、stmt     | 2.2.0.0 及以上 |
-| develop | database/sql（cgo & REST）、订阅、schemaless写入、stmt | 2.4.0.4及以上  |
+请参考[版本支持列表](/reference/connector#版本支持)
 
-## 支持的特性
+## 支持的功能特性
 
-### 本地连接
+### 原生连接器
 
-`本地连接` 指连接器通过本地的客户端驱动程序直接与服务端程序 taosd 建立连接。
+“原生连接”指连接器通过 TDengine 客户端驱动（taosc）直接与 TDengine 运行实例建立的连接。支持的功能特性有：
 
-* database/sql (cgo 模式)
+* 普通查询
+* 连续查询
 * 订阅
-* schemaless
-* stmt
+* schemaless 接口
+* 参数绑定接口
 
-### REST 连接
+### REST 连接器
 
-REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。
+"REST 连接"指连接器通过 taosAdapter 组件提供的 REST API 与 TDengine 运行实例建立的连接。支持的功能特性有：
 
-`develop` 分支使用 `http client` 实现了 `database/sql` 接口。
+* 普通查询
+* 连续查询
 
 ## 安装步骤
 
-### 安装前的准备
+### 安装前准备
 
-* taos本地的客户端
-* Go 1.14 及以上
-* GCC 4.8.5 及以上
+* 安装 Go 开发环境（Go 1.14 及以上，GCC 4.8.5 及以上）
+* 如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
 
 配置好环境变量，检查命令：
 
@@ -58,32 +67,9 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 
 `go get -u github.com/taosdata/driver-go/v2@develop`
 
-### 使用 go mod 管理
-
-`go mod` 初始化项目：
-
-```text
-go mod init taos-demo
-```
-
-引入taosSql：
-
-```go
-import (
-    "database/sql"
-    _ "github.com/taosdata/driver-go/v2/taosSql"
-)
-```
-
-使用`go mod`方式管理依赖包：
-
-```sh
-go mod tidy
-```
-
 ## 建立连接
 
-### DSN
+### 数据源名称（DSN）
 
 数据源名称具有通用格式，例如 [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php)，但没有类型前缀（方括号表示可选）：
 
@@ -96,10 +82,12 @@ go mod tidy
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+### 使用连接器进行连接
 
-### 建立本地连接
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接器">
 
-_taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
+_taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
 
 使用 `taosSql` 作为 `driverName` 并且使用一个正确的 [DSN](#DSN) 作为 `dataSourceName`，DSN 支持的参数：
 
@@ -127,7 +115,8 @@ func main() {
 }
 ```
 
-### 建立 REST 连接
+</TabItem>
+<TabItem value="rest" label="REST 连接器">
 
 _taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
 
@@ -157,15 +146,39 @@ func main() {
     }
 }
 ```
+</TabItem>
+</Tabs>
 
-## 示例程序
+## 使用示例
 
-使用 Go 连接器的示例代码请参考：
+### 写入数据
+
+#### SQL 写入
+
+<GoInsert />
+
+#### InfluxDB 行协议写入
+
+<GoInfluxLine />
+
+#### OpenTSDB Telnet 行协议写入
+
+<GoOpenTSDBTelnet />
+
+#### OpenTSDB JSON 行协议写入
+
+<GoOpenTSDBJson />
+
+### 查询数据
+
+<GoQuery />
+
+### 更多示例程序
 
 * [示例程序](https://github.com/taosdata/TDengine/tree/develop/examples/go)
 * [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
 
-### 使用限制
+## 使用限制
 
 由于 REST 接口无状态所以 `use db` 语法不会生效，需要将 db 名称放到 SQL 语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
 
@@ -221,7 +234,7 @@ func main() {
 }
 ```
 
-### 常见问题
+## 常见问题
 
 * 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
 
@@ -255,13 +268,9 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
-## API
+## 常用 API
 
-全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
-
-### 常用 API
-
-#### `database/sql`
+### database/sql API
 
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
@@ -277,7 +286,7 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 `sql.Open` 内置的方法，用来执行查询语句。
 
-#### 高级功能
+### 高级功能 API
 
 af 包封装了订阅、stmt 等 TDengine 高级功能。
 
@@ -297,7 +306,7 @@ stmt 单行插入。
 
 stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
-##### 订阅
+订阅
 
 * `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
 
@@ -311,7 +320,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 取消订阅数据。
 
-##### schemaless 写入
+schemaless 写入
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
@@ -325,7 +334,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 写入 OpenTSDB json 协议。
 
-##### 批量 stmt 插入
+批量 stmt 插入
 
 * `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
 
@@ -333,7 +342,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (stmt *InsertStmt) Prepare(sql string) error`
 
-预处理 sql 语句。
+预处理 SQL 语句。
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 
@@ -362,3 +371,7 @@ stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 * `func (stmt *InsertStmt) Close() error`
 
 结束 stmt。
+
+## API 参考
+
+全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)

@@ -1,7 +1,37 @@
+### 配置 taosAdapter
 
-taosAdapter 默认使用数据库名称为 statsd ，如需修改数据库名称请停止 taosAdapter 服务并在 taosAdapter 配置文件中修改后重启 taosadapter。
+配置 taosAdapter 接收 StatsD 数据的方法：
 
-在 `config.js` 文件中增加如下内容后启动 StatsD，其中 <taosAdapter's host\> 和 <port for StatsD\> 请填写 taosAdapter 配置的实际值（默认为 6044）：
+- 在 taosAdapter 配置文件（默认位置 /etc/taos/taosadapter.toml）中使能配置项
+
+```
+...
+[statsd]
+enable = true
+port = 6044
+db = "statsd"
+user = "root"
+password = "taosdata"
+worker = 10
+gatherInterval = "5s"
+protocol = "udp"
+maxTCPConnections = 250
+tcpKeepAlive = false
+allowPendingMessages = 50000
+deleteCounters = true
+deleteGauges = true
+deleteSets = true
+deleteTimings = true
+...
+```
+
+其中 taosAdapter 默认写入的数据库名称为 `statsd`，也可以修改 taosAdapter 配置文件 db 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
+
+- 也可以使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 StatsD 数据功能，具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+
+### 配置 StatsD
+
+使用 StatsD 需要下载其[源代码](https://github.com/statsd/statsd)。其配置文件请参考其源代码下载到本地的根目录下的示例文件 `exampleConfig.js` 进行修改。其中 <taosAdpater's host\> 填写运行 taosAdapter 的服务器域名或 IP 地址，<port for StatsD\>请填写 taosAdapter 接收 StatsD 数据的端口（默认为 6044）。
 
 ```
 backends 部分添加 "./backends/repeater"
@@ -18,3 +48,8 @@ port: 8125
 }
 ```
 
+增加如下内容后启动 StatsD（假设配置文件修改为 config.js）。
+
+```
+node stats.js config.js &
+```

@@ -10,13 +10,17 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 ## 安装
 
-@shuduo @yangzhao ，请在这里添加 taosBenchmark 安装的简要说明
+taosBenchmark 有两种安装方式:
+
+- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](/operation/pkg-install)。
+
+- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
 ## 运行
 
 ### 配置和运行方式
 
-taosBenchmark 支持两种配置方式：[命令行参数](#命令行参数) 和 [JSON 配置文件](#json-配置文件)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
+taosBenchmark 支持两种配置方式：[命令行参数](#命令行参数详解) 和 [JSON 配置文件](#配置文件参数详解)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
 
 taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDengine 功能分为三大类：写入、查询和订阅。这三种功能之间是互斥的，每次运行 taosBenchmark 只能选择其中之一。值得注意的是，所要测试的功能类型在使用命令行配置方式时是不可配置的，命令行配置方式只能测试写入性能。若要测试 TDegnine 的查询和订阅性能，必须使用配置文件的方式，通过配置文件中的参数 `filetype` 指定所要测试的功能类型。
 
@@ -30,21 +34,21 @@ taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDen
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建 10000 张表，每张表中写入 10000 条记录。
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos` 下指定的 TDengine 集群，并在 TDengine 中创建一个名为 test 的数据库，test 数据库下创建名为 meters 的一张超级表，超级表下创建 10000 张表，每张表中写入 10000 条记录。注意，如果已有 test 数据库，这个命令会先删除该数据库后建立一个全新的 test 数据库。
 
 ### 使用命令行配置参数运行
 
 在使用命令行参数运行 taosBenchmark 并控制其行为时，`-f <json file>` 参数不能使用。所有配置参数都必须通过命令行指定。以下是使用命令行方式测试 taosBenchmark 写入性能的一个示例。
 
 ```bash
-@shuduo @yangzhao 请在这里添加使用命令行配置参数运行的示例，示例一定要经过实际运行检验
+taosBenchmark -I stmt -n 200 -t 100
 ```
 
-上面的命令 `此处插入解释`
+上面的命令 `taosBenchmark` 将创建一个名为`test`的数据库，在其中建立一张超级表`meters`，在该超级表中建立 100 张子表并使用参数绑定的方式为每张子表插入 200 条记录。
 
 ### 使用配置文件运行
 
-taosBenchmark 安装包中提供了配置文件的示例，位于 `@shuduo @yangzhao 此处插入路径`
+taosBenchmark 安装包中提供了配置文件的示例，位于 `<install_directory>/examples/taosbenchmark-json` 下
 
 使用如下命令行即可运行 taosBenchmark 并通过配置文件控制其行为。
 
@@ -57,91 +61,10 @@ taosBenchmark -f <json file>
 #### 插入场景 JSON 配置文件示例
 
 <details>
-<summary>插入场景配置示例</summary>
+<summary>insert.json</summary>
 
 ```json
-{
-  "filetype": "insert",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
-  "connection_pool_size": 8,
-  "thread_count": 4,
-  "result_file": "./insert_res.txt",
-  "confirm_parameter_prompt": "no",
-  "insert_interval": 0,
-  "interlace_rows": 100,
-  "num_of_records_per_req": 100,
-  "prepared_rand": 10000,
-  "chinese": "no",
-  "databases": [
-    {
-      "dbinfo": {
-        "name": "db",
-        "drop": "yes",
-        "replica": 1,
-        "days": 10,
-        "cache": 16,
-        "blocks": 8,
-        "precision": "ms",
-        "keep": 3650,
-        "minRows": 100,
-        "maxRows": 4096,
-        "comp": 2,
-        "walLevel": 1,
-        "cachelast": 0,
-        "quorum": 1,
-        "fsync": 3000,
-        "update": 0
-      },
-      "super_tables": [
-        {
-          "name": "stb",
-          "child_table_exists": "no",
-          "childtable_count": 100,
-          "childtable_prefix": "stb_",
-          "escape_character": "yes",
-          "auto_create_table": "no",
-          "batch_create_tbl_num": 5,
-          "data_source": "rand",
-          "insert_mode": "taosc",
-          "line_protocol": "line",
-          "insert_rows": 100000,
-          "childtable_limit": 10,
-          "childtable_offset": 100,
-          "interlace_rows": 0,
-          "insert_interval": 0,
-          "partial_col_num": 0,
-          "disorder_ratio": 0,
-          "disorder_range": 1000,
-          "timestamp_step": 10,
-          "start_timestamp": "2020-10-01 00:00:00.000",
-          "sample_format": "csv",
-          "sample_file": "./sample.csv",
-          "use_sample_ts": "no",
-          "tags_file": "",
-          "columns": [
-            { "type": "INT", "name": "id" },
-            { "type": "DOUBLE", "count": 10 },
-            { "type": "BINARY", "len": 16, "count": 3 },
-            { "type": "BINARY", "len": 32, "count": 6 }
-          ],
-          "tags": [
-            { "type": "TINYINT", "count": 2, "max": 10, "min": 98 },
-            {
-              "type": "BINARY",
-              "len": 16,
-              "count": 5,
-              "values": ["beijing", "shanghai"]
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
+{{#include /taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -149,46 +72,10 @@ taosBenchmark -f <json file>
 #### 查询场景 JSON 配置文件示例
 
 <details>
-<summary>查询场景配置示例</summary>
+<summary>query.json</summary>
 
 ```json
-{
-  "filetype": "query",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
-  "confirm_parameter_prompt": "no",
-  "databases": "db",
-  "query_times": 2,
-  "query_mode": "taosc",
-  "specified_table_query": {
-    "query_interval": 1,
-    "concurrent": 3,
-    "sqls": [
-      {
-        "sql": "select last_row(*) from stb0 ",
-        "result": "./query_res0.txt"
-      },
-      {
-        "sql": "select count(*) from stb00_1",
-        "result": "./query_res1.txt"
-      }
-    ]
-  },
-  "super_table_query": {
-    "stblname": "stb1",
-    "query_interval": 1,
-    "threads": 3,
-    "sqls": [
-      {
-        "sql": "select last_row(ts) from xxxx",
-        "result": "./query_res2.txt"
-      }
-    ]
-  }
-}
+{{#include /taos-tools/example/query.json}}
 ```
 
 </details>
@@ -196,44 +83,10 @@ taosBenchmark -f <json file>
 #### 订阅场景 JSON 配置文件示例
 
 <details>
-<summary>订阅场景配置示例</summary>
+<summary>subscribe.json</summary>
 
 ```json
-{
-  "filetype": "subscribe",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
-  "databases": "db",
-  "confirm_parameter_prompt": "no",
-  "specified_table_query": {
-    "concurrent": 1,
-    "interval": 0,
-    "restart": "yes",
-    "keepProgress": "yes",
-    "sqls": [
-      {
-        "sql": "select * from stb00_0 ;",
-        "result": "./subscribe_res0.txt"
-      }
-    ]
-  },
-  "super_table_query": {
-    "stblname": "stb0",
-    "threads": 1,
-    "interval": 10000,
-    "restart": "yes",
-    "keepProgress": "yes",
-    "sqls": [
-      {
-        "sql": "select * from xxxx where ts > '2021-02-25 11:35:00.000' ;",
-        "result": "./subscribe_res1.txt"
-      }
-    ]
-  }
-}
+{{#include /taos-tools/example/subscribe.json}}
 ```
 
 </details>
@@ -247,16 +100,16 @@ taosBenchmark -f <json file>
   TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
 
 - **-h/--host <host\>** :
-  指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
+  指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
 - **-P/--port <port\>** :
-  要连接的 TDengine 服务器的端口号，默认值为 6030。
+  要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
 - **-I/--interface <insertMode\>** :
-  插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
+  插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
 
 - **-u/--user <user\>** :
-  用于连接 TDengine 服务端的用户名，默认为 root
+  用于连接 TDengine 服务端的用户名，默认为 root 。
 
 - **-p/--password <passwd\>** :
   用于连接 TDengine 服务端的密码，默认值为 taosdata。
@@ -265,7 +118,7 @@ taosBenchmark -f <json file>
   结果输出文件的路径，默认值为 ./output.txt。
 
 - **-T/--thread <threadNum\>** :
-  插入数据的线程数量，默认为 8。
+  插入数据的线程数量，默认为 8 。
 
 - **-B/--interlace-rows <rowNum\>** :
   启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
@@ -289,10 +142,10 @@ taosBenchmark -f <json file>
   所使用的数据库的名称，默认值为 test 。
 
 - **-b/--data-type <colType\>** :
-  超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT。
+  超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT 。
 
 - **-l/--columns <colNum\>** :
-  超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`。
+  超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT` 。
 
 - **-A/--tag-type <tagType\>** :
   超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
@@ -333,7 +186,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   开关参数，要求用户在提示后确认才能继续。默认值为 false 。
 
 - **-O/--disorder <Percentage\>** :
-  指定乱序数据的百分比，其值域为 [0,50]。默认为 0，即没有乱序数据。
+  指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
 - **-R/--disorder-range <timeRange\>** :
   指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
@@ -363,68 +216,68 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **port** : 要连接的 TDengine 服务器的端口号，默认值为 6030。
 
-- **user** : 用于连接 TDengine 服务端的用户名，默认为 root
+- **user** : 用于连接 TDengine 服务端的用户名，默认为 root。
 
 - **password** : 用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
 ### 插入场景配置参数
 
-查询场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 数据库相关配置参数
 
 创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，具体参数如下。这些参数与 TDengine 中 `create database` 时所指定的数据库参数相对应。
 
-- **name** : 数据库名
+- **name** : 数据库名。
 
-- **drop** : 插入前是否删除数据库，默认为 true
+- **drop** : 插入前是否删除数据库，默认为 true。
 
-- **replica** : 创建数据库时指定的副本数
+- **replica** : 创建数据库时指定的副本数。
 
-- **days** : 单个数据文件中存储数据的时间跨度，默认值为 10
+- **days** : 单个数据文件中存储数据的时间跨度，默认值为 10。
 
-- **cache** : 缓存块的大小，单位是 MB，默认值是 16
+- **cache** : 缓存块的大小，单位是 MB，默认值是 16。
 
-- **blocks** : 每个 vnode 中缓存块的数量，默认为 6
+- **blocks** : 每个 vnode 中缓存块的数量，默认为 6。
 
-- **precision** : 数据库时间精度，默认值为 "ms"
+- **precision** : 数据库时间精度，默认值为 "ms"。
 
-- **keep** : 保留数据的天数，默认值为 3650
+- **keep** : 保留数据的天数，默认值为 3650。
 
-- **minRows** : 文件块中的最小记录数，默认值为 100
+- **minRows** : 文件块中的最小记录数，默认值为 100。
 
-- **maxRows** : 文件块中的最大记录数，默认值为 4096
+- **maxRows** : 文件块中的最大记录数，默认值为 4096。
 
-- **comp** : 文件压缩标志，默认值为 2
+- **comp** : 文件压缩标志，默认值为 2。
 
-- **walLevel** : WAL 级别，默认为 1
+- **walLevel** : WAL 级别，默认为 1。
 
-- **cacheLast** : 是否允许将每个表的最后一条记录保留在内存中，默认值为 0，可选值为 0，1，2，3
+- **cacheLast** : 是否允许将每个表的最后一条记录保留在内存中，默认值为 0，可选值为 0，1，2，3。
 
-- **quorum** : 多副本模式下的写确认数量，默认值为 1
+- **quorum** : 多副本模式下的写确认数量，默认值为 1。
 
-- **fsync** : 当 wal 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000
+- **fsync** : 当 wal 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000。
 
-- **update** : 是否支持数据更新，默认值为 0， 可选值为 0， 1， 2
+- **update** : 是否支持数据更新，默认值为 0， 可选值为 0， 1， 2。
 
 #### 超级表相关配置参数
 
 创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下表。
 
 - **name**: 超级表名，必须配置，没有默认值。
-- **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"
+- **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"。
 
-- **child_table_count** : 子表的数量，默认值为 10
+- **child_table_count** : 子表的数量，默认值为 10。
 
-- **child_table_prefix** : 子表名称的前缀，必选配置项，没有默认值
+- **child_table_prefix** : 子表名称的前缀，必选配置项，没有默认值。
 
-- **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"
+- **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"。
 
-- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示要插入的表必须提前创建好。
+- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num** : 创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
-- **data_source** : 数据的来源，默认为 taosBenchmark 随机产生，可以配置为 sample，即为使用 sample_file 参数指定的文件内的数据。
+- **data_source** : 数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
 - **insert_mode** : 插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
 
@@ -446,11 +299,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **partial_col_num** : 若该值为正数 n 时， 则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
 
-- **disorder_ratio** : 指定乱序数据的百分比，其值域为 [0,50]。默认为 0，即没有乱序数据。
+- **disorder_ratio** : 指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
 - **disorder_range** : 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
 
-- **timestamp_step** : 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1。
+- **timestamp_step** : 每个子表中插入数据的时间戳步长，单位与数据库的 `precision` 一致，默认值是 1。
 
 - **start_timestamp** : 每个子表的时间戳起始值，默认值是 now。
 
@@ -473,7 +326,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **count** : 指定该类型列连续出现的数量，例如 "count": 4096 即可生成 4096 个指定类型的列。
 
-- **name** : 列的名字，若与 count 同时使用，比如 "name"："current", "count":3, 则 3 个列的名字分别为 current, current_2. current_3
+- **name** : 列的名字，若与 count 同时使用，比如 "name"："current", "count":3, 则 3 个列的名字分别为 current, current_2. current_3。
 
 - **min** : 数据类型的 列/标签 的最小值。
 
@@ -511,68 +364,68 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 查询子表或者普通表的配置参数在 `specified_table_query` 中设置。
 
-- **query_interval** : 查询时间间隔，单位是秒，默认值为 0
+- **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads** : 执行查询 SQL 的线程数，默认值为 1
+- **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
-  - **sql**: 执行的 SQL 命令，必填
-  - **result**: 保存查询结果的文件，未指定则不保存
+  - **sql**: 执行的 SQL 命令，必填。
+  - **result**: 保存查询结果的文件，未指定则不保存。
 
 #### 查询超级表的配置参数
 
 查询超级表的配置参数在 `super_table_query` 中设置。
 
-- **stblname** : 指定要查询的超级表的名称，必填
+- **stblname** : 指定要查询的超级表的名称，必填。
 
-- **query_interval** : 查询时间间隔，单位是秒，默认值为 0
+- **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads** : 执行查询 SQL 的线程数，默认值为 1
+- **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
     替换为超级表中所有的子表名。
-  - **result** : 保存查询结果的文件，未指定则不保存
+  - **result** : 保存查询结果的文件，未指定则不保存。
 
 ### 订阅场景配置参数
 
-查询场景下 `filetype` 必须设置为 `subscribe`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+订阅场景下 `filetype` 必须设置为 `subscribe`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 执行指定订阅语句的配置参数
 
 订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
 
-- **threads** : 执行 SQL 的线程数，默认为 1
+- **threads** : 执行 SQL 的线程数，默认为 1。
 
-- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0
+- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0。
 
-- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"
+- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
 
-- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"
+- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"。
 
-- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"
+- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"。
 
 - **sqls** ：
-  - **sql** : 执行的 SQL 命令，必填；
-  - **result** : 保存查询结果的文件，未指定则不保存
+  - **sql** : 执行的 SQL 命令，必填。
+  - **result** : 保存查询结果的文件，未指定则不保存。
 
 #### 订阅超级表的配置参数
 
 订阅超级表的配置参数在 `super_table_query` 中设置。
 
-- **stblname** : 要订阅的超级表名称，必填
+- **stblname** : 要订阅的超级表名称，必填。
 
-- **threads** : 执行 SQL 的线程数，默认为 1
+- **threads** : 执行 SQL 的线程数，默认为 1。
 
-- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0
+- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0。
 
-- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"
+- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
 
-- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"
+- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"。
 
-- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"
+- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"。
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
     替换为超级表中所有的子表名。
-  - **result** : 保存查询结果的文件，未指定则不保存
+  - **result** : 保存查询结果的文件，未指定则不保存。

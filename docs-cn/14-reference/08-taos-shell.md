@@ -17,7 +17,7 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 ```bash
 taos
 ```
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](/train-fqa/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
+如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](/train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
