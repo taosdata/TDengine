@@ -21,8 +21,9 @@ static double tlog(double v, double base) {
     return a;
   } else if (isnan(b) || isinf(b)) {
     return b;
+  } else {
+    return a / b;
   }
-  return a / b;
 }
 
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
