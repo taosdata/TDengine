@@ -158,8 +158,7 @@ fn test_options_builder_all() {
         .host("localhost")
         .port(6030u16)
         .username("root")
-        .password("taosdata")
-        .database("log");
+        .password("taosdata");
     let taos = opts.build().unwrap();
     let _res = futures::executor::block_on(taos.query("show databases")).unwrap();
 }

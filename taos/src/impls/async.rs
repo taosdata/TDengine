@@ -78,10 +78,20 @@ impl<'q> AsyncQueryable<'q> for Taos {
     type Error = super::Error;
 
     type AsyncResultSet = AsyncRs<'q>;
+
+    /// Query use taosc query_a API.
     async fn query<T: AsRef<str> + Send>(
         &'q self,
         sql: T,
     ) -> Result<Self::AsyncResultSet, Self::Error> {
+        // todo(3.0): remove these line to use taos_query_a in async/await impl.
+        if crate::client_info().starts_with("3") {
+            let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
+            return Ok(AsyncRs {
+                raw,
+                records: Default::default(),
+            });
+        }
         use tokio::sync::oneshot::{channel, Sender};
         let (sender, rx) = channel::<Result<Self::AsyncResultSet, taos_error::Error>>();
 
@@ -120,8 +130,12 @@ mod tests {
     #[test(crate)]
     async fn async_query_de(taos: &Taos, _database: &str) -> Result<()> {
         use taos_query::AsyncQueryable;
+        taos.exec("create table tb1 (ts timestamp, level tinyint, content varchar(100), dnode_id int, dnode_ep varchar(100))")
+            .await?;
+        taos.exec("insert into tb1 values(now, 1, '', 1, 'abc')")
+            .await?;
         let rs: AsyncRs =
-            <Taos as AsyncQueryable>::query(taos, "select * from log.logs limit 10000")
+            <Taos as AsyncQueryable>::query(taos, "select * from tb1")
                 .await?
                 .into();
 
@@ -141,7 +155,7 @@ mod tests {
         while let Some(block) = rs.block_stream().next().await {
             // let _: Record = record?;
             let des =
-                itertools::Itertools::collect_vec(block.deserialize::<(i64, i32, &str)>().take(1));
+                itertools::Itertools::collect_vec(block.deserialize::<(i64, i32, &str, i32, String)>().take(1));
             log::info!("first row in block: {:?}", des);
         }
         let (blocks, records) = rs.summary();

@@ -20,6 +20,7 @@ fn version2features<V: Into<Version>>(version: V) -> Vec<&'static str> {
     if version.mainline == 3 {
         feats.push("v3");
         feats.push("fetch_raw_block");
+        feats.push("fetch_block_s");
     } else if version.mainline == 2 {
         feats.push("v2");
         if version >= Version::new(2, 4, 0, 4) {

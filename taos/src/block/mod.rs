@@ -59,6 +59,29 @@ impl<'a> Stream for BlockStream<'a> {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
+        // todo(3.0): remove these line to use taos_query_a in async/await impl.
+        if crate::client_info().starts_with("3") {
+            let block = if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
+                log::info!("fetch block: {num_of_rows}");
+                self.records.write().unwrap().push(num_of_rows);
+
+                // let num_of_fields = self.num_of_fields();
+                // let lengths = unsafe { std::slice::from_raw_parts(lengths, num_of_fields) };
+
+                Some(SyncBlock {
+                    raw: self.raw.clone(),
+                    precision: self.raw.precision(),
+                    data,
+                    lengths,
+                    num_of_rows: num_of_rows as _,
+                    _marker: PhantomData,
+                })
+            } else {
+                None
+            };
+            return Poll::Ready(block);
+        }
+
         let mut s = self.state.lock().unwrap();
         unsafe extern "C" fn async_fetch_callback(
             param: *mut c_void,
@@ -101,6 +124,7 @@ impl<'a> Stream for BlockStream<'a> {
             };
             s.waker = Some(cx.waker().clone());
             drop(s);
+
             unsafe {
                 taos_fetch_rows_a(
                     res,

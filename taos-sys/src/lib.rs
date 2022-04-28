@@ -265,14 +265,15 @@ impl RawRes {
     }
 
     #[inline]
-    pub fn fetch_lengths<'t>(&self) -> &'t [i32] {
+    pub fn fetch_lengths(&self) -> *const i32 {
         unsafe {
-            std::slice::from_raw_parts(taos_fetch_lengths(self.as_ptr()), self.field_count() as _)
+            taos_fetch_lengths(self.as_ptr())
         }
     }
     #[inline]
     unsafe fn fetch_lengths_raw(&self) -> *const i32 {
-        taos_fetch_lengths(self.as_ptr())
+        dbg!("call fetch  lengths");
+        dbg!(taos_fetch_lengths(self.as_ptr()))
     }
 
     #[inline]
@@ -288,6 +289,11 @@ impl RawRes {
                 None
             }
         )
+    }
+
+    #[inline]
+    pub fn get_column_data_offset(&self, col: usize) -> *const i32 {
+        unsafe { taos_get_column_data_offset(self.as_ptr(), col as i32) }
     }
 
     #[inline]
