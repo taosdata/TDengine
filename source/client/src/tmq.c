@@ -667,7 +667,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   if (code != 0) goto FAIL;
 
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
-    tscDebug("not ready, retry");
+    tscDebug("consumer not ready, retry");
     taosMsleep(500);
   }
 

@@ -308,6 +308,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.smaId = 0;
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
+  streamObj.trigger = pCreate->triggerType;
+  streamObj.waterMark = pCreate->watermark;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {
