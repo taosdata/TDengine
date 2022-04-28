@@ -842,7 +842,7 @@ static SCliThrdObj* createThrdObj() {
 
   pThrd->pool = createConnPool(4);
 
-  transCreateDelayQueue(pThrd->loop, &pThrd->delayQueue);
+  transDQCreate(pThrd->loop, &pThrd->delayQueue);
 
   pThrd->quit = false;
   return pThrd;
@@ -857,7 +857,7 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   taosThreadMutexDestroy(&pThrd->msgMtx);
   transDestroyAsyncPool(pThrd->asyncPool);
 
-  transDestroyDelayQueue(pThrd->delayQueue);
+  transDQDestroy(pThrd->delayQueue);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
@@ -923,14 +923,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
         arg->param1 = pMsg;
         arg->param2 = pThrd;
-        transPutTaskToDelayQueue(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+        transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
 
         cliDestroy((uv_handle_t*)pConn->stream);
         return -1;
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
-        pEpSet->inUse = (pEpSet->inUse++) % pEpSet->numOfEps;
+        pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
       } else {
         SMEpSet emsg = {0};
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
@@ -940,7 +940,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       arg->param1 = pMsg;
       arg->param2 = pThrd;
 
-      transPutTaskToDelayQueue(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+      transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
       addConnToPool(pThrd, pConn);
       return -1;
     }
