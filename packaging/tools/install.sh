@@ -29,6 +29,9 @@ logDir="/var/log/taos"
 configDir="/etc/taos"
 installDir="/usr/local/taos"
 adapterName="taosadapter"
+benchmarkName="taosBenchmark"
+dumpName="taosdump"
+demoName="taosdemo"
 
 data_dir=${dataDir}
 log_dir=${logDir}
@@ -202,9 +205,9 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
-  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
-  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark || :
-  [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
+  [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
@@ -864,7 +867,7 @@ function updateProduct() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
+  rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
 }
 
 function installProduct() {
@@ -960,7 +963,7 @@ function installProduct() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
+  rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================

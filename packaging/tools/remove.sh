@@ -17,6 +17,9 @@ clientName="taos"
 uninstallScript="rmtaos"
 productName="TDengine"
 adapterName="taosadapter"
+benchmarkName="taosBenchmark"
+dumpName="taosdump"
+demoName="taosdemo"
 
 #install main path
 install_main_dir=${installDir}
@@ -71,9 +74,9 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
@@ -146,7 +149,7 @@ function clean_service_on_systemd() {
 function clean_service_on_sysvinit() {
   if pidof ${serverName} &>/dev/null; then
     echo "${productName} ${serverName} is running, stopping it..."
-    ${csudo}service taosd stop || :
+    ${csudo}service ${serverName} stop || :
   fi
 
   if pidof tarbitrator &>/dev/null; then
