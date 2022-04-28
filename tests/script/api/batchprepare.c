@@ -168,7 +168,7 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {
   .bindNullNum = 0,
   .prepareStb = false,
@@ -190,8 +190,7 @@ CaseCtrl gCaseCtrl = {
 
   .bindColTypeNum = tListLen(bindColTypeList),
   .bindColTypeList = bindColTypeList,
-//  .caseIdx = 22,
-  .caseIdx = 2,
+  .caseIdx = 22,
   .caseNum = 1,
   .caseRunNum = 1,
 
@@ -211,10 +210,10 @@ CaseCtrl gCaseCtrl = {
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
-  .caseIdx = 2,
-  .caseNum = 1,
+  .caseIdx = -1,
+  .caseNum = -1,
   .caseRunIdx = -1,
-  .caseRunNum = 1,
+  .caseRunNum = -1,
 };
 
 #endif

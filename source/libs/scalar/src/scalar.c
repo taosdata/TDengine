@@ -590,7 +590,10 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   if (colDataIsNull_s(output.columnData, 0)) {
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
   } else {
-    res->node.resType = node->node.resType;
+    res->node.resType.type = output.columnData->info.type;
+    res->node.resType.bytes = output.columnData->info.bytes;
+    res->node.resType.scale = output.columnData->info.scale;
+    res->node.resType.precision = output.columnData->info.precision;
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);

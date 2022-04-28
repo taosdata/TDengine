@@ -165,15 +165,35 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+static EDealRes updatePlanQueryId(SNode* pNode, void* pContext) {
+  int64_t queryId = *(uint64_t *)pContext;
+  
+  if (QUERY_NODE_PHYSICAL_PLAN == nodeType(pNode)) {
+    SQueryPlan* planNode = (SQueryPlan*)pNode;
+    planNode->queryId = queryId;
+  } else if (QUERY_NODE_PHYSICAL_SUBPLAN == nodeType(pNode)) {
+    SSubplan* subplanNode = (SSubplan*)pNode;
+    subplanNode->id.queryId = queryId;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId) {
+  int32_t size = taosArrayGetSize(pPlan->pPlaceholderValues);
+
   if (colIdx < 0) {
-    int32_t size = taosArrayGetSize(pPlan->pPlaceholderValues);
     for (int32_t i = 0; i < size; ++i) {
       setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, i), pParams + i);
     }
   } else {
     setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, colIdx), pParams);
   }
+
+  if (colIdx < 0 || ((colIdx + 1) == size)) {
+    nodesWalkPhysiPlan((SNode*)pPlan, updatePlanQueryId, &queryId);
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
