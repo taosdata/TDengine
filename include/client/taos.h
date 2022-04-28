@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-#define TD_DEBUG_PRINT_ROW
-
 typedef void   TAOS;
 typedef void   TAOS_STMT;
 typedef void   TAOS_RES;
