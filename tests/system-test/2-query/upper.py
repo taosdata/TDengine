@@ -100,14 +100,14 @@ class TDTestCase:
 
     def __test_current(self):
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tbname = ["ct1", "ct2", "ct4", "t1"]
+        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
             self.__upper_current_check(tb)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        tbname = ["ct1", "ct2", "ct4", "t1"]
+        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
 
         for tb in tbname:
             for errsql in self.__upper_err_check(tb):
