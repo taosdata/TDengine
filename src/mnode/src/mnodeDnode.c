@@ -1044,7 +1044,7 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
   int32_t numOfRows = 0;
 
   char* pWrite;
-  char* moduleName[5] = { "MNODE", "HTTP", "MONITOR", "MQTT", "UNKNOWN" };
+  char* moduleName[4] = { "MNODE", "HTTP", "MONITOR", "UNKNOWN" };
   int32_t cols;
 
   while (numOfRows < rows) {

@@ -1,67 +1,52 @@
 // compile with
-// gcc connect_example.c -o connect_example -I /usr/local/taos/include -L /usr/local/taos/driver -ltaos
+// gcc -o json_protocol_example json_protocol_example.c -ltaos
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "taos.h"
-#include "taoserror.h"
 
+void executeSQL(TAOS *taos, const char *sql) {
+  TAOS_RES *res = taos_query(taos, sql);
+  int       code = taos_errno(res);
+  if (code != 0) {
+    printf("%s\n", taos_errstr(res));
+    taos_free_result(res);
+    taos_close(taos);
+    exit(EXIT_FAILURE);
+  }
+  taos_free_result(res);
+}
+
+// ANCHOR: main
 int main() {
-  // if don't want to connect to a default db, set it to NULL.
-  const char *db = "test";
-  TAOS       *taos = taos_connect("localhost", "root", "taosdata", db, 6030);
-  printf("Connected\n");
-  char *message[] = {
-"[                                       \
-  {                                      \
-     \"metric\":\"cpu_load_1\",          \
-     \"timestamp\": 1626006833,    \
-     \"value\": 55.5,                    \
-     \"tags\":                           \
-         {                               \
-             \"host\": \"ubuntu\",       \
-             \"interface\": \"eth1\",    \
-             \"Id\": \"tb1\"             \
-         }                               \
-  },                                     \
-  {                                      \
-     \"metric\":\"cpu_load_2\",          \
-     \"timestamp\": 1626006833,    \
-     \"value\": 55.5,                    \
-     \"tags\":                           \
-         {                               \
-             \"host\": \"ubuntu\",       \
-             \"interface\": \"eth2\",    \
-             \"Id\": \"tb2\"             \
-         }                               \
-  }                                      \
- ]",
- "[                                       \
-  {                                      \
-     \"metric\":\"cpu_load_1\",          \
-     \"timestamp\": 1626006834,    \
-     \"value\": 56.5,                    \
-     \"tags\":                           \
-         {                               \
-             \"host\": \"ubuntu\",       \
-             \"interface\": \"eth1\",    \
-             \"Id\": \"tb1\"             \
-         }                               \
-  },                                     \
-  {                                      \
-     \"metric\":\"cpu_load_2\",          \
-     \"timestamp\": 1626006834,    \
-     \"value\": 56.5,                    \
-     \"tags\":                           \
-         {                               \
-             \"host\": \"ubuntu\",       \
-             \"interface\": \"eth2\",    \
-             \"Id\": \"tb2\"             \
-         }                               \
-  }                                      \
- ]"
- };
-void*  code = taos_schemaless_insert(taos, message, 1, 3, NULL);
-if (code) {
-  printf("payload_1 code: %d, %s.\n", code, tstrerror(code));
-}
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", "", 6030);
+  if (taos == NULL) {
+    printf("failed to connect to server\n");
+    exit(EXIT_FAILURE);
+  }
+  executeSQL(taos, "DROP DATABASE IF EXISTS test");
+  executeSQL(taos, "CREATE DATABASE test");
+  executeSQL(taos, "USE test");
+  char *line =
+      "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": "
+      "\"Beijing.Chaoyang\", \"groupid\": 2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, "
+      "\"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}},{\"metric\": \"meters.current\", "
+      "\"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": "
+      "2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": "
+      "\"Beijing.Haidian\", \"groupid\": 1}}]";
+
+  char     *lines[] = {line};
+  TAOS_RES *res = taos_schemaless_insert(taos, lines, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
+  if (taos_errno(res) != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  } else {
+    int affectedRow = taos_affected_rows(res);
+    printf("successfully inserted %d rows\n", affectedRow);
+  }
+  taos_free_result(res);
   taos_close(taos);
+  taos_cleanup();
 }
+// output:
+// successfully inserted 4 rows
+// ANCHOR_END: main

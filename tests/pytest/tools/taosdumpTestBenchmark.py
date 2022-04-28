@@ -50,6 +50,8 @@ class TDTestCase:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
+        if (len(paths) == 0):
+            return ""
         return paths[0]
 
     def insert_data(self, tbname, ts_start, count):

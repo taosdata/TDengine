@@ -15,12 +15,13 @@ def get_connection():
 
 def create_database(conn):
     # the default precision is ms (microsecond), but we use us(microsecond) here.
-    conn.execute("create database test precision 'us'")
-    conn.execute("use test")
+    conn.execute("CREATE DATABASE test precision 'us'")
+    conn.execute("USE test")
 
 
 def insert_lines(conn):
-    affected_rows = conn.schemaless_insert(lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
+    affected_rows = conn.schemaless_insert(
+        lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
     print(affected_rows)  # 8
 
 

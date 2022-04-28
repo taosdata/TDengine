@@ -1,0 +1,3 @@
+// compile with:
+// gcc -o subscribe_demo subscribe_demo.c -ltaos
+// writing...

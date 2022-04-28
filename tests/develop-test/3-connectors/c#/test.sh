@@ -19,8 +19,13 @@ cd ../../
 WKC=`pwd`
 cd ${WKC}/src/connector/C#
 dotnet test
+# run example under Driver
+cd ${WKC}/src/connector/C#/examples 
+dotnet run
+
 #dotnet run --project src/test/Cases/Cases.csproj
 
+# run example with neuget package
 cd ${WKC}/tests/examples/C#
 dotnet run --project C#checker/C#checker.csproj
 dotnet run --project TDengineTest/TDengineTest.csproj

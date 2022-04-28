@@ -54,6 +54,7 @@ typedef struct SCqObj {
   SCqContext *   pContext;
 } SCqObj;
 
+void taos_close_stream(TAOS_STREAM *handle);
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row); 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
 

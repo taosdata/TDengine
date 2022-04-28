@@ -275,20 +275,6 @@ pipeline {
                 }
             }
             parallel {
-                stage ('build worker08_arm32') {
-                    agent {label " worker08_arm32"}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker08_arm32 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
                 stage ('build worker07_arm64') {
                     agent {label " worker07_arm64 "}
                     steps {
