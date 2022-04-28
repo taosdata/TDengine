@@ -11,7 +11,8 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_FLOAT};
+int32_t optrIdxList[] = {3, 5, 2};
 
 typedef struct {
   char*   oper;
@@ -161,6 +162,8 @@ typedef struct {
   int32_t  bindRowNum;           //row num for once bind
   int32_t  bindColTypeNum;
   int32_t* bindColTypeList;
+  int32_t  optrIdxListNum;
+  int32_t* optrIdxList;
   int32_t  runTimes;
   int32_t  caseIdx;              // static case idx
   int32_t  caseNum;              // num in static case list
@@ -180,6 +183,8 @@ CaseCtrl gCaseCtrl = {
   .bindRowNum = 0,
 //  .bindColTypeNum = 0,
 //  .bindColTypeList = NULL,
+//  .optrIdxListNum = 0,
+//  .optrIdxList = NULL,
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
@@ -188,6 +193,11 @@ CaseCtrl gCaseCtrl = {
   .caseRunIdx = -1,
 //  .caseRunNum = -1,
 
+
+  .optrIdxListNum = tListLen(optrIdxList),
+  .optrIdxList = optrIdxList,
+  .bindColTypeNum = tListLen(bindColTypeList),
+  .bindColTypeList = bindColTypeList,
   .caseIdx = 22,
   .caseNum = 1,
   .caseRunNum = 1,
@@ -338,15 +348,19 @@ void generateInsertSQL(BindData *data) {
   }  
 }
 
-void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType) {
+void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType, int32_t idx) {
   OperInfo *pInfo = NULL;
-  
-  if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType) {
-    pInfo = &operInfo[varoperatorList[rand() % tListLen(varoperatorList)]];
-  } else {
-    pInfo = &operInfo[operatorList[rand() % tListLen(operatorList)]];
-  }
 
+  if (gCaseCtrl.optrIdxListNum > 0) {
+    pInfo = &operInfo[gCaseCtrl.optrIdxList[idx]];
+  } else {
+    if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType) {
+      pInfo = &operInfo[varoperatorList[rand() % tListLen(varoperatorList)]];
+    } else {
+      pInfo = &operInfo[operatorList[rand() % tListLen(operatorList)]];
+    }
+  }
+  
   switch (pInfo->paramNum) {
     case 2:
       if (pInfo->enclose) {
@@ -416,7 +430,7 @@ void generateQuerySQL(BindData *data, int32_t tblIdx) {
           exit(1);
       }
       
-      bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type);
+      bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
     }
   }
 

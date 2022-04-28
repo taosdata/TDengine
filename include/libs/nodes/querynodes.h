@@ -88,6 +88,7 @@ typedef struct SValueNode {
     double   d;
     char*    p;
   } datum;
+  int64_t typeData;
   char unit;
 } SValueNode;
 

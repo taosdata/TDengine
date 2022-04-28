@@ -473,27 +473,66 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         break;
       case TSDB_DATA_TYPE_BOOL:
         pVal->datum.b = (0 == strcasecmp(pVal->literal, "true"));
+        *(bool*)&pVal->typeData = pVal->datum.b;
         break;
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_TINYINT:{
+        char* endPtr = NULL;
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int8_t*)&pVal->typeData = pVal->datum.i;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT:{
+        char* endPtr = NULL;
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int16_t*)&pVal->typeData = pVal->datum.i;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT:{
+        char* endPtr = NULL;
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int32_t*)&pVal->typeData = pVal->datum.i;
+        break;
+      }
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
         pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int64_t*)&pVal->typeData = pVal->datum.i;        
         break;
       }
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UTINYINT:{
+        char* endPtr = NULL;
+        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint8_t*)&pVal->typeData = pVal->datum.u;        
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT:{
+        char* endPtr = NULL;
+        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint16_t*)&pVal->typeData = pVal->datum.u;        
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT:{
+        char* endPtr = NULL;
+        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint32_t*)&pVal->typeData = pVal->datum.u;        
+        break;
+      }
       case TSDB_DATA_TYPE_UBIGINT: {
         char* endPtr = NULL;
         pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint64_t*)&pVal->typeData = pVal->datum.u;                
         break;
       }
-      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_FLOAT:{
+        char* endPtr = NULL;
+        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        *(float*)&pVal->typeData = pVal->datum.d;     
+        break;
+      }
       case TSDB_DATA_TYPE_DOUBLE: {
         char* endPtr = NULL;
         pVal->datum.d = strtold(pVal->literal, &endPtr);
+        *(double*)&pVal->typeData = pVal->datum.d;     
         break;
       }
       case TSDB_DATA_TYPE_VARCHAR:
@@ -511,6 +550,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
             TSDB_CODE_SUCCESS) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
+        *(int64_t*)&pVal->typeData = pVal->datum.i;        
         break;
       }
       case TSDB_DATA_TYPE_NCHAR:
