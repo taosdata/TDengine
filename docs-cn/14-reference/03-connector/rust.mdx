@@ -301,7 +301,7 @@ let mut stmt: Stmt = taos.stmt("insert into ? values(?,?)")?;
 
 ```rust
 let mut stmt = taos.stmt("insert into ? using stb0 tags(?) values(?,?)")?;
-// 可以创建任意类型的标签，以 JSON 类型为例。
+// tags can be created with any supported type, here is an example using JSON
 let v = Field::Json(serde_json::from_str("{\"tag1\":\"一二三四五六七八九十\"}").unwrap());
 stmt.set_tbname_tags("tb0", [&tag])?;
 ```
