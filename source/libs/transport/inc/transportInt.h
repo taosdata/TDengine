@@ -62,8 +62,7 @@ typedef struct {
   char ckey[TSDB_PASSWORD_LEN];    // ciphering key
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
-  int (*afp)(void* parent, char* user, char* spi, char* encrypt, char* secret, char* ckey);
-  int (*retry)(void* parent, SRpcMsg*, SEpSet*);
+  bool (*retry)(int32_t code);
 
   int32_t       refCount;
   void*         parent;

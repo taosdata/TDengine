@@ -87,7 +87,7 @@ void sdbCleanup(SSdb *pSdb) {
       SSdbRow *pRow = *ppRow;
       if (pRow == NULL) continue;
 
-      sdbFreeRow(pSdb, pRow);
+      sdbFreeRow(pSdb, pRow, true);
       ppRow = taosHashIterate(hash, ppRow);
     }
   }
