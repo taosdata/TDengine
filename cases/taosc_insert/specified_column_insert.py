@@ -61,7 +61,7 @@ class TestSpecifiedColumnInsert(TDCase):
 
     def run(self):
         self.specified_column_insert()
-        self.dif_update_specified_column()
+        # self.dif_update_specified_column()
 
     def cleanup(self):
         pass

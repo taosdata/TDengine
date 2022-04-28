@@ -26,7 +26,7 @@ class TestTb(TDCase):
         """
         tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int)')
-        self.tdSql.error(f'create table {tbname} (ts timestamp, c1 int)')
+        self.tdSql.execute(f'create table {tbname} (ts timestamp, c1 int)')
         self.tdSql.query('show tables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"]+1, mode="letters")
@@ -119,12 +119,36 @@ class TestTb(TDCase):
                     self.tdSql.error(sql_new)
         self.tdSql.execute(f'drop stable if exists `{dbname}`')
 
+    def comment_check(self):
+        """
+        tb comment check
+        """
+        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        comment = "stb_param_test"
+        self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int) comment "{comment}"')
+        self.tdSql.query('show tables')
+        res = self.tdSql.get_db_field_kv(0, "comment")
+        self.tdSql.checkEqual(res["table_comment"], comment)
+
+    def ttl_check(self):
+        """
+        check ttl
+        """
+        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_ttl = 2
+        self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int) ttl {test_ttl}')
+        self.tdSql.query(f'show tables')
+        res = self.tdSql.get_db_field_kv(0, tbname)
+        self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
+
     def run(self):
-        self.tbname_length_check()
-        self.tbname_with_backquote()
-        self.tbname_without_backquote()
-        self.upper_lower_tbname_check()
+        # self.tbname_length_check()
+        # self.tbname_with_backquote()
+        # self.tbname_without_backquote()
+        # self.upper_lower_tbname_check()
         self.illegal_tbsql_check()
+        # self.comment_check()
+        # self.ttl_check()
 
     def desc(self):
         case_description = """
