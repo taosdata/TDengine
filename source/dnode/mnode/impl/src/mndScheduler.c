@@ -308,8 +308,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         // sink part
         if (level == 0) {
           // only for inplace
-          pTask->sinkType = TASK_SINK__SHOW;
-          pTask->showSink.reserved = 0;
+          pTask->sinkType = TASK_SINK__NONE;
           if (!hasExtraSink) {
 #if 1
             if (pStream->createdBy == STREAM_CREATED_BY__SMA) {
@@ -368,8 +367,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pTask->sourceType = TASK_SOURCE__PIPE;
 
       // sink part
-      pTask->sinkType = TASK_SINK__SHOW;
-      /*pTask->sinkType = TASK_SINK__NONE;*/
+      pTask->sinkType = TASK_SINK__NONE;
 
       // dispatch part
       ASSERT(hasExtraSink);
@@ -456,7 +454,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pTask->sourceType = TASK_SOURCE__MERGE;
 
       // sink part
-      pTask->sinkType = TASK_SINK__SHOW;
+      pTask->sinkType = TASK_SINK__NONE;
 
       // dispatch part
       pTask->dispatchType = TASK_DISPATCH__NONE;

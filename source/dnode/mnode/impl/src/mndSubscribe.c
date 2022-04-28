@@ -452,7 +452,10 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
   }
   // 4. TODO commit log: modification log
 
-  // 5. execution
+  // 5. set cb
+  mndTransSetCb(pTrans, MQ_REB_TRANS_START_FUNC, MQ_REB_TRANS_STOP_FUNC, NULL, 0);
+
+  // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) goto REB_FAIL;
 
   mndTransDrop(pTrans);
@@ -518,9 +521,9 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
   }
 
   // reset flag
-  atomic_store_8(pReq->mqInReb, 0);
   mInfo("mq rebalance completed successfully");
   taosHashCleanup(pReq->rebSubHash);
+  mndRebEnd();
 
   return 0;
 }
