@@ -93,7 +93,7 @@ class TDTestCase:
         tdSql.query("select timezone()*100 from ntb")
         tdSql.checkRows(2)
         tdSql.query("select timezone()/10 from ntb")
-        tdSql.query("select timezone()/0 from ntb")
+        # tdSql.query("select timezone()/0 from ntb")
 
 
         tdSql.query("select timezone()+null from ntb")

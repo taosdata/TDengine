@@ -143,11 +143,7 @@ class TDTestCase:
         # tdSql.checkRows(3)
 
         tdSql.error("select now()+1.5 from ntb")
-        
         tdSql.error("select now()+1.5 from db.ntb")
-        
-
-
         tdSql.error("select now()+'abc' from ntb")
         tdSql.error("select now()+'abc' from db.ntb")
         tdSql.error("select now()+abc from ntb")
