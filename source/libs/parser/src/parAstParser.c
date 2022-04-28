@@ -81,5 +81,5 @@ abort_parse:
     }
     (*pQuery)->pRoot = cxt.pRootNode;
   }
-  return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+  return cxt.errCode;
 }

@@ -45,6 +45,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
   pCxt->placeholderNo = 1;
+  pCxt->errCode = TSDB_CODE_SUCCESS;
 }
 
 static void copyStringFormStringToken(SToken* pToken, char* pBuf, int32_t len) {
@@ -66,7 +67,7 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
     pCxt->valid = false;
   } else {
     if (pUserName->n >= TSDB_USER_LEN) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
       pCxt->valid = false;
     }
   }
@@ -80,13 +81,13 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   if (NULL == pPasswordToken) {
     pCxt->valid = false;
   } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN - 2)) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     pCxt->valid = false;
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
       pCxt->valid = false;
     }
   }
@@ -97,7 +98,7 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, ch
   if (NULL == pEp) {
     pCxt->valid = false;
   } else if (pEp->n >= TSDB_FQDN_LEN + 2 + 6) {  // format 'fqdn:port'
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     pCxt->valid = false;
   } else {
     char ep[TSDB_FQDN_LEN + 2 + 6];
@@ -106,13 +107,13 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, ch
     strtrim(ep);
     char* pColon = strchr(ep, ':');
     if (NULL == pColon) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
       pCxt->valid = false;
     } else {
       strncpy(pFqdn, ep, pColon - ep);
       *pPort = strtol(pColon + 1, NULL, 10);
       if (*pPort >= UINT16_MAX || *pPort <= 0) {
-        generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
+        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
         pCxt->valid = false;
       }
     }
@@ -125,7 +126,7 @@ static bool checkFqdn(SAstCreateContext* pCxt, const SToken* pFqdn) {
     pCxt->valid = false;
   } else {
     if (pFqdn->n >= TSDB_FQDN_LEN) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
       pCxt->valid = false;
     }
   }
@@ -138,7 +139,7 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
   } else {
     *pPort = strtol(pPortToken->z, NULL, 10);
     if (*pPort >= UINT16_MAX || *pPort <= 0) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
       pCxt->valid = false;
     }
   }
@@ -148,13 +149,13 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
   if (NULL == pDbName) {
     if (query && NULL == pCxt->pQueryCxt->db) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
       pCxt->valid = false;
     }
   } else {
     trimEscape(pDbName);
     if (pDbName->n >= TSDB_DB_NAME_LEN) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
       pCxt->valid = false;
     }
   }
@@ -164,7 +165,7 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
   trimEscape(pTableName);
   if (NULL != pTableName && pTableName->n >= TSDB_TABLE_NAME_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
     pCxt->valid = false;
     return false;
   }
@@ -174,7 +175,7 @@ static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
   trimEscape(pColumnName);
   if (NULL != pColumnName && pColumnName->n >= TSDB_COL_NAME_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
     pCxt->valid = false;
     return false;
   }
@@ -184,7 +185,7 @@ static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
 static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
   trimEscape(pIndexName);
   if (NULL != pIndexName && pIndexName->n >= TSDB_INDEX_NAME_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
     pCxt->valid = false;
     return false;
   }

@@ -23,16 +23,29 @@
 using namespace std;
 using namespace testing;
 
-#define DO_WITH_THROW(func, ...)                                                                                   \
-  do {                                                                                                             \
-    int32_t code__ = func(__VA_ARGS__);                                                                            \
-    if (TSDB_CODE_SUCCESS != code__) {                                                                             \
-      throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " code:" + to_string(code__) +                      \
-                          ", strerror:" + string(tstrerror(code__)) + ", msg:" + string(stmtEnv_.msgBuf_.data())); \
-    }                                                                                                              \
+namespace ParserTest {
+
+#define DO_WITH_THROW(func, ...)                                                                                     \
+  do {                                                                                                               \
+    int32_t code__ = func(__VA_ARGS__);                                                                              \
+    if (!checkResultCode(#func, code__)) {                                                                           \
+      if (TSDB_CODE_SUCCESS != code__) {                                                                             \
+        throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " code:" + to_string(code__) +                      \
+                            ", strerror:" + string(tstrerror(code__)) + ", msg:" + string(stmtEnv_.msgBuf_.data())); \
+      } else {                                                                                                       \
+        throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " expect " + to_string(stmtEnv_.expect_) +          \
+                            " actual " + to_string(code__));                                                         \
+      }                                                                                                              \
+    } else if (TSDB_CODE_SUCCESS != code__) {                                                                        \
+      throw TerminateFlag();                                                                                         \
+    }                                                                                                                \
   } while (0);
 
 bool g_isDump = false;
+
+struct TerminateFlag : public exception {
+  const char* what() const throw() { return "success and terminate"; }
+};
 
 class ParserTestBaseImpl {
  public:
@@ -41,8 +54,8 @@ class ParserTestBaseImpl {
     caseEnv_.db_ = db;
   }
 
-  void run(const string& sql) {
-    reset();
+  void run(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage);
     try {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt);
@@ -57,6 +70,9 @@ class ParserTestBaseImpl {
       if (g_isDump) {
         dump();
       }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
     } catch (...) {
       dump();
       throw;
@@ -72,6 +88,8 @@ class ParserTestBaseImpl {
   struct stmtEnv {
     string            sql_;
     array<char, 1024> msgBuf_;
+    int32_t           expect_;
+    string            checkFunc_;
   };
 
   struct stmtRes {
@@ -80,9 +98,34 @@ class ParserTestBaseImpl {
     string calcConstAst_;
   };
 
-  void reset() {
+  bool checkResultCode(const string& pFunc, int32_t resultCode) {
+    return !(stmtEnv_.checkFunc_.empty())
+               ? (("*" == stmtEnv_.checkFunc_ || stmtEnv_.checkFunc_ == pFunc) ? stmtEnv_.expect_ == resultCode
+                                                                               : TSDB_CODE_SUCCESS == resultCode)
+               : true;
+  }
+
+  string stageFunc(ParserStage stage) {
+    switch (stage) {
+      case PARSER_STAGE_PARSE:
+        return "parse";
+      case PARSER_STAGE_TRANSLATE:
+        return "translate";
+      case PARSER_STAGE_CALC_CONST:
+        return "calculateConstant";
+      case PARSER_STAGE_ALL:
+        return "*";
+      default:
+        break;
+    }
+    return "unknown";
+  }
+
+  void reset(int32_t expect, ParserStage checkStage) {
     stmtEnv_.sql_.clear();
     stmtEnv_.msgBuf_.fill(0);
+    stmtEnv_.expect_ = expect;
+    stmtEnv_.checkFunc_ = stageFunc(checkStage);
 
     res_.parsedAst_.clear();
     res_.translatedAst_.clear();
@@ -146,4 +189,8 @@ ParserTestBase::~ParserTestBase() {}
 
 void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
 
-void ParserTestBase::run(const std::string& sql) { return impl_->run(sql); }
+void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->run(sql, expect, checkStage);
+}
+
+}  // namespace ParserTest
