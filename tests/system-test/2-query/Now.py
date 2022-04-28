@@ -142,10 +142,10 @@ class TDTestCase:
         # tdSql.query("select now()+9223372036854775807 from ntb")
         # tdSql.checkRows(3)
 
-        tdSql.query("select now()+1.5 from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select now()+1.5 from db.ntb")
-        tdSql.checkRows(3)
+        tdSql.error("select now()+1.5 from ntb")
+        
+        tdSql.error("select now()+1.5 from db.ntb")
+        
 
 
         tdSql.error("select now()+'abc' from ntb")
