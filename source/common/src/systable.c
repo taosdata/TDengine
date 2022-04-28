@@ -77,11 +77,11 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "ntables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "replica", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "strict", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "days", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "duration", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "cache", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "page_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "blocks", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "buffer", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "pagesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "pages", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "minrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "maxrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
@@ -90,7 +90,6 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "stream_mode", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
 };
