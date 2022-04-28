@@ -3739,7 +3739,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
 }
 
 // NOTE: sources columns are more than the destination SSDatablock columns.
-static void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
+void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
   size_t numOfSrcCols = taosArrayGetSize(pCols);
   ASSERT(numOfSrcCols >= pBlock->info.numOfCols);
 
