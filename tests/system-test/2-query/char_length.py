@@ -26,7 +26,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __char_char_length_condition(self):
+    def __char_length_condition(self):
         char_length_condition = []
         for char_col in CHAR_COL:
             char_length_condition.extend(
