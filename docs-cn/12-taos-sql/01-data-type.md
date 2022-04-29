@@ -1,6 +1,7 @@
 ---
 sidebar_label: 支持的数据类型
 title: 支持的数据类型
+description: "TDengine 支持的数据类型: 时间戳、浮点型、JSON 类型等"
 ---
 
 使用 TDengine，最重要的是时间戳。创建并插入记录、查询历史记录的时候，均需要指定时间戳。时间戳有如下规则：
@@ -13,7 +14,7 @@ title: 支持的数据类型
 
 TDengine 缺省的时间戳精度是毫秒，但通过在 `CREATE DATABASE` 时传递的 PRECISION 参数也可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度）
 
-```
+```sql
 CREATE DATABASE db_name PRECISION 'ns';
 ```
 
@@ -31,9 +32,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 | 8   |  TINYINT  | 1         | 单字节整型，范围 [-127, 127], -128 用作 NULL                                                                                                                                                                                                                                                                                                                                                                     |
 | 9   |   BOOL    | 1         | 布尔型，{true, false}                                                                                                                                                                                                                                                                                                                                                                                            |
 | 10  |   NCHAR   | 自定义    | 记录包含多字节字符在内的字符串，如中文字符。每个 nchar 字符占用 4 bytes 的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 `\’`。nchar 使用时须指定字符串大小，类型为 nchar(10) 的列表示此列的字符串最多存储 10 个 nchar 字符，会固定占用 40 bytes 的空间。如果用户字符串长度超出声明长度，将会报错。                                                                                            |
-| 11  |   JSON    |           | json 数据类型， 只有 tag 可以是 json 格式                                                                                                                                                                                                                                                                                                                                                                    |
-
-<!-- REPLACE_OPEN_TO_ENTERPRISE__COLUMN_TYPE_ADDONS -->
+| 11  |   JSON    |           | json 数据类型， 只有 tag 可以是 json 格式                                                                                                                                                                                                                                                                                                                                                                        |
 
 :::tip
 TDengine 对 SQL 语句中的英文字符不区分大小写，自动转化为小写执行。因此用户大小写敏感的字符串及密码，需要使用单引号将字符串引起来。

@@ -1,5 +1,6 @@
 ---
 title: 文件目录结构
+description: "TDengine 安装目录说明"
 ---
 
 安装 TDengine 后，默认会在操作系统中生成下列目录或文件：

@@ -1,6 +1,7 @@
 ---
 sidebar_label: 数据库管理
 title: 数据库管理
+description: "创建、删除数据库，查看、修改数据库参数"
 ---
 
 ## 创建数据库
