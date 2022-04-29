@@ -162,6 +162,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef __cplusplus
 }

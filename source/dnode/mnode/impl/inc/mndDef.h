@@ -257,26 +257,23 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  streamMode;
-  int8_t  singleSTable;
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
@@ -316,7 +313,6 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
-  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -514,12 +510,12 @@ void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp);
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
   SArray* vgs;         // SArray<SMqVgEp*>
-} SMqConsumerEpInSub;
+} SMqConsumerEp;
 
-SMqConsumerEpInSub* tCloneSMqConsumerEpInSub(const SMqConsumerEpInSub* pEpInSub);
-void                tDeleteSMqConsumerEpInSub(SMqConsumerEpInSub* pEpInSub);
-int32_t             tEncodeSMqConsumerEpInSub(void** buf, const SMqConsumerEpInSub* pEpInSub);
-void*               tDecodeSMqConsumerEpInSub(const void* buf, SMqConsumerEpInSub* pEpInSub);
+SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
+void           tDeleteSMqConsumerEp(SMqConsumerEp* pEp);
+int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
+void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -529,9 +525,8 @@ typedef struct {
   int8_t    withTbName;
   int8_t    withSchema;
   int8_t    withTag;
-  SHashObj* consumerHash;  // consumerId -> SMqConsumerEpInSub
-  // TODO put -1 into unassignVgs
-  // SArray*   unassignedVgs;
+  SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
+  SArray*   unassignedVgs;  // SArray<SMqVgEp*>
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
@@ -542,7 +537,7 @@ void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub);
 
 typedef struct {
   int32_t epoch;
-  SArray* consumers;  // SArray<SMqConsumerEpInSub*>
+  SArray* consumers;  // SArray<SMqConsumerEp*>
 } SMqSubActionLogEntry;
 
 SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
@@ -583,8 +578,9 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  char     outputSTbName[TSDB_TABLE_FNAME_LEN];
+  char     sourceDb[TSDB_DB_FNAME_LEN];
+  char     targetDb[TSDB_DB_FNAME_LEN];
+  char     targetSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t  createTime;
   int64_t  updateTime;
   int64_t  uid;

@@ -7,6 +7,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "scalar.h"
+#include "tudf.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type 
@@ -336,14 +337,12 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
 
   if (fmIsUserDefinedFunc(node->funcId)) {
-#if 0  
     UdfcFuncHandle udfHandle = NULL;
     
     SCL_ERR_JRET(setupUdf(node->functionName, &udfHandle));
     code = callUdfScalarFunc(udfHandle, params, paramNum, output);
     teardownUdf(udfHandle);
     SCL_ERR_JRET(code);
-#endif    
   } else {
     SScalarFuncExecFuncs ffpSet = {0};
     code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
