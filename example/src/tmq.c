@@ -14,7 +14,9 @@
  */
 
 #include <assert.h>
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "taos.h"
@@ -24,7 +26,7 @@ static void msg_process(TAOS_RES* msg) {
   char buf[1024];
   memset(buf, 0, 1024);
   printf("topic: %s\n", tmq_get_topic_name(msg));
-  printf("vg:%d\n", tmq_get_vgroup_id(msg));
+  printf("vg: %d\n", tmq_get_vgroup_id(msg));
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
     if (row == NULL) break;
@@ -141,7 +143,7 @@ int32_t create_topic() {
 }
 
 void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  printf("commit %d\n", resp);
+  printf("commit %d tmq %p offsets %p param %p\n", resp, tmq, offsets, param);
 }
 
 tmq_t* build_consumer() {
@@ -232,6 +234,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
+      tmq_commit(tmq, NULL, 1);
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }

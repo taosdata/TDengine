@@ -377,7 +377,15 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (pParam->tmq->commitCb) {
     pParam->tmq->commitCb(pParam->tmq, pParam->rspErr, NULL, pParam->tmq->commitCbUserParam);
   }
-  if (!pParam->async) tsem_post(&pParam->rspSem);
+  if (!pParam->async)
+    tsem_post(&pParam->rspSem);
+  else {
+    tsem_destroy(&pParam->rspSem);
+    /*if (pParam->pArray) {*/
+    /*taosArrayDestroy(pParam->pArray);*/
+    /*}*/
+    taosMemoryFree(pParam);
+  }
   return 0;
 }
 
@@ -560,7 +568,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
     tscError("failed to malloc request");
   }
 
-  SMqCommitCbParam* pParam = taosMemoryMalloc(sizeof(SMqCommitCbParam));
+  SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
   if (pParam == NULL) {
     return -1;
   }
@@ -575,6 +583,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   };
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+  sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
   sendInfo->fp = tmqCommitCb;
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
@@ -585,13 +594,12 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   if (!async) {
     tsem_wait(&pParam->rspSem);
     resp = pParam->rspErr;
-  }
+    tsem_destroy(&pParam->rspSem);
+    taosMemoryFree(pParam);
 
-  tsem_destroy(&pParam->rspSem);
-  taosMemoryFree(pParam);
-
-  if (pArray) {
-    taosArrayDestroy(pArray);
+    if (pArray) {
+      taosArrayDestroy(pArray);
+    }
   }
 
   return resp;
@@ -1313,7 +1321,7 @@ const char* tmq_err2str(tmq_resp_err_t err) {
 const char* tmq_get_topic_name(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     SMqRspObj* pRspObj = (SMqRspObj*)res;
-    return pRspObj->topic;
+    return strchr(pRspObj->topic, '.') + 1;
   } else {
     return NULL;
   }
