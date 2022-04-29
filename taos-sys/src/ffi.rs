@@ -173,6 +173,9 @@ extern "C" {
     pub fn taos_errstr(tres: *mut TAOS_RES) -> *mut c_char;
 
     pub fn taos_errno(tres: *mut TAOS_RES) -> c_int;
+
+    #[cfg(taos_v3)]
+    pub fn taos_get_column_data_offset(res: *mut TAOS_RES, col: i32) -> *mut i32;
 }
 
 #[c_cfg(taos_fetch_raw_block)]

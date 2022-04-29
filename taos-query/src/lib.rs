@@ -293,7 +293,7 @@ pub trait BlockExt: Debug + Sized {
     }
 }
 
-pub trait ResultSet
+pub trait Fetchable
 where
     Self: Sized,
     for<'r> &'r mut Self: Iterator,
@@ -315,6 +315,12 @@ where
 
     fn blocks_iter(&mut self) -> &mut Self {
         self
+    }
+
+    fn to_rows_vec(&mut self) -> Vec<Vec<Value>> {
+        self.rows_iter()
+            .map(|row| row.into_iter().map(|(_, v)| v.into_value()).collect())
+            .collect()
     }
 
     fn rows_iter<'r>(
@@ -349,7 +355,7 @@ where
 {
     type Error: Debug + From<serde::de::value::Error>;
     // type B: for<'b> BlockExt<'b, 'b>;
-    type ResultSet: ResultSet;
+    type ResultSet: Fetchable;
 
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
 
@@ -363,7 +369,6 @@ where
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
     }
 
-
     fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
         self.query(sql).map(|res| res.affected_rows() as _)
     }
@@ -376,7 +381,7 @@ where
     }
 }
 
-pub trait AsyncResultSet: Send
+pub trait AsyncFetchable: Send
 where
     Self::BlockStream: futures::stream::Stream + Send,
     for<'b> <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
@@ -401,7 +406,7 @@ where
     fn deserialize_stream<'a, T>(
         &'a mut self,
     ) -> futures::stream::FlatMap<
-        <Self as AsyncResultSet>::BlockStream,
+        <Self as AsyncFetchable>::BlockStream,
         futures::stream::Iter<std::vec::IntoIter<Result<T, DeError>>>,
         fn(
             <Self::BlockStream as futures::stream::Stream>::Item,
@@ -421,13 +426,13 @@ where
 #[async_trait]
 pub trait AsyncQueryable<'q>: Send + Sync
 where
-    <Self::AsyncResultSet as AsyncResultSet>::BlockStream: 'q + futures::stream::Stream,
-    for<'b> <<Self::AsyncResultSet as AsyncResultSet>::BlockStream as futures::stream::Stream>::Item:
+    <Self::AsyncResultSet as AsyncFetchable>::BlockStream: 'q + futures::stream::Stream,
+    for<'b> <<Self::AsyncResultSet as AsyncFetchable>::BlockStream as futures::stream::Stream>::Item:
         BlockExt + Send,
 {
     type Error: Debug + From<serde::de::value::Error> + From<anyhow::Error> + Send;
     // type B: for<'b> BlockExt<'b, 'b>;
-    type AsyncResultSet: AsyncResultSet;
+    type AsyncResultSet: AsyncFetchable;
 
     async fn query<T: AsRef<str> + Send>(
         &'q self,
@@ -435,22 +440,23 @@ where
     ) -> Result<Self::AsyncResultSet, Self::Error>;
 
     async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        let sql = sql.as_ref();
+        log::trace!("exec sql: {sql}");
         self.query(sql).await.map(|res| res.affected_rows() as _)
     }
 
-
     /// To conveniently get first row of the result, useful for queries like
-    /// 
+    ///
     /// - `select count(*) from ...`
     /// - `select last(*) from ...`
-    /// 
+    ///
     /// Type `T` could be `Vec<taos::query::common::Value>`, a tuple, or a struct with serde support.
-    /// 
+    ///
     /// ## Example
-    /// 
+    ///
     /// ```rust,ignore
     /// let count: u32 = taos.query_one("select count(*) from table1")?.unwrap();
-    /// 
+    ///
     /// let one: (i32, String, Timestamp) =
     ///    taos.query_one("select c1,c2,c3 from table1 limit 1")?.unwrap();
     /// ```
@@ -459,10 +465,12 @@ where
         sql: T,
     ) -> Result<Option<O>, Self::Error> {
         use futures::StreamExt;
-        self.query(sql).await?
+        self.query(sql)
+            .await?
             .deserialize_stream::<O>()
             .take(1)
-            .collect::<Vec<_>>().await
+            .collect::<Vec<_>>()
+            .await
             .into_iter()
             .next()
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
@@ -636,7 +644,7 @@ mod tests {
         }
     }
 
-    impl<'r, 'q> crate::ResultSet for MyResultSet<'q> {
+    impl<'r, 'q> crate::Fetchable for MyResultSet<'q> {
         fn fields(&self) -> &[Field] {
             todo!()
         }

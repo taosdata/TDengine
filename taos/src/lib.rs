@@ -1,8 +1,8 @@
-use std::{sync::Once};
+use std::sync::Once;
 
 pub use taos_error::*;
-use taos_sys::*;
 pub use taos_query as query;
+use taos_sys::*;
 
 macro_rules! err {
     (custom $err:expr) => {
@@ -27,9 +27,8 @@ pub use options::TaosOptions;
 mod util;
 use util::*;
 
-pub mod future;
-
-pub mod async_query;
+// deprecated method.
+mod async_query;
 
 pub mod helpers;
 
@@ -194,10 +193,7 @@ impl Taos {
     }
 }
 
-pub use result::*;
-
 pub mod block;
-pub use block::Value;
 
 pub fn client_info() -> &'static str {
     static ONCE: Once = Once::new();
@@ -228,8 +224,8 @@ pub mod prelude {
     //!     taos.exec("create database test_prelude precision 'us'").await?;
     //!     taos.exec("use test_prelude").await?;
     //!     taos.exec("create stable meters (ts timestamp, current float, voltage int, phase float) \
-    //!                tags(groupid int, location binary(16))").await?;
-    //!     let count: u32 = taos.query_one("select count(*) from meters").await?.unwrap();
+    //!                tags(gid int, location binary(16))").await?;
+    //!     let count: u32 = taos.query_one("select count(*) from meters").await?.unwrap_or(0);
     //!     assert!(count == 0);
     //!
     //!     let results = taos.query("select * from meters").await?;
@@ -238,20 +234,22 @@ pub mod prelude {
     //!     Ok(())
     //! }
     //! ```
+    pub use crate::impls::ResultSet;
     pub use crate::options::TaosOptions;
     pub use crate::Taos;
     pub use taos_query::common::{Precision, Timestamp, Ty, Value};
-    pub use taos_query::{common, AsyncQueryable, AsyncResultSet, BlockCodec, BlockExt};
+    pub use taos_query::{common, AsyncFetchable, AsyncQueryable, BlockCodec, BlockExt};
 
     #[cfg(feature = "r2d2")]
     pub use crate::r2d2::TaosPool;
 
     pub mod sync {
 
+        pub use crate::impls::ResultSet;
         pub use crate::options::TaosOptions;
         pub use crate::Taos;
         pub use taos_query::common::{Precision, Timestamp, Ty, Value};
-        pub use taos_query::{common, BlockCodec, BlockExt, Queryable, ResultSet};
+        pub use taos_query::{common, BlockCodec, BlockExt, Fetchable, Queryable};
 
         #[cfg(feature = "r2d2")]
         pub use crate::r2d2::TaosPool;

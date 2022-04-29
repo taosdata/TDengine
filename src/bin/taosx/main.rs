@@ -1,6 +1,5 @@
 mod commands;
 use clap::{Parser, Subcommand};
-use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use taosx::TaosOpts;
 #[derive(Parser, Debug)]

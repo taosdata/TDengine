@@ -1,10 +1,16 @@
-use std::{ffi::c_void, slice, sync::Arc};
+use std::{
+    ffi::c_void,
+    marker::PhantomData,
+    slice,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use bitvec_simd::BitVec;
 use itertools::Itertools;
+use taos_error::Code;
 use thiserror::Error;
 
-use taos_query::{common::*, BlockExt, Queryable, ResultSet};
+use taos_query::{common::*, BlockExt, Fetchable, Queryable};
 use taos_sys::{DroppableRawRes, RawRes};
 
 use crate::{util::IntoCStr, Taos};
@@ -22,28 +28,52 @@ pub enum Error {
 // A result should not be clone-able.
 // Result set live shorter than query lifetime.
 #[derive(Debug)]
-pub struct SyncResultSet<'q> {
+pub struct ResultSet<'q> {
     raw: DroppableRawRes<'q>,
-    records: Arc<Vec<i32>>,
+    summary: Arc<(AtomicU64, AtomicU64)>,
 }
 
-impl<'q> SyncResultSet<'q> {
+impl<'q> ResultSet<'q> {
     pub(crate) fn from_ptr(ptr: *mut c_void) -> Result<Self, taos_error::Error> {
         let raw = RawRes::from_ptr(ptr).map(DroppableRawRes::new)?;
-        Ok(SyncResultSet {
+        Ok(ResultSet {
             raw,
-            records: Arc::new(Vec::new())
+            summary: Default::default(),
         })
+    }
+    pub(crate) fn from_ptr_with_code(
+        ptr: *mut c_void,
+        code: impl Into<Code>,
+    ) -> Result<Self, taos_error::Error> {
+        let raw = RawRes::from_ptr_with_code(ptr, code.into()).map(DroppableRawRes::new)?;
+        Ok(ResultSet {
+            raw,
+            summary: Default::default(),
+        })
+    }
+
+    pub(crate) fn new(raw: DroppableRawRes<'q>) -> Self {
+        Self {
+            raw,
+            summary: Default::default(),
+        }
+    }
+
+    pub(crate) fn append_num_of_rows(&self, num_of_rows: i32) {
+        use std::sync::atomic::Ordering::SeqCst;
+        self.summary.0.fetch_add(1, SeqCst);
+        self.summary.1.fetch_add(num_of_rows as _, SeqCst);
     }
 }
 
 #[derive(Debug)]
 pub struct SyncBlock<'r> {
-    raw: Arc<RawRes>,
-    precision: Precision,
-    data: *mut *mut c_void,
-    lengths: &'r [i32],
-    num_of_rows: usize,
+    pub raw: Arc<RawRes>,
+    pub precision: Precision,
+    pub data: *mut *mut c_void,
+    pub lengths: *const i32,
+    pub num_of_rows: usize,
+    pub _marker: PhantomData<&'r u8>,
 }
 
 unsafe impl<'r> Send for SyncBlock<'r> {}
@@ -70,6 +100,7 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
 
     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue) {
         let inner = self.data.add(col);
+        // log::debug!("inner: {inner:?} at ({row}, {col})");
 
         let field = self.get_field_unchecked(col);
         let is_null = self.is_null(row, col);
@@ -87,6 +118,29 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
             };
         }
 
+        let read_bytes_from_ptr = |inner: *mut *mut c_void, col: usize| {
+            if crate::client_info().starts_with("3") {
+                let offsets = self.raw.get_column_data_offset(col);
+                let offset = offsets.add(row).read();
+                if offset == -1 {
+                    "".as_bytes()
+                } else {
+                    let ptr = (*inner as *const u8).add(offset as usize);
+                    let len = ptr.cast::<i16>().read();
+                    let start = ptr.offset(2);
+
+                    slice::from_raw_parts(start, len as _)
+                }
+            } else {
+                let length = *self.lengths.add(col) as usize;
+                let ptr = (*inner as *const u8).add(row * length as usize);
+                let len = ptr.cast::<i16>().read();
+                let start = ptr.offset(2);
+
+                slice::from_raw_parts(start, len as _)
+            }
+        };
+
         let value = match field.ty() {
             Ty::Null => BorrowedValue::Null,
             Ty::Bool => parse_cell!(Bool, bool),
@@ -102,28 +156,16 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
             Ty::Double => parse_cell!(Double, f64),
             Ty::Timestamp => {
                 let raw = (*inner as *const i64).add(row).read();
-                // use: self.res.precision()
-                let precision = Precision::Microsecond;
+                let precision = self.precision();
                 BorrowedValue::Timestamp(Timestamp::new(raw, precision))
             }
-            Ty::VarChar | Ty::NChar => {
-                let length = *self.lengths.get_unchecked(col) as usize;
-                let ptr = (*inner as *const u8).add(row * length as usize);
-                let len = ptr.cast::<i16>().read();
-                let start = ptr.offset(2);
-
-                BorrowedValue::VarChar(std::str::from_utf8_unchecked(slice::from_raw_parts(
-                    start, len as _,
-                )))
-            }
-            Ty::Json => {
-                let length = *self.lengths.get_unchecked(col) as usize;
-                let ptr = (*inner as *const u8).add(row * length as usize);
-                let len = ptr.cast::<i16>().read();
-                let start = ptr.offset(2);
-
-                BorrowedValue::Json(slice::from_raw_parts(start, len as _).into())
-            }
+            Ty::VarChar => BorrowedValue::VarChar(std::str::from_utf8_unchecked(
+                read_bytes_from_ptr(inner, col),
+            )),
+            Ty::NChar => BorrowedValue::NChar(std::str::from_utf8_unchecked(read_bytes_from_ptr(
+                inner, col,
+            ))),
+            Ty::Json => BorrowedValue::Json(read_bytes_from_ptr(inner, col).into()),
             _ => BorrowedValue::Null,
         };
         (field as _, value)
@@ -163,7 +205,7 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
                 BorrowedColumn::Timestamp(is_nulls, raw)
             }
             Ty::VarChar => {
-                let length = self.lengths.get_unchecked(col);
+                let length = self.lengths.add(col);
                 let item = (0..num_of_rows)
                     .map(|n| {
                         let ptr = (*inner as *const u8).offset(n as isize * *length as isize);
@@ -180,7 +222,7 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
                 BorrowedColumn::Binary(item)
             }
             Ty::NChar => {
-                let length = self.lengths.get_unchecked(col);
+                let length = self.lengths.add(col);
                 let item = (0..num_of_rows)
                     .map(|n| {
                         let ptr = (*inner as *const u8).offset(n as isize * *length as isize);
@@ -203,7 +245,7 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
     }
 }
 
-impl<'q> ResultSet for SyncResultSet<'q> {
+impl<'q> Fetchable for ResultSet<'q> {
     fn fields(&self) -> &[Field] {
         &self.raw.fields()
     }
@@ -213,12 +255,10 @@ impl<'q> ResultSet for SyncResultSet<'q> {
     }
 
     fn summary(&self) -> (usize, usize) {
+        use std::sync::atomic::Ordering::SeqCst;
         (
-            self.records.len(),
-            self.records.iter().fold(0, |mut acc, v| {
-                acc += *v as usize;
-                acc
-            }),
+            self.summary.0.load(SeqCst) as _,
+            self.summary.1.load(SeqCst) as _,
         )
     }
 
@@ -227,16 +267,13 @@ impl<'q> ResultSet for SyncResultSet<'q> {
     }
 }
 
-impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
+impl<'r, 'q> Iterator for &'r mut ResultSet<'q> {
     type Item = SyncBlock<'r>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
-            dbg!(num_of_rows);
-            Arc::<Vec<i32>>::get_mut(&mut self.records).map(|records| records.push(num_of_rows));
-
-            let num_of_fields = self.num_of_fields();
-            let lengths = unsafe { std::slice::from_raw_parts(lengths, num_of_fields) };
+            log::info!("fetch block: {num_of_rows}");
+            self.append_num_of_rows(num_of_rows);
 
             Some(SyncBlock {
                 raw: self.raw.raw(),
@@ -244,7 +281,7 @@ impl<'r, 'q> Iterator for &'r mut SyncResultSet<'q> {
                 data,
                 lengths,
                 num_of_rows: num_of_rows as _,
-                // _marker: PhantomData,
+                _marker: PhantomData,
             })
         } else {
             None
@@ -268,7 +305,7 @@ impl<'r, 'q> SyncBlock<'r> {
                 precision: precision,
                 lengths,
                 num_of_rows: num_of_rows as _,
-                // _marker: PhantomData,
+                _marker: PhantomData,
             })
         } else {
             None
@@ -288,20 +325,26 @@ impl<'r, 'q> SyncBlock<'r> {
 impl<'q> Queryable<'q> for Taos {
     type Error = Error;
 
-    type ResultSet = SyncResultSet<'q>;
+    type ResultSet = ResultSet<'q>;
 
-    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<SyncResultSet<'q>, Self::Error> {
+    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<ResultSet<'q>, Self::Error> {
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
-        Ok(SyncResultSet {
-            raw,
-            records: Default::default(),
-        })
+        Ok(ResultSet::new(raw))
     }
 }
 
-#[taos_macros::test(crate, log_level = "trace")]
+#[taos_macros::test(log_level = "debug")]
 fn show_databases(taos: &Taos) -> Result<(), Error> {
     let mut rs = <Taos as Queryable>::query(taos, "show databases")?;
+
+    log::debug!("{rs:?}");
+
+    let fields = rs.fields();
+
+    log::debug!("fields[{}]: {fields:?}", fields.len());
+
+    let precision = rs.precision();
+    log::debug!("precision: {}", precision);
 
     #[derive(Debug, serde::Deserialize)]
     #[allow(dead_code)]
@@ -311,16 +354,16 @@ fn show_databases(taos: &Taos) -> Result<(), Error> {
     }
 
     for record in rs.deserialize() {
-        let _: Record = record?;
+        let record: Record = record?;
+        println!("{record:?}");
     }
 
-    assert_eq!(rs.summary(), (0, 0));
     Ok(())
 }
 
-#[taos_macros::test(crate, log_level = "info")]
-fn sync_query_on_non_queryable_sql(taos: &Taos, _database: &str) -> Result<(), Error> {
-    let mut rs = <Taos as Queryable>::query(taos, "use log")?;
+#[taos_macros::test(crate, log_level = "trace")]
+fn sync_query_on_non_queryable_sql(taos: &Taos, database: &str) -> Result<(), Error> {
+    let mut rs = <Taos as Queryable>::query(taos, format!("use {database}"))?;
 
     assert!(rs.precision() == Precision::Millisecond); // `ms` is the default precision.
     assert!(rs.fields().len() == 0);
@@ -338,6 +381,7 @@ fn sync_query_on_non_queryable_sql(taos: &Taos, _database: &str) -> Result<(), E
         let _: Record = record?;
     }
 
+    // Queried 0 rows.
     assert_eq!(rs.summary(), (0, 0));
     Ok(())
 }
@@ -385,4 +429,4 @@ fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Error> {
     Ok(())
 }
 
-mod r#async;
+pub(crate) mod asyncs;

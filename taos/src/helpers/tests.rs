@@ -3,7 +3,7 @@ use std::{io::Write, ops::Deref, str::FromStr, sync::Once};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 
-use crate::prelude::*;
+use crate::prelude::sync::*;
 
 use anyhow::Result;
 
@@ -62,8 +62,8 @@ impl NamingStrategy {
                     .chars()
                     .collect();
                 for _ in 0..uuid.len() {
-                    log::trace!("uuid: {}", String::from_iter(uuid.clone()));
                     if uuid[0].is_alphabetic() {
+                        log::trace!("create database with name: {}", String::from_iter(uuid.clone()));
                         break;
                     } else {
                         uuid.rotate_left(1);
@@ -321,6 +321,7 @@ impl Common {
     }
 
     pub fn init(&self) -> Result<()> {
+        println!("* common init started");
         static LOGGER_INIT: Once = Once::new();
         LOGGER_INIT.call_once(|| {
             let mut builder = pretty_env_logger::formatted_timed_builder();
@@ -367,6 +368,7 @@ impl Common {
                 // .is_test(true)
                 .init();
         });
+        log::info!("common init done");
         Ok(())
     }
 }
@@ -411,7 +413,11 @@ impl Builder {
     }
 
     pub fn build(self) -> Result<TaosWrapper> {
-        let taos = TaosOptions::new().build()?;
+        let opts = TaosOptions::new();
+        log::trace!("use options: {opts:#?}");
+
+        let taos = opts.build()?;
+        log::info!("connected");
 
         let db: Vec<_> = self
             .naming
@@ -422,14 +428,14 @@ impl Builder {
         let mut used = false;
         for (name, precision) in &db {
             if self.dropping.drop_before() {
-                taos.exec_sync(format!("drop database if exists {}", name))?;
+                taos.exec(format!("drop database if exists {}", name))?;
             }
-            taos.exec_sync(format!(
+            taos.exec(format!(
                 "create database if not exists {} precision '{}'",
                 name, precision
             ))?;
             if !used {
-                taos.exec_sync(format!("use {}", name))?;
+                taos.exec(format!("use {}", name))?;
                 used = true;
             }
         }
@@ -481,10 +487,10 @@ impl TaosWrapper {
     fn clean(&self) -> Result<()> {
         if self.drop.drop_after() {
             for (name, _) in &self.db {
-                log::debug!("drop database: {}", name);
+                log::trace!("drop database: {}", name);
                 self.taos
-                    .exec_sync(format!("drop database if exists {}", name))?;
-                log::debug!("dropped database: {}", name);
+                    .exec(format!("drop database if exists {}", name))?;
+                log::trace!("dropped database: {}", name);
             }
         }
         Ok(())

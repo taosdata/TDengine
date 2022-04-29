@@ -11,18 +11,18 @@ use taos_sys::*;
 
 #[derive(Debug, Default)]
 pub struct TaosOptions {
-    host: Option<String>,
-    port: Option<u16>, // make it optional with concern for REST.
-    username: Option<String>,
-    password: Option<String>,
-    database: Option<String>,
+    pub(crate) host: Option<String>,
+    pub(crate) port: Option<u16>, // make it optional with concern for REST.
+    pub(crate) username: Option<String>,
+    pub(crate) password: Option<String>,
+    pub(crate) database: Option<String>,
 
     locale: Option<String>,
     charset: Option<String>,
     timezone: Option<String>,
     config_dir: Option<PathBuf>,
     shell_activity_timer: Option<u16>,
-    params: BTreeMap<String, String>,
+    pub(crate) params: BTreeMap<String, String>,
 }
 
 macro_rules! _build_opt {
@@ -158,8 +158,7 @@ fn test_options_builder_all() {
         .host("localhost")
         .port(6030u16)
         .username("root")
-        .password("taosdata")
-        .database("log");
+        .password("taosdata");
     let taos = opts.build().unwrap();
     let _res = futures::executor::block_on(taos.query("show databases")).unwrap();
 }

@@ -1,7 +1,7 @@
-use crate::{Error, Result};
+use crate::{prelude::ResultSet, Error, Result};
 use taos_sys::*;
 
-use super::{Message, Offset, Offsets, TmqList};
+use super::{Offset, Offsets, TmqList};
 
 pub struct Consumer(*mut tmq_t);
 
@@ -57,14 +57,13 @@ impl Consumer {
         }
     }
 
-    pub fn poll(&self, _blocking_time: i64) -> Option<Message> {
-        todo!()
-        // let message = unsafe { tmq_consumer_poll(self.0, blocking_time) };
-        // if message.is_null() {
-        //     None
-        // } else {
-        //     Some(Message::new(self, message))
-        // }
+    pub fn poll(&self, wait_time: i64) -> Option<Result<ResultSet>> {
+        let res = unsafe { tmq_consumer_poll(self.0, wait_time) };
+        if res.is_null() {
+            None
+        } else {
+            Some(ResultSet::from_ptr(res))
+        }
     }
 }
 

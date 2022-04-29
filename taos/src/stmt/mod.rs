@@ -1,9 +1,9 @@
-use crate::{impls::SyncResultSet, util::IntoCStr, Code, Error, Result, Taos};
+use crate::{impls::ResultSet, util::IntoCStr, Code, Error, Result, Taos};
 use taos_query::common::{BorrowedColumn, Column};
-use taos_sys::{ffi::*};
+use taos_sys::ffi::*;
 
+use std::ffi::CStr;
 use std::os::raw::c_void;
-use std::{ffi::CStr};
 
 mod bind;
 pub use bind::{BindParam, IntoBindParam};
@@ -23,6 +23,7 @@ impl<F: IntoBindParam, T: IntoIterator<Item = F>> IntoParams for T {
 }
 
 pub struct Stmt<'stmt> {
+    #[allow(dead_code)]
     taos: &'stmt Taos,
     stmt: *mut c_void,
 }
@@ -55,9 +56,9 @@ impl<'stmt> Stmt<'stmt> {
         }
     }
 
-    pub fn result(&self) -> Result<SyncResultSet> {
+    pub fn result(&self) -> Result<ResultSet> {
         let ptr = unsafe { taos_stmt_use_result(self.stmt) };
-        SyncResultSet::from_ptr(ptr)
+        ResultSet::from_ptr(ptr)
     }
 
     /// To bind one row with params
@@ -144,6 +145,10 @@ impl<'stmt> Stmt<'stmt> {
             res != 0
         }
     }
+
+    pub fn affected_rows(&self) -> usize {
+        unsafe { taos_stmt_affected_rows(self.stmt) as usize }
+    }
     fn close(&mut self) {
         unsafe {
             taos_stmt_close(self.stmt);
@@ -221,10 +226,10 @@ impl Taos {
 mod tests {
     use bitvec_simd::BitVec;
 
-    use crate::Result;
-    use crate::prelude::sync::*;
     use crate::prelude::common::*;
+    use crate::prelude::sync::*;
     use crate::test;
+    use anyhow::Result;
 
     #[test]
     fn test_stmt() {
@@ -237,25 +242,9 @@ mod tests {
         test_err().err().unwrap();
     }
 
-    #[test]
-    fn test_multi_bind() {
-        let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-        taos.stmt("drop database if exists taos_test_multi_bind")
-            .unwrap()
-            .execute()
-            .unwrap();
-        taos.stmt("create database if not exists taos_test_multi_bind keep 3650")
-            .unwrap()
-            .execute()
-            .unwrap();
-        taos.stmt("use taos_test_multi_bind")
-            .unwrap()
-            .execute()
-            .unwrap();
-        taos.stmt("create table if not exists tb (ts timestamp, v int) ")
-            .unwrap()
-            .execute()
-            .unwrap();
+    #[crate::test]
+    fn test_multi_bind(taos: &Taos, _database: &str) -> Result<()> {
+        taos.exec("create table if not exists tb (ts timestamp, v int) ")?;
 
         const N: usize = 100;
         let nulls = BitVec::zeros(N);
@@ -268,20 +257,14 @@ mod tests {
         stmt.multi_bind(&binds).unwrap();
 
         stmt.execute().unwrap();
-        let result = stmt.result().unwrap();
-        let rows = result.affected_rows();
+
+        let rows = stmt.affected_rows();
         assert_eq!(N, rows as usize);
-        taos.stmt("drop database taos_test_multi_bind")
-            .unwrap()
-            .execute()
-            .unwrap();
+        Ok(())
     }
     #[crate::test]
     fn test_multi_bind_str(taos: &Taos, _database: &str) -> Result<()> {
-        taos.stmt("create table if not exists tb (ts timestamp, v binary(100)) ")
-            .unwrap()
-            .execute()
-            .unwrap();
+        taos.exec("create table if not exists tb (ts timestamp, v varchar(100)) ")?;
         const N: usize = 5;
         let nulls = BitVec::zeros(N);
         let v: Vec<Option<String>> = (0..N).map(|_| Some("hello".to_string())).collect();
@@ -296,8 +279,8 @@ mod tests {
         let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
         stmt.multi_bind(&binds).unwrap();
         stmt.execute().unwrap();
-        let result = stmt.result().unwrap();
-        let rows = result.affected_rows();
+
+        let rows = stmt.affected_rows();
         assert_eq!(N, rows as usize);
 
         let mut res = taos.query("select * from tb").unwrap();

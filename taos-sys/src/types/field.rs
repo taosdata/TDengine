@@ -8,7 +8,10 @@ use taos_query::common::{Field, Ty};
 pub struct TAOS_FIELD {
     pub name: [u8; 65usize],
     pub type_: u8,
+    #[cfg(taos_v2)]
     pub bytes: i16,
+    #[cfg(not(taos_v2))]
+    pub bytes: i32,
 }
 
 impl TAOS_FIELD {
