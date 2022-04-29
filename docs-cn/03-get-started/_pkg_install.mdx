@@ -1,3 +1,5 @@
+import PkgList from "/components/PkgList";
+
 TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。
 
 为方便使用，从 2.4.0.10 开始，标准的服务端安装包包含了 taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
@@ -6,48 +8,8 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 发布版本包括稳定版和 Beta 版，Beta 版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
 
-<ul id="server-packageList" class="package-list">
-  <li>
-    <a id="tdengine_rpm" name="TDengine RPM">
-      TDengine-server-2.4.0.16-Linux-x64.rpm (14.5 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_deb" name="TDengine DEB">
-      TDengine-server-2.4.0.16-Linux-x64.deb (12.8 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_tar" name="TDengine Tarball">
-      TDengine-server-2.4.0.16-Linux-x64.tar.gz (15.5 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_Lite_tar" name="undefined">
-      TDengine-server-2.4.0.16-Linux-x64-Lite.tar.gz (3.4 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_Lite_beta_tar" name="TDengine Lite Beta Tarball">
-      TDengine-server-2.3.5.0-beta-Linux-x64-Lite.tar.gz (3 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_beta_rpm" name="TDengine Beta RPM">
-      TDengine-server-2.3.5.0-beta-Linux-x64.rpm (18.4 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_beta_deb" name="TDengine Beta DEB">
-      TDengine-server-2.3.5.0-beta-Linux-x64.deb (16.8 M)
-    </a>
-  </li>
-  <li>
-    <a id="tdengine_beta_tar" name="TDengine Beta Tarball">
-      TDengine-server-2.3.5.0-beta-Linux-x64.tar.gz (18.8 M)
-    </a>
-  </li>
-</ul>
+<PkgList type={0}/>
+
 
 具体的安装方法，请参见[安装包的安装和卸载](/operation/pkg-install)。
 
