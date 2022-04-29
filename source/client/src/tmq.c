@@ -1310,7 +1310,7 @@ const char* tmq_err2str(tmq_resp_err_t err) {
   return "fail";
 }
 
-char* tmq_get_topic_name(TAOS_RES* res) {
+const char* tmq_get_topic_name(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     SMqRspObj* pRspObj = (SMqRspObj*)res;
     return pRspObj->topic;

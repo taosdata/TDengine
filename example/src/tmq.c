@@ -224,6 +224,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     printf("%s, ", subTopics[i]);
   }
   printf("\n");
+  tmq_list_destroy(subList);
 
   while (running) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
