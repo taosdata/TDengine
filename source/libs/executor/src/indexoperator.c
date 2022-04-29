@@ -54,7 +54,9 @@ typedef struct SIFParam {
 
 typedef int32_t (*sif_func_t)(SNode *left, SNode *rigth, SIFParam *output);
 // construct tag filter operator later
-static void destroyTagFilterOperatorInfo(void *param) { STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param; }
+static void destroyTagFilterOperatorInfo(void *param) {
+  STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param;
+}
 
 static void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
@@ -62,8 +64,9 @@ static void sifFreeParam(SIFParam *param) {
 }
 
 static int32_t sifGetOperParamNum(EOperatorType ty) {
-  if (OP_TYPE_IS_NULL == ty || OP_TYPE_IS_NOT_NULL == ty || OP_TYPE_IS_TRUE == ty || OP_TYPE_IS_NOT_TRUE == ty || OP_TYPE_IS_FALSE == ty ||
-      OP_TYPE_IS_NOT_FALSE == ty || OP_TYPE_IS_UNKNOWN == ty || OP_TYPE_IS_NOT_UNKNOWN == ty || OP_TYPE_MINUS == ty) {
+  if (OP_TYPE_IS_NULL == ty || OP_TYPE_IS_NOT_NULL == ty || OP_TYPE_IS_TRUE == ty || OP_TYPE_IS_NOT_TRUE == ty ||
+      OP_TYPE_IS_FALSE == ty || OP_TYPE_IS_NOT_FALSE == ty || OP_TYPE_IS_UNKNOWN == ty ||
+      OP_TYPE_IS_NOT_UNKNOWN == ty || OP_TYPE_MINUS == ty) {
     return 1;
   }
   return 2;
@@ -267,7 +270,8 @@ _return:
 
 static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *output) {
   if (NULL == node->pParameterList || node->pParameterList->length <= 0) {
-    qError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList, node->pParameterList ? node->pParameterList->length : 0);
+    qError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList,
+           node->pParameterList ? node->pParameterList->length : 0);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
@@ -341,7 +345,8 @@ static EDealRes sifWalkOper(SNode *pNode, void *context) {
 }
 
 EDealRes sifCalcWalker(SNode *node, void *context) {
-  if (QUERY_NODE_VALUE == nodeType(node) || QUERY_NODE_NODE_LIST == nodeType(node) || QUERY_NODE_COLUMN == nodeType(node)) {
+  if (QUERY_NODE_VALUE == nodeType(node) || QUERY_NODE_NODE_LIST == nodeType(node) ||
+      QUERY_NODE_COLUMN == nodeType(node)) {
     return DEAL_RES_CONTINUE;
   }
   SIFCtx *ctx = (SIFCtx *)context;
@@ -383,21 +388,20 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
-  if (ctx.code != TSDB_CODE_SUCCESS) {
-    return ctx.code;
-  }
+  SIF_ERR_RET(ctx.code);
+
   if (pDst) {
     SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
     if (res == NULL) {
       qError("no valid res in hash, node:(%p), type(%d)", (void *)&pNode, nodeType(pNode));
-      return TSDB_CODE_QRY_APP_ERROR;
+      SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
     }
     taosArrayAddAll(pDst->result, res->result);
 
     sifFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
-  return TSDB_CODE_SUCCESS;
+  SIF_RET(code);
 }
 
 int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
@@ -407,22 +411,14 @@ int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
 
   SFilterInfo *filter = NULL;
   // todo move to the initialization function
-  int32_t code = filterInitFromNode((SNode *)pFilterNode, &filter, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
   SIFParam param = {0};
-  code = sifCalculate((SNode *)pFilterNode, &param);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
   taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
-
-  return code;
+  SIF_RET(TSDB_CODE_SUCCESS);
 }
 
 SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {

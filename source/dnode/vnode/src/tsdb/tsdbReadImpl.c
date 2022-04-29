@@ -471,7 +471,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, 
     SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
 
     for (int i = 0, j = 0; i < numOfCols;) {
-      if (j >= pBlock->numOfCols) {
+      if (j >= pBlock->numOfBSma) {
         pStatis[i].numOfNull = -1;
         ++i;
         continue;
