@@ -35,9 +35,7 @@ class TDTestCase:
         for i in range(len(tdSql.queryRows)):
             if data_tb_col[i] is None:
                 tdSql.checkData( i, 0 , None )
-            if (col_name == "c2" or col_name == "double" ) and tbname == "t1" and i == 10:
-                continue
-            else:
+            if col_name not in ["c2", "double"] or tbname != "t1" or i != 10:
                 utc_zone = datetime.timezone.utc
                 utc_8 = datetime.timezone(datetime.timedelta(hours=8))
                 date_init_stamp = datetime.datetime.utcfromtimestamp(data_tb_col[i]/1000)
@@ -597,7 +595,41 @@ class TDTestCase:
                 time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
                 tdSql.checkData( i, 0, time2str )
 
+        tdLog.printNoPrefix("==========step39: cast constant operation to bigint, expect change to int ")
+        tdSql.query("select cast(12121.23323131  as bigint) as b from ct4")
+        ( tdSql.checkData(i, 0, 12121) for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131  as binary(16)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(len(tdSql.queryRows)) )
+        tdSql.query("select cast(12121.23323131  as binary(2)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131  as nchar(16)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131  as nchar(2)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(len(tdSql.queryRows) ) )
 
+        tdSql.query("select cast(12121.23323131 + 321.876897998  as bigint) as b from ct4")
+        ( tdSql.checkData(i, 0, 12443) for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131 + 321.876897998  as binary(16)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12443.110129') for i in range(len(tdSql.queryRows)) )
+        tdSql.query("select cast(12121.23323131 + 321.876897998  as binary(3)) as b from ct4")
+        ( tdSql.checkData(i, 0, '124') for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131 + 321.876897998  as nchar(16)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12443.110129') for i in range(len(tdSql.queryRows)) )
+        tdSql.query("select cast(12121.23323131 + 321.876897998  as nchar(3)) as b from ct4")
+        ( tdSql.checkData(i, 0, '124') for i in range(len(tdSql.queryRows) ) )
+
+        tdSql.query("select cast(12121.23323131 + 'test~!@`#$%^&*()}{][;><.,' as bigint) as b from ct4")
+        ( tdSql.checkData(i, 0, 12121) for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131 + 'test~!@`#$%^&*()}{][;><.,' as binary(16)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(len(tdSql.queryRows)) )
+        tdSql.query("select cast(12121.23323131 + 'test~!@`#$%^&*()}{][;><.,' as binary(2)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131 + 'test~!@`#$%^&*()}{][;><.,' as nchar(16)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(len(tdSql.queryRows) ) )
+        tdSql.query("select cast(12121.23323131 + 'test~!@`#$%^&*()}{][;><.,' as nchar(2)) as b from ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(len(tdSql.queryRows) ) )
+
+        tdLog.printNoPrefix("==========step40: error cast condition, should return error ")
         tdSql.error("select cast(c1 as int) as b from ct4")
         tdSql.error("select cast(c1 as bool) as b from ct4")
         tdSql.error("select cast(c1 as tinyint) as b from ct4")
