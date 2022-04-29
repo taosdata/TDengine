@@ -86,7 +86,7 @@ class TDTestCase:
     updatecfgDict["serverPort"] = serverPort
     updatecfgDict["firstEp"]    = hostname + ':' + serverPort
     updatecfgDict["secondEp"]   = hostname + ':' + serverPort
-    updateCfgDict["fqdn"] = hostname
+    updatecfgDict["fqdn"] = hostname
 
     print ("===================: ", updatecfgDict)
 
