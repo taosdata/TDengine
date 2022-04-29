@@ -100,12 +100,12 @@ def pre_test_win(){
         time /t
         taskkill /f /t /im python.exe
         taskkill /f /t /im bash.exe
-        cd C:\\workspace\\TDengine
-        rd /s /Q C:\\workspace\\TDengine\\debug
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+        rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine\\debug
         exit 0
     '''
     bat '''
-        cd C:\\workspace\\TDengine
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
         git reset --hard
         git fetch || git fetch
         git checkout -f
@@ -113,28 +113,28 @@ def pre_test_win(){
     script {
         if (env.CHANGE_TARGET == 'master') {
             bat '''
-                cd C:\\workspace\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
                 git checkout master
             '''
         } else if(env.CHANGE_TARGET == '2.0') {
             bat '''
-                cd C:\\workspace\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
                 git checkout 2.0
             '''
         } else if(env.CHANGE_TARGET == '3.0') {
             bat '''
-                cd C:\\workspace\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
                 git checkout 3.0
             '''
         } else {
             bat '''
-                cd C:\\workspace\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
                 git checkout develop
             '''
         }
     }
     bat '''
-        cd C:\\workspace\\TDengine
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
         git branch
         git pull || git pull
         git fetch origin +refs/pull/%CHANGE_ID%/merge
@@ -145,7 +145,7 @@ def pre_test_build_win() {
     bat '''
         echo "building ..."
         time /t
-        cd C:\\workspace\\TDengine
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
         mkdir debug
         cd debug
         call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
