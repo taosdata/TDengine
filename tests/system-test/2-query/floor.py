@@ -340,6 +340,7 @@ class TDTestCase:
         tdSql.checkData(1, 2, 6.900000000)
 
     def abs_func_filter(self):
+        tdSql.execute("use db")
         tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from ct4 where c1>5 ")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,8)
