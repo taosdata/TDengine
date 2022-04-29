@@ -6924,7 +6924,7 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
   code = initQueryTableDataCond(&cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
-  }
+   }
 #if 0
   return tsdbQueryTables(pHandle->reader, &cond, pTableGroupInfo, queryId, taskId);
 #endif
