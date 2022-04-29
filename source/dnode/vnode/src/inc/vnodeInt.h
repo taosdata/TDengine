@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tcompression.h"
 #include "tdatablock.h"
-#include "tdbInt.h"
+#include "tdb.h"
 #include "tencode.h"
 #include "tfs.h"
 #include "tglobal.h"
@@ -72,6 +72,7 @@ int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);

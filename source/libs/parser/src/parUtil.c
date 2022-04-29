@@ -126,6 +126,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "slimit/soffset only available for PARTITION BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
       return "Invalid topic query";
+    case TSDB_CODE_PAR_INVALID_DROP_STABLE:
+      return "Cannot drop super table in batch";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

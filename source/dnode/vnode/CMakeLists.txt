@@ -8,7 +8,6 @@ target_sources(
     "src/vnd/vnodeBufPool.c"
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
-    "src/vnd/vnodeInt.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeModule.c"
@@ -33,7 +32,6 @@ target_sources(
     "src/tsdb/tsdbMemTable.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
-    "src/tsdb/tsdbScan.c"
     "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
 
