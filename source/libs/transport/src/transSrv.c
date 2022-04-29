@@ -207,7 +207,7 @@ static bool addHandleToAcceptloop(void* arg);
       SExHandle* exh2 = uvAcquireExHandle(refId);                                                                     \
       if (exh2 == NULL || refId != exh2->refId) {                                                                     \
         tTrace("server handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, \
-               exh1->refId, refId);                                                                                   \
+               exh2 ? exh2->refId : 0, refId);                                                                        \
         goto _return1;                                                                                                \
       }                                                                                                               \
     } else if (refId == 0) {                                                                                          \

@@ -190,7 +190,7 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 int vnodeCommit(SVnode *pVnode) {
-  SVnodeInfo info;
+  SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
   vInfo("vgId:%d start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);

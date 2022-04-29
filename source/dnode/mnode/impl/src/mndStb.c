@@ -679,8 +679,8 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
     memcpy(stbObj.pAst2, pCreate->pAst2, stbObj.ast2Len);
   }
 
-  stbObj.pColumns = taosMemoryMalloc(stbObj.numOfColumns * sizeof(SSchema));
-  stbObj.pTags = taosMemoryMalloc(stbObj.numOfTags * sizeof(SSchema));
+  stbObj.pColumns = taosMemoryCalloc(1, stbObj.numOfColumns * sizeof(SSchema));
+  stbObj.pTags = taosMemoryCalloc(1, stbObj.numOfTags * sizeof(SSchema));
   if (stbObj.pColumns == NULL || stbObj.pTags == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -1111,7 +1111,7 @@ static int32_t mndSetAlterStbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }
