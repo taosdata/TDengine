@@ -16,6 +16,7 @@ if %1 == tq GOTO TQ
 if %1 == pro GOTO PRO
 if %1 == kh GOTO KH
 if %1 == jh GOTO JH
+if %1 == hm GOTO HM
 GOTO USAGE
 
 :TAOS
@@ -48,6 +49,12 @@ goto RELEASE
 :JH
 cd %internal_dir%\enterprise\packaging\oem
 call sed_jh.bat %community_dir%
+cd %community_dir%\packaging
+goto RELEASE
+
+:HM
+cd %internal_dir%\enterprise\packaging\oem
+call sed_hm.bat %community_dir%
 cd %community_dir%\packaging
 goto RELEASE
 
