@@ -60,3 +60,11 @@ add_test(
     NAME cfgTest
     COMMAND cfgTest
 )
+
+# bloomFilterTest
+add_executable(bloomFilterTest "bloomFilterTest.cpp")
+target_link_libraries(bloomFilterTest os util gtest_main)   
+add_test(
+    NAME bloomFilterTest
+    COMMAND bloomFilterTest
+)

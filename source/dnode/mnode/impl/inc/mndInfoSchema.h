@@ -22,18 +22,6 @@
 extern "C" {
 #endif
 
-typedef struct SInfosTableSchema {
-  const char   *name;
-  const int32_t type;
-  const int32_t bytes;
-} SInfosTableSchema;
-
-typedef struct SInfosTableMeta {
-  const char              *name;
-  const SInfosTableSchema *schema;
-  const int32_t            colNum;
-} SInfosTableMeta;
-
 int32_t mndInitInfos(SMnode *pMnode);
 void    mndCleanupInfos(SMnode *pMnode);
 int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);

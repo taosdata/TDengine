@@ -61,7 +61,6 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
 
-  // todo: change the interface here
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId: %d failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
@@ -142,8 +141,10 @@ _err:
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
+#if 0
   SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
-
+#endif
+  SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);

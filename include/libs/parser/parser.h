@@ -73,6 +73,7 @@ typedef struct SQuery {
   SArray* pDbList;
   SArray* pTableList;
   bool showRewrite;
+  int32_t placeholderNum;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);

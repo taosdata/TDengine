@@ -214,6 +214,7 @@ STSRow *tdRowDup(STSRow *row);
 static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
   return (SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx;
 }
+
 static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
   ASSERT(idx >= 0);
   if (idx == 0) {
@@ -222,6 +223,7 @@ static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
 
   return ((SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx - 1)->colId;
 }
+
 static FORCE_INLINE void *tdKVRowColVal(STSRow *pRow, SKvRowIdx *pIdx) { return POINTER_SHIFT(pRow, pIdx->offset); }
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);  // During ParseInsert when without STSchema, how to get the offset for STpRow?
@@ -592,6 +594,34 @@ static FORCE_INLINE int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, 
 #endif
   return TSDB_CODE_SUCCESS;
 }
+
+/**
+ * @brief
+ *
+ * @param pBuilder
+ * @param nCols
+ * @param nBoundCols use -1 if not available
+ * @param flen
+ * @return FORCE_INLINE
+ */
+static FORCE_INLINE int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen) {
+  pBuilder->flen = flen;
+  pBuilder->nCols = nCols;
+  if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
+    TASSERT(0);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+#ifdef TD_SUPPORT_BITMAP
+  // the primary TS key is stored separatedly
+  pBuilder->nBitmaps = (int16_t)TD_BITMAP_BYTES(pBuilder->nCols - 1);
+#else
+  pBuilder->nBitmaps = 0;
+  pBuilder->nBoundBitmaps = 0;
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
 
 /**
  * @brief To judge row type: STpRow/SKvRow
@@ -1117,7 +1147,7 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
   }
 
   if (!colFound) {
-    if(colId <= pIter->maxColId) {
+    if (colId <= pIter->maxColId) {
       pVal->valType = TD_VTYPE_NONE;
       return true;
     } else {
@@ -1367,11 +1397,11 @@ static void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
   }
 }
 
-static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
+static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char* tag) {
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pSchema);
   tdSTSRowIterReset(&iter, row);
-  printf(">>>");
+  printf("%s >>>", tag);
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
     SCellVal  sVal = { 255, NULL};
@@ -1383,7 +1413,6 @@ static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
   }
   printf("\n");
 }
-
 #ifdef TROW_ORIGIN_HZ
 typedef struct {
   uint32_t nRows;

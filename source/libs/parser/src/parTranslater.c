@@ -22,6 +22,7 @@
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "systable.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__) ? DEAL_RES_ERROR : DEAL_RES_ERROR)
@@ -780,17 +781,17 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   SArray* vgroupList = NULL;
   if ('\0' != pRealTable->qualDbName[0]) {
     // todo release after mnode can be processed
-    // if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
-    code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
-    // }
+    if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
+      code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
+    }
   } else {
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
   // todo release after mnode can be processed
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
-  // }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
@@ -1539,26 +1540,24 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
   pReq->numOfVgroups = pStmt->pOptions->numOfVgroups;
+  pReq->numOfStables = pStmt->pOptions->singleStable;
+  pReq->buffer = pStmt->pOptions->buffer;
+  pReq->pageSize = pStmt->pOptions->pagesize;
+  pReq->pages = pStmt->pOptions->pages;
   pReq->daysPerFile = pStmt->pOptions->daysPerFile;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
-  pReq->commitTime = -1;
   pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->precision = pStmt->pOptions->precision;
   pReq->compression = pStmt->pOptions->compressionLevel;
   pReq->replications = pStmt->pOptions->replica;
-  pReq->update = -1;
+  pReq->strict = pStmt->pOptions->strict;
   pReq->cacheLastRow = pStmt->pOptions->cachelast;
   pReq->ignoreExist = pStmt->ignoreExists;
-  pReq->singleSTable = pStmt->pOptions->singleStable;
-  pReq->strict = pStmt->pOptions->strict;
-  // pStmt->pOptions->buffer;
-  // pStmt->pOptions->pages;
-  // pStmt->pOptions->pagesize;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -1698,7 +1697,8 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions,
                                     bool alter) {
-  int32_t code = checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, INT32_MAX);
+  int32_t code =
+      checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "cacheLast", pOptions->cachelast, TSDB_MIN_DB_CACHE_LAST_ROW,
                             TSDB_MAX_DB_CACHE_LAST_ROW);
@@ -1724,7 +1724,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbKeepOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, INT32_MAX);
+    code = checkRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "pagesize", pOptions->pagesize, TSDB_MIN_PAGESIZE_PER_VNODE,
@@ -1810,16 +1810,18 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
-  // pStmt->pOptions->buffer
-  pReq->cacheLastRow = pStmt->pOptions->cachelast;
-  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
+  pReq->buffer = pStmt->pOptions->buffer;
+  pReq->pageSize = -1;
+  pReq->pages = pStmt->pOptions->pages;
+  pReq->daysPerFile = -1;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
-  // pStmt->pOptions->pages
-  pReq->replications = pStmt->pOptions->replica;
-  pReq->strict = pStmt->pOptions->strict;
+  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
+  pReq->strict = pStmt->pOptions->strict;
+  pReq->cacheLastRow = pStmt->pOptions->cachelast;
+  pReq->replications = pStmt->pOptions->replica;
   return;
 }
 
@@ -2658,7 +2660,7 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
   if ('\0' != pStmt->targetTabName[0]) {
     strcpy(name.dbname, pStmt->targetDbName);
     strcpy(name.tname, pStmt->targetTabName);
-    tNameExtractFullName(&name, createReq.outputSTbName);
+    tNameExtractFullName(&name, createReq.targetStbFullName);
   }
 
   int32_t code = translateQuery(pCxt, pStmt->pQuery);

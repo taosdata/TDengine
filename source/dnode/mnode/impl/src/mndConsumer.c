@@ -35,7 +35,7 @@
 
 #define MND_CONSUMER_LOST_HB_CNT 3
 
-static int8_t mqInRebFlag = 0;
+static int8_t mqRebLock = 0;
 
 static const char *mndConsumerStatusName(int status);
 
@@ -74,6 +74,17 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 }
 
 void mndCleanupConsumer(SMnode *pMnode) {}
+
+bool mndRebTryStart() {
+  int8_t old = atomic_val_compare_exchange_8(&mqRebLock, 0, 1);
+  return old == 0;
+}
+
+void mndRebEnd() { atomic_sub_fetch_8(&mqRebLock, 1); }
+
+void mndRebCntInc() { atomic_add_fetch_8(&mqRebLock, 1); }
+
+void mndRebCntDec() { atomic_sub_fetch_8(&mqRebLock, 1); }
 
 static int32_t mndProcessConsumerLostMsg(SNodeMsg *pMsg) {
   SMnode             *pMnode = pMsg->pNode;
@@ -143,8 +154,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
   void           *pIter = NULL;
 
   // rebalance cannot be parallel
-  int8_t old = atomic_val_compare_exchange_8(&mqInRebFlag, 0, 1);
-  if (old != 0) {
+  if (!mndRebTryStart()) {
     mInfo("mq rebalance already in progress, do nothing");
     return 0;
   }
@@ -152,7 +162,6 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
   SMqDoRebalanceMsg *pRebMsg = rpcMallocCont(sizeof(SMqDoRebalanceMsg));
   pRebMsg->rebSubHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
   // TODO set cleanfp
-  pRebMsg->mqInReb = &mqInRebFlag;
 
   // iterate all consumers, find all modification
   while (1) {
@@ -223,7 +232,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
     taosHashCleanup(pRebMsg->rebSubHash);
     rpcFreeCont(pRebMsg);
     mTrace("mq rebalance finished, no modification");
-    atomic_store_8(&mqInRebFlag, 0);
+    mndRebEnd();
   }
   return 0;
 }
@@ -812,6 +821,7 @@ static int32_t mndRetrieveConsumer(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock 
     colDataAppend(pColInfo, numOfRows, (const char *)status, false);
 
     // subscribed topics
+    // TODO: split into multiple rows
     char  topics[TSDB_SHOW_LIST_LEN + VARSTR_HEADER_SIZE] = {0};
     char *showStr = taosShowStrArray(pConsumer->assignedTopics);
     tstrncpy(varDataVal(topics), showStr, TSDB_SHOW_LIST_LEN);

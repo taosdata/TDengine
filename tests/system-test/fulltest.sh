@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
+set -x
 
-#python3 ./test.py -f 0-others/taosShell.py
+python3 ./test.py -f 0-others/taosShell.py
 
 
 #python3 ./test.py -f 2-query/between.py

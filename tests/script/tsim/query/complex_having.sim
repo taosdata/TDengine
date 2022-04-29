@@ -215,6 +215,7 @@ sql select count(c1) from stb1
 print ====> sql : select count(c1) from stb1
 print ====> rows: $data00
 if $data00 != 20 then
+  print expect 20, actual: $data00
     return -1
 endi
 
