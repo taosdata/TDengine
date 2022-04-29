@@ -455,10 +455,10 @@ where
     /// ## Example
     ///
     /// ```rust,ignore
-    /// let count: u32 = taos.query_one("select count(*) from table1")?.unwrap();
+    /// let count: u32 = taos.query_one("select count(*) from table1")?.unwrap_or(0);
     ///
     /// let one: (i32, String, Timestamp) =
-    ///    taos.query_one("select c1,c2,c3 from table1 limit 1")?.unwrap();
+    ///    taos.query_one("select c1,c2,c3 from table1 limit 1")?.unwrap_or_default();
     /// ```
     async fn query_one<T: AsRef<str> + Send, O: DeserializeOwned + Send>(
         &'q self,

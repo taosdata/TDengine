@@ -1,11 +1,15 @@
 use crate::{Code, Error, IntoCStr, Result, Taos};
 use taos_sys::*;
 
+#[derive(Debug)]
 pub struct TmqList(*mut tmq_list_t);
 
 impl TmqList {
     pub fn new() -> Self {
         Self(unsafe { tmq_list_new() })
+    }
+    pub fn as_mut_ptr(&mut self) -> *mut tmq_list_t {
+        self.0
     }
     pub fn append<'a>(&mut self, c_str: impl IntoCStr<'a>) -> Result<()> {
         let ret = unsafe { tmq_list_append(self.0, c_str.into_c_str().as_ptr()) };
@@ -73,10 +77,14 @@ mod test {
         Ok(())
     }
 
-    fn create_topic(taos: &Taos) -> Result<()> {
+    fn create_topic(taos: &Taos, topic: &str) -> Result<()> {
         println!("create topic");
-        taos.create_topic("test_stb_topic_1", "select * from tu1")?;
+        taos.create_topic(topic, "select * from tu1")?;
         println!("create topic ok");
+        Ok(())
+    }
+    fn drop_topic(taos: &Taos, topic: &str) -> Result<()> {
+        taos.exec(format!("drop topic if exists {topic}"))?;
         Ok(())
     }
 
@@ -87,7 +95,7 @@ mod test {
         unsafe extern "C" fn tmq_commit_callback(
             _tmq: *mut tmq_t,
             resp: tmq_resp_err_t,
-            _topic: *mut tmq_topic_vgroup_list_t
+            _topic: *mut tmq_topic_vgroup_list_t,
         ) {
             log::info!("commit {resp:?}");
         }
@@ -96,11 +104,11 @@ mod test {
         Ok(conf.consumer()?)
     }
 
-    fn build_topic_list() -> Result<TmqList> {
+    fn build_topic_list(topic: &str) -> Result<TmqList> {
         println!("build topic list");
-        let mut topic = TmqList::new();
-        topic.append("test_stb_topic_1")?;
-        Ok(topic)
+        let mut topics = TmqList::new();
+        topics.append(topic)?;
+        Ok(topics)
     }
 
     fn process_message(msg: &mut ResultSet) {
@@ -163,9 +171,10 @@ mod test {
     }
 
     // todo: drop after consume will cause segmentation fault, use specific db name and no dropping.
-    #[crate::test(log_level = "trace", naming = "tmq_consume_test", dropping = "none")]
-    // #[crate::test]
+    // #[crate::test(log_level = "trace", naming = "tmq_consume_test", dropping = "none")]
+    #[crate::test(log_level = "trace")]
     fn tmq_consume(taos: &Taos, database: &str) -> Result<()> {
+        let topic = database.to_string();
         let version = crate::client_info();
         println!("version: {}", version);
         if !version.starts_with("3") {
@@ -174,13 +183,16 @@ mod test {
         println!("connected");
         init_env(&taos)?;
         println!("env inited");
-        create_topic(&taos)?;
+        create_topic(&taos, &topic)?;
         println!("topic created");
         let consumer = build_consumer(&taos)?;
         println!("consumer created");
-        let topics = build_topic_list()?;
+        let topics = build_topic_list(&topic)?;
         println!("topics created");
         sync_consume_loop(database, &consumer, &topics)?;
+        dbg!(consumer.subscription()?);
+
+        drop_topic(&taos, &topic)?;
         println!("finished");
         Ok(())
     }

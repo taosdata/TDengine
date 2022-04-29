@@ -31,22 +31,22 @@ impl Consumer {
     }
 
     pub fn subscription(&self) -> Result<TmqList> {
-        let ptr = Box::new(std::ptr::null_mut() as *mut tmq_list_t);
-        let raw = Box::into_raw(ptr);
+        let mut tl = TmqList::new();
 
-        let err = unsafe { tmq_subscription(self.0, raw) };
+        let err = unsafe { tmq_subscription(self.0, &mut tl.as_mut_ptr()) };
         match err {
-            tmq_resp_err_t::Success => Ok(TmqList(unsafe { raw.read() })),
+            tmq_resp_err_t::Success => Ok(tl),
             tmq_resp_err_t::Fail => Err(Error::from_string("unsubscribe failed")),
         }
     }
-    pub fn seek(&self, offset: Offset) -> Result<()> {
-        let err = unsafe { tmq_seek(self.0, offset.0) };
-        match err {
-            tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(Error::from_string("commit failed")),
-        }
-    }
+    // todo: tmq_seek removed.
+    // pub fn seek(&self, offset: Offset) -> Result<()> {
+    //     let err = unsafe { tmq_seek(self.0, offset.0) };
+    //     match err {
+    //         tmq_resp_err_t::Success => Ok(()),
+    //         tmq_resp_err_t::Fail => Err(Error::from_string("commit failed")),
+    //     }
+    // }
     // todo: is_async better to rename to is_non_blocking
     pub fn commit(&self, offsets: Option<&Offsets>, is_async: i32) -> Result<()> {
         let offsets = offsets.map(|o| o.0).unwrap_or(std::ptr::null_mut());

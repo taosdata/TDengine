@@ -1,0 +1,43 @@
+char = { ASCII_ALPHANUMERIC | "." | "_" | "-" }
+digit = { '0'..'9' }
+
+encoded_char = { ASCII_ALPHANUMERIC | "%" }
+
+driver = { char* }
+protocol = { char* }
+SCHEME_IDENT = { "://" }
+
+scheme = { driver ~ ("+" ~ protocol)? }
+
+username = { char+ }
+password = { char+ }
+with_password = { ":" ~ password? }
+username_with_password = { username? ~ (":" ~ password)? ~ "@" }
+
+host = { (ASCII_ALPHANUMERIC | "_" | "-") + }
+port = { digit+ }
+// url encoded path
+path = { encoded_char+ }
+address = { host ~ (":" ~ port?)? | ":" ~ port | ":" | path }
+addresses = { address? ~ ("," ~ address)* }
+
+frag_char = { char | "." | ":" }
+frag_front = { "." | "/" }
+frag_path = { (frag_char | "/") + }
+fragment = { frag_front ~ frag_char* ~ "/" ~ frag_path }
+
+protocol_with_addresses = { protocol ~ "(" ~ addresses? ~ ")" | addresses }
+
+name = { char+ }
+value = { char* }
+param = { name ~ "=" ~ value }
+
+database = { char+ }
+
+dsn = {
+  SOI ~
+  scheme ~ SCHEME_IDENT ~
+      username_with_password* ~ protocol_with_addresses ~ (fragment | "/" ~ database)?
+     ~ ("?" ~ param ~ ("&" ~ param)*)? ~
+  EOI
+}

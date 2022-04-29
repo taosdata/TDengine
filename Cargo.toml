@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "mdsn",
   "taos-error",
   "taos-macros",
   "taos-sys",
