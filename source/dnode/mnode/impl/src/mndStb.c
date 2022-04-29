@@ -731,7 +731,6 @@ _OVER:
 static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
   SMnode        *pMnode = pReq->pNode;
   int32_t        code = -1;
-  SStbObj       *pTopicStb = NULL;
   SStbObj       *pStb = NULL;
   SDbObj        *pDb = NULL;
   SUserObj      *pUser = NULL;
@@ -762,12 +761,6 @@ static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pTopicStb = mndAcquireStb(pMnode, createReq.name);
-  if (pTopicStb != NULL) {
-    terrno = TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC;
-    goto _OVER;
-  }
-
   pDb = mndAcquireDbByStb(pMnode, createReq.name);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
@@ -785,7 +778,7 @@ static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
 
   int32_t numOfStbs = -1;
   mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs);
-  if (pDb->cfg.numOfStables == 1 && numOfStbs != 0 ) {
+  if (pDb->cfg.numOfStables == 1 && numOfStbs != 0) {
     terrno = TSDB_CODE_MND_SINGLE_STB_MODE_DB;
     goto _OVER;
   }
@@ -799,7 +792,6 @@ _OVER:
   }
 
   mndReleaseStb(pMnode, pStb);
-  mndReleaseStb(pMnode, pTopicStb);
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSMCreateStbReq(&createReq);

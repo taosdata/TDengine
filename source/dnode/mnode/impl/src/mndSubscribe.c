@@ -80,6 +80,7 @@ static SMqSubscribeObj *mndCreateSub(SMnode *pMnode, const SMqTopicObj *pTopic, 
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  pSub->dbUid = pTopic->dbUid;
   pSub->subType = pTopic->subType;
   pSub->withTbName = pTopic->withTbName;
   pSub->withSchema = pTopic->withSchema;
@@ -593,7 +594,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   int32_t tlen;
   SDB_GET_INT32(pRaw, dataPos, &tlen, SUB_DECODE_OVER);
-  buf = taosMemoryMalloc(tlen + 1);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto SUB_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, SUB_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_SUBSCRIBE_RESERVE_SIZE, SUB_DECODE_OVER);
@@ -678,4 +679,37 @@ void mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub) {
 static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
+}
+
+static int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
+  SSdbRaw *pCommitRaw = mndSubActionEncode(pSub);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  return 0;
+}
+
+int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void            *pIter = NULL;
+  SMqSubscribeObj *pSub = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
+    if (pIter == NULL) break;
+
+    if (pSub->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pSub);
+      continue;
+    }
+
+    if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
+      goto END;
+    }
+  }
+
+  code = 0;
+END:
+  return code;
 }

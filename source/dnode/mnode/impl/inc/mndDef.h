@@ -517,6 +517,7 @@ void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
   SRWLatch  lock;
+  int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
   int8_t    withTbName;
