@@ -1604,6 +1604,7 @@ int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatc
 // TDMT_VND_DROP_TABLE =================
 typedef struct {
   const char* name;
+  int8_t      igNotExists;
 } SVDropTbReq;
 
 typedef struct {

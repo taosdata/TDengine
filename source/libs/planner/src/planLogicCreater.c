@@ -944,9 +944,16 @@ static int32_t createSetOperatorLogicNode(SLogicPlanContext* pCxt, SSetOperator*
 }
 
 static int32_t getMsgType(ENodeType sqlType) {
-  return (QUERY_NODE_CREATE_TABLE_STMT == sqlType || QUERY_NODE_CREATE_MULTI_TABLE_STMT == sqlType)
-             ? TDMT_VND_CREATE_TABLE
-             : TDMT_VND_SUBMIT;
+  switch (sqlType) {
+    case QUERY_NODE_CREATE_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+      return TDMT_VND_CREATE_TABLE;
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return TDMT_VND_DROP_TABLE;
+    default:
+      break;
+  }
+  return TDMT_VND_SUBMIT;
 }
 
 static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt, SLogicNode** pLogicNode) {

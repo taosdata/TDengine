@@ -3800,6 +3800,7 @@ static int32_t tEncodeSVDropTbReq(SCoder *pCoder, const SVDropTbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->igNotExists) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -3809,6 +3810,7 @@ static int32_t tDecodeSVDropTbReq(SCoder *pCoder, SVDropTbReq *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->igNotExists) < 0) return -1;
 
   tEndDecode(pCoder);
   return 0;
