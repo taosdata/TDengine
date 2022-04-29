@@ -36,48 +36,55 @@ typedef struct {
   int32_t measureTagsLen;
   int32_t tagsLen;
   int32_t colsLen;
+  int32_t timestampLen;
 } TAOS_PARSE_ELEMENTS;
 
 typedef struct {
   const char     *sTableName;   // super table name
   uint8_t        sTableNameLen;
-  char    childTableName[TSDB_TABLE_NAME_LEN];
-  uint64_t uid;
+  char           childTableName[TSDB_TABLE_NAME_LEN];
+  uint64_t       uid;
 
-  SArray* tags;
-  SArray *cols;
+  SArray         *tags;
+  SArray         *cols;        // elements are SHashObj<key, SSmlKv*> for find by key quickly
+
+  SArray         colsColumn;   // elements are cols key string
 } TAOS_SML_DATA_POINT_TAGS;
 
 typedef struct SSmlSTableMeta {
 //  char     *sTableName;   // super table name
 //  uint8_t  sTableNameLen;
-  uint8_t  precision;     // the number of precision
-  SHashObj* tagHash;
-  SHashObj* fieldHash;
+  uint8_t    precision;     // the number of precision
+  SHashObj   *tagHash;
+  SHashObj   *fieldHash;
 } SSmlSTableMeta;
 
+typedef struct SMsgBuf {
+  int32_t   len;
+  char      *buf;
+} SMsgBuf;
+
 typedef struct {
-  uint64_t id;
+  uint64_t          id;
 
-  SMLProtocolType protocol;
-  int32_t tsType;
+  SMLProtocolType   protocol;
+  int32_t           tsType;
 
-  SHashObj* childTables;
-  SHashObj* superTables;
+  SHashObj          *childTables;
+  SHashObj          *superTables;
 
-  SHashObj* metaHashObj;
-  SHashObj* pVgHash;
+  SHashObj          *metaHashObj;
+  SHashObj          *pVgHash;
 
-  void* exec;
+  void              *exec;
 
-  STscObj*      taos;
-  SCatalog*     pCatalog;
-  SRequestObj* pRequest;
-  SQuery* pQuery;
+  STscObj           *taos;
+  SCatalog          *pCatalog;
+  SRequestObj       *pRequest;
+  SQuery            *pQuery;
 
-  int32_t affectedRows;
-  char *msgBuf;
-  int16_t msgLen;
+  int32_t           affectedRows;
+  SMsgBuf           msgBuf;
 } SSmlLinesInfo;
 
 int smlInsert(TAOS* taos, SSmlLinesInfo* info);

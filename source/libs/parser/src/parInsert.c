@@ -1539,7 +1539,7 @@ static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSche
   col_id_t lastColIdx = -1;  // last column found
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = taosArrayGetP(cols, i);
-    SToken sToken = {.n=kv->keyLen, .z=kv->key};
+    SToken sToken = {.n=kv->keyLen, .z=(char*)kv->key};
     col_id_t t = lastColIdx + 1;
     col_id_t index = findCol(&sToken, t, nCols, pSchema);
     if (index < 0 && t > 0) {
@@ -1596,18 +1596,17 @@ static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSche
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlParseTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SVCreateTbReq *createTblReq) {
+static int32_t smlParseTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SVCreateTbReq *createTblReq, SMsgBuf *msg) {
   if (tdInitKVRowBuilder(tagsBuilder) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   SKvParam param = {.builder = tagsBuilder};
   for (int i = 0; i < tags->numOfBound; ++i) {
-
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i] - 1]; // colId starts with 1
     param.schema = pTagSchema;
     SSmlKv *kv = taosArrayGetP(cols, i);
-    KvRowAppend(NULL, kv->value, kv->valueLen, &param) ;
+    KvRowAppend(msg, kv->value, kv->valueLen, &param) ;
   }
 
 
@@ -1630,18 +1629,33 @@ int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta
 
   SmlExecHandle *smlHandle = (SmlExecHandle *)handle;
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
-  smlBoundColumns(tags, &smlHandle->tags, pTagsSchema);
-  smlParseTags(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &smlHandle->createTblReq);
+  setBoundColumnInfo(&smlHandle->tags, pTagsSchema, getNumOfTags(pTableMeta));
+  int ret = smlBoundColumns(tags, &smlHandle->tags, pTagsSchema);
+  if(ret != TSDB_CODE_SUCCESS){
+    buildInvalidOperationMsg(&pBuf, "bound tags error");
+    return ret;
+  }
+  ret = smlParseTags(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &smlHandle->createTblReq, &pBuf);
+  if(ret != TSDB_CODE_SUCCESS){
+    return ret;
+  }
 
   STableDataBlocks* pDataBlock = NULL;
-  getDataBlockFromList(smlHandle->pBlockHash, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+  ret = getDataBlockFromList(smlHandle->pBlockHash, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                   sizeof(SSubmitBlk), getTableInfo(pTableMeta).rowSize, pTableMeta,
                                   &pDataBlock, NULL, &smlHandle->createTblReq);
+  if(ret != TSDB_CODE_SUCCESS){
+    buildInvalidOperationMsg(&pBuf, "create data block error");
+    return ret;
+  }
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
 
-  smlBoundColumns(taosArrayGetP(cols, 0), &pDataBlock->boundColumnInfo, pSchema);
-
+  ret = smlBoundColumns(taosArrayGetP(cols, 0), &pDataBlock->boundColumnInfo, pSchema);
+  if(ret != TSDB_CODE_SUCCESS){
+    buildInvalidOperationMsg(&pBuf, "bound cols error");
+    return ret;
+  }
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
   SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;
   SRowBuilder*        pBuilder = &pDataBlock->rowBuilder;
@@ -1649,8 +1663,11 @@ int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta
 
   initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo);
 
-  allocateMemForSize(pDataBlock, extendedRowSize * rowNum);
-
+  ret = allocateMemForSize(pDataBlock, extendedRowSize * rowNum);
+  if(ret != TSDB_CODE_SUCCESS){
+    buildInvalidOperationMsg(&pBuf, "allocate memory error");
+    return ret;
+  }
   for (int32_t r = 0; r < rowNum; ++r) {
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);

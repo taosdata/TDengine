@@ -246,7 +246,13 @@ typedef struct {
   int32_t keyLen;
   uint8_t type;
   int16_t length;
-  const char* value;
+  union{
+    const char* value;
+    int64_t  i;
+    uint64_t u;
+    double   d;
+    float    f;
+  };
   int32_t valueLen;
 } SSmlKv;
 
