@@ -1310,13 +1310,10 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   int          ret;
   int          nCells;
   int          c;
-  SBTree      *pBt;
   SCell       *pCell;
-  SPager      *pPager;
   SCellDecoder cd = {0};
-
-  pBt = pBtc->pBt;
-  pPager = pBt->pPager;
+  SBTree      *pBt = pBtc->pBt;
+  SPager      *pPager = pBt->pPager;
 
   if (pBtc->iPage < 0) {
     // move from a clear cursor

@@ -111,8 +111,15 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn) {
   return 0;
 }
 
-int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen) {
-  // return tdbBtcMoveTo(&pDbc->btc, pKey, kLen, flags);
+int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int *c) { return tdbBtcMoveTo(&pDbc->btc, pKey, kLen, c); }
+
+int tdbDbcMoveToFirst(TDBC *pDbc) { return tdbBtcMoveToFirst(&pDbc->btc); }
+
+int tdbDbcMoveToLast(TDBC *pDbc) { return tdbBtcMoveToLast(&pDbc->btc); }
+
+int tdbDbcMoveToNext(TDBC *pDbc) { return 0; }
+int tdbDbcMoveToPrev(TDBC *pDbc) {
+  // TODO
   return 0;
 }
 

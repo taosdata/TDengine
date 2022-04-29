@@ -45,17 +45,18 @@ int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
 // TDBC
-#define TDB_FLG_CMP_LT 0x1  // less than
-#define TDB_FLG_CMP_EQ 0x2  // equal
-#define TDB_FLG_CMP_GT 0x4  // greater than
-
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn);
-int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen);
+int tdbDbcClose(TDBC *pDbc);
+int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int *c);
+int tdbDbcMoveToFirst(TDBC *pDbc);
+int tdbDbcMoveToLast(TDBC *pDbc);
+int tdbDbcMoveToNext(TDBC *pDbc);
+int tdbDbcMoveToPrev(TDBC *pDbc);
+
 int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
 int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen);
 int tdbDbcDrop(TDBC *pDbc);
 int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbDbcClose(TDBC *pDbc);
 
 // TXN
 #define TDB_TXN_WRITE            0x1

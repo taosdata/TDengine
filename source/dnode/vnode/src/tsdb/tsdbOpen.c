@@ -45,7 +45,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb) {
     goto _err;
   }
 
-  tsdbDebug("vgId: %d tsdb is opened", TD_VID(pVnode));
+  tsdbDebug("vgId:%d tsdb is opened", TD_VID(pVnode));
 
   *ppTsdb = pTsdb;
   return 0;
