@@ -38,7 +38,7 @@ TEST_F(ParserInitialATest, alterDnode) {
 TEST_F(ParserInitialATest, alterDatabase) {
   useDb("root", "test");
 
-  run("alter database wxy_db cachelast 1 fsync 200 keep 1440 wal 1");
+  run("alter database wxy_db cachelast 1 fsync 200 wal 1");
 }
 
 // todo alter local
