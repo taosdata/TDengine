@@ -17,6 +17,7 @@
 #include "query.h"
 #include "tname.h"
 #include "catalogInt.h"
+#include "systable.h"
 
 int32_t ctgActUpdateVg(SCtgMetaAction *action);
 int32_t ctgActUpdateTbl(SCtgMetaAction *action);

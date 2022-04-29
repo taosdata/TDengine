@@ -540,7 +540,7 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
 
         char        buf1[20] = {0};
         const char *role = syncStr(pVgroup->vnodeGid[i].role);
-        STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->bytes[cols]);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf1, role,   pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataAppend(pColInfo, numOfRows, (const char *)buf1, false);

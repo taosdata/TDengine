@@ -18,6 +18,7 @@
 #include "catalog.h"
 #include "functionMgt.h"
 #include "tglobal.h"
+#include "systable.h"
 
 typedef struct SSlotIdInfo {
   int16_t slotId;

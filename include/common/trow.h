@@ -1404,7 +1404,7 @@ static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char* tag) {
   printf("%s >>>", tag);
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
-    SCellVal  sVal = {.valType = 255, .val = NULL};
+    SCellVal  sVal = { 255, NULL};
     if (!tdSTSRowIterNext(&iter, stCol->colId, stCol->type, &sVal)) {
       break;
     }

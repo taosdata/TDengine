@@ -517,7 +517,7 @@ static int32_t mndRetrieveQnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
     colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)ep, false);
 

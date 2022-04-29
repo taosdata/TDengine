@@ -22,6 +22,7 @@
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "systable.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
@@ -780,17 +781,17 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   SArray* vgroupList = NULL;
   if ('\0' != pRealTable->qualDbName[0]) {
     // todo release after mnode can be processed
-    // if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
-    code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
-    // }
+    if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
+      code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
+    }
   } else {
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
   // todo release after mnode can be processed
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
-  // }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
