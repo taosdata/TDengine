@@ -184,14 +184,14 @@ TEST_F(MndTestSdb, 01_Write) {
   taosRemoveDir(opt.path);
 
   SSdbTable strTable = {
-      .sdbType = SDB_USER,
-      .keyType = SDB_KEY_BINARY,
-      .deployFp = (SdbDeployFp)strDefault,
-      .encodeFp = (SdbEncodeFp)strEncode,
-      .decodeFp = (SdbDecodeFp)strDecode,
-      .insertFp = (SdbInsertFp)strInsert,
-      .updateFp = (SdbUpdateFp)strUpdate,
-      .deleteFp = (SdbDeleteFp)strDelete,
+      SDB_USER,
+      SDB_KEY_BINARY,
+      (SdbDeployFp)strDefault,
+      (SdbEncodeFp)strEncode,
+      (SdbDecodeFp)strDecode,
+      (SdbInsertFp)strInsert,
+      (SdbUpdateFp)strUpdate,
+      (SdbDeleteFp)strDelete,
   };
 
   pSdb = sdbInit(&opt);
@@ -304,14 +304,14 @@ TEST_F(MndTestSdb, 01_Read) {
   taosRemoveDir(opt.path);
 
   SSdbTable strTable = {
-      .sdbType = SDB_USER,
-      .keyType = SDB_KEY_BINARY,
-      .deployFp = (SdbDeployFp)strDefault,
-      .encodeFp = (SdbEncodeFp)strEncode,
-      .decodeFp = (SdbDecodeFp)strDecode,
-      .insertFp = (SdbInsertFp)strInsert,
-      .updateFp = (SdbUpdateFp)strDelete,
-      .deleteFp = (SdbDeleteFp)strUpdate,
+      SDB_USER,
+      SDB_KEY_BINARY,
+      (SdbDeployFp)strDefault,
+      (SdbEncodeFp)strEncode,
+      (SdbDecodeFp)strDecode,
+      (SdbInsertFp)strInsert,
+      (SdbUpdateFp)strUpdate,
+      (SdbDeleteFp)strDelete,
   };
 
   pSdb = sdbInit(&opt);

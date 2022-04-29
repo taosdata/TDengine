@@ -30,9 +30,9 @@ typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;
   SMsgBuf        msgBuf;
   bool           notSupport;
-  bool           valid;
   SNode*         pRootNode;
   int16_t        placeholderNo;
+  int32_t        errCode;
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {

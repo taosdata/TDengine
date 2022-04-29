@@ -21,7 +21,9 @@
 #include "tref.h"
 #include "trpc.h"
 
-SSchedulerMgmt schMgmt = {0};
+SSchedulerMgmt schMgmt = {
+  .jobRef = -1,
+};
 
 FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
 
@@ -70,6 +72,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
 int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray *pNodeList, const char *sql,
                    int64_t startTs, bool syncSchedule) {
   int32_t  code = 0;
+  int64_t refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
@@ -114,15 +117,17 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray 
 
   tsem_init(&pJob->rspSem, 0, 0);
 
-  int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
+  refId = taosAddRef(schMgmt.jobRef, pJob);
   if (refId < 0) {
     SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
     SCH_ERR_JRET(terrno);
   }
 
+  atomic_add_fetch_32(&schMgmt.jobNum, 1);
+  
   if (NULL == schAcquireJob(refId)) {
     SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
-    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   pJob->refId = refId;
@@ -137,7 +142,11 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray 
 
 _return:
 
-  schFreeJobImpl(pJob);
+  if (refId < 0) {
+    schFreeJobImpl(pJob);
+  } else {
+    taosRemoveRef(schMgmt.jobRef, refId);
+  }
   SCH_RET(code);
 }
 
@@ -2272,6 +2281,19 @@ int32_t schCancelJob(SSchJob *pJob) {
   // TODO MOVE ALL TASKS FROM EXEC LIST TO FAIL LIST
 }
 
+void schCloseJobRef(void) {
+  if (!atomic_load_8((int8_t*)&schMgmt.exit)) {
+    return;
+  }
+  
+  SCH_LOCK(SCH_WRITE, &schMgmt.lock);
+  if (atomic_load_32(&schMgmt.jobNum) <= 0 && schMgmt.jobRef >= 0) {
+    taosCloseRef(schMgmt.jobRef);
+    schMgmt.jobRef = -1;
+  }
+  SCH_UNLOCK(SCH_WRITE, &schMgmt.lock);
+}
+
 void schFreeJobImpl(void *job) {
   if (NULL == job) {
     return;
@@ -2317,6 +2339,10 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob);
 
   qDebug("QID:0x%" PRIx64 " job freed, refId:%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+
+  atomic_sub_fetch_32(&schMgmt.jobNum, 1);
+
+  schCloseJobRef();
 }
 
 static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
@@ -2401,7 +2427,7 @@ _return:
 }
 
 int32_t schedulerInit(SSchedulerCfg *cfg) {
-  if (schMgmt.jobRef) {
+  if (schMgmt.jobRef >= 0) {
     qError("scheduler already initialized");
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -2765,7 +2791,9 @@ void schedulerFreeTaskList(SArray *taskList) {
 }
 
 void schedulerDestroy(void) {
-  if (schMgmt.jobRef) {
+  atomic_store_8((int8_t*)&schMgmt.exit, 1);
+  
+  if (schMgmt.jobRef >= 0) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
     int64_t  refId = 0;
 
@@ -2778,9 +2806,6 @@ void schedulerDestroy(void) {
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
     }
-
-    taosCloseRef(schMgmt.jobRef);
-    schMgmt.jobRef = 0;
   }
 
   if (schMgmt.hbConnections) {

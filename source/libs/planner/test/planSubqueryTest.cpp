@@ -13,14 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parTestUtil.h"
+#include "planTestUtil.h"
+#include "planner.h"
 
 using namespace std;
 
-class ParserAlterTest : public ParserTestBase {};
+class PlanSubqeuryTest : public PlannerTestBase {};
 
-TEST_F(ParserAlterTest, stmt) {
+TEST_F(PlanSubqeuryTest, basic) {
   useDb("root", "test");
 
-  run("create database db1");
+  run("select * from (select * from t1)");
+}
+
+TEST_F(PlanSubqeuryTest, doubleGroupBy) {
+  useDb("root", "test");
+
+  run("select count(*) from (select c1 + c3 a, c1 + count(*) b from t1 where c2 = 'abc' group by c1, c3) where a > 100 "
+      "group by b");
 }

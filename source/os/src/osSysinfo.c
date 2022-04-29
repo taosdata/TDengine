@@ -866,6 +866,16 @@ void taosSetCoreDump(bool enable) {
 
 SysNameInfo taosGetSysNameInfo() {
 #ifdef WINDOWS
+  SysNameInfo info = {0};
+  DWORD dwVersion = GetVersion();
+
+  tstrncpy(info.sysname, getenv("OS"), sizeof(info.sysname));
+  tstrncpy(info.nodename, getenv("COMPUTERNAME"), sizeof(info.nodename));
+  sprintf_s(info.release, sizeof(info.release), "%d", dwVersion & 0x0F);
+  sprintf_s(info.version, sizeof(info.release), "%d", (dwVersion >> 8) & 0x0F);
+  tstrncpy(info.machine, getenv("PROCESSOR_ARCHITECTURE"), sizeof(info.machine));
+
+  return info;
 #elif defined(_TD_DARWIN_64)
   SysNameInfo info = {0};
 

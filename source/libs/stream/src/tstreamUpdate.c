@@ -54,13 +54,26 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
   if (precision != TSDB_TIME_PRECISION_MILLI) {
     val = convertTimePrecision(interval, precision, TSDB_TIME_PRECISION_MILLI);
   }
-  if (val < MIN_INTERVAL) {
-    val = MIN_INTERVAL;
-  } else if (val > MAX_INTERVAL) {
+
+  if (val <= 0 || val > MAX_INTERVAL) {
     val = MAX_INTERVAL;
+  } else if (val < MIN_INTERVAL) {
+    val = MIN_INTERVAL;
   }
-  val = convertTimePrecision(val, TSDB_TIME_PRECISION_MILLI, precision);
+
+  if (precision != TSDB_TIME_PRECISION_MILLI) {
+    val = convertTimePrecision(val, TSDB_TIME_PRECISION_MILLI, precision);
+  }
   return val;
+}
+
+static int64_t adjustWatermark(int64_t interval, int32_t watermark) {
+  if (watermark <= 0 || watermark > MAX_NUM_SCALABLE_BF * interval) {
+    watermark = MAX_NUM_SCALABLE_BF * interval;
+  } else if (watermark < MIN_NUM_SCALABLE_BF * interval) {
+    watermark = MIN_NUM_SCALABLE_BF * interval;
+  }
+  return watermark;
 }
 
 SUpdateInfo *updateInfoInitP(SInterval* pInterval, int64_t watermark) {
@@ -76,14 +89,9 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
   pInfo->pTsSBFs = NULL;
   pInfo->minTS = -1;
   pInfo->interval = adjustInterval(interval, precision);
-  pInfo->watermark = watermark;
+  pInfo->watermark = adjustWatermark(pInfo->interval, watermark);
 
-  uint64_t bfSize = (uint64_t)(watermark / pInfo->interval);
-  if (bfSize < MIN_NUM_SCALABLE_BF) {
-    bfSize = MIN_NUM_SCALABLE_BF;
-  } else if (bfSize > MAX_NUM_SCALABLE_BF) {
-    bfSize = MAX_NUM_SCALABLE_BF;
-  }
+  uint64_t bfSize = (uint64_t)(pInfo->watermark / pInfo->interval);
 
   pInfo->pTsSBFs = taosArrayInit(bfSize, sizeof(SScalableBf));
   if (pInfo->pTsSBFs == NULL) {

@@ -68,6 +68,7 @@ struct tmq_conf_t {
   char*          pass;
   char*          db;
   tmq_commit_cb* commitCb;
+  void*          commitCbUserParam;
 };
 
 struct tmq_t {
@@ -78,7 +79,8 @@ struct tmq_t {
   int32_t        autoCommitInterval;
   int32_t        resetOffsetCfg;
   int64_t        consumerId;
-  tmq_commit_cb* commit_cb;
+  tmq_commit_cb* commitCb;
+  void*          commitCbUserParam;
 
   // status
   int8_t  status;
@@ -372,10 +374,18 @@ int32_t tmqSubscribeCb(void* param, const SDataBuf* pMsg, int32_t code) {
 int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqCommitCbParam* pParam = (SMqCommitCbParam*)param;
   pParam->rspErr = code == 0 ? TMQ_RESP_ERR__SUCCESS : TMQ_RESP_ERR__FAIL;
-  if (pParam->tmq->commit_cb) {
-    pParam->tmq->commit_cb(pParam->tmq, pParam->rspErr, NULL);
+  if (pParam->tmq->commitCb) {
+    pParam->tmq->commitCb(pParam->tmq, pParam->rspErr, NULL, pParam->tmq->commitCbUserParam);
   }
-  if (!pParam->async) tsem_post(&pParam->rspSem);
+  if (!pParam->async)
+    tsem_post(&pParam->rspSem);
+  else {
+    tsem_destroy(&pParam->rspSem);
+    /*if (pParam->pArray) {*/
+    /*taosArrayDestroy(pParam->pArray);*/
+    /*}*/
+    taosMemoryFree(pParam);
+  }
   return 0;
 }
 
@@ -384,7 +394,7 @@ tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
     *topics = tmq_list_new();
   }
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
-    SMqClientTopic* topic = taosArrayGetP(tmq->clientTopics, i);
+    SMqClientTopic* topic = taosArrayGet(tmq->clientTopics, i);
     tmq_list_append(*topics, topic->topicName);
   }
   return TMQ_RESP_ERR__SUCCESS;
@@ -477,7 +487,8 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   strcpy(pTmq->groupId, conf->groupId);
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
-  pTmq->commit_cb = conf->commitCb;
+  pTmq->commitCb = conf->commitCb;
+  pTmq->commitCbUserParam = conf->commitCbUserParam;
   pTmq->resetOffsetCfg = conf->resetOffset;
 
   // assign consumerId
@@ -557,7 +568,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
     tscError("failed to malloc request");
   }
 
-  SMqCommitCbParam* pParam = taosMemoryMalloc(sizeof(SMqCommitCbParam));
+  SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
   if (pParam == NULL) {
     return -1;
   }
@@ -572,6 +583,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   };
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+  sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
   sendInfo->fp = tmqCommitCb;
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
@@ -582,13 +594,12 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   if (!async) {
     tsem_wait(&pParam->rspSem);
     resp = pParam->rspErr;
-  }
+    tsem_destroy(&pParam->rspSem);
+    taosMemoryFree(pParam);
 
-  tsem_destroy(&pParam->rspSem);
-  taosMemoryFree(pParam);
-
-  if (pArray) {
-    taosArrayDestroy(pArray);
+    if (pArray) {
+      taosArrayDestroy(pArray);
+    }
   }
 
   return resp;
@@ -667,7 +678,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   if (code != 0) goto FAIL;
 
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
-    tscDebug("not ready, retry");
+    tscDebug("consumer not ready, retry");
     taosMsleep(500);
   }
 
@@ -688,11 +699,13 @@ FAIL:
   return code;
 }
 
-void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) {
+void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb, void* param) {
   //
   conf->commitCb = cb;
+  conf->commitCbUserParam = param;
 }
 
+#if 0
 TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbName, const char* sql) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
@@ -777,6 +790,7 @@ _return:
 
   return pRequest;
 }
+#endif
 
 #if 0
 int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
@@ -1304,10 +1318,10 @@ const char* tmq_err2str(tmq_resp_err_t err) {
   return "fail";
 }
 
-char* tmq_get_topic_name(TAOS_RES* res) {
+const char* tmq_get_topic_name(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     SMqRspObj* pRspObj = (SMqRspObj*)res;
-    return pRspObj->topic;
+    return strchr(pRspObj->topic, '.') + 1;
   } else {
     return NULL;
   }

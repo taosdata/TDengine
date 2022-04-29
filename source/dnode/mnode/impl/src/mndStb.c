@@ -783,6 +783,13 @@ static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
+  int32_t numOfStbs = -1;
+  mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs);
+  if (pDb->cfg.numOfStables == 1 && numOfStbs != 0 ) {
+    terrno = TSDB_CODE_MND_SINGLE_STB_MODE_DB;
+    goto _OVER;
+  }
+
   code = mndCreateStb(pMnode, pReq, &createReq, pDb);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
@@ -1436,7 +1443,6 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   pRsp->numOfColumns = pStb->numOfColumns;
   pRsp->precision = pDb->cfg.precision;
   pRsp->tableType = TSDB_SUPER_TABLE;
-  pRsp->update = pDb->cfg.update;
   pRsp->sversion = pStb->version;
   pRsp->suid = pStb->uid;
   pRsp->tuid = pStb->uid;
@@ -1589,7 +1595,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
   return 0;
 }
 
-static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
+int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
   if (pDb == NULL) {

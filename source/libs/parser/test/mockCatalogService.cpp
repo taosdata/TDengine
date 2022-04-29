@@ -111,9 +111,8 @@ class MockCatalogServiceImpl {
   }
 
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
-    char db[TSDB_DB_NAME_LEN] = {0};
-    tNameGetDbName(pTableName, db);
-    return copyTableVgroup(db, tNameGetTableName(pTableName), vgInfo);
+    vgInfo->vgId = 1;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** vgList) const {

@@ -257,26 +257,23 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  streamMode;
-  int8_t  singleSTable;
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
@@ -316,7 +313,6 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
-  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -392,15 +388,12 @@ typedef struct {
   int8_t         type;
   int8_t         replica;
   int16_t        numOfColumns;
-  int32_t        rowSize;
   int32_t        numOfRows;
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
-  int16_t        offset[TSDB_MAX_COLUMNS];
-  int32_t        bytes[TSDB_MAX_COLUMNS];
 } SShowObj;
 
 typedef struct {

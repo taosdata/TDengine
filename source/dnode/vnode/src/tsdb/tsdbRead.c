@@ -422,7 +422,7 @@ _end:
   return NULL;
 }
 
-tsdbReaderT* tsdbQueryTables(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+tsdbReaderT* tsdbQueryTablesT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                              uint64_t taskId) {
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(tsdb, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
@@ -535,7 +535,7 @@ tsdbReaderT tsdbQueryLastRow(STsdb* tsdb, SQueryTableDataCond* pCond, STableGrou
     return NULL;
   }
 
-  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTables(tsdb, pCond, groupList, qId, taskId);
+  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTablesT(tsdb, pCond, groupList, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
   }
@@ -555,8 +555,8 @@ tsdbReaderT tsdbQueryLastRow(STsdb* tsdb, SQueryTableDataCond* pCond, STableGrou
 }
 
 #if 0
-tsdbReaderT tsdbQueryCacheLast(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId, STsdbMemTable* pMemRef) {
-  STsdbReadHandle *pTsdbReadHandle = (STsdbReadHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
+tsdbReaderT tsdbQueryCacheLastT(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId, STsdbMemTable* pMemRef) {
+  STsdbReadHandle *pTsdbReadHandle = (STsdbReadHandle*) tsdbQueryTablesT(tsdb, pCond, groupList, qId, pMemRef);
   if (pTsdbReadHandle == NULL) {
     return NULL;
   }
@@ -634,7 +634,7 @@ tsdbReaderT tsdbQueryRowsInExternalWindow(STsdb* tsdb, SQueryTableDataCond* pCon
     }
   }
 
-  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTables(tsdb, pCond, pNew, qId, taskId);
+  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTablesT(tsdb, pCond, pNew, qId, taskId);
   pTsdbReadHandle->loadExternalRow = true;
   pTsdbReadHandle->currentLoadExternalRows = true;
 
@@ -3717,7 +3717,7 @@ _error:
 }
 
 #if 0
-int32_t tsdbGetTableGroupFromIdList(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo) {
+int32_t tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo) {
   if (tsdbRLockRepoMeta(tsdb) < 0) {
     return terrno;
   }

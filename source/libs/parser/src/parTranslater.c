@@ -20,11 +20,12 @@
 #include "functionMgt.h"
 #include "parUtil.h"
 #include "scalar.h"
+#include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
-  (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__) ? DEAL_RES_ERROR : DEAL_RES_ERROR)
+  (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
 
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
@@ -465,27 +466,66 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         break;
       case TSDB_DATA_TYPE_BOOL:
         pVal->datum.b = (0 == strcasecmp(pVal->literal, "true"));
+        *(bool*)&pVal->typeData = pVal->datum.b;
         break;
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_TINYINT:{
+        char* endPtr = NULL;
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int8_t*)&pVal->typeData = pVal->datum.i;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT:{
+        char* endPtr = NULL;
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int16_t*)&pVal->typeData = pVal->datum.i;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT:{
+        char* endPtr = NULL;
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int32_t*)&pVal->typeData = pVal->datum.i;
+        break;
+      }
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
         pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        *(int64_t*)&pVal->typeData = pVal->datum.i;        
         break;
       }
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UTINYINT:{
+        char* endPtr = NULL;
+        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint8_t*)&pVal->typeData = pVal->datum.u;        
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT:{
+        char* endPtr = NULL;
+        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint16_t*)&pVal->typeData = pVal->datum.u;        
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT:{
+        char* endPtr = NULL;
+        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint32_t*)&pVal->typeData = pVal->datum.u;        
+        break;
+      }
       case TSDB_DATA_TYPE_UBIGINT: {
         char* endPtr = NULL;
         pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        *(uint64_t*)&pVal->typeData = pVal->datum.u;                
         break;
       }
-      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_FLOAT:{
+        char* endPtr = NULL;
+        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        *(float*)&pVal->typeData = pVal->datum.d;     
+        break;
+      }
       case TSDB_DATA_TYPE_DOUBLE: {
         char* endPtr = NULL;
         pVal->datum.d = strtold(pVal->literal, &endPtr);
+        *(double*)&pVal->typeData = pVal->datum.d;     
         break;
       }
       case TSDB_DATA_TYPE_VARCHAR:
@@ -503,6 +543,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
             TSDB_CODE_SUCCESS) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
+        *(int64_t*)&pVal->typeData = pVal->datum.i;        
         break;
       }
       case TSDB_DATA_TYPE_NCHAR:
@@ -780,17 +821,17 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   SArray* vgroupList = NULL;
   if ('\0' != pRealTable->qualDbName[0]) {
     // todo release after mnode can be processed
-    // if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
-    code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
-    // }
+    if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
+      code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
+    }
   } else {
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
   // todo release after mnode can be processed
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
-  // }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
@@ -1539,26 +1580,24 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
   pReq->numOfVgroups = pStmt->pOptions->numOfVgroups;
+  pReq->numOfStables = pStmt->pOptions->singleStable;
+  pReq->buffer = pStmt->pOptions->buffer;
+  pReq->pageSize = pStmt->pOptions->pagesize;
+  pReq->pages = pStmt->pOptions->pages;
   pReq->daysPerFile = pStmt->pOptions->daysPerFile;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
-  pReq->commitTime = -1;
   pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->precision = pStmt->pOptions->precision;
   pReq->compression = pStmt->pOptions->compressionLevel;
   pReq->replications = pStmt->pOptions->replica;
-  pReq->update = -1;
+  pReq->strict = pStmt->pOptions->strict;
   pReq->cacheLastRow = pStmt->pOptions->cachelast;
   pReq->ignoreExist = pStmt->ignoreExists;
-  pReq->singleSTable = pStmt->pOptions->singleStable;
-  pReq->strict = pStmt->pOptions->strict;
-  // pStmt->pOptions->buffer;
-  // pStmt->pOptions->pages;
-  // pStmt->pOptions->pagesize;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -1677,11 +1716,12 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions,
-                                      bool alter) {
+static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
   int32_t daysToKeep0 = pOptions->keep[0];
-  if (alter && (-1 == daysPerFile || -1 == daysToKeep0)) {
+  if (-1 == daysPerFile && -1 == daysToKeep0) {
+    return TSDB_CODE_SUCCESS;
+  } else if (-1 == daysPerFile || -1 == daysToKeep0) {
     SDbCfgInfo dbCfg;
     int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1696,9 +1736,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions,
-                                    bool alter) {
-  int32_t code = checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, INT32_MAX);
+static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
+  int32_t code =
+      checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "cacheLast", pOptions->cachelast, TSDB_MIN_DB_CACHE_LAST_ROW,
                             TSDB_MAX_DB_CACHE_LAST_ROW);
@@ -1724,7 +1764,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbKeepOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, INT32_MAX);
+    code = checkRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "pagesize", pOptions->pagesize, TSDB_MIN_PAGESIZE_PER_VNODE,
@@ -1753,13 +1793,13 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbRetentionsOption(pCxt, pOptions->pRetentions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkOptionsDependency(pCxt, pDbName, pOptions, alter);
+    code = checkOptionsDependency(pCxt, pDbName, pOptions);
   }
   return code;
 }
 
 static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt) {
-  return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions, false);
+  return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
 typedef int32_t (*FSerializeFunc)(void* pBuf, int32_t bufLen, void* pReq);
@@ -1810,21 +1850,23 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
-  // pStmt->pOptions->buffer
-  pReq->cacheLastRow = pStmt->pOptions->cachelast;
-  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
+  pReq->buffer = pStmt->pOptions->buffer;
+  pReq->pageSize = -1;
+  pReq->pages = pStmt->pOptions->pages;
+  pReq->daysPerFile = -1;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
-  // pStmt->pOptions->pages
-  pReq->replications = pStmt->pOptions->replica;
-  pReq->strict = pStmt->pOptions->strict;
+  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
+  pReq->strict = pStmt->pOptions->strict;
+  pReq->cacheLastRow = pStmt->pOptions->cachelast;
+  pReq->replications = pStmt->pOptions->replica;
   return;
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
-  int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions, true);
+  int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }

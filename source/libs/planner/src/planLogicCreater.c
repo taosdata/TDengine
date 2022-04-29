@@ -748,10 +748,10 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   SLogicNode* pRoot = NULL;
   int32_t     code = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
+    code = createChildLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
+    code = createChildLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createChildLogicNode(pCxt, pSelect, createAggLogicNode, &pRoot);

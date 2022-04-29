@@ -52,7 +52,7 @@ typedef struct STsdb        STsdb;
 typedef struct STQ          STQ;
 typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorkerMgmt SQHandle;
+typedef struct SQWorker SQHandle;
 
 #define VNODE_META_DIR "meta"
 #define VNODE_TSDB_DIR "tsdb"
@@ -88,14 +88,19 @@ int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
-int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb);
-int     tsdbClose(STsdb* pTsdb);
-int     tsdbBegin(STsdb* pTsdb);
-int     tsdbCommit(STsdb* pTsdb);
-int32_t tsdbUpdateSmaWindow(STsdb* pTsdb, SSubmitReq* pMsg, int64_t version);
-int32_t tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
-int32_t tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
-int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb);
+int          tsdbClose(STsdb* pTsdb);
+int          tsdbBegin(STsdb* pTsdb);
+int          tsdbCommit(STsdb* pTsdb);
+int32_t      tsdbUpdateSmaWindow(STsdb* pTsdb, SSubmitReq* pMsg, int64_t version);
+int32_t      tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
+int32_t      tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
+int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+tsdbReaderT* tsdbQueryTablesT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+                              uint64_t taskId);
+tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+                                 void* pMemRef);
+int32_t      tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
