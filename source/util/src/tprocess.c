@@ -175,7 +175,6 @@ static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char
   if (handle != 0 && ftype == PROC_FUNC_REQ) {
     if (taosHashPut(pProc->hash, &handle, sizeof(int64_t), &handleRef, sizeof(int64_t)) != 0) {
       taosThreadMutexUnlock(&pQueue->mutex);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
   }
@@ -227,8 +226,8 @@ static int32_t taosProcQueuePush(SProcObj *pProc, SProcQueue *pQueue, const char
   taosThreadMutexUnlock(&pQueue->mutex);
   tsem_post(&pQueue->sem);
 
-  uTrace("proc:%s, push msg at pos:%d ftype:%d remain:%d, head:%d %p body:%d %p", pQueue->name, pos, ftype,
-         pQueue->items, headLen, pHead, bodyLen, pBody);
+  uTrace("proc:%s, push msg at pos:%d ftype:%d remain:%d handle:%p ref:%" PRId64 ", head:%d %p body:%d %p",
+         pQueue->name, pos, ftype, pQueue->items, (void *)handle, handleRef, headLen, pHead, bodyLen, pBody);
   return 0;
 }
 

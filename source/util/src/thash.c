@@ -310,6 +310,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t size) {
   if (pHashObj == NULL || key == NULL || keyLen == 0) {
+    terrno = TSDB_CODE_INVALID_PTR;
     return -1;
   }
 
@@ -378,6 +379,8 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
       }
 
       doUpdateHashNode(pHashObj, pe, prev, pNode, pNewNode);
+    } else {
+      terrno = TSDB_CODE_DUP_KEY;
     }
 
     taosHashEntryWUnlock(pHashObj, pe);
