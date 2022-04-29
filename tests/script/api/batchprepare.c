@@ -11,8 +11,8 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_SMALLINT};
-int32_t optrIdxList[] = {4, 11, 1};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_BOOL};
+int32_t optrIdxList[] = {2, 11, 6};
 
 typedef struct {
   char*   oper;
@@ -216,10 +216,10 @@ CaseCtrl gCaseCtrl = {
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
-  .caseIdx = -1,
-  .caseNum = -1,
+  .caseIdx = 2,
+  .caseNum = 1,
   .caseRunIdx = -1,
-  .caseRunNum = -1,
+  .caseRunNum = 1,
 };
 
 #endif
