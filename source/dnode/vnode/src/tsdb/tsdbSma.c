@@ -103,10 +103,9 @@ typedef struct {
   STSma    *pSma;            // cache schema
 } SSmaStatItem;
 
-#define RSMA_MAX_LEVEL           2
 #define RSMA_TASK_INFO_HASH_SLOT 8
 struct SRSmaInfo {
-  void *taskInfo[RSMA_MAX_LEVEL];  // qTaskInfo_t
+  void *taskInfo[TSDB_RSMA_RETENTION_2];  // qTaskInfo_t
 };
 
 struct SSmaStat {
@@ -128,7 +127,7 @@ static FORCE_INLINE void tsdbFreeTaskHandle(qTaskInfo_t *taskHandle) {
 }
 
 static FORCE_INLINE void *tsdbFreeRSmaInfo(SRSmaInfo *pInfo) {
-  for (int32_t i = 0; i < RSMA_MAX_LEVEL; ++i) {
+  for (int32_t i = 0; i < TSDB_RSMA_RETENTION_MAX; ++i) {
     if (pInfo->taskInfo[i]) {
       tsdbFreeTaskHandle(pInfo->taskInfo[i]);
     }
@@ -224,7 +223,7 @@ static FORCE_INLINE int32_t tsdbUnLockSma(SSmaEnv *pEnv) {
 }
 
 static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
+  SPoolMem *pPool = (SPoolMem *)taosMemoryMalloc(sizeof(*pPool));
 
   pPool->prev = pPool->next = pPool;
   pPool->size = 0;
@@ -246,7 +245,7 @@ static void clearPool(SPoolMem *pPool) {
     pMem->prev->next = pMem->next;
     pPool->size -= pMem->size;
 
-    tdbOsFree(pMem);
+    taosMemoryFree(pMem);
   } while (1);
 
   assert(pPool->size == 0);
@@ -255,7 +254,7 @@ static void clearPool(SPoolMem *pPool) {
 static void closePool(SPoolMem *pPool) {
   if (pPool) {
     clearPool(pPool);
-    tdbOsFree(pPool);
+    taosMemoryFree(pPool);
   }
 }
 
@@ -264,7 +263,7 @@ static void *poolMalloc(void *arg, size_t size) {
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 
-  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
+  pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (!pMem) {
     assert(0);
   }
@@ -291,7 +290,7 @@ static void poolFree(void *arg, void *ptr) {
   pMem->prev->next = pMem->next;
   pPool->size -= pMem->size;
 
-  tdbOsFree(pMem);
+  taosMemoryFree(pMem);
 }
 
 int32_t tsdbInitSma(STsdb *pTsdb) {

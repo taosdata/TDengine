@@ -428,17 +428,23 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 }
 
 static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-  SName name = {0};
+  SName        name = {0};
+  SVDropStbReq req = {0};
+  int32_t      contLen = 0;
+  int32_t      ret = 0;
+  SMsgHead    *pHead = NULL;
+  SCoder       coder = {0};
+
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  SVDropTbReq req = {0};
-  req.ver = 0;
   req.name = (char *)tNameGetTableName(&name);
-  req.type = TD_SUPER_TABLE;
   req.suid = pStb->uid;
 
-  int32_t   contLen = tSerializeSVDropTbReq(NULL, &req) + sizeof(SMsgHead);
-  SMsgHead *pHead = taosMemoryMalloc(contLen);
+  tEncodeSize(tEncodeSVDropStbReq, &req, contLen, ret);
+  if (ret < 0) return NULL;
+
+  contLen += sizeof(SMsgHead);
+  pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -448,7 +454,10 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tSerializeSVDropTbReq(&pBuf, &req);
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
+  tEncodeSVDropStbReq(&coder, &req);
+  tCoderClear(&coder);
 
   *pContLen = contLen;
   return pHead;
@@ -670,8 +679,8 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
     memcpy(stbObj.pAst2, pCreate->pAst2, stbObj.ast2Len);
   }
 
-  stbObj.pColumns = taosMemoryMalloc(stbObj.numOfColumns * sizeof(SSchema));
-  stbObj.pTags = taosMemoryMalloc(stbObj.numOfTags * sizeof(SSchema));
+  stbObj.pColumns = taosMemoryCalloc(1, stbObj.numOfColumns * sizeof(SSchema));
+  stbObj.pTags = taosMemoryCalloc(1, stbObj.numOfTags * sizeof(SSchema));
   if (stbObj.pColumns == NULL || stbObj.pTags == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -1102,7 +1111,7 @@ static int32_t mndSetAlterStbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }

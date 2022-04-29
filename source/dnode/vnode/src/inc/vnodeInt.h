@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tcompression.h"
 #include "tdatablock.h"
-#include "tdbInt.h"
+#include "tdb.h"
 #include "tencode.h"
 #include "tfs.h"
 #include "tglobal.h"
@@ -54,10 +54,13 @@ typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
 typedef struct SQWorker SQHandle;
 
-#define VNODE_META_DIR "meta"
-#define VNODE_TSDB_DIR "tsdb"
-#define VNODE_TQ_DIR   "tq"
-#define VNODE_WAL_DIR  "wal"
+#define VNODE_META_DIR  "meta"
+#define VNODE_TSDB_DIR  "tsdb"
+#define VNODE_TQ_DIR    "tq"
+#define VNODE_WAL_DIR   "wal"
+#define VNODE_TSMA_DIR  "tsma"
+#define VNODE_RSMA1_DIR "rsma1"
+#define VNODE_RSMA2_DIR "rsma2"
 
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
@@ -72,6 +75,7 @@ int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
@@ -87,7 +91,7 @@ int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
-int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb);
+int          tsdbOpen(SVnode* pVnode, int8_t type);
 int          tsdbClose(STsdb* pTsdb);
 int          tsdbBegin(STsdb* pTsdb);
 int          tsdbCommit(STsdb* pTsdb);
@@ -160,6 +164,8 @@ struct SVnode {
   SVBufPool* onRecycle;
   SMeta*     pMeta;
   STsdb*     pTsdb;
+  STsdb*     pRSma1;
+  STsdb*     pRSma2;
   SWal*      pWal;
   STQ*       pTq;
   SSink*     pSink;
@@ -167,6 +173,11 @@ struct SVnode {
   tsem_t     canCommit;
   SQHandle*  pQuery;
 };
+
+#define VND_TSDB(vnd)  ((vnd)->pTsdb)
+#define VND_RSMA0(vnd) ((vnd)->pTsdb)
+#define VND_RSMA1(vnd) ((vnd)->pRSma1)
+#define VND_RSMA2(vnd) ((vnd)->pRSma2)
 
 struct STbUidStore {
   tb_uid_t  suid;
@@ -176,7 +187,11 @@ struct STbUidStore {
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
-// typedef struct STbDdlH STbDdlH;
+
+static FORCE_INLINE bool tsdbIsRollup(SVnode* pVnode) {
+  SRetention* pRetention = &(pVnode->config.tsdbCfg.retentions[0]);
+  return (pRetention->freq > 0 && pRetention->keep > 0);
+}
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);

@@ -66,10 +66,10 @@
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
-#./test.sh -f tsim/stable/dnode3.sim
+./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-# ./test.sh -f tsim/stable/show.sim
+#./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
 
@@ -81,7 +81,7 @@
 ./test.sh -f tsim/insert/backquote.sim -m
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim -m
 ./test.sh -f tsim/query/interval-offset.sim -m
-#./test.sh -f tsim/tmq/basic3.sim -m
+./test.sh -f tsim/tmq/basic3.sim -m
 ./test.sh -f tsim/stable/vnode3.sim -m
 ./test.sh -f tsim/qnode/basic1.sim -m
 ./test.sh -f tsim/mnode/basic1.sim -m
