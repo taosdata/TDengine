@@ -175,27 +175,20 @@ static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup) 
   return 0;
 }
 
-static SMqRebSubscribe *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
-  SMqRebSubscribe *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
+static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
+  SMqRebInfo *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
   if (pRebSub == NULL) {
     pRebSub = tNewSMqRebSubscribe(key);
     if (pRebSub == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebSubscribe));
+    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebInfo));
   }
   return pRebSub;
 }
 
 static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqRebOutputObj *pOutput) {
-  if (pInput->pTopic != NULL) {
-    // create subscribe
-    pOutput->pSub = mndCreateSub(pMnode, pInput->pTopic, pInput->pRebInfo->key);
-    ASSERT(taosHashGetSize(pOutput->pSub->consumerHash) == 0);
-  } else {
-    pOutput->pSub = tCloneSubscribeObj(pInput->pOldSub);
-  }
   int32_t totalVgNum = pOutput->pSub->vgNum;
 
   mInfo("mq rebalance subscription: %s, vgNum: %d", pOutput->pSub->key, pOutput->pSub->vgNum);
@@ -246,12 +239,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   }
 
   // 3. calc vg number of each consumer
-  int32_t oldSz = 0;
-  if (pInput->pOldSub) {
-    oldSz = taosHashGetSize(pInput->pOldSub->consumerHash);
-  }
-  int32_t afterRebConsumerNum =
-      oldSz + taosArrayGetSize(pInput->pRebInfo->newConsumers) - taosArrayGetSize(pInput->pRebInfo->removedConsumers);
+  int32_t afterRebConsumerNum = pInput->oldConsumerNum + taosArrayGetSize(pInput->pRebInfo->newConsumers) -
+                                taosArrayGetSize(pInput->pRebInfo->removedConsumers);
   int32_t minVgCnt = 0;
   int32_t imbConsumerNum = 0;
   // calc num
@@ -489,22 +478,34 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
     rebOutput.touchedConsumers = taosArrayInit(0, sizeof(void *));
     rebOutput.rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
 
-    SMqRebSubscribe *pRebSub = (SMqRebSubscribe *)pIter;
-    SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pRebSub->key);
+    SMqRebInfo      *pRebInfo = (SMqRebInfo *)pIter;
+    SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pRebInfo->key);
+
+    rebInput.pRebInfo = pRebInfo;
 
     if (pSub == NULL) {
       // split sub key and extract topic
       char topic[TSDB_TOPIC_FNAME_LEN];
       char cgroup[TSDB_CGROUP_LEN];
-      mndSplitSubscribeKey(pRebSub->key, topic, cgroup);
+      mndSplitSubscribeKey(pRebInfo->key, topic, cgroup);
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
-      rebInput.pTopic = pTopic;
-    }
 
-    rebInput.pRebInfo = pRebSub;
-    rebInput.pOldSub = pSub;
+      rebOutput.pSub = mndCreateSub(pMnode, pTopic, pRebInfo->key);
+      ASSERT(taosHashGetSize(rebOutput.pSub->consumerHash) == 0);
+
+      taosRUnLockLatch(&pTopic->lock);
+      mndReleaseTopic(pMnode, pTopic);
+
+      rebInput.oldConsumerNum = 0;
+    } else {
+      taosRLockLatch(&pSub->lock);
+      rebInput.oldConsumerNum = taosHashGetSize(pSub->consumerHash);
+      rebOutput.pSub = tCloneSubscribeObj(pSub);
+      taosRUnLockLatch(&pSub->lock);
+      mndReleaseSubscribe(pMnode, pSub);
+    }
 
     // TODO replace assert with error check
     ASSERT(mndDoRebalance(pMnode, &rebInput, &rebOutput) == 0);
@@ -516,14 +517,6 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
     // TODO replace assert with error check
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
       mError("persist rebalance output error, possibly vnode splitted or dropped");
-    }
-
-    if (rebInput.pTopic) {
-      SMqTopicObj *pTopic = (SMqTopicObj *)rebInput.pTopic;
-      taosRUnLockLatch(&pTopic->lock);
-      mndReleaseTopic(pMnode, pTopic);
-    } else {
-      mndReleaseSubscribe(pMnode, pSub);
     }
   }
 
