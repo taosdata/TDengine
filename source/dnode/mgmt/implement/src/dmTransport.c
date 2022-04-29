@@ -254,8 +254,17 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
 
     epSet.eps[i].port = htons(epSet.eps[i].port);
   }
+  SRpcMsg resp;
+  SMEpSet msg = {.epSet = epSet};
+  int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
+  resp.pCont = rpcMallocCont(len);
+  resp.contLen = len;
+  tSerializeSMEpSet(resp.pCont, len, &msg);
 
-  rpcSendRedirectRsp(pReq->handle, &epSet);
+  resp.code = TSDB_CODE_RPC_REDIRECT;
+  resp.handle = pReq->handle;
+  resp.refId = pReq->refId;
+  rpcSendResponse(&resp);
 }
 
 static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {

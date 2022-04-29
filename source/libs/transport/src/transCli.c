@@ -914,8 +914,9 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
       ((pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgType == TDMT_MND_CONNECT)) {
-    pCtx->retryCount += 1;
+    pMsg->sent = 0;
     pMsg->st = taosGetTimestampUs();
+    pCtx->retryCount += 1;
     if (msgType == TDMT_MND_CONNECT && pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
@@ -936,12 +937,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
         pCtx->epSet = emsg.epSet;
       }
+      addConnToPool(pThrd, pConn);
+      tTrace("use remote epset, current in use: %d, retry count%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+             TRANS_RETRY_COUNT_LIMIT);
+
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
       arg->param1 = pMsg;
       arg->param2 = pThrd;
-
       transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-      addConnToPool(pThrd, pConn);
       return -1;
     }
   }
