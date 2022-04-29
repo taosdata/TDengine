@@ -51,15 +51,11 @@ pub use conf::*;
 mod consumer;
 pub use consumer::Consumer;
 
-mod message;
-pub use message::*;
-
 mod offset;
 pub use offset::*;
 
 #[cfg(test)]
 mod test {
-    use std::ffi::c_void;
     use std::sync::atomic;
     use std::sync::Arc;
     use std::thread;
@@ -91,10 +87,9 @@ mod test {
         unsafe extern "C" fn tmq_commit_callback(
             _tmq: *mut tmq_t,
             resp: tmq_resp_err_t,
-            _topic: *mut tmq_topic_vgroup_list_t,
-            _param: *mut c_void,
+            _topic: *mut tmq_topic_vgroup_list_t
         ) {
-            println!("commit {resp:?}");
+            log::info!("commit {resp:?}");
         }
         conf.set_offset_commit_cb(tmq_commit_callback);
         println!("build consumer");
@@ -109,9 +104,6 @@ mod test {
     }
 
     fn process_message(msg: &mut ResultSet) {
-        use crate::prelude::sync::Fetchable;
-        // let records: Vec<Vec<_>> = msg.rows_iter().map(|row| row.into_values()).collect();
-        // println!("{:?}", records);
         let rows = msg.to_rows_vec();
 
         for row in rows {
@@ -120,7 +112,6 @@ mod test {
     }
     fn sync_consume_loop(database: &str, consumer: &Consumer, topics: &TmqList) -> Result<()> {
         println!("consume loop");
-        const MIN_COMMIT_COUNT: usize = 1;
         // start subscription
         consumer.subscribe(topics)?;
         let running = Arc::new(atomic::AtomicBool::new(true));
@@ -161,10 +152,9 @@ mod test {
             if let Some(Ok(mut msg)) = consumer.poll(10) {
                 println!("msg: {}", msg_count.load(atomic::Ordering::SeqCst));
                 process_message(&mut msg);
-                let count = msg_count.fetch_add(1, atomic::Ordering::SeqCst);
-                if count % MIN_COMMIT_COUNT == 0 {
-                    consumer.commit(None, 0)?;
-                }
+                msg_count.fetch_add(1, atomic::Ordering::SeqCst);
+
+                consumer.commit(None, 0)?;
                 println!("msg summary: {:?}", msg.summary());
             }
         }
@@ -172,8 +162,9 @@ mod test {
         Ok(())
     }
 
-    // #[crate::test(log_level = "trace", naming = "abc1", dropping = "none")]
-    #[crate::test]
+    // todo: drop after consume will cause segmentation fault, use specific db name and no dropping.
+    #[crate::test(log_level = "trace", naming = "tmq_consume_test", dropping = "none")]
+    // #[crate::test]
     fn tmq_consume(taos: &Taos, database: &str) -> Result<()> {
         let version = crate::client_info();
         println!("version: {}", version);
