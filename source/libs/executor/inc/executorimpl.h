@@ -375,6 +375,7 @@ typedef struct SStreamBlockScanInfo {
   uint64_t     numOfExec;        // execution times
   void*        readerHandle;     // stream block reader handle
   SArray*      pColMatchInfo;    //
+  SNode*       pCondition;
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -672,7 +673,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
                                        const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList,
-                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo);
+                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pConditions);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                       SInterval* pInterval, SSDataBlock* pResBlock, int32_t fillType, char* fillVal,

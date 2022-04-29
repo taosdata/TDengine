@@ -134,6 +134,11 @@ int32_t sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status) {
     return -1;
   }
 
+  if (status == SDB_STATUS_INIT) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+
   pRaw->status = status;
   return 0;
 }

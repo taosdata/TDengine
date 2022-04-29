@@ -490,21 +490,6 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   return 0;
 }
 
-int32_t tSerializeSVDropTbReq(void **buf, SVDropTbReq *pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->ver);
-  tlen += taosEncodeString(buf, pReq->name);
-  tlen += taosEncodeFixedU8(buf, pReq->type);
-  return tlen;
-}
-
-void *tDeserializeSVDropTbReq(void *buf, SVDropTbReq *pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->ver);
-  buf = taosDecodeString(buf, &pReq->name);
-  buf = taosDecodeFixedU8(buf, &pReq->type);
-  return buf;
-}
-
 int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -3807,6 +3792,122 @@ int tDecodeSVCreateTbRsp(SCoder *pCoder, SVCreateTbRsp *pRsp) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32(pCoder, &pRsp->code) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+// TDMT_VND_DROP_TABLE =================
+static int32_t tEncodeSVDropTbReq(SCoder *pCoder, const SVDropTbReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int32_t tDecodeSVDropTbReq(SCoder *pCoder, SVDropTbReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+static int32_t tEncodeSVDropTbRsp(SCoder *pCoder, const SVDropTbRsp *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int32_t tDecodeSVDropTbRsp(SCoder *pCoder, SVDropTbRsp *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropTbBatchReq(SCoder *pCoder, const SVDropTbBatchReq *pReq) {
+  int32_t      nReqs = taosArrayGetSize(pReq->pArray);
+  SVDropTbReq *pDropTbReq;
+
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32v(pCoder, nReqs) < 0) return -1;
+  for (int iReq = 0; iReq < nReqs; iReq++) {
+    pDropTbReq = (SVDropTbReq *)taosArrayGet(pReq->pArray, iReq);
+    if (tEncodeSVDropTbReq(pCoder, pDropTbReq) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropTbBatchReq(SCoder *pCoder, SVDropTbBatchReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32v(pCoder, &pReq->nReqs) < 0) return -1;
+  pReq->pReqs = (SVDropTbReq *)tCoderMalloc(pCoder, sizeof(SVDropTbReq) * pReq->nReqs);
+  if (pReq->pReqs == NULL) return -1;
+  for (int iReq = 0; iReq < pReq->nReqs; iReq++) {
+    if (tDecodeSVDropTbReq(pCoder, pReq->pReqs + iReq) < 0) return -1;
+  }
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropTbBatchRsp(SCoder *pCoder, const SVDropTbBatchRsp *pRsp) {
+  int32_t nRsps = taosArrayGetSize(pRsp->pArray);
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32v(pCoder, nRsps) < 0) return -1;
+  for (int iRsp = 0; iRsp < nRsps; iRsp++) {
+    if (tEncodeSVDropTbRsp(pCoder, (SVDropTbRsp *)taosArrayGet(pRsp->pArray, iRsp)) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropTbBatchRsp(SCoder *pCoder, SVDropTbBatchRsp *pRsp) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32v(pCoder, &pRsp->nRsps) < 0) return -1;
+  pRsp->pRsps = (SVDropTbRsp *)tCoderMalloc(pCoder, sizeof(SVDropTbRsp) * pRsp->nRsps);
+  if (pRsp->pRsps == NULL) return -1;
+  for (int iRsp = 0; iRsp < pRsp->nRsps; iRsp++) {
+    if (tDecodeSVDropTbRsp(pCoder, pRsp->pRsps + iRsp) < 0) return -1;
+  }
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropStbReq(SCoder *pCoder, const SVDropStbReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropStbReq(SCoder *pCoder, SVDropStbReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
 
   tEndDecode(pCoder);
   return 0;

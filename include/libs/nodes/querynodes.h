@@ -88,6 +88,7 @@ typedef struct SValueNode {
     double   d;
     char*    p;
   } datum;
+  int64_t typeData;
   char unit;
 } SValueNode;
 
@@ -314,6 +315,7 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode* pNode);
+int32_t nodesSetValueNodeValue(SValueNode* pNode, void *value);
 char* nodesGetStrValueFromNode(SValueNode* pNode);
 char* getFillModeString(EFillMode mode);
 void  valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);

@@ -104,8 +104,9 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
     pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return TSDB_CODE_SUCCESS;
   }
+  int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
-  pVal->node.resType.bytes = NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes;
+  pVal->node.resType.bytes = inputSize;
   switch (pParam->buffer_type) {
     case TSDB_DATA_TYPE_BOOL:
       pVal->datum.b = *((bool*)pParam->buffer);
@@ -130,7 +131,6 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       break;
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-    case TSDB_DATA_TYPE_NCHAR:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -138,6 +138,21 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       break;
+    case TSDB_DATA_TYPE_NCHAR: {
+      pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pVal->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      
+      int32_t output = 0;
+      if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes, &output)) {
+        return errno;
+      }
+      varDataSetLen(pVal->datum.p, output);
+      pVal->node.resType.bytes = output;
+      break;
+    }
     case TSDB_DATA_TYPE_TIMESTAMP:
       pVal->datum.i = *((int64_t*)pParam->buffer);
       break;
@@ -181,13 +196,20 @@ static EDealRes updatePlanQueryId(SNode* pNode, void* pContext) {
 
 int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId) {
   int32_t size = taosArrayGetSize(pPlan->pPlaceholderValues);
-
+  int32_t code = 0;
+  
   if (colIdx < 0) {
     for (int32_t i = 0; i < size; ++i) {
-      setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, i), pParams + i);
+      code = setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, i), pParams + i);
+      if (code) {
+        return code;
+      }
     }
   } else {
-    setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, colIdx), pParams);
+    code = setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, colIdx), pParams);
+    if (code) {
+      return code;
+    }
   }
 
   if (colIdx < 0 || ((colIdx + 1) == size)) {
