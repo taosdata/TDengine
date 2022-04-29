@@ -144,6 +144,10 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
 
   int32_t vgId = pRebVg->pVgEp->vgId;
   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
+  if (pVgObj == NULL) {
+    taosMemoryFree(buf);
+    return -1;
+  }
 
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
@@ -509,7 +513,9 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
     /*ASSERT(taosArrayGetSize(rebOutput.rebVgs) != 0);*/
 
     // TODO replace assert with error check
-    ASSERT(mndPersistRebResult(pMnode, pMsg, &rebOutput) == 0);
+    if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
+      mError("persist rebalance output error, possibly vnode splitted or dropped");
+    }
 
     if (rebInput.pTopic) {
       SMqTopicObj *pTopic = (SMqTopicObj *)rebInput.pTopic;

@@ -91,16 +91,8 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   int32_t sversion = 0;
   if (pHandle->sver != sversion) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
-#if 0
-    tb_uid_t quid;
-    STbCfg*  pTbCfg = metaGetTbInfoByUid(pHandle->pVnodeMeta, pHandle->msgIter.uid);
-    if (pTbCfg->type == META_CHILD_TABLE) {
-      quid = pTbCfg->ctbCfg.suid;
-    } else {
-      quid = pHandle->msgIter.uid;
-    }
-    pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, quid, sversion, true);
-#endif
+
+    // this interface use suid instead of uid
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
     pHandle->sver = sversion;
   }

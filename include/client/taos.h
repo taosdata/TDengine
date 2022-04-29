@@ -213,7 +213,7 @@ typedef struct tmq_topic_vgroup_list_t tmq_topic_vgroup_list_t;
 typedef struct tmq_conf_t tmq_conf_t;
 typedef struct tmq_list_t tmq_list_t;
 
-typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *));
+typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, void *param));
 
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
@@ -253,7 +253,7 @@ typedef enum tmq_conf_res_t tmq_conf_res_t;
 DLL_EXPORT tmq_conf_t    *tmq_conf_new();
 DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
 DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
-DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb);
+DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
