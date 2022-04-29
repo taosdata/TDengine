@@ -65,7 +65,7 @@ typedef struct SSmlSqlInsertBatch {
   char* sql;
   int32_t code;
   int32_t tryTimes;
-  sem_t sem;
+  tsem_t sem;
   int32_t affectedRows;
   bool tryAgain;
   bool resetQueryCache;
