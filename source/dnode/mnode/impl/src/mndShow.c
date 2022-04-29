@@ -209,16 +209,6 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
     pShow->pMeta = pMeta;
     pShow->numOfColumns = pShow->pMeta->numOfColumns;
-    int32_t offset = 0;
-
-    for (int32_t i = 0; i < pShow->pMeta->numOfColumns; ++i) {
-      pShow->offset[i] = offset;
-
-      int32_t bytes = pShow->pMeta->pSchemas[i].bytes;
-      pShow->rowSize += bytes;
-      pShow->bytes[i] = bytes;
-      offset += bytes;
-    }
   } else {
     pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
     if (pShow == NULL) {

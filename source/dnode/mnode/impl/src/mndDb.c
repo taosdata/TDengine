@@ -1387,12 +1387,13 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
                            bool sysDb) {
   int32_t cols = 0;
 
-  char       *buf = taosMemoryMalloc(pShow->bytes[cols]);
+  int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
+  char       *buf = taosMemoryMalloc(bytes);
   const char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, name, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, name, bytes);
   } else {
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", bytes);
   }
 
   char *status = "ready";
