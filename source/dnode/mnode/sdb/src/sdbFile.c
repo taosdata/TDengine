@@ -263,7 +263,13 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
       SSdbRow *pRow = *ppRow;
-      if (pRow == NULL || pRow->status != SDB_STATUS_READY) {
+      if (pRow == NULL) {
+        ppRow = taosHashIterate(hash, ppRow);
+        continue;
+      }
+
+      if (pRow->status != SDB_STATUS_READY && pRow->status != SDB_STATUS_DROPPING) {
+        sdbPrintOper(pSdb, pRow, "not-write");
         ppRow = taosHashIterate(hash, ppRow);
         continue;
       }
