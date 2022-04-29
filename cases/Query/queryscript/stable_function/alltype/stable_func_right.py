@@ -338,7 +338,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                        for i in (3,4):
+                        for i in (1,2,3,4,6,7,8,9,):
                             time_window_new = tdWhere.time_window_new(i)
                             print("\n\n\n=====right case_tbname========case1====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s group by tbname;'  % (func,self.table,interval_fill,time_window_new)
