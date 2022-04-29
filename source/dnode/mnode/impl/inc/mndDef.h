@@ -388,15 +388,12 @@ typedef struct {
   int8_t         type;
   int8_t         replica;
   int16_t        numOfColumns;
-  int32_t        rowSize;
   int32_t        numOfRows;
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
-  int16_t        offset[TSDB_MAX_COLUMNS];
-  int32_t        bytes[TSDB_MAX_COLUMNS];
 } SShowObj;
 
 typedef struct {

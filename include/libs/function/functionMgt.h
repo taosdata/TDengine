@@ -40,6 +40,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
