@@ -111,18 +111,17 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn) {
   return 0;
 }
 
-int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, tdb_cmpr_fn_t cmprFn, int flags) {
+int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int flags) {
   int tflags;
 
   // set/check flags
   if (flags == 0) {
     flags |= TDB_FLG_CMP_EQ;
   } else {
-    tflags = flags & (TDB_FLG_CMP_LT | TDB_FLG_CMP_EQ | TDB_FLG_CMP_GT);
-    if (tflags != TDB_FLG_CMP_LT && tflags != TDB_FLG_CMP_EQ && tflags != TDB_FLG_CMP_GT) return -1;
+    if (flags & TDB_FLG_CMP_LT && flags & TDB_FLG_CMP_GT) return -1;
   }
 
-  return tdbBtcMoveTo2(&pDbc->btc, pKey, kLen, cmprFn, flags);
+  return tdbBtcMoveTo2(&pDbc->btc, pKey, kLen, flags);
 }
 
 int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
