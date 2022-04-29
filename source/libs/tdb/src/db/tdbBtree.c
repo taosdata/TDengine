@@ -68,7 +68,6 @@ typedef struct {
 } SCellDecoder;
 
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
-static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
@@ -1307,7 +1306,7 @@ static int tdbBtcMoveUpward(SBTC *pBtc) {
   return 0;
 }
 
-static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
+int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   int          ret;
   int          nCells;
   int          c;
@@ -1505,145 +1504,3 @@ void tdbBtPageInfo(SPage *pPage, int idx) {
 }
 #endif
 // TDB_BTREE_DEBUG
-
-static void tdbBSearch(int *lidx, int *ridx, int midx, int c, int flags) {
-  if (flags & TDB_FLG_CMP_EQ) {
-    if (c < 0) {
-      *lidx = midx + 1;
-    } else if (c == 0) {
-      *lidx = *ridx + 1;
-    } else {
-      *ridx = midx - 1;
-    }
-  } else if (flags & TDB_FLG_CMP_GT) {
-    if (c <= 0) {
-      *lidx = midx + 1;
-    } else {
-      *ridx = midx - 1;
-    }
-  } else if (flags & TDB_FLG_CMP_LT) {
-    if (c < 0) {
-      *lidx = midx + 1;
-    } else {
-      *ridx = midx - 1;
-    }
-  } else {
-    ASSERT(0);
-  }
-}
-
-int tdbBtcMoveTo2(SBTC *pBtc, const void *pKey, int kLen, int flags) {
-  SBTree       *pBt = pBtc->pBt;
-  SPager       *pPager = pBt->pPager;
-  SPgno         root = pBt->root;
-  SCellDecoder  cd = {0};
-  int           nCells = 0;
-  SCell        *pCell = NULL;
-  int           ret = 0;
-  int           c;
-  u8            leaf;
-  tdb_cmpr_fn_t cmprFn;
-
-  cmprFn = pBt->kcmpr;
-
-  // move cursor to a level
-  if (pBtc->iPage < 0) {
-    // move from clear cursor
-    ret = tdbPagerFetchPage(pPager, &root, &(pBtc->pPage), tdbBtreeInitPage,
-                            &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
-    if (ret < 0) {
-      // TODO
-      ASSERT(0);
-      return -1;
-    }
-
-    pBtc->iPage = 0;
-    pBtc->idx = -1;
-    // for empty tree, just return with an invalid position
-    if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
-  } else {
-    // move from a position (TODO)
-    ASSERT(0);
-  }
-
-  // search downward
-  for (;;) {
-    int    lidx, ridx, midx;
-    SPage *pPage;
-
-    pPage = pBtc->pPage;
-    nCells = TDB_PAGE_TOTAL_CELLS(pPage);
-    lidx = 0;
-    ridx = nCells - 1;
-
-    ASSERT(nCells > 0);
-    ASSERT(pBtc->idx == -1);
-
-    // search two ends
-    // compare first cell
-    midx = lidx;
-    pCell = tdbPageGetCell(pPage, midx);
-    tdbBtreeDecodeCell(pPage, pCell, &cd);
-    c = cmprFn(cd.pKey, cd.kLen, pKey, kLen);
-    tdbBSearch(&lidx, &ridx, midx, c, flags);
-
-    // compare last cell
-    if (lidx <= ridx) {
-      midx = ridx;
-      pCell = tdbPageGetCell(pPage, midx);
-      tdbBtreeDecodeCell(pPage, pCell, &cd);
-      c = cmprFn(cd.pKey, cd.kLen, pKey, kLen);
-      tdbBSearch(&lidx, &ridx, midx, c, flags);
-    }
-
-    // binary search
-    for (;;) {
-      if (lidx > ridx) break;
-
-      midx = (lidx + ridx) >> 1;
-      pCell = tdbPageGetCell(pPage, midx);
-      tdbBtreeDecodeCell(pPage, pCell, &cd);
-      c = cmprFn(pKey, kLen, cd.pKey, cd.kLen);
-      tdbBSearch(&lidx, &ridx, midx, c, flags);
-    }
-
-    // keep search downward or break
-    leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
-    if (!leaf) {
-      if (flags & 0x7 == TDB_FLG_CMP_EQ) {
-        if (c < 0) {
-          pBtc->idx = midx + 1;
-        } else {
-          pBtc->idx = midx;
-        }
-      } else if (flags & 0x7 == TDB_FLG_CMP_LT) {
-        if (c < 0) {
-          pBtc->idx = midx;
-        } else if (c == 0) {
-        } else {
-        }
-      } else if (flags & 0x7 == TDB_FLG_CMP_GT) {
-        if (c < 0) {
-        } else if (c == 0) {
-        } else {
-        }
-      } else if (flags & 0x7 == TDB_FLG_CMP_LT | TDB_FLG_CMP_EQ) {
-        if (c < 0) {
-        } else if (c == 0) {
-        } else {
-        }
-      } else if (flags & 0x7 == TDB_FLG_CMP_GT | TDB_FLG_CMP_EQ) {
-        if (c < 0) {
-        } else if (c == 0) {
-        } else {
-        }
-      }
-
-      tdbBtcMoveDownward(pBtc);
-    } else {
-      // non-leaf (TODO)
-    }
-  }
-
-  return 0;
-}

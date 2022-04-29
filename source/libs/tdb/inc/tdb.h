@@ -50,7 +50,7 @@ int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, vo
 #define TDB_FLG_CMP_GT 0x4  // greater than
 
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn);
-int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int flags);
+int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen);
 int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
 int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen);
 int tdbDbcDrop(TDBC *pDbc);
