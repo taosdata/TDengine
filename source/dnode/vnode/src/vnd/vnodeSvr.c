@@ -141,8 +141,10 @@ _err:
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
+#if 0
   SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
-
+#endif
+  SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
