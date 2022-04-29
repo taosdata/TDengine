@@ -95,6 +95,7 @@ docker run \
     -v $REPDIR/packaging/cfg/taos.cfg:/etc/taos/taos.cfg:ro \
     -v $REPDIR/packaging:$CONTAINER_TESTDIR/packaging:ro \
     -v $REPDIR/README.md:$CONTAINER_TESTDIR/README.md:ro \
+    -v $REPDIR/docs-examples:$CONTAINER_TESTDIR/docs-examples \
     -v $REPDIR/src/connector/python/taos:/usr/local/lib/python3.8/site-packages/taos:ro \
     -e LD_LIBRARY_PATH=/home/debug/build/lib:/home/debug/build/lib64 \
     --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $timeout_param

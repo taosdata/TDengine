@@ -8,3 +8,5 @@ src/test/doc/
 NugetPackTest/
 examples/bin/
 examples/obj/
+src/TDengineDriver/doc/
+.vs

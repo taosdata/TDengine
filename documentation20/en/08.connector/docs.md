@@ -420,7 +420,7 @@ In addition to writing data using SQL or using the parameter binding API, writin
 #include <stdlib.h>
 #include <stdio.h>
 #include <taos.h>
- 
+
 int main() {
   const char* host = "127.0.0.1";
   const char* user = "root";
@@ -428,47 +428,26 @@ int main() {
 
   // connect to server
   TAOS* taos = taos_connect(host, user, passwd, "test", 0);
-   
+
   // prepare the line string
   char* lines1[] = {
       "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
       "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
   };
- 
+
   // schema-less insert
   TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   if (taos_errno(res) != 0) {
     printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
   }
- 
+
   taos_free_result(res);
- 
+
   // close the connection
   taos_close(taos);
   return (code);
 }
 ```
-
-### Continuous query interface
-
-TDengine provides time-driven real-time stream computing APIs. You can perform various real-time aggregation calculation operations on tables (data streams) of one or more databases at regular intervals. The operation is simple, only APIs for opening and closing streams. The details are as follows:
-
-- `TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), int64_t stime, void *param, void (*callback)(void *))`
-
-This API is used to create data streams where:
-
-  * taos: Database connection established
-  * sql: SQL query statement (query statement only)
-  * fp: user-defined callback function pointer. After each stream computing is completed, TDengine passes the query result (TAOS_ROW), query status (TAOS_RES), and user-defined parameters (PARAM) to the callback function. In the callback function, the user can use `taos_num_fields()` to obtain the number of columns in the result set, and `taos_fetch_fields()` to obtain the type of data in each column of the result set.
-  * stime: The time when stream computing starts. If it is 0, it means starting from now. If it is not zero, it means starting from the specified time (the number of milliseconds from 1970/1/1 UTC time).
-  * param: It is a parameter provided by the application for callback. During callback, the parameter is provided to the application
-  * callback: The second callback function is called when the continuous query stop automatically.
-
-The return value is NULL, indicating creation failed; the return value is not NULL, indicating creation successful.
-
-- `void taos_close_stream (TAOS_STREAM *tstr)`
-
-Close the data flow, where the parameter provided is the return value of `taos_open_stream()`. When the user stops stream computing, be sure to close the data flow.
 
 ### Data subscription interface
 

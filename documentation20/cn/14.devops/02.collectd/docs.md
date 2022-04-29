@@ -33,7 +33,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### 安装 TDengine
 
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/）页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
 
 ## 数据链路设置
 

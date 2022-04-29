@@ -35,7 +35,7 @@ class TDTestCase:
         else:
             return True
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -43,13 +43,16 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosdump" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def run(self):
         if not os.path.exists("./taosdumptest/tmp1"):
@@ -78,16 +81,15 @@ class TDTestCase:
             sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
         tdSql.execute(sql)
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found: %s" % binPath)
 
-        os.system("%staosdump --databases db -o ./taosdumptest/tmp1" % binPath)
+        os.system("%s -y --databases db -o ./taosdumptest/tmp1" % binPath)
         os.system(
-            "%staosdump --databases db1 -o ./taosdumptest/tmp2" %
+            "%s -y --databases db1 -o ./taosdumptest/tmp2" %
             binPath)
 
         tdSql.execute("drop database db")
@@ -95,8 +97,8 @@ class TDTestCase:
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%staosdump -i ./taosdumptest/tmp1" % binPath)
-        os.system("%staosdump -i ./taosdumptest/tmp2" % binPath)
+        os.system("%s -i ./taosdumptest/tmp1" % binPath)
+        os.system("%s -i ./taosdumptest/tmp2" % binPath)
 
         tdSql.execute("use db")
         tdSql.query("show databases")
@@ -168,9 +170,10 @@ class TDTestCase:
         tdSql.query("show stables")
         tdSql.checkRows(2)
         os.system(
-            "%staosdump --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1" % binPath)
+            "%s -y --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1" %
+            binPath)
         tdSql.execute("drop database db12312313231231321312312312_323")
-        os.system("%staosdump -i ./taosdumptest/tmp1" % binPath)
+        os.system("%s -i ./taosdumptest/tmp1" % binPath)
         tdSql.execute("use db12312313231231321312312312_323")
         tdSql.query("show stables")
         tdSql.checkRows(2)

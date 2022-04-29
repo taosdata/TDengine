@@ -783,13 +783,13 @@ if $data11 != 2 then
   return -1
 endi
 
-sql_error select count(*) from m1 group by tbname,k,f1;
-sql_error select count(*) from m1 group by tbname,k,a;
-sql_error select count(*) from m1 group by k, tbname;
-sql_error select count(*) from m1 group by k,f1;
+#sql_error select count(*) from m1 group by tbname,k,f1;
+#sql_error select count(*) from m1 group by tbname,k,a;
+#sql_error select count(*) from m1 group by k, tbname;
+#sql_error select count(*) from m1 group by k,f1;
 sql_error select count(*) from tm0 group by tbname;
 sql_error select count(*) from tm0 group by a;
-sql_error select count(*) from tm0 group by k,f1;
+#sql_error select count(*) from tm0 group by k,f1;
 
 sql_error select count(*),f1 from m1 group by tbname,k;
 

@@ -1,76 +1,98 @@
-### Prepare development environment
+# Prepare development environment
 
-1.  sudo apt install
-    build-essential cmake net-tools python-pip python-setuptools python3-pip
-    python3-setuptools valgrind psmisc curl
+```shell
+sudo apt install build-essential cmake net-tools python-pip python-setuptools \
+ python3-pip python3-setuptools valgrind psmisc curl
 
-2.  git clone <https://github.com/taosdata/TDengine>; cd TDengine
+git clone https://github.com/taosdata/TDengine
 
-3.  mkdir debug; cd debug; cmake ..; make ; sudo make install
+cd TDengine
 
-4.  cd ../tests && pip3 install -r requirements.txt
+git submodule update --init --recursive
 
+mkdir debug
 
+cd debug
 
->   Note: Both Python2 and Python3 are currently supported by the Python test
->   framework. Since Python2 is no longer officially supported by Python Software
->   Foundation since January 1, 2020, it is recommended that subsequent test case
->   development be guaranteed to run correctly on Python3. 
+cmake .. -DBUILD_TOOLS=true -DBUILD_HTTP=false
 
->   For Python2, please consider being compatible if appropriate without 
->   additional burden.
+make
+
+sudo make install
+
+cd ../tests
+
+pip3 install -r requirements.txt
+```
+
+> Note: Both Python2 and Python3 are currently supported by the Python test
+> framework. Since Python2 is no longer officially supported by Python Software
+> Foundation since January 1, 2020, it is recommended that subsequent test case
+> development be guaranteed to run correctly on Python3.
 >
->   If you use some new Linux distribution like Ubuntu 20.04 which already do not
->   include Python2, please do not install Python2-related packages.
+> For Python2, please consider being compatible if appropriate without
+> additional burden.
 >
->   <https://nakedsecurity.sophos.com/2020/01/03/python-is-dead-long-live-python/> 
+> If you use some new Linux distribution like Ubuntu 20.04 which already do not
+> include Python2, please do not install Python2-related packages.
+>
+> <https://nakedsecurity.sophos.com/2020/01/03/python-is-dead-long-live-python/> 
 
-### How to run Python test suite
+## How to run Python test suite
 
-1.  cd \<TDengine\>/tests/pytest
+```
+cd TDengine/tests/pytest
 
-2.  ./smoketest.sh \# for smoke test
+# for smoke test
+./smoketest.sh
 
-3.  ./smoketest.sh -g \# for memory leak detection test with valgrind
+# for memory leak detection test with valgrind
+./smoketest.sh -g
 
-4.  ./fulltest.sh \# for full test
+# for full test
+./fulltest.sh
+```
 
->   Note1: TDengine daemon's configuration and data files are stored in
->   \<TDengine\>/sim directory. As a historical design, it's same place with
->   TSIM script. So after the TSIM script ran with sudo privilege, the directory
->   has been used by TSIM then the python script cannot write it by a normal
->   user. You need to remove the directory completely first before running the
->   Python test case. We should consider using two different locations to store
->   for TSIM and Python script.
+> Note1: TDengine daemon's configuration and data files are stored in
+> \<TDengine\>/sim directory. As a historical design, it's same place with
+> TSIM script. So after the TSIM script ran with sudo privilege, the directory
+> has been used by TSIM then the python script cannot write it by a normal
+> user. You need to remove the directory completely first before running the
+> Python test case. We should consider using two different locations to store
+> for TSIM and Python script.
+>
+> Note2: if you need to debug crash problem with a core dump, you need
+> manually edit smoketest.sh or fulltest.sh to add "ulimit -c unlimited"
+> before the script line. Then you can look for the core file in
+> \<TDengine\>/tests/pytest after the program crash.
 
->   Note2: if you need to debug crash problem with a core dump, you need
->   manually edit smoketest.sh or fulltest.sh to add "ulimit -c unlimited"
->   before the script line. Then you can look for the core file in
->   \<TDengine\>/tests/pytest after the program crash.
+## How to add a new test case
 
+### 1. TSIM test cases
 
-### How to add a new test case
+TSIM was the testing framework has been used internally. Now it still be used
+ to run the test cases we develop in the past as a legacy system. We are
+ turning to use Python to develop new test case and are abandoning TSIM
+ gradually.
 
-**1. TSIM test cases:**
+### 2. Python test cases
 
-TSIM was the testing framework has been used internally. Now it still be used to run the test cases we develop in the past as a legacy system. We are turning to use Python to develop new test case and are abandoning TSIM gradually.
+#### 2.1 Add a new Python test case
 
-**2. Python test cases:**
-
-**2.1 Please refer to \<TDengine\>/tests/pytest/insert/basic.py to add a new
-test case.** The new test case must implement 3 functions, where self.init()
-and self.stop() simply copy the contents of insert/basic.py and the test
-logic is implemented in self.run(). You can refer to the code in the util
+Please refer to `TDengine/tests/pytest/insert/basic.py` to add a new
+test case. The new test case must implement 3 functions, where `self.init()`
+and `self.stop()` simply copy the contents of `insert/basic.py` and the test
+logic is implemented in `self.run()`. You can refer to the code in the `util`
 directory for more information.
 
-**2.2 Edit smoketest.sh to add the path and filename of the new test case**
+#### 2.2 Edit smoketest.sh to add the path and filename of the new test case
 
 Note: The Python test framework may continue to be improved in the future,
 hopefully, to provide more functionality and ease of writing test cases. The
 method of writing the test case above does not exclude that it will also be
 affected.
 
-**2.3 What test.py does in detail:**
+#### 2.3 What test.py does in detail
 
 test.py is the entry program for test case execution and monitoring.
 
@@ -79,7 +101,7 @@ test.py has the following functions.
 \-f --file, Specifies the test case file name to be executed
 -p --path, Specifies deployment path
 
-\-m --master, Specifies the master server IP for cluster deployment 
+\-m --master, Specifies the master server IP for cluster deployment
 -c--cluster, test cluster function
 -s--stop, terminates all running nodes
 
@@ -87,156 +109,129 @@ test.py has the following functions.
 
 \-h--help, display help
 
-**2.4 What util/log.py does in detail:**
+#### 2.4 What util/log.py does in detail
 
-log.py is quite simple, the main thing is that you can print the output in
-different colors as needed. The success() should be called for successful
-test case execution and the success() will print green text. The exit() will
-print red text and exit the program, exit() should be called for test
+`log.py` is quite simple, the main thing is that you can print the output in
+different colors as needed. The `success()` should be called for successful
+test case execution and the `success()` will print green text. The `exit()` will
+print red text and exit the program, `exit()` should be called for test
 failure.
 
-**util/log.py**
+- util/log.py
 
-...
+```python
+    def info(self, info):
+        print("%s %s" % (datetime.datetime.now(), info))
 
-    def info(self, info):
+    def sleep(self, sec):
+        print("%s sleep %d seconds" % (datetime.datetime.now(), sec))
+        time.sleep(sec)
 
-        print("%s %s" % (datetime.datetime.now(), info))
+    def debug(self, err):
+        print("\\033[1;36m%s %s\\033[0m" % (datetime.datetime.now(), err))
 
- 
+    def success(self, info):
+        printf("\\033[1;32m%s %s\\033[0m" % (datetime.datetime.now(), info))
 
-    def sleep(self, sec):
+    def notice(self, err):
+        printf("\\033[1;33m%s %s\\033[0m" % (datetime.datetime.now(), err))
 
-        print("%s sleep %d seconds" % (datetime.datetime.now(), sec))
+    def exit(self, err):
+        printf("\\033[1;31m%s %s\\033[0m" % (datetime.datetime.now(), err))
+        sys.exit(1)
 
-        time.sleep(sec)
+    def printNoPrefix(self, info):
+        printf("\\033[1;36m%s\\033[0m" % (info)
+```
 
- 
-
-    def debug(self, err):
-
-        print("\\033[1;36m%s %s\\033[0m" % (datetime.datetime.now(), err))
-
- 
-
-    def success(self, info):
-
-        printf("\\033[1;32m%s %s\\033[0m" % (datetime.datetime.now(), info))
-
- 
-
-    def notice(self, err):
-
-        printf("\\033[1;33m%s %s\\033[0m" % (datetime.datetime.now(), err))
-
- 
-
-    def exit(self, err):
-
-        printf("\\033[1;31m%s %s\\033[0m" % (datetime.datetime.now(), err))
-
-        sys.exit(1)
-
- 
-
-    def printNoPrefix(self, info):
-
-        printf("\\033[1;36m%s\\033[0m" % (info)
-
-...
-
-**2.5 What util/sql.py does in detail:**
+#### 2.5 What util/sql.py does in detail
 
 SQL.py is mainly used to execute SQL statements to manipulate the database,
 and the code is extracted and commented as follows:
 
-**util/sql.py**
+- util/sql.py
 
-\# prepare() is mainly used to set up the environment for testing table and
-data, and to set up the database db for testing. do not call prepare() if you
+\# `prepare()` is mainly used to set up the environment for testing table and
+data, and to set up the database db for testing. do not call `prepare()` if you
 need to test the database operation command.
 
+```python
 def prepare(self):
+    tdLog.info("prepare database:db")
+    self.cursor.execute('reset query cache')
+    self.cursor.execute('drop database if exists db')
+    self.cursor.execute('create database db')
+    self.cursor.execute('use db')
+```
 
-tdLog.info("prepare database:db")
+\# `query()` is mainly used to execute select statements for normal syntax input
 
-self.cursor.execute('reset query cache')
-
-self.cursor.execute('drop database if exists db')
-
-self.cursor.execute('create database db')
-
-self.cursor.execute('use db')
-
-...
-
-\# query() is mainly used to execute select statements for normal syntax input
-
+```python
 def query(self, sql):
 
-...
+```
 
-\# error() is mainly used to execute the select statement with the wrong syntax
+\# `error()` is mainly used to execute the select statement with the wrong syntax
 input, the error will be caught as a reasonable behavior, if not caught it will
 prove that the test failed
 
+```python
 def error()
+```
 
-...
-
-\# checkRows() is used to check the number of returned lines after calling
-query(select ...) after calling the query(select ...) to check the number of
+\# `checkRows()` is used to check the number of returned lines after calling
+`query(select ...)` after calling the `query(select ...)` to check the number of
 rows of returned results.
 
+```python
 def checkRows(self, expectRows):
+```
 
-...
-
-\# checkData() is used to check the returned result data after calling
-query(select ...) after the query(select ...) is called, failure to meet
+\# `checkData()` is used to check the returned result data after calling
+`query(select ...)` after the `query(select ...)` is called, failure to meet
 expectation is
 
+```python
 def checkData(self, row, col, data):
+```
 
-...
+\# `getData()` returns the result data after calling `query(select ...)` to return
+the resulting data after calling `query(select ...)`
 
-\# getData() returns the result data after calling query(select ...) to return
-the resulting data after calling query(select ...)
-
+```python
 def getData(self, row, col):
+```
 
-...
+\# `execute()` used to execute SQL command and return the number of affected rows
 
-\# execute() used to execute sql and return the number of affected rows
-
+```python
 def execute(self, sql):
+```
 
-...
+\# `executeTimes()` Multiple executions of the same sql statement
 
-\# executeTimes() Multiple executions of the same sql statement
-
+```python
 def executeTimes(self, sql, times):
+```
 
-...
+\# `checkAffectedRows()` to check if the number of affected rows is as expected
 
-\# CheckAffectedRows() Check if the number of affected rows is as expected
-
+```python
 def checkAffectedRows(self, expectAffectedRows):
+```
 
-...
+## CI submission adoption principle
 
-### CI submission adoption principle.
-
--   Every commit / PR compilation must pass. Currently, the warning is treated
+- Every commit / PR compilation must pass. Currently, the warning is treated
     as an error, so the warning must also be resolved.
 
--   Test cases that already exist must pass.
+- Test cases that already exist must pass.
 
--   Because CI is very important to support build and automatically test
+- Because CI is very important to support build and automatically test
     procedure, it is necessary to manually test the test case before adding it
     and do as many iterations as possible to ensure that the test case provides
     stable and reliable test results when added.
 
->   Note: In the future, according to the requirements and test development
->   progress will add stress testing, performance testing, code style, 
->   and other features based on functional testing.
+> Note: In the future, according to the requirements and test development
+> progress will add stress testing, performance testing, code style,
+> and other features based on functional testing.

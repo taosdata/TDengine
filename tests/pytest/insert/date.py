@@ -174,14 +174,6 @@ class TDTestCase:
         # TSIM: sql drop database $db
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
-        # TSIM: sql show databases
-        tdLog.info('show databases')
-        tdSql.query('show databases')
-        # TSIM: if $rows != 0 then
-        tdLog.info('tdSql.checkRow(0)')
-        tdSql.checkRows(0)
-        # TSIM: return -1
-        # TSIM: endi
 # convert end
 
     def stop(self):

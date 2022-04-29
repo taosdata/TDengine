@@ -619,8 +619,11 @@ class TDTestCase:
             sql += "%s )" % random.choice(t_join_where)
             datacheck = self.stable_join_checkall_0(sql)           
             tdSql.checkRows(100)
-            datacheck = self.stable_join_checkall_100(sql)       
- 
+            datacheck = self.stable_join_checkall_100(sql)
+
+            # for TD-14342
+            sql = "select  * from  ( select  * from stable_1 ) where t_nchar like 'nchar%' or t_nchar = '0'"
+            datacheck = self.stable1_checkall_0(sql)
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))

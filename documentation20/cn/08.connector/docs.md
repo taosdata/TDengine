@@ -486,26 +486,6 @@ int main() {
 }
 ```
 
-### 连续查询接口
-
-TDengine 提供时间驱动的实时流式计算 API。可以每隔一指定的时间段，对一张或多张数据库的表(数据流)进行各种实时聚合计算操作。操作简单，仅有打开、关闭流的 API。具体如下： 
-
-- `TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), int64_t stime, void *param, void (*callback)(void *))`
-
-  该 API 用来创建数据流，其中：
-    * taos：已经建立好的数据库连接。
-    * sql：SQL查询语句（仅能使用查询语句）。
-    * fp：用户定义的回调函数指针，每次流式计算完成后，TDengine将查询的结果（TAOS_ROW）、查询状态（TAOS_RES）、用户定义参数（PARAM）传递给回调函数，在回调函数内，用户可以使用taos_num_fields获取结果集列数，taos_fetch_fields获取结果集每列数据的类型。
-    * stime：是流式计算开始的时间。如果是“64位整数最小值”，表示从现在开始；如果不为“64位整数最小值”，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）。
-    * param：是应用提供的用于回调的一个参数，回调时，提供给应用。
-    * callback: 第二个回调函数，会在连续查询自动停止时被调用。
-
-  返回值为 NULL，表示创建失败；返回值不为空，表示成功。
-
-- `void taos_close_stream (TAOS_STREAM *tstr)`
-
-  关闭数据流，其中提供的参数是 taos_open_stream 的返回值。用户停止流式计算的时候，务必关闭该数据流。
-
 ### 数据订阅接口
 
 订阅 API 目前支持订阅一张或多张表，并通过定期轮询的方式不断获取写入表中的最新数据。 
