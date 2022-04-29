@@ -74,9 +74,9 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
-  SColumnDataAgg* pBlockAgg;
-  SArray*         pDataBlock;  // SArray<SColumnInfoData>
-  SDataBlockInfo  info;
+  SColumnDataAgg** pBlockAgg;
+  SArray*          pDataBlock;  // SArray<SColumnInfoData>
+  SDataBlockInfo   info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {

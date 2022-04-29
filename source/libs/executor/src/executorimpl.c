@@ -1819,7 +1819,10 @@ void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock*
 
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
-        pInput->pColumnDataAgg[j] = &pBlock->pBlockAgg[slotId];
+        pInput->pColumnDataAgg[j] = pBlock->pBlockAgg[slotId];
+        if (pInput->pColumnDataAgg[j] == NULL) {
+          pInput->colDataAggIsSet = false;
+        }
 
         // Here we set the column info data since the data type for each column data is required, but
         // the data in the corresponding SColumnInfoData will not be used.
@@ -5388,7 +5391,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   pRowSup->numOfRows = 0;
 
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pBlock->pBlockAgg)) {
+    if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pBlock->pBlockAgg[pInfo->colIndex])) {
       continue;
     }
 
