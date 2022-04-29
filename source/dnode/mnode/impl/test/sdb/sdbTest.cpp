@@ -601,8 +601,8 @@ TEST_F(MndTestSdb, 01_Write_Str) {
     pRaw = i32Encode(&i32Obj);
     sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
     ASSERT_EQ(sdbWrite(pSdb, pRaw), 0);
-    pObj = (SStrObj *)sdbAcquire(pSdb, SDB_VGROUP, &key);
-    ASSERT_EQ(pObj, nullptr);
+    pI32Obj = (SI32Obj *)sdbAcquire(pSdb, SDB_VGROUP, &key);
+    ASSERT_EQ(pI32Obj, nullptr);
     ASSERT_EQ(sdbGetSize(pSdb, SDB_VGROUP), 0);
     ASSERT_EQ(sdbGetTableVer(pSdb, SDB_VGROUP), 3);
     ASSERT_EQ(sdbGetMaxId(pSdb, SDB_VGROUP), 5);
@@ -868,7 +868,37 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   ASSERT_EQ(sdbGetSize(pSdb, SDB_CONSUMER), 1);
   ASSERT_EQ(sdbGetTableVer(pSdb, SDB_CONSUMER), 4);
 
-  sdbCleanup(pSdb);
   ASSERT_EQ(mnode.insertTimes, 4);
-  ASSERT_EQ(mnode.deleteTimes, 4);
+  ASSERT_EQ(mnode.deleteTimes, 0);
+
+  {
+    SI32Obj i32Obj = {0};
+    int32_t key = 6;
+    i32SetDefault(&i32Obj, key);
+    pRaw = i32Encode(&i32Obj);
+    sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
+    ASSERT_EQ(sdbWrite(pSdb, pRaw), 0);
+    pI32Obj = (SI32Obj *)sdbAcquire(pSdb, SDB_VGROUP, &key);
+    ASSERT_EQ(pI32Obj, nullptr);
+    int32_t code = terrno;
+    ASSERT_EQ(code, TSDB_CODE_SDB_OBJ_DROPPING);
+  }
+
+  {
+    SI32Obj i32Obj = {0};
+    int32_t key = 8;
+    i32SetDefault(&i32Obj, key);
+    pRaw = i32Encode(&i32Obj);
+    EXPECT_NE(sdbSetRawStatus(pRaw, SDB_STATUS_INIT), 0);
+    sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
+    ASSERT_EQ(sdbWrite(pSdb, pRaw), 0);
+    pI32Obj = (SI32Obj *)sdbAcquire(pSdb, SDB_VGROUP, &key);
+    ASSERT_EQ(pI32Obj, nullptr);
+    int32_t code = terrno;
+    ASSERT_EQ(code, TSDB_CODE_SDB_OBJ_CREATING);
+  }
+
+  sdbCleanup(pSdb);
+  ASSERT_EQ(mnode.insertTimes, 5);
+  ASSERT_EQ(mnode.deleteTimes, 5);
 }

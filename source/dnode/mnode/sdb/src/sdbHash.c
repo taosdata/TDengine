@@ -69,8 +69,6 @@ static const char *sdbStatusName(ESdbStatus status) {
   switch (status) {
     case SDB_STATUS_CREATING:
       return "creating";
-    case SDB_STATUS_UPDATING:
-      return "updating";
     case SDB_STATUS_DROPPING:
       return "dropping";
     case SDB_STATUS_READY:
@@ -253,7 +251,6 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
     case SDB_STATUS_CREATING:
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
-    case SDB_STATUS_UPDATING:
     case SDB_STATUS_READY:
     case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
@@ -294,7 +291,6 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
   SSdbRow *pRow = *ppRow;
   switch (pRow->status) {
     case SDB_STATUS_READY:
-    case SDB_STATUS_UPDATING:
       atomic_add_fetch_32(&pRow->refCount, 1);
       pRet = pRow->pObj;
       sdbPrintOper(pSdb, pRow, "acquire");

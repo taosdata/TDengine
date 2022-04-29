@@ -1102,7 +1102,7 @@ static int32_t mndSetAlterStbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }
