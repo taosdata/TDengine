@@ -874,7 +874,7 @@ static int32_t addChildTableDataPointsToInsertSql(char* cTableName, char* sTable
   free(colKVs);
 
   if (r == fromIndex) {
-    tscError("buf can not fit one line");
+    tscError("buffer can not fit one line");
   }
   *nextIndex = r;
   *cTableSqlLen = totalLen;
@@ -984,8 +984,6 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
 
     pCTablePoints = taosHashIterate(cname2points, pCTablePoints);
   }
-  usedBytes += cTableSqlLen;
-  freeBytes -= cTableSqlLen;
   batch->sql[usedBytes] = '\0';
   info->numBatches++;
   tscDebug("SML:0x%"PRIx64" sql: %s" , info->id, batch->sql);
