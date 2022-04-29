@@ -1911,23 +1911,51 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
       break;
     case TSDB_DATA_TYPE_BOOL:
       code = tjsonGetBoolValue(pJson, jkValueDatum, &pNode->datum.b);
+      *(bool*)&pNode->typeData = pNode->datum.b;
       break;
     case TSDB_DATA_TYPE_TINYINT:
+      code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+      *(int8_t*)&pNode->typeData = pNode->datum.i;
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
+      code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+      *(int16_t*)&pNode->typeData = pNode->datum.i;
+      break;
     case TSDB_DATA_TYPE_INT:
+      code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+      *(int32_t*)&pNode->typeData = pNode->datum.i;
+      break;
     case TSDB_DATA_TYPE_BIGINT:
+      code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
+      code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
+      *(uint8_t*)&pNode->typeData = pNode->datum.u;
+      break;
     case TSDB_DATA_TYPE_USMALLINT:
+      code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
+      *(uint16_t*)&pNode->typeData = pNode->datum.u;
+      break;
     case TSDB_DATA_TYPE_UINT:
+      code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
+      *(uint32_t*)&pNode->typeData = pNode->datum.u;
+      break;
     case TSDB_DATA_TYPE_UBIGINT:
       code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
+      *(uint64_t*)&pNode->typeData = pNode->datum.u;
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      code = tjsonGetDoubleValue(pJson, jkValueDatum, &pNode->datum.d);
+      *(float*)&pNode->typeData = pNode->datum.d;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
       code = tjsonGetDoubleValue(pJson, jkValueDatum, &pNode->datum.d);
+      *(double*)&pNode->typeData = pNode->datum.d;
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
