@@ -599,7 +599,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
-      memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+      nodesSetValueNodeValue(res, output.columnData->pData);
     }
   }
 
@@ -639,7 +639,7 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
     res->datum.p = output.columnData->pData;
     output.columnData->pData = NULL;
   } else {
-    memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+    nodesSetValueNodeValue(res, output.columnData->pData);
   }
 
   nodesDestroyNode(*pNode);
@@ -681,7 +681,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
       res->datum.p = output.columnData->pData;
       output.columnData->pData = NULL;
     } else {
-      memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+      nodesSetValueNodeValue(res, output.columnData->pData);    
     }
   }
 

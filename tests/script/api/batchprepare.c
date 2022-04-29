@@ -11,8 +11,8 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_FLOAT};
-int32_t optrIdxList[] = {3, 5, 2};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_SMALLINT};
+int32_t optrIdxList[] = {4, 11, 1};
 
 typedef struct {
   char*   oper;
@@ -33,7 +33,7 @@ OperInfo operInfo[] = {
   {"like",     2, false},  
   {"not like", 2, false},  
   {"match",    2, false},  
-  {"nmake",    2, false},  
+  {"nmatch",   2, false},  
 };
 
 int32_t operatorList[] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -140,9 +140,7 @@ CaseCfg gCase[] = {
   {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1, -1},
 
   // 22
-  //{"query:SUBT-FULL", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, querySUBTTest1, 10, 10, 1, 3, 0, 1, 2},
-
-  {"query:SUBT-FULL", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, querySUBTTest1, 1, 10, 1, 3, 0, 1, 2},
+  {"query:SUBT-FULL", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, querySUBTTest1, 10, 10, 1, 3, 0, 1, 2},
 
 };
 
@@ -181,10 +179,10 @@ CaseCtrl gCaseCtrl = {
   .rowNum = 0,
   .bindColNum = 0,
   .bindRowNum = 0,
-//  .bindColTypeNum = 0,
-//  .bindColTypeList = NULL,
-//  .optrIdxListNum = 0,
-//  .optrIdxList = NULL,
+  .bindColTypeNum = 0,
+  .bindColTypeList = NULL,
+  .optrIdxListNum = 0,
+  .optrIdxList = NULL,
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
@@ -194,10 +192,10 @@ CaseCtrl gCaseCtrl = {
 //  .caseRunNum = -1,
 
 
-  .optrIdxListNum = tListLen(optrIdxList),
-  .optrIdxList = optrIdxList,
-  .bindColTypeNum = tListLen(bindColTypeList),
-  .bindColTypeList = bindColTypeList,
+//  .optrIdxListNum = tListLen(optrIdxList),
+//  .optrIdxList = optrIdxList,
+//  .bindColTypeNum = tListLen(bindColTypeList),
+//  .bindColTypeList = bindColTypeList,
   .caseIdx = 22,
   .caseNum = 1,
   .caseRunNum = 1,
