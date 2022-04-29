@@ -112,7 +112,9 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep2 = 3650;
   pCfg->tsdbCfg.keep0 = 3650;
   pCfg->tsdbCfg.keep1 = 3650;
-  pCfg->tsdbCfg.retentions = pCreate->pRetensions;
+  for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
+    memcpy(&pCfg->tsdbCfg.retentions[i], taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+  }
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
