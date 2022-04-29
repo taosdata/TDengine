@@ -455,25 +455,28 @@ void taosProcCleanup(SProcObj *pProc) {
 }
 
 int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                            void *handle, int64_t handleRef, EProcFuncType ftype) {
+                            void *handle, int64_t ref, EProcFuncType ftype) {
   if (ftype != PROC_FUNC_REQ) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
-  return taosProcQueuePush(pProc, pProc->pChildQueue, pHead, headLen, pBody, bodyLen, (int64_t)handle, handleRef,
-                           ftype);
+  return taosProcQueuePush(pProc, pProc->pChildQueue, pHead, headLen, pBody, bodyLen, (int64_t)handle, ref, ftype);
 }
 
 int64_t taosProcRemoveHandle(SProcObj *pProc, void *handle) {
   int64_t h = (int64_t)handle;
   taosThreadMutexLock(&pProc->pChildQueue->mutex);
 
-  int64_t *handleRef = taosHashGet(pProc->hash, &h, sizeof(int64_t));
+  int64_t *pRef = taosHashGet(pProc->hash, &h, sizeof(int64_t));
+  int64_t  ref = 0;
+  if (pRef != NULL) {
+    ref = *pRef;
+  }
+
   taosHashRemove(pProc->hash, &h, sizeof(int64_t));
   taosThreadMutexUnlock(&pProc->pChildQueue->mutex);
 
-  if (handleRef == NULL) return 0;
-  return *handleRef;
+  return ref;
 }
 
 void taosProcCloseHandles(SProcObj *pProc, void (*HandleFp)(void *handle)) {
