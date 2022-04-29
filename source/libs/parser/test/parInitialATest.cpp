@@ -53,4 +53,10 @@ TEST_F(ParserInitialATest, alterUser) {
   run("alter user wxy privilege 'write'");
 }
 
+TEST_F(ParserInitialATest, bug001) {
+  useDb("root", "test");
+
+  run("alter database db wal 0     # td-14436");
+}
+
 }  // namespace ParserTest
