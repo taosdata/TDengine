@@ -319,7 +319,7 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
   pCol->node.resType = pExpr->resType;
 }
 
-static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode* pTable, SNodeList* pList) {
+static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* pTable, SNodeList* pList) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     int32_t           nums =
@@ -603,6 +603,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
     }
     pCxt->pCurrStmt->hasAggFuncs = true;
+    pCxt->pCurrStmt->isTimeOrderQuery = false;
   }
 
   return DEAL_RES_CONTINUE;
@@ -899,7 +900,7 @@ static int32_t createAllColumns(STranslateContext* pCxt, SNodeList** pCols) {
   size_t  nums = taosArrayGetSize(pTables);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    int32_t     code = createColumnNodeByTable(pCxt, pTable, *pCols);
+    int32_t     code = createColumnsByTable(pCxt, pTable, *pCols);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -971,7 +972,7 @@ static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, SN
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnNodeByTable(pCxt, pTable, *pOutput);
+    code = createColumnsByTable(pCxt, pTable, *pOutput);
   }
   return code;
 }
@@ -1053,51 +1054,32 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
   return code;
 }
 
-static bool isCountStar(SNode* pNode) {
-  if (QUERY_NODE_FUNCTION != nodeType(pNode) || 1 != LIST_LENGTH(((SFunctionNode*)pNode)->pParameterList)) {
-    return false;
-  }
-  SNode* pPara = nodesListGetNode(((SFunctionNode*)pNode)->pParameterList, 0);
-  return (QUERY_NODE_COLUMN == nodeType(pPara) && 0 == strcmp(((SColumnNode*)pPara)->colName, "*"));
-}
-
-static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) {
-  SColumnNode* pCol = nodesListGetNode(pCount->pParameterList, 0);
-  STableNode*  pTable = NULL;
-  int32_t      code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
-  }
-  return code;
-}
-
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pProjectionList) {  // select * ...
     return createAllColumns(pCxt, &pSelect->pProjectionList);
   } else {
     SNode* pNode = NULL;
     WHERE_EACH(pNode, pSelect->pProjectionList) {
+      int32_t code = TSDB_CODE_SUCCESS;
       if (isMultiResFunc(pNode)) {
         SNodeList* pFuncs = NULL;
-        if (TSDB_CODE_SUCCESS != createMultiResFuncsFromStar(pCxt, (SFunctionNode*)pNode, &pFuncs)) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+        code = createMultiResFuncsFromStar(pCxt, (SFunctionNode*)pNode, &pFuncs);
+        if (TSDB_CODE_SUCCESS == code) {
+          INSERT_LIST(pSelect->pProjectionList, pFuncs);
+          ERASE_NODE(pSelect->pProjectionList);
+          continue;
         }
-        INSERT_LIST(pSelect->pProjectionList, pFuncs);
-        ERASE_NODE(pSelect->pProjectionList);
-        continue;
       } else if (isTableStar(pNode)) {
         SNodeList* pCols = NULL;
-        if (TSDB_CODE_SUCCESS != createTableAllCols(pCxt, (SColumnNode*)pNode, &pCols)) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+        code = createTableAllCols(pCxt, (SColumnNode*)pNode, &pCols);
+        if (TSDB_CODE_SUCCESS == code) {
+          INSERT_LIST(pSelect->pProjectionList, pCols);
+          ERASE_NODE(pSelect->pProjectionList);
+          continue;
         }
-        INSERT_LIST(pSelect->pProjectionList, pCols);
-        ERASE_NODE(pSelect->pProjectionList);
-        continue;
-      } else if (isCountStar(pNode)) {
-        int32_t code = rewriteCountStar(pCxt, (SFunctionNode*)pNode);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
       WHERE_NEXT;
     }
@@ -1214,11 +1196,13 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList && NULL != pSelect->pWindow) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST);
   }
-  pCxt->currClause = SQL_CLAUSE_GROUP_BY;
-  return translateExprList(pCxt, pSelect->pGroupByList);
+  if (NULL != pSelect->pGroupByList) {
+    pCxt->currClause = SQL_CLAUSE_GROUP_BY;
+    pSelect->isTimeOrderQuery = false;
+    return translateExprList(pCxt, pSelect->pGroupByList);
+  }
+  return TSDB_CODE_SUCCESS;
 }
-
-static bool isValTimeUnit(char unit) { return ('n' == unit || 'y' == unit); }
 
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
   int64_t days = convertTimeFromPrecisionToUnit(val, fromPrecision, 'd');
@@ -1246,7 +1230,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
-  bool        valInter = isValTimeUnit(pInter->unit);
+  bool        valInter = TIME_IS_VAR_DURATION(pInter->unit);
   if (pInter->datum.i <= 0 ||
       (!valInter && convertTimePrecision(pInter->datum.i, precision, TSDB_TIME_PRECISION_MICRO) < tsMinIntervalTime)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime);
@@ -1260,7 +1244,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     if (pInter->unit == 'n' && pOffset->unit == 'y') {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT);
     }
-    bool fixed = !isValTimeUnit(pOffset->unit) && !valInter;
+    bool fixed = !TIME_IS_VAR_DURATION(pOffset->unit) && !valInter;
     if ((fixed && pOffset->datum.i >= pInter->datum.i) ||
         (!fixed && getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit) >=
                        getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit))) {
@@ -1272,7 +1256,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
     SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
-    if (pInter->unit == 'n' || pInter->unit == 'y') {
+    if (TIME_IS_VAR_DURATION(pSliding->unit)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
     }
     if ((pSliding->datum.i < convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, precision)) ||
@@ -1379,6 +1363,78 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isCountStar(SFunctionNode* pFunc) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  return (QUERY_NODE_COLUMN == nodeType(pPara) && 0 == strcmp(((SColumnNode*)pPara)->colName, "*"));
+}
+
+// count(*) is rewritten as count(ts) for scannning optimization
+static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) {
+  SColumnNode* pCol = nodesListGetNode(pCount->pParameterList, 0);
+  STableNode*  pTable = NULL;
+  int32_t      code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
+  }
+  return code;
+}
+
+static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
+  } else {
+    // todo
+  }
+  *pPrimaryKey = (SNode*)pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createPrimaryKeyCol(STranslateContext* pCxt, SNode** pPrimaryKey) {
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, NULL, &pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createPrimaryKeyColByTable(pCxt, pTable, pPrimaryKey);
+  }
+  return code;
+}
+
+static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  SNode*  pPrimaryKey = NULL;
+  int32_t code = createPrimaryKeyCol(pCxt, &pPrimaryKey);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
+  }
+  return code;
+}
+
+EDealRes rewriteFuncForSelectImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    STranslateContext* pCxt = pContext;
+    SFunctionNode*     pFunc = (SFunctionNode*)pNode;
+    if (isCountStar(pFunc)) {
+      pCxt->errCode = rewriteCountStar(pCxt, pFunc);
+    } else if (fmIsTimelineFunc(pFunc->funcId)) {
+      pCxt->errCode = rewriteTimelineFunc(pCxt, pFunc);
+    }
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteFuncForSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteFuncForSelectImpl, pCxt);
+  return pCxt->errCode;
+}
+
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect);
@@ -1408,6 +1464,9 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkLimit(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteFuncForSelect(pCxt, pSelect);
   }
   return code;
 }
@@ -1663,12 +1722,16 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
   }
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, pRetentions) {
-    SNode* pVal = NULL;
-    FOREACH(pVal, ((SNodeListNode*)pNode)->pNodeList) {
-      if (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pVal)) {
+  SNode* pRetention = NULL;
+  FOREACH(pRetention, pRetentions) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, ((SNodeListNode*)pRetention)->pNodeList) {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
         return pCxt->errCode;
+      }
+      if (!TIME_IS_VAR_DURATION(pVal->unit)) {
+        pVal->datum.i = convertTimeFromPrecisionToUnit(pVal->datum.i, pVal->node.resType.precision, pVal->unit);
       }
     }
   }

@@ -42,3 +42,11 @@ TEST_F(PlanGroupByTest, withOrderBy) {
   // order by alias of aggfunc
   // run("select count(*), sum(c1) a from t1 order by a");
 }
+
+TEST_F(PlanGroupByTest, aggFunc) {
+  useDb("root", "test");
+
+  run("select last(*), first(*) from t1");
+
+  run("select last(*), first(*) from t1 group by c1");
+}

@@ -23,9 +23,9 @@ class PlanBasicTest : public PlannerTestBase {};
 TEST_F(PlanBasicTest, select) {
   useDb("root", "test");
 
-  // run("select * from t1");
-  // run("select 1 from t1");
-  // run("select * from st1");
+  run("select * from t1");
+  run("select 1 from t1");
+  run("select * from st1");
   run("select 1 from st1");
 }
 
@@ -40,4 +40,10 @@ TEST_F(PlanBasicTest, join) {
 
   run("select t1.c1, t2.c2 from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
   run("select t1.c1, t2.c2 from st1s1 t1 join st1s2 t2 on t1.ts = t2.ts");
+}
+
+TEST_F(PlanBasicTest, func) {
+  useDb("root", "test");
+
+  run("select diff(c1) from t1");
 }

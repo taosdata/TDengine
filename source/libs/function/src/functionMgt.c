@@ -21,10 +21,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
-#include "builtins.h"
-#include "catalog.h"
 #include "tudf.h"
-
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
@@ -147,6 +144,8 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
 bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC); }
 
 bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
+
+bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
 

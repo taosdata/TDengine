@@ -240,7 +240,7 @@ static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bo
     code = calcConstNode(&pSelect->pWindow);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstList(pSelect->pGroupByList);
+    code = calcConstGroupBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstSelectCondition(pCxt, pSelect, &pSelect->pHaving);
