@@ -73,23 +73,11 @@ def pre_test(){
         git pull >/dev/null
         git fetch origin +refs/pull/${CHANGE_ID}/merge
         git checkout -qf FETCH_HEAD
-        git submodule update --init --recursive
-    '''
-    sh '''
-        cd ${WKC}
-        export TZ=Asia/Harbin
-        date
-        rm -rf debug
-        mkdir debug
-        cd debug
-        cmake .. > /dev/null
-        make -j4> /dev/null
     '''
     sh '''
         cd ${WKPY}
         git reset --hard
         git pull
-        pip3 install .
     '''
     return 1
 }
@@ -161,9 +149,9 @@ pipeline {
     agent none
     options { skipDefaultCheckout() } 
     environment{
-        WK = '/var/lib/jenkins/workspace/TDinternal'
-        WKC= '/var/lib/jenkins/workspace/TDengine'
-        WKPY= '/var/lib/jenkins/workspace/taos-connector-python'
+        WKDIR = '/var/lib/jenkins/workspace/v3.0'
+        WKC= '/var/lib/jenkins/workspace/v3.0/TDengine'
+        WKPY= '/var/lib/jenkins/workspace/v3.0/taos-connector-python'
     }
     stages {
         stage('run test') {
@@ -182,20 +170,13 @@ pipeline {
                         changeRequest()
                     }
                     steps {
-                        timeout(time: 45, unit: 'MINUTES'){
+                        timeout(time: 20, unit: 'MINUTES'){
                             pre_test()
                             sh '''
-                                cd ${WKC}/debug
-                                ctest -VV
-                            '''
-                            sh '''
-                                export LD_LIBRARY_PATH=${WKC}/debug/build/lib
-                                cd ${WKC}/tests/system-test
-                                ./fulltest.sh
-                            '''
-                            sh '''
-                                cd ${WKC}/tests
-                                ./test-all.sh b1fq
+                                cd ${WKC}/tests/parallel_test
+                                time ./container_build.sh -w ${WKDIR} -t 8
+                                ./collect_cases.sh
+                                time ./run.sh -m /home/m.json -t /tmp/cases.task -b 3.0 -l ${WKDIR}/log
                             '''
                         }
                     }
