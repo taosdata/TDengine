@@ -657,7 +657,7 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
     char name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
 
     colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
