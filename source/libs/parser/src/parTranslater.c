@@ -20,9 +20,9 @@
 #include "functionMgt.h"
 #include "parUtil.h"
 #include "scalar.h"
+#include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
-#include "systable.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
@@ -496,6 +496,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
         varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
+        pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
         strncpy(varDataVal(pVal->datum.p), pVal->literal, pVal->node.resType.bytes);
         break;
       }
