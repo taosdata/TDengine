@@ -369,8 +369,7 @@ static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t 
            pMsg->handle, code, pMsg->ahandle);
     dmSendRpcReq(pWrapper->pDnode, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
   } else if (ftype == PROC_FUNC_RSP) {
-    dTrace("msg:%p, get from parent queue, send rsp:%s handle:%p code:0x%04x, app:%p", pMsg, TMSG_INFO(pMsg->msgType),
-           pMsg->handle, code, pMsg->ahandle);
+    dTrace("msg:%p, get from parent queue, rsp handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code, pMsg->ahandle);
     pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
     dmSendRpcRsp(pWrapper->pDnode, pMsg);
   } else if (ftype == PROC_FUNC_REGIST) {
