@@ -1090,30 +1090,31 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectColumnsCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .pTableAlias = pTableAlias,
       .collectType = type,
-      .pCols = nodesMakeList(),
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
       .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
+  *pCols = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
     return cxt.errCode;
   }
-  if (0 == LIST_LENGTH(cxt.pCols)) {
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
     nodesDestroyList(cxt.pCols);
-    cxt.pCols = NULL;
   }
-  *pCols = cxt.pCols;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1134,7 +1135,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
 
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectFuncsCxt cxt = {
@@ -1152,6 +1153,46 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     *pFuncs = cxt.pFuncs;
   } else {
     nodesDestroyList(cxt.pFuncs);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SCollectSpecialNodesCxt {
+  int32_t    errCode;
+  ENodeType  type;
+  SNodeList* pNodes;
+} SCollectSpecialNodesCxt;
+
+static EDealRes collectSpecialNodes(SNode* pNode, void* pContext) {
+  SCollectSpecialNodesCxt* pCxt = (SCollectSpecialNodesCxt*)pContext;
+  if (pCxt->type == nodeType(pNode)) {
+    pCxt->errCode = nodesListStrictAppend(pCxt->pNodes, nodesCloneNode(pNode));
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes) {
+  if (NULL == pSelect || NULL == pNodes) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectSpecialNodesCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS, .type = type, .pNodes = (NULL == *pNodes ? nodesMakeList() : *pNodes)};
+  if (NULL == cxt.pNodes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pNodes = NULL;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectSpecialNodes, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pNodes);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pNodes) > 0) {
+    *pNodes = cxt.pNodes;
+  } else {
+    nodesDestroyList(cxt.pNodes);
   }
 
   return TSDB_CODE_SUCCESS;

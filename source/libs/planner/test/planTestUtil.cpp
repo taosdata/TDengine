@@ -106,6 +106,7 @@ class PlannerTestBaseImpl {
     res_.splitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
+    res_.physiSubplans_.clear();
   }
 
   void dump() {

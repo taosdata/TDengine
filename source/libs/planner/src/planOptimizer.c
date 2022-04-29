@@ -520,6 +520,7 @@ static int32_t cpdPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SN
     default:
       break;
   }
+  planError("cpdPushCondToChild failed, invalid logic plan node %s", nodesNodeName(nodeType(pChild)));
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 

@@ -20,12 +20,12 @@
 #include "functionMgt.h"
 #include "parUtil.h"
 #include "scalar.h"
+#include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
-#include "systable.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
-  (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__) ? DEAL_RES_ERROR : DEAL_RES_ERROR)
+  (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
 
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
@@ -1676,11 +1676,12 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions,
-                                      bool alter) {
+static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
   int32_t daysToKeep0 = pOptions->keep[0];
-  if (alter && (-1 == daysPerFile || -1 == daysToKeep0)) {
+  if (-1 == daysPerFile && -1 == daysToKeep0) {
+    return TSDB_CODE_SUCCESS;
+  } else if (-1 == daysPerFile || -1 == daysToKeep0) {
     SDbCfgInfo dbCfg;
     int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1695,8 +1696,7 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions,
-                                    bool alter) {
+static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code =
       checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1753,13 +1753,13 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbRetentionsOption(pCxt, pOptions->pRetentions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkOptionsDependency(pCxt, pDbName, pOptions, alter);
+    code = checkOptionsDependency(pCxt, pDbName, pOptions);
   }
   return code;
 }
 
 static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt) {
-  return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions, false);
+  return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
 typedef int32_t (*FSerializeFunc)(void* pBuf, int32_t bufLen, void* pReq);
@@ -1826,7 +1826,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
-  int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions, true);
+  int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
