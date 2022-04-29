@@ -765,8 +765,10 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   transDestroyBuffer(&conn->readBuf);
   if (clear) {
     tTrace("server conn %p to be destroyed", conn);
-    uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
-    uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
+    // uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
+    uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
+    // uv_close(conn->pTcp)
+    // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
   }
 }
 static void uvDestroyConn(uv_handle_t* handle) {
