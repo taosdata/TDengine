@@ -39,14 +39,16 @@ static int32_t  mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
 int32_t mndInitUser(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_USER,
-                     .keyType = SDB_KEY_BINARY,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
-                     .encodeFp = (SdbEncodeFp)mndUserActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndUserActionDecode,
-                     .insertFp = (SdbInsertFp)mndUserActionInsert,
-                     .updateFp = (SdbUpdateFp)mndUserActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndUserActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_USER,
+      .keyType = SDB_KEY_BINARY,
+      .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
+      .encodeFp = (SdbEncodeFp)mndUserActionEncode,
+      .decodeFp = (SdbDecodeFp)mndUserActionDecode,
+      .insertFp = (SdbInsertFp)mndUserActionInsert,
+      .updateFp = (SdbUpdateFp)mndUserActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndUserActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserReq);
@@ -165,8 +167,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int32_t numOfWriteDbs = 0;
   SDB_GET_INT32(pRaw, dataPos, &numOfReadDbs, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &numOfWriteDbs, _OVER)
-  pUser->readDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
-  pUser->writeDbs = taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
+  pUser->readDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pUser->writeDbs =
+      taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->readDbs == NULL || pUser->writeDbs == NULL) goto _OVER;
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
@@ -229,8 +232,8 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   pOld->updateTime = pNew->updateTime;
 
-  TSWAP(pOld->readDbs, pNew->readDbs, (void *));
-  TSWAP(pOld->writeDbs, pNew->writeDbs, (void *));
+  TSWAP(pOld->readDbs, pNew->readDbs);
+  TSWAP(pOld->writeDbs, pNew->writeDbs);
 
   return 0;
 }
@@ -340,13 +343,13 @@ _OVER:
   return code;
 }
 
-static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SNodeMsg *pReq) {
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SNodeMsg *pReq) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_ALTER_USER, &pReq->rpcMsg);
   if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pOld->user, terrstr());
+    mError("user:%s, failed to alter since %s", pOld->user, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to update user:%s", pTrans->id, pOld->user);
+  mDebug("trans:%d, used to alter user:%s", pTrans->id, pOld->user);
 
   SSdbRaw *pRedoRaw = mndUserActionEncode(pNew);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
@@ -367,7 +370,8 @@ static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SNo
 }
 
 static SHashObj *mndDupDbHash(SHashObj *pOld) {
-  SHashObj *pNew = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
+  SHashObj *pNew =
+      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pNew == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -378,8 +382,8 @@ static SHashObj *mndDupDbHash(SHashObj *pOld) {
     int32_t len = strlen(db) + 1;
     if (taosHashPut(pNew, db, len, db, TSDB_DB_FNAME_LEN) != 0) {
       taosHashCancelIterate(pOld, db);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosHashCleanup(pNew);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     db = taosHashIterate(pOld, db);
@@ -439,7 +443,7 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char pass[TSDB_PASSWORD_LEN + 1] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
-    memcpy(pUser->pass, pass, TSDB_PASSWORD_LEN);
+    memcpy(newUser.pass, pass, TSDB_PASSWORD_LEN);
   } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) {
     newUser.superUser = alterReq.superUser;
   } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB) {
@@ -485,7 +489,7 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndUpdateUser(pMnode, pUser, &newUser, pReq);
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -632,8 +636,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  taosHashCleanup(authRsp.readDbs);
-  taosHashCleanup(authRsp.writeDbs);
+  tFreeSGetUserAuthRsp(&authRsp);
 
   return code;
 }
@@ -669,11 +672,6 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataAppend(pColInfo, numOfRows, (const char *)&pUser->createdTime, false);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->acct, pShow->bytes[cols]);
-    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
     numOfRows++;
     sdbRelease(pSdb, pUser);

@@ -97,24 +97,22 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   SCreateDbReq createReq = {0};
   strcpy(createReq.db, "1.db1");
   createReq.numOfVgroups = 2;
-  createReq.cacheBlockSize = 16;
-  createReq.totalBlocks = 10;
+  createReq.buffer = -1;
+  createReq.pageSize = -1;
+  createReq.pages = -1;
   createReq.daysPerFile = 10;
   createReq.daysToKeep0 = 3650;
   createReq.daysToKeep1 = 3650;
   createReq.daysToKeep2 = 3650;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.commitTime = 3600;
   createReq.fsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.update = 0;
   createReq.cacheLastRow = 0;
-  createReq.ttl = 1;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -254,7 +252,6 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   rspMsg->numOfColumns = ctgTestColNum;
   rspMsg->precision = 1 + 1;
   rspMsg->tableType = TSDB_SUPER_TABLE;
-  rspMsg->update = 1 + 1;
   rspMsg->sversion = ctgTestSVersion + 1;
   rspMsg->tversion = ctgTestTVersion + 1;
   rspMsg->suid = ctgTestSuid + 1;
@@ -333,7 +330,6 @@ void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
   metaRsp.tableType = TSDB_NORMAL_TABLE;
-  metaRsp.update = 1;
   metaRsp.sversion = ctgTestSVersion;
   metaRsp.tversion = ctgTestTVersion;
   metaRsp.suid = 0;
@@ -379,7 +375,6 @@ void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
   metaRsp.tableType = TSDB_CHILD_TABLE;
-  metaRsp.update = 1;
   metaRsp.sversion = ctgTestSVersion;
   metaRsp.tversion = ctgTestTVersion;
   metaRsp.suid = 0x0000000000000002;
@@ -426,7 +421,6 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
   metaRsp.tableType = TSDB_SUPER_TABLE;
-  metaRsp.update = 1;
   metaRsp.sversion = ctgTestSVersion;
   metaRsp.tversion = ctgTestTVersion;
   metaRsp.suid = ctgTestSuid;
@@ -475,7 +469,6 @@ void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
   metaRsp.tableType = TSDB_SUPER_TABLE;
-  metaRsp.update = 1;
   metaRsp.sversion = ctgTestSVersion;
   metaRsp.tversion = ctgTestTVersion;
   metaRsp.suid = ctgTestSuid + idx;

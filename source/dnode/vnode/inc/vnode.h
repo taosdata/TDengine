@@ -68,6 +68,7 @@ void    vnodeStop(SVnode *pVnode);
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
+void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -76,6 +77,7 @@ typedef struct SMetaEntry  SMetaEntry;
 
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void metaReaderClear(SMetaReader *pReader);
+int  metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int  metaReadNext(SMetaReader *pReader);
 
 #if 1  // refact APIs below (TODO)
@@ -90,16 +92,16 @@ int         metaTbCursorNext(SMTbCursor *pTbCur);
 #endif
 
 // tsdb
-typedef struct STsdb STsdb;
+// typedef struct STsdb STsdb;
 typedef void        *tsdbReaderT;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT *tsdbQueryTables(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
+tsdbReaderT *tsdbQueryTables(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
                              uint64_t taskId);
-tsdbReaderT  tsdbQueryCacheLast(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
+tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
                                 void *pMemRef);
 int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
@@ -114,7 +116,7 @@ SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumn
 void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
-int32_t      tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
+int32_t      tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
 
 // tq
 
@@ -133,23 +135,18 @@ int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *p
 // need to reposition
 
 // structs
-struct SMetaCfg {
-  uint64_t lruSize;
-};
-
 struct STsdbCfg {
-  int8_t   precision;
-  int8_t   update;
-  int8_t   compression;
-  int8_t   slLevel;
-  int32_t  days;
-  int32_t  minRows;
-  int32_t  maxRows;
-  int32_t  keep2;
-  int32_t  keep0;
-  int32_t  keep1;
-  uint64_t lruCacheSize;
-  SArray  *retentions;
+  int8_t  precision;
+  int8_t  update;
+  int8_t  compression;
+  int8_t  slLevel;
+  int32_t days;
+  int32_t minRows;
+  int32_t maxRows;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
+  SArray *retentions;
 };
 
 struct SVnodeCfg {
@@ -160,9 +157,6 @@ struct SVnodeCfg {
   int32_t  szCache;
   uint64_t szBuf;
   bool     isHeap;
-  uint32_t ttl;
-  uint32_t keep;
-  int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;

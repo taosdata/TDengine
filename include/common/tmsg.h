@@ -438,6 +438,7 @@ typedef struct {
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
+void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
 typedef struct {
   int16_t colId;     // column id
@@ -530,27 +531,24 @@ int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pR
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;  // MB
-  int32_t totalBlocks;
+  int32_t numOfStables;  // single_stable
+  int32_t buffer;        // MB
+  int32_t pageSize;
+  int32_t pages;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;  // time resolution
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
-  int8_t  streamMode;
-  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
 } SCreateDbReq;
@@ -561,7 +559,10 @@ void    tFreeSCreateDbReq(SCreateDbReq* pReq);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
-  int32_t totalBlocks;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
+  int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
@@ -625,26 +626,23 @@ int32_t tDeserializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  streamMode;
-  int8_t  singleSTable;
   int32_t numOfRetensions;
   SArray* pRetensions;
 } SDbCfgRsp;
@@ -844,15 +842,16 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  dbUid;
   int32_t  vgVersion;
-  int32_t  cacheBlockSize;
-  int32_t  totalBlocks;
+   int32_t numOfStables;
+  int32_t  buffer;
+  int32_t  pageSize;
+  int32_t  pages;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
   int32_t  minRows;
   int32_t  maxRows;
-  int32_t  commitTime;
   int32_t  fsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
@@ -861,11 +860,9 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   strict;
-  int8_t   update;
   int8_t   cacheLastRow;
   int8_t   replica;
   int8_t   selfIndex;
-  int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
@@ -895,10 +892,14 @@ int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq
 
 typedef struct {
   int32_t  vgVersion;
-  int32_t  totalBlocks;
+  int32_t  buffer;
+  int32_t  pageSize;
+  int32_t  pages;
+  int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
+  int32_t  fsyncPeriod;
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLastRow;
@@ -953,7 +954,6 @@ typedef struct {
   int32_t  numOfColumns;
   int8_t   precision;
   int8_t   tableType;
-  int8_t   update;
   int32_t  sversion;
   int32_t  tversion;
   uint64_t suid;
@@ -1038,6 +1038,7 @@ typedef struct {
   int8_t  compressed;
   int32_t compLen;
   int32_t numOfRows;
+  int32_t numOfCols;
   char    data[];
 } SRetrieveTableRsp;
 
@@ -1280,8 +1281,9 @@ typedef struct {
 #define STREAM_TRIGGER_WINDOW_CLOSE 2
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    outputSTbName[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    sourceDB[TSDB_DB_FNAME_LEN];
+  char    targetStbFullName[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   char*   sql;
   char*   ast;
@@ -1332,7 +1334,7 @@ int32_t tDeserializeSCMCreateTopicRsp(void* buf, int32_t bufLen, SCMCreateTopicR
 
 typedef struct {
   int64_t consumerId;
-} SMqConsumerLostMsg;
+} SMqConsumerLostMsg, SMqConsumerRecoverMsg;
 
 typedef struct {
   int64_t consumerId;
@@ -1472,7 +1474,6 @@ _err:
 // this message is sent from mnode to mnode(read thread to write thread), so there is no need for serialization or
 // deserialization
 typedef struct {
-  int8_t*   mqInReb;
   SHashObj* rebSubHash;  // SHashObj<key, SMqRebSubscribe>
 } SMqDoRebalanceMsg;
 
@@ -1520,8 +1521,8 @@ typedef struct {
   char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
 } SRSmaParam;
 
-int tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
-int tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
+int32_t tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
+int32_t tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
 
 typedef struct SVCreateStbReq {
   const char*    name;
@@ -1537,6 +1538,10 @@ int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
 typedef struct SVDropStbReq {
   // data
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SVDropStbReq;
 
 typedef struct SVCreateStbRsp {
@@ -2116,7 +2121,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SCoder* pDecoder, SSchemaWrapp
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
 
-  pSW->pSchema = (SSchema*)TCODER_MALLOC(pDecoder, sizeof(SSchema) * pSW->nCols);
+  pSW->pSchema = (SSchema*)tCoderMalloc(pDecoder, sizeof(SSchema) * pSW->nCols);
   if (pSW->pSchema == NULL) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
     if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;

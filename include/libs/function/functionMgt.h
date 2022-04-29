@@ -40,6 +40,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -162,6 +163,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef __cplusplus
 }

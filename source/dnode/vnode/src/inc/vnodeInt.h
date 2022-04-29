@@ -75,7 +75,6 @@ int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* 
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
-int             metaGetTableEntryByUid(SMetaReader* pReader, tb_uid_t uid);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
@@ -88,14 +87,19 @@ int32_t         metaCreateTSma(SMeta* pMeta, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
-int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb);
-int     tsdbClose(STsdb* pTsdb);
-int     tsdbBegin(STsdb* pTsdb);
-int     tsdbCommit(STsdb* pTsdb);
-int32_t tsdbUpdateSmaWindow(STsdb* pTsdb, SSubmitReq* pMsg, int64_t version);
-int32_t tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
-int32_t tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
-int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb);
+int          tsdbClose(STsdb* pTsdb);
+int          tsdbBegin(STsdb* pTsdb);
+int          tsdbCommit(STsdb* pTsdb);
+int32_t      tsdbUpdateSmaWindow(STsdb* pTsdb, SSubmitReq* pMsg, int64_t version);
+int32_t      tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
+int32_t      tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
+int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+tsdbReaderT* tsdbQueryTablesT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+                              uint64_t taskId);
+tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+                                 void* pMemRef);
+int32_t      tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
@@ -107,6 +111,15 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId)
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
+
+// sma
+
+int32_t tsdbRegisterRSma(STsdb* pTsdb, SMeta* pMeta, SVCreateStbReq* pReq);
+int32_t tsdbFetchTbUidList(STsdb* pTsdb, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
+int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
+void    tsdbUidStoreDestory(STbUidStore* pStore);
+void*   tsdbUidStoreFree(STbUidStore* pStore);
+int32_t tsdbTriggerRSma(STsdb* pTsdb, SMeta* pMeta, void* pMsg, int32_t inputType);
 
 typedef struct {
   int8_t  streamType;  // sma or other
@@ -163,7 +176,7 @@ struct STbUidStore {
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
-typedef struct STbDdlH STbDdlH;
+// typedef struct STbDdlH STbDdlH;
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);

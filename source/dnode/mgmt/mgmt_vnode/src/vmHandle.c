@@ -107,14 +107,11 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->vgId = pCreate->vgId;
   strcpy(pCfg->dbname, pCreate->db);
-  pCfg->szBuf = pCreate->cacheBlockSize * 1024 * 1024;
-  pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.days = 10;
-  pCfg->tsdbCfg.keep2 = 3650;  // pCreate->daysToKeep0;
-  pCfg->tsdbCfg.keep0 = 3650;  // pCreate->daysToKeep2;
-  pCfg->tsdbCfg.keep1 = 3650;  // pCreate->daysToKeep0;
-  pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
+  pCfg->tsdbCfg.keep2 = 3650;
+  pCfg->tsdbCfg.keep0 = 3650;
+  pCfg->tsdbCfg.keep1 = 3650;
   pCfg->tsdbCfg.retentions = pCreate->pRetensions;
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;

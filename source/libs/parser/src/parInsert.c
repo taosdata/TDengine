@@ -307,7 +307,7 @@ static int32_t buildOutput(SInsertParseContext* pCxt) {
     taosHashGetDup(pCxt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
-    TSWAP(dst->pData, src->pData, char*);
+    TSWAP(dst->pData, src->pData);
     buildMsgHeader(src, dst);
     taosArrayPush(pCxt->pOutput->pDataBlocks, &dst);
   }
@@ -937,6 +937,11 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     }
 
     *gotRow = true;
+#ifdef TD_DEBUG_PRINT_ROW
+    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&schema, spd->numOfCols);
+    tdSRowPrint(row, pSTSchema, __func__);
+    taosMemoryFree(pSTSchema);
+#endif
   }
 
   // *len = pBuilder->extendedRowSize;
@@ -1069,7 +1074,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && tbNum > 0) {
       return buildInvalidOperationMsg(&pCxt->msg, "single table allowed in one stmt");
-      ;
     }
 
     destroyInsertParseContextForTable(pCxt);
@@ -1329,10 +1333,6 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
     for (int c = 0; c < spd->numOfBound; ++c) {
       SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
 
-      if (bind[c].buffer_type != pColSchema->type) {
-        return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
-      }
-
       if (bind[c].num != rowNum) {
         return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
       }
@@ -1347,6 +1347,10 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
 
         CHECK_CODE(MemRowAppend(&pBuf, NULL, 0, &param));
       } else {
+        if (bind[c].buffer_type != pColSchema->type) {
+          return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+        }
+
         int32_t colLen = pColSchema->bytes;
         if (IS_VAR_DATA_TYPE(pColSchema->type)) {
           colLen = bind[c].length[r];
@@ -1360,7 +1364,6 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
         checkTimestamp(pDataBlock, (const char*)&tsKey);
       }
     }
-
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
@@ -1370,6 +1373,11 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
         }
       }
     }
+#ifdef TD_DEBUG_PRINT_ROW
+    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
+    tdSRowPrint(row, pSTSchema, __func__);
+    taosMemoryFree(pSTSchema);
+#endif
 
     pDataBlock->size += extendedRowSize;
   }
@@ -1448,6 +1456,14 @@ int32_t qBindStmtSingleColValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBu
         }
       }
     }
+
+#ifdef TD_DEBUG_PRINT_ROW
+    if(rowEnd) {
+      STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
+      tdSRowPrint(row, pSTSchema, __func__);
+      taosMemoryFree(pSTSchema);
+    }
+#endif
   }
 
   if (rowEnd) {

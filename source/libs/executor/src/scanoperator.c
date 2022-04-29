@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <common/ttime.h>
+#include "common/ttime.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -21,7 +21,7 @@
 #include "querynodes.h"
 #include "tglobal.h"
 #include "tname.h"
-#include "vnode.h"
+#include "systable.h"
 
 #include "tdatablock.h"
 #include "tmsg.h"
@@ -36,6 +36,9 @@
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
+int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo);
+
+int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size, const char* dbName);
 void switchCtxOrder(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SWITCH_ORDER(pCtx[i].order);
@@ -63,21 +66,6 @@ static void setupQueryRangeForReverseScan(STableScanInfo* pTableScanInfo) {
     }
   }
 #endif
-}
-
-// relocated the column data according to the slotId
-static void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
-  int32_t numOfCols = pBlock->info.numOfCols;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pCols, i);
-    SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, i);
-    if (!pmInfo->output) {
-      continue;
-    }
-
-    ASSERT(pmInfo->colId == p->info.colId);
-    taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
-  }
 }
 
 static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t order) {
@@ -196,6 +184,8 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
+
+    pBlock->info.blockId = 0;
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
@@ -216,6 +206,7 @@ int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, 
         pBlock->pBlockAgg[pColMatchInfo->targetSlotId] = pColAgg[i];
       }
 
+      pBlock->info.blockId = 0;
       return TSDB_CODE_SUCCESS;
     } else {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -266,7 +257,7 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   //  setupQueryRangeForReverseScan(pTableScanInfo);
 
   STimeWindow* pTWindow = &pTableScanInfo->cond.twindow;
-  TSWAP(pTWindow->skey, pTWindow->ekey, int64_t);
+  TSWAP(pTWindow->skey, pTWindow->ekey);
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
 }
 
@@ -788,7 +779,12 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
           continue;
         }
 
-        colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
+        if (colDataIsNull_s(pSrc, j)) {
+          colDataAppendNULL(pDest, numOfRow);
+        } else {
+          colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
+        }
+
         numOfRow += 1;
       }
     } else {
@@ -802,6 +798,67 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
   return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
 }
 
+static SSDataBlock* buildSysTableMetaBlock() {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  pBlock->info.numOfCols = 10;
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
+
+  SColumnInfoData colInfoData = {0};
+  colInfoData.info.colId = 1;
+  colInfoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  colInfoData.info.bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 2;
+  colInfoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  colInfoData.info.bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 3;
+  colInfoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
+  colInfoData.info.bytes = 8;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 4;
+  colInfoData.info.type = TSDB_DATA_TYPE_INT;
+  colInfoData.info.bytes = 4;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 5;
+  colInfoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  colInfoData.info.bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 6;
+  colInfoData.info.type = TSDB_DATA_TYPE_BIGINT;
+  colInfoData.info.bytes = 8;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 7;
+  colInfoData.info.type = TSDB_DATA_TYPE_INT;
+  colInfoData.info.bytes = 4;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 8;
+  colInfoData.info.type = TSDB_DATA_TYPE_INT;
+  colInfoData.info.bytes = 4;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 9;
+  colInfoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  colInfoData.info.bytes = 512 + VARSTR_HEADER_SIZE;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  colInfoData.info.colId = 10;
+  colInfoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  colInfoData.info.bytes = 20 + VARSTR_HEADER_SIZE;
+  taosArrayPush(pBlock->pDataBlock, &colInfoData);
+
+  return pBlock;
+}
+
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   // build message and send to mnode to fetch the content of system tables.
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
@@ -810,50 +867,135 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   // retrieve local table list info from vnode
   const char* name = tNameGetTableName(&pInfo->name);
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
-    if (pInfo->pCur == NULL) {
-      pInfo->pCur = metaOpenTbCursor(pInfo->readHandle);
-    }
-
-    blockDataCleanup(pInfo->pRes);
-
-    int32_t          tableNameSlotId = 1;
-    SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, tableNameSlotId);
-
-    char*   tb = NULL;
-    int32_t numOfRows = 0;
-
-    char n[TSDB_TABLE_NAME_LEN] = {0};
-    while (metaTbCursorNext(pInfo->pCur) == 0) {
-      STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
-      colDataAppend(pTableNameCol, numOfRows, n, false);
-      numOfRows += 1;
-      if (numOfRows >= pInfo->capacity) {
-        break;
+    // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
+    if (pInfo->readHandle.mnd != NULL) {
+      if (pOperator->status == OP_EXEC_DONE) {
+        return NULL;
       }
 
-      for (int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
-        if (i == tableNameSlotId) {
-          continue;
+      buildSysDbTableInfo(pInfo);
+
+      doFilterResult(pInfo);
+      pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+
+      pOperator->status = OP_EXEC_DONE;
+      return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+    } else {
+      if (pInfo->pCur == NULL) {
+        pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
+      }
+
+      blockDataCleanup(pInfo->pRes);
+
+      int32_t numOfRows = 0;
+
+      const char* db = NULL;
+      int32_t     vgId = 0;
+      vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
+
+      SName sn = {0};
+      char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
+
+      tNameGetDbName(&sn, varDataVal(dbname));
+      varDataSetLen(dbname, strlen(varDataVal(dbname)));
+
+      SSDataBlock* p = buildSysTableMetaBlock();
+      blockDataEnsureCapacity(p, pInfo->capacity);
+
+      char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      while (metaTbCursorNext(pInfo->pCur) == 0) {
+        STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
+
+        // table name
+        SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
+        colDataAppend(pColInfoData, numOfRows, n, false);
+
+        // database name
+        pColInfoData = taosArrayGet(p->pDataBlock, 1);
+        colDataAppend(pColInfoData, numOfRows, dbname, false);
+
+        // vgId
+        pColInfoData = taosArrayGet(p->pDataBlock, 6);
+        colDataAppend(pColInfoData, numOfRows, (char*)&vgId, false);
+
+        // table comment
+        // todo: set the correct comment
+        pColInfoData = taosArrayGet(p->pDataBlock, 8);
+        colDataAppendNULL(pColInfoData, numOfRows);
+
+        char    str[256] = {0};
+        int32_t tableType = pInfo->pCur->mr.me.type;
+        if (tableType == TSDB_CHILD_TABLE) {
+          // create time
+          int64_t ts = pInfo->pCur->mr.me.ctbEntry.ctime;
+          pColInfoData = taosArrayGet(p->pDataBlock, 2);
+          colDataAppend(pColInfoData, numOfRows, (char*)&ts, false);
+
+          SMetaReader mr = {0};
+          metaReaderInit(&mr, pInfo->readHandle.meta, 0);
+          metaGetTableEntryByUid(&mr, pInfo->pCur->mr.me.ctbEntry.suid);
+
+          // number of columns
+          pColInfoData = taosArrayGet(p->pDataBlock, 3);
+          colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schema.nCols, false);
+
+          // super table name
+          STR_TO_VARSTR(str, mr.me.name);
+          pColInfoData = taosArrayGet(p->pDataBlock, 4);
+          colDataAppend(pColInfoData, numOfRows, str, false);
+          metaReaderClear(&mr);
+
+          // uid
+          pColInfoData = taosArrayGet(p->pDataBlock, 5);
+          colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
+
+          // ttl
+          pColInfoData = taosArrayGet(p->pDataBlock, 7);
+          colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ctbEntry.ttlDays, false);
+
+          STR_TO_VARSTR(str, "CHILD_TABLE");
+        } else if (tableType == TSDB_NORMAL_TABLE) {
+          // create time
+          pColInfoData = taosArrayGet(p->pDataBlock, 2);
+          colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+
+          // number of columns
+          pColInfoData = taosArrayGet(p->pDataBlock, 3);
+          colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schema.nCols, false);
+
+          // super table name
+          pColInfoData = taosArrayGet(p->pDataBlock, 4);
+          colDataAppendNULL(pColInfoData, numOfRows);
+
+          // uid
+          pColInfoData = taosArrayGet(p->pDataBlock, 5);
+          colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
+
+          // ttl
+          pColInfoData = taosArrayGet(p->pDataBlock, 7);
+          colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ttlDays, false);
+
+          STR_TO_VARSTR(str, "NORMAL_TABLE");
         }
 
-        SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, i);
-        int64_t          tmp = 0;
-        char             t[10] = {0};
-        STR_TO_VARSTR(t, "_");  // TODO
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          colDataAppend(pColInfoData, numOfRows, t, false);
-        } else {
-          colDataAppend(pColInfoData, numOfRows, (char*)&tmp, false);
+        pColInfoData = taosArrayGet(p->pDataBlock, 9);
+        colDataAppend(pColInfoData, numOfRows, str, false);
+
+        if (++numOfRows >= pInfo->capacity) {
+          break;
         }
       }
+
+      p->info.rows = numOfRows;
+      pInfo->pRes->info.rows = numOfRows;
+
+      relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock);
+      doFilterResult(pInfo);
+
+      pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+      return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
     }
-
-    pInfo->loadInfo.totalRows += numOfRows;
-    pInfo->pRes->info.rows = numOfRows;
-
-    //    pInfo->elapsedTime;
-    //    pInfo->totalBytes;
-    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {  // load the meta from mnode of the given epset
     if (pOperator->status == OP_EXEC_DONE) {
       return NULL;
@@ -923,7 +1065,68 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
   }
 }
 
-SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
+int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo) {
+  SSDataBlock* p = buildSysTableMetaBlock();
+  blockDataEnsureCapacity(p, pInfo->capacity);
+
+  size_t size = 0;
+  const SSysTableMeta* pSysDbTableMeta = NULL;
+
+  getInfosDbMeta(&pSysDbTableMeta, &size);
+  p->info.rows = buildDbTableInfoBlock(p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB);
+
+  getPerfDbMeta(&pSysDbTableMeta, &size);
+  p->info.rows = buildDbTableInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB);
+
+  relocateColumnData(pInfo->pRes,  pInfo->scanCols, p->pDataBlock);
+//  blockDataDestroy(p);  todo handle memory leak
+
+  pInfo->pRes->info.rows = p->info.rows;
+  return p->info.rows;
+}
+
+int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size, const char* dbName) {
+  char n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  int32_t numOfRows = p->info.rows;
+
+  for(int32_t i = 0; i < size; ++i) {
+    const SSysTableMeta* pm = &pSysDbTableMeta[i];
+
+    SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
+
+    STR_TO_VARSTR(n, pm->name);
+    colDataAppend(pColInfoData, numOfRows, n, false);
+
+    // database name
+    STR_TO_VARSTR(n, dbName);
+    pColInfoData = taosArrayGet(p->pDataBlock, 1);
+    colDataAppend(pColInfoData, numOfRows, n, false);
+
+    // create time
+    pColInfoData = taosArrayGet(p->pDataBlock, 2);
+    colDataAppendNULL(pColInfoData, numOfRows);
+
+    // number of columns
+    pColInfoData = taosArrayGet(p->pDataBlock, 3);
+    colDataAppend(pColInfoData, numOfRows, (char*)&pm->colNum, false);
+
+    for(int32_t j = 4; j <= 8; ++j) {
+      pColInfoData = taosArrayGet(p->pDataBlock, j);
+      colDataAppendNULL(pColInfoData, numOfRows);
+    }
+
+    STR_TO_VARSTR(n, "SYSTEM_TABLE");
+
+    pColInfoData = taosArrayGet(p->pDataBlock, 9);
+    colDataAppend(pColInfoData, numOfRows, n, false);
+
+    numOfRows += 1;
+  }
+
+  return numOfRows;
+}
+
+SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSDataBlock* pResBlock, const SName* pName,
                                               SNode* pCondition, SEpSet epset, SArray* colList,
                                               SExecTaskInfo* pTaskInfo, bool showRewrite, int32_t accountId) {
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
@@ -945,7 +1148,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   tNameAssign(&pInfo->name, pName);
   const char* name = tNameGetTableName(&pInfo->name);
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
-    pInfo->readHandle = pSysTableReadHandle;
+    pInfo->readHandle = *(SReadHandle*) readHandle;
     blockDataEnsureCapacity(pInfo->pRes, pInfo->capacity);
   } else {
     tsem_init(&pInfo->ready, 0, 0);

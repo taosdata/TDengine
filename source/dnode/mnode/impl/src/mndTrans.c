@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndTrans.h"
 #include "mndAuth.h"
+#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -442,6 +443,10 @@ static TransCbFp mndTransGetCbFp(ETrnFuncType ftype) {
       return mndTransTestStartFunc;
     case TEST_TRANS_STOP_FUNC:
       return mndTransTestStopFunc;
+    case MQ_REB_TRANS_START_FUNC:
+      return mndRebCntInc;
+    case MQ_REB_TRANS_STOP_FUNC:
+      return mndRebCntDec;
     default:
       return NULL;
   }

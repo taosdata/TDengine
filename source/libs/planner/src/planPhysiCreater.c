@@ -18,6 +18,7 @@
 #include "catalog.h"
 #include "functionMgt.h"
 #include "tglobal.h"
+#include "systable.h"
 
 typedef struct SSlotIdInfo {
   int16_t slotId;
@@ -1097,7 +1098,7 @@ static int32_t createDataInserter(SPhysiPlanContext* pCxt, SVgDataBlocks* pBlock
 
   pInserter->numOfTables = pBlocks->numOfTables;
   pInserter->size = pBlocks->size;
-  TSWAP(pInserter->pData, pBlocks->pData, char*);
+  TSWAP(pInserter->pData, pBlocks->pData);
 
   *pSink = (SDataSinkNode*)pInserter;
   return TSDB_CODE_SUCCESS;
