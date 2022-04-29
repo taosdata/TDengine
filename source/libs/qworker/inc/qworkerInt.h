@@ -87,6 +87,7 @@ typedef struct SQWMsg {
 } SQWMsg;
 
 typedef struct SQWHbParam {
+  bool    inUse;
   int32_t qwrId;
   int64_t refId;
 } SQWHbParam;
@@ -158,9 +159,11 @@ typedef struct SQWorker {
 } SQWorker;
 
 typedef struct SQWorkerMgmt {
-  SRWLatch lock;
-  int32_t  qwRef;
-  int32_t  qwNum;
+  SRWLatch   lock;
+  int32_t    qwRef;
+  int32_t    qwNum;
+  SQWHbParam param[1024];
+  int32_t    paramIdx;
 } SQWorkerMgmt;
 
 #define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
