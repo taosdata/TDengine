@@ -3330,7 +3330,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SColumnDat
   int32_t* slotIds = pHandle->suppInfo.slotIds;
   for (int32_t i = 1; i < numOfCols; ++i) {
     ASSERT(colIds[i] == pHandle->pSchema->columns[slotIds[i]].colId);
-    if (pHandle->pSchema->columns[slotIds[i]].sma) {
+    if (IS_BSMA_ON(&(pHandle->pSchema->columns[slotIds[i]]))) {
       if (pHandle->suppInfo.pstatis[i].numOfNull == -1) {  // set the column data are all NULL
         pHandle->suppInfo.pstatis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
       } else {
