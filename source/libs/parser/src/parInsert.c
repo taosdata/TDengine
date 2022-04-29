@@ -1514,6 +1514,7 @@ int32_t qBuildStmtColFields(void *pBlock, int32_t *fieldNum, TAOS_FIELD** fields
   return TSDB_CODE_SUCCESS;
 }
 
+// schemaless logic start
 
 typedef struct SmlExecHandle {
   SHashObj*    pBlockHash;
@@ -1523,7 +1524,7 @@ typedef struct SmlExecHandle {
   SVCreateTbReq createTblReq;   // each table
 
   SQuery* pQuery;
-} SmlExecHandle;
+} SSmlExecHandle;
 
 static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
@@ -1620,14 +1621,15 @@ static int32_t smlParseTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDat
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta, char *msgBuf, int16_t msgBufLen) {
+int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format,
+                    STableMeta *pTableMeta, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t rowNum = taosArrayGetSize(cols);
   if(rowNum <= 0) {
     return buildInvalidOperationMsg(&pBuf, "cols size <= 0");
   }
 
-  SmlExecHandle *smlHandle = (SmlExecHandle *)handle;
+  SSmlExecHandle *smlHandle = (SSmlExecHandle *)handle;
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
   setBoundColumnInfo(&smlHandle->tags, pTagsSchema, getNumOfTags(pTableMeta));
   int ret = smlBoundColumns(tags, &smlHandle->tags, pTagsSchema);
@@ -1651,7 +1653,21 @@ int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
 
-  ret = smlBoundColumns(taosArrayGetP(cols, 0), &pDataBlock->boundColumnInfo, pSchema);
+
+  if(format){
+    ret = smlBoundColumns(taosArrayGetP(colsFormat, 0), &pDataBlock->boundColumnInfo, pSchema);
+  }else{
+    SArray *columns = taosArrayInit(16, POINTER_BYTES);
+    void **p1 = taosHashIterate(colsHash, NULL);
+    while (p1) {
+      SSmlKv* kv = *p1;
+      taosArrayPush(columns, &kv);
+      p1 = taosHashIterate(colsHash, p1);
+    }
+    ret = smlBoundColumns(columns, &pDataBlock->boundColumnInfo, pSchema);
+    taosArrayDestroy(columns);
+  }
+
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "bound cols error");
     return ret;
@@ -1671,7 +1687,12 @@ int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta
   for (int32_t r = 0; r < rowNum; ++r) {
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
-    SArray *rowData = taosArrayGetP(cols, r);
+    void *rowData = NULL;
+    if(format){
+      rowData = taosArrayGetP(colsFormat, r);
+    }else{
+      rowData = taosArrayGetP(cols, r);
+    }
 
     // 1. set the parsed value from sql string
     for (int c = 0; c < spd->numOfBound; ++c) {
@@ -1680,7 +1701,18 @@ int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta
       param.schema = pColSchema;
       getSTSRowAppendInfo(pBuilder->rowType, spd, c, &param.toffset, &param.colIdx);
 
-      SSmlKv *kv = taosArrayGetP(rowData, c);
+      SSmlKv *kv = NULL;
+      if(format){
+        kv = taosArrayGetP(rowData, c);
+        if (!kv){
+          char msg[64] = {0};
+          sprintf(msg, "cols num not the same like before:%d", r);
+          return buildInvalidOperationMsg(&pBuf, msg);
+        }
+      }else{
+        void **p =taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
+        kv = *p;
+      }
 
       if (kv->valueLen == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
@@ -1720,23 +1752,25 @@ int32_t smlBind(void *handle, SArray *tags, SArray *cols, STableMeta *pTableMeta
   return TSDB_CODE_SUCCESS;
 }
 
-void* tscSmlInitHandle(SQuery *pQuery){
-  SmlExecHandle *handle = taosMemoryCalloc(sizeof(SmlExecHandle));
+void* smlInitHandle(SQuery *pQuery){
+  SSmlExecHandle *handle = taosMemoryCalloc(1, sizeof(SSmlExecHandle));
+  if(!handle) return NULL;
   handle->pBlockHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   handle->pQuery = pQuery;
 
   return handle;
 }
 
-void tscSmlDestroyHandle(void *pHandle){
+void smlDestroyHandle(void *pHandle){
   if(!pHandle) return;
-  SmlExecHandle *handle = (SmlExecHandle *)pHandle;
-  taosHashCleanup(handle->pBlockHash);
+  SSmlExecHandle *handle = (SSmlExecHandle *)pHandle;
+  destroyBlockHashmap(handle->pBlockHash);
   taosMemoryFree(handle);
 }
 
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash) {
-  SmlExecHandle *smlHandle = (SmlExecHandle *)handle;
+  SSmlExecHandle *smlHandle = (SSmlExecHandle *)handle;
   return qBuildStmtOutput(smlHandle->pQuery, pVgHash, smlHandle->pBlockHash);
 }
+// schemaless logic end
 
