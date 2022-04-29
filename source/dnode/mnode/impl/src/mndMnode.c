@@ -625,7 +625,7 @@ static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
     colDataAppend(pColInfo, numOfRows, b1, false);
 
     const char *roles = syncStr(pObj->role);
-    char       *b2 = taosMemoryCalloc(1, strlen(roles) + 1 + VARSTR_HEADER_SIZE);
+    char       *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
