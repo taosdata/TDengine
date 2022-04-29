@@ -150,11 +150,6 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
 }
 
 // wrapper of tsdb read interface
-// TODO: use FORCE_INLINE if possible later
-tsdbReaderT *tsdbQueryTables(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
-                             uint64_t taskId) {
-  return tsdbQueryTablesT(pVnode->pTsdb, pCond, tableInfoGroup, qId, taskId);
-}
 tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
                                void *pMemRef) {
 #if 0

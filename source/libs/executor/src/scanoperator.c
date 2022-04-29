@@ -514,6 +514,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
+  int32_t rows = 0;
 
   pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {
@@ -580,6 +581,8 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
         pTaskInfo->code = terrno;
         return NULL;
       }
+      rows = pBlockInfo->rows;
+      doFilter(pInfo->pCondition, pInfo->pRes);
 
       break;
     }
@@ -588,16 +591,16 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
     pInfo->numOfExec++;
     pInfo->numOfRows += pBlockInfo->rows;
 
-    if (pBlockInfo->rows == 0) {
+    if (rows == 0) {
       pOperator->status = OP_EXEC_DONE;
     }
 
-    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+    return (rows == 0) ? NULL : pInfo->pRes;
   }
 }
 
 SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList,
-                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo) {
+                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pCondition) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -635,6 +638,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
 
   pInfo->readerHandle = streamReadHandle;
   pInfo->pRes = pResBlock;
+  pInfo->pCondition = pCondition;
 
   pOperator->name = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;

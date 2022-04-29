@@ -73,7 +73,6 @@ struct STsdb {
   SVnode        *pVnode;
   bool           repoLocked;
   TdThreadMutex  mutex;
-  STsdbCfg       config;
   STsdbMemTable *mem;
   STsdbMemTable *imem;
   SRtn           rtn;
@@ -185,7 +184,7 @@ struct STsdbFS {
 };
 
 #define REPO_ID(r)        TD_VID((r)->pVnode)
-#define REPO_CFG(r)       (&(r)->config)
+#define REPO_CFG(r)       (&(r)->pVnode->config.tsdbCfg)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
 #define REPO_TFS(r)       ((r)->pVnode->pTfs)
@@ -533,23 +532,6 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
     return -1;
   }
 }
-
-// tsdbDBDef
-// typedef struct SDBFile SDBFile;
-// typedef DB_ENV*        TDBEnv;
-
-// struct SDBFile {
-//   int32_t fid;
-//   DB*     pDB;
-//   char*   path;
-// };
-
-// int32_t tsdbOpenDBF(TDBEnv pEnv, SDBFile* pDBF);
-// void    tsdbCloseDBF(SDBFile* pDBF);
-// int32_t tsdbOpenBDBEnv(DB_ENV** ppEnv, const char* path);
-// void    tsdbCloseBDBEnv(DB_ENV* pEnv);
-// int32_t tsdbSaveSmaToDB(SDBFile* pDBF, void* key, uint32_t keySize, void* data, uint32_t dataSize);
-// void*   tsdbGetSmaDataByKey(SDBFile* pDBF, void* key, uint32_t keySize, uint32_t* valueSize);
 
 // tsdbFile
 #define TSDB_FILE_HEAD_SIZE  512

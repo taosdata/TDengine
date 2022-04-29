@@ -224,7 +224,7 @@ static FORCE_INLINE int32_t tsdbUnLockSma(SSmaEnv *pEnv) {
 }
 
 static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
+  SPoolMem *pPool = (SPoolMem *)taosMemoryMalloc(sizeof(*pPool));
 
   pPool->prev = pPool->next = pPool;
   pPool->size = 0;
@@ -246,7 +246,7 @@ static void clearPool(SPoolMem *pPool) {
     pMem->prev->next = pMem->next;
     pPool->size -= pMem->size;
 
-    tdbOsFree(pMem);
+    taosMemoryFree(pMem);
   } while (1);
 
   assert(pPool->size == 0);
@@ -255,7 +255,7 @@ static void clearPool(SPoolMem *pPool) {
 static void closePool(SPoolMem *pPool) {
   if (pPool) {
     clearPool(pPool);
-    tdbOsFree(pPool);
+    taosMemoryFree(pPool);
   }
 }
 
@@ -264,7 +264,7 @@ static void *poolMalloc(void *arg, size_t size) {
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 
-  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
+  pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (!pMem) {
     assert(0);
   }
@@ -291,7 +291,7 @@ static void poolFree(void *arg, void *ptr) {
   pMem->prev->next = pMem->next;
   pPool->size -= pMem->size;
 
-  tdbOsFree(pMem);
+  taosMemoryFree(pMem);
 }
 
 int32_t tsdbInitSma(STsdb *pTsdb) {

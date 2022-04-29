@@ -42,13 +42,13 @@ int vnodeBegin(SVnode *pVnode) {
 
   // begin meta
   if (metaBegin(pVnode->pMeta) < 0) {
-    vError("vgId: %d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   // begin tsdb
   if (tsdbBegin(pVnode->pTsdb) < 0) {
-    vError("vgId: %d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
@@ -93,7 +93,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId: %d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
 
   return 0;
 
@@ -115,7 +115,7 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  vInfo("vgId: %d vnode info is committed", pInfo->config.vgId);
+  vInfo("vgId:%d vnode info is committed", pInfo->config.vgId);
 
   return 0;
 }

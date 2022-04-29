@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tcompression.h"
 #include "tdatablock.h"
-#include "tdbInt.h"
+#include "tdb.h"
 #include "tencode.h"
 #include "tfs.h"
 #include "tglobal.h"
@@ -52,7 +52,7 @@ typedef struct STsdb        STsdb;
 typedef struct STQ          STQ;
 typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorkerMgmt SQHandle;
+typedef struct SQWorker SQHandle;
 
 #define VNODE_META_DIR "meta"
 #define VNODE_TSDB_DIR "tsdb"
@@ -72,6 +72,7 @@ int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
@@ -95,7 +96,7 @@ int32_t      tsdbUpdateSmaWindow(STsdb* pTsdb, SSubmitReq* pMsg, int64_t version
 int32_t      tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
 int32_t      tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
-tsdbReaderT* tsdbQueryTablesT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                               uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                                  void* pMemRef);

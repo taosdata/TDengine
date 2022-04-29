@@ -25,3 +25,8 @@ if(${BUILD_WINGETOPT})
     )
     target_link_libraries(parserTest PUBLIC wingetopt)
 endif()
+
+add_test(
+    NAME parserTest
+    COMMAND parserTest
+)
