@@ -173,8 +173,11 @@ pipeline {
                             pre_test()
                             sh '''
                                 cd ${WKC}/tests/parallel_test
+                                date
                                 time ./container_build.sh -w ${WKDIR} -t 8
+                                rm -f /tmp/cases.task
                                 ./collect_cases.sh
+                                date
                                 time ./run.sh -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
                             '''
                         }
