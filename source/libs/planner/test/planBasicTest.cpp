@@ -13,12 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "vnd.h"
-// #include "vnodeInt.h"
+#include "planTestUtil.h"
+#include "planner.h"
 
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
+using namespace std;
 
-int32_t vnodeCompact(SVnode *pVnode) { return 0; }
+class PlanBasicTest : public PlannerTestBase {};
 
-int32_t vnodeSync(SVnode *pVnode) { return 0; }
+TEST_F(PlanBasicTest, select) {
+  useDb("root", "test");
+
+  // run("select * from t1");
+  // run("select 1 from t1");
+  // run("select * from st1");
+  run("select 1 from st1");
+}
+
+TEST_F(PlanBasicTest, where) {
+  useDb("root", "test");
+
+  run("select * from t1 where c1 > 10");
+}
+
+TEST_F(PlanBasicTest, join) {
+  useDb("root", "test");
+
+  run("select t1.c1, t2.c2 from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  run("select t1.c1, t2.c2 from st1s1 t1 join st1s2 t2 on t1.ts = t2.ts");
+}

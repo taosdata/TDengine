@@ -748,10 +748,10 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   SLogicNode* pRoot = NULL;
   int32_t     code = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
+    code = createChildLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
+    code = createChildLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createChildLogicNode(pCxt, pSelect, createAggLogicNode, &pRoot);
@@ -944,9 +944,16 @@ static int32_t createSetOperatorLogicNode(SLogicPlanContext* pCxt, SSetOperator*
 }
 
 static int32_t getMsgType(ENodeType sqlType) {
-  return (QUERY_NODE_CREATE_TABLE_STMT == sqlType || QUERY_NODE_CREATE_MULTI_TABLE_STMT == sqlType)
-             ? TDMT_VND_CREATE_TABLE
-             : TDMT_VND_SUBMIT;
+  switch (sqlType) {
+    case QUERY_NODE_CREATE_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+      return TDMT_VND_CREATE_TABLE;
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return TDMT_VND_DROP_TABLE;
+    default:
+      break;
+  }
+  return TDMT_VND_SUBMIT;
 }
 
 static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt, SLogicNode** pLogicNode) {

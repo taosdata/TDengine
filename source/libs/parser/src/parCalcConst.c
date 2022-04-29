@@ -208,6 +208,23 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SNodeList* pProject
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = calcConstList(pSelect->pGroupByList);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pSelect->pGroupByList) {
+      SNode* pGroupPara = NULL;
+      FOREACH(pGroupPara, ((SGroupingSetNode*)pNode)->pParameterList) {
+        if (QUERY_NODE_VALUE != nodeType(pGroupPara)) {
+          return code;
+        }
+      }
+    }
+    DESTORY_LIST(pSelect->pGroupByList);
+  }
+  return code;
+}
+
 static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   int32_t code = calcConstProjections(pCxt, pSelect->pProjectionList, subquery);
   if (TSDB_CODE_SUCCESS == code) {

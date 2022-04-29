@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
+int tdbEnvOpen(const char *rootDir, int szPage, int pages, TENV **ppEnv) {
   TENV *pEnv;
   int   dsize;
   int   zsize;
@@ -49,14 +49,14 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
 
   pEnv->jfd = -1;
 
-  ret = tdbPCacheOpen(pageSize, cacheSize, &(pEnv->pCache));
+  ret = tdbPCacheOpen(szPage, pages, &(pEnv->pCache));
   if (ret < 0) {
     return -1;
   }
 
   pEnv->nPgrHash = 8;
   tsize = sizeof(SPager *) * pEnv->nPgrHash;
-  pEnv->pgrHash = TDB_REALLOC(pEnv->pgrHash, tsize);
+  pEnv->pgrHash = tdbRealloc(pEnv->pgrHash, tsize);
   if (pEnv->pgrHash == NULL) {
     return -1;
   }
@@ -100,11 +100,6 @@ int tdbCommit(TENV *pEnv, TXN *pTxn) {
     }
   }
 
-  return 0;
-}
-
-int tdbRollback(TENV *pEnv, TXN *pTxn) {
-  ASSERT(0);
   return 0;
 }
 

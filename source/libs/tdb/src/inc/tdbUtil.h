@@ -31,27 +31,7 @@ extern "C" {
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size);
 
-static inline void *tdbRealloc(void *ptr, size_t size) {
-  void *nPtr;
-  if ((ptr) == NULL || ((int *)(ptr))[-1] < (size)) {
-    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(int) : NULL, (size) + sizeof(int));
-    if (nPtr) {
-      ((int *)nPtr)[0] = (size);
-      nPtr = (char *)nPtr + sizeof(int);
-    }
-  } else {
-    nPtr = (ptr);
-  }
-  return nPtr;
-}
-#define TDB_REALLOC(PTR, SIZE)  tdbRealloc(PTR, SIZE)
-
-#define TDB_FREE(PTR)                         \
-  do {                                        \
-    if (PTR) {                                \
-      tdbOsFree((char *)(PTR) - sizeof(int)); \
-    }                                         \
-  } while (0)
+void *tdbRealloc(void *ptr, size_t size);
 
 static inline void *tdbDefaultMalloc(void *arg, size_t size) {
   void *ptr;

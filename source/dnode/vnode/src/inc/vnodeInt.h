@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tcompression.h"
 #include "tdatablock.h"
-#include "tdbInt.h"
+#include "tdb.h"
 #include "tencode.h"
 #include "tfs.h"
 #include "tglobal.h"
@@ -52,7 +52,7 @@ typedef struct STsdb        STsdb;
 typedef struct STQ          STQ;
 typedef struct SVState      SVState;
 typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorkerMgmt SQHandle;
+typedef struct SQWorker SQHandle;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -75,6 +75,7 @@ int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);

@@ -32,7 +32,7 @@
 #include "tmsg.h"
 #include "trow.h"
 
-#include "tdbInt.h"
+#include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,9 +57,6 @@ int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int     vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
-int32_t vnodeCompact(SVnode *pVnode);
-int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 

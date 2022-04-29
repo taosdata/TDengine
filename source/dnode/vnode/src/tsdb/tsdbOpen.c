@@ -56,9 +56,8 @@ int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir) {
           dir);
   pTsdb->pVnode = pVnode;
   pTsdb->repoLocked = false;
-  tdbMutexInit(&pTsdb->mutex, NULL);
-  pTsdb->config = pVnode->config.tsdbCfg;
-  pTsdb->fs = tsdbNewFS(&pTsdb->config);
+  taosThreadMutexInit(&pTsdb->mutex, NULL);
+  pTsdb->fs = tsdbNewFS(REPO_CFG(pTsdb));
 
   // create dir (TODO: use tfsMkdir)
   taosMkDir(pTsdb->path);
