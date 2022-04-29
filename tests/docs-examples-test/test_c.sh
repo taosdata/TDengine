@@ -16,6 +16,9 @@ taos -s "drop database if exists power"
 gcc -o insert_example insert_example.c -ltaos
 ./insert_example
 
+gcc -o async_query_example async_query_example.c -ltaos
+./async_query_example
+
 # 3
 taos -s "drop database if exists power"
 gcc -o stmt_example stmt_example.c -ltaos
