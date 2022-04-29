@@ -192,14 +192,14 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
 
   dmStopNode(pWrapper);
 
+  taosWLockLatch(&pWrapper->latch);
+  (*pWrapper->fp.closeFp)(pWrapper);
+  taosWUnLockLatch(&pWrapper->latch);
+
   if (pWrapper->procObj) {
     taosProcCleanup(pWrapper->procObj);
     pWrapper->procObj = NULL;
   }
-
-  taosWLockLatch(&pWrapper->latch);
-  (*pWrapper->fp.closeFp)(pWrapper);
-  taosWUnLockLatch(&pWrapper->latch);
 
   dInfo("node:%s, has been closed", pWrapper->name);
 }
