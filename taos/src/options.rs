@@ -11,18 +11,18 @@ use taos_sys::*;
 
 #[derive(Debug, Default)]
 pub struct TaosOptions {
-    host: Option<String>,
-    port: Option<u16>, // make it optional with concern for REST.
-    username: Option<String>,
-    password: Option<String>,
-    database: Option<String>,
+    pub(crate) host: Option<String>,
+    pub(crate) port: Option<u16>, // make it optional with concern for REST.
+    pub(crate) username: Option<String>,
+    pub(crate) password: Option<String>,
+    pub(crate) database: Option<String>,
 
     locale: Option<String>,
     charset: Option<String>,
     timezone: Option<String>,
     config_dir: Option<PathBuf>,
     shell_activity_timer: Option<u16>,
-    params: BTreeMap<String, String>,
+    pub(crate) params: BTreeMap<String, String>,
 }
 
 macro_rules! _build_opt {

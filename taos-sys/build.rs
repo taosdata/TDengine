@@ -19,6 +19,7 @@ fn version2features<V: Into<Version>>(version: V) -> Vec<&'static str> {
     let mut feats = Vec::new();
     if version.mainline == 3 {
         feats.push("v3");
+        feats.push("tmq");
         feats.push("fetch_raw_block");
         feats.push("fetch_block_s");
     } else if version.mainline == 2 {

@@ -317,6 +317,12 @@ where
         self
     }
 
+    fn to_rows_vec(&mut self) -> Vec<Vec<Value>> {
+        self.rows_iter()
+            .map(|row| row.into_iter().map(|(_, v)| v.into_value()).collect())
+            .collect()
+    }
+
     fn rows_iter<'r>(
         &'r mut self,
     ) -> std::iter::FlatMap<
@@ -362,7 +368,6 @@ where
             .next()
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
     }
-
 
     fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
         self.query(sql).map(|res| res.affected_rows() as _)
@@ -440,19 +445,18 @@ where
         self.query(sql).await.map(|res| res.affected_rows() as _)
     }
 
-
     /// To conveniently get first row of the result, useful for queries like
-    /// 
+    ///
     /// - `select count(*) from ...`
     /// - `select last(*) from ...`
-    /// 
+    ///
     /// Type `T` could be `Vec<taos::query::common::Value>`, a tuple, or a struct with serde support.
-    /// 
+    ///
     /// ## Example
-    /// 
+    ///
     /// ```rust,ignore
     /// let count: u32 = taos.query_one("select count(*) from table1")?.unwrap();
-    /// 
+    ///
     /// let one: (i32, String, Timestamp) =
     ///    taos.query_one("select c1,c2,c3 from table1 limit 1")?.unwrap();
     /// ```
@@ -461,10 +465,12 @@ where
         sql: T,
     ) -> Result<Option<O>, Self::Error> {
         use futures::StreamExt;
-        self.query(sql).await?
+        self.query(sql)
+            .await?
             .deserialize_stream::<O>()
             .take(1)
-            .collect::<Vec<_>>().await
+            .collect::<Vec<_>>()
+            .await
             .into_iter()
             .next()
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))

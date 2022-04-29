@@ -64,14 +64,13 @@ pub type tmq_commit_cb = unsafe extern "C" fn(
 );
 
 // TMQ streaming/consuming API.
-#[c_cfg(tmq)]
+#[c_cfg(taos_tmq)]
 extern "C" {
     pub fn tmq_list_new() -> *mut tmq_list_t;
     pub fn tmq_list_append(arg1: *mut tmq_list_t, arg2: *const c_char) -> i32;
     pub fn tmq_list_destroy(list: *mut tmq_list_t);
 
     pub fn tmq_consumer_new(
-        conn: *mut c_void,
         conf: *mut tmq_conf_t,
         errstr: *mut c_char,
         errstr_len: i32,
@@ -99,7 +98,7 @@ extern "C" {
 }
 
 // TMQ message API
-#[c_cfg(tmq)]
+#[c_cfg(taos_tmq)]
 extern "C" {
 
     pub fn tmq_get_row(message: *mut tmq_message_t) -> TAOS_ROW;
@@ -114,7 +113,7 @@ extern "C" {
 }
 
 // TMQ Conf API
-#[c_cfg(tmq)]
+#[c_cfg(taos_tmq)]
 extern "C" {
     pub fn tmq_conf_new() -> *mut tmq_conf_t;
 
@@ -130,7 +129,7 @@ extern "C" {
 }
 
 // temporary used function for demo only
-#[c_cfg(tmq)]
+#[c_cfg(taos_tmq)]
 extern "C" {
     pub fn tmqShowMsg(tmq_message: *const tmq_message_t);
     pub fn tmqGetSkipLogNum(tmq_message: *const tmq_message_t) -> i32;

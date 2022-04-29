@@ -34,15 +34,16 @@ impl Taos {
         let query = format!("create topic if not exists {name} as {sql}");
 
         use crate::prelude::sync::*;
-        self.query(&query).map_err(|e| Error::from_string(format!("{e}")))?;
+        self.query(&query)
+            .map_err(|e| Error::from_string(format!("{e}")))?;
         Ok(())
     }
 
-    pub fn consumer(&self, conf: &TmqConf) -> Result<Consumer> {
-        let cons =
-            unsafe { tmq_consumer_new(self.0.as_ptr(), conf.as_ptr(), std::ptr::null_mut(), 0) };
-        Ok(Consumer::new(cons))
-    }
+    // pub fn consumer(&self, conf: &TmqConf) -> Result<Consumer> {
+    //     let cons =
+    //         unsafe { tmq_consumer_new(self.0.as_ptr(), conf.as_ptr(), std::ptr::null_mut(), 0) };
+    //     Ok(Consumer::new(cons))
+    // }
 }
 mod conf;
 pub use conf::*;
@@ -64,18 +65,12 @@ mod test {
     use std::thread;
     use std::time::Duration;
 
-    use crate::tmq::*;
-    use crate::TaosOptions;
     use crate::prelude::sync::*;
-
-    use crate::test;
+    use crate::tmq::*;
 
     use anyhow::Result;
 
     fn init_env(taos: &Taos) -> Result<()> {
-        taos.query("create database if not exists abc1 vgroups 1")?;
-        println!("ues abc1");
-        taos.query("use abc1")?;
         taos.query("create stable if not exists st1 (ts timestamp, k int) tags(a int)")?;
         taos.query("create table if not exists tu1 using st1 tags(1)")?;
         taos.query("create table if not exists tu2 using st1 tags(2)")?;
@@ -103,7 +98,7 @@ mod test {
         }
         conf.set_offset_commit_cb(tmq_commit_callback);
         println!("build consumer");
-        Ok(taos.consumer(&conf)?)
+        Ok(conf.consumer()?)
     }
 
     fn build_topic_list() -> Result<TmqList> {
@@ -113,13 +108,17 @@ mod test {
         Ok(topic)
     }
 
-    fn process_message(msg: &Message) {
+    fn process_message(msg: &mut ResultSet) {
+        use crate::prelude::sync::Fetchable;
         // let records: Vec<Vec<_>> = msg.rows_iter().map(|row| row.into_values()).collect();
         // println!("{:?}", records);
+        let rows = msg.to_rows_vec();
 
-        msg.show_raw()
+        for row in rows {
+            println!("{row:?}");
+        }
     }
-    fn sync_consume_loop(consumer: &Consumer, topics: &TmqList) -> Result<()> {
+    fn sync_consume_loop(database: &str, consumer: &Consumer, topics: &TmqList) -> Result<()> {
         println!("consume loop");
         const MIN_COMMIT_COUNT: usize = 1;
         // start subscription
@@ -128,9 +127,9 @@ mod test {
         let msg_count = atomic::AtomicUsize::new(0);
         let running2 = running.clone();
 
-        fn insert() -> Result<()> {
+        fn insert(database: &str) -> Result<()> {
             println!("connect taos in a spawned thread");
-            let taos = Taos::new((), "root", "taosdata", "abc1", 0)?;
+            let taos = Taos::new((), "root", "taosdata", database, 0)?;
             println!("start to insert 10 rows");
             for i in 0..10 {
                 use crate::prelude::sync::*;
@@ -143,7 +142,8 @@ mod test {
             Ok(())
         }
 
-        thread::spawn(move || match insert() {
+        let database = database.to_string();
+        thread::spawn(move || match insert(&database) {
             Ok(_) => {
                 running2.store(false, atomic::Ordering::SeqCst);
             }
@@ -157,29 +157,29 @@ mod test {
         while running.load(atomic::Ordering::SeqCst)
             || msg_count.load(atomic::Ordering::SeqCst) < 10
         {
-            if let Some(msg) = consumer.poll(500) {
+            println!("looping...");
+            if let Some(Ok(mut msg)) = consumer.poll(10) {
                 println!("msg: {}", msg_count.load(atomic::Ordering::SeqCst));
-                process_message(&msg);
+                process_message(&mut msg);
                 let count = msg_count.fetch_add(1, atomic::Ordering::SeqCst);
                 if count % MIN_COMMIT_COUNT == 0 {
                     consumer.commit(None, 0)?;
                 }
+                println!("msg summary: {:?}", msg.summary());
             }
         }
         println!("loop done");
         Ok(())
     }
 
-    #[test]
-    fn tmq_consume() -> Result<()> {
+    // #[crate::test(log_level = "trace", naming = "abc1", dropping = "none")]
+    #[crate::test]
+    fn tmq_consume(taos: &Taos, database: &str) -> Result<()> {
         let version = crate::client_info();
         println!("version: {}", version);
         if !version.starts_with("3") {
             return Ok(());
         }
-
-        TaosOptions::new().config_dir("/home/huolinhe/Projects/taosdata/taosx/TDengine/demo");
-        let taos = Taos::new((), "root", "taosdata", (), 0).unwrap();
         println!("connected");
         init_env(&taos)?;
         println!("env inited");
@@ -189,7 +189,7 @@ mod test {
         println!("consumer created");
         let topics = build_topic_list()?;
         println!("topics created");
-        sync_consume_loop(&consumer, &topics)?;
+        sync_consume_loop(database, &consumer, &topics)?;
         println!("finished");
         Ok(())
     }
