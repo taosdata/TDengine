@@ -111,7 +111,7 @@ int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, con
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
+int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool* allHave);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
 void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);

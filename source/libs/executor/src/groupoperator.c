@@ -77,7 +77,7 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
     SColumn*         pCol = taosArrayGet(pGroupCols, i);
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
     if (pBlock->pBlockAgg != NULL) {
-      pColAgg = &pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
+      pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
     }
 
     bool isNull = colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg);
@@ -118,7 +118,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
 
     if (pBlock->pBlockAgg != NULL) {
-      pColAgg = &pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
+      pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
     }
 
     SGroupKeys* pkey = taosArrayGet(pGroupColVals, i);
