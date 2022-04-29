@@ -71,12 +71,18 @@ typedef enum {
   TSDB_SMA_STAT_DROPPED = 2,   // sma dropped
 } ETsdbSmaStat;                // bit operation
 
-
 typedef enum {
   TSDB_SMA_TYPE_BLOCK = 0,       // Block-wise SMA
   TSDB_SMA_TYPE_TIME_RANGE = 1,  // Time-range-wise SMA
   TSDB_SMA_TYPE_ROLLUP = 2,      // Rollup SMA
 } ETsdbSmaType;
+
+typedef enum {
+  TSDB_RSMA_RETENTION_0 = 0,
+  TSDB_RSMA_RETENTION_1 = 1,
+  TSDB_RSMA_RETENTION_2 = 2,
+  TSDB_RSMA_RETENTION_MAX = 3
+} ERSmaRetention;
 
 extern char *qtypeStr[];
 

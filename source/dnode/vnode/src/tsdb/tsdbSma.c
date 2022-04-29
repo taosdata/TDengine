@@ -103,10 +103,9 @@ typedef struct {
   STSma    *pSma;            // cache schema
 } SSmaStatItem;
 
-#define RSMA_MAX_LEVEL           2
 #define RSMA_TASK_INFO_HASH_SLOT 8
 struct SRSmaInfo {
-  void *taskInfo[RSMA_MAX_LEVEL];  // qTaskInfo_t
+  void *taskInfo[TSDB_RSMA_RETENTION_2];  // qTaskInfo_t
 };
 
 struct SSmaStat {
@@ -128,7 +127,7 @@ static FORCE_INLINE void tsdbFreeTaskHandle(qTaskInfo_t *taskHandle) {
 }
 
 static FORCE_INLINE void *tsdbFreeRSmaInfo(SRSmaInfo *pInfo) {
-  for (int32_t i = 0; i < RSMA_MAX_LEVEL; ++i) {
+  for (int32_t i = 0; i < TSDB_RSMA_RETENTION_MAX; ++i) {
     if (pInfo->taskInfo[i]) {
       tsdbFreeTaskHandle(pInfo->taskInfo[i]);
     }
