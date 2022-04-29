@@ -339,8 +339,39 @@ class TDTestCase:
         tdSql.checkData(1, 1, 8.000000000)
         tdSql.checkData(1, 2, 6.900000000)
 
-    def floor_func_filter(self):
-        pass
+    def abs_func_filter(self):
+        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from ct4 where c1>5 ")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,8.000000000)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,7.900000000)
+        tdSql.checkData(0,4,3.000000000)
+
+        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query("select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from ct4 where c1>log(c1,2) limit 1 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,88888)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,8.000000000)
+        tdSql.checkData(0,4,7.900000000)
+        tdSql.checkData(0,5,3.000000000)
         
     def floor_Arithmetic(self):
         pass
@@ -417,6 +448,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step5: floor boundary query ============") 
 
         self.check_boundary_values()
+
+        tdLog.printNoPrefix("==========step6: floor filter query ============") 
+
+        self.abs_func_filter()
 
     def stop(self):
         tdSql.close()
