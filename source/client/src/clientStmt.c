@@ -649,6 +649,19 @@ int stmtGetParamNum(TAOS_STMT *stmt, int *nums) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 && STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
+    pStmt->bInfo.needParse = false;
+  }
+
+  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
+  
+  if (NULL == pStmt->exec.pRequest) {
+    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
+  }
+
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
@@ -658,8 +671,11 @@ int stmtGetParamNum(TAOS_STMT *stmt, int *nums) {
       STMT_ERR_RET(getQueryPlan(pStmt->exec.pRequest, pStmt->sql.pQuery, &pStmt->sql.nodeList));
       pStmt->sql.pQueryPlan = pStmt->exec.pRequest->body.pDag;
       pStmt->exec.pRequest->body.pDag = NULL;
+      STMT_ERR_RET(stmtBackupQueryFields(pStmt));
+    } else {
+      STMT_ERR_RET(stmtRestoreQueryFields(pStmt));
     }
-
+    
     *nums = taosArrayGetSize(pStmt->sql.pQueryPlan->pPlaceholderValues);
   } else {
     STMT_ERR_RET(stmtFetchColFields(stmt, nums, NULL));
