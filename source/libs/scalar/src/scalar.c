@@ -75,7 +75,15 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     
     if (valueNode->node.resType.type != type) {
       out.columnData->info.type = type;
-      out.columnData->info.bytes = tDataTypes[type].bytes;
+      if (IS_VAR_DATA_TYPE(type)) {
+        if (IS_VAR_DATA_TYPE(valueNode->node.resType.type)) {
+          out.columnData->info.bytes = valueNode->node.resType.bytes * TSDB_NCHAR_SIZE;
+        } else {
+          out.columnData->info.bytes = 64 * TSDB_NCHAR_SIZE;
+        }
+      } else {
+        out.columnData->info.bytes = tDataTypes[type].bytes;
+      }
 
       code = doConvertDataType(valueNode, &out);
       if (code != TSDB_CODE_SUCCESS) {

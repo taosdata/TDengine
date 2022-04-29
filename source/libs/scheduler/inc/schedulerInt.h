@@ -85,7 +85,9 @@ typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
   uint64_t        sId;    // schedulerId
   SSchedulerCfg   cfg;
+  SRWLatch        lock;
   int32_t         jobRef;
+  int32_t         jobNum;
   SSchedulerStat  stat;
   SHashObj       *hbConnections;
 } SSchedulerMgmt;
