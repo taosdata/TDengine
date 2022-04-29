@@ -2249,6 +2249,10 @@ int32_t schCancelJob(SSchJob *pJob) {
 }
 
 void schCloseJobRef(void) {
+  if (!atomic_load_8((int8_t*)&schMgmt.exit)) {
+    return;
+  }
+  
   SCH_LOCK(SCH_WRITE, &schMgmt.lock);
   if (atomic_load_32(&schMgmt.jobNum) <= 0 && schMgmt.jobRef >= 0) {
     taosCloseRef(schMgmt.jobRef);
@@ -2390,7 +2394,7 @@ _return:
 }
 
 int32_t schedulerInit(SSchedulerCfg *cfg) {
-  if (schMgmt.jobRef) {
+  if (schMgmt.jobRef >= 0) {
     qError("scheduler already initialized");
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -2754,6 +2758,8 @@ void schedulerFreeTaskList(SArray *taskList) {
 }
 
 void schedulerDestroy(void) {
+  atomic_store_8((int8_t*)&schMgmt.exit, 1);
+  
   if (schMgmt.jobRef >= 0) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
     int64_t  refId = 0;
