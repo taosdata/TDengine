@@ -80,6 +80,18 @@ TEST_F(ParserSelectTest, multiResFunc) {
   run("select last(t2.*), first(t1.c1, t2.*), last_row(t1.*, t2.*) from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
 }
 
+TEST_F(ParserSelectTest, timelineFunc) {
+  useDb("root", "test");
+
+  run("select last(*), first(*) from t1");
+
+  run("select last(*), first(*) from t1 group by c1");
+
+  run("select last(*), first(*) from t1 interval(10s)");
+
+  run("select diff(c1) from t1");
+}
+
 TEST_F(ParserSelectTest, clause) {
   useDb("root", "test");
 

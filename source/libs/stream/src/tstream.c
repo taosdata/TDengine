@@ -28,6 +28,7 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
   if (buf == NULL) {
     return -1;
   }
+
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
     ((SMsgHead*)buf)->vgId = 0;
     req.taskId = pTask->inplaceDispatcher.taskId;

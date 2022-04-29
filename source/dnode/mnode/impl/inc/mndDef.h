@@ -517,6 +517,7 @@ void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
   SRWLatch  lock;
+  int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
   int8_t    withTbName;
@@ -553,9 +554,8 @@ int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogO
 void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
-  const SMqSubscribeObj* pOldSub;
-  const SMqTopicObj*     pTopic;
-  const SMqRebSubscribe* pRebInfo;
+  int32_t           oldConsumerNum;
+  const SMqRebInfo* pRebInfo;
 } SMqRebInputObj;
 
 typedef struct {
