@@ -160,7 +160,7 @@ make
 ./subscribe -sql='select * from meters where current > 10;'
 ```
 
-示例程序启动后，打开另一个终端窗口，启动 TDengine 的 shell 向 **D1001** 插入一条电流为 12A 的数据：
+示例程序启动后，打开另一个终端窗口，启动 TDengine CLI 向 **D1001** 插入一条电流为 12A 的数据：
 
 ```sql
 $ taos
@@ -172,7 +172,7 @@ $ taos
 
 ## 示例程序
 
-下面以一个示例程序介绍其具体使用方法。示例程序的目的是订阅数据库中所有电流超过 10A 的记录。
+下面的示例程序展示是如何使用连接器订阅所有电流超过 10A 的记录。
 
 ### 准备数据
 
@@ -206,16 +206,16 @@ Query OK, 5 row(s) in set (0.004896s)
   <TabItem label="Java" value="java">
       <Java/>
   </TabItem>
-  {/* <TabItem label="Python" value="Python">
+  <TabItem label="Python" value="Python">
       <Python/>
   </TabItem>
-  <TabItem label="Go" value="go">
+  {/* <TabItem label="Go" value="go">
       <Go/>
-  </TabItem>
+  </TabItem> */}
   <TabItem label="Rust" value="rust">
       <Rust/>
   </TabItem>
-  <TabItem label="Node.js" value="nodejs">
+  {/* <TabItem label="Node.js" value="nodejs">
       <Node/>
   </TabItem>
   <TabItem label="C#" value="csharp">
@@ -238,7 +238,7 @@ ts: 1597464600000	current: 10.3	voltage: 220	phase: 1	location: Beijing.Haidian	
 ts: 1597465200000	current: 11.2	voltage: 220	phase: 1	location: Beijing.Haidian	groupid : 2
 ```
 
-接着，使用 taos 客户端向表中新增一条数据：
+接着，使用 TDengine CLI 向表中新增一条数据：
 
 ```
 # taos
