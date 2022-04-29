@@ -228,7 +228,7 @@ endif()
 
 # iconv
 if(${BUILD_WITH_ICONV})
-    add_subdirectory(iconv EXCLUDE_FROM_ALL)
+    add_library(iconv STATIC iconv/win_iconv.c)
 endif(${BUILD_WITH_ICONV})
 
 # wingetopt

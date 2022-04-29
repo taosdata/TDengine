@@ -619,14 +619,14 @@ static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
     colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
     const char *roles = syncStr(pObj->role);
     char       *b2 = taosMemoryCalloc(1, strlen(roles) + VARSTR_HEADER_SIZE);
-    STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b2, false);

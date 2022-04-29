@@ -17,6 +17,7 @@
 #define _TD_MND_SHOW_H_
 
 #include "mndInt.h"
+#include "systable.h"
 
 #ifdef __cplusplus
 extern "C" {

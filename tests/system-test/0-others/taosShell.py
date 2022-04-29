@@ -73,17 +73,19 @@ class TDTestCase:
     hostname = socket.gethostname()
     serverPort = '7080'
     rpcDebugFlagVal = '143'
-    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135'}
+    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     clientCfgDict["serverPort"]    = serverPort
     clientCfgDict["firstEp"]       = hostname + ':' + serverPort
     clientCfgDict["secondEp"]      = hostname + ':' + serverPort
     clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
+    clientCfgDict["fqdn"] = hostname
 
-    updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':''}
+    updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     updatecfgDict["clientCfg"]  = clientCfgDict
     updatecfgDict["serverPort"] = serverPort
     updatecfgDict["firstEp"]    = hostname + ':' + serverPort
     updatecfgDict["secondEp"]   = hostname + ':' + serverPort
+    updatecfgDict["fqdn"] = hostname
 
     print ("===================: ", updatecfgDict)
 
@@ -288,7 +290,7 @@ class TDTestCase:
         retCode = taos_command(buildPath, "f", keyDict['f'], 'performance_schema', keyDict['c'], '', '', '')
         print("============ ret code: ", retCode)
         if retCode != "TAOS_OK":
-            tdLog.exit("taos -s fail")
+            tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
         tdSql.query("show databases")        
