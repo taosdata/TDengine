@@ -56,7 +56,7 @@ TEST_F(ParserInitialATest, alterUser) {
 TEST_F(ParserInitialATest, bug001) {
   useDb("root", "test");
 
-  run("alter database db wal 0     # td-14436");
+  run("alter database db wal 0     # td-14436", TSDB_CODE_PAR_SYNTAX_ERROR);
 }
 
 }  // namespace ParserTest
