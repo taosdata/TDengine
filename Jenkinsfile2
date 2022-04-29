@@ -59,7 +59,6 @@ def pre_test(){
             sh '''
                 cd ${WKC}
                 git checkout 3.0
-                [ -d contrib/bdb ] && cd contrib/bdb && git clean -fxd && cd ../..
             '''
         } else {
             sh '''
@@ -176,7 +175,7 @@ pipeline {
                                 cd ${WKC}/tests/parallel_test
                                 time ./container_build.sh -w ${WKDIR} -t 8
                                 ./collect_cases.sh
-                                time ./run.sh -m /home/m.json -t /tmp/cases.task -b 3.0 -l ${WKDIR}/log
+                                time ./run.sh -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
                             '''
                         }
                     }
