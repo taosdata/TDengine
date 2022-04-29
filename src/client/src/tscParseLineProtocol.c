@@ -918,7 +918,7 @@ static void insertCallback(void *param, TAOS_RES *res, int32_t notUsedCode) {
     }
   }
 
-  sem_post(&batch->sem);
+  tsem_post(&batch->sem);
 }
 
 static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t numPoints, SArray* stableSchemas, SSmlLinesInfo* info) {
@@ -932,7 +932,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
     info->batches[i].index = i;
     info->batches[i].sql = NULL;
     info->batches[i].tryTimes = 0;
-    sem_init(&info->batches[i].sem, 0, 0);
+    tsem_init(&info->batches[i].sem, 0, 0);
   }
 
   info->numBatches = 0;
@@ -1005,7 +1005,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
   while (triedBatches > 0) {
     for (int i = 0; i < info->numBatches; ++i) {
       if (batchesExecuted[i]) {
-        sem_wait(&info->batches[i].sem);
+        tsem_wait(&info->batches[i].sem);
         info->affectedRows += info->batches[i].affectedRows;
       }
     }
@@ -1052,7 +1052,7 @@ cleanup:
   for (int i = 0; i < MAX_SML_SQL_INSERT_BATCHES; ++i) {
     free(info->batches[i].sql);
     info->batches[i].sql = NULL;
-    sem_destroy(&info->batches[i].sem);
+    tsem_destroy(&info->batches[i].sem);
   }
 
   pCTablePoints = taosHashIterate(cname2points, NULL);
