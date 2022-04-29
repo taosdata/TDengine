@@ -357,7 +357,8 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int16_t *out = (int16_t *)pOutputData->pData;
+  ASSERT(pOutputData->info.type == TSDB_DATA_TYPE_BIGINT);
+  int64_t *out = (int64_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
