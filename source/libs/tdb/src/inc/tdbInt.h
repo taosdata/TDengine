@@ -103,15 +103,25 @@ typedef struct SBtInfo {
   int   nData;
 } SBtInfo;
 
+typedef struct {
+  int       kLen;
+  const u8 *pKey;
+  int       vLen;
+  const u8 *pVal;
+  SPgno     pgno;
+  u8       *pBuf;
+} SCellDecoder;
+
 struct SBTC {
-  SBTree *pBt;
-  i8      iPage;
-  SPage  *pPage;
-  int     idx;
-  int     idxStack[BTREE_MAX_DEPTH + 1];
-  SPage  *pgStack[BTREE_MAX_DEPTH + 1];
-  TXN    *pTxn;
-  TXN     txn;
+  SBTree      *pBt;
+  i8           iPage;
+  SPage       *pPage;
+  int          idx;
+  int          idxStack[BTREE_MAX_DEPTH + 1];
+  SPage       *pgStack[BTREE_MAX_DEPTH + 1];
+  SCellDecoder coder;
+  TXN         *pTxn;
+  TXN          txn;
 };
 
 // SBTree
@@ -123,11 +133,14 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 
 // SBTC
 int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
+int tdbBtcClose(SBTC *pBtc);
 int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
 int tdbBtcMoveToFirst(SBTC *pBtc);
 int tdbBtcMoveToLast(SBTC *pBtc);
+int tdbBtcMoveToNext(SBTC *pBtc);
+int tdbBtcMoveToPrev(SBTC *pBtc);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbBtcClose(SBTC *pBtc);
+int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
 
 // tdbPager.c ====================================
 

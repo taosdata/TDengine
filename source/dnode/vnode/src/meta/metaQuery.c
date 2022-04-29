@@ -98,6 +98,8 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 
   tdbDbcOpen(pMeta->pUidIdx, &pTbCur->pDbc, NULL);
 
+  tdbDbcMoveToFirst(pTbCur->pDbc);
+
   return pTbCur;
 }
 
@@ -185,7 +187,9 @@ struct SMCtbCursor {
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
+  SCtbIdxKey   ctbIdxKey;
   int          ret;
+  int          c;
 
   pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
   if (pCtbCur == NULL) {
@@ -197,6 +201,14 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   if (ret < 0) {
     taosMemoryFree(pCtbCur);
     return NULL;
+  }
+
+  // move to the suid
+  ctbIdxKey.suid = uid;
+  ctbIdxKey.uid = INT64_MIN;
+  tdbDbcMoveTo(pCtbCur->pCur, &ctbIdxKey, sizeof(ctbIdxKey), &c);
+  if (c > 0) {
+    tdbDbcMoveToNext(pCtbCur->pCur);
   }
 
   return pCtbCur;
@@ -225,6 +237,9 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   }
 
   pCtbIdxKey = pCtbCur->pKey;
+  if (pCtbIdxKey->suid > pCtbCur->suid) {
+    return 0;
+  }
 
   return pCtbIdxKey->uid;
 }

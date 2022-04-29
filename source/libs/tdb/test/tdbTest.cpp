@@ -152,7 +152,7 @@ TEST(tdb_test, simple_test) {
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key%d", iData);
       sprintf(val, "value%d", iData);
-      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      ret = tdbDbPut(pDb, key, strlen(key), val, strlen(val), &txn);
       GTEST_ASSERT_EQ(ret, 0);
 
       // if pool is full, commit the transaction and start a new one
@@ -269,7 +269,7 @@ TEST(tdb_test, simple_test2) {
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key%d", iData);
       sprintf(val, "value%d", iData);
-      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      ret = tdbDbPut(pDb, key, strlen(key), val, strlen(val), &txn);
       GTEST_ASSERT_EQ(ret, 0);
     }
 

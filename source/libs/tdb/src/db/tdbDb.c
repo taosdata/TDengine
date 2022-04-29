@@ -75,7 +75,7 @@ int tdbDbDrop(TDB *pDb) {
   return 0;
 }
 
-int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
+int tdbDbPut(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
   return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
 }
 
@@ -99,14 +99,6 @@ int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn) {
 
   tdbBtcOpen(&pDbc->btc, pDb->pBt, pTxn);
 
-  // TODO: move to first now, we can move to any key-value
-  // and in any direction, design new APIs.
-  ret = tdbBtcMoveToFirst(&pDbc->btc);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
   *ppDbc = pDbc;
   return 0;
 }
@@ -117,10 +109,12 @@ int tdbDbcMoveToFirst(TDBC *pDbc) { return tdbBtcMoveToFirst(&pDbc->btc); }
 
 int tdbDbcMoveToLast(TDBC *pDbc) { return tdbBtcMoveToLast(&pDbc->btc); }
 
-int tdbDbcMoveToNext(TDBC *pDbc) { return 0; }
-int tdbDbcMoveToPrev(TDBC *pDbc) {
-  // TODO
-  return 0;
+int tdbDbcMoveToNext(TDBC *pDbc) { return tdbBtcMoveToNext(&pDbc->btc); }
+
+int tdbDbcMoveToPrev(TDBC *pDbc) { return tdbBtcMoveToPrev(&pDbc->btc); }
+
+int tdbDbcGet(TDBC *pDbc, const void **ppKey, int *pkLen, const void **ppVal, int *pvLen) {
+  return tdbBtcGet(&pDbc->btc, ppKey, pkLen, ppVal, pvLen);
 }
 
 int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
@@ -147,6 +141,7 @@ int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
 int tdbDbcClose(TDBC *pDbc) {
   if (pDbc) {
+    tdbBtcClose(&pDbc->btc);
     tdbOsFree(pDbc);
   }
 
