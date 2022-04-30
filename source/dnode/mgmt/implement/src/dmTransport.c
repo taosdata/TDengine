@@ -322,12 +322,34 @@ static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
 
 static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
   ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
+  ASSERT(pRsp->pCont == NULL);
+  if (pWrapper->procType != DND_PROC_CHILD) {
+    SRpcMsg resp = {0};
+    SMEpSet msg = {.epSet = *pNewEpSet};
+    int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
+    resp.pCont = rpcMallocCont(len);
+    resp.contLen = len;
+    tSerializeSMEpSet(resp.pCont, len, &msg);
+
+    resp.code = TSDB_CODE_RPC_REDIRECT;
+    resp.handle = pRsp->handle;
+    resp.refId = pRsp->refId;
+    rpcSendResponse(&resp);
+  } else {
+    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+  }
+}
+
+#if 0
+static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
   if (pWrapper->procType != DND_PROC_CHILD) {
     rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
   } else {
     taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
   }
 }
+#endif
 
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != DND_PROC_CHILD) {
