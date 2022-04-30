@@ -891,7 +891,6 @@ static void doDelayTask(void* param) {
 
   SCliMsg*     pMsg = arg->param1;
   SCliThrdObj* pThrd = arg->param2;
-
   cliHandleReq(pMsg, pThrd);
 
   taosMemoryFree(arg);
