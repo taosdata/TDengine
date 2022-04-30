@@ -1101,7 +1101,10 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         pInput->numOfRows = pBlock->info.rows;
         pInput->startRowIndex = 0;
 
-        pInput->pPTS = taosArrayGet(pBlock->pDataBlock, 0);  // todo set the correct timestamp column
+        // the last parameter is the timestamp column
+        if (fmIsTimelineFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
+          pInput->pPTS = pInput->pData[j];
+        }
         ASSERT(pInput->pData[j] != NULL);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
