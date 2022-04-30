@@ -12,15 +12,17 @@ IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     SET(CMAKE_CXX_STANDARD 11)
 
     INCLUDE_DIRECTORIES(/usr/include /usr/local/include)
-    IF (NOT LIB_GTEST_STATIC_DIR)
-        LINK_DIRECTORIES(/usr/lib /usr/local/lib)
-    ENDIF()
 
     INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-    ADD_EXECUTABLE(queryTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(queryTest taos cJson query gtest pthread)
+    IF (LIB_GTEST_STATIC_DIR)
+        get_filename_component(GTEST_LIB_PATH ${LIB_GTEST_STATIC_DIR} PATH)
+        MESSAGE(STATUS "${Green} found libtest.a in ${GTEST_LIB_PATH}, will build queryTest ${ColourReset}")
+        LINK_DIRECTORIES(/usr/lib /usr/local/lib ${GTEST_LIB_PATH})
+        ADD_EXECUTABLE(queryTest ${SOURCE_LIST})
+        TARGET_LINK_LIBRARIES(queryTest taos cJson query gtest pthread)
+    ENDIF()
 ENDIF()
 
 SET_SOURCE_FILES_PROPERTIES(./astTest.cpp PROPERTIES COMPILE_FLAGS -w)
