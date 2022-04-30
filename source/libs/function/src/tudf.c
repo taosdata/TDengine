@@ -19,6 +19,9 @@
 #include "tudfInt.h"
 #include "tarray.h"
 #include "tdatablock.h"
+#include "querynodes.h"
+#include "builtinsimpl.h"
+#include "functionMgt.h"
 
 //TODO: network error processing.
 //TODO: add unit test
@@ -147,6 +150,10 @@ typedef struct SUdfUvSession {
   SUdfdProxy *udfc;
   int64_t severHandle;
   uv_pipe_t *udfSvcPipe;
+
+  int8_t  outputType;
+  int32_t outputLen;
+  int32_t bufSize;
 } SUdfUvSession;
 
 typedef struct SClientUvTaskNode {
@@ -235,12 +242,14 @@ void* decodeUdfSetupRequest(const void* buf, SUdfSetupRequest *request) {
 
 int32_t encodeUdfInterBuf(void **buf, const SUdfInterBuf* state) {
   int32_t len = 0;
+  len += taosEncodeFixedI8(buf, state->numOfResult);
   len += taosEncodeFixedI32(buf, state->bufLen);
   len += taosEncodeBinary(buf, state->buf, state->bufLen);
   return len;
 }
 
 void* decodeUdfInterBuf(const void* buf, SUdfInterBuf* state) {
+  buf = taosDecodeFixedI8(buf, &state->numOfResult);
   buf = taosDecodeFixedI32(buf, &state->bufLen);
   buf = taosDecodeBinary(buf, (void**)&state->buf, state->bufLen);
   return (void*)buf;
@@ -342,11 +351,17 @@ void* decodeUdfRequest(const void* buf, SUdfRequest* request) {
 int32_t encodeUdfSetupResponse(void **buf, const SUdfSetupResponse *setupRsp) {
   int32_t len = 0;
   len += taosEncodeFixedI64(buf, setupRsp->udfHandle);
+  len += taosEncodeFixedI8(buf, setupRsp->outputType);
+  len += taosEncodeFixedI32(buf, setupRsp->outputLen);
+  len += taosEncodeFixedI32(buf, setupRsp->bufSize);
   return len;
 }
 
 void* decodeUdfSetupResponse(const void* buf, SUdfSetupResponse* setupRsp) {
   buf = taosDecodeFixedI64(buf, &setupRsp->udfHandle);
+  buf = taosDecodeFixedI8(buf, &setupRsp->outputType);
+  buf = taosDecodeFixedI32(buf, &setupRsp->outputLen);
+  buf = taosDecodeFixedI32(buf, &setupRsp->bufSize);
   return (void*)buf;
 }
 
@@ -1049,6 +1064,9 @@ int32_t setupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
 
   SUdfSetupResponse *rsp = &task->_setup.rsp;
   task->session->severHandle = rsp->udfHandle;
+  task->session->outputType = rsp->outputType;
+  task->session->outputLen = rsp->outputLen;
+  task->session->bufSize = rsp->bufSize;
   if (task->errCode != 0) {
     fnError("failed to setup udf. err: %d", task->errCode)
   } else {
@@ -1158,7 +1176,7 @@ int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInte
 // input: interBuf
 // output: resultData
 int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData) {
-  int8_t callType = TSDB_UDF_CALL_AGG_PROC;
+  int8_t callType = TSDB_UDF_CALL_AGG_FIN;
   int32_t err = callUdf(handle, callType, NULL, interBuf, NULL, NULL, resultData);
   return err;
 }
@@ -1196,4 +1214,124 @@ int32_t teardownUdf(UdfcFuncHandle handle) {
   taosMemoryFree(task);
 
   return err;
+}
+
+//memory layout |---SUdfAggRes----|-----final result-----|---inter result----|
+typedef struct SUdfAggRes {
+  SUdfUvSession *session;
+  int8_t finalResNum;
+  int8_t interResNum;
+  char* finalResBuf;
+  char* interResBuf;
+} SUdfAggRes;
+
+bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  if (fmIsScalarFunc(pFunc->funcId)) {
+    return false;
+  }
+  pEnv->calcMemSize = sizeof(SUdfAggRes) + pFunc->node.resType.bytes + pFunc->udfBufSize;
+  return true;
+}
+
+bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo) {
+  if (functionSetup(pCtx, pResultCellInfo) != true) {
+    return false;
+  }
+  UdfcFuncHandle handle;
+  if (setupUdf((char*)pCtx->udfName, &handle) != 0) {
+    return false;
+  }
+  SUdfUvSession *session = (SUdfUvSession *)handle;
+  SUdfAggRes *udfRes = (SUdfAggRes*)GET_ROWCELL_INTERBUF(pResultCellInfo);
+  int32_t envSize = sizeof(SUdfAggRes) + session->outputLen + session->bufSize;
+  memset(udfRes, 0, envSize);
+
+  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
+  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+
+  udfRes->session = (SUdfUvSession *)handle;
+  SUdfInterBuf buf = {0};
+  if (callUdfAggInit(handle, &buf) != 0) {
+    return false;
+  }
+  udfRes->interResNum = buf.numOfResult;
+  memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  return true;
+}
+
+int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t numOfCols = pInput->numOfInputCols;
+
+  SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SUdfUvSession *session = udfRes->session;
+  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
+  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
+
+
+  SSDataBlock tempBlock = {0};
+  tempBlock.info.numOfCols = numOfCols;
+  tempBlock.info.rows = numOfRows;
+  tempBlock.info.uid = pInput->uid;
+  bool hasVarCol = false;
+  tempBlock.pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData *col = pInput->pData[i];
+    if (IS_VAR_DATA_TYPE(col->info.type)) {
+      hasVarCol = true;
+    }
+    taosArrayPush(tempBlock.pDataBlock, col);
+  }
+  tempBlock.info.hasVarCol = hasVarCol;
+
+  SSDataBlock *inputBlock = blockDataExtractBlock(&tempBlock, start, numOfRows);
+
+  SUdfInterBuf state = {.buf = udfRes->interResBuf,
+                        .bufLen = session->bufSize,
+                        .numOfResult = udfRes->interResNum};
+  SUdfInterBuf newState = {0};
+
+  callUdfAggProcess(session, inputBlock, &state, &newState);
+
+  udfRes->interResNum = newState.numOfResult;
+  memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+
+  if (newState.numOfResult == 1 || state.numOfResult == 1) {
+    GET_RES_INFO(pCtx)->numOfRes = 1;
+  }
+
+  blockDataDestroy(inputBlock);
+
+  taosArrayDestroy(tempBlock.pDataBlock);
+
+  taosMemoryFree(newState.buf);
+  return 0;
+}
+
+int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
+  SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SUdfUvSession *session = udfRes->session;
+  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
+  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+
+
+  SUdfInterBuf resultBuf = {0};
+  SUdfInterBuf state = {.buf = udfRes->interResBuf,
+                        .bufLen = session->bufSize,
+                        .numOfResult = udfRes->interResNum};
+  callUdfAggFinalize(session, &state, &resultBuf);
+
+  udfRes->finalResBuf = resultBuf.buf;
+  udfRes->finalResNum = resultBuf.numOfResult;
+
+  teardownUdf(session);
+
+  if (resultBuf.numOfResult == 1) {
+    GET_RES_INFO(pCtx)->numOfRes = 1;
+  }
+  return functionFinalizeWithResultBuf(pCtx, pBlock, udfRes->finalResBuf);
 }

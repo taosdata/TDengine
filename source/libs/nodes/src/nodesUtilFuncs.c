@@ -389,21 +389,25 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_COLUMN_DEF:         // no pointer field
     case QUERY_NODE_DOWNSTREAM_SOURCE:  // no pointer field
       break;
-    case QUERY_NODE_DATABASE_OPTIONS:
-      nodesDestroyList(((SDatabaseOptions*)pNode)->pRetentions);
+    case QUERY_NODE_DATABASE_OPTIONS: {
+      SDatabaseOptions* pOptions = (SDatabaseOptions*)pNode;
+      nodesDestroyNode(pOptions->pDaysPerFile);
+      nodesDestroyList(pOptions->pKeep);
+      nodesDestroyList(pOptions->pRetentions);
       break;
+    }
     case QUERY_NODE_TABLE_OPTIONS: {
-      STableOptions* pStmt = (STableOptions*)pNode;
-      nodesDestroyList(pStmt->pSma);
-      nodesDestroyList(pStmt->pFuncs);
+      STableOptions* pOptions = (STableOptions*)pNode;
+      nodesDestroyList(pOptions->pSma);
+      nodesDestroyList(pOptions->pRollupFuncs);
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
-      SIndexOptions* pStmt = (SIndexOptions*)pNode;
-      nodesDestroyList(pStmt->pFuncs);
-      nodesDestroyNode(pStmt->pInterval);
-      nodesDestroyNode(pStmt->pOffset);
-      nodesDestroyNode(pStmt->pSliding);
+      SIndexOptions* pOptions = (SIndexOptions*)pNode;
+      nodesDestroyList(pOptions->pFuncs);
+      nodesDestroyNode(pOptions->pInterval);
+      nodesDestroyNode(pOptions->pOffset);
+      nodesDestroyNode(pOptions->pSliding);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
@@ -867,21 +871,18 @@ void nodesClearList(SNodeList* pList) {
 void* nodesGetValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
-      return (void*)&pNode->datum.b;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      return (void*)&pNode->datum.i;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
-      return (void*)&pNode->datum.u;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
-      return (void*)&pNode->datum.d;
+      return (void*)&pNode->typeData;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -891,6 +892,68 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
   }
 
   return NULL;
+}
+
+int32_t nodesSetValueNodeValue(SValueNode* pNode, void *value) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      pNode->datum.b = *(bool*)value;
+      *(bool*)&pNode->typeData = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pNode->datum.i = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pNode->datum.i = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pNode->datum.i = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pNode->datum.u = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pNode->datum.u = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pNode->datum.u = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pNode->datum.u = *(uint64_t*)value;
+      *(uint64_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pNode->datum.d = *(float*)value;
+      *(float*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pNode->datum.d = *(double*)value;
+      *(double*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      pNode->datum.p = (char*)value;
+      break;
+    default:
+      return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
@@ -1086,30 +1149,31 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectColumnsCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .pTableAlias = pTableAlias,
       .collectType = type,
-      .pCols = nodesMakeList(),
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
       .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
+  *pCols = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
     return cxt.errCode;
   }
-  if (0 == LIST_LENGTH(cxt.pCols)) {
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
     nodesDestroyList(cxt.pCols);
-    cxt.pCols = NULL;
   }
-  *pCols = cxt.pCols;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1130,7 +1194,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
 
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectFuncsCxt cxt = {
@@ -1148,6 +1212,46 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     *pFuncs = cxt.pFuncs;
   } else {
     nodesDestroyList(cxt.pFuncs);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SCollectSpecialNodesCxt {
+  int32_t    errCode;
+  ENodeType  type;
+  SNodeList* pNodes;
+} SCollectSpecialNodesCxt;
+
+static EDealRes collectSpecialNodes(SNode* pNode, void* pContext) {
+  SCollectSpecialNodesCxt* pCxt = (SCollectSpecialNodesCxt*)pContext;
+  if (pCxt->type == nodeType(pNode)) {
+    pCxt->errCode = nodesListStrictAppend(pCxt->pNodes, nodesCloneNode(pNode));
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes) {
+  if (NULL == pSelect || NULL == pNodes) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectSpecialNodesCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS, .type = type, .pNodes = (NULL == *pNodes ? nodesMakeList() : *pNodes)};
+  if (NULL == cxt.pNodes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pNodes = NULL;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectSpecialNodes, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pNodes);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pNodes) > 0) {
+    *pNodes = cxt.pNodes;
+  } else {
+    nodesDestroyList(cxt.pNodes);
   }
 
   return TSDB_CODE_SUCCESS;

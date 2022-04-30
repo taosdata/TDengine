@@ -148,3 +148,18 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
     *vgId = TD_VID(pVnode);
   }
 }
+
+// wrapper of tsdb read interface
+tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
+                               void *pMemRef) {
+#if 0
+  return tsdbQueryCacheLastT(pVnode->pTsdb, pCond, groupList, qId, pMemRef);
+#endif
+  return 0;
+}
+int32_t tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo) {
+#if 0
+  return tsdbGetTableGroupFromIdListT(pVnode->pTsdb, pTableIdList, pGroupInfo);
+#endif
+  return 0;
+}

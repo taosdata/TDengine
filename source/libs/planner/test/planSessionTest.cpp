@@ -13,19 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TDB_TXN_H_
-#define _TDB_TXN_H_
+#include "planTestUtil.h"
+#include "planner.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace std;
 
-int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
-               int flags);
-int tdbTxnClose(TXN *pTxn);
+class PlanSessionTest : public PlannerTestBase {};
 
-#ifdef __cplusplus
+TEST_F(PlanSessionTest, basic) {
+  useDb("root", "test");
+
+  run("select count(*) from t1 session(ts, 10s)");
 }
-#endif
-
-#endif /*_TDB_TXN_H_*/

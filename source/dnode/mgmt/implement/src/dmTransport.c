@@ -72,6 +72,7 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   NodeMsgFp msgFp = NULL;
   uint16_t  msgType = pRpc->msgType;
   bool      needRelease = false;
+  bool      isReq = msgType & 1U;
 
   if (pEpSet && pEpSet->numOfEps > 0 && msgType == TDMT_MND_STATUS_RSP) {
     dmSetMnodeEpSet(pWrapper->pDnode, pEpSet);
@@ -85,13 +86,13 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
   if (pWrapper->procType == DND_PROC_SINGLE) {
-    dTrace("msg:%p, is created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
+    dTrace("msg:%p, created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
     code = (*msgFp)(pWrapper, pMsg);
   } else if (pWrapper->procType == DND_PROC_PARENT) {
-    dTrace("msg:%p, is created and put into child queue, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType),
-           pRpc->handle, pMsg->user);
-    code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen, pRpc->handle,
-                               pRpc->refId, PROC_FUNC_REQ);
+    dTrace("msg:%p, created and put into child queue, type:%s handle:%p code:0x%04x user:%s contLen:%d", pMsg,
+           TMSG_INFO(msgType), pRpc->handle, pMsg->rpcMsg.code & 0XFFFF, pMsg->user, pRpc->contLen);
+    code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
+                               (isReq && (pMsg->rpcMsg.code == 0)) ? pRpc->handle : NULL, pRpc->refId, PROC_FUNC_REQ);
   } else {
     dTrace("msg:%p, should not processed in child process, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
     ASSERT(1);
@@ -100,12 +101,13 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
 _OVER:
   if (code == 0) {
     if (pWrapper->procType == DND_PROC_PARENT) {
-      dTrace("msg:%p, is freed in parent process", pMsg);
+      dTrace("msg:%p, freed in parent process", pMsg);
       taosFreeQitem(pMsg);
       rpcFreeCont(pRpc->pCont);
     }
   } else {
-    dError("msg:%p, type:%s failed to process since 0x%04x:%s", pMsg, TMSG_INFO(msgType), code & 0XFFFF, terrstr());
+    dError("msg:%p, type:%s handle:%p failed to process since 0x%04x:%s", pMsg, TMSG_INFO(msgType), pRpc->handle,
+           code & 0XFFFF, terrstr());
     if (msgType & 1U) {
       if (terrno != 0) code = terrno;
       if (code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_NODE_OFFLINE) {
@@ -254,8 +256,17 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
 
     epSet.eps[i].port = htons(epSet.eps[i].port);
   }
+  SRpcMsg resp;
+  SMEpSet msg = {.epSet = epSet};
+  int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
+  resp.pCont = rpcMallocCont(len);
+  resp.contLen = len;
+  tSerializeSMEpSet(resp.pCont, len, &msg);
 
-  rpcSendRedirectRsp(pReq->handle, &epSet);
+  resp.code = TSDB_CODE_RPC_REDIRECT;
+  resp.handle = pReq->handle;
+  resp.refId = pReq->refId;
+  rpcSendResponse(&resp);
 }
 
 static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {
@@ -350,29 +361,31 @@ static void dmConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t 
 
 static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
                                  EProcFuncType ftype) {
+  int32_t code = pMsg->code & 0xFFFF;
   pMsg->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, ftype:%d handle:%p code:0x%04x mtype:%d, app:%p", pMsg, ftype, pMsg->handle,
-         pMsg->code & 0xFFFF, pMsg->msgType, pMsg->ahandle);
 
-  switch (ftype) {
-    case PROC_FUNC_REGIST:
-      rpcRegisterBrokenLinkArg(pMsg);
-      break;
-    case PROC_FUNC_RELEASE:
-      taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
-      rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
-      rpcFreeCont(pCont);
-      break;
-    case PROC_FUNC_REQ:
-      dmSendRpcReq(pWrapper->pDnode, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
-      break;
-    case PROC_FUNC_RSP:
-      pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
-      dmSendRpcRsp(pWrapper->pDnode, pMsg);
-      break;
-    default:
-      break;
+  if (ftype == PROC_FUNC_REQ) {
+    dTrace("msg:%p, get from parent queue, send req:%s handle:%p code:0x%04x, app:%p", pMsg, TMSG_INFO(pMsg->msgType),
+           pMsg->handle, code, pMsg->ahandle);
+    dmSendRpcReq(pWrapper->pDnode, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
+  } else if (ftype == PROC_FUNC_RSP) {
+    dTrace("msg:%p, get from parent queue, rsp handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code, pMsg->ahandle);
+    pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
+    dmSendRpcRsp(pWrapper->pDnode, pMsg);
+  } else if (ftype == PROC_FUNC_REGIST) {
+    dTrace("msg:%p, get from parent queue, regist handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code,
+           pMsg->ahandle);
+    rpcRegisterBrokenLinkArg(pMsg);
+  } else if (ftype == PROC_FUNC_RELEASE) {
+    dTrace("msg:%p, get from parent queue, release handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code,
+           pMsg->ahandle);
+    taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
+    rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
+    rpcFreeCont(pCont);
+  } else {
+    dError("msg:%p, invalid ftype:%d while get from parent queue, handle:%p", pMsg, ftype, pMsg->handle);
   }
+
   taosMemoryFree(pMsg);
 }
 

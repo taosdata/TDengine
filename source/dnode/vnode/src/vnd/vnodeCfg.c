@@ -23,7 +23,6 @@ const SVnodeCfg vnodeCfgDefault = {
     .szCache = 256,
     .szBuf = 96 * 1024 * 1024,
     .isHeap = false,
-    .streamMode = 0,
     .isWeak = 0,
     .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
                 .update = 0,
@@ -56,7 +55,6 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
@@ -68,6 +66,28 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+#ifdef TSDB_VNODE_SMA_DEBUG
+  if (pCfg->tsdbCfg.retentions[0].freq > 0) {
+    int32_t nRetention = 1;
+    if (pCfg->tsdbCfg.retentions[1].freq > 0) {
+      ++nRetention;
+      if (pCfg->tsdbCfg.retentions[2].freq > 0) {
+        ++nRetention;
+      }
+    }
+    SJson *pNodeRetentions = tjsonCreateArray();
+    tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
+    for (int32_t i = 0; i < nRetention; ++i) {
+      SJson      *pNodeRetention = tjsonCreateObject();
+      const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
+      tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->freq);
+      tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->freqUnit);
+      tjsonAddIntegerToObject(pNodeRetention, "keep", pRetention->keep);
+      tjsonAddIntegerToObject(pNodeRetention, "keepUnit", pRetention->keepUnit);
+      tjsonAddItemToArray(pNodeRetentions, pNodeRetention);
+    }
+  }
+#endif
   if (tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;
@@ -104,7 +124,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "szCache", pCfg->szCache) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
@@ -116,6 +135,20 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+#ifdef TSDB_VNODE_SMA_DEBUG
+  SJson *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
+  int    nRetention = tjsonGetArraySize(pNodeRetentions);
+  ASSERT(nRetention <= TSDB_RSMA_RETENTION_MAX);
+
+  for (int32_t i = 0; i < nRetention; ++i) {
+    SJson *pNodeRetention = tjsonGetArrayItem(pNodeRetentions, i);
+    ASSERT(pNodeRetention != NULL);
+    tjsonGetNumberValue(pNodeRetention, "freq", (pCfg->tsdbCfg.retentions)[i].freq);
+    tjsonGetNumberValue(pNodeRetention, "freqUnit", (pCfg->tsdbCfg.retentions)[i].freqUnit);
+    tjsonGetNumberValue(pNodeRetention, "keep", (pCfg->tsdbCfg.retentions)[i].keep);
+    tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit);
+  }
+#endif
   if (tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;

@@ -88,6 +88,7 @@ typedef struct SValueNode {
     double   d;
     char*    p;
   } datum;
+  int64_t typeData;
   char unit;
 } SValueNode;
 
@@ -230,6 +231,7 @@ typedef struct SSelectStmt {
   uint8_t     precision;
   bool        isEmptyResult;
   bool        hasAggFuncs;
+  bool        isTimeOrderQuery;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -294,12 +296,13 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
 typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, COLLECT_COL_TYPE_ALL } ECollectColType;
-
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs);
+
+int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes);
 
 bool nodesIsExprNode(const SNode* pNode);
 
@@ -312,6 +315,7 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode* pNode);
+int32_t nodesSetValueNodeValue(SValueNode* pNode, void *value);
 char* nodesGetStrValueFromNode(SValueNode* pNode);
 char* getFillModeString(EFillMode mode);
 void  valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);

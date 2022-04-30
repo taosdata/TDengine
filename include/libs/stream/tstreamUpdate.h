@@ -12,37 +12,35 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _TSTREAMUPDATE_H_
+#define _TSTREAMUPDATE_H_
 
-#ifndef _TDB_ENV_H_
-#define _TDB_ENV_H_
+#include "taosdef.h"
+#include "tarray.h"
+#include "tmsg.h"
+#include "tscalablebf.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STEnv {
-  char    *rootDir;
-  char    *jfname;
-  int      jfd;
-  SPCache *pCache;
-  SPager  *pgrList;
-  int      nPager;
-  int      nPgrHash;
-  SPager **pgrHash;
-} TENV;
+typedef struct SUpdateInfo {
+  SArray *pTsBuckets;
+  uint64_t numBuckets;
+  SArray *pTsSBFs;
+  uint64_t numSBFs;
+  int64_t interval;
+  int64_t watermark;
+  TSKEY minTS;
+} SUpdateInfo;
 
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv);
-int tdbEnvClose(TENV *pEnv);
-int tdbBegin(TENV *pEnv, TXN *pTxn);
-int tdbCommit(TENV *pEnv, TXN *pTxn);
-int tdbRollback(TENV *pEnv, TXN *pTxn);
-
-void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
-void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
-SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
+SUpdateInfo *updateInfoInitP(SInterval* pInterval, int64_t watermark);
+SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark);
+bool isUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts);
+void updateInfoDestroy(SUpdateInfo *pInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TDB_ENV_H_*/
+#endif /* ifndef _TSTREAMUPDATE_H_ */

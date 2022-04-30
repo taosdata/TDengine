@@ -155,16 +155,22 @@ int32_t __catalogGetDBVgInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps,
   return 0;
 }
 
+int32_t __catalogGetDBCfg(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg) {
+  return 0;
+}
+
 void initMetaDataEnv() {
   mockCatalogService.reset(new MockCatalogService());
 
   static Stub stub;
   stub.set(catalogGetHandle, __catalogGetHandle);
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
+  stub.set(catalogGetSTableMeta, __catalogGetTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
   stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
   stub.set(catalogGetDBVgInfo, __catalogGetDBVgInfo);
+  stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;

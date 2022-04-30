@@ -30,14 +30,13 @@ typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;
   SMsgBuf        msgBuf;
   bool           notSupport;
-  bool           valid;
   SNode*         pRootNode;
   int16_t        placeholderNo;
+  int32_t        errCode;
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {
-  DB_OPTION_BLOCKS = 1,
-  DB_OPTION_CACHE,
+  DB_OPTION_BUFFER = 1,
   DB_OPTION_CACHELAST,
   DB_OPTION_COMP,
   DB_OPTION_DAYS,
@@ -45,31 +44,30 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_MAXROWS,
   DB_OPTION_MINROWS,
   DB_OPTION_KEEP,
+  DB_OPTION_PAGES,
+  DB_OPTION_PAGESIZE,
   DB_OPTION_PRECISION,
-  DB_OPTION_QUORUM,
   DB_OPTION_REPLICA,
-  DB_OPTION_TTL,
+  DB_OPTION_STRICT,
   DB_OPTION_WAL,
   DB_OPTION_VGROUPS,
   DB_OPTION_SINGLE_STABLE,
-  DB_OPTION_STREAM_MODE,
-  DB_OPTION_STRICT,
   DB_OPTION_RETENTIONS
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
-  TABLE_OPTION_KEEP = 1,
-  TABLE_OPTION_TTL,
-  TABLE_OPTION_COMMENT,
-  TABLE_OPTION_SMA,
+  TABLE_OPTION_COMMENT = 1,
+  TABLE_OPTION_DELAY,
   TABLE_OPTION_FILE_FACTOR,
-  TABLE_OPTION_DELAY
+  TABLE_OPTION_ROLLUP,
+  TABLE_OPTION_TTL,
+  TABLE_OPTION_SMA
 } ETableOptionType;
 
 typedef struct SAlterOption {
-  int32_t     type;
-  SValueNode* pVal;
-  SNodeList*  pList;
+  int32_t    type;
+  SToken     val;
+  SNodeList* pList;
 } SAlterOption;
 
 extern SToken nil_token;
@@ -121,25 +119,29 @@ SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
-SNode*    createDatabaseOptions(SAstCreateContext* pCxt);
-SNode*    setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
-SNode*    createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions);
-SNode*    createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
-SNode*    createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
-SNode*    createTableOptions(SAstCreateContext* pCxt);
-SNode*    setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
-SNode*    createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment);
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
-SNode*    createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
-                                SNodeList* pTags, SNode* pOptions);
+
+SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
+SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt);
+SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal);
+SNode* setAlterDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
+SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions);
+SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
+SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
+SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
+SNode* createAlterTableOptions(SAstCreateContext* pCxt);
+SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
+SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment);
+SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
+                             SNodeList* pTags, SNode* pOptions);
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
-                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags);
+                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions);
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);
 SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createDropTableStmt(SAstCreateContext* pCxt, SNodeList* pTables);
 SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
-SNode* createAlterTableOption(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions);
+SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions);
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
                                     const SToken* pColName, SDataType dataType);
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName);

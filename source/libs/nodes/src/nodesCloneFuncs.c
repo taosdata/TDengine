@@ -154,6 +154,7 @@ static SNode* logicConditionNodeCopy(const SLogicConditionNode* pSrc, SLogicCond
 }
 
 static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_ARRAY_FIELD(functionName);
   COPY_SCALAR_FIELD(funcId);

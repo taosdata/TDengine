@@ -3541,11 +3541,16 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
   }
 
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
+    SValueNode *valueNode = (SValueNode *)*pNode;
+    if (valueNode->placeholderNo >= 1) {
+      stat->scalarMode = true;
+      return DEAL_RES_CONTINUE;
+    }
+    
     if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
       return DEAL_RES_CONTINUE;
     }
     
-    SValueNode *valueNode = (SValueNode *)*pNode;
     if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR != valueNode->node.resType.type) {
       return DEAL_RES_CONTINUE;
     }
@@ -3587,7 +3592,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL) {
+    if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL || node->opType == OP_TYPE_NOT_EQUAL) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
@@ -3760,6 +3765,7 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
 
   info->scalarMode = stat.scalarMode;
+  fltDebug("scalar mode: %d", info->scalarMode);
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));

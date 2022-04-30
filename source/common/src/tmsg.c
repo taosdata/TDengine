@@ -490,21 +490,6 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   return 0;
 }
 
-int32_t tSerializeSVDropTbReq(void **buf, SVDropTbReq *pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->ver);
-  tlen += taosEncodeString(buf, pReq->name);
-  tlen += taosEncodeFixedU8(buf, pReq->type);
-  return tlen;
-}
-
-void *tDeserializeSVDropTbReq(void *buf, SVDropTbReq *pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->ver);
-  buf = taosDecodeString(buf, &pReq->name);
-  buf = taosDecodeFixedU8(buf, &pReq->type);
-  return buf;
-}
-
 int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -1676,27 +1661,24 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfVgroups) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->cacheBlockSize) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numOfStables) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->maxRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->commitTime) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->ttl) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->update) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->ignoreExist) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->streamMode) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->singleSTable) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pReq->pRetensions, i);
@@ -1719,27 +1701,24 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfVgroups) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->cacheBlockSize) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numOfStables) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->maxRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->commitTime) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->update) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->ignoreExist) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->streamMode) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->singleSTable) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfRetensions) < 0) return -1;
   pReq->pRetensions = taosArrayInit(pReq->numOfRetensions, sizeof(SRetention));
   if (pReq->pRetensions == NULL) {
@@ -1776,7 +1755,10 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
@@ -1798,7 +1780,10 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
@@ -2153,24 +2138,23 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->numOfVgroups) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->cacheBlockSize) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->numOfStables) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->buffer) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->pageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->pages) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->daysToKeep1) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->daysToKeep2) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->minRows) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->maxRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->commitTime) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->fsyncPeriod) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->replications) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pRsp->update) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->cacheLastRow) < 0) return -1;
-  if (tEncodeI8(&encoder, pRsp->streamMode) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pRsp->pRetensions, i);
@@ -2192,24 +2176,23 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfVgroups) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->cacheBlockSize) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->numOfStables) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->buffer) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->pageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->pages) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->daysToKeep1) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->daysToKeep2) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->minRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->maxRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->commitTime) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->fsyncPeriod) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->replications) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->update) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->cacheLastRow) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->streamMode) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfRetensions) < 0) return -1;
   pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));
   if (pRsp->pRetensions == NULL) {
@@ -2368,7 +2351,6 @@ static int32_t tEncodeSTableMetaRsp(SCoder *pEncoder, STableMetaRsp *pRsp) {
   if (tEncodeI32(pEncoder, pRsp->numOfColumns) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->precision) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->tableType) < 0) return -1;
-  if (tEncodeI8(pEncoder, pRsp->update) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->sversion) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->tversion) < 0) return -1;
   if (tEncodeU64(pEncoder, pRsp->suid) < 0) return -1;
@@ -2391,7 +2373,6 @@ static int32_t tDecodeSTableMetaRsp(SCoder *pDecoder, STableMetaRsp *pRsp) {
   if (tDecodeI32(pDecoder, &pRsp->numOfColumns) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->precision) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->tableType) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pRsp->update) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->sversion) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->tversion) < 0) return -1;
   if (tDecodeU64(pDecoder, &pRsp->suid) < 0) return -1;
@@ -2811,15 +2792,16 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->vgVersion) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->cacheBlockSize) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numOfStables) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->maxRows) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->commitTime) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->hashBegin) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->hashEnd) < 0) return -1;
@@ -2828,11 +2810,9 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->update) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replica) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->selfIndex) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->streamMode) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
@@ -2862,15 +2842,16 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->vgVersion) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->cacheBlockSize) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numOfStables) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->maxRows) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->commitTime) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->hashBegin) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->hashEnd) < 0) return -1;
@@ -2879,11 +2860,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->update) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replica) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->selfIndex) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->streamMode) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
@@ -2983,10 +2962,14 @@ int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->vgVersion) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
@@ -3010,10 +2993,14 @@ int32_t tDeserializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pR
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->vgVersion) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
@@ -3569,10 +3556,12 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->outputSTbName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->targetStbFullName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->watermark) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
 
@@ -3592,7 +3581,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->outputSTbName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->targetStbFullName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
@@ -3621,6 +3610,43 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->ast);
 }
 
+int32_t tEncodeSRSmaParam(SCoder *pCoder, const SRSmaParam *pRSmaParam) {
+  if (tEncodeFloat(pCoder, pRSmaParam->xFilesFactor) < 0) return -1;
+  if (tEncodeI32v(pCoder, pRSmaParam->delay) < 0) return -1;
+  if (tEncodeI32v(pCoder, pRSmaParam->qmsg1Len) < 0) return -1;
+  if (tEncodeI32v(pCoder, pRSmaParam->qmsg2Len) < 0) return -1;
+  if (pRSmaParam->qmsg1Len > 0) {
+    if (tEncodeBinary(pCoder, pRSmaParam->qmsg1, (uint64_t)pRSmaParam->qmsg1Len) < 0)  // qmsg1Len contains len of '\0'
+      return -1;
+  }
+  if (pRSmaParam->qmsg2Len > 0) {
+    if (tEncodeBinary(pCoder, pRSmaParam->qmsg2, (uint64_t)pRSmaParam->qmsg2Len) < 0)  // qmsg2Len contains len of '\0'
+      return -1;
+  }
+
+  return 0;
+}
+
+int32_t tDecodeSRSmaParam(SCoder *pCoder, SRSmaParam *pRSmaParam) {
+  if (tDecodeFloat(pCoder, &pRSmaParam->xFilesFactor) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pRSmaParam->delay) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg1Len) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg2Len) < 0) return -1;
+  if (pRSmaParam->qmsg1Len > 0) {
+    uint64_t len;
+    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg1, &len) < 0) return -1;  // qmsg1Len contains len of '\0'
+  } else {
+    pRSmaParam->qmsg1 = NULL;
+  }
+  if (pRSmaParam->qmsg2Len > 0) {
+    uint64_t len;
+    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg2, &len) < 0) return -1;  // qmsg2Len contains len of '\0'
+  } else {
+    pRSmaParam->qmsg2 = NULL;
+  }
+  return 0;
+}
+
 int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
@@ -3629,9 +3655,9 @@ int tEncodeSVCreateStbReq(SCoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeI8(pCoder, pReq->rollup) < 0) return -1;
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
-  // if (pReq->rollup) {
-  //   if (tEncodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
-  // }
+  if (pReq->rollup) {
+    if (tEncodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
+  }
 
   tEndEncode(pCoder);
   return 0;
@@ -3645,9 +3671,9 @@ int tDecodeSVCreateStbReq(SCoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
-  // if (pReq->rollup) {
-  //   if (tDecodeSRSmaParam(pCoder, pReq->pRSmaParam) < 0) return -1;
-  // }
+  if (pReq->rollup) {
+    if (tDecodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
+  }
 
   tEndDecode(pCoder);
   return 0;
@@ -3766,6 +3792,122 @@ int tDecodeSVCreateTbRsp(SCoder *pCoder, SVCreateTbRsp *pRsp) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32(pCoder, &pRsp->code) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+// TDMT_VND_DROP_TABLE =================
+static int32_t tEncodeSVDropTbReq(SCoder *pCoder, const SVDropTbReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int32_t tDecodeSVDropTbReq(SCoder *pCoder, SVDropTbReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+static int32_t tEncodeSVDropTbRsp(SCoder *pCoder, const SVDropTbRsp *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int32_t tDecodeSVDropTbRsp(SCoder *pCoder, SVDropTbRsp *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropTbBatchReq(SCoder *pCoder, const SVDropTbBatchReq *pReq) {
+  int32_t      nReqs = taosArrayGetSize(pReq->pArray);
+  SVDropTbReq *pDropTbReq;
+
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32v(pCoder, nReqs) < 0) return -1;
+  for (int iReq = 0; iReq < nReqs; iReq++) {
+    pDropTbReq = (SVDropTbReq *)taosArrayGet(pReq->pArray, iReq);
+    if (tEncodeSVDropTbReq(pCoder, pDropTbReq) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropTbBatchReq(SCoder *pCoder, SVDropTbBatchReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32v(pCoder, &pReq->nReqs) < 0) return -1;
+  pReq->pReqs = (SVDropTbReq *)tCoderMalloc(pCoder, sizeof(SVDropTbReq) * pReq->nReqs);
+  if (pReq->pReqs == NULL) return -1;
+  for (int iReq = 0; iReq < pReq->nReqs; iReq++) {
+    if (tDecodeSVDropTbReq(pCoder, pReq->pReqs + iReq) < 0) return -1;
+  }
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropTbBatchRsp(SCoder *pCoder, const SVDropTbBatchRsp *pRsp) {
+  int32_t nRsps = taosArrayGetSize(pRsp->pArray);
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32v(pCoder, nRsps) < 0) return -1;
+  for (int iRsp = 0; iRsp < nRsps; iRsp++) {
+    if (tEncodeSVDropTbRsp(pCoder, (SVDropTbRsp *)taosArrayGet(pRsp->pArray, iRsp)) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropTbBatchRsp(SCoder *pCoder, SVDropTbBatchRsp *pRsp) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32v(pCoder, &pRsp->nRsps) < 0) return -1;
+  pRsp->pRsps = (SVDropTbRsp *)tCoderMalloc(pCoder, sizeof(SVDropTbRsp) * pRsp->nRsps);
+  if (pRsp->pRsps == NULL) return -1;
+  for (int iRsp = 0; iRsp < pRsp->nRsps; iRsp++) {
+    if (tDecodeSVDropTbRsp(pCoder, pRsp->pRsps + iRsp) < 0) return -1;
+  }
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropStbReq(SCoder *pCoder, const SVDropStbReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropStbReq(SCoder *pCoder, SVDropStbReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
 
   tEndDecode(pCoder);
   return 0;

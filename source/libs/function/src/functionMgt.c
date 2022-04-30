@@ -21,6 +21,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "tudf.h"
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
@@ -120,6 +121,17 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (!fmIsUserDefinedFunc(funcId)) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->getEnv = udfAggGetEnv;
+  pFpSet->init = udfAggInit;
+  pFpSet->process = udfAggProcess;
+  pFpSet->finalize = udfAggFinalize;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
@@ -132,6 +144,8 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
 bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC); }
 
 bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
+
+bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
 

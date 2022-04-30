@@ -374,18 +374,17 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
 
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
-
     SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
 
     bool leftNull  = false;
     if (pLeftColInfoData->hasNull) {
-      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg);
+      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg[pOrder->slotId]);
     }
 
     SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
     bool rightNull = false;
     if (pRightColInfoData->hasNull) {
-      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg);
+      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg[pOrder->slotId]);
     }
 
     if (leftNull && rightNull) {

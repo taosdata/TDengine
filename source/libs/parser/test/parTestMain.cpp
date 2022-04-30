@@ -13,23 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
-#include <getopt.h>
 #include <gtest/gtest.h>
 
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
+
 #include "functionMgt.h"
 #include "mockCatalog.h"
 #include "os.h"
+#include "parTestUtil.h"
 #include "parToken.h"
-#include "parserTestUtil.h"
 
-bool g_isDump = false;
+namespace ParserTest {
 
 class ParserEnv : public testing::Environment {
  public:
@@ -63,9 +64,11 @@ static void parseArg(int argc, char* argv[]) {
   }
 }
 
+}  // namespace ParserTest
+
 int main(int argc, char* argv[]) {
-  testing::AddGlobalTestEnvironment(new ParserEnv());
+  testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
   testing::InitGoogleTest(&argc, argv);
-  parseArg(argc, argv);
+  ParserTest::parseArg(argc, argv);
   return RUN_ALL_TESTS();
 }
