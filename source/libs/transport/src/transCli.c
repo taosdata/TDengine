@@ -936,8 +936,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
         pCtx->epSet = emsg.epSet;
       }
-      addConnToPool(pThrd, pConn);
-      tTrace("use remote epset, current in use: %d, retry count%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+      addConnToPool(pThrd->pool, pConn);
+      tTrace("use remote epset, current in use: %d, retry count:%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
              TRANS_RETRY_COUNT_LIMIT);
 
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));

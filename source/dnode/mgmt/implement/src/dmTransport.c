@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
-#define INTERNAL_USER   "_dnd"
-#define INTERNAL_CKEY   "_key"
+#define INTERNAL_USER "_dnd"
+#define INTERNAL_CKEY "_key"
 #define INTERNAL_SECRET "_pwd"
 
 static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
@@ -130,10 +130,10 @@ _OVER:
 }
 
 static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SDnodeTrans * pTrans = &pDnode->trans;
+  SDnodeTrans  *pTrans = &pDnode->trans;
   tmsg_t        msgType = pMsg->msgType;
   bool          isReq = msgType & 1u;
-  SMsgHandle *  pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
+  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
   SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
 
   if (msgType == TDMT_DND_SERVER_STATUS) {
@@ -320,6 +320,37 @@ static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   }
 }
 
+static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
+  ASSERT(pRsp->pCont == NULL);
+  if (pWrapper->procType != DND_PROC_CHILD) {
+    SRpcMsg resp = {0};
+    SMEpSet msg = {.epSet = *pNewEpSet};
+    int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
+    resp.pCont = rpcMallocCont(len);
+    resp.contLen = len;
+    tSerializeSMEpSet(resp.pCont, len, &msg);
+
+    resp.code = TSDB_CODE_RPC_REDIRECT;
+    resp.handle = pRsp->handle;
+    resp.refId = pRsp->refId;
+    rpcSendResponse(&resp);
+  } else {
+    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+  }
+}
+
+#if 0
+static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
+  if (pWrapper->procType != DND_PROC_CHILD) {
+    rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
+  } else {
+    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+  }
+}
+#endif
+
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != DND_PROC_CHILD) {
     rpcRegisterBrokenLinkArg(pMsg);
@@ -406,6 +437,14 @@ SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper) {
   return cfg;
 }
 
+bool rpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
@@ -420,6 +459,7 @@ static int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.ckey = INTERNAL_CKEY;
   rpcInit.spi = 1;
   rpcInit.parent = pDnode;
+  rpcInit.rfp = rpcRfp;
 
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
@@ -477,7 +517,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   SAuthReq authReq = {0};
   tstrncpy(authReq.user, user, TSDB_USER_LEN);
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void *  pReq = rpcMallocCont(contLen);
+  void   *pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
@@ -551,6 +591,7 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = {
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
+      .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
