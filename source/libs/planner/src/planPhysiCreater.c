@@ -17,8 +17,8 @@
 
 #include "catalog.h"
 #include "functionMgt.h"
-#include "tglobal.h"
 #include "systable.h"
+#include "tglobal.h"
 
 typedef struct SSlotIdInfo {
   int16_t slotId;
@@ -880,12 +880,6 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
 
-  pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
-  if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {
-    nodesDestroyNode(pInterval);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
   return createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode, pPhyNode);
 }
 
@@ -1035,6 +1029,43 @@ static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   return code;
 }
 
+static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SFillLogicNode* pFillNode,
+                                   SPhysiNode** pPhyNode) {
+  SFillPhysiNode* pFill = (SFillPhysiNode*)makePhysiNode(pCxt, getPrecision(pChildren), (SLogicNode*)pFillNode,
+                                                         QUERY_NODE_PHYSICAL_PLAN_FILL);
+  if (NULL == pFill) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->node.pTargets, &pFill->pTargets);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pFill->pTargets, pFill->node.pOutputDataBlockDesc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pFill->pWStartTs = nodesCloneNode(pFillNode->pWStartTs);
+    if (NULL == pFill->pWStartTs) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pValues) {
+    pFill->pValues = nodesCloneNode(pFillNode->pValues);
+    if (NULL == pFill->pValues) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pFill;
+  } else {
+    nodesDestroyNode(pFill);
+  }
+
+  return code;
+}
+
 static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, SSubplan* pSubplan,
                                  SNodeList* pChildren, SPhysiNode** pPhyNode) {
   switch (nodeType(pLogicNode)) {
@@ -1054,6 +1085,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createSortPhysiNode(pCxt, pChildren, (SSortLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return createPartitionPhysiNode(pCxt, pChildren, (SPartitionLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      return createFillPhysiNode(pCxt, pChildren, (SFillLogicNode*)pLogicNode, pPhyNode);
     default:
       break;
   }

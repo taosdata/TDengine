@@ -191,6 +191,7 @@ static SNode* nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
 static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
+  CLONE_NODE_FIELD(pWStartTs);
   return (SNode*)pDst;
 }
 
@@ -269,8 +270,15 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pFuncs);
-  CLONE_NODE_FIELD(pFill);
   CLONE_NODE_FIELD(pTspk);
+  return (SNode*)pDst;
+}
+
+static SNode* logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_FIELD(pWStartTs);
+  CLONE_NODE_FIELD(pValues);
   return (SNode*)pDst;
 }
 
@@ -370,6 +378,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      return logicFillCopy((const SFillLogicNode*)pNode, (SFillLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
