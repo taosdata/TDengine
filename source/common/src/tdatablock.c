@@ -361,6 +361,8 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
   assert(pSrc != NULL && pDest != NULL);
 
   int32_t numOfCols = pDest->info.numOfCols;
+  int32_t capacity = pDest->info.capacity;
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t mapIndex = i;
     if(pIndexMap) {
@@ -377,12 +379,14 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
     char*   tmp = taosMemoryRealloc(pCol2->pData, newSize);
     if (tmp != NULL) {
       pCol2->pData = tmp;
-      colDataMergeCol(pCol2, pDest->info.rows, &pDest->info.capacity, pCol1, pSrc->info.rows);
+      capacity = pDest->info.capacity;
+      colDataMergeCol(pCol2, pDest->info.rows, &capacity, pCol1, pSrc->info.rows);
     } else {
       return TSDB_CODE_VND_OUT_OF_MEMORY;
     }
   }
 
+  pDest->info.capacity = capacity;
   pDest->info.rows += pSrc->info.rows;
   return TSDB_CODE_SUCCESS;
 }
