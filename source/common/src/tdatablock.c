@@ -251,7 +251,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, in
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
     if (finalNumOfRows > *capacity) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows);
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows * pColumnInfoData->info.bytes);
       if (tmp == NULL) {
         return TSDB_CODE_VND_OUT_OF_MEMORY;
       }
@@ -372,18 +372,18 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, mapIndex);
 
-    uint32_t oldLen = colDataGetLength(pCol2, pDest->info.rows);
-    uint32_t newLen = colDataGetLength(pCol1, pSrc->info.rows);
+//    uint32_t oldLen = colDataGetLength(pCol2, pDest->info.rows);
+//    uint32_t newLen = colDataGetLength(pCol1, pSrc->info.rows);
 
-    int32_t newSize = oldLen + newLen;
-    char*   tmp = taosMemoryRealloc(pCol2->pData, newSize);
-    if (tmp != NULL) {
-      pCol2->pData = tmp;
+//    int32_t newSize = oldLen + newLen;
+//    char*   tmp = taosMemoryRealloc(pCol2->pData, newSize);
+//    if (tmp != NULL) {
+//      pCol2->pData = tmp;
       capacity = pDest->info.capacity;
       colDataMergeCol(pCol2, pDest->info.rows, &capacity, pCol1, pSrc->info.rows);
-    } else {
-      return TSDB_CODE_VND_OUT_OF_MEMORY;
-    }
+//    } else {
+//      return TSDB_CODE_VND_OUT_OF_MEMORY;
+//    }
   }
 
   pDest->info.capacity = capacity;
