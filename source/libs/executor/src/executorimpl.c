@@ -1199,7 +1199,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
       if (pResult->info.rows > 0 && !createNewColModel) {
-        colDataMergeCol(pColInfoData, pResult->info.rows, pfCtx->input.pData[0], pfCtx->input.numOfRows);
+        colDataMergeCol(pColInfoData, pResult->info.rows, &pResult->info.capacity, pfCtx->input.pData[0], pfCtx->input.numOfRows);
       } else {
         colDataAssign(pColInfoData, pfCtx->input.pData[0], pfCtx->input.numOfRows);
       }
@@ -1227,7 +1227,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-      colDataMergeCol(pResColData, startOffset, &idata, dest.numOfRows);
+      colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
       numOfRows = dest.numOfRows;
       taosArrayDestroy(pBlockList);
@@ -1268,7 +1268,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-        colDataMergeCol(pResColData, startOffset, &idata, dest.numOfRows);
+        colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
         numOfRows = dest.numOfRows;
         taosArrayDestroy(pBlockList);
@@ -7170,7 +7170,6 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
 
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator, bool* newgroup) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
-  //  SOptrBasicInfo* pInfo = &pJoinInfo->binfo;
 
   SSDataBlock* pRes = pJoinInfo->pRes;
   blockDataCleanup(pRes);

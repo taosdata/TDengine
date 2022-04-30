@@ -168,13 +168,6 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
 
   uint32_t total = numOfRow1 + numOfRow2;
 
-  if (BitmapLen(numOfRow1) < BitmapLen(total)) {
-    char*    tmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(total));
-    uint32_t extend = BitmapLen(total) - BitmapLen(numOfRow1);
-    memset(tmp + BitmapLen(numOfRow1), 0, extend);
-    pColumnInfoData->nullbitmap = tmp;
-  }
-
   uint32_t remindBits = BitPos(numOfRow1);
   uint32_t shiftBits = 8 - remindBits;
 
@@ -209,10 +202,9 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
   }
 }
 
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource,
-                        uint32_t numOfRow2) {
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, int32_t* capacity,
+                        const SColumnInfoData* pSource, uint32_t numOfRow2) {
   ASSERT(pColumnInfoData != NULL && pSource != NULL && pColumnInfoData->info.type == pSource->info.type);
-
   if (numOfRow2 == 0) {
     return numOfRow1;
   }
@@ -221,14 +213,19 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     pColumnInfoData->hasNull = pSource->hasNull;
   }
 
+  uint32_t finalNumOfRows = numOfRow1 + numOfRow2;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
-    char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
-    if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+    if (finalNumOfRows > *capacity) {
+      char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
+      if (p == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      *capacity = finalNumOfRows;
+      pColumnInfoData->varmeta.offset = (int32_t*)p;
     }
 
-    pColumnInfoData->varmeta.offset = (int32_t*)p;
     for (int32_t i = 0; i < numOfRow2; ++i) {
       if (pSource->varmeta.offset[i] == -1) {
         pColumnInfoData->varmeta.offset[i + numOfRow1] = -1;
@@ -253,15 +250,27 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
-    doBitmapMerge(pColumnInfoData, numOfRow1, pSource, numOfRow2);
+    if (finalNumOfRows > *capacity) {
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows);
+      if (tmp == NULL) {
+        return TSDB_CODE_VND_OUT_OF_MEMORY;
+      }
 
-    int32_t newSize = (numOfRow1 + numOfRow2) * pColumnInfoData->info.bytes;
-    char*   tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
-    if (tmp == NULL) {
-      return TSDB_CODE_VND_OUT_OF_MEMORY;
+      pColumnInfoData->pData = tmp;
+
+      if (BitmapLen(numOfRow1) < BitmapLen(finalNumOfRows)) {
+        char*    btmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(finalNumOfRows));
+        uint32_t extend = BitmapLen(finalNumOfRows) - BitmapLen(numOfRow1);
+        memset(btmp + BitmapLen(numOfRow1), 0, extend);
+
+        pColumnInfoData->nullbitmap = btmp;
+      }
+
+      *capacity = finalNumOfRows;
     }
 
-    pColumnInfoData->pData = tmp;
+    doBitmapMerge(pColumnInfoData, numOfRow1, pSource, numOfRow2);
+
     int32_t offset = pColumnInfoData->info.bytes * numOfRow1;
     memcpy(pColumnInfoData->pData + offset, pSource->pData, pSource->info.bytes * numOfRow2);
   }
@@ -357,6 +366,7 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
     if(pIndexMap) {
       mapIndex = *(int32_t*)taosArrayGet(pIndexMap, i);
     }
+
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, mapIndex);
 
@@ -367,7 +377,7 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
     char*   tmp = taosMemoryRealloc(pCol2->pData, newSize);
     if (tmp != NULL) {
       pCol2->pData = tmp;
-      colDataMergeCol(pCol2, pDest->info.rows, pCol1, pSrc->info.rows);
+      colDataMergeCol(pCol2, pDest->info.rows, &pDest->info.capacity, pCol1, pSrc->info.rows);
     } else {
       return TSDB_CODE_VND_OUT_OF_MEMORY;
     }
